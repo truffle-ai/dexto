@@ -9,3 +9,4 @@ export * from './fs-walk.js';
 export * from './redactor.js';
 export * from './env-file.js';
 export * from './api-key-store.js';
+export * from './debug.js';

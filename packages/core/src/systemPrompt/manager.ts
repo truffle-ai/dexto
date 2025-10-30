@@ -1,6 +1,7 @@
 import type { ValidatedSystemPromptConfig, ValidatedContributorConfig } from './schemas.js';
-import { StaticContributor, FileContributor } from './contributors.js';
+import { StaticContributor, FileContributor, MemoryContributor } from './contributors.js';
 import { getPromptGenerator } from './registry.js';
+import type { MemoryManager } from '../memory/index.js';
 
 import type { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { DynamicContributor } from './contributors.js';
@@ -8,13 +9,23 @@ import { logger } from '../logger/index.js';
 import { SystemPromptError } from './errors.js';
 
 /**
- * PromptManager orchestrates registration, loading, and composition
+ * SystemPromptManager orchestrates registration, loading, and composition
  * of both static and dynamic system-prompt contributors.
  */
-export class PromptManager {
+export class SystemPromptManager {
     private contributors: SystemPromptContributor[];
-    constructor(config: ValidatedSystemPromptConfig) {
-        logger.debug('[PromptManager] Initializing');
+    private configDir: string;
+    private memoryManager?: MemoryManager | undefined;
+
+    // TODO: move config dir logic somewhere else
+    constructor(
+        config: ValidatedSystemPromptConfig,
+        configDir: string = process.cwd(),
+        memoryManager?: MemoryManager | undefined
+    ) {
+        this.configDir = configDir;
+        this.memoryManager = memoryManager;
+        logger.debug(`[SystemPromptManager] Initializing with configDir: ${configDir}`);
 
         // Filter enabled contributors and create contributor instances
         const enabledContributors = config.contributors.filter((c) => c.enabled !== false);
@@ -39,12 +50,29 @@ export class PromptManager {
 
             case 'file': {
                 logger.debug(
-                    `[PromptManager] Creating FileContributor "${config.id}" with files: ${JSON.stringify(config.files)}`
+                    `[SystemPromptManager] Creating FileContributor "${config.id}" with files: ${JSON.stringify(config.files)}`
                 );
                 return new FileContributor(
                     config.id,
                     config.priority,
                     config.files,
+                    config.options
+                );
+            }
+
+            case 'memory': {
+                if (!this.memoryManager) {
+                    throw SystemPromptError.unknownContributorSource(
+                        'memory (MemoryManager not provided)'
+                    );
+                }
+                logger.debug(
+                    `[SystemPromptManager] Creating MemoryContributor "${config.id}" with options: ${JSON.stringify(config.options)}`
+                );
+                return new MemoryContributor(
+                    config.id,
+                    config.priority,
+                    this.memoryManager,
                     config.options
                 );
             }

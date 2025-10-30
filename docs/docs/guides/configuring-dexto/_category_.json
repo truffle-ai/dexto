@@ -1,9 +1,9 @@
 {
-    "label": "Dexto Configuration Guide",
-    "position": 3,
+    "label": "Agent Configuration Guide",
+    "position": 6,
     "link": {
       "type": "generated-index",
-      "title": "Configuring Dexto",
-      "description": "Configure Dexto using YML to suit your needs."
+      "title": "Configuring Agents in Dexto",
+      "description": "Configure agents in Dexto using YML to suit your needs."
     }
   } 

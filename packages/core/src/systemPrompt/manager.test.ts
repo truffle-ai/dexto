@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PromptManager } from './manager.js';
+import { SystemPromptManager } from './manager.js';
 import { SystemPromptConfigSchema } from './schemas.js';
 import type { DynamicContributorContext } from './types.js';
 import * as registry from './registry.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
-import * as path from 'path';
 
 // Mock the registry functions
 vi.mock('./registry.js', () => ({
@@ -16,7 +15,7 @@ vi.mock('./registry.js', () => ({
 
 const mockGetPromptGenerator = vi.mocked(registry.getPromptGenerator);
 
-describe('PromptManager', () => {
+describe('SystemPromptManager', () => {
     let mockContext: DynamicContributorContext;
 
     beforeEach(() => {
@@ -40,7 +39,7 @@ describe('PromptManager', () => {
     describe('Initialization', () => {
         it('should initialize with string config and create static contributor', () => {
             const config = SystemPromptConfigSchema.parse('You are a helpful assistant');
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
 
             const contributors = manager.getContributors();
             expect(contributors).toHaveLength(1);
@@ -50,7 +49,7 @@ describe('PromptManager', () => {
 
         it('should initialize with empty object config and apply defaults', () => {
             const config = SystemPromptConfigSchema.parse({});
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
 
             const contributors = manager.getContributors();
             expect(contributors).toHaveLength(1); // Only dateTime is enabled by default
@@ -79,7 +78,7 @@ describe('PromptManager', () => {
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const contributors = manager.getContributors();
 
             expect(contributors).toHaveLength(2);
@@ -107,7 +106,7 @@ describe('PromptManager', () => {
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const contributors = manager.getContributors();
 
             expect(contributors).toHaveLength(1);
@@ -123,7 +122,7 @@ describe('PromptManager', () => {
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const contributors = manager.getContributors();
 
             expect(contributors).toHaveLength(3);
@@ -146,7 +145,7 @@ describe('PromptManager', () => {
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             expect(result).toBe('Hello, I am Dexto!');
@@ -171,7 +170,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             expect(result).toBe(multilineContent);
@@ -194,7 +193,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             expect(mockGetPromptGenerator).toHaveBeenCalledWith('dateTime');
@@ -218,7 +217,7 @@ You can help with:
 
             const error = (() => {
                 try {
-                    new PromptManager(config);
+                    new SystemPromptManager(config);
                     return null;
                 } catch (e) {
                     return e;
@@ -247,7 +246,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             expect(result).toBe('Time: 2023-01-01\nResources: file1.md, file2.md');
@@ -264,10 +263,7 @@ You can help with:
                         id: 'docs',
                         type: 'file',
                         priority: 5,
-                        files: [
-                            path.join(process.cwd(), 'README.md'),
-                            path.join(process.cwd(), 'GUIDELINES.md'),
-                        ],
+                        files: ['README.md', 'GUIDELINES.md'],
                         options: {
                             includeFilenames: true,
                             separator: '\n\n---\n\n',
@@ -276,7 +272,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config, '/custom/config/dir');
             const contributors = manager.getContributors();
 
             expect(contributors).toHaveLength(1);
@@ -284,20 +280,22 @@ You can help with:
             expect(contributors[0]?.priority).toBe(5);
         });
 
-        it('should accept absolute paths without additional configuration', () => {
+        it('should use custom config directory', () => {
             const config = SystemPromptConfigSchema.parse({
                 contributors: [
                     {
                         id: 'docs',
                         type: 'file',
                         priority: 5,
-                        files: [path.join(process.cwd(), 'context.md')],
+                        files: ['context.md'],
                     },
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const customConfigDir = '/custom/project/path';
+            const manager = new SystemPromptManager(config, customConfigDir);
 
+            // The FileContributor should receive the custom config directory
             expect(manager.getContributors()).toHaveLength(1);
         });
     });
@@ -324,7 +322,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             expect(result).toBe('Static content\nDynamic content');
@@ -352,7 +350,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             // Should be ordered by priority: 0, 5, 20
@@ -370,7 +368,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             expect(result).toBe('First line\nSecond line\nThird line');
@@ -384,7 +382,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const result = await manager.build(mockContext);
 
             expect(result).toBe('\nHas content');
@@ -411,7 +409,7 @@ You can help with:
                 mcpManager: {} as any, // Mock MCPManager
             };
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             await manager.build(customContext);
 
             expect(mockGenerator1).toHaveBeenCalledWith(customContext);
@@ -428,7 +426,7 @@ You can help with:
                 contributors: [{ id: 'failing', type: 'dynamic', priority: 0, source: 'dateTime' }],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
 
             await expect(manager.build(mockContext)).rejects.toThrow('Generator failed');
         });
@@ -440,7 +438,7 @@ You can help with:
             const originalCwd = process.cwd;
             process.cwd = vi.fn().mockReturnValue('/mocked/cwd');
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             expect(manager.getContributors()).toHaveLength(1);
 
             process.cwd = originalCwd;
@@ -459,7 +457,7 @@ You can help with:
             });
 
             const config = SystemPromptConfigSchema.parse({});
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
 
             // Only dateTime should be enabled by default, resources is disabled
             const contributors = manager.getContributors();
@@ -488,7 +486,7 @@ You can help with:
                         id: 'context',
                         type: 'file',
                         priority: 5,
-                        files: [path.join(process.cwd(), 'context.md')],
+                        files: ['context.md'],
                         options: { includeFilenames: true },
                     },
                     {
@@ -500,7 +498,7 @@ You can help with:
                 ],
             });
 
-            const manager = new PromptManager(config);
+            const manager = new SystemPromptManager(config);
             const contributors = manager.getContributors();
 
             expect(contributors).toHaveLength(3);

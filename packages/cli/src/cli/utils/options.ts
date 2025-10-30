@@ -15,10 +15,10 @@ export function validateCliOptions(opts: any): void {
         agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
         strict: z.boolean().optional().default(false),
         verbose: z.boolean().optional().default(true),
-        mode: z.enum(['cli', 'web', 'server', 'discord', 'telegram', 'mcp'], {
+        mode: z.enum(['web', 'cli', 'server', 'discord', 'telegram', 'mcp'], {
             errorMap: () => ({
                 message:
-                    'Mode must be one of "cli", "web", "server", "discord", "telegram", or "mcp"',
+                    'Mode must be one of "web", "cli", "server", "discord", "telegram", or "mcp"',
             }),
         }),
         webPort: z.string().refine(
@@ -28,6 +28,11 @@ export function validateCliOptions(opts: any): void {
             },
             { message: 'Web port must be a number between 1 and 65535' }
         ),
+        autoApprove: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe('Automatically approve all tool executions when true'),
         provider: z.string().optional(),
         model: z.string().optional(),
         router: z.enum(['vercel', 'in-built']).optional(),
@@ -88,6 +93,7 @@ export function validateCliOptions(opts: any): void {
         model: opts.model,
         router: opts.router,
         interactive: opts.interactive,
+        autoApprove: opts.autoApprove,
     });
 }
 

@@ -7,7 +7,15 @@
       "@dexto/core": [
         "../core/src/index.ts"
       ],
-      "@core/*": ["../core/src/*"]
+      "@dexto/core/*": [
+        "../core/src/*"
+      ],
+      "@core": [
+        "../core/src/index.ts"
+      ],
+      "@core/*": [
+        "../core/src/*"
+      ]
     }
   },
   "include": [

@@ -1,7 +1,7 @@
 import { InMemoryAllowedToolsProvider } from './in-memory.js';
 import { StorageAllowedToolsProvider } from './storage.js';
 import type { IAllowedToolsProvider } from './types.js';
-import type { StorageBackends } from '@core/storage/index.js';
+import type { StorageManager } from '@core/storage/index.js';
 import { ToolError } from '../../errors.js';
 
 // TODO: Re-evaluate storage + toolConfirmation config together to avoid duplication
@@ -18,7 +18,7 @@ export type AllowedToolsConfig =
       }
     | {
           type: 'storage';
-          storage: StorageBackends;
+          storageManager: StorageManager;
       };
 
 /**
@@ -29,7 +29,7 @@ export function createAllowedToolsProvider(config: AllowedToolsConfig): IAllowed
         case 'memory':
             return new InMemoryAllowedToolsProvider();
         case 'storage':
-            return new StorageAllowedToolsProvider(config.storage);
+            return new StorageAllowedToolsProvider(config.storageManager);
         default: {
             // Exhaustive check; at runtime this guards malformed config
             const _exhaustive: never = config;

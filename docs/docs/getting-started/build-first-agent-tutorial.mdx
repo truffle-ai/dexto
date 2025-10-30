@@ -7,21 +7,26 @@ sidebar_position: 3
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Now that you have Dexto installed, let's build your first custom agent. This tutorial will guide you through creating an `agent.yml` file to define an agent with a unique personality and tools.
+Let's create your first custom agent in under 5 minutes. 
 
-### 1. Create Your Agent Configuration
-The heart of a Dexto agent is the `agent.yml` configuration file. This is where you declaratively define the agent's identity and capabilities.
+We'll build a **Market Research Assistant** that can analyze competitors, research trends, and generate actionable insights.
 
-Create a new directory for your project and add a basic configuration:
+<Tabs groupId="interface" defaultValue="webui" values={[
+  { label: 'CLI', value: 'cli' },
+  { label: 'WebUI', value: 'webui' },
+]}>
+  <TabItem value="cli">
+
+## Step 1: Create Your Agent
+
+Create a new directory and add a basic configuration:
 
 ```bash
-mkdir my-pirate-agent
-cd my-pirate-agent
+mkdir market-research-assistant
+cd market-research-assistant
 ```
 
-Now create a file `agent.yml`, and choose your LLM model and provider.
-
-Choose the same one you picked when you setup dexto.
+Create a `market-research-assistant.yml` file with your preferred LLM provider:
 
 <Tabs groupId="llm-provider" defaultValue="openai" values={[
   { label: 'OpenAI', value: 'openai' },
@@ -30,17 +35,25 @@ Choose the same one you picked when you setup dexto.
   { label: 'Groq', value: 'groq' },
   { label: 'xAI', value: 'xai' },
   { label: 'Cohere', value: 'cohere' },
-]}> 
+]}>
   <TabItem value="openai">
 
 ```yaml
-# agent.yml
+# market-research-assistant.yml
 systemPrompt: |
-  You are a helpful AI assistant.
+  You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+  Your expertise includes:
+  - Analyzing competitor strategies and positioning
+  - Identifying market trends and opportunities
+  - Researching customer pain points and needs
+  - Generating actionable business insights
+
+  Always provide data-driven insights with specific recommendations.
 
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 ```
 
@@ -48,13 +61,21 @@ llm:
   <TabItem value="anthropic">
 
 ```yaml
-# agent.yml
+# market-research-assistant.yml
 systemPrompt: |
-  You are a helpful AI assistant.
+  You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+  Your expertise includes:
+  - Analyzing competitor strategies and positioning
+  - Identifying market trends and opportunities
+  - Researching customer pain points and needs
+  - Generating actionable business insights
+
+  Always provide data-driven insights with specific recommendations.
 
 llm:
   provider: anthropic
-  model: claude-4-sonnet-20250514
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 ```
 
@@ -62,9 +83,17 @@ llm:
   <TabItem value="google">
 
 ```yaml
-# agent.yml
+# market-research-assistant.yml
 systemPrompt: |
-  You are a helpful AI assistant.
+  You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+  Your expertise includes:
+  - Analyzing competitor strategies and positioning
+  - Identifying market trends and opportunities
+  - Researching customer pain points and needs
+  - Generating actionable business insights
+
+  Always provide data-driven insights with specific recommendations.
 
 llm:
   provider: google
@@ -76,9 +105,17 @@ llm:
   <TabItem value="groq">
 
 ```yaml
-# agent.yml
+# market-research-assistant.yml
 systemPrompt: |
-  You are a helpful AI assistant.
+  You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+  Your expertise includes:
+  - Analyzing competitor strategies and positioning
+  - Identifying market trends and opportunities
+  - Researching customer pain points and needs
+  - Generating actionable business insights
+
+  Always provide data-driven insights with specific recommendations.
 
 llm:
   provider: groq
@@ -90,9 +127,17 @@ llm:
   <TabItem value="xai">
 
 ```yaml
-# agent.yml
+# market-research-assistant.yml
 systemPrompt: |
-  You are a helpful AI assistant.
+  You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+  Your expertise includes:
+  - Analyzing competitor strategies and positioning
+  - Identifying market trends and opportunities
+  - Researching customer pain points and needs
+  - Generating actionable business insights
+
+  Always provide data-driven insights with specific recommendations.
 
 llm:
   provider: xai
@@ -104,9 +149,17 @@ llm:
   <TabItem value="cohere">
 
 ```yaml
-# agent.yml
+# market-research-assistant.yml
 systemPrompt: |
-  You are a helpful AI assistant.
+  You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+  Your expertise includes:
+  - Analyzing competitor strategies and positioning
+  - Identifying market trends and opportunities
+  - Researching customer pain points and needs
+  - Generating actionable business insights
+
+  Always provide data-driven insights with specific recommendations.
 
 llm:
   provider: cohere
@@ -117,71 +170,226 @@ llm:
   </TabItem>
 </Tabs>
 
-This configuration sets your system prompt and selects a default model for the chosen provider. You can change models any time.
+## Step 2: Add Research Tools
 
-### 2. Give Your Agent a Personality
-Let's customize your agent by giving it a distinct personality. Modify the `systemPrompt` to create a pirate-themed agent:
-
-```yaml
-# agent.yml
-systemPrompt: |
-  Ahoy! Ye be chattin' with a pirate AI. Speak like a pirate in all yer responses, savvy?
-```
-
-Now run your agent from inside the `my-pirate-agent` directory:
-
-```bash
-dexto --agent agent.yml "Who are you?"
-```
-
-Your agent should now respond like a pirate. You've just changed your agent's behavior through declarative configuration—no code required.
-
-Note: You can also use `dexto -a <agent>` instead of `dexto --agent <agent>` as a short-hand.
-
-### 3. Add Tool Integration
-A core feature of Dexto is connecting agents to external tools through the Model Context Protocol (MCP). Let's give your pirate agent web browsing capabilities.
-
-Add the `playwright` tool to your configuration [llm section remains unchanged]:
+Add Exa's AI-powered web search capabilities to your agent:
 
 ```yaml
-# agent.yml
+# market-research-assistant.yml
 systemPrompt: |
-  Ahoy! Ye be chattin' with a pirate AI. Speak like a pirate in all yer responses, savvy?
+  You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+  Your expertise includes:
+  - Analyzing competitor strategies and positioning
+  - Identifying market trends and opportunities
+  - Researching customer pain points and needs
+  - Generating actionable business insights
+
+  Always provide data-driven insights with specific recommendations.
+
+llm:
+  provider: openai
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY
 
 mcpServers:
-  playwright:
-    type: stdio
-    command: npx
-    args:
-      - "-y"
-      - "@playwright/mcp@latest"
+  # AI-powered web search for market research
+  exa:
+    type: http
+    url: https://mcp.exa.ai/mcp
 ```
 
-The runtime will automatically handle tool installation and integration when you first run the agent.
+## Step 3: Test Your Agent
 
-### 4. Test Your Enhanced Agent In the Web UI
-Start an interactive session with your enhanced agent, this time in the web UI:
+Run your agent with a practical market research task:
 
 ```bash
-dexto --agent agent.yml --mode web
+dexto --agent market-research-assistant.yml
 ```
 
-This will open the Dexto Web UI, which is a web interface for you to talk to your agents.
+This opens the web UI.
 
-Now ask it to use its new web browsing capability:
-> `summarize the main points of the article at https://en.wikipedia.org/wiki/Piracy`
+Then ask the agent this:
 
-Your agent will use the puppeteer tool to visit the webpage, read the content, and provide a summary (in pirate voice, of course).
+```
+Research the AI coding assistant market. Analyze the top 3 competitors, their pricing strategies, and identify opportunities for a new entrant
+```
 
+Your agent will:
+1. 🔍 Use AI-powered search to find relevant companies and data
+2. 📊 Analyze competitor strategies and market positioning
+3. 📝 Generate a comprehensive market analysis report
+4. 💡 Provide actionable recommendations
 
-## Congratulations!
-You've just built and customized your first AI agent using declarative configuration. You've learned how to:
+:::tip CLI Mode
+For terminal-based interaction, add `--mode cli`: `dexto --agent market-research-assistant.yml --mode cli`
+:::
 
-- ✅ Define an agent with `agent.yml` configuration
-- ✅ Customize agent behavior through system prompts  
-- ✅ Integrate external tools via MCP servers
-- ✅ Run and interact with your agent using the runtime
+## Try These Research Tasks
 
-This is the fundamental development workflow with Dexto: configure declaratively, let the runtime handle orchestration, and focus on your agent's purpose rather than implementation details.
+Once your agent is running, try these powerful research scenarios:
 
-Continue to the [Install Your First Agent Tutorial](./install-first-agent-tutorial) to explore in-built agents that come with Dexto!
+- *"Analyze how Notion, Obsidian, and Roam Research position themselves in the note-taking market."*
+- *"Research the sustainable packaging industry and identify customer pain points."*
+- *"Find emerging trends in remote work tools and 5 companies launched in 2024."*
+- *"Research successful SaaS product launches and their marketing strategies."*
+
+</TabItem>
+  <TabItem value="webui">
+
+## Step 1: Create a New Agent
+
+First, start the Dexto Web UI:
+
+```bash
+dexto
+```
+
+Click on the **Agent Selector** button (with the sparkle icon) at the top of the page, then click **New Agent**.
+
+![Create new agent](/img/screenshots/build-agent/webui-new-agent-button.png)
+
+This opens the agent creation modal where you can configure your agent. Fill in the basic information:
+
+1. **Agent ID**: `market-research-agent`
+2. **Agent Name**: `Market Research Agent`
+3. **Description**: `An agent to help with market research and analysis.`
+4. **Tags**: `coding, custom, specialized`
+
+## Step 2: Configure the LLM
+
+Choose your LLM provider and model. Select the same one you picked when you set up Dexto.
+
+![Configure LLM](/img/screenshots/build-agent/webui-llm-config.png)
+
+The available providers include:
+- OpenAI (e.g., gpt-5-mini)
+- Anthropic (e.g., claude-sonnet-4-5-20250929)
+- Google (e.g., gemini-2.5-pro)
+- Groq (e.g., llama-3.3-70b-versatile)
+- xAI (e.g., grok-4)
+- Cohere (e.g., command-a-03-2025)
+
+## Step 3: Set the System Prompt
+
+Scroll to the **System Prompt** section and configure your agent's personality and expertise:
+
+![Configure system prompt](/img/screenshots/build-agent/webui-system-prompt.png)
+
+Enter this system prompt:
+
+```
+You are a Market Research Assistant specializing in competitive analysis and market intelligence.
+
+Your expertise includes:
+- Analyzing competitor strategies and positioning
+- Identifying market trends and opportunities
+- Researching customer pain points and needs
+- Generating actionable business insights
+
+Always provide data-driven insights with specific recommendations.
+```
+
+Click **Create Agent** to create your agent with all the configurations.
+
+## Step 4: Switch to Your New Agent
+
+After creating the agent, you need to switch to it. Click the **Agent Selector** button at the top and select your newly created **Market Research Agent** from the dropdown.
+
+## Step 5: Connect Research Tools
+
+Now that you've switched to your agent, let's add tools to give it research capabilities. Click the **Connect MCPs** button in the Tools & Servers panel on the right side to open the MCP Server Registry.
+
+![Add MCP server](/img/screenshots/build-agent/webui-mcp-servers.png)
+
+Search for **Exa** and click to add it. This gives your agent AI-powered web search capabilities for market research. Once added, click the connect button to activate the server.
+
+## Step 6: Test Your Agent
+
+Now you're ready to test your agent! You can see it's active in the Agent Selector button at the top, and the Exa tool is connected in the Tools & Servers panel.
+
+![Market Research Agent active](/img/screenshots/build-agent/webui-agent-active.png)
+
+Test your agent with a practical market research task:
+
+```
+Research the AI coding assistant market. Analyze the top 3 competitors, their pricing strategies, and identify opportunities for a new entrant
+```
+
+Your agent will:
+1. 🔍 Use AI-powered search to find relevant companies and data
+2. 📊 Analyze competitor strategies and market positioning
+3. 📝 Generate a comprehensive market analysis report
+4. 💡 Provide actionable recommendations
+
+## Try These Research Tasks
+
+Once your agent is running, try these powerful research scenarios:
+
+- *"Analyze how Notion, Obsidian, and Roam Research position themselves in the note-taking market."*
+- *"Research the sustainable packaging industry and identify customer pain points."*
+- *"Find emerging trends in remote work tools and 5 companies launched in 2024."*
+- *"Research successful SaaS product launches and their marketing strategies."*
+
+## Step 7: Edit Your Agent (Optional)
+
+You can edit your agent's configuration at any time:
+
+1. Click the **Customize** button (pencil icon) in the sidebar
+2. This opens the Agent Editor where you can:
+   - Modify the system prompt
+   - Change LLM settings
+   - Add or remove MCP servers
+   - Configure storage options
+
+![Agent editor](/img/screenshots/build-agent/webui-agent-editor.png)
+
+Changes are saved automatically and take effect immediately.
+
+</TabItem>
+</Tabs>
+
+## That's It!
+
+You've built a powerful Market Research Assistant!
+
+<Tabs groupId="interface" defaultValue="webui" values={[
+  { label: 'CLI', value: 'cli' },
+  { label: 'WebUI', value: 'webui' },
+]}>
+  <TabItem value="cli">
+
+**What you accomplished:**
+
+1. ✅ Created a specialized `market-research-assistant.yml` configuration
+2. ✅ Added AI-powered web search tools
+3. ✅ Tested it with real market research tasks
+
+This demonstrates Dexto's core philosophy: **configure declaratively, let the runtime handle orchestration, and focus on your agent's purpose rather than implementation details.**
+
+Your agent can now:
+
+- 🔍 Conduct comprehensive web searches
+- 📊 Analyze competitor websites and strategies
+- 📝 Generate detailed research reports
+- 💡 Provide actionable business insights
+
+</TabItem>
+<TabItem value="webui">
+
+**What you accomplished:**
+
+1. ✅ Created a new agent using the Web UI
+2. ✅ Set up LLM provider and model
+3. ✅ Configured system prompts for agent personality
+4. ✅ Switched to your newly created agent
+5. ✅ Connected MCP servers for research tools
+6. ✅ Tested your agent with real market research tasks
+7. ✅ Learned how to edit agent configuration on the fly
+
+The Web UI provides a visual interface to build agents without writing YAML files manually, while still giving you full control over agent configuration.
+
+</TabItem>
+</Tabs>
+
+Continue to the [Install Your First Agent Tutorial](./install-first-agent-tutorial.mdx) to explore pre-built agents that come with Dexto!

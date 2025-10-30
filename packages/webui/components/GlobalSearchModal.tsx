@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -68,7 +69,7 @@ export default function GlobalSearchModal({
         offset: '0'
       });
 
-      const response = await fetch(`/api/search/messages?${params}`);
+      const response = await fetch(`${getApiUrl()}/api/search/messages?${params}`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Search failed: ${response.status} ${errorText}`);

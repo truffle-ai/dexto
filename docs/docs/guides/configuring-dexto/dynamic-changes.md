@@ -1,16 +1,24 @@
 ---
-sidebar_position: 10
+sidebar_position: 13
 sidebar_label: "Dynamic Changes"
 ---
 # Runtime / Dynamic Configuration Changes
 
-`AgentStateManager` allows safe, validated modifications to the running configuration.
+Configure and manage runtime changes to agent state through the AgentStateManager.
+
+:::tip Complete Reference
+For complete API documentation and event specifications, see **[agent.yml → Dynamic Changes](./agent-yml.md#dynamic-changes)**.
+:::
+
+## Overview
+
+`AgentStateManager` allows safe, validated modifications to the running configuration without restarting your agent.
 
 ## Example – per-session LLM override
 
 ```typescript
 stateManager.updateLLM(
-  { provider: 'openai', model: 'gpt-4o', maxInputTokens: 50_000 },
+  { provider: 'openai', model: 'gpt-5', maxInputTokens: 50_000 },
   'user-123'
 );
 ```
@@ -31,3 +39,9 @@ await stateManager.addMcpServer('git', {
 ```
 
 This triggers `dexto:mcpServerAdded`, after which `MCPManager` connects and refreshes its capability cache.
+
+## See Also
+
+- [agent.yml Reference → Dynamic Changes](./agent-yml.md#dynamic-changes) - Complete API documentation
+- [System Prompt Configuration](./systemPrompt.md) - Static configuration
+- [MCP Configuration](./mcpConfiguration.md) - MCP server setup

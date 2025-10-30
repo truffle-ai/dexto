@@ -9,15 +9,28 @@ import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../regist
 import { ImageData, FileData } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { AnthropicMessageFormatter } from '../formatters/anthropic.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import { shouldIncludeRawToolResult } from '../../utils/debug.js';
+import { InstrumentClass } from '../../telemetry/decorators.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * Anthropic implementation of LLMService
  * Not actively maintained, so might be buggy or outdated
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
+ *   - LLM call counters (by provider/model)
+ *   - Token usage histograms (input/output/total)
+ *   - Request latency histograms
+ *   - Error rate counters
+ *   See feature-plans/telemetry.md for details
  */
+@InstrumentClass({
+    prefix: 'llm.anthropic',
+    excludeMethods: ['getAllTools', 'formatToolsForClaude', 'getConfig', 'getContextManager'],
+})
 export class AnthropicService implements ILLMService {
     private anthropic: Anthropic;
     private config: ValidatedLLMConfig;
@@ -29,11 +42,12 @@ export class AnthropicService implements ILLMService {
     constructor(
         toolManager: ToolManager,
         anthropic: Anthropic,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager: import('../../resources/index.js').ResourceManager
     ) {
         this.config = config;
         this.anthropic = anthropic;
@@ -46,14 +60,18 @@ export class AnthropicService implements ILLMService {
         const tokenizer = createTokenizer(config.provider, config.model);
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
+        // Use the provided ResourceManager
+
         this.contextManager = new ContextManager<MessageParam>(
             config,
             formatter,
-            promptManager,
+            systemPromptManager,
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            resourceManager
+            // compressionStrategies uses default
         );
     }
 
@@ -194,6 +212,15 @@ export class AnthropicService implements ILLMService {
                         router: 'in-built',
                         ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
                     });
+
+                    // Add token usage to active span (if telemetry is enabled)
+                    const activeSpan = trace.getActiveSpan();
+                    if (activeSpan && totalTokens > 0) {
+                        activeSpan.setAttributes({
+                            'gen_ai.usage.total_tokens': totalTokens,
+                        });
+                    }
+
                     return fullResponse;
                 }
 
@@ -230,14 +257,20 @@ export class AnthropicService implements ILLMService {
                         );
 
                         // Add tool result to message manager
-                        await this.contextManager.addToolResult(toolUseId, toolName, result);
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolUseId,
+                            toolName,
+                            result,
+                            { success: true }
+                        );
 
                         // Notify tool result
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result,
                             callId: toolUseId,
                             success: true,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
                         });
                     } catch (error) {
                         // Handle tool execution error
@@ -245,15 +278,21 @@ export class AnthropicService implements ILLMService {
                         logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
 
                         // Add error as tool result
-                        await this.contextManager.addToolResult(toolUseId, toolName, {
-                            error: errorMessage,
-                        });
+                        const sanitized = await this.contextManager.addToolResult(
+                            toolUseId,
+                            toolName,
+                            { error: errorMessage },
+                            { success: false }
+                        );
 
                         this.sessionEventBus.emit('llmservice:toolResult', {
                             toolName,
-                            result: { error: errorMessage },
                             callId: toolUseId,
                             success: false,
+                            sanitized,
+                            ...(shouldIncludeRawToolResult()
+                                ? { rawResult: { error: errorMessage } }
+                                : {}),
                         });
                     }
                 }
@@ -276,6 +315,15 @@ export class AnthropicService implements ILLMService {
                 router: 'in-built',
                 ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
             });
+
+            // Add token usage to active span (if telemetry is enabled)
+            const activeSpan = trace.getActiveSpan();
+            if (activeSpan && totalTokens > 0) {
+                activeSpan.setAttributes({
+                    'gen_ai.usage.total_tokens': totalTokens,
+                });
+            }
+
             return (
                 fullResponse ||
                 'Reached maximum number of tool call iterations without a final response.'

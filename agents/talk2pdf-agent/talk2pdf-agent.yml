@@ -10,6 +10,9 @@ mcpServers:
     timeout: 30000
     connectionMode: strict 
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "📄 Hi! I'm your PDF Agent. Share a document and let's explore it together!"
+
 systemPrompt:
   contributors:
     - id: primary
@@ -36,7 +39,19 @@ systemPrompt:
       source: dateTime
       enabled: true
 
+# Storage configuration
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30
+
 llm:
   provider: openai
-  model: gpt-4.1-mini
-  apiKey: $OPENAI_API_KEY 
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY

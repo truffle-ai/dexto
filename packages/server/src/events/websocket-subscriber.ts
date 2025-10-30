@@ -96,15 +96,27 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:toolResult',
             (payload) => {
-                this.broadcast({
-                    event: 'toolResult',
-                    data: {
+                logger.debug(
+                    `[websocket-subscriber]: llmservice:toolResult: ${JSON.stringify({
                         toolName: payload.toolName,
-                        result: payload.result,
                         callId: payload.callId,
                         success: payload.success,
                         sessionId: payload.sessionId,
-                    },
+                    })}`
+                );
+                const data: Record<string, unknown> = {
+                    toolName: payload.toolName,
+                    callId: payload.callId,
+                    success: payload.success,
+                    sanitized: payload.sanitized,
+                    sessionId: payload.sessionId,
+                };
+                if (payload.rawResult !== undefined) {
+                    data.rawResult = payload.rawResult;
+                }
+                this.broadcast({
+                    event: 'toolResult',
+                    data,
                 });
             },
             { signal }
@@ -190,13 +202,85 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             { signal }
         );
 
-        // Forward pre-execution tool confirmation events
+        // Forward approval request events (including tool confirmations)
         eventBus.on(
-            'dexto:toolConfirmationRequest',
+            'dexto:approvalRequest',
             (payload) => {
                 this.broadcast({
-                    event: 'toolConfirmationRequest',
+                    event: 'approvalRequest',
                     data: payload,
+                });
+            },
+            { signal }
+        );
+
+        // Forward MCP notification events
+        eventBus.on(
+            'dexto:mcpResourceUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpResourceUpdated',
+                    data: {
+                        serverName: payload.serverName,
+                        resourceUri: payload.resourceUri,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpPromptsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpPromptsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        prompts: payload.prompts,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:mcpToolsListChanged',
+            (payload) => {
+                this.broadcast({
+                    event: 'mcpToolsListChanged',
+                    data: {
+                        serverName: payload.serverName,
+                        tools: payload.tools,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:resourceCacheInvalidated',
+            (payload) => {
+                this.broadcast({
+                    event: 'resourceCacheInvalidated',
+                    data: {
+                        resourceUri: payload.resourceUri,
+                        serverName: payload.serverName,
+                        action: payload.action,
+                    },
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
+            'dexto:sessionTitleUpdated',
+            (payload) => {
+                this.broadcast({
+                    event: 'sessionTitleUpdated',
+                    data: {
+                        sessionId: payload.sessionId,
+                        title: payload.title,
+                    },
                 });
             },
             { signal }
@@ -221,6 +305,22 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         this.connections.clear();
 
         logger.debug('WebSocket event subscriber cleaned up');
+    }
+
+    /**
+     * Unsubscribe from current event bus without closing WebSocket clients.
+     * Useful when switching the active agent and re-subscribing to a new bus.
+     */
+    unsubscribe(): void {
+        if (this.abortController) {
+            const controller = this.abortController;
+            delete this.abortController;
+            try {
+                controller.abort();
+            } catch (error) {
+                logger.debug('Error aborting controller during unsubscribe:', error);
+            }
+        }
     }
 
     private broadcast(message: { event: string; data?: Record<string, any> }): void {

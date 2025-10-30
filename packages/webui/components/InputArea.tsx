@@ -1,25 +1,36 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { getApiUrl } from '@/lib/api-url';
+import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
 import { ChatInputContainer, ButtonFooter, StreamToggle, AttachButton, RecordButton } from './ChatInput';
 import ModelPickerModal from './ModelPicker';
 import { Badge } from './ui/badge';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, Square, FileAudio, File, Search } from 'lucide-react';
+import { Paperclip, SendHorizontal, X, Loader2, Bot, ChevronDown, AlertCircle, Zap, Mic, Square, FileAudio, File, Search, Brain } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
-import { cn } from '../lib/utils';
+import { cn, filterAndSortResources } from '../lib/utils';
+import ResourceAutocomplete from './ResourceAutocomplete';
+import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
+import { useResources } from './hooks/useResources';
+import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import CreatePromptModal from './CreatePromptModal';
+import CreateMemoryModal from './CreateMemoryModal';
+import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
+import { clearPromptCache } from '../lib/promptCache';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 interface ModelOption {
   name: string;
@@ -58,24 +69,77 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   
   // Get current session context to ensure model switch applies to the correct session
   const { currentSessionId, isStreaming, setStreaming, cancel, processing, currentLLM } = useChatContext();
-  
+
+  // Analytics tracking
+  const analytics = useAnalytics();
+  const analyticsRef = useRef(analytics);
+
+  // Keep analytics ref up to date to avoid stale closure issues
+  useEffect(() => {
+    analyticsRef.current = analytics;
+  }, [analytics]);
+
   // LLM selector state
   const [currentModel, setCurrentModel] = useState<ModelOption | null>(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
   const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
+
+  // Resources (for @ mention autocomplete)
+  const { resources, loading: resourcesLoading, refresh: refreshResources } = useResources();
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMention, setShowMention] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties | null>(null);
+
+  // Memoize filtered resources to avoid re-sorting on every keypress
+  const filteredResources = useMemo(
+    () => filterAndSortResources(resources, mentionQuery),
+    [resources, mentionQuery]
+  );
+
+  const findActiveAtIndex = (value: string, caret: number) => {
+    // Walk backwards from caret to find an '@'
+    // @ is only valid if:
+    // 1. At the start of the message (i === 0), OR
+    // 2. Preceded by whitespace
+    for (let i = caret - 1; i >= 0; i--) {
+      const ch = value[i];
+      if (ch === '@') {
+        // Check if @ is at start or preceded by whitespace
+        if (i === 0) {
+          return i; // @ at start is valid
+        }
+        const prev = value[i - 1];
+        if (/\s/.test(prev)) {
+          return i; // @ after whitespace is valid
+        }
+        return -1; // @ in middle of text (like email) - ignore
+      }
+      if (/\s/.test(ch)) break; // stop at whitespace
+    }
+    return -1;
+  };
   
   // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
   const coreModels = [
-    { name: 'Claude 4 Sonnet', provider: 'anthropic', model: 'claude-4-sonnet-20250514' },
-    { name: 'GPT-4o', provider: 'openai', model: 'gpt-4o' },
-    { name: 'GPT-4.1 Mini', provider: 'openai', model: 'gpt-4.1-mini' },
+    { name: 'Claude 4.5 Sonnet', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929' },
+    { name: 'GPT-5', provider: 'openai', model: 'gpt-5' },
+    { name: 'GPT-5 Mini', provider: 'openai', model: 'gpt-5-mini' },
     { name: 'Gemini 2.5 Pro', provider: 'google', model: 'gemini-2.5-pro' },
   ];
 
   // File size limit (64MB)
   const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB in bytes
+
+  // Slash command state
+  const [showSlashCommands, setShowSlashCommands] = useState(false);
+  const [showCreatePromptModal, setShowCreatePromptModal] = useState(false);
+  const [slashRefreshKey, setSlashRefreshKey] = useState(0);
+
+  // Memory state
+  const [showCreateMemoryModal, setShowCreateMemoryModal] = useState(false);
 
   const showUserError = (message: string) => {
     setFileUploadError(message);
@@ -83,15 +147,43 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     setTimeout(() => setFileUploadError(null), 5000);
   };
 
+  const openCreatePromptModal = React.useCallback(() => {
+    setShowSlashCommands(false);
+    setShowCreatePromptModal(true);
+  }, []);
+
+  const handlePromptCreated = React.useCallback(
+    (prompt: { name: string; arguments?: Array<{ name: string; required?: boolean }> }) => {
+      // Manual cache clear needed for custom prompt creation (not triggered by WebSocket events)
+      clearPromptCache();
+      setShowCreatePromptModal(false);
+      setSlashRefreshKey((prev) => prev + 1);
+      const slashCommand = `/${prompt.name}`;
+      setText(slashCommand);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(slashCommand.length, slashCommand.length);
+      }
+    },
+    []
+  );
+
+  const handleCloseCreatePrompt = React.useCallback(() => {
+    setShowCreatePromptModal(false);
+    if (text === '/') {
+      setText('');
+    }
+  }, [text]);
+
   // Fetch current LLM configuration
   useEffect(() => {
     const fetchCurrentModel = async () => {
       try {
         // Include session ID in the request to get the model for the specific session
-        const url = currentSessionId 
-          ? `/api/llm/current?sessionId=${currentSessionId}` 
-          : '/api/llm/current';
-        
+        const url = currentSessionId
+          ? `${getApiUrl()}/api/llm/current?sessionId=${currentSessionId}`
+          : `${getApiUrl()}/api/llm/current`;
+
         const response = await fetch(url);
         if (response.ok) {
           const config = await response.json();
@@ -121,7 +213,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   useEffect(() => {
     const loadSupportedFileTypes = async () => {
       try {
-        const res = await fetch('/api/llm/catalog?mode=flat');
+        const res = await fetch(`${getApiUrl()}/api/llm/catalog?mode=flat`);
         if (!res.ok) return;
         const data = await res.json();
         const models: Array<{ provider: string; name: string; supportedFileTypes?: string[] }> = data.models || [];
@@ -141,23 +233,253 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   // NOTE: We intentionally do not manually resize the textarea. We rely on
   // CSS max-height + overflow to keep layout stable.
 
-  const handleSend = () => {
-    const trimmed = text.trim();
+  const handleSend = async () => {
+    let trimmed = text.trim();
     // Allow sending if we have text OR any attachment
     if (!trimmed && !imageData && !fileData) return;
+
+    // If slash command typed, resolve to full prompt content at send time
+    if (trimmed === '/') {
+      openCreatePromptModal();
+      return;
+    } else if (trimmed.startsWith('/')) {
+      const parsed = parseSlashInput(trimmed);
+      const name = parsed.command;
+      // Preserve original suffix including quotes/spacing (trim only leading space)
+      const originalArgsText = trimmed.slice(1 + name.length).trimStart();
+      if (name) {
+        try {
+          const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, getApiUrl());
+          // Build structured args from tokens: key=value map + positional array
+          if (parsed.argsArray && parsed.argsArray.length > 0) {
+            const { keyValues, positional } = splitKeyValueAndPositional(parsed.argsArray);
+            const argsPayload: Record<string, unknown> = { ...keyValues };
+            if (positional.length > 0) argsPayload._positional = positional;
+            if (Object.keys(argsPayload).length > 0) {
+              try {
+                url.searchParams.set('args', JSON.stringify(argsPayload));
+              } catch {
+                // ignore JSON errors and fall back to context-only
+              }
+            }
+          }
+          // Keep context for natural language compatibility
+          if (originalArgsText) url.searchParams.set('context', originalArgsText);
+
+          // Add timeout to prevent hanging on slow responses
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+          try {
+            const res = await fetch(url.toString(), { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+              const data = await res.json();
+              const txt = typeof data?.text === 'string' ? data.text : '';
+              if (txt.trim()) {
+                trimmed = txt;
+              }
+            }
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        } catch {
+          // keep original
+        }
+      }
+    }
+
     onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
     setText('');
     setImageData(null);
     setFileData(null);
+    // Ensure guidance window closes after submit
+    setShowSlashCommands(false);
     // Height handled by CSS; no imperative adjustments.
   };
 
+  const applyMentionSelection = (index: number, selectedResource?: UIResourceMetadata) => {
+    if (!selectedResource && filteredResources.length === 0) return;
+    const selected = selectedResource ?? filteredResources[Math.max(0, Math.min(index, filteredResources.length - 1))];
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const caret = ta.selectionStart ?? text.length;
+    const atIndex = findActiveAtIndex(text, caret);
+    if (atIndex === -1) return;
+    const before = text.slice(0, atIndex);
+    const after = text.slice(caret);
+    // Mask input with readable name, rely on runtime resolver for expansion
+    const name = selected.name || selected.uri.split('/').pop() || selected.uri;
+    const insertion = selected.serverName ? `@${selected.serverName}:${name}` : `@${name}`;
+    const next = before + insertion + after;
+    setText(next);
+    setShowMention(false);
+    setMentionQuery('');
+    setMentionIndex(0);
+    // Restore caret after inserted mention
+    requestAnimationFrame(() => {
+      const pos = (before + insertion).length;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If mention menu open, handle navigation
+    if (showMention) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % Math.max(1, filteredResources.length));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev - 1 + Math.max(1, filteredResources.length)) % Math.max(1, filteredResources.length));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyMentionSelection(mentionIndex);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        applyMentionSelection(mentionIndex);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowMention(false);
+        return;
+      }
+    }
+
+    // If memory hint is showing, handle Escape to dismiss
+    if (showMemoryHint && e.key === 'Escape') {
+      e.preventDefault();
+      setShowMemoryHint(false);
+      setText('');
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // Check if user typed `#` to create a memory
+      if (text.trim() === '#') {
+        setText('');
+        setShowMemoryHint(false);
+        setShowCreateMemoryModal(true);
+        return;
+      }
       handleSend();
     }
   };
+
+  // Memory hint state
+  const [showMemoryHint, setShowMemoryHint] = useState(false);
+  const [memoryHintStyle, setMemoryHintStyle] = useState<React.CSSProperties | null>(null);
+
+  // Handle slash command input
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setText(value);
+
+    // Guidance UX: keep slash guidance window open while the user is constructing
+    // a slash command (i.e., as long as the input starts with '/' and has no newline).
+    // This lets users see argument hints while typing positional/named args.
+    if (value.startsWith('/') && !value.includes('\n')) {
+      setShowSlashCommands(true);
+    } else if (showSlashCommands) {
+      setShowSlashCommands(false);
+    }
+
+    // Show memory hint when user types exactly '#'
+    if (value.trim() === '#') {
+      setShowMemoryHint(true);
+      // Position hint below textarea
+      const ta = textareaRef.current;
+      if (ta) {
+        const anchor = ta.getBoundingClientRect();
+        const margin = 16;
+        const left = Math.max(8, anchor.left + window.scrollX + margin);
+        const maxWidth = Math.max(280, anchor.width - margin * 2);
+        const bottomOffset = 64;
+        const bottom = Math.max(80, window.innerHeight - (anchor.bottom + window.scrollY) + bottomOffset);
+        setMemoryHintStyle({
+          position: 'fixed',
+          left,
+          bottom,
+          width: maxWidth,
+          zIndex: 9999,
+        });
+      }
+    } else {
+      setShowMemoryHint(false);
+      setMemoryHintStyle(null);
+    }
+  };
+
+  // Handle prompt selection
+  const handlePromptSelect = (prompt: { 
+    name: string; 
+    arguments?: Array<{ name: string; required?: boolean }>
+  }) => {
+    const slash = `/${prompt.name}`;
+    setText(slash);
+    setShowSlashCommands(false);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(slash.length, slash.length);
+    }
+  };
+
+  const closeSlashCommands = () => {
+    setShowSlashCommands(false);
+  };
+
+  // Detect @mention context on text change and caret move
+  useEffect(() => {
+    const ta = textareaRef.current;
+    const caret = ta ? ta.selectionStart ?? text.length : text.length;
+    const atIndex = findActiveAtIndex(text, caret);
+    if (atIndex >= 0) {
+      const q = text.slice(atIndex + 1, caret);
+      setMentionQuery(q);
+      setShowMention(true);
+      setMentionIndex(0);
+      // Compute dropdown viewport position via textarea's bounding rect
+      const anchor = ta?.getBoundingClientRect();
+      if (anchor) {
+        const margin = 16; // inner padding from InputArea
+        const left = Math.max(8, anchor.left + window.scrollX + margin);
+        const maxWidth = Math.max(280, anchor.width - margin * 2);
+        const bottomOffset = 64; // keep above footer area
+        const bottom = Math.max(80, window.innerHeight - (anchor.bottom + window.scrollY) + bottomOffset);
+        setDropdownStyle({
+          position: 'fixed',
+          left,
+          bottom,
+          width: maxWidth,
+          zIndex: 9999,
+        });
+      }
+    } else {
+      setShowMention(false);
+      setMentionQuery('');
+      setDropdownStyle(null);
+    }
+  }, [text]);
+
+  const mentionActiveRef = React.useRef(false);
+  useEffect(() => {
+    if (showMention) {
+      if (!mentionActiveRef.current) {
+        mentionActiveRef.current = true;
+        void refreshResources();
+      }
+    } else {
+      mentionActiveRef.current = false;
+    }
+  }, [showMention, refreshResources]);
 
   // Large paste guard to prevent layout from exploding with very large text
   const LARGE_PASTE_THRESHOLD = 20000; // characters
@@ -209,6 +531,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         const base64 = result.substring(commaIndex + 1);
         setFileData({ base64, mimeType: 'application/pdf', filename: file.name });
         setFileUploadError(null); // Clear any previous errors
+
+        // Track file upload
+        if (currentSessionId) {
+          analyticsRef.current.trackFileUploaded({
+            fileType: 'application/pdf',
+            fileSizeBytes: file.size,
+            sessionId: currentSessionId,
+          });
+        }
       } catch (error) {
         showUserError('Failed to process PDF file. Please try again.');
         setFileData(null);
@@ -265,6 +596,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               mimeType: mimeType,
               filename: `recording.${ext}`,
             });
+
+            // Track audio recording upload
+            if (currentSessionId) {
+              analyticsRef.current.trackFileUploaded({
+                fileType: mimeType,
+                fileSizeBytes: blob.size,
+                sessionId: currentSessionId,
+              });
+            }
           } catch (error) {
             showUserError('Failed to process audio recording. Please try again.');
             setFileData(null);
@@ -322,6 +662,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
         setImageData({ base64, mimeType });
         setFileUploadError(null); // Clear any previous errors
+
+        // Track image upload
+        if (currentSessionId) {
+          analyticsRef.current.trackImageUploaded({
+            imageType: mimeType,
+            imageSizeBytes: file.size,
+            sessionId: currentSessionId,
+          });
+        }
       } catch (error) {
           showUserError('Failed to process image file. Please try again.');
           setImageData(null);
@@ -379,6 +728,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         // Preserve original MIME type from file
         setFileData({ base64, mimeType: file.type, filename: file.name });
         setFileUploadError(null); // Clear any previous errors
+
+        // Track file upload
+        if (currentSessionId) {
+          analyticsRef.current.trackFileUploaded({
+            fileType: file.type,
+            fileSizeBytes: file.size,
+            sessionId: currentSessionId,
+          });
+        }
       } catch (error) {
         showUserError('Failed to process audio file. Please try again.');
         setFileData(null);
@@ -491,15 +849,15 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             )}
 
             {/* Editor area: scrollable, independent from footer */}
-            <div className="flex-auto overflow-y-auto">
+            <div className="flex-auto overflow-y-auto relative">
               {fontsReady ? (
                 <TextareaAutosize
                   ref={textareaRef}
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
+                  placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
                   minRows={1}
                   maxRows={8}
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
@@ -509,14 +867,48 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                   ref={textareaRef}
                   rows={1}
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask Dexto anything..."
+                  placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
                   className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
                 />
               )}
+
+              {showMention && dropdownStyle && typeof window !== 'undefined' && ReactDOM.createPortal(
+                <div style={dropdownStyle} className="max-h-64 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+                  <ResourceAutocomplete
+                    resources={resources}
+                    query={mentionQuery}
+                    selectedIndex={mentionIndex}
+                    onHoverIndex={(i) => setMentionIndex(i)}
+                    onSelect={(r) => applyMentionSelection(mentionIndex, r)}
+                    loading={resourcesLoading}
+                  />
+                </div>,
+                document.body
+              )}
+
+              {showMemoryHint && memoryHintStyle && typeof window !== 'undefined' && ReactDOM.createPortal(
+                <div style={memoryHintStyle} className="rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+                  <div className="p-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Brain className="h-3.5 w-3.5" />
+                    <span>Press <kbd className="px-1.5 py-0.5 text-xs bg-muted border border-border rounded">Enter</kbd> to create a memory</span>
+                  </div>
+                </div>,
+                document.body
+              )}
             </div>
+
+            {/* Slash command autocomplete overlay (inside container to anchor positioning) */}
+            <SlashCommandAutocomplete 
+              isVisible={showSlashCommands}
+              searchQuery={text}
+              onSelectPrompt={handlePromptSelect}
+              onClose={closeSlashCommands}
+              onCreatePrompt={openCreatePromptModal}
+              refreshKey={slashRefreshKey}
+            />
 
             {/* Footer row: normal flow */}
             <ButtonFooter
@@ -543,11 +935,13 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
               }
               rightButtons={
                 <div className="flex items-center gap-2">
-                  <StreamToggle 
-                    isStreaming={isStreaming}
-                    onStreamingChange={setStreaming}
-                  />
-                  
+                  <div className="hidden md:block">
+                    <StreamToggle
+                      isStreaming={isStreaming}
+                      onStreamingChange={setStreaming}
+                    />
+                  </div>
+
                   <ModelPickerModal />
 
                   {/* Stop/Cancel button shown when a run is in progress */}
@@ -605,6 +999,20 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
           accept="audio/*"
           className="hidden"
           onChange={handleAudioFileChange}
+        />
+
+        <CreatePromptModal
+          open={showCreatePromptModal}
+          onClose={handleCloseCreatePrompt}
+          onCreated={handlePromptCreated}
+        />
+
+        <CreateMemoryModal
+          open={showCreateMemoryModal}
+          onClose={() => setShowCreateMemoryModal(false)}
+          onSuccess={() => {
+            // Could add a success toast here if desired
+          }}
         />
       </div>
     </div>

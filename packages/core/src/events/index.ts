@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
+import { ApprovalStatus } from '../approval/types.js';
+import type { SanitizedToolResult } from '../context/types.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
@@ -18,10 +20,16 @@ export const AGENT_EVENT_NAMES = [
     'dexto:sessionOverrideCleared',
     'dexto:mcpServerAdded',
     'dexto:mcpServerRemoved',
+    'dexto:mcpServerRestarted',
     'dexto:mcpServerUpdated',
-    // Tool confirmation events
-    'dexto:toolConfirmationRequest',
-    'dexto:toolConfirmationResponse',
+    'dexto:mcpResourceUpdated',
+    'dexto:mcpPromptsListChanged',
+    'dexto:mcpToolsListChanged',
+    'dexto:resourceCacheInvalidated',
+    'dexto:sessionTitleUpdated',
+    // User approval events (generalized approval system)
+    'dexto:approvalRequest',
+    'dexto:approvalResponse',
 ] as const;
 
 /**
@@ -116,9 +124,10 @@ export interface AgentEventMap {
     /** LLM service returned a tool result */
     'llmservice:toolResult': {
         toolName: string;
-        result: any;
         callId?: string;
         success: boolean;
+        sanitized: SanitizedToolResult;
+        rawResult?: unknown;
         sessionId: string;
     };
 
@@ -189,28 +198,64 @@ export interface AgentEventMap {
         serverName: string;
     };
 
+    /** Fired when MCP server is restarted */
+    'dexto:mcpServerRestarted': {
+        serverName: string;
+    };
+
     /** Fired when MCP server is updated in runtime state */
     'dexto:mcpServerUpdated': {
         serverName: string;
         config: any; // McpServerConfig type
     };
 
-    /** Fired when tool confirmation is requested */
-    'dexto:toolConfirmationRequest': {
-        toolName: string;
-        args: Record<string, any>;
-        description?: string;
-        executionId: string;
-        timestamp: Date;
+    /** Fired when user approval is requested (generalized approval system) */
+    'dexto:approvalRequest': {
+        approvalId: string;
+        type: string; // ApprovalType enum as string
         sessionId?: string;
+        timeout?: number;
+        timestamp: Date;
+        metadata: Record<string, any>;
     };
 
-    /** Fired when tool confirmation response is received */
-    'dexto:toolConfirmationResponse': {
-        executionId: string;
-        approved: boolean;
-        rememberChoice?: boolean;
-        sessionId?: string;
+    /** Fired when user approval response is received */
+    'dexto:approvalResponse': {
+        approvalId: string;
+        status: ApprovalStatus;
+        sessionId?: string | undefined;
+        data?: Record<string, any> | undefined;
+    };
+
+    /** Fired when MCP server resource is updated */
+    'dexto:mcpResourceUpdated': {
+        serverName: string;
+        resourceUri: string;
+    };
+
+    /** Fired when MCP server prompts list changes */
+    'dexto:mcpPromptsListChanged': {
+        serverName: string;
+        prompts: string[];
+    };
+
+    /** Fired when MCP server tools list changes */
+    'dexto:mcpToolsListChanged': {
+        serverName: string;
+        tools: string[];
+    };
+
+    /** Fired when resource cache should be invalidated */
+    'dexto:resourceCacheInvalidated': {
+        resourceUri?: string;
+        serverName: string;
+        action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
+    };
+
+    /** Fired when a session's human-friendly title is updated */
+    'dexto:sessionTitleUpdated': {
+        sessionId: string;
+        title: string;
     };
 }
 
@@ -254,9 +299,10 @@ export interface SessionEventMap {
     /** LLM service returned a tool result */
     'llmservice:toolResult': {
         toolName: string;
-        result: any;
         callId?: string;
         success: boolean;
+        sanitized: SanitizedToolResult;
+        rawResult?: unknown;
     };
 
     /** LLM service error */

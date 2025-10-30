@@ -60,9 +60,6 @@ export function ProviderSection({ providerId, provider, models, favorites, curre
           <span className="text-base font-medium">{provider.name}</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          {provider.supportedRouters.map((r) => (
-            <Badge key={r} variant="outline" className="capitalize text-xs">{r}</Badge>
-          ))}
           {provider.supportsBaseURL && <Badge variant="secondary" className="text-xs">baseURL</Badge>}
           {!provider.hasApiKey && (
             <TooltipProvider>

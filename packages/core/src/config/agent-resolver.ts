@@ -62,7 +62,7 @@ async function resolveDefaultAgentByContext(
 
     switch (executionContext) {
         case 'dexto-source':
-            return await resolveDefaultAgentForDextoSource();
+            return await resolveDefaultAgentForDextoSource(autoInstall, injectPreferences);
 
         case 'dexto-project':
             return await resolveDefaultAgentForDextoProject(autoInstall, injectPreferences);
@@ -76,22 +76,62 @@ async function resolveDefaultAgentByContext(
 }
 
 /**
- * Resolution for Dexto source code context - bundled default only
+ * Resolution for Dexto source code context
+ * - Dev mode (DEXTO_DEV_MODE=true): Always use repo config file
+ * - User with setup: Use their preferences
+ * - Otherwise: Fallback to repo config file
  */
-async function resolveDefaultAgentForDextoSource(): Promise<string> {
-    // Get the dexto source root directory
+async function resolveDefaultAgentForDextoSource(
+    autoInstall: boolean = true,
+    injectPreferences: boolean = true
+): Promise<string> {
     logger.debug('Resolving default agent for dexto source context');
     const sourceRoot = findDextoSourceRoot();
     if (!sourceRoot) {
         throw ConfigError.bundledNotFound('dexto source directory not found');
     }
-    const bundledPath = path.join(sourceRoot, 'agents', 'default-agent.yml');
+    const repoConfigPath = path.join(sourceRoot, 'agents', 'default-agent.yml');
 
+    // Check if we're in dev mode (maintainers testing the repo config)
+    const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+
+    if (isDevMode) {
+        logger.debug('Dev mode: using repository config file');
+        try {
+            await fs.access(repoConfigPath);
+            return repoConfigPath;
+        } catch {
+            throw ConfigError.bundledNotFound(repoConfigPath);
+        }
+    }
+
+    // Prefer user preferences if setup is complete
+    if (globalPreferencesExist()) {
+        try {
+            const preferences = await loadGlobalPreferences();
+            if (preferences.setup.completed) {
+                logger.debug('Using user preferences in dexto-source context');
+                const preferredAgentName = preferences.defaults.defaultAgent;
+                const { getAgentRegistry } = await import('@core/agent/registry/registry.js');
+                const registry = getAgentRegistry();
+                return await registry.resolveAgent(
+                    preferredAgentName,
+                    autoInstall,
+                    injectPreferences
+                );
+            }
+        } catch (error) {
+            logger.warn(`Failed to load preferences, falling back to repo config: ${error}`);
+        }
+    }
+
+    // Fallback to repo config
+    logger.debug('Using repository config (no preferences or setup incomplete)');
     try {
-        await fs.access(bundledPath);
-        return bundledPath;
+        await fs.access(repoConfigPath);
+        return repoConfigPath;
     } catch {
-        throw ConfigError.bundledNotFound(bundledPath);
+        throw ConfigError.bundledNotFound(repoConfigPath);
     }
 }
 

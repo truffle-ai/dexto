@@ -14,13 +14,6 @@ mcpServers:
       - -y
       - "@playwright/mcp@latest"
 
-  # hf:
-  #   type: stdio
-  #   command: npx
-  #   args:
-  #     - -y
-  #     - "@llmindset/mcp-hfspace"
-
 # System prompt configuration - defines the agent's behavior and instructions
 systemPrompt:
   contributors:
@@ -37,28 +30,159 @@ systemPrompt:
       priority: 10
       source: dateTime
       enabled: true
+    - id: memories
+      type: memory
+      priority: 40
+      enabled: true
+      options:
+        includeTimestamps: false
+        includeTags: true
+        limit: 10
+        pinnedOnly: false
 
 # Optional greeting shown at chat start (UI can consume this)
-greeting: "Hi! I’m Dexto — how can I help today?"
+greeting: "Hi! I'm Dexto — how can I help today?"
 
-# # describes the llm configuration
+# LLM configuration - describes the language model to use
 llm:
   provider: openai
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
-# Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
-# Memory cache with file-based database (good for development with persistence)
+  # Optional: Control which media types are expanded for LLM consumption
+  # If omitted, uses model capabilities from registry (recommended default)
+  # Supports MIME patterns with wildcards (e.g., "image/*", "video/mp4")
+  # allowedMediaTypes:
+  #   - "image/*"           # All images (png, jpg, gif, etc.)
+  #   - "application/pdf"   # PDF documents
+  #   - "audio/*"           # All audio formats
+  # Note: Unsupported types become descriptive placeholders like: [Video: demo.mp4 (5.2 MB)]
+
 storage:
   cache:
     type: in-memory
   database:
     type: sqlite
-    # path: ./data/dexto.db
+    # path: ./data/dexto.db  # Optional: customize database location
+  blob:
+    type: local  # 'local', 's3', 'gcs', 'azure' (s3, gcs, azure coming in future Phases)
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30      # Auto-cleanup blobs older than 30 days
+    # storePath: ~/.dexto/blobs (defaults to context-aware path for local backend)
+
+toolConfirmation:
+  mode: event-based
+  timeout: 120000          # Time to wait for approval (ms)
+  allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
+
+  # Optional: Static tool policies for fine-grained allow/deny control
+  toolPolicies:
+    # Tools that never require approval (low-risk, common operations)
+    alwaysAllow:
+      - internal--ask_user
+      - mcp--read_file
+      - mcp--list_directory
+      - mcp--list_allowed_directories
+  #
+  #   # Tools that are always denied (high-risk, destructive operations)
+  #   # Deny list takes precedence over allow list
+  #   alwaysDeny:
+  #     - mcp--filesystem--delete_file
+  #     - mcp--playwright--execute_script
+
+# Internal tools - built-in Dexto capabilities
+internalTools:
+  - ask_user  # Allows the agent to ask you questions and collect structured input
+
+# Internal resources configuration - manages file system access and blob storage
+# NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above
+internalResources:
+  enabled: true
+  resources:
+    # Filesystem resource - provides read access to local files for the agent
+    - type: filesystem
+      paths: ["."]                 # Directories to expose
+      maxFiles: 50               # Maximum number of files to index
+      maxDepth: 3                # Maximum directory depth to traverse
+      includeHidden: false         # Include hidden files/directories
+      includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
+
+    # Blob resource - enables large file upload/storage (settings in storage.blob section above)
+    - type: blob
+
+# Plugin system - built-in plugins for content policy and response sanitization
+# plugins:
+#   # ContentPolicy - validates and sanitizes input before sending to LLM
+#   contentPolicy:
+#     priority: 10              # Lower priority = runs first
+#     blocking: true            # Blocks execution if validation fails
+#     maxInputChars: 50000      # Maximum input length (characters)
+#     redactEmails: true        # Redact email addresses from input
+#     redactApiKeys: true       # Redact potential API keys from input
+#     enabled: true             # Enable this plugin
+
+#   # ResponseSanitizer - sanitizes LLM responses before returning to user
+#   responseSanitizer:
+#     priority: 900             # Higher priority = runs near the end
+#     blocking: false           # Non-blocking (logs warnings but doesn't stop)
+#     redactEmails: true        # Redact email addresses from responses
+#     redactApiKeys: true       # Redact potential API keys from responses
+#     maxResponseLength: 100000 # Maximum response length (characters)
+#     enabled: true             # Enable this plugin
+
+#   # Custom plugins can be added here (see documentation)
+#   # custom:
+#   #   - name: tenant-auth
+#   #     module: "${{dexto.agent_dir}}/plugins/tenant-auth.ts"
+#   #     enabled: true
+#   #     blocking: true
+#   #     priority: 100
+#   #     config:
+#   #       enforceQuota: true
+
+# Starter prompts - predefined prompts that appear as clickable buttons in the WebUI
+starterPrompts:
+  - id: quick-start
+    title: "📚 Quick Start Guide"
+    description: "Learn the basics and see what you can do"
+    prompt: "I'd like to get started quickly. Can you show me a few examples of what you can do and help me understand how to work with you?"
+    category: learning
+    priority: 9
+  - id: tool-demo
+    title: "⚡ Tool Demonstration"
+    description: "See the tools in action with practical examples"
+    prompt: "I'd like to see your tools in action. Can you pick one of your most interesting tools and demonstrate it with a practical example? Show me what it can do and how it works."
+    category: tools
+    priority: 5
+  - id: snake-game
+    title: "🐍 Create Snake Game"
+    description: "Build a fun interactive game with HTML, CSS, and JavaScript"
+    prompt: "Create a snake game in a new directory with HTML, CSS, and JavaScript, then open it in the browser for me to play."
+    category: coding
+    priority: 4
+  - id: connect-tools
+    title: "🔧 Connect New Tools"
+    description: "Browse and add MCP servers to extend capabilities"
+    prompt: "I want to connect new tools to expand my capabilities. Can you help me understand what MCP servers are available and how to add them?"
+    category: tools
+    priority: 3
+
+# Telemetry configuration (optional) - OpenTelemetry for distributed tracing
+# telemetry:
+#   serviceName: dexto-default-agent
+#   enabled: true
+#   tracerName: dexto-tracer
+#   export:
+#     type: otlp              # 'otlp' for production, 'console' for development
+#     protocol: http          # 'http' or 'grpc'
+#     endpoint: http://127.0.0.1:4318/v1/traces  # OTLP collector endpoint
+#     headers:              # Optional headers for authentication
+#       Authorization: Bearer <token>
 
 ## To use Google Gemini, replace the LLM section with Google Gemini configuration below
 ## Similar for anthropic/groq/etc.
 # llm:
 #   provider: google
-#   model: gemini-2.0-flash
+#   model: gemini-2.5-pro
 #   apiKey: $GOOGLE_GENERATIVE_AI_API_KEY

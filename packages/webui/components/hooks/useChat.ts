@@ -1,9 +1,17 @@
 // Add the client directive
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { TextPart as CoreTextPart, InternalMessage, FilePart, Issue } from '@dexto/core';
+import type {
+    TextPart as CoreTextPart,
+    ImagePart as CoreImagePart,
+    InternalMessage,
+    FilePart,
+    Issue,
+    SanitizedToolResult,
+} from '@dexto/core';
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
+import { useAnalytics } from '@/lib/analytics/index.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -33,11 +41,9 @@ export interface ToolResultError {
     error: string | Record<string, unknown>;
 }
 
-export interface ToolResultContent {
-    content: Array<TextPart | ImagePart | AudioPart | FilePart>;
-}
+export type ToolResultContent = SanitizedToolResult;
 
-export type ToolResult = ToolResultError | ToolResultContent | string | Record<string, unknown>;
+export type ToolResult = ToolResultError | SanitizedToolResult | string | Record<string, unknown>;
 
 // Type guards for tool results
 export function isToolResultError(result: unknown): result is ToolResultError {
@@ -99,7 +105,10 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     fileData?: FileData;
     toolName?: string;
     toolArgs?: Record<string, unknown>;
+    toolCallId?: string; // Unique identifier for pairing tool calls with results
     toolResult?: ToolResult;
+    toolResultMeta?: SanitizedToolResult['meta'];
+    toolResultSuccess?: boolean;
     tokenUsage?: {
         inputTokens?: number;
         outputTokens?: number;
@@ -130,6 +139,8 @@ export interface ErrorMessage {
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(wsUrl: string, getActiveSessionId?: () => string | null) {
+    const analytics = useAnalytics();
+    const analyticsRef = useRef(analytics);
     const wsRef = useRef<globalThis.WebSocket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -140,6 +151,13 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     // Separate error state - not part of message flow
     const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
     const suppressNextErrorRef = useRef<boolean>(false);
+    // Map callId to message index for O(1) tool result pairing
+    const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
+
+    // Keep analytics ref updated
+    useEffect(() => {
+        analyticsRef.current = analytics;
+    }, [analytics]);
 
     // Track the active session id from the host (ChatContext)
     const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
@@ -185,47 +203,30 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
             }
             const payload = msg.data || {};
             switch (msg.event) {
-                case 'thinking':
-                    // Only handle events for the active session
-                    if (!isForActiveSession((payload as any).sessionId)) return;
-                    setProcessing(true);
-                    setMessages((ms) => [
-                        ...ms,
-                        {
-                            id: generateUniqueId(),
-                            role: 'system',
-                            content: 'Dexto is thinking...',
-                            createdAt: Date.now(),
-                        },
-                    ]);
-                    break;
                 case 'chunk': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
+                    setProcessing(true);
                     // All chunk types use payload.content
                     const text = typeof payload.content === 'string' ? payload.content : '';
                     if (!text) break;
                     const chunkType = payload.type as 'text' | 'reasoning' | undefined;
 
-                    if (chunkType === 'reasoning') {
-                        // Update reasoning on the last assistant message if present,
-                        // otherwise create a placeholder assistant message to host the reasoning stream.
-                        setMessages((ms) => {
-                            const cleaned = ms.filter(
-                                (m) =>
-                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                            );
-                            const last = cleaned[cleaned.length - 1];
+                    setMessages((ms) => {
+                        if (chunkType === 'reasoning') {
+                            // Update reasoning on the last assistant message if present,
+                            // otherwise create a placeholder assistant message to host the reasoning stream.
+                            const last = ms[ms.length - 1];
                             if (last && last.role === 'assistant') {
                                 const updated = {
                                     ...last,
                                     reasoning: (last.reasoning || '') + text,
                                     createdAt: Date.now(),
                                 };
-                                return [...cleaned.slice(0, -1), updated];
+                                return [...ms.slice(0, -1), updated];
                             }
                             // No assistant yet; create one with empty content and initial reasoning
                             return [
-                                ...cleaned,
+                                ...ms,
                                 {
                                     id: generateUniqueId(),
                                     role: 'assistant',
@@ -234,15 +235,9 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     createdAt: Date.now(),
                                 },
                             ];
-                        });
-                    } else {
-                        setMessages((ms) => {
-                            // Remove any existing 'thinking' system messages
-                            const cleaned = ms.filter(
-                                (m) =>
-                                    !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                            );
-                            const last = cleaned[cleaned.length - 1];
+                        } else {
+                            // For text chunks, update content
+                            const last = ms[ms.length - 1];
                             if (last && last.role === 'assistant') {
                                 // Ensure content is always a string for streaming
                                 const currentContent =
@@ -253,10 +248,10 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     content: newContent,
                                     createdAt: Date.now(),
                                 };
-                                return [...cleaned.slice(0, -1), updated];
+                                return [...ms.slice(0, -1), updated];
                             }
                             return [
-                                ...cleaned,
+                                ...ms,
                                 {
                                     id: generateUniqueId(),
                                     role: 'assistant',
@@ -264,8 +259,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                     createdAt: Date.now(),
                                 },
                             ];
-                        });
-                    }
+                        }
+                    });
                     break;
                 }
                 case 'response': {
@@ -293,13 +288,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                         typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
 
                     setMessages((ms) => {
-                        // Remove 'thinking' placeholders
-                        const cleaned = ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                        );
-
                         // Check if this response is updating an existing message
-                        const lastMsg = cleaned[cleaned.length - 1];
+                        const lastMsg = ms[ms.length - 1];
                         if (lastMsg && lastMsg.role === 'assistant') {
                             // Update existing message with final content and metadata
                             // Ensure content is always a string for consistency
@@ -315,7 +305,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 createdAt: Date.now(),
                                 sessionId: sessionId ?? lastMsg.sessionId,
                             };
-                            return [...cleaned.slice(0, -1), updatedMsg];
+                            return [...ms.slice(0, -1), updatedMsg];
                         }
 
                         // Create new message if no existing assistant message
@@ -331,7 +321,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             router,
                             sessionId,
                         };
-                        return [...cleaned, newMsg];
+                        return [...ms, newMsg];
                     });
 
                     // Emit DOM event for other components to listen to
@@ -357,100 +347,241 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     setProcessing(false);
                     setMessages([]);
                     lastUserMessageIdRef.current = null;
+                    pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
                     break;
                 case 'toolCall': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
                     const args = payload.args;
-                    setMessages((ms) => [
-                        ...ms,
-                        {
-                            id: generateUniqueId(),
-                            role: 'tool',
-                            content: null,
-                            toolName: name,
-                            toolArgs: args,
-                            createdAt: Date.now(),
-                        },
-                    ]);
+                    const callId = payload.callId;
+                    setMessages((ms) => {
+                        const newIndex = ms.length;
+                        const newMessages: Message[] = [
+                            ...ms,
+                            {
+                                id: generateUniqueId(),
+                                role: 'tool' as const,
+                                content: null,
+                                toolName: name,
+                                toolArgs: args,
+                                toolCallId: callId,
+                                createdAt: Date.now(),
+                            },
+                        ];
+                        // Store callId -> index mapping for O(1) lookup
+                        if (callId) {
+                            pendingToolCallsRef.current.set(callId, newIndex);
+                        }
+                        return newMessages;
+                    });
                     break;
                 }
                 case 'toolResult': {
                     if (!isForActiveSession((payload as any).sessionId)) return;
                     const name = payload.toolName;
-                    const result = payload.result;
+                    const sanitized: SanitizedToolResult | undefined = payload.sanitized;
+                    const callId =
+                        sanitized?.meta?.toolCallId ??
+                        (typeof (payload as any).toolCallId === 'string'
+                            ? (payload as any).toolCallId
+                            : undefined) ??
+                        (typeof (payload as any).callId === 'string'
+                            ? (payload as any).callId
+                            : undefined) ??
+                        (typeof (payload as any).id === 'string' ? (payload as any).id : undefined);
+                    const rawResult = payload.rawResult;
+                    const successFlag =
+                        typeof payload.success === 'boolean' ? payload.success : undefined;
+                    const result = sanitized ?? rawResult;
+
+                    // Track tool call completion
+                    const sessionId = (payload as any).sessionId;
+                    if (sessionId && name) {
+                        analyticsRef.current.trackToolCalled({
+                            toolName: name,
+                            success: successFlag !== false,
+                            sessionId,
+                        });
+                    }
 
                     // Process and normalize the tool result to ensure proper image handling
                     let processedResult = result;
 
-                    if (result && Array.isArray(result.content)) {
-                        // Normalize media parts in tool result content
-                        const normalizedContent = result.content.map((part: unknown) => {
-                            if (
-                                typeof part === 'object' &&
-                                part !== null &&
-                                (part as { type?: unknown }).type === 'image'
-                            ) {
-                                const imgPart = part as any;
-                                // Ensure consistent format for image parts
-                                if (imgPart.data && imgPart.mimeType) {
-                                    return {
-                                        type: 'image',
-                                        base64: imgPart.data,
-                                        mimeType: imgPart.mimeType,
-                                    };
-                                } else if (imgPart.base64 && imgPart.mimeType) {
-                                    return {
-                                        type: 'image',
-                                        base64: imgPart.base64,
-                                        mimeType: imgPart.mimeType,
-                                    };
-                                } else if (imgPart.image || imgPart.url) {
-                                    return part; // Keep original format for URL-based images
-                                }
-                            } else if (
-                                typeof part === 'object' &&
-                                part !== null &&
-                                (part as { type?: unknown }).type === 'audio'
-                            ) {
-                                const audioPart = part as any;
-                                // Ensure consistent format for audio parts
-                                if (audioPart.data && audioPart.mimeType) {
-                                    return {
-                                        type: 'audio',
-                                        base64: audioPart.data,
-                                        mimeType: audioPart.mimeType,
-                                        filename: audioPart.filename,
-                                    };
-                                } else if (audioPart.base64 && audioPart.mimeType) {
-                                    return {
-                                        type: 'audio',
-                                        base64: audioPart.base64,
-                                        mimeType: audioPart.mimeType,
-                                        filename: audioPart.filename,
-                                    };
-                                } else if (audioPart.audio || audioPart.url) {
-                                    return part; // Keep original format for URL-based audio
-                                }
+                    const normalizeContentPart = (
+                        part: unknown
+                    ): CoreTextPart | CoreImagePart | FilePart => {
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'image'
+                        ) {
+                            const imgPart = part as {
+                                data?: string;
+                                base64?: string;
+                                image?: string;
+                                url?: string;
+                                mimeType?: string;
+                            };
+
+                            const payload =
+                                imgPart.data ?? imgPart.base64 ?? imgPart.image ?? imgPart.url;
+                            if (payload) {
+                                return {
+                                    type: 'image',
+                                    image: payload,
+                                    ...(imgPart.mimeType ? { mimeType: imgPart.mimeType } : {}),
+                                } satisfies CoreImagePart;
                             }
-                            return part;
-                        });
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'audio'
+                        ) {
+                            const audioPart = part as {
+                                data?: string;
+                                base64?: string;
+                                audio?: string;
+                                url?: string;
+                                mimeType?: string;
+                                filename?: string;
+                            };
+
+                            const payload =
+                                audioPart.data ??
+                                audioPart.base64 ??
+                                audioPart.audio ??
+                                audioPart.url;
+                            if (payload && audioPart.mimeType) {
+                                return {
+                                    type: 'file',
+                                    data: payload,
+                                    mimeType: audioPart.mimeType,
+                                    ...(audioPart.filename ? { filename: audioPart.filename } : {}),
+                                } satisfies FilePart;
+                            }
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'resource'
+                        ) {
+                            const resourcePart = part as {
+                                resource?: {
+                                    text?: string;
+                                    mimeType?: string;
+                                    title?: string;
+                                };
+                            };
+
+                            const resource = resourcePart.resource;
+                            if (resource?.text && resource.mimeType) {
+                                if (resource.mimeType.startsWith('image/')) {
+                                    return {
+                                        type: 'image',
+                                        image: resource.text,
+                                        mimeType: resource.mimeType,
+                                    } satisfies CoreImagePart;
+                                }
+
+                                return {
+                                    type: 'file',
+                                    data: resource.text,
+                                    mimeType: resource.mimeType,
+                                    ...(resource.title ? { filename: resource.title } : {}),
+                                } satisfies FilePart;
+                            }
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'file'
+                        ) {
+                            const filePart = part as FilePart;
+                            return {
+                                type: 'file',
+                                data: filePart.data,
+                                mimeType: filePart.mimeType,
+                                ...(filePart.filename ? { filename: filePart.filename } : {}),
+                            } satisfies FilePart;
+                        }
+
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            (part as { type?: unknown }).type === 'text'
+                        ) {
+                            const textPart = part as CoreTextPart;
+                            return {
+                                type: 'text',
+                                text: textPart.text,
+                            } satisfies CoreTextPart;
+                        }
+
+                        if (typeof part === 'string') {
+                            return {
+                                type: 'text',
+                                text: part,
+                            } satisfies CoreTextPart;
+                        }
+
+                        return {
+                            type: 'text',
+                            text: JSON.stringify(part),
+                        } satisfies CoreTextPart;
+                    };
+
+                    if (sanitized && Array.isArray(sanitized.content) && successFlag !== false) {
+                        const normalizedContent = sanitized.content.map(normalizeContentPart);
+                        processedResult = {
+                            ...sanitized,
+                            content: normalizedContent,
+                        } satisfies SanitizedToolResult;
+                    } else if (result && Array.isArray((result as any).content)) {
+                        // Normalize media parts in tool result content
+                        const normalizedContent = result.content.map(normalizeContentPart);
                         processedResult = { ...result, content: normalizedContent };
+                    }
+
+                    if (successFlag === false && rawResult) {
+                        processedResult = rawResult;
                     }
 
                     // Merge toolResult into the existing toolCall message
                     setMessages((ms) => {
-                        const idx = ms.findIndex(
-                            (m) =>
-                                m.role === 'tool' &&
-                                m.toolName === name &&
-                                m.toolResult === undefined
-                        );
-                        if (idx !== -1) {
-                            const updatedMsg = { ...ms[idx], toolResult: processedResult };
+                        let idx = -1;
+
+                        // Use O(1) lookup if callId is available and exists in map
+                        if (callId && pendingToolCallsRef.current.has(callId)) {
+                            idx = pendingToolCallsRef.current.get(callId)!;
+                            // Remove from pending map after retrieval
+                            pendingToolCallsRef.current.delete(callId);
+                        } else {
+                            // Fallback to O(n) name-based search (for backwards compatibility or missing callId)
+                            idx = ms.findIndex(
+                                (m) =>
+                                    m.role === 'tool' &&
+                                    m.toolResult === undefined &&
+                                    m.toolName === name
+                            );
+                        }
+
+                        if (idx !== -1 && idx < ms.length) {
+                            const updatedMsg = {
+                                ...ms[idx],
+                                toolResult: processedResult,
+                                toolResultMeta: sanitized?.meta,
+                                toolResultSuccess: successFlag,
+                            };
+
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
-                        console.warn(`No matching tool call found for result of ${name}`);
+                        console.warn(
+                            `No matching tool call found for result of ${name}${callId ? ` (callId: ${callId})` : ''}`
+                        );
                         // No matching toolCall found; do not append a new message
                         return ms;
                     });
@@ -467,13 +598,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
                     // use proper type guards instead of manual payload inspection here.
 
-                    // Clean up thinking messages first
-                    setMessages((ms) =>
-                        ms.filter(
-                            (m) => !(m.role === 'system' && m.content === 'Dexto is thinking...')
-                        )
-                    );
-
                     // If we recently triggered cancel locally, suppress the next provider error
                     if (suppressNextErrorRef.current) {
                         suppressNextErrorRef.current = false;
@@ -487,11 +611,30 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
 
                     // Otherwise, set an error banner (separate from messages)
                     const errorMessage = toError(payload).message;
+
+                    // Serialize context if it's an object (e.g., from DextoRuntimeError)
+                    let contextStr: string | undefined;
+                    if (payload.context) {
+                        if (typeof payload.context === 'string') {
+                            contextStr = payload.context;
+                        } else if (typeof payload.context === 'object') {
+                            // Extract meaningful context (e.g., plugin name or scope)
+                            const ctx = payload.context as Record<string, unknown>;
+                            if (ctx.plugin) {
+                                contextStr = `plugin:${ctx.plugin}`;
+                            } else if (ctx.scope) {
+                                contextStr = String(ctx.scope);
+                            } else {
+                                contextStr = 'error';
+                            }
+                        }
+                    }
+
                     setActiveError({
                         id: generateUniqueId(),
                         message: errorMessage,
                         timestamp: Date.now(),
-                        context: payload.context,
+                        context: contextStr,
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
@@ -499,6 +642,117 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                             ? (payload.issues as Issue[])
                             : [],
                     });
+                    break;
+                }
+                case 'resourceCacheInvalidated': {
+                    // Handle resource cache invalidation events
+                    console.log('💾 Resource cache invalidated via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:resourceCacheInvalidated', {
+                                detail: {
+                                    resourceUri: payload.resourceUri,
+                                    serverName: payload.serverName,
+                                    action: payload.action,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                // TODO: Architectural Inconsistency - Event Handling Patterns
+                // The current event flow has 3 different patterns with 3 layers of transformation:
+                //
+                // EventEmitter (core) → WebSocket (API) → useChat (WebUI)
+                //
+                // Pattern 1 (chunk/toolCall): Updates React state only
+                // Pattern 2 (response): Updates React state + dispatches DOM events
+                // Pattern 3 (MCP events below): Only dispatches DOM events (no React state)
+                //
+                // This creates confusion and maintenance burden. Consider refactoring to:
+                // - React Context for shared state across components
+                // - Direct WebSocket subscriptions in components that need them
+                // - Unified event system instead of EventEmitter → WebSocket → DOM
+                //
+                // Related files:
+                // - packages/core/src/events/index.ts (EventEmitter)
+                // - packages/cli/src/api/websocket-subscriber.ts (WebSocket)
+                // - packages/webui/components/hooks/useChat.ts (DOM events)
+                case 'mcpPromptsListChanged': {
+                    // Handle prompt list change events
+                    console.log('✨ Prompts list changed via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:mcpPromptsListChanged', {
+                                detail: {
+                                    serverName: payload.serverName,
+                                    prompts: payload.prompts,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                case 'mcpToolsListChanged': {
+                    // Handle tool list change events
+                    console.log('🔧 Tools list changed via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:mcpToolsListChanged', {
+                                detail: {
+                                    serverName: payload.serverName,
+                                    tools: payload.tools,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                case 'mcpResourceUpdated': {
+                    // Handle resource update events
+                    console.log('📋 Resource updated via WebSocket:', payload);
+
+                    // Dispatch DOM event for components to listen to
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:mcpResourceUpdated', {
+                                detail: {
+                                    serverName: payload.serverName,
+                                    resourceUri: payload.resourceUri,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+                case 'sessionTitleUpdated': {
+                    const isObject = (value: unknown): value is Record<string, unknown> =>
+                        typeof value === 'object' && value !== null;
+                    const sessionId =
+                        isObject(payload) && typeof payload.sessionId === 'string'
+                            ? payload.sessionId
+                            : undefined;
+                    const title =
+                        isObject(payload) && typeof payload.title === 'string'
+                            ? payload.title
+                            : undefined;
+                    if (typeof window !== 'undefined' && sessionId && title) {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:sessionTitleUpdated', {
+                                detail: { sessionId, title, timestamp: Date.now() },
+                            })
+                        );
+                    }
                     break;
                 }
                 default:
@@ -574,6 +828,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         setMessages([]);
         setActiveError(null); // Clear errors on reset
         lastUserMessageIdRef.current = null;
+        pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
         setProcessing(false);
     }, []);
 
@@ -583,6 +838,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         }
         // Optimistically clear processing state; server will also send events
         setProcessing(false);
+        pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
         // Ensure any ensuing provider stream error from abort does not surface as banner
         suppressNextErrorRef.current = true;
     }, []);

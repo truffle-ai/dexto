@@ -2,6 +2,8 @@
 sidebar_position: 1
 ---
 
+import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
+
 # Building Applications
 
 Now let's build something useful. We'll create three types of applications, each building on what you've learned.
@@ -187,7 +189,7 @@ systemPrompt: |
 
 llm:
   provider: anthropic
-  model: claude-4-sonnet-20250514
+  model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 ```
 
@@ -332,15 +334,15 @@ try {
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini  # Faster, cheaper for dev
+  model: gpt-5-mini  # Faster, cheaper for dev
   apiKey: $OPENAI_API_KEY
 ```
 
-**Production**
+### Production
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1  # More capable for production
+  model: gpt-5  # More capable for production
   apiKey: $OPENAI_API_KEY
   temperature: 0.3  # More consistent responses
 ```
@@ -392,6 +394,7 @@ Built something cool? We'd love to see it! Consider contributing your agent to h
 - **Build your reputation** in the AI agent community
 - **Potential for pre-installed status** in our official registry (see [pre-installed criteria](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md#3-requesting-pre-installed-agent-status))
 
+<ExpandableMermaid title="Agent Contribution Flow">
 ```mermaid
 flowchart TD
   A[Build your agent] --> B[Add to agents/ with README + usage]
@@ -400,14 +403,15 @@ flowchart TD
   D --> E[Merge]
   E --> F[Listed in tutorials + eligible for pre-installed review]
 ```
+</ExpandableMermaid>
 
 ## Next Steps
 
 Ready to take it to the next level?
 
-- **Learn advanced patterns**: Check out [Advanced Patterns](./advanced-patterns) for production-ready techniques
-- **Add more tools**: Explore [MCP servers](../mcp/connecting-servers) for additional capabilities
-- **Deploy your service**: See the [deployment guide](../guides/deployment) for production hosting
+- **Learn advanced patterns**: Check out [Advanced Patterns](./advanced-patterns.md) for production-ready techniques
+- **Add more tools**: Explore [MCP servers](../mcp/overview.md) for additional capabilities
+- **Deploy your service**: See the [deployment guide](../guides/deployment.md) for production hosting
 - **Contribute to the community**: Learn how to [contribute MCPs and agents](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md#contributing-mcps-and-example-agents)
 - **Join the community**: Share your creations in our [Discord](https://discord.gg/GFzWFAAZcm)
 

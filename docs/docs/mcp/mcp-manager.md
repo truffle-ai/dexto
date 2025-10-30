@@ -1,7 +1,5 @@
 ---
-sidebar_position: 4
-title: MCP Manager
-description: Programmatic control for connecting to, aggregating, and executing tools across multiple MCP servers using the Dexto SDK.
+sidebar_position: 6
 ---
 
 # MCP Manager
@@ -115,7 +113,7 @@ Integrate web search capabilities:
 await manager.connectServer('search', {
   type: 'stdio',
   command: 'npx',
-  args: ['-y', 'tavily-mcp@0.1.3'],
+  args: ['-y', 'tavily-mcp@0.1.2'],
   env: { TAVILY_API_KEY: process.env.TAVILY_API_KEY }
 });
 
@@ -140,7 +138,7 @@ await manager.initializeFromConfig({
   search: {
     type: 'stdio',
     command: 'npx',
-    args: ['-y', 'tavily-mcp@0.1.3'],
+    args: ['-y', 'tavily-mcp@0.1.2'],
     env: { TAVILY_API_KEY: process.env.TAVILY_API_KEY }
   },
   git: {
@@ -150,7 +148,6 @@ await manager.initializeFromConfig({
     env: {
         MCP_LOG_LEVEL: "info",
         GIT_SIGN_COMMITS: "false"
-    }
   }
 });
 
@@ -188,50 +185,38 @@ const app = express();
 app.use(express.json());
 
 const manager = new MCPManager();
-
-// Wrap initialization and server start in an async IIFE
-(async () => {
-  try {
-    await manager.initializeFromConfig({
-      filesystem: {
-        type: 'stdio',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-      }
-    });
-
-    app.get('/api/tools', async (req, res) => {
-      const tools = await manager.getAllTools();
-      res.json({ tools: Object.keys(tools) });
-    });
-
-    app.post('/api/execute/:toolName', async (req, res) => {
-      try {
-        const { toolName } = req.params;
-        const { args } = req.body;
-        
-        const result = await manager.executeTool(toolName, args);
-        res.json({ success: true, result });
-      } catch (error) {
-        res.status(500).json({ 
-          success: false, 
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
-    });
-
-    // Only start the server after successful initialization
-    app.listen(3000, () => {
-      console.log('MCP API server running on port 3000');
-    });
-  } catch (error) {
-    console.error(`Failed to initialize MCP manager: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
+await manager.initializeFromConfig({
+  filesystem: {
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
   }
-})();
+});
+
+app.get('/api/tools', async (req, res) => {
+  const tools = await manager.getAllTools();
+  res.json({ tools: Object.keys(tools) });
+});
+
+app.post('/api/execute/:toolName', async (req, res) => {
+  try {
+    const { toolName } = req.params;
+    const { args } = req.body;
+    
+    const result = await manager.executeTool(toolName, args);
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+app.listen(3000);
 ```
 
-For detailed API reference, see the [MCPManager API documentation](/api/mcp-manager). 🛠️
+For detailed API reference, see the [MCPManager API documentation](/api/sdk/mcp-manager). 🛠️
 
 **Tool execution failures**
 - Validate tool arguments match expected schema

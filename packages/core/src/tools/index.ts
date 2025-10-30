@@ -8,9 +8,6 @@
 // Core types and interfaces
 export * from './types.js';
 
-// Confirmation types
-export * from './confirmation/types.js';
-
 // Internal tools provider and types
 export * from './internal-tools/index.js';
 

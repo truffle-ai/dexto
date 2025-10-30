@@ -20,11 +20,12 @@ Check out our generated deepwiki [here](https://deepwiki.com/truffle-ai/dexto) f
 
 Dexto's architecture is built around core services that handle different aspects of agent functionality. Each service has a specific responsibility and works together to provide the full agent experience.
 
-See [Core Services](./services) for detailed information about:
-- **DextoAgent** - Main orchestrator 
+See [Core Services](./services.md) for detailed information about:
+- **DextoAgent** - Main orchestrator
 - **MCPManager** - Tool coordination
 - **ToolManager** - Tool execution
 - **SessionManager** - Conversation state
 - **StorageManager** - Data persistence
-- **PromptManager** - System prompts
+- **SystemPromptManager** - System prompts
 - **AgentEventBus** - Event coordination
+- **Telemetry** - Distributed tracing and observability

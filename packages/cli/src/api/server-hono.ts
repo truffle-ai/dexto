@@ -5,9 +5,9 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
     createNodeServer,
-    createMcpTransport,
+    createMcpTransport as createServerMcpTransport,
     createMcpHttpHandlers,
-    initializeMcpServer,
+    initializeMcpServer as initializeServerMcpServer,
     type McpTransportType,
 } from '@dexto/server';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
@@ -42,7 +42,7 @@ export async function initializeHonoApi(
     agentCardOverride?: Partial<AgentCard>,
     listenPort?: number
 ): Promise<HonoInitializationResult> {
-    registerGracefulShutdown(agent);
+    registerGracefulShutdown(() => agent);
 
     const resolvedPort = resolvePort(listenPort);
     const baseApiUrl = resolveBaseUrl(resolvedPort);
@@ -62,8 +62,8 @@ export async function initializeHonoApi(
     let mcpTransport: Transport | undefined;
     const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
     try {
-        mcpTransport = await createMcpTransport(transportType);
-        await initializeMcpServer(agent, agentCard, mcpTransport);
+        mcpTransport = await createServerMcpTransport(transportType);
+        await initializeServerMcpServer(agent, agentCard, mcpTransport);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Failed to initialize MCP server: ${errorMessage}`);

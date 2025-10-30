@@ -66,7 +66,8 @@ export class WebhookEventSubscriber implements EventSubscriber {
             'dexto:conversationReset',
             'dexto:mcpServerConnected',
             'dexto:availableToolsUpdated',
-            'dexto:toolConfirmationRequest',
+            'dexto:approvalRequest',
+            'dexto:approvalResponse',
             'dexto:llmSwitched',
             'dexto:stateChanged',
         ];
@@ -153,6 +154,21 @@ export class WebhookEventSubscriber implements EventSubscriber {
 
         this.webhooks.clear();
         logger.debug('Webhook event subscriber cleaned up');
+    }
+
+    /**
+     * Unsubscribe from current event bus without clearing registered webhooks
+     */
+    unsubscribe(): void {
+        if (this.abortController) {
+            const controller = this.abortController;
+            delete this.abortController;
+            try {
+                controller.abort();
+            } catch (error) {
+                logger.debug('Error aborting controller during unsubscribe:', error);
+            }
+        }
     }
 
     /**

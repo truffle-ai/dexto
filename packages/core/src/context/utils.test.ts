@@ -1,17 +1,231 @@
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { describe, expect, it, test, beforeEach, vi } from 'vitest';
+import type {
+    BlobStore,
+    BlobInput,
+    BlobMetadata,
+    BlobReference,
+    BlobData,
+    BlobStats,
+    StoredBlobMetadata,
+} from '../storage/blob/types.js';
 import {
+    normalizeToolResult,
+    persistToolMedia,
     filterMessagesByLLMCapabilities,
     parseDataUri,
     isLikelyBase64String,
-    sanitizeToolResultToContent,
+    getFileMediaKind,
+    getResourceKind,
+    matchesMimePattern,
+    matchesAnyMimePattern,
+    fileTypesToMimePatterns,
 } from './utils.js';
 import { InternalMessage } from './types.js';
-import { LLMContext } from '@core/llm/types.js';
-import * as registry from '@core/llm/registry.js';
+import { LLMContext } from '../llm/types.js';
+import * as registry from '../llm/registry.js';
 
 // Mock the registry module
-vi.mock('@core/llm/registry.js');
+vi.mock('../llm/registry.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
+
+class FakeBlobStore implements BlobStore {
+    private counter = 0;
+    private connected = true;
+    private readonly storage = new Map<string, Buffer>();
+    private readonly metadata = new Map<string, StoredBlobMetadata>();
+
+    async store(input: BlobInput, metadata: BlobMetadata = {}): Promise<BlobReference> {
+        const buffer = this.toBuffer(input);
+        const id = `fake-${this.counter++}`;
+        const storedMetadata: StoredBlobMetadata = {
+            id,
+            mimeType: metadata.mimeType ?? 'application/octet-stream',
+            originalName: metadata.originalName,
+            createdAt: metadata.createdAt ?? new Date(),
+            size: buffer.length,
+            hash: id,
+            source: metadata.source,
+        };
+
+        this.storage.set(id, buffer);
+        this.metadata.set(id, storedMetadata);
+
+        return {
+            id,
+            uri: `blob:${id}`,
+            metadata: storedMetadata,
+        };
+    }
+
+    async retrieve(
+        _reference: string,
+        _format?: 'base64' | 'buffer' | 'path' | 'stream' | 'url'
+    ): Promise<BlobData> {
+        throw new Error('Not implemented in FakeBlobStore');
+    }
+
+    async exists(reference: string): Promise<boolean> {
+        return this.storage.has(this.parse(reference));
+    }
+
+    async delete(reference: string): Promise<void> {
+        const id = this.parse(reference);
+        this.storage.delete(id);
+        this.metadata.delete(id);
+    }
+
+    async cleanup(_olderThan?: Date | undefined): Promise<number> {
+        const count = this.storage.size;
+        this.storage.clear();
+        this.metadata.clear();
+        return count;
+    }
+
+    async getStats(): Promise<BlobStats> {
+        let totalSize = 0;
+        for (const buffer of this.storage.values()) {
+            totalSize += buffer.length;
+        }
+        return {
+            count: this.storage.size,
+            totalSize,
+            backendType: 'fake',
+            storePath: 'memory://fake',
+        };
+    }
+
+    async listBlobs(): Promise<BlobReference[]> {
+        return Array.from(this.metadata.values()).map((meta) => ({
+            id: meta.id,
+            uri: `blob:${meta.id}`,
+            metadata: meta,
+        }));
+    }
+
+    getStoragePath(): string | undefined {
+        return undefined;
+    }
+
+    async connect(): Promise<void> {
+        this.connected = true;
+    }
+
+    async disconnect(): Promise<void> {
+        this.connected = false;
+    }
+
+    isConnected(): boolean {
+        return this.connected;
+    }
+
+    getStoreType(): string {
+        return 'fake';
+    }
+
+    private toBuffer(input: BlobInput): Buffer {
+        if (Buffer.isBuffer(input)) {
+            return input;
+        }
+        if (input instanceof Uint8Array) {
+            return Buffer.from(input);
+        }
+        if (input instanceof ArrayBuffer) {
+            return Buffer.from(new Uint8Array(input));
+        }
+        if (typeof input === 'string') {
+            try {
+                return Buffer.from(input, 'base64');
+            } catch {
+                return Buffer.from(input, 'utf-8');
+            }
+        }
+        throw new Error('Unsupported blob input');
+    }
+
+    private parse(reference: string): string {
+        return reference.startsWith('blob:') ? reference.slice(5) : reference;
+    }
+}
+
+describe('tool result normalization pipeline', () => {
+    it('normalizes data URI media into typed parts with inline media hints', async () => {
+        const payload = Buffer.alloc(2048, 1);
+        const dataUri = `data:image/png;base64,${payload.toString('base64')}`;
+
+        const normalized = await normalizeToolResult(dataUri);
+
+        expect(normalized.parts).toHaveLength(1);
+        const part = normalized.parts[0];
+        if (!part) {
+            throw new Error('expected normalized image part');
+        }
+        expect(part.type).toBe('image');
+        expect(normalized.inlineMedia).toHaveLength(1);
+        const hint = normalized.inlineMedia[0];
+        if (!hint) {
+            throw new Error('expected inline media hint for data URI');
+        }
+        expect(hint.mimeType).toBe('image/png');
+    });
+
+    it('persists large inline media to the blob store and produces resource descriptors', async () => {
+        const payload = Buffer.alloc(4096, 7);
+        const dataUri = `data:image/jpeg;base64,${payload.toString('base64')}`;
+
+        const normalized = await normalizeToolResult(dataUri);
+        const store = new FakeBlobStore();
+
+        const persisted = await persistToolMedia(normalized, {
+            blobStore: store,
+            toolName: 'image_tool',
+            toolCallId: 'call-123',
+        });
+
+        expect(persisted.parts).toHaveLength(1);
+        const part = persisted.parts[0];
+        if (!part || part.type !== 'image') {
+            throw new Error('expected image part after persistence');
+        }
+        expect(typeof part.image).toBe('string');
+        expect(part.image).toMatch(/^@blob:/);
+        expect(persisted.resources).toBeDefined();
+        expect(persisted.resources?.[0]?.kind).toBe('image');
+    });
+
+    it('always persists video media regardless of payload size', async () => {
+        const payload = Buffer.alloc(256, 3);
+        const raw = [
+            {
+                type: 'file',
+                data: payload.toString('base64'),
+                mimeType: 'video/mp4',
+            },
+        ];
+
+        const normalized = await normalizeToolResult(raw);
+        const hint = normalized.inlineMedia[0];
+        if (!hint) {
+            throw new Error('expected inline media hint for video payload');
+        }
+        // Video should be persisted regardless of size
+        expect(hint.mimeType).toBe('video/mp4');
+
+        const store = new FakeBlobStore();
+        const persisted = await persistToolMedia(normalized, {
+            blobStore: store,
+            toolName: 'video_tool',
+            toolCallId: 'call-456',
+        });
+
+        const filePart = persisted.parts[0];
+        if (!filePart || filePart.type !== 'file') {
+            throw new Error('expected file part after persistence');
+        }
+        expect(typeof filePart.data).toBe('string');
+        expect(filePart.data).toMatch(/^@blob:/);
+        expect(persisted.resources?.[0]?.kind).toBe('video');
+    });
+});
 
 describe('filterMessagesByLLMCapabilities', () => {
     beforeEach(() => {
@@ -29,7 +243,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -71,7 +285,7 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should keep supported file attachments for models that support them', () => {
-        // Mock validation to accept PDF files for gpt-4o
+        // Mock validation to accept PDF files for gpt-5
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: true,
             fileType: 'pdf',
@@ -92,7 +306,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4o' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -107,7 +321,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         mockValidateModelFileSupport
             .mockReturnValueOnce({
                 isSupported: false,
-                error: 'Model gpt-4 does not support audio files',
+                error: 'Model gpt-5 does not support audio files',
             })
             .mockReturnValueOnce({
                 isSupported: true,
@@ -129,8 +343,8 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        // Test with regular gpt-4 (should filter out audio)
-        const config1: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        // Test with regular gpt-5 (should filter out audio)
+        const config1: LLMContext = { provider: 'openai', model: 'gpt-5' };
         const result1 = filterMessagesByLLMCapabilities(messages, config1);
 
         expect(result1[0]!.content).toEqual([{ type: 'text', text: 'Transcribe this audio' }]);
@@ -228,7 +442,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -246,7 +460,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
@@ -262,13 +476,13 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'openai', model: 'gpt-4' };
+        const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
         const result = filterMessagesByLLMCapabilities(messages, config);
 
         // Should add placeholder text for empty content
         expect(result[0]!.content).toEqual([
-            { type: 'text', text: '[File attachment removed - not supported by gpt-4]' },
+            { type: 'text', text: '[File attachment removed - not supported by gpt-5]' },
         ]);
     });
 });
@@ -392,149 +606,170 @@ describe('isLikelyBase64String', () => {
     });
 });
 
-describe('sanitizeToolResultToContent', () => {
-    test('should convert data URI to image part for image types', () => {
-        const imageDataUri =
-            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
-        const result = sanitizeToolResultToContent(imageDataUri);
+describe('getFileMediaKind', () => {
+    test('should detect audio from MIME type', () => {
+        expect(getFileMediaKind('audio/mp3')).toBe('audio');
+        expect(getFileMediaKind('audio/mpeg')).toBe('audio');
+        expect(getFileMediaKind('audio/wav')).toBe('audio');
+        expect(getFileMediaKind('audio/ogg')).toBe('audio');
+    });
 
-        expect(result).toEqual([
-            {
-                type: 'image',
-                image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-                mimeType: 'image/png',
-            },
+    test('should detect video from MIME type', () => {
+        expect(getFileMediaKind('video/mp4')).toBe('video');
+        expect(getFileMediaKind('video/webm')).toBe('video');
+        expect(getFileMediaKind('video/quicktime')).toBe('video');
+        expect(getFileMediaKind('video/x-msvideo')).toBe('video');
+    });
+
+    test('should default to binary for other types', () => {
+        expect(getFileMediaKind('application/pdf')).toBe('binary');
+        expect(getFileMediaKind('text/plain')).toBe('binary');
+        expect(getFileMediaKind('application/json')).toBe('binary');
+        expect(getFileMediaKind('image/png')).toBe('binary');
+    });
+
+    test('should handle undefined gracefully', () => {
+        expect(getFileMediaKind(undefined)).toBe('binary');
+    });
+
+    test('should handle empty string', () => {
+        expect(getFileMediaKind('')).toBe('binary');
+    });
+});
+
+describe('getResourceKind', () => {
+    test('should detect image from MIME type', () => {
+        expect(getResourceKind('image/png')).toBe('image');
+        expect(getResourceKind('image/jpeg')).toBe('image');
+        expect(getResourceKind('image/gif')).toBe('image');
+        expect(getResourceKind('image/webp')).toBe('image');
+    });
+
+    test('should detect audio from MIME type', () => {
+        expect(getResourceKind('audio/mp3')).toBe('audio');
+        expect(getResourceKind('audio/mpeg')).toBe('audio');
+        expect(getResourceKind('audio/wav')).toBe('audio');
+    });
+
+    test('should detect video from MIME type', () => {
+        expect(getResourceKind('video/mp4')).toBe('video');
+        expect(getResourceKind('video/webm')).toBe('video');
+        expect(getResourceKind('video/quicktime')).toBe('video');
+    });
+
+    test('should default to binary for other types', () => {
+        expect(getResourceKind('application/pdf')).toBe('binary');
+        expect(getResourceKind('text/plain')).toBe('binary');
+        expect(getResourceKind('application/json')).toBe('binary');
+    });
+
+    test('should handle undefined gracefully', () => {
+        expect(getResourceKind(undefined)).toBe('binary');
+    });
+
+    test('should handle empty string', () => {
+        expect(getResourceKind('')).toBe('binary');
+    });
+});
+
+describe('matchesMimePattern', () => {
+    test('should match exact MIME types', () => {
+        expect(matchesMimePattern('image/png', 'image/png')).toBe(true);
+        expect(matchesMimePattern('video/mp4', 'video/mp4')).toBe(true);
+        expect(matchesMimePattern('application/pdf', 'application/pdf')).toBe(true);
+    });
+
+    test('should match wildcard patterns', () => {
+        expect(matchesMimePattern('image/png', 'image/*')).toBe(true);
+        expect(matchesMimePattern('image/jpeg', 'image/*')).toBe(true);
+        expect(matchesMimePattern('video/mp4', 'video/*')).toBe(true);
+        expect(matchesMimePattern('audio/mpeg', 'audio/*')).toBe(true);
+    });
+
+    test('should match universal wildcard', () => {
+        expect(matchesMimePattern('image/png', '*')).toBe(true);
+        expect(matchesMimePattern('video/mp4', '*/*')).toBe(true);
+        expect(matchesMimePattern('application/pdf', '*')).toBe(true);
+    });
+
+    test('should not match different types', () => {
+        expect(matchesMimePattern('image/png', 'video/*')).toBe(false);
+        expect(matchesMimePattern('video/mp4', 'image/*')).toBe(false);
+        expect(matchesMimePattern('application/pdf', 'image/*')).toBe(false);
+    });
+
+    test('should be case insensitive', () => {
+        expect(matchesMimePattern('IMAGE/PNG', 'image/*')).toBe(true);
+        expect(matchesMimePattern('image/png', 'IMAGE/*')).toBe(true);
+        expect(matchesMimePattern('Video/MP4', 'video/*')).toBe(true);
+    });
+
+    test('should handle undefined MIME type', () => {
+        expect(matchesMimePattern(undefined, 'image/*')).toBe(false);
+        expect(matchesMimePattern(undefined, '*')).toBe(false);
+    });
+
+    test('should trim whitespace', () => {
+        expect(matchesMimePattern(' image/png ', 'image/*')).toBe(true);
+        expect(matchesMimePattern('image/png', ' image/* ')).toBe(true);
+    });
+});
+
+describe('matchesAnyMimePattern', () => {
+    test('should match if any pattern matches', () => {
+        expect(matchesAnyMimePattern('image/png', ['video/*', 'image/*'])).toBe(true);
+        expect(matchesAnyMimePattern('video/mp4', ['image/*', 'video/*', 'audio/*'])).toBe(true);
+    });
+
+    test('should not match if no patterns match', () => {
+        expect(matchesAnyMimePattern('image/png', ['video/*', 'audio/*'])).toBe(false);
+        expect(matchesAnyMimePattern('application/pdf', ['image/*', 'video/*'])).toBe(false);
+    });
+
+    test('should handle empty pattern array', () => {
+        expect(matchesAnyMimePattern('image/png', [])).toBe(false);
+    });
+
+    test('should handle exact and wildcard mix', () => {
+        expect(matchesAnyMimePattern('image/png', ['video/mp4', 'image/*'])).toBe(true);
+        expect(matchesAnyMimePattern('video/mp4', ['video/mp4', 'audio/*'])).toBe(true);
+    });
+});
+
+describe('fileTypesToMimePatterns', () => {
+    test('should convert image file type', () => {
+        expect(fileTypesToMimePatterns(['image'])).toEqual(['image/*']);
+    });
+
+    test('should convert pdf file type', () => {
+        expect(fileTypesToMimePatterns(['pdf'])).toEqual(['application/pdf']);
+    });
+
+    test('should convert audio file type', () => {
+        expect(fileTypesToMimePatterns(['audio'])).toEqual(['audio/*']);
+    });
+
+    test('should convert video file type', () => {
+        expect(fileTypesToMimePatterns(['video'])).toEqual(['video/*']);
+    });
+
+    test('should convert multiple file types', () => {
+        expect(fileTypesToMimePatterns(['image', 'pdf', 'audio'])).toEqual([
+            'image/*',
+            'application/pdf',
+            'audio/*',
         ]);
     });
 
-    test('should convert data URI to file part for non-image types', () => {
-        const pdfDataUri =
-            'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKdHJhaWxlcgo8PAovU2l6ZSAxCi9Sb290IDEgMCBSCj4+CnN0YXJ0eHJlZgo5CiUlRU9G';
-        const result = sanitizeToolResultToContent(pdfDataUri);
+    test('should handle empty array', () => {
+        expect(fileTypesToMimePatterns([])).toEqual([]);
+    });
 
-        expect(result).toEqual([
-            {
-                type: 'file',
-                data: 'JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKdHJhaWxlcgo8PAovU2l6ZSAxCi9Sb290IDEgMCBSCj4+CnN0YXJ0eHJlZgo5CiUlRU9G',
-                mimeType: 'application/pdf',
-            },
+    test('should skip unknown file types', () => {
+        // Unknown types are logged as warnings but not added to patterns
+        expect(fileTypesToMimePatterns(['image', 'unknown', 'pdf'])).toEqual([
+            'image/*',
+            'application/pdf',
         ]);
-    });
-
-    test('should convert base64-like strings to file parts', () => {
-        const longBase64 =
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='.repeat(
-                10
-            );
-        const result = sanitizeToolResultToContent(longBase64);
-
-        expect(result).toEqual([
-            {
-                type: 'file',
-                data: longBase64,
-                mimeType: 'application/octet-stream',
-                filename: 'tool-output.bin',
-            },
-        ]);
-    });
-
-    test('should preserve regular text strings as-is', () => {
-        const textResult = 'This is a normal tool output with some information.';
-        const result = sanitizeToolResultToContent(textResult);
-
-        expect(result).toBe(textResult);
-    });
-
-    test('should handle array of mixed content types', () => {
-        const mixedArray = [
-            'Regular text',
-            'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD',
-            { type: 'text', text: 'Structured text' },
-            { type: 'image', image: 'base64data', mimeType: 'image/png' },
-        ];
-
-        const result = sanitizeToolResultToContent(mixedArray);
-
-        expect(Array.isArray(result)).toBe(true);
-        const parts = result as any[];
-        expect(parts[0]).toEqual({ type: 'text', text: 'Regular text' });
-        expect(parts[1]).toEqual({
-            type: 'image',
-            image: '/9j/4AAQSkZJRgABAQEAYABgAAD',
-            mimeType: 'image/jpeg',
-        });
-        expect(parts[2]).toEqual({ type: 'text', text: 'Structured text' });
-        expect(parts[3]).toEqual({
-            type: 'image',
-            image: expect.any(String),
-            mimeType: 'image/png',
-        });
-    });
-
-    test('should handle objects with image properties', () => {
-        const objectWithImage = { image: 'base64imagedata', mimeType: 'image/png' };
-        const result = sanitizeToolResultToContent(objectWithImage);
-
-        expect(Array.isArray(result)).toBe(true);
-        const parts = result as any[];
-        expect(parts).toHaveLength(1);
-        expect(parts[0].type).toBe('image');
-        expect(parts[0].mimeType).toBe('image/png');
-    });
-
-    test('should handle objects with file properties', () => {
-        const objectWithFile = {
-            type: 'file',
-            data: 'filedata',
-            mimeType: 'application/pdf',
-            filename: 'document.pdf',
-        };
-        const result = sanitizeToolResultToContent(objectWithFile);
-
-        expect(Array.isArray(result)).toBe(true);
-        const parts = result as any[];
-        expect(parts).toHaveLength(1);
-        expect(parts[0]).toEqual({
-            type: 'file',
-            data: expect.any(String),
-            mimeType: 'application/pdf',
-            filename: 'document.pdf',
-        });
-    });
-
-    test('should gracefully handle null and undefined', () => {
-        expect(sanitizeToolResultToContent(null)).toBe('""');
-        expect(sanitizeToolResultToContent(undefined)).toBe('""');
-    });
-
-    test('should handle complex nested objects safely', () => {
-        const complexObject = {
-            status: 'success',
-            data: {
-                results: [
-                    { id: 1, name: 'Item 1' },
-                    {
-                        id: 2,
-                        name: 'Item 2',
-                        attachment: 'data:text/plain;base64,SGVsbG8gV29ybGQ=',
-                    },
-                ],
-            },
-        };
-
-        const result = sanitizeToolResultToContent(complexObject);
-        expect(typeof result).toBe('string'); // Falls back to JSON string for complex objects
-    });
-
-    test('should handle errors gracefully and provide fallback', () => {
-        // Create an object that will cause JSON.stringify to throw
-        const circularObject: any = { name: 'test' };
-        circularObject.self = circularObject;
-
-        const result = sanitizeToolResultToContent(circularObject);
-        expect(typeof result).toBe('string');
-        // safeStringify now handles circular references gracefully
-        expect(result).toContain('test'); // Should contain the actual data
-        expect(result).toContain('[REDACTED_CIRCULAR]'); // Should show circular reference was detected
     });
 });

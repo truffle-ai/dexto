@@ -21,6 +21,9 @@ mcpServers:
       - "@modelcontextprotocol/server-filesystem"
       - .
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🎙️ Hello! I'm your Podcast Agent. Let's create some amazing audio together!"
+
 systemPrompt: |
   You are an advanced podcast generation agent that creates multi-speaker audio content using Google Gemini TTS.
 
@@ -151,7 +154,7 @@ systemPrompt: |
 
 llm:
   provider: openai
-  model: gpt-4o-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
 storage:
@@ -159,9 +162,40 @@ storage:
     type: in-memory
   database:
     type: sqlite
-    path: .dexto/database/podcast-agent.db
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30
 
 toolConfirmation:
   mode: auto-approve
   timeout: 30000
-  allowedToolsStorage: memory 
+  allowedToolsStorage: memory
+
+# Starter prompts - podcast and audio generation examples
+starterPrompts:
+  - id: create-intro
+    title: "🎙️ Create Podcast Intro"
+    description: "Generate a multi-speaker podcast introduction"
+    prompt: "Create a podcast intro with two hosts, Alex (voice: Achird) and Jamie (voice: Autonoe), welcoming listeners to a tech podcast."
+    category: podcasting
+    priority: 10
+  - id: generate-conversation
+    title: "💬 Generate Conversation"
+    description: "Create multi-speaker dialogue"
+    prompt: "Generate a 2-minute conversation between Dr. Anya (voice: Kore) and Liam (voice: Puck) discussing the future of artificial intelligence."
+    category: conversation
+    priority: 9
+  - id: list-voices
+    title: "🔊 Explore Voices"
+    description: "Browse available voice options"
+    prompt: "Show me all available voices with their characteristics to help me choose the right ones for my podcast."
+    category: discovery
+    priority: 8
+  - id: single-speaker
+    title: "🗣️ Generate Speech"
+    description: "Create single-speaker audio"
+    prompt: "Generate a cheerful welcome announcement using voice Puck saying 'Welcome to our amazing podcast! We're thrilled to have you here today.'"
+    category: speech
+    priority: 7

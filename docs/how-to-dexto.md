@@ -18,10 +18,10 @@ npm install -g dexto
 ### LLM API Keys
 Dexto requires API keys for the desired LLM provider. Set them as environment variables.
 ```bash
-# For OpenAI (e.g., gpt-4o)
+# For OpenAI (e.g., gpt-5)
 export OPENAI_API_KEY="your_key"
 
-# For Anthropic (e.g., claude-4-sonnet)
+# For Anthropic (e.g., claude-sonnet-4-5-20250929)
 export ANTHROPIC_API_KEY="your_key"
 
 # For Google (e.g., gemini-2.5-pro)
@@ -52,7 +52,7 @@ mcpServers:
 # Configure the Large Language Model
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY # Reads from environment variable
 
 # Define the agent's persona and instructions
@@ -154,7 +154,7 @@ dexto
 ```
 
 **Key CLI Flags:**
-- `-m, --model <model_name>`: Switch LLM model (e.g., `claude-4-sonnet-20250514`). Overrides config file.
+- `-m, --model <model_name>`: Switch LLM model (e.g., `claude-sonnet-4-5-20250929`). Overrides config file.
 - `-a, --agent <path/to/agent.yml>`: Use a specific agent configuration file.
 - `--mode <mode>`: Change the run mode.
 - `--new-session [id]`: Start a new chat session.
@@ -163,8 +163,8 @@ dexto
 
 | Mode       | Command                       | Description                               |
 |------------|-------------------------------|-------------------------------------------|
-| `cli`      | `dexto`                       | Interactive or one-shot terminal commands.|
-| `web`      | `dexto --mode web`            | Starts a web UI (default port: 3000).     |
+| `web`      | `dexto`                       | Starts a web UI (default mode, port: 3000).|
+| `cli`      | `dexto --mode cli`            | Interactive or one-shot terminal commands.|
 | `server`   | `dexto --mode server`         | Starts a REST/WebSocket server (port: 3001).|
 | `mcp`      | `dexto --mode mcp`            | Exposes the agent as a tool via MCP/stdio.|
 | `discord`  | `dexto --mode discord`        | Runs the agent as a Discord bot.          |

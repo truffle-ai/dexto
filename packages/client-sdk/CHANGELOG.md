@@ -1,0 +1,117 @@
+# @dexto/client-sdk
+
+## 1.2.4
+
+### Patch Changes
+
+- cd706e7: bump up version after fixing node-machine-id
+- Updated dependencies [cd706e7]
+    - @dexto/core@1.2.4
+
+## 1.2.3
+
+### Patch Changes
+
+- 5d6ae73: Bump up version to fix bugs
+- Updated dependencies [5d6ae73]
+    - @dexto/core@1.2.3
+
+## 1.2.2
+
+### Patch Changes
+
+- @dexto/core@1.2.2
+
+## 1.2.1
+
+### Patch Changes
+
+- @dexto/core@1.2.1
+
+## 1.2.0
+
+### Patch Changes
+
+- Updated dependencies [b51e4d9]
+- Updated dependencies [a27ddf0]
+- Updated dependencies [155813c]
+- Updated dependencies [1e25f91]
+- Updated dependencies [3a65cde]
+- Updated dependencies [5ba5d38]
+- Updated dependencies [930a4ca]
+- Updated dependencies [ecad345]
+- Updated dependencies [930d75a]
+    - @dexto/core@1.2.0
+
+## 1.1.11
+
+### Patch Changes
+
+- 01167a2: Refactors
+- Updated dependencies [c40b675]
+- Updated dependencies [015100c]
+- Updated dependencies [0760f8a]
+- Updated dependencies [5cc6933]
+- Updated dependencies [40f89f5]
+- Updated dependencies [3a24d08]
+- Updated dependencies [01167a2]
+- Updated dependencies [a53b87a]
+- Updated dependencies [24e5093]
+- Updated dependencies [c695e57]
+- Updated dependencies [0700f6f]
+- Updated dependencies [0a5636c]
+- Updated dependencies [35d48c5]
+    - @dexto/core@1.1.11
+
+## 1.1.10
+
+### Patch Changes
+
+- @dexto/core@1.1.10
+
+## 1.1.9
+
+### Patch Changes
+
+- Updated dependencies [27778ba]
+    - @dexto/core@1.1.9
+
+## 1.1.8
+
+### Patch Changes
+
+- Updated dependencies [d79d358]
+    - @dexto/core@1.1.8
+
+## 1.1.7
+
+### Patch Changes
+
+- @dexto/core@1.1.7
+
+## 1.1.6
+
+### Patch Changes
+
+- @dexto/core@1.1.6
+
+## 1.1.5
+
+### Patch Changes
+
+- 795c7f1: feat: Add @dexto/client-sdk package
+    - New lightweight cross-environment client SDK
+    - HTTP + optional WebSocket support for messaging
+    - Streaming and non-streaming message support
+    - Session management, LLM config/catalog access
+    - MCP tools integration and search functionality
+    - Real-time events support
+    - Comprehensive TypeScript types and validation
+    - Unit tests and documentation included
+
+- 09b8e33: Fix minor comments
+- Updated dependencies [e2bd0ce]
+- Updated dependencies [11cbec0]
+- Updated dependencies [795c7f1]
+- Updated dependencies [9d7541c]
+    - @dexto/core@1.1.5

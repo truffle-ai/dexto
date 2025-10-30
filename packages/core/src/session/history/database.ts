@@ -1,5 +1,5 @@
 import { logger } from '@core/logger/index.js';
-import type { DatabaseBackend } from '@core/storage/types.js';
+import type { Database } from '@core/storage/types.js';
 import { SessionError } from '../errors.js';
 import type { InternalMessage } from '@core/context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
@@ -19,7 +19,7 @@ import type { IConversationHistoryProvider } from './types.js';
 export class DatabaseHistoryProvider implements IConversationHistoryProvider {
     constructor(
         private sessionId: string,
-        private database: DatabaseBackend
+        private database: Database
     ) {}
 
     async getHistory(): Promise<InternalMessage[]> {

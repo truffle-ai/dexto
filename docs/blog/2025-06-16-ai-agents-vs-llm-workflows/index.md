@@ -37,7 +37,7 @@ LLMs have reached a point where their grammar and sentence structure are much be
 
 ChatGPT is the most popular example of an LLM based application, which you've probably used, unless you're living under a rock.
 
-Under the hood, ChatGPT uses LLMs built by OpenAI, like `gpt-4o` or `gpt-4.5` to answer your questions about almost anything.
+Under the hood, ChatGPT uses LLMs built by OpenAI, like `gpt-5` or `gpt-5-mini` to answer your questions about almost anything.
 
 This is why if you ask LLMs questions like `how many r's are there in the word strawberry`, you might see completely incorrect results - [the guessing doesn't always work well](https://www.reddit.com/r/singularity/comments/1enqk04/how_many_rs_in_strawberry_why_is_this_a_very/). This is called [*hallucination*](https://en.wikipedia.org/wiki/Hallucination_(artificial_intelligence)).
 
@@ -83,7 +83,7 @@ This process of giving the LLM access to `functions` is called [function_calling
 
 Let's revisit the previous case where we asked the LLM to add 2 numbers, this time with function calling.
 
-Suppose you gave `gpt-4o` a function to add 2 numbers. 
+Suppose you gave `gpt-5` a function to add 2 numbers. 
 
 The next time you ask it `What is 5+10` - instead of trying to guess what the answer is, it would use the function to generate a more reliable response.
 
@@ -92,7 +92,7 @@ This is an extremely basic example, but the key takeaway here is that by giving 
 This is where things get interesting - what if the LLM had a function to book a reservation for you at a restaurant? Or if the LLM had a function to make a payment for you? 
 
 All the LLM would need to do in this case is use the right function based on the request, and you now have AI-powered bookings and payments. 
-There are other complexities like ensuring the LLM uses the corerect function more accurately enough, and adding the appropriate guardrails and authentication, but we won't get into that for now.
+There are other complexities like ensuring the LLM uses the correct function more accurately enough, and adding the appropriate guardrails and authentication, but we won't get into that for now.
 
 
 ## LLM Workflows and AI Agents

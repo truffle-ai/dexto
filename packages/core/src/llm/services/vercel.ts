@@ -12,7 +12,8 @@ import { logger } from '../../logger/index.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { sanitizeToolResultToContent, summarizeToolContentForText } from '../../context/utils.js';
+import { summarizeToolContentForText } from '../../context/utils.js';
+import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -22,15 +23,27 @@ import type { SessionEventBus } from '../../events/index.js';
 import { toError } from '../../utils/error-conversion.js';
 import { ToolErrorCode } from '../../tools/error-codes.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
-import type { PromptManager } from '../../systemPrompt/manager.js';
+import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import { InstrumentClass } from '../../telemetry/decorators.js';
+import { trace } from '@opentelemetry/api';
 
 /**
  * Vercel AI SDK implementation of LLMService
  * TODO: improve token counting logic across all LLM services - approximation isn't matching vercel actual token count properly
+ * TODO (Telemetry): Add OpenTelemetry metrics collection
+ *   - LLM call counters (by provider/model)
+ *   - Token usage histograms (input/output/total/reasoning)
+ *   - Request latency histograms
+ *   - Error rate counters
+ *   See feature-plans/telemetry.md for details
  */
+@InstrumentClass({
+    prefix: 'llm.vercel',
+    excludeMethods: ['getModelId', 'getAllTools', 'formatTools', 'validateToolSupport'],
+})
 export class VercelLLMService implements ILLMService {
     private model: LanguageModel;
     private config: ValidatedLLMConfig;
@@ -39,8 +52,6 @@ export class VercelLLMService implements ILLMService {
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
-    // Map of toolCallId -> queue of raw results to emit with that callId
-    private rawResultsByCallId: Map<string, unknown[]> = new Map();
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -52,11 +63,12 @@ export class VercelLLMService implements ILLMService {
     constructor(
         toolManager: ToolManager,
         model: LanguageModel,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         historyProvider: IConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
-        sessionId: string
+        sessionId: string,
+        resourceManager: import('../../resources/index.js').ResourceManager
     ) {
         this.model = model;
         this.config = config;
@@ -69,14 +81,18 @@ export class VercelLLMService implements ILLMService {
         const tokenizer = createTokenizer(config.provider, this.getModelId());
         const maxInputTokens = getEffectiveMaxInputTokens(config);
 
+        // Use the provided ResourceManager
+
         this.contextManager = new ContextManager<ModelMessage>(
             config,
             formatter,
-            promptManager,
+            systemPromptManager,
             maxInputTokens,
             tokenizer,
             historyProvider,
-            sessionId
+            sessionId,
+            resourceManager
+            // compressionStrategies uses default
         );
 
         logger.debug(
@@ -96,41 +112,98 @@ export class VercelLLMService implements ILLMService {
                 acc[toolName] = {
                     inputSchema: jsonSchema(tool.parameters),
                     execute: async (args: unknown, options: { toolCallId: string }) => {
+                        const callId = options.toolCallId;
+
                         try {
+                            // Emit toolCall event FIRST before execution
+                            logger.debug(
+                                `[vercel] Emitting toolCall event for ${toolName} with callId ${callId}`
+                            );
+                            this.sessionEventBus.emit('llmservice:toolCall', {
+                                toolName,
+                                args: args as Record<string, unknown>,
+                                callId,
+                            });
+
                             const rawResult = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
                                 this.sessionId
                             );
 
-                            // Queue raw, unfiltered result under the specific toolCallId
-                            const callId = options.toolCallId;
-                            const queue = this.rawResultsByCallId.get(callId) ?? [];
-                            queue.push(rawResult);
-                            this.rawResultsByCallId.set(callId, queue);
+                            // Persist result and emit event immediately after tool execution
+                            // This sanitizes the result, persists blobs to storage, and returns sanitized parts
+                            const persisted = await this.contextManager.addToolResult(
+                                callId,
+                                toolName,
+                                rawResult,
+                                { success: true }
+                            );
 
-                            // Sanitize tool result to prevent large/base64 media from exploding context
-                            // Convert arbitrary result -> InternalMessage content (media as structured parts)
-                            // then summarize to concise text suitable for Vercel tool output.
-                            const safeContent = sanitizeToolResultToContent(rawResult);
-                            const summaryText = summarizeToolContentForText(safeContent);
+                            logger.debug(
+                                `[vercel] Emitting toolResult event for ${toolName} with callId ${callId}`
+                            );
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName,
+                                callId,
+                                success: true,
+                                sanitized: persisted,
+                                ...(shouldIncludeRawToolResult() ? { rawResult } : {}),
+                            });
+
+                            // Generate summary text from the already-sanitized content
+                            // (avoids redundant normalization since addToolResult already did it)
+                            const summaryText = summarizeToolContentForText(persisted.content);
                             return summaryText;
                         } catch (err: unknown) {
-                            // Return structured error to SDK so a toolResult step is produced
+                            // Handle tool execution errors
+                            // Note: toolCall event was already emitted before execution
+                            let errorResult: { error: string; denied?: boolean; timeout?: boolean };
+                            let errorFlags = '';
+
                             if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.EXECUTION_DENIED
                             ) {
-                                return { error: err.message, denied: true };
-                            }
-                            if (
+                                errorResult = { error: err.message, denied: true };
+                                errorFlags = ' (denied)';
+                            } else if (
                                 err instanceof DextoRuntimeError &&
                                 err.code === ToolErrorCode.CONFIRMATION_TIMEOUT
                             ) {
-                                return { error: err.message, denied: true, timeout: true };
+                                errorResult = { error: err.message, denied: true, timeout: true };
+                                errorFlags = ' (timeout)';
+                            } else {
+                                const message = err instanceof Error ? err.message : String(err);
+                                errorResult = { error: message };
                             }
-                            const message = err instanceof Error ? err.message : String(err);
-                            return { error: message };
+
+                            // Persist error result and emit event immediately
+                            try {
+                                const persisted = await this.contextManager.addToolResult(
+                                    callId,
+                                    toolName,
+                                    errorResult,
+                                    { success: false }
+                                );
+
+                                this.sessionEventBus.emit('llmservice:toolResult', {
+                                    toolName,
+                                    callId,
+                                    success: false,
+                                    sanitized: persisted,
+                                    ...(shouldIncludeRawToolResult()
+                                        ? { rawResult: errorResult }
+                                        : {}),
+                                });
+                            } catch (persistErr) {
+                                logger.error(
+                                    `Failed to persist error result for ${toolName}: ${String(persistErr)}`
+                                );
+                            }
+
+                            // Return a concise error string for consistency with success path
+                            return `Tool ${toolName} failed${errorFlags}: ${errorResult.error}`;
                         }
                     },
                     ...(tool.description && { description: tool.description }),
@@ -303,7 +376,7 @@ export class VercelLLMService implements ILLMService {
                 messages,
                 tools: effectiveTools,
                 ...(signal ? { abortSignal: signal } : {}),
-                onStepFinish: (step) => {
+                onStepFinish: async (step) => {
                     logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
                     logger.debug(`Step finished, text: ${step.text}`);
@@ -315,35 +388,8 @@ export class VercelLLMService implements ILLMService {
                     );
 
                     // Do not emit intermediate llmservice:response; generateText is non-stream so we only emit once after completion.
-                    if (step.toolCalls && step.toolCalls.length > 0) {
-                        for (const toolCall of step.toolCalls) {
-                            this.sessionEventBus.emit('llmservice:toolCall', {
-                                toolName: toolCall.toolName,
-                                args: toolCall.input as Record<string, unknown>,
-                                callId: toolCall.toolCallId,
-                            });
-                        }
-                    }
-                    // Emit tool results: prefer raw mapped by callId; fallback to sanitized output
-                    if (step.toolResults && step.toolResults.length > 0) {
-                        for (const toolResult of step.toolResults) {
-                            const callId = toolResult.toolCallId;
-                            const sanitized = toolResult.output;
-                            let raw: unknown | undefined;
-                            if (callId) {
-                                const q = this.rawResultsByCallId.get(callId) ?? [];
-                                raw = q.shift();
-                                if (q.length > 0) this.rawResultsByCallId.set(callId, q);
-                                else this.rawResultsByCallId.delete(callId);
-                            }
-                            this.sessionEventBus.emit('llmservice:toolResult', {
-                                toolName: toolResult.toolName,
-                                result: raw ?? sanitized,
-                                callId,
-                                success: true,
-                            });
-                        }
-                    }
+                    // toolCall and toolResult events are now emitted immediately in execute() function
+                    // Clean up any remaining raw results from the queue
                 },
                 stopWhen: stepCountIs(maxSteps),
                 ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
@@ -371,6 +417,26 @@ export class VercelLLMService implements ILLMService {
                     }),
                 },
             });
+
+            // Add token usage to active span (if telemetry is enabled)
+            const activeSpan = trace.getActiveSpan();
+            if (activeSpan) {
+                const attributes: Record<string, number> = {};
+                if (response.totalUsage.inputTokens !== undefined) {
+                    attributes['gen_ai.usage.input_tokens'] = response.totalUsage.inputTokens;
+                }
+                if (response.totalUsage.outputTokens !== undefined) {
+                    attributes['gen_ai.usage.output_tokens'] = response.totalUsage.outputTokens;
+                }
+                if (response.totalUsage.totalTokens !== undefined) {
+                    attributes['gen_ai.usage.total_tokens'] = response.totalUsage.totalTokens;
+                }
+                if (response.totalUsage.reasoningTokens !== undefined) {
+                    attributes['gen_ai.usage.reasoning_tokens'] =
+                        response.totalUsage.reasoningTokens;
+                }
+                activeSpan.setAttributes(attributes);
+            }
 
             // Persist and update token count
             await this.contextManager.processLLMResponse(response);
@@ -507,7 +573,7 @@ export class VercelLLMService implements ILLMService {
                 });
                 streamErr = error;
             },
-            onStepFinish: (step) => {
+            onStepFinish: async (step) => {
                 logger.debug(`Step iteration: ${stepIteration}`);
                 stepIteration++;
                 logger.debug(`Step finished, text: ${step.text}`);
@@ -519,37 +585,7 @@ export class VercelLLMService implements ILLMService {
                 );
 
                 // Do not emit intermediate llmservice:response; chunks update the UI during streaming.
-
-                // Process tool calls (same as generateText)
-                if (step.toolCalls && step.toolCalls.length > 0) {
-                    for (const toolCall of step.toolCalls) {
-                        this.sessionEventBus.emit('llmservice:toolCall', {
-                            toolName: toolCall.toolName,
-                            args: toolCall.input as Record<string, unknown>,
-                            callId: toolCall.toolCallId,
-                        });
-                    }
-                }
-                // Emit tool results during streaming as well (prefer raw mapped by callId)
-                if (step.toolResults && step.toolResults.length > 0) {
-                    for (const toolResult of step.toolResults) {
-                        const callId = toolResult.toolCallId;
-                        const sanitized = toolResult.output;
-                        let raw: unknown | undefined;
-                        if (callId) {
-                            const q = this.rawResultsByCallId.get(callId) ?? [];
-                            raw = q.shift();
-                            if (q.length > 0) this.rawResultsByCallId.set(callId, q);
-                            else this.rawResultsByCallId.delete(callId);
-                        }
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName: toolResult.toolName,
-                            result: raw ?? sanitized,
-                            callId,
-                            success: true,
-                        });
-                    }
-                }
+                // toolCall and toolResult events are now emitted immediately in execute() function
             },
             // No onFinish: we finalize after the stream completes below.
             stopWhen: stepCountIs(maxSteps),
@@ -592,6 +628,25 @@ export class VercelLLMService implements ILLMService {
                 ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
             },
         });
+
+        // Add token usage to active span (if telemetry is enabled)
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            const attributes: Record<string, number> = {};
+            if (usage.inputTokens !== undefined) {
+                attributes['gen_ai.usage.input_tokens'] = usage.inputTokens;
+            }
+            if (usage.outputTokens !== undefined) {
+                attributes['gen_ai.usage.output_tokens'] = usage.outputTokens;
+            }
+            if (usage.totalTokens !== undefined) {
+                attributes['gen_ai.usage.total_tokens'] = usage.totalTokens;
+            }
+            if (usage.reasoningTokens !== undefined) {
+                attributes['gen_ai.usage.reasoning_tokens'] = usage.reasoningTokens;
+            }
+            activeSpan.setAttributes(attributes);
+        }
 
         // Update ContextManager with actual token count
         if (typeof usage.totalTokens === 'number') {

@@ -1,0 +1,30 @@
+# MCP Resources Demo Agent Configuration
+# This agent demonstrates MCP Resources capability from external server
+
+# MCP Servers configuration
+mcpServers:
+  resources-demo:
+    type: stdio
+    command: node
+    args:
+      - "${{dexto.agent_dir}}/server.js"
+    timeout: 30000
+    connectionMode: lenient
+
+# LLM configuration
+llm:
+  provider: openai
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY
+
+# System prompt configuration
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a helpful assistant.
+
+# Optional greeting
+greeting: "Hello! I'm connected to an MCP server that provides Resources. Ask me about product metrics, user feedback, or system status to see MCP Resources in action!"

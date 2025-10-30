@@ -1,4 +1,6 @@
-# Dexto
+<a href="https://dexto.ai">
+  <img src="https://raw.githubusercontent.com/truffle-ai/dexto/main/.github/assets/dexto-logo.svg" alt="Dexto" width="100%" style="max-width: 1000px" />
+</a>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Beta-yellow">
@@ -10,40 +12,41 @@
 **An all-in-one toolkit to build agentic applications that turn natural language into real-world actions.**
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/97a09f5b-6f7d-4d4b-9b3f-3c87fd964cbe" alt="Dexto Demo" width="700" />
+  <img src="https://github.com/user-attachments/assets/89d30349-0cb1-4160-85db-d99a80a71d7a" alt="Dexto Demo" width="700" />
 </div>
 
 ## What is Dexto?
 
-Dexto is a universal agent interface for building agentic apps—software that understands natural language and takes real-world actions. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, copilots, and context-aware apps that think, act and feel alive.
+Dexto is a universal intelligence layer for building collaborative, context-aware AI Agents & agentic apps. It orchestrates LLMs, tools, and data into persistent, stateful systems with memory, so you can rapidly create AI assistants, digital companions & copilots that think, act and feel alive.
+
+Dexto combines a configuration-driven framework, robust runtime, and seamless developer experience so you can build, deploy, and iterate on your agents easily.
+
+- **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
+- **Runtime** – Execution with orchestration, session management, conversation memory, and multimodal support.
+- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK.
 
 #### With Dexto, you can build:
 
 - **Autonomous Agents**  - Agents that plan, execute, and adapt to user goals.
 - **Digital Companions** - AI assistants & copilots that remember context and anticipate needs.
-- **Multi-Agent Systems**  - Architect agents that collaborate, delegate, and solve complex tasks together.
 - **MCP Clients** - Connect multiple tools, files, APIs, and data via MCP Servers.
+- **MCP Servers** - Dexto Web UI and MCP playground help you to easily test your own MCP servers.
+- **Multi-Agent Systems**  - Architect agents that collaborate, delegate, and solve complex tasks together.
 - **Agent-as-a-Service** – Transform your existing SaaS products and APIs into dynamic, conversational experiences.
 - **Agentic Applications** – Integrate Dexto as a reasoning engine to power interactive, multimodal, AI-native applications.
 
-<!-- Dexto unifies a configuration-driven framework, robust runtime, and seamless developer experience—so you can build, deploy, and iterate with ease.
+#### What You Get
 
-- **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
-- **Runtime** – Execution with session management, conversation memory, and multimodal support.
-- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK. Develop, debug, and interact with your agent across any platforms from day one. -->
-
-### What You Get
-
-- **Batteries Included** – Session management, tool orchestration, multimodal support.
-- **20+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own.
+- **Batteries Included** – Session management, tool orchestration, multimodal support, and production-ready observability.
+- **50+ LLMs** – Instantly switch between OpenAI, Anthropic, Google, Groq, local models or bring your own.
 - **Run Anywhere** – Local for privacy, cloud for reach, or hybrid. *Same agent, any deployment.*
 - **Native Multimodal** – Text, images, files, and tools in a single conversation. *Upload screenshots, ask questions, take actions.*
 - **Persistent Sessions** – Conversations, context, and memory are saved and can be exported, imported, or shared across environments.
-- **Flexible Interfaces** – One agent, endless ways to interact: Ready to-use CLI, WebUI, APIs, or integrate with your own UI.
-- **Production Ready** – Observability and error handling built-in.
-- **Tooling & MCP** – Integrate 100+ tools and connect to external servers via the Model Context Protocol (MCP).
-- **Customizable Agents** – Define agent behavior, tools, and prompts in YAML or TypeScript.
-- **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, and more for cache and database backends.
+- **Flexible Interfaces** – One agent, endless ways to interact: Ready-to-use CLI, WebUI, APIs, or integrate with your own UI.
+- **30+ Tools & MCP** – Integrate tools and connect to external servers via the Model Context Protocol (MCP) or use our internal tools.
+- **Pluggable Storage** – Use Redis, PostgreSQL, SQLite, in-memory, S3 and more for cache, database & blob backends.
+- **Human in the loop** - Configure approval policies for tool execution, agents can also remember which tools are safe per session. 
+- **Observability** – Built-in OpenTelemetry distributed tracing, token usage monitoring, and error handling.
 
 ---
 
@@ -63,17 +66,37 @@ cd dexto && pnpm install && pnpm install-cli
 ## Quick Start
 
 ```bash
-# 1. Run setup workflow - this prompts for your preferred LLM and API keys and starts the interactive CLI
+# 1. Run setup workflow - this prompts for your preferred LLM and API keys and opens the Web UI
 dexto
 
-# 2. Try a multi-step task
-dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
+# 2. Try a multi-step task in the web UI:
+"create a snake game in HTML/CSS/JS, then open it in the browser"
 
-# 3. Launch the Dexto Web UI
-dexto --mode web
+# 3. Start interactive CLI mode instead of web UI
+dexto --mode cli
 ```
 
-In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI allows you to navigate previous conversations and experiment with different models, tools and more.
+In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. 
+
+The interactive CLI (3) allows you to interact with agents in the terminal.
+
+See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
+
+### Skip Tool Prompts While Prototyping
+
+```bash
+dexto --auto-approve "refactor my project using the filesystem and browser tools"
+```
+
+Use the `--auto-approve` flag to bypass confirmation prompts when you trust the tools being invoked—perfect for fast local iteration. Remove the flag when you want explicit approval again.
+
+### Logs
+
+Logs are stored in `~/.dexto/logs` directory by default.
+
+Use `DEXTO_LOG_TO_CONSOLE=true` to log to console when running dexto.
+
+Use `DEXTO_LOG_LEVEL=debug` for debug logs.
 
 ## Agent Recipes
 
@@ -84,30 +107,116 @@ Dexto comes with pre-built agent recipes for common use cases. Install and use t
 dexto list-agents
 
 # Install specific agents
-dexto install nano-banana-agent podcast-agent
+dexto install nano-banana-agent podcast-agent coding-agent
 
-# Use an agent
-dexto --agent nano-banana-agent "create a futuristic cityscape with flying cars"
-dexto --agent podcast-agent "generate a podcast intro with two hosts discussing AI"
+# Use an agent with one shot prompt
+dexto --agent nano-banana-agent --mode cli "create a futuristic cityscape with flying cars"
+dexto --agent podcast-agent --mode cli "generate a podcast intro with two hosts discussing AI"
+dexto --agent coding-agent --mode cli "create a landing page for a coffee brand inspired by star wars"
+
+# Alternatively, start the agent in web UI and put in the prompt yourself
+dexto --agent nano-banana-agent
 ```
 
 **Available Agents:**
+- **Coding Agent** – Code generation, refactoring, debugging
 - **Nano Banana Agent** – Advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image)
 - **Podcast Agent** – Advanced podcast generation using Google Gemini TTS for multi-speaker audio content
+- **Sora Video Agent** – AI video generation using OpenAI's Sora with custom settings, remixing, and reference support
 - **Database Agent** – Demo agent for SQL queries and database operations
-- **Image Editor Agent** – Image editing and manipulation  
+- **GitHub Agent** – GitHub operations, PR analysis, and repository management
+- **Image Editor Agent** – Image editing and manipulation
 - **Music Agent** – Music creation and audio processing
-- **PDF Agent** – Document analysis and conversation
+- **Talk2PDF Agent** – Document analysis and conversation
 - **Product Researcher** – Product naming and branding research
 - **Triage Agent** – Demo multi-agent customer support routing system
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
 
-More ready-to-run recipes live in [`agents/`](agents/) and the [docs site](https://docs.dexto.ai/).
+**📚 See the full [Agent Registry](https://docs.dexto.ai/docs/guides/agent-registry) for detailed information about all agents, their capabilities, use cases, and requirements.**
+
+More ready-to-run recipes live in [`agents/`](agents/).
 
 ## Examples & Demos
 
-### 🛒 Browser Agent: Amazon Shopping Assistant
+### 🎙️ Podcast Agent: Generate AI Podcasts
+**Task:** `Generate an intro for a podcast about the latest in AI.`
+```bash
+dexto --agent podcast-agent
+```
+
+<img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
+
+### 👁️ Computer Vision Agent: Face Detection & Annotation Using OpenCV
+**Task:** `Detect all faces in this image and draw bounding boxes around them.`
+```bash
+dexto --agent image-editor-agent
+```
+
+<img src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" width="600">
+
+### 🎮 Coding Agents: Create apps on demand
+
+Build full-stack applications, websites, and interactive games with AI-powered coding agents. Customize them to create your own coding agents.
+
+**Task:** `Can you create a snake game in a new folder and open it when done?`
+```bash
+dexto --agent coding-agent
+```
+
+<img src=".github/assets/coding_agent_demo.gif" alt="Snake Game Development Demo" width="600"/>
+
+
+### 📧 Portable Agents: Use your agents from Cursor
+
+Dexto agents are designed to be modular, composable and portable, allowing you to run them from anywhere. In this example, we connect to dexto as an MCP server via Cursor to use our podcast agent from above.
+
+<img src="https://github.com/user-attachments/assets/fd75a63f-4d29-447a-be24-6943e34c387f" alt="Email to Slack Demo" width="600">
+
+
+
+### 🎯 Triage Agent: Multi-Agent Customer Support
+
+Create multi-agent systems that can intelligently coordinate and delegate tasks among themselves based on the user query.
+
+```bash
+dexto --agent triage-agent
+```
+<img src=".github/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
+
+### 🛠️ Adding Custom MCP Servers
+
+You can add your own Model Context Protocol (MCP) servers to extend Dexto's capabilities with new tools or data sources. Just edit your agent YAML or add it directly in the WebUI.
+
+<img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
+
+### 🧠 Memory: Persistent Context & Learning
+
+Create and save memories. Your agent automatically uses it to create personalized experiences.
+
+<img src=".github/assets/memory_demo.gif" alt="Memory Demo" width="600">
+
+### 🛒 MCP Store: Tool Discovery & Integration
+
+Equip your agents from 20+ MCP Servers and start using them via chat - instantly.
+- Bring your own keys
+- Can't find an MCP? [Contribute here!](https://github.com/truffle-ai/dexto/blob/main/CONTRIBUTING.md)  
+
+<img src=".github/assets/mcp_store_demo.gif" alt="MCP Store Demo" width="600">
+
+### 📝 Human In The Loop: Dynamic Form Generation
+
+Agents can generate structured forms when they need additional data to make it easier to collect extra info & approvals from users.
+
+<img src=".github/assets/user_form_demo.gif" alt="User Form Demo" width="600">
+
+
+
+#### More Examples:
+
+<details>
+<summary><strong>🛒 Browser Agent: Amazon Shopping Assistant</strong></summary>
+
 **Task:** `Can you go to amazon and add some snacks to my cart? I like trail mix, cheetos and maybe surprise me with something else?`
 ```bash
 # Default agent has browser tools
@@ -117,47 +226,36 @@ dexto
   <img src="https://github.com/user-attachments/assets/3f5be5e2-7a55-4093-a071-8c52f1a83ba3" alt="Dexto: Amazon shopping agent demo" width="600"/>
 </a>
 
-### 👁️ Computer Vision: Face Detection & Annotation
-**Task:** `Detect all faces in this image and draw bounding boxes around them.`
-```bash
-dexto --agent image-editor-agent
-```
+</details>
 
-<img src="https://github.com/user-attachments/assets/7e4b2043-c39a-47c7-a403-a9665ee762ce" alt="Face Detection Demo" width="600">
+<details>
+<summary><strong>🎮 Playground: Interactive Development Environment</strong></summary>
 
-### 🎙️ Podcast Agent: Generate AI Podcast Intros
-**Task:** `Generate an intro for a podcast about the latest in AI.`
-```bash
-dexto --agent podcast-agent
-```
+A testing playground to view the tools in your MCP servers before connecting them to LLMs to see the detailed response structures.
 
-<img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
+<img src=".github/assets/playground_demo.gif" alt="Playground Demo" width="600">
 
-### 🖼️ Hugging Face: Image Generation
-**Task:** `Generate a photo of a baby panda.`
+</details>
 
-<img src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" width="600"/>
+<details>
+<summary><strong>📧 Email to Slack: Automated Email Summaries</strong></summary>
 
-### 🛠️ Adding Custom MCP Servers
-
-You can add your own Model Context Protocol (MCP) servers to extend Dexto's capabilities with new tools or data sources. Just edit your agent YAML or add it directly in the WebUI.
-
-<img src="https://github.com/user-attachments/assets/1a3ca1fd-31a0-4e1d-ba93-23e1772b1e79" alt="Add MCP Server Example" width="600"/>
-
-### 🎮 Web App Development: Snake Game
-**Task:** `Create a snake game in HTML/CSS/JS, then open it in the browser`
-```bash
-dexto "create a snake game in HTML/CSS/JS, then open it in the browser"
-```
-
-<img src="https://github.com/user-attachments/assets/6901ba82-3c2a-4177-baf0-7d44d04a5f27" alt="Snake Game Development Demo" width="600"/>
-
-### 📧 Send Email Summaries to Slack
 **Task:** `Summarize emails and send highlights to Slack`
 ```bash
 dexto --agent ./agents/examples/email_slack.yml
 ```
 <img src="assets/email_slack_demo.gif" alt="Email to Slack Demo" width="600">
+
+</details>
+
+<details>
+<summary><strong>🖼️ Hugging Face: Image Generation</strong></summary>
+
+**Task:** `Generate a photo of a baby panda.`
+
+<img src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" width="600"/>
+
+</details>
 
 ---
 
@@ -165,8 +263,8 @@ dexto --agent ./agents/examples/email_slack.yml
 
 | Mode | Command | Best for |
 |------|---------|----------|
-| **Interactive CLI** | `dexto` | Everyday automation & quick tasks |
-| **Web UI** | `dexto --mode web` | Friendly chat interface w/ image support |
+| **Web UI** | `dexto` | Friendly chat interface w/ image support (default) |
+| **Interactive CLI** | `dexto --mode cli` | Everyday automation & quick tasks |
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
@@ -181,11 +279,13 @@ Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 
 Dexto treats each configuration as a unique agent allowing you to define and save combinations of LLMs, servers, storage options, etc. based on your needs for easy portability. Define agents in version-controlled YAML. Change the file, reload, and chat—state, memory, and tools update automatically.
 
+Example configuration:
+
 ```yaml
 # agents/my-agent.yml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
 mcpServers:
@@ -208,20 +308,22 @@ Switch between providers instantly—no code changes required.
 
 | Provider | Models | Setup |
 |----------|--------|-------|
-| **OpenAI** | `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `gpt-4o-audio-preview`, `o4-mini`, `o3`, `o3-mini`, `o1` | `export OPENAI_API_KEY=...` |
-| **Anthropic** | `claude-opus-4-1-20250805`, `claude-4-opus-20250514`, `claude-4-sonnet-20250514`, `claude-3-7-sonnet-20250219`, `claude-3-5-sonnet-20240620`, `claude-3-5-haiku-20241022` | `export ANTHROPIC_API_KEY=...` |
-| **Google** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` | `export GOOGLE_GENERATIVE_AI_API_KEY=...` |
-| **Groq** | `llama-3.3-70b-versatile`, `meta-llama/llama-4-scout-17b-16e-instruct`, `meta-llama/llama-4-maverick-17b-128e-instruct`, `qwen/qwen3-32b`, `gemma-2-9b-it`, `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `moonshotai/kimi-k2-instruct`, `deepseek-r1-distill-llama-70b` | `export GROQ_API_KEY=...` |
-| **xAI** | `grok-4`, `grok-3`, `grok-3-mini`, `grok-code-fast-1` | `export XAI_API_KEY=...` |
-| **Cohere** | `command-a-03-2025`, `command-r-plus`, `command-r`, `command-r7b` | `export COHERE_API_KEY=...` |
+| **OpenAI** | `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `gpt-4o-audio-preview`, `o4-mini`, `o3`, `o3-mini`, `o1` | `change model in UI and add api key` |
+| **Anthropic** | `claude-haiku-4-5-20251001`, `claude-sonnet-4-5-20250929`, `claude-opus-4-1-20250805`, `claude-4-opus-20250514`, `claude-4-sonnet-20250514`, `claude-3-7-sonnet-20250219`, `claude-3-5-sonnet-20240620`, `claude-3-5-haiku-20241022` | `change model in UI and add api key` |
+| **Google** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` | `change model in UI and add api key` |
+| **Groq** | `llama-3.3-70b-versatile`, `meta-llama/llama-4-scout-17b-16e-instruct`, `meta-llama/llama-4-maverick-17b-128e-instruct`, `qwen/qwen3-32b`, `gemma-2-9b-it`, `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `moonshotai/kimi-k2-instruct`, `deepseek-r1-distill-llama-70b` | `change model in UI and add api key` |
+| **xAI** | `grok-4`, `grok-3`, `grok-3-mini`, `grok-code-fast-1` | `change model in UI and add api key` |
+| **Cohere** | `command-a-03-2025`, `command-r-plus`, `command-r`, `command-r7b` | `change model in UI and add api key` |
 
 ```bash
 # Switch models via CLI
-dexto -m claude-4-sonnet-20250514
+dexto -m claude-sonnet-4-5-20250929
 dexto -m gemini-2.5-pro
 ```
 
-See our [Configuration Guide](https://docs.dexto.ai/docs/category/guides/) for complete setup instructions.
+You can configure things like LLM, system prompt, MCP servers, storage, sessions, human-in-the loop, telemetry and more!
+
+See our [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide) for complete setup instructions.
 
 
 ## Programmatic API
@@ -239,7 +341,7 @@ import { DextoAgent } from '@dexto/core';
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-4.1-mini',
+    model: 'gpt-5-mini',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
@@ -256,7 +358,7 @@ await agent.run('Make it funnier');
 await agent.stop();
 ```
 
-See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/typescript-sdk/) for complete examples with MCP tools, sessions, and advanced features.
+See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
 
 ---
 
@@ -292,11 +394,11 @@ Switch between models and providers dynamically.
 const currentLLM = agent.getCurrentLLMConfig();
 
 // Switch models (provider inferred automatically)
-await agent.switchLLM({ model: 'gpt-4.1-mini' });
-await agent.switchLLM({ model: 'claude-4-sonnet-20250514' });
+await agent.switchLLM({ model: 'gpt-5-mini' });
+await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
 
 // Switch model for a specific session id 1234
-await agent.switchLLM({ model: 'gpt-4.1-mini' }, '1234')
+await agent.switchLLM({ model: 'gpt-5-mini' }, '1234')
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
@@ -306,7 +408,7 @@ const openaiModels = agent.getSupportedModelsForProvider('openai');
 
 ### MCP Manager
 
-For advanced MCP server management, use the MCPManager directly.
+For advanced MCP server management, use the MCPManager directly. See the [MCP Manager SDK docs](https://docs.dexto.ai/api/sdk/mcp-manager) for full details.
 
 ```typescript
 import { MCPManager } from '@dexto/core';
@@ -333,7 +435,7 @@ await manager.disconnectAll();
 
 ### Storage & Persistence
 
-Configure storage backends for production-ready persistence and caching.
+Configure storage backends for production-ready persistence and caching. See the [Storage Configuration guide](https://docs.dexto.ai/docs/guides/configuring-dexto/storage) for full details.
 
 ```yaml
 # agents/production-agent.yml
@@ -361,7 +463,7 @@ sessions:
 - **Production**: Redis + PostgreSQL for scale
 - **Simple**: SQLite for single-instance persistence
 
-See the [DextoAgent API Documentation](https://docs.dexto.ai/api/dexto-agent/) for complete method references.
+See the [DextoAgent API Documentation](https://docs.dexto.ai/api/sdk/dexto-agent) for complete method references.
 
 ---
 
@@ -373,48 +475,96 @@ See the [DextoAgent API Documentation](https://docs.dexto.ai/api/dexto-agent/) f
 ```
 Usage: dexto [options] [command] [prompt...]
 
-Dexto CLI allows you to talk to Dexto, build custom AI Agents, build complex AI applications like Cursor, and more.
+Dexto CLI - AI-powered assistant with session management
 
-Run dexto interactive CLI with `dexto` or run a one-shot prompt with `dexto -p "<prompt>"` or `dexto "<prompt>"`
-Start with a new session using `dexto --new-session [sessionId]`
-Run dexto web UI with `dexto --mode web`
-Run dexto as a server (REST APIs + WebSockets) with `dexto --mode server`
-Run dexto as a discord bot with `dexto --mode discord`
-Run dexto as a telegram bot with `dexto --mode telegram`
-Run dexto agent as an MCP server with `dexto --mode mcp`
-Run dexto as an MCP server aggregator with `dexto mcp --group-servers`
+Basic Usage:
+  dexto                    Start web UI (default)
+  dexto "query"            Run one-shot query (auto-uses CLI mode)
+  dexto -p "query"         Run one-shot query, then exit
+  cat file | dexto -p "query"  Process piped content
 
-Check subcommands for more features. Check https://github.com/truffle-ai/dexto for documentation on how to customize dexto and other examples
+CLI Mode:
+  dexto --mode cli         Start interactive CLI REPL
+
+Session Management:
+  dexto -c                 Continue most recent conversation
+  dexto -c -p "query"      Continue with one-shot query, then exit
+  dexto -r "<session-id>" "query"  Resume with one-shot query
+
+Tool Confirmation:
+  dexto --auto-approve     Auto-approve all tool executions
+
+Agent Selection:
+  dexto --agent coding-agent       Use installed agent by name
+  dexto --agent ./my-agent.yml     Use agent from file path
+  dexto -a agents/custom.yml       Short form with relative path
+
+Advanced Modes:
+  dexto --mode server      Run as API server
+  dexto --mode discord     Run as Discord bot
+  dexto --mode telegram    Run as Telegram bot
+  dexto --mode mcp         Run as MCP server
+
+Session Commands: dexto session list|history|delete • search
+Search: dexto search <query> [--session <id>] [--role <role>]
+
+See https://docs.dexto.ai for documentation and examples
 
 Arguments:
-  prompt                           Natural-language prompt to run once. If not passed, dexto will start as an interactive CLI
+  prompt                           Natural-language prompt to run once. If not
+                                   passed, dexto will start as an interactive
+                                   CLI
 
 Options:
   -v, --version                    output the current version
-  -a, --agent <name|path>          Agent name or path to agent config file
-  -p, --prompt <text>              One-shot prompt text. Alternatively provide a single quoted string as positional argument.
+  -a, --agent <id|path>            Agent ID or path to agent config file
+  -p, --prompt <text>              Run prompt and exit. Alternatively provide a
+                                   single quoted string as positional argument.
   -s, --strict                     Require all server connections to succeed
   --no-verbose                     Disable verbose output
-  --no-interactive                 Disable interactive prompts and API key setup
+  --no-interactive                 Disable interactive prompts and API key
+                                   setup
+  --skip-setup                     Skip global setup validation (useful for MCP
+                                   mode, automation)
   -m, --model <model>              Specify the LLM model to use
-  -r, --router <router>            Specify the LLM router to use (vercel or in-built)
-  --new-session [sessionId]        Start with a new session (optionally specify session ID)
-  --mode <mode>                    The application in which dexto should talk to you - cli | web | server | discord | telegram | mcp (default: "cli")
-  --web-port <port>                optional port for the web UI (default: "3000")
-  --no-auto-install                Disable automatic installation of missing agents from registry
+  --router <router>                Specify the LLM router to use (vercel or
+                                   in-built)
+  --auto-approve                   Always approve tool executions without
+                                   confirmation prompts
+  -c, --continue                   Continue most recent conversation
+  -r, --resume <sessionId>         Resume session by ID
+  --mode <mode>                    The application in which dexto should talk
+                                   to you - web | cli | server | discord |
+                                   telegram | mcp (default: "web")
+  --web-port <port>                port for the web UI (default: 3000)
+                                   (default: "3000")
+  --api-port <port>                port for the API server (default: web-port +
+                                   1)
+  --no-auto-install                Disable automatic installation of missing
+                                   agents from registry
   -h, --help                       display help for command
 
 Commands:
   create-app                       Scaffold a new Dexto Typescript app
-  init-app                         Initialize an existing Typescript app with Dexto
+  init-app                         Initialize an existing Typescript app with
+                                   Dexto
   setup [options]                  Configure global Dexto preferences
-  install [options] [agents...]    Install agents from the registry
+  install [options] [agents...]    Install agents from registry or custom YAML
+                                   files/directories
   uninstall [options] [agents...]  Uninstall agents from the local installation
   list-agents [options]            List available and installed agents
   which <agent>                    Show the path to an agent
-  mcp [options]                    Start Dexto as an MCP server. Use --group-servers to aggregate and re-expose tools from configured MCP servers.
+  session                          Manage chat sessions
+  search [options] <query>         Search session history
+  mcp [options]                    Start Dexto as an MCP server. Use
+                                   --group-servers to aggregate and re-expose
+                                   tools from configured MCP servers.
+                                   In the future, this command will expose the
+                                   agent as an MCP server by default.
 ```
 </details>
+
+See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
 
 ---
 
@@ -426,6 +576,20 @@ Commands:
 * **[API Reference](https://docs.dexto.ai/api/)** – REST APIs, WebSocket, and SDKs.
 
 ---
+
+## Telemetry
+
+We collect anonymous usage data (no personal/sensitive info) to help improve Dexto. This includes:
+
+- Commands used
+- Command execution time
+- Error occurrences
+- System information (OS, Node version)
+- LLM Models used
+
+To opt-out:
+
+Set env variable `DEXTO_ANALYTICS_DISABLED=1` 
 
 ## Contributing
 

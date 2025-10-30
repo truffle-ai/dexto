@@ -4,6 +4,9 @@ import "./globals.css";
 import { ChatProvider } from '../components/hooks/ChatContext';
 import { SpeechReset } from "../components/ui/speech-reset";
 import { cookies } from 'next/headers';
+import { loadState, isAnalyticsDisabled, DEFAULT_POSTHOG_KEY, DEFAULT_POSTHOG_HOST } from '@dexto/analytics';
+import { AnalyticsProvider } from '../lib/analytics/index.js';
+import packageJson from '../package.json';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,14 +33,12 @@ export const metadata: Metadata = {
   description:
     "Interactive playground for testing MCP tools and talking to AI agents",
   icons: {
-    // Prefer the no-text PNG explicitly (provide common sizes and bust cache)
+    // Use the new transparent SVG logo for favicons
     icon: [
-      { url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png", sizes: "32x32" },
-      { url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png", sizes: "16x16" },
-      //{ url: "/favicon2.ico", type: "image/x-icon"}
+      { url: "/logos/dexto/dexto_logo_icon.svg", type: "image/svg+xml" }
     ],
-    shortcut: [{ url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png" }],
-    apple: [{ url: "/logos/dexto_logo_no_text.png?v=2", type: "image/png" }],
+    shortcut: [{ url: "/logos/dexto/dexto_logo_icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/logos/dexto/dexto_logo_icon.svg", type: "image/svg+xml" }],
   },
   openGraph: {
     title: "Dexto",
@@ -51,6 +52,11 @@ export const metadata: Metadata = {
     description:
       "Interactive playground for testing MCP tools and talking to AI agents",
   },
+  // Tell browsers we explicitly support both light and dark modes
+  // This prevents Chrome's Auto Dark Mode from interfering
+  other: {
+    'color-scheme': 'light dark',
+  },
 };
 
 export default async function RootLayout({
@@ -62,15 +68,57 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const themeCookie = cookieStore.get('theme')?.value;
   const isDark = themeCookie ? themeCookie === 'dark' : true; // default dark
+
+  // Inject API port from server-side env var into client-side global
+  const apiPort = process.env.API_PORT;
+
+  // Load analytics configuration server-side
+  const analyticsEnabled = !isAnalyticsDisabled();
+  let analyticsConfig: { distinctId: string; posthogKey: string; posthogHost: string; appVersion: string } | null = null;
+
+  if (analyticsEnabled) {
+    try {
+      const state = await loadState();
+      analyticsConfig = {
+        distinctId: state.distinctId,
+        posthogKey: process.env.DEXTO_POSTHOG_KEY ?? DEFAULT_POSTHOG_KEY,
+        posthogHost: process.env.DEXTO_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
+        appVersion: packageJson.version,
+      };
+    } catch (error) {
+      // If analytics state loading fails, silently disable analytics
+      console.error('Failed to load analytics state:', error);
+      analyticsConfig = null;
+    }
+  }
+
   return (
     <html lang="en" className={isDark ? 'dark' : ''}>
+      <head>
+        {apiPort && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.__DEXTO_API_PORT__ = ${JSON.stringify(apiPort)};`,
+            }}
+          />
+        )}
+        {analyticsConfig && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.__DEXTO_ANALYTICS__ = ${JSON.stringify(analyticsConfig)};`,
+            }}
+          />
+        )}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <ChatProvider>
-          <SpeechReset />
-          <div className="flex h-screen w-screen flex-col">{children}</div>
-        </ChatProvider>
+        <AnalyticsProvider>
+          <ChatProvider>
+            <SpeechReset />
+            <div className="flex h-screen w-screen flex-col supports-[height:100svh]:h-[100svh] supports-[height:100dvh]:h-[100dvh]">{children}</div>
+          </ChatProvider>
+        </AnalyticsProvider>
       </body>
     </html>
   );

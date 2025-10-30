@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 import { walkUpDirectories } from './fs-walk.js';
 import {
     getExecutionContext,
@@ -13,6 +14,11 @@ import { logger } from '../logger/index.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
+ * Context-aware with dev mode support:
+ * - dexto-source + DEXTO_DEV_MODE=true: Use local repo .dexto (isolated testing)
+ * - dexto-source (normal): Use global ~/.dexto (user experience)
+ * - dexto-project: Use project-local .dexto
+ * - global-cli: Use global ~/.dexto
  * @param type Path type (logs, database, config, etc.)
  * @param filename Optional filename to append
  * @param startPath Starting directory for project detection
@@ -25,11 +31,18 @@ export function getDextoPath(type: string, filename?: string, startPath?: string
 
     switch (context) {
         case 'dexto-source': {
-            const sourceRoot = findDextoSourceRoot(startPath);
-            if (!sourceRoot) {
-                throw new Error('Not in dexto source context');
+            // Dev mode: use local repo .dexto for isolated testing
+            // Normal mode: use global ~/.dexto for user experience
+            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+            if (isDevMode) {
+                const sourceRoot = findDextoSourceRoot(startPath);
+                if (!sourceRoot) {
+                    throw new Error('Not in dexto source context');
+                }
+                basePath = path.join(sourceRoot, '.dexto', type);
+            } else {
+                basePath = path.join(homedir(), '.dexto', type);
             }
-            basePath = path.join(sourceRoot, '.dexto', type);
             break;
         }
         case 'dexto-project': {
@@ -128,30 +141,56 @@ export function resolveBundledScript(scriptPath: string): string {
         ? [scriptPath, scriptPath.replace(/^dist\//, '')]
         : [`dist/${scriptPath}`, scriptPath];
 
+    // Keep a list of absolute paths we attempted for better diagnostics
+    const triedAbs: string[] = [];
+
+    const tryRoots = (roots: Array<string | null | undefined>): string | null => {
+        for (const root of roots) {
+            if (!root) continue;
+            for (const rel of candidates) {
+                const abs = path.resolve(root, rel);
+                if (existsSync(abs)) return abs;
+                triedAbs.push(abs);
+            }
+        }
+        return null;
+    };
+
+    // 0) Explicit env override (useful for exotic/linked setups)
+    const envRoot = process?.env?.DEXTO_PACKAGE_ROOT;
+    const fromEnv = tryRoots([envRoot]);
+    if (fromEnv) return fromEnv;
+
     // 1) Try to resolve from installed CLI package root (global/local install)
     try {
         const require = createRequire(import.meta.url);
         const pkgJson = require.resolve('dexto/package.json');
         const pkgRoot = path.dirname(pkgJson);
-        for (const rel of candidates) {
-            const abs = path.resolve(pkgRoot, rel);
-            if (existsSync(abs)) return abs;
-        }
+        const fromPkg = tryRoots([pkgRoot]);
+        if (fromPkg) return fromPkg;
     } catch {
         // ignore, fall through to dev/project resolution
     }
 
-    // 2) Fallback to repo/project root (development)
-    const repoRoot = findPackageRoot();
-    if (repoRoot) {
-        for (const rel of candidates) {
-            const abs = path.resolve(repoRoot, rel);
-            if (existsSync(abs)) return abs;
-        }
+    // 2) Development fallback anchored to this module's location (monorepo source)
+    try {
+        const thisModuleDir = path.dirname(fileURLToPath(import.meta.url));
+        const sourceRoot = findDextoSourceRoot(thisModuleDir);
+        const fromSource = tryRoots([sourceRoot ?? undefined]);
+        if (fromSource) return fromSource;
+    } catch {
+        // ignore and continue to legacy fallback
     }
 
-    // 3) Not found anywhere: throw with helpful message
-    throw new Error(`Bundled script not found: ${scriptPath} (tried: ${candidates.join(', ')})`);
+    // 3) Legacy fallback: repo/project root derived from CWD
+    const repoRoot = findPackageRoot();
+    const fromCwd = tryRoots([repoRoot ?? undefined]);
+    if (fromCwd) return fromCwd;
+
+    // Not found anywhere: throw with helpful message and absolute paths attempted
+    throw new Error(
+        `Bundled script not found: ${scriptPath} (tried absolute: ${triedAbs.join(', ')})`
+    );
 }
 
 /**
@@ -181,11 +220,18 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
     let envPath = '';
     switch (context) {
         case 'dexto-source': {
-            const sourceRoot = findDextoSourceRoot(startPath);
-            if (!sourceRoot) {
-                throw new Error('Not in dexto source context');
+            // Dev mode: use local repo .env for isolated testing
+            // Normal mode: use global ~/.dexto/.env for user experience
+            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+            if (isDevMode) {
+                const sourceRoot = findDextoSourceRoot(startPath);
+                if (!sourceRoot) {
+                    throw new Error('Not in dexto source context');
+                }
+                envPath = path.join(sourceRoot, '.env');
+            } else {
+                envPath = path.join(homedir(), '.dexto', '.env');
             }
-            envPath = path.join(sourceRoot, '.env');
             break;
         }
         case 'dexto-project': {

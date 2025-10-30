@@ -7,12 +7,15 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
     title: 'Dexto',
     tagline: 'Build AI Agents with ease',
-    favicon: 'img/logo_no_text.png',
+    favicon: 'img/dexto/dexto_logo_icon.svg',
 
     // Set the production url of your site here
     url: 'https://docs.dexto.ai',
     // Set the /<baseUrl>/ pathname under which your site is served
     baseUrl: '/',
+
+    // Set to false to match Vercel configuration and avoid redirect issues
+    trailingSlash: false,
 
     // GitHub pages deployment config.
     // If you aren't using GitHub pages, you don't need these.
@@ -20,7 +23,6 @@ const config: Config = {
     projectName: 'dexto', // Usually your repo name.
 
     onBrokenLinks: 'throw',
-    onBrokenMarkdownLinks: 'warn',
 
     // Even if you don't use internationalization, you can use this field to set
     // useful metadata like html lang. For example, if your site is Chinese, you
@@ -65,6 +67,18 @@ const config: Config = {
     themeConfig: {
         // Replace with your project's social card
         image: 'img/dexto-social-card.jpg',
+        algolia: {
+            appId: 'EHM21LFJ1P',
+            apiKey: 'e8246111c9f80ec60063d2b395b03ecc',
+            indexName: 'Dexto docs',
+            contextualSearch: true,
+            searchParameters: {},
+            searchPagePath: 'search',
+            // askAi: 'reomyK7JUIYj',
+            askAi: {
+                assistantId: 'reomyK7JUIYj',
+            },
+        },
         docs: {
             sidebar: {
                 hideable: true,
@@ -74,20 +88,27 @@ const config: Config = {
         colorMode: {
             defaultMode: 'dark',
             disableSwitch: false,
-            respectPrefersColorScheme: true,
+            respectPrefersColorScheme: false,
         },
         navbar: {
             logo: {
                 alt: 'Dexto Logo',
-                src: 'img/logo.svg',
+                src: 'img/dexto/dexto_logo_light.svg',
+                srcDark: 'img/dexto/dexto_logo.svg',
             },
-            hideOnScroll: true,
+            hideOnScroll: false,
             items: [
                 {
                     to: '/docs/getting-started/intro',
                     position: 'left',
                     label: 'Docs',
                     activeBaseRegex: `/docs/`,
+                },
+                {
+                    to: '/examples/intro',
+                    position: 'left',
+                    label: 'Examples',
+                    activeBaseRegex: `/examples/`,
                 },
                 {
                     to: '/api',
@@ -99,6 +120,10 @@ const config: Config = {
                     to: '/blog',
                     position: 'left',
                     label: 'Blog',
+                },
+                {
+                    type: 'search',
+                    position: 'left',
                 },
                 {
                     href: 'https://discord.gg/GFzWFAAZcm',
@@ -174,7 +199,7 @@ const config: Config = {
                         },
                         {
                             label: 'Examples',
-                            to: '/docs/examples-demos/email-slack',
+                            to: '/examples/intro',
                         },
                         {
                             label: 'Contributing',
@@ -183,6 +208,10 @@ const config: Config = {
                         {
                             label: 'Changelog',
                             href: 'https://github.com/truffle-ai/dexto/releases',
+                        },
+                        {
+                            label: 'llms.txt',
+                            href: 'https://docs.dexto.ai/llms.txt',
                         },
                     ],
                 },
@@ -248,6 +277,19 @@ const config: Config = {
         [
             '@docusaurus/plugin-content-docs',
             {
+                id: 'examples',
+                path: 'examples',
+                routeBasePath: 'examples',
+                sidebarPath: './examples-sidebars.ts',
+                editUrl: 'https://github.com/truffle-ai/dexto/tree/main/docs/',
+                showLastUpdateAuthor: true,
+                showLastUpdateTime: true,
+                breadcrumbs: true,
+            },
+        ],
+        [
+            '@docusaurus/plugin-content-docs',
+            {
                 id: 'api',
                 path: 'api',
                 routeBasePath: 'api',
@@ -262,6 +304,13 @@ const config: Config = {
     ],
 
     headTags: [
+        {
+            tagName: 'meta',
+            attributes: {
+                name: 'algolia-site-verification',
+                content: '5AC61F66A1FBFC7D',
+            },
+        },
         {
             tagName: 'link',
             attributes: {

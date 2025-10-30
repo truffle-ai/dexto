@@ -4,6 +4,7 @@ import { resolve, extname } from 'path';
 import { logger } from '../logger/index.js';
 import { SystemPromptError } from './errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import type { MemoryManager } from '../memory/index.js';
 
 export class StaticContributor implements SystemPromptContributor {
     constructor(
@@ -141,5 +142,87 @@ export class FileContributor implements SystemPromptContributor {
         }
 
         return result;
+    }
+}
+
+export interface MemoryContributorOptions {
+    /** Whether to include timestamps in memory display */
+    includeTimestamps?: boolean | undefined;
+    /** Whether to include tags in memory display */
+    includeTags?: boolean | undefined;
+    /** Maximum number of memories to include */
+    limit?: number | undefined;
+    /** Only include pinned memories (for hybrid approach) */
+    pinnedOnly?: boolean | undefined;
+}
+
+/**
+ * MemoryContributor loads user memories from the database and formats them
+ * for inclusion in the system prompt.
+ *
+ * This enables memories to be automatically available in every conversation.
+ */
+export class MemoryContributor implements SystemPromptContributor {
+    constructor(
+        public id: string,
+        public priority: number,
+        private memoryManager: MemoryManager,
+        private options: MemoryContributorOptions = {}
+    ) {
+        logger.debug(
+            `[MemoryContributor] Created "${id}" with options: ${JSON.stringify(options)}`
+        );
+    }
+
+    async getContent(_context: DynamicContributorContext): Promise<string> {
+        const {
+            includeTimestamps = false,
+            includeTags = true,
+            limit,
+            pinnedOnly = false,
+        } = this.options;
+
+        try {
+            // Fetch memories from the database
+            const memories = await this.memoryManager.list({
+                ...(limit !== undefined && { limit }),
+                ...(pinnedOnly && { pinned: true }),
+            });
+
+            if (memories.length === 0) {
+                return '';
+            }
+
+            // Format memories for system prompt
+            const formattedMemories = memories.map((memory) => {
+                let formatted = `- ${memory.content}`;
+
+                if (includeTags && memory.tags && memory.tags.length > 0) {
+                    formatted += ` [Tags: ${memory.tags.join(', ')}]`;
+                }
+
+                if (includeTimestamps) {
+                    const date = new Date(memory.updatedAt).toLocaleDateString();
+                    formatted += ` (Updated: ${date})`;
+                }
+
+                return formatted;
+            });
+
+            const header = '## User Memories';
+            const memoryList = formattedMemories.join('\n');
+            const result = `${header}\n${memoryList}`;
+
+            logger.debug(
+                `[MemoryContributor] Loaded ${memories.length} memories into system prompt`
+            );
+            return result;
+        } catch (error) {
+            logger.error(
+                `[MemoryContributor] Failed to load memories: ${error instanceof Error ? error.message : String(error)}`
+            );
+            // Return empty string on error to not break system prompt generation
+            return '';
+        }
     }
 }

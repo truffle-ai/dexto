@@ -8,6 +8,8 @@ import { executeCommand } from './commands/interactive-commands/commands.js';
 import { getDextoPath } from '@dexto/core';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { DextoRuntimeError, DextoValidationError, ErrorScope, LLMErrorCode } from '@dexto/core';
+import { capture } from '../analytics/index.js';
+import { safeExit } from '../analytics/wrapper.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
@@ -55,7 +57,7 @@ export async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
  */
 async function _initCli(agent: DextoAgent): Promise<void> {
     // Note: Session loading is now handled by the main CLI logic, not here
-    registerGracefulShutdown(agent);
+    registerGracefulShutdown(() => agent);
 
     // Gather startup information
     const llmConfig = agent.getCurrentLLMConfig();
@@ -121,6 +123,7 @@ async function _initCli(agent: DextoAgent): Promise<void> {
     // Show welcome message with slash command instructions
     console.log(chalk.bold.cyan('\n🚀 Welcome to Dexto CLI!'));
     console.log(chalk.dim('• Type your message normally to chat with the AI'));
+    console.log(chalk.dim('• Reference files with @filename (@ must be at start or after space)'));
     console.log(chalk.dim('• Use /command for system commands (e.g., /help, /session, /model)'));
     console.log(chalk.dim('• Type /help to see all available commands'));
     const logPath = getDextoPath('logs', 'dexto.log');
@@ -179,6 +182,8 @@ export async function startAiCli(agent: DextoAgent) {
                 return await executeCommand(parsed.command, parsed.args || [], agent);
             } else {
                 // Handle regular prompt - pass to AI
+                const llm = agent.getCurrentLLMConfig();
+                capture('dexto_prompt', { mode: 'cli', provider: llm.provider, model: llm.model });
                 return false;
             }
         }
@@ -243,7 +248,7 @@ export async function startAiCli(agent: DextoAgent) {
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error(`Error during CLI initialization: ${errorMessage}`);
-        process.exit(1); // Exit with error code if CLI setup fails
+        safeExit('main', 1); // Exit with error code if CLI setup fails
     }
 }
 
@@ -273,6 +278,8 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
             // Execute the task as a regular AI prompt
             // uncomment if we need to reset conversation for headless mode
             // await agent.resetConversation();
+            const llm = agent.getCurrentLLMConfig();
+            capture('dexto_prompt', { mode: 'headless', provider: llm.provider, model: llm.model });
             await agent.run(prompt);
         }
     } catch (error: unknown) {
@@ -290,6 +297,6 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
                 `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
             );
         }
-        process.exit(1); // Exit with error code if headless execution fails
+        safeExit('main', 1); // Exit with error code if headless execution fails
     }
 }

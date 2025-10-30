@@ -1,11 +1,11 @@
 import { describe, test, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { DatabaseHistoryProvider } from './database.js';
-import type { DatabaseBackend } from '@core/storage/types.js';
+import type { Database } from '@core/storage/types.js';
 import { SessionErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
 describe('DatabaseHistoryProvider error mapping', () => {
-    let db: Mocked<DatabaseBackend>;
+    let db: Mocked<Database>;
     let provider: DatabaseHistoryProvider;
     const sessionId = 's-1';
 
@@ -22,7 +22,7 @@ describe('DatabaseHistoryProvider error mapping', () => {
             connect: vi.fn(),
             disconnect: vi.fn(),
             isConnected: vi.fn().mockReturnValue(true),
-            getBackendType: vi.fn().mockReturnValue('memory'),
+            getStoreType: vi.fn().mockReturnValue('memory'),
         } as any;
 
         provider = new DatabaseHistoryProvider(sessionId, db);

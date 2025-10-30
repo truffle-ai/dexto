@@ -28,13 +28,34 @@ This adds the `dexto` command to your system, giving you access to the agent run
 dexto
 ```
 
-This triggers the first time setup, where you will be asked to set up your preferred Large Language Model (LLM) and enter the API key.
+This triggers the first-time setup, where you will be asked to set up your preferred Large Language Model (LLM) and enter the API key.
 
-Once setup is complete, you should see a terminal UI open, you can now interact with your first dexto agent! Say hi!
+Once setup is complete, the **Web UI** will open in your browser, where you can interact with your first dexto agent! Say hi!
 
-Note: You can re-run the setup at any time with the command `dexto setup`
+**Note:** You can re-run setup at any time with `dexto setup`
+
+#### Quick Command Reference
+
+```bash
+# Open Web UI (default)
+dexto
+
+# Use CLI mode
+dexto --mode cli
+
+# One-shot commands (auto-use CLI mode)
+dexto "say hello"
+dexto -p "list files in this directory"
+```
+
+
+
+:::tip CLI reference
+For detailed information about all CLI commands, flags, and advanced usage patterns, check out our comprehensive **[CLI Guide](../guides/cli/overview)**.
+:::
+
 
 ## Next Step: Build Your First Agent
 Now that Dexto is installed, you're ready to create your first custom agent with its own configuration and capabilities.
 
-Continue to the **[Build Your First Agent Tutorial](./build-first-agent-tutorial)** to learn how to build agents using declarative configuration. 
+Continue to the **[Build Your First Agent Tutorial](./build-first-agent-tutorial.mdx)** to learn how to build agents using declarative configuration. 

@@ -5,18 +5,30 @@
  * 1. Builds core and CLI
  * 2. Runs the CLI directly from dist/index.js in server mode
  * 3. Starts WebUI in dev mode with hot reload
+ * 4. Opens browser automatically when WebUI is ready
  *
  * No symlinks needed - runs directly from built files!
+ *
+ * Usage:
+ *   pnpm dev                                    # Use default agent
+ *   pnpm dev -- --agent examples/resources-demo-server/agent.yml
  */
 
 import { execSync, spawn, ChildProcess } from 'child_process';
 import { join } from 'path';
+import open from 'open';
 
 const rootDir = process.cwd();
 const cliPath = join(rootDir, 'packages/cli/dist/index.js');
 
 let apiProcess: ChildProcess | null = null;
 let webuiProcess: ChildProcess | null = null;
+let browserOpened = false;
+
+// Parse command-line arguments
+const args = process.argv.slice(2);
+const agentIndex = args.indexOf('--agent');
+const agentPath = agentIndex !== -1 && agentIndex + 1 < args.length ? args[agentIndex + 1] : null;
 
 // Cleanup function
 function cleanup() {
@@ -51,14 +63,22 @@ try {
 console.log('🚀 Starting development servers...\n');
 
 // Start API server directly from dist
-console.log('📡 Starting API server on port 3001...');
-apiProcess = spawn('node', [cliPath, '--mode', 'server'], {
+const cliArgs = [cliPath, '--mode', 'server'];
+if (agentPath) {
+    console.log(`📡 Starting API server on port 3001 with agent: ${agentPath}...`);
+    cliArgs.push('--agent', agentPath);
+} else {
+    console.log('📡 Starting API server on port 3001...');
+}
+
+apiProcess = spawn('node', cliArgs, {
     stdio: ['inherit', 'pipe', 'pipe'],
     cwd: rootDir,
     env: {
         ...process.env,
         PORT: '3001',
         API_PORT: '3001',
+        DEXTO_DEV_MODE: 'true', // Force use of repo config for development
     },
 });
 
@@ -108,12 +128,23 @@ setTimeout(() => {
         },
     });
 
-    // Prefix WebUI output
+    // Prefix WebUI output and detect when ready
     if (webuiProcess.stdout) {
         webuiProcess.stdout.on('data', (data) => {
             const lines = data.toString().split('\n').filter(Boolean);
             lines.forEach((line: string) => {
                 console.log(`[UI]  ${line}`);
+
+                // Open browser when Next.js is ready (looks for "Local:" or "ready" messages)
+                if (!browserOpened && (line.includes('Local:') || line.includes('Ready in'))) {
+                    browserOpened = true;
+                    const webUrl = 'http://localhost:3000';
+                    console.log(`\n🌐 Opening browser at ${webUrl}...`);
+                    open(webUrl, { wait: false }).catch((err) => {
+                        console.log(`   Could not open browser automatically: ${err.message}`);
+                        console.log(`   Please open ${webUrl} manually`);
+                    });
+                }
             });
         });
     }

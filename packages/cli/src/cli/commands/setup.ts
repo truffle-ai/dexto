@@ -15,6 +15,7 @@ import { selectProvider } from '../utils/provider-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
+import { capture } from '../../analytics/index.js';
 
 // Zod schema for setup command validation
 const SetupCommandSchema = z
@@ -134,11 +135,20 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
     }
 
     const apiKeyVar = getPrimaryApiKeyEnvVar(provider);
+    const hadApiKeyBefore = Boolean(resolveApiKeyForProvider(provider));
     const defaultAgent = validated.defaultAgent;
 
     // Create and save preferences
     const preferences = createInitialPreferences(provider, model, apiKeyVar, defaultAgent);
     await saveGlobalPreferences(preferences);
+
+    // Track provider/model selected during setup
+    capture('dexto_setup', {
+        provider,
+        model,
+        hadApiKeyBefore,
+        setupMode: validated.interactive ? 'interactive' : 'non-interactive',
+    });
 
     // Setup API key interactively (only if interactive mode enabled and key doesn't exist)
     if (validated.interactive) {

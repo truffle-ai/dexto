@@ -41,10 +41,11 @@ export async function createMcpTransport(
 
 /** Initializes MCP server, its tools, resources, and connects to the transport */
 export async function initializeMcpServer(
-    agent: DextoAgent,
-    agentCardData: AgentCard,
+    getAgent: () => DextoAgent,
+    getAgentCard: () => AgentCard,
     mcpTransport: Transport
 ): Promise<McpServer> {
+    const agentCardData = getAgentCard();
     const mcpServer = new McpServer(
         { name: agentCardData.name, version: agentCardData.version },
         {
@@ -63,6 +64,7 @@ export async function initializeMcpServer(
         toolDescription,
         { message: z.string() }, // Input schema for the tool
         async ({ message }: { message: string }) => {
+            const agent = getAgent();
             logger.info(
                 `MCP tool '${toolName}' received message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
             );
@@ -78,7 +80,7 @@ export async function initializeMcpServer(
     );
 
     // Register Agent Card data as an MCP Resource
-    await initializeAgentCardResource(mcpServer, agentCardData);
+    await initializeAgentCardResource(mcpServer, getAgentCard);
 
     // Connect server to transport AFTER all registrations
     logger.info(`Initializing MCP protocol server connection...`);
@@ -90,16 +92,17 @@ export async function initializeMcpServer(
 /**
  * Initializes the Agent Card resource for the MCP server.
  * @param mcpServer - The MCP server instance.
- * @param agentCardData - The agent card data to be registered as an MCP resource.
+ * @param getAgentCard - Getter function that returns the current agent card.
  */
 export async function initializeAgentCardResource(
     mcpServer: McpServer,
-    agentCardData: AgentCard
+    getAgentCard: () => AgentCard
 ): Promise<void> {
     const agentCardResourceProgrammaticName = 'agentCard';
     const agentCardResourceUri = 'dexto://agent/card';
     try {
         const readCallback: ReadResourceCallback = async (uri, _extra) => {
+            const agentCardData = getAgentCard();
             logger.info(`MCP client requesting resource at ${uri.href}`);
             return {
                 contents: [

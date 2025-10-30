@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HttpClient } from '../src/http-client.js';
 
 // Mock fetch globally
@@ -215,6 +215,14 @@ describe('HttpClient', () => {
     });
 
     describe('Retry logic', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
         it('should retry on transient errors', async () => {
             // First call fails with 503
             mockFetch
@@ -233,42 +241,39 @@ describe('HttpClient', () => {
                     headers: new Map([['content-type', 'application/json']]),
                 });
 
-            const result = await client.get('/test');
+            const promise = client.get('/test');
+            await vi.advanceTimersByTimeAsync(1000);
+            const result = await promise;
             expect(mockFetch).toHaveBeenCalledTimes(2);
             expect(result).toEqual({ success: true });
         });
 
         it('should respect Retry-After header', async () => {
-            vi.useFakeTimers();
-            try {
-                mockFetch
-                    .mockResolvedValueOnce({
-                        ok: false,
-                        status: 429,
-                        statusText: 'Too Many Requests',
-                        json: () => Promise.resolve({}),
-                        headers: new Map([['retry-after', '2']]),
-                    })
-                    .mockResolvedValueOnce({
-                        ok: true,
-                        status: 200,
-                        json: () => Promise.resolve({ success: true }),
-                        headers: new Map([['content-type', 'application/json']]),
-                    });
+            mockFetch
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 429,
+                    statusText: 'Too Many Requests',
+                    json: () => Promise.resolve({}),
+                    headers: new Map([['retry-after', '2']]),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    status: 200,
+                    json: () => Promise.resolve({ success: true }),
+                    headers: new Map([['content-type', 'application/json']]),
+                });
 
-                const promise = client.get('/test');
-                // First request should have been issued immediately
-                expect(mockFetch).toHaveBeenCalledTimes(1);
+            const promise = client.get('/test');
+            // First request should have been issued immediately
+            expect(mockFetch).toHaveBeenCalledTimes(1);
 
-                // Advance timers by the Retry-After duration (2 seconds)
-                await vi.advanceTimersByTimeAsync(2000);
+            // Advance timers by the Retry-After duration (2 seconds)
+            await vi.advanceTimersByTimeAsync(2000);
 
-                const result = await promise;
-                expect(mockFetch).toHaveBeenCalledTimes(2);
-                expect(result).toEqual({ success: true });
-            } finally {
-                vi.useRealTimers();
-            }
+            const result = await promise;
+            expect(mockFetch).toHaveBeenCalledTimes(2);
+            expect(result).toEqual({ success: true });
         });
 
         it('should not retry on non-transient errors', async () => {
@@ -291,18 +296,32 @@ describe('HttpClient', () => {
                 json: () => Promise.resolve({}),
             });
 
-            await expect(client.get('/test')).rejects.toThrow();
+            const promise = client.get('/test');
+            const rejection = expect(promise).rejects.toThrow();
+            await vi.advanceTimersByTimeAsync(5000);
+            await rejection;
             // Should be called initial attempt + 2 retries = 3 times
             expect(mockFetch).toHaveBeenCalledTimes(3);
         });
     });
 
     describe('Error handling', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
         it('should handle network errors', async () => {
             const networkError = new Error('Network error');
-            mockFetch.mockRejectedValueOnce(networkError);
+            mockFetch.mockRejectedValue(networkError);
 
-            await expect(client.get('/test')).rejects.toThrow();
+            const promise = client.get('/test');
+            const rejection = expect(promise).rejects.toThrow();
+            await vi.advanceTimersByTimeAsync(5000);
+            await rejection;
         });
 
         it('should handle JSON parse errors', async () => {

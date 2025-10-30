@@ -2,8 +2,12 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { EventEmitter } from 'events';
+import { z } from 'zod';
 
 import { logger } from '../logger/index.js';
+import type { ApprovalManager } from '../approval/manager.js';
+import { ApprovalStatus } from '../approval/types.js';
 import type {
     ValidatedMcpServerConfig,
     ValidatedStdioServerConfig,
@@ -11,17 +15,27 @@ import type {
     ValidatedHttpServerConfig,
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
-import { IMCPClient } from './types.js';
+import { IMCPClient, MCPResourceSummary } from './types.js';
 import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
-import { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import type {
+    GetPromptResult,
+    ReadResourceResult,
+    Resource,
+    ResourceUpdatedNotification,
+    Prompt,
+} from '@modelcontextprotocol/sdk/types.js';
+import {
+    ResourceUpdatedNotificationSchema,
+    PromptListChangedNotificationSchema,
+    ToolListChangedNotificationSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
-export class MCPClient implements IMCPClient {
+export class MCPClient extends EventEmitter implements IMCPClient {
     private client: Client | null = null;
     private transport: any = null;
     private isConnected = false;
@@ -33,7 +47,7 @@ export class MCPClient implements IMCPClient {
     private serverPid: number | null = null;
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
-
+    private approvalManager: ApprovalManager | null = null; // Will be set by MCPManager
     async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
         if (config.type === 'stdio') {
@@ -135,7 +149,10 @@ export class MCPClient implements IMCPClient {
                 version: '1.0.0',
             },
             {
-                capabilities: { tools: {} },
+                capabilities: {
+                    tools: {},
+                    elicitation: {}, // Enable elicitation capability
+                },
             }
         );
 
@@ -148,6 +165,9 @@ export class MCPClient implements IMCPClient {
             logger.info(`✅ Stdio SERVER ${serverName} SPAWNED`);
             logger.info('Connection established!\n\n');
             this.isConnected = true;
+            this.setupNotificationHandlers();
+            // Set up elicitation handler now that client is connected
+            this.setupElicitationHandler();
 
             return this.client;
         } catch (error: any) {
@@ -173,14 +193,18 @@ export class MCPClient implements IMCPClient {
             // Need to implement eventSourceInit for SSE events.
         });
 
-        logger.debug(`[connectViaSSE] SSE transport: ${JSON.stringify(this.transport, null, 2)}`);
+        // Avoid logging full transport to prevent leaking headers/tokens
+        logger.debug('[connectViaSSE] SSE transport initialized');
         this.client = new Client(
             {
                 name: 'Dexto-sse-mcp-client',
                 version: '1.0.0',
             },
             {
-                capabilities: { tools: {} },
+                capabilities: {
+                    tools: {},
+                    elicitation: {}, // Enable elicitation capability
+                },
             }
         );
 
@@ -192,6 +216,9 @@ export class MCPClient implements IMCPClient {
             logger.info(`✅ ${serverName} SSE SERVER SPAWNED`);
             logger.info('Connection established!\n\n');
             this.isConnected = true;
+            this.setupNotificationHandlers();
+            // Set up elicitation handler now that client is connected
+            this.setupElicitationHandler();
 
             return this.client;
         } catch (error: any) {
@@ -216,13 +243,21 @@ export class MCPClient implements IMCPClient {
         });
         this.client = new Client(
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },
-            { capabilities: { tools: {} } }
+            {
+                capabilities: {
+                    tools: {},
+                    elicitation: {}, // Enable elicitation capability
+                },
+            }
         );
         try {
             logger.info('Establishing HTTP connection...');
             await this.client.connect(this.transport);
             this.isConnected = true;
             logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
+            this.setupNotificationHandlers();
+            // Set up elicitation handler now that client is connected
+            this.setupElicitationHandler();
             return this.client;
         } catch (error: any) {
             logger.error(
@@ -346,16 +381,15 @@ export class MCPClient implements IMCPClient {
     }
 
     /**
-     * Get the list of prompts provided by this client
-     * @returns Array of available prompt names
-     * TODO: Turn exception logs back into error and only call this based on capabilities of the server
+     * Get the list of prompts provided by this client with full metadata
+     * @returns Array of Prompt objects from MCP SDK with name, title, description, and arguments
      */
-    async listPrompts(): Promise<string[]> {
+    async listPrompts(): Promise<Prompt[]> {
         this.ensureConnected();
         try {
             const response = await this.client!.listPrompts();
             logger.debug(`listPrompts response: ${JSON.stringify(response, null, 2)}`);
-            return response.prompts.map((p: any) => p.name);
+            return response.prompts;
         } catch (error) {
             logger.debug(
                 `Failed to list prompts from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
@@ -397,12 +431,19 @@ export class MCPClient implements IMCPClient {
      * @returns Array of available resource URIs
      * TODO: Turn exception logs back into error and only call this based on capabilities of the server
      */
-    async listResources(): Promise<string[]> {
+    async listResources(): Promise<MCPResourceSummary[]> {
         this.ensureConnected();
         try {
             const response = await this.client!.listResources();
             logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
-            return response.resources.map((r: any) => r.uri);
+            return response.resources.map(
+                (r: Resource): MCPResourceSummary => ({
+                    uri: r.uri,
+                    name: r.name,
+                    ...(r.description !== undefined && { description: r.description }),
+                    ...(r.mimeType !== undefined && { mimeType: r.mimeType }),
+                })
+            );
         } catch (error) {
             logger.debug(
                 `Failed to list resources from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
@@ -486,5 +527,183 @@ export class MCPClient implements IMCPClient {
         if (!this.isConnected || !this.client) {
             throw MCPError.clientNotConnected('Please call connect() first');
         }
+    }
+
+    /**
+     * Set up notification handlers for MCP server notifications
+     */
+    private setupNotificationHandlers(): void {
+        if (!this.client) return;
+
+        try {
+            // Resource updated
+            this.client.setNotificationHandler(
+                ResourceUpdatedNotificationSchema,
+                (notification: ResourceUpdatedNotification) => {
+                    // SDK notification.params has type { uri: string; _meta?: {...} } with passthrough
+                    // Access uri directly - it's the only guaranteed field per SDK spec
+                    this.handleResourceUpdated({
+                        uri: notification.params.uri,
+                    });
+                }
+            );
+        } catch (error) {
+            logger.warn(`Could not set resources/updated notification handler: ${error}`);
+        }
+        try {
+            // Prompts list changed
+            this.client.setNotificationHandler(PromptListChangedNotificationSchema, () => {
+                this.handlePromptsListChanged();
+            });
+        } catch (error) {
+            logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
+        }
+        try {
+            // Tools list changed
+            this.client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+                this.handleToolsListChanged();
+            });
+        } catch (error) {
+            logger.warn(`Could not set tools/list_changed notification handler: ${error}`);
+        }
+
+        logger.debug('MCP notification handlers registered (resources, prompts, tools)');
+    }
+
+    /**
+     * Handle resource updated notification
+     */
+    private handleResourceUpdated(params: { uri: string }): void {
+        logger.debug(`Resource updated: ${params.uri}`);
+        this.emit('resourceUpdated', params);
+    }
+
+    /**
+     * Handle prompts list changed notification
+     */
+    private handlePromptsListChanged(): void {
+        logger.debug('Prompts list changed');
+        this.emit('promptsListChanged');
+    }
+
+    /**
+     * Handle tools list changed notification
+     */
+    private handleToolsListChanged(): void {
+        logger.debug('Tools list changed');
+        this.emit('toolsListChanged');
+    }
+
+    /**
+     * Set the approval manager for handling elicitation requests
+     */
+    setApprovalManager(approvalManager: ApprovalManager): void {
+        this.approvalManager = approvalManager;
+        // Set up handler if client is already connected
+        if (this.client) {
+            this.setupElicitationHandler();
+        }
+    }
+
+    /**
+     * Set up handler for elicitation requests from MCP server
+     */
+    private setupElicitationHandler(): void {
+        if (!this.client) {
+            logger.warn('Cannot setup elicitation handler: client not initialized');
+            return;
+        }
+
+        if (!this.approvalManager) {
+            logger.warn('Cannot setup elicitation handler: approval manager not set');
+            return;
+        }
+
+        // Create the request schema for elicitation/create
+        const ElicitationCreateRequestSchema = z
+            .object({
+                method: z.literal('elicitation/create'),
+                params: z
+                    .object({
+                        message: z.string(),
+                        requestedSchema: z.unknown(),
+                    })
+                    .passthrough(),
+            })
+            .passthrough();
+
+        // Set up request handler for elicitation/create
+        this.client.setRequestHandler(ElicitationCreateRequestSchema, async (request) => {
+            const params = request.params;
+            logger.info(
+                `Elicitation request from MCP server '${this.serverAlias}': ${params.message}`
+            );
+
+            try {
+                // Request elicitation through ApprovalManager
+                if (!this.approvalManager) {
+                    logger.error('Approval manager not available for elicitation request');
+                    return { action: 'decline' };
+                }
+
+                // Note: MCP elicitation requests do not include sessionId
+                // MCP servers are shared across sessions and the MCP protocol doesn't include
+                // session context. Elicitations are typically for server-level data (credentials,
+                // config) rather than session-specific data.
+
+                // Validate requestedSchema is an object before casting
+                if (
+                    typeof params.requestedSchema !== 'object' ||
+                    params.requestedSchema === null ||
+                    Array.isArray(params.requestedSchema)
+                ) {
+                    logger.error(
+                        `Invalid elicitation schema from '${this.serverAlias}': expected object, got ${typeof params.requestedSchema}`
+                    );
+                    return { action: 'decline' };
+                }
+
+                const response = await this.approvalManager.requestElicitation({
+                    schema: params.requestedSchema as Record<string, unknown>,
+                    prompt: params.message,
+                    serverName: this.serverAlias || 'unknown',
+                });
+
+                if (response.status === ApprovalStatus.APPROVED && response.data) {
+                    // User accepted and provided data
+                    const formData =
+                        response.data &&
+                        typeof response.data === 'object' &&
+                        'formData' in response.data
+                            ? (response.data as { formData: unknown }).formData
+                            : {};
+                    logger.info(`Elicitation approved for '${this.serverAlias}', returning data`);
+                    return {
+                        action: 'accept',
+                        content: formData,
+                    };
+                } else if (response.status === ApprovalStatus.DENIED) {
+                    // User declined
+                    logger.info(`Elicitation declined for '${this.serverAlias}'`);
+                    return {
+                        action: 'decline',
+                    };
+                } else {
+                    // User cancelled
+                    logger.info(`Elicitation cancelled for '${this.serverAlias}'`);
+                    return {
+                        action: 'cancel',
+                    };
+                }
+            } catch (error) {
+                logger.error(`Elicitation error for '${this.serverAlias}': ${error}`);
+                // On error, return decline
+                return {
+                    action: 'decline',
+                };
+            }
+        });
+
+        logger.debug(`Elicitation handler registered for MCP server '${this.serverAlias}'`);
     }
 }

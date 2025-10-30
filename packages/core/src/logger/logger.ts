@@ -10,7 +10,7 @@
  * Constraints/Goals
  * - Keep file-based logging as the default for Node (excellent DX/UX).
  * - Keep logs visible in the browser (console-based), never a no‑op.
- * - Avoid touching “a lot of files” or changing call sites for consumers.
+ * - Avoid touching "a lot of files" or changing call sites for consumers.
  * - Keep `@dexto/core` ergonomic; browser consumers should not have to learn a separate API.
  *
  * Plan (incremental)
@@ -39,6 +39,27 @@
  * Verification & Guardrails
  * - Add a CI check that building a minimal Next/Vite app that imports root `@dexto/core` types succeeds.
  * - Mark side-effect status appropriately and keep top-level Node-only side effects out of root paths.
+ */
+
+/**
+ * TODO (Telemetry): Integrate OpenTelemetry structured logs with trace correlation
+ *
+ * Future Enhancement:
+ * - Replace or enhance Winston logger with OpenTelemetry Logs API
+ * - Automatically inject trace_id and span_id into all log messages
+ * - Enable correlation between traces and logs in observability backends
+ * - Support OpenTelemetry log exporters (OTLP, console, etc.)
+ *
+ * Benefits:
+ * - Unified observability: traces, metrics, and logs in one system
+ * - Click on trace in Jaeger → see correlated logs
+ * - Click on log → see full trace context
+ *
+ * Implementation:
+ * - Use @opentelemetry/api-logs package
+ * - Create OTel-aware logger that wraps or replaces Winston
+ * - Maintain existing logger API for backward compatibility
+ * See feature-plans/telemetry.md for details
  */
 import * as winston from 'winston';
 import chalk from 'chalk';
@@ -239,33 +260,62 @@ export class Logger {
 
     // General logging methods with optional color parameter
     error(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.error(message, { ...meta, color });
+        // Handle Error objects specially to preserve stack traces
+        if (meta instanceof Error) {
+            this.logger.error(message, meta);
+        } else {
+            this.logger.error(message, { ...meta, color });
+        }
     }
 
     warn(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.warn(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.warn(message, meta);
+        } else {
+            this.logger.warn(message, { ...meta, color });
+        }
     }
 
     info(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.info(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.info(message, meta);
+        } else {
+            this.logger.info(message, { ...meta, color });
+        }
     }
 
     http(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.http(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.http(message, meta);
+        } else {
+            this.logger.http(message, { ...meta, color });
+        }
     }
 
     verbose(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.verbose(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.verbose(message, meta);
+        } else {
+            this.logger.verbose(message, { ...meta, color });
+        }
     }
 
     debug(message: string | object, meta?: any, color?: ChalkColor) {
         const formattedMessage =
             typeof message === 'string' ? message : JSON.stringify(message, null, 2);
-        this.logger.debug(formattedMessage, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.debug(formattedMessage, meta);
+        } else {
+            this.logger.debug(formattedMessage, { ...meta, color });
+        }
     }
 
     silly(message: string, meta?: any, color?: ChalkColor) {
-        this.logger.silly(message, { ...meta, color });
+        if (meta instanceof Error) {
+            this.logger.silly(message, meta);
+        } else {
+            this.logger.silly(message, { ...meta, color });
+        }
     }
 
     // Display AI response in a box

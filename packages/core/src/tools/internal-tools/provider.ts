@@ -1,10 +1,10 @@
 import { ToolExecutionContext, ToolSet, InternalTool } from '../types.js';
-import { ToolConfirmationProvider } from '../confirmation/types.js';
 import { logger } from '../../logger/index.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
-import { InternalToolsServices, KnownInternalTool, getInternalToolInfo } from './registry.js';
+import { InternalToolsServices, getInternalToolInfo } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
+import type { ApprovalManager } from '../../approval/manager.js';
 
 /**
  * Provider for built-in internal tools that are part of the core system
@@ -21,16 +21,16 @@ import type { InternalToolsConfig } from '../schemas.js';
 export class InternalToolsProvider {
     private services: InternalToolsServices;
     private tools: Map<string, InternalTool> = new Map(); // ← Store original InternalTool
-    private confirmationProvider: ToolConfirmationProvider;
+    private approvalManager: ApprovalManager;
     private config: InternalToolsConfig;
 
     constructor(
         services: InternalToolsServices,
-        confirmationProvider: ToolConfirmationProvider,
+        approvalManager: ApprovalManager,
         config: InternalToolsConfig = []
     ) {
         this.services = services;
-        this.confirmationProvider = confirmationProvider;
+        this.approvalManager = approvalManager;
         this.config = config;
         logger.debug('InternalToolsProvider initialized with config:', config);
     }
@@ -64,12 +64,18 @@ export class InternalToolsProvider {
      * Register all available internal tools based on available services and configuration
      */
     private registerInternalTools(): void {
+        // Augment services with approvalManager
+        const servicesWithApproval = {
+            ...this.services,
+            approvalManager: this.approvalManager,
+        };
+
         for (const toolName of this.config) {
             const toolInfo = getInternalToolInfo(toolName);
 
             // Check if all required services are available
             const missingServices = toolInfo.requiredServices.filter(
-                (serviceKey) => !this.services[serviceKey]
+                (serviceKey) => !servicesWithApproval[serviceKey]
             );
 
             if (missingServices.length > 0) {
@@ -81,7 +87,7 @@ export class InternalToolsProvider {
 
             try {
                 // Create the tool using its factory and store directly
-                const tool = toolInfo.factory(this.services);
+                const tool = toolInfo.factory(servicesWithApproval);
                 this.tools.set(toolName, tool); // ← Store original InternalTool directly
                 logger.debug(`Registered ${toolName} internal tool`);
             } catch (error) {
@@ -90,13 +96,6 @@ export class InternalToolsProvider {
                 );
             }
         }
-    }
-
-    /**
-     * Check if a specific tool is enabled by configuration
-     */
-    private isToolEnabled(toolName: KnownInternalTool): boolean {
-        return this.config.includes(toolName);
     }
 
     /**

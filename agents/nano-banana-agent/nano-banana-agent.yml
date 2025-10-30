@@ -1,6 +1,9 @@
 # Dexto Agent Configuration for Nano Banana (Gemini 2.5 Flash Image) MCP Server
 # Generated on 2025-01-27T00:00:00.000Z
 
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🍌 Hi! I'm your Nano Banana Agent. Let's create something amazing together!"
+
 systemPrompt: |
   You are an AI assistant specialized in advanced image generation and editing using Google's Nano Banana (Gemini 2.5 Flash Image) model. You have access to cutting-edge AI tools for:
 
@@ -65,4 +68,35 @@ storage:
     type: in-memory
   database:
     type: sqlite
-    path: .dexto/database/nano-banana-agent.db
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per blob
+    maxTotalSize: 1073741824  # 1GB total storage
+    cleanupAfterDays: 30
+
+# Starter prompts - image generation and editing examples
+starterPrompts:
+  - id: generate-landscape
+    title: "🎨 Generate Landscape"
+    description: "Create a scenic image from text"
+    prompt: "Generate a stunning image of a majestic mountain landscape at sunset with vibrant colors and dramatic clouds."
+    category: generation
+    priority: 10
+  - id: generate-portrait
+    title: "👤 Generate Portrait"
+    description: "Create portrait images"
+    prompt: "Generate a professional portrait of a person in business attire with a clean studio background."
+    category: generation
+    priority: 9
+  - id: generate-abstract
+    title: "🌀 Generate Abstract Art"
+    description: "Create abstract artistic images"
+    prompt: "Generate an abstract art piece with swirling colors and geometric patterns inspired by Kandinsky."
+    category: generation
+    priority: 8
+  - id: generate-product
+    title: "📦 Generate Product Image"
+    description: "Create product photography"
+    prompt: "Generate a professional product photo of a sleek modern smartphone on a minimalist white background."
+    category: generation
+    priority: 7

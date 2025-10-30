@@ -66,7 +66,7 @@ This agent uses the refactored Gemini TTS MCP server to generate high-quality sp
 
 2. **Run the Agent**:
    ```bash
-   dexto --mode web -a agents/podcast-agent/podcast-agent.yml
+   dexto -a agents/podcast-agent/podcast-agent.yml
    ```
 
 The agent will automatically install the Gemini TTS MCP server from npm when needed.

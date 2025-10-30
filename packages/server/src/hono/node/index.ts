@@ -162,7 +162,13 @@ function handleWebsocketConnection(agent: DextoAgent, ws: WebSocket) {
 
             const data = JSON.parse(messageString);
             if (data.type === 'toolConfirmationResponse' && data.data) {
-                agent.agentEventBus.emit('dexto:toolConfirmationResponse', data.data);
+                // Map to approvalResponse event - toolConfirmationResponse is deprecated
+                agent.agentEventBus.emit('dexto:approvalResponse', {
+                    approvalId: data.data.approvalId || '',
+                    status: data.data.status || 'approved',
+                    sessionId: data.data.sessionId,
+                    data: data.data.data,
+                });
                 return;
             }
 

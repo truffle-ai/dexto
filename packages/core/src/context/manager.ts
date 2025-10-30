@@ -6,9 +6,16 @@ import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
 import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import { logger } from '../logger/index.js';
-import { countMessagesTokens, sanitizeToolResultToContent } from './utils.js';
+import { eventBus } from '../events/index.js';
+import {
+    countMessagesTokens,
+    sanitizeToolResult,
+    expandBlobReferences,
+    isLikelyBase64String,
+} from './utils.js';
+import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
-import { PromptManager } from '../systemPrompt/manager.js';
+import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -43,9 +50,9 @@ export class ContextManager<TMessage = unknown> {
     private llmConfig: ValidatedLLMConfig;
 
     /**
-     * PromptManager used to generate/manage the system prompt
+     * SystemPromptManager used to generate/manage the system prompt
      */
-    private promptManager: PromptManager;
+    private systemPromptManager: SystemPromptManager;
 
     /**
      * Formatter used to convert internal messages to LLM-specific format
@@ -85,24 +92,128 @@ export class ContextManager<TMessage = unknown> {
     private readonly sessionId: string;
 
     /**
+     * ResourceManager for resolving blob references in message content.
+     * Blob references like @blob:abc123 are resolved to actual data
+     * before passing messages to the LLM formatter.
+     */
+    private resourceManager: import('../resources/index.js').ResourceManager;
+
+    /**
+     * Get the ResourceManager instance
+     */
+    public getResourceManager(): import('../resources/index.js').ResourceManager {
+        return this.resourceManager;
+    }
+
+    /**
+     * Process user input data - store as blob if large, otherwise return as-is.
+     * Returns either the original data or a blob reference (@blob:id).
+     */
+    private async processUserInput(
+        data: string | Uint8Array | Buffer | ArrayBuffer | URL,
+        metadata: {
+            mimeType: string;
+            originalName?: string;
+            source?: 'user' | 'system';
+        }
+    ): Promise<string | Uint8Array | Buffer | ArrayBuffer | URL> {
+        const blobService = this.resourceManager.getBlobStore();
+
+        // Estimate data size to decide if we should store as blob
+        let shouldStoreAsBlob = false;
+        let estimatedSize = 0;
+
+        if (typeof data === 'string') {
+            if (data.startsWith('data:')) {
+                // Data URI - estimate base64 size
+                const commaIndex = data.indexOf(',');
+                if (commaIndex !== -1) {
+                    const base64Data = data.substring(commaIndex + 1);
+                    estimatedSize = Math.floor((base64Data.length * 3) / 4);
+                }
+            } else if (data.length > 100 && data.match(/^[A-Za-z0-9+/=]+$/)) {
+                // Likely base64 string
+                estimatedSize = Math.floor((data.length * 3) / 4);
+            } else {
+                estimatedSize = Buffer.byteLength(data, 'utf8');
+            }
+        } else if (data instanceof Buffer || data instanceof Uint8Array) {
+            estimatedSize = data.length;
+        } else if (data instanceof ArrayBuffer) {
+            estimatedSize = data.byteLength;
+        } else if (data instanceof URL) {
+            // URLs are small, don't store as blob
+            return data;
+        }
+
+        const isLikelyBinary =
+            metadata.mimeType.startsWith('image/') ||
+            metadata.mimeType.startsWith('audio/') ||
+            metadata.mimeType.startsWith('video/') ||
+            metadata.mimeType === 'application/pdf';
+
+        // Store all binary attachments (images/audio/video/pdf) or anything over 5KB
+        shouldStoreAsBlob = isLikelyBinary || estimatedSize > 5 * 1024;
+
+        if (shouldStoreAsBlob) {
+            try {
+                const blobInput =
+                    typeof data === 'string' &&
+                    !data.startsWith('data:') &&
+                    !isLikelyBase64String(data) &&
+                    !isLikelyBinary
+                        ? Buffer.from(data, 'utf-8')
+                        : data;
+
+                const blobRef = await blobService.store(blobInput, {
+                    mimeType: metadata.mimeType,
+                    originalName: metadata.originalName,
+                    source: metadata.source || 'user',
+                });
+
+                logger.info(
+                    `Stored user input as blob: ${blobRef.uri} (${estimatedSize} bytes, ${metadata.mimeType})`
+                );
+
+                // Emit event to invalidate resource cache so uploaded images appear in @ autocomplete
+                eventBus.emit('dexto:resourceCacheInvalidated', {
+                    resourceUri: blobRef.uri,
+                    serverName: 'internal',
+                    action: 'blob_stored',
+                });
+
+                return `@${blobRef.uri}`; // Return @blob:id reference for ResourceManager
+            } catch (error) {
+                logger.warn(`Failed to store user input as blob: ${String(error)}`);
+                // Fallback to storing original data
+                return data;
+            }
+        }
+
+        return data;
+    }
+
+    /**
      * Creates a new ContextManager instance
      * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
-     * @param promptManager PromptManager instance for the conversation
+     * @param systemPromptManager SystemPromptManager instance for the conversation
      * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
      * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
      * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
      * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
+     * @param resourceManager Optional ResourceManager for resolving blob references in messages
      */
     constructor(
         llmConfig: ValidatedLLMConfig,
         formatter: IMessageFormatter,
-        promptManager: PromptManager,
+        systemPromptManager: SystemPromptManager,
         maxInputTokens: number,
         tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
+        resourceManager: import('../resources/index.js').ResourceManager,
         compressionStrategies: ICompressionStrategy[] = [
             new MiddleRemovalStrategy(),
             new OldestRemovalStrategy(),
@@ -110,12 +221,13 @@ export class ContextManager<TMessage = unknown> {
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
-        this.promptManager = promptManager;
+        this.systemPromptManager = systemPromptManager;
         this.maxInputTokens = maxInputTokens;
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
         this.sessionId = sessionId;
         this.compressionStrategies = compressionStrategies;
+        this.resourceManager = resourceManager;
 
         logger.debug(
             `ContextManager: Initialized for session ${sessionId} - history will be managed by ${historyProvider.constructor.name}`
@@ -240,10 +352,10 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Assembles and returns the current system prompt by invoking the PromptManager.
+     * Assembles and returns the current system prompt by invoking the SystemPromptManager.
      */
     async getSystemPrompt(context: DynamicContributorContext): Promise<string> {
-        const prompt = await this.promptManager.build(context);
+        const prompt = await this.systemPromptManager.build(context);
         logger.debug(`[SystemPrompt] Built system prompt:\n${prompt}`);
         return prompt;
     }
@@ -369,20 +481,39 @@ export class ContextManager<TMessage = unknown> {
             messageParts.push({ type: 'text' as const, text: finalTextContent });
         }
 
-        // Add image if present
+        // Add image if present - store as blob if large
         if (imageData) {
+            const processedImage = await this.processUserInput(imageData.image, {
+                mimeType: imageData.mimeType || 'image/jpeg',
+                source: 'user',
+            });
+
             messageParts.push({
                 type: 'image' as const,
-                image: imageData.image,
+                image: processedImage,
                 mimeType: imageData.mimeType || 'image/jpeg',
             });
         }
 
-        // Add file if present
+        // Add file if present - store as blob if large
         if (fileData) {
+            const metadata: {
+                mimeType: string;
+                originalName?: string;
+                source?: 'user' | 'system';
+            } = {
+                mimeType: fileData.mimeType,
+                source: 'user',
+            };
+            if (fileData.filename) {
+                metadata.originalName = fileData.filename;
+            }
+
+            const processedData = await this.processUserInput(fileData.data, metadata);
+
             messageParts.push({
                 type: 'file' as const,
-                data: fileData.data,
+                data: processedData,
                 mimeType: fileData.mimeType,
                 ...(fileData.filename && { filename: fileData.filename }),
             });
@@ -438,37 +569,51 @@ export class ContextManager<TMessage = unknown> {
      * @param result The result returned by the tool
      * @throws Error if required parameters are missing
      */
-    async addToolResult(toolCallId: string, name: string, result: unknown): Promise<void> {
+    async addToolResult(
+        toolCallId: string,
+        name: string,
+        result: unknown,
+        options?: { success?: boolean }
+    ): Promise<SanitizedToolResult> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
-        // Sanitize tool result to avoid adding non-text data as raw text
-        // and to convert media/data-uris/base64 to structured parts.
-        let content: InternalMessage['content'];
-        content = sanitizeToolResultToContent(result);
-
-        // Log what we are storing (brief)
-        if (typeof content === 'string') {
-            const preview = content.slice(0, 200);
-            logger.debug(
-                `ContextManager: Storing tool result (text) for ${name} (len=${content.length}): ${preview}${
-                    content.length > 200 ? '...' : ''
-                }`
-            );
-        } else if (Array.isArray(content)) {
-            const summary = content
-                .map((p) =>
-                    p.type === 'text'
-                        ? `text(${p.text.length})`
-                        : p.type === 'image'
-                          ? `image(${p.mimeType || 'image'})`
-                          : `file(${p.mimeType || 'file'})`
-                )
-                .join(', ');
-            logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
+        const blobService = this.resourceManager.getBlobStore();
+        const sanitizeOptions: {
+            blobStore?: import('../storage/blob/types.js').BlobStore;
+            toolName: string;
+            toolCallId: string;
+            success?: boolean;
+        } = {
+            blobStore: blobService,
+            toolName: name,
+            toolCallId,
+        };
+        if (options?.success !== undefined) {
+            sanitizeOptions.success = options.success;
         }
 
-        await this.addMessage({ role: 'tool', content, toolCallId, name });
+        const sanitized = await sanitizeToolResult(result, sanitizeOptions);
+
+        const summary = sanitized.content
+            .map((p) =>
+                p.type === 'text'
+                    ? `text(${p.text.length})`
+                    : p.type === 'image'
+                      ? `image(${p.mimeType || 'image'})`
+                      : `file(${p.mimeType || 'file'})`
+            )
+            .join(', ');
+        logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
+
+        await this.addMessage({
+            role: 'tool',
+            content: sanitized.content,
+            toolCallId,
+            name,
+        });
+
+        return sanitized;
     }
 
     /**
@@ -501,8 +646,50 @@ export class ContextManager<TMessage = unknown> {
     ): Promise<TMessage[]> {
         // TMessage type is provided by the service that instantiates ContextManager
         // Use provided history or fetch from provider
-        const messageHistory: InternalMessage[] =
+        let messageHistory: InternalMessage[] =
             history ?? (await this.historyProvider.getHistory());
+
+        // Determine allowed media types for expansion
+        // Priority: User-specified config > Model capabilities from registry
+        let allowedMediaTypes: string[] | undefined = this.llmConfig.allowedMediaTypes;
+        if (!allowedMediaTypes) {
+            // Fall back to model capabilities from registry
+            try {
+                const { getSupportedFileTypesForModel } = await import('../llm/registry.js');
+                const { fileTypesToMimePatterns } = await import('./utils.js');
+                const supportedFileTypes = getSupportedFileTypesForModel(
+                    llmContext.provider,
+                    llmContext.model
+                );
+                allowedMediaTypes = fileTypesToMimePatterns(supportedFileTypes);
+                logger.debug(
+                    `Using model capabilities for media filtering: ${allowedMediaTypes.join(', ')}`
+                );
+            } catch (error) {
+                logger.warn(
+                    `Could not determine model capabilities, allowing all media types: ${String(error)}`
+                );
+                // If we can't determine capabilities, allow everything
+                allowedMediaTypes = undefined;
+            }
+        } else {
+            logger.debug(
+                `Using user-configured allowedMediaTypes: ${allowedMediaTypes.join(', ')}`
+            );
+        }
+
+        // Resolve blob references using resource manager with filtering
+        logger.debug('Resolving blob references in message history before formatting');
+        messageHistory = await Promise.all(
+            messageHistory.map(async (message) => {
+                const expandedContent = await expandBlobReferences(
+                    message.content,
+                    this.resourceManager,
+                    allowedMediaTypes
+                );
+                return { ...message, content: expandedContent };
+            })
+        );
 
         // Use pre-computed system prompt if provided
         const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));

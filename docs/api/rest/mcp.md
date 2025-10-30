@@ -4,14 +4,14 @@ sidebar_position: 3
 
 # MCP Management
 
-### List MCP Servers
+## List MCP Servers
 *Gets a list of all connected and failed MCP servers.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/mcp/servers</code></p>
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "servers": [
@@ -21,14 +21,15 @@ sidebar_position: 3
 }
 ```
 
-### Add MCP Server
+## Add MCP Server
 *Connects a new MCP server dynamically.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/mcp/servers</code></p>
 
-#### Request Body
+### Request Body
 - `name` (string, required): A unique name for the server.
-- `config` (object, required): The server's configuration object, including optional `connectionMode`.
+- `config` (object, required): The server's configuration object.
+- `persistToAgent` (boolean, optional): If true, saves the server to agent configuration file.
 
 **Example Request Body:**
 ```json
@@ -38,28 +39,30 @@ sidebar_position: 3
     "type": "stdio",
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
-    "timeout": 30000,
-    "connectionMode": "strict"
-  }
+    "timeout": 30000
+  },
+  "persistToAgent": false
 }
 ```
 
-#### Responses
-**Success (201)**
+### Responses
+
+#### Success (200)
 ```json
 {
   "status": "connected",
-  "name": "new-server"
+  "name": "filesystem"
 }
 ```
 
-### List Server Tools
+## List Server Tools
 *Retrieves the list of tools available on a specific MCP server.*
 
 <p class="api-endpoint-header"><span class="api-method get">GET</span><code>/api/mcp/servers/:serverId/tools</code></p>
 
-#### Responses
-**Success (200)**
+### Responses
+
+#### Success (200)
 ```json
 {
   "tools": [
@@ -68,25 +71,32 @@ sidebar_position: 3
       "name": "readFile",
       "description": "Read the contents of a file",
       "inputSchema": {
-          "type": "object",
-          "properties": { "path": { "type": "string" } }
+        "type": "object",
+        "properties": { "path": { "type": "string" } }
       }
     }
   ]
 }
 ```
 
-### Execute MCP Tool
+#### Error (404)
+```json
+{
+  "error": "Server 'serverId' not found"
+}
+```
+
+## Execute MCP Tool
 *Executes a tool on an MCP server directly.*
 
 <p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/mcp/servers/:serverId/tools/:toolName/execute</code></p>
 
-#### Request Body
+### Request Body
 - An object containing the arguments required by the tool.
 
-#### Responses
+### Responses
 
-**Success (200)**
+#### Success (200)
 ```json
 {
   "success": true,
@@ -96,24 +106,54 @@ sidebar_position: 3
 }
 ```
 
-**Error (500)**
+#### Error (404)
 ```json
 {
   "success": false,
-  "error": "Tool execution failed: ..."
+  "error": "Server 'serverId' not found"
 }
 ```
 
-### Remove MCP Server
+## Restart MCP Server
+*Restarts a connected MCP server.*
+
+<p class="api-endpoint-header"><span class="api-method post">POST</span><code>/api/mcp/servers/:serverId/restart</code></p>
+
+### Responses
+
+#### Success (200)
+```json
+{
+  "status": "restarted",
+  "id": "filesystem"
+}
+```
+
+#### Error (404)
+```json
+{
+  "error": "Server 'filesystem' not found"
+}
+```
+
+## Remove MCP Server
 *Disconnects and removes an MCP server.*
 
 <p class="api-endpoint-header"><span class="api-method delete">DELETE</span><code>/api/mcp/servers/:serverId</code></p>
 
-#### Responses
-**Success (200)**
+### Responses
+
+#### Success (200)
 ```json
 {
   "status": "disconnected",
   "id": "server-to-remove"
+}
+```
+
+#### Error (404)
+```json
+{
+  "error": "Server 'server-to-remove' not found"
 }
 ```

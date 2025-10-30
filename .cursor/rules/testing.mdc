@@ -16,19 +16,19 @@ alwaysApply: true
     - May include slower operations
 
 - **Test Commands**
-  - **All tests**: `npm test` or `npm run test`
-  - **Unit tests only**: `npm run test:unit` (excludes `**/*.integration.test.ts`)
-  - **Integration tests only**: `npm run test:integ` (runs only `**/*.integration.test.ts`)
+  - **All tests**: `pnpm test` or `pnpm run test`
+  - **Unit tests only**: `pnpm run test:unit` (excludes `**/*.integration.test.ts`)
+  - **Integration tests only**: `pnpm run test:integ` (runs only `**/*.integration.test.ts`)
   - **Watch modes**: 
-    - `npm run test:unit:watch` for unit test development
-    - `npm run test:integ:watch` for integration test development
+    - `pnpm run test:unit:watch` for unit test development
+    - `pnpm run test:integ:watch` for integration test development
 
 - **Mandatory Validation Before Completion**
   - The agent **MUST run** the following commands and ensure they exit with status `0`:
-    - `npm run build`  – compiles the project bundle
-    - `npm test`       – executes the full test suite
-    - `npm run lint`   – checks for ESLint violations
-    - `npm run typecheck` – runs the strict TypeScript type checker
+    - `pnpm run build`  – compiles the project bundle
+    - `pnpm test`       – executes the full test suite
+    - `pnpm run lint`   – checks for ESLint violations
+    - `pnpm run typecheck` – runs the strict TypeScript type checker
   - If any command fails, the agent should:
     1. Stop further edits aimed at feature implementation
     2. Diagnose and fix the underlying issue
@@ -67,8 +67,8 @@ alwaysApply: true
   ```
 
 - **Development Workflow**
-  - Use `npm run test:unit:watch` during feature development
-  - Run `npm run test:integ` before submitting changes
+  - Use `pnpm run test:unit:watch` during feature development
+  - Run `pnpm run test:integ` before submitting changes
   - Add regression tests when fixing bugs
   - Follow existing patterns in the codebase for test structure
 

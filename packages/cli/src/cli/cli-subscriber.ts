@@ -1,8 +1,9 @@
 import { logger } from '@dexto/core';
 import boxen from 'boxen';
 import chalk from 'chalk';
-import { EventSubscriber } from '@dexto/server';
+import { EventSubscriber } from '../api/types.js';
 import { AgentEventBus } from '@dexto/core';
+import type { SanitizedToolResult } from '@dexto/core';
 
 /**
  * Wrapper class to store methods describing how the CLI should handle agent events
@@ -32,7 +33,12 @@ export class CLISubscriber implements EventSubscriber {
             this.onToolCall(payload.toolName, payload.args)
         );
         eventBus.on('llmservice:toolResult', (payload) =>
-            this.onToolResult(payload.toolName, payload.result)
+            this.onToolResult(
+                payload.toolName,
+                payload.sanitized,
+                payload.rawResult,
+                payload.success
+            )
         );
         eventBus.on('llmservice:response', (payload) => this.onResponse(payload.content));
         eventBus.on('llmservice:error', (payload) => this.onError(payload.error));
@@ -97,8 +103,21 @@ export class CLISubscriber implements EventSubscriber {
         logger.toolCall(toolName, args);
     }
 
-    onToolResult(toolName: string, result: any): void {
-        logger.toolResult(result);
+    onToolResult(
+        toolName: string,
+        sanitized: SanitizedToolResult,
+        rawResult?: unknown,
+        success?: boolean
+    ): void {
+        const payload: Record<string, unknown> = {
+            toolName,
+            success,
+            sanitized,
+        };
+        if (rawResult !== undefined) {
+            payload.raw = rawResult;
+        }
+        logger.toolResult(payload);
     }
 
     onResponse(text: string): void {

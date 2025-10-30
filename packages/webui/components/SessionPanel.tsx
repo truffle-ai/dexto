@@ -1,42 +1,30 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
-import { 
-  MessageSquare, 
-  Plus, 
-  Trash2, 
-  Calendar, 
-  Clock, 
-  Hash,
+import {
+  Trash2,
   AlertTriangle,
   RefreshCw,
-  MoreHorizontal,
   History,
-  Search
+  Search,
+  X
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from './ui/alert';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from './ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface Session {
   id: string;
   createdAt: string | null;
   lastActivity: string | null;
   messageCount: number;
+  title?: string | null;
 }
 
 interface SessionPanelProps {
@@ -45,20 +33,20 @@ interface SessionPanelProps {
   currentSessionId?: string | null;
   onSessionChange: (sessionId: string) => void;
   returnToWelcome: () => void;
-  variant?: 'inline' | 'modal';
+  variant?: 'inline' | 'overlay';
   onSearchOpen?: () => void;
   onNewChat?: () => void;
 }
 
 import NewChatButton from './NewChatButton';
 
-export default function SessionPanel({ 
-  isOpen, 
-  onClose, 
+export default function SessionPanel({
+  isOpen,
+  onClose,
   currentSessionId,
   onSessionChange,
   returnToWelcome,
-  variant = 'modal',
+  variant = 'overlay',
   onSearchOpen,
   onNewChat,
 }: SessionPanelProps) {
@@ -68,6 +56,9 @@ export default function SessionPanel({
   const [isNewSessionOpen, setNewSessionOpen] = useState(false);
   const [newSessionId, setNewSessionId] = useState('');
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const isDeletingRef = React.useRef(false);
+  const requestIdRef = React.useRef(0);
+  const hasLoadedOnceRef = React.useRef(false);
 
   // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -75,69 +66,186 @@ export default function SessionPanel({
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
 
   const fetchSessions = useCallback(async () => {
-    setLoading(true);
+    if (isDeletingRef.current) {
+      return;
+    }
+
+    requestIdRef.current += 1;
+    const currentRequestId = requestIdRef.current;
+
+    // Only show loading spinner on first load
+    if (!hasLoadedOnceRef.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
-      const response = await fetch('/api/sessions');
+      const response = await fetch(`${getApiUrl()}/api/sessions`);
       if (!response.ok) throw new Error('Failed to fetch sessions');
-      const data = await response.json();
-      setSessions(data.sessions || []);
+      const responseText = await response.text();
+
+      if (currentRequestId !== requestIdRef.current) {
+        return;
+      }
+
+      if (!responseText.trim()) {
+        setSessions([]);
+        return;
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse sessions response:', parseError);
+        setError('Failed to parse sessions data');
+        return;
+      }
+
+      const sortedSessions = (data.sessions || []).sort((a: Session, b: Session) => {
+        const timeA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+        const timeB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      if (currentRequestId === requestIdRef.current) {
+        setSessions(sortedSessions);
+        hasLoadedOnceRef.current = true;
+      }
     } catch (err) {
-      console.error('Error fetching sessions:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      if (currentRequestId === requestIdRef.current) {
+        console.error('Error fetching sessions:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+        hasLoadedOnceRef.current = true;
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
+    // Only fetch sessions on initial mount when panel opens
+    // hasLoadedOnceRef ensures we don't refetch unnecessarily
+    if (isOpen && !hasLoadedOnceRef.current) {
       fetchSessions();
     }
   }, [isOpen, fetchSessions]);
 
-  // Listen for message events to refresh session counts
+  // Listen for events and update state locally (no API calls)
   useEffect(() => {
-    const handleMessage = () => {
-      // Refresh sessions when a message is sent to update message counts
-      if (isOpen) {
-        fetchSessions();
+    // Also listen for agent switches - this is when we DO want to refresh
+    const handleAgentSwitched = () => {
+      // Force a fresh fetch when agent is switched
+      hasLoadedOnceRef.current = false;
+      fetchSessions();
+    };
+    const handleMessage: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      if (eventSessionId) {
+        setSessions(prev => {
+          const sessionExists = prev.some(s => s.id === eventSessionId);
+          if (sessionExists) {
+            // Update existing session
+            return prev.map(session =>
+              session.id === eventSessionId
+                ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
+                : session
+            );
+          } else {
+            // New session created (first message from welcome state)
+            const newSession: Session = {
+              id: eventSessionId,
+              createdAt: new Date().toISOString(),
+              lastActivity: new Date().toISOString(),
+              messageCount: 1,
+              title: null
+            };
+            return [newSession, ...prev];
+          }
+        });
       }
     };
 
-    const handleResponse = () => {
-      // Refresh sessions when a response is received to update message counts
-      if (isOpen) {
-        fetchSessions();
+    const handleResponse: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      if (eventSessionId) {
+        // Update message count and last activity locally
+        setSessions(prev =>
+          prev.map(session =>
+            session.id === eventSessionId
+              ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
+              : session
+          )
+        );
+      }
+    };
+
+    const handleTitleUpdated: EventListener = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventSessionId = customEvent.detail?.sessionId;
+      const title = customEvent.detail?.title;
+      if (eventSessionId && title) {
+        // Update title locally
+        setSessions(prev =>
+          prev.map(session =>
+            session.id === eventSessionId
+              ? { ...session, title }
+              : session
+          )
+        );
       }
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('dexto:message', handleMessage);
       window.addEventListener('dexto:response', handleResponse);
-      
+      window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+      window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
+
       return () => {
         window.removeEventListener('dexto:message', handleMessage);
         window.removeEventListener('dexto:response', handleResponse);
+        window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+        window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
       };
     }
-  }, [isOpen, fetchSessions]);
+  }, [fetchSessions]);
 
   const handleCreateSession = async () => {
     // Allow empty session ID for auto-generation
     try {
-      const response = await fetch('/api/sessions', {
+      const response = await fetch(`${getApiUrl()}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: newSessionId.trim() || undefined }),
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = { error: 'Failed to create session' };
+        }
         throw new Error(errorData.error || 'Failed to create session');
       }
       
-      const data = await response.json();
+      const responseText = await response.text();
+      if (!responseText.trim()) {
+        throw new Error('Empty response from session creation');
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse session creation response:', parseError);
+        throw new Error('Invalid response from session creation');
+      }
       setSessions(prev => [...prev, data.session]);
       setNewSessionId('');
       setNewSessionOpen(false);
@@ -149,27 +257,38 @@ export default function SessionPanel({
   };
 
   const handleDeleteSession = async (sessionId: string) => {
+    const isDeletingCurrentSession = currentSessionId === sessionId;
+
+    isDeletingRef.current = true;
     setDeletingSessionId(sessionId);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}`, {
+      const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = { error: 'Failed to delete session' };
+        }
         throw new Error(errorData.error || 'Failed to delete session');
       }
-      
+
       setSessions(prev => prev.filter(s => s.id !== sessionId));
-      
-      // If we deleted the current session, trigger a page reload to return to welcome state
-      if (currentSessionId === sessionId) {
+
+      if (isDeletingCurrentSession) {
         returnToWelcome();
       }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (err) {
       console.error('Error deleting session:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete session');
     } finally {
+      isDeletingRef.current = false;
       setDeletingSessionId(null);
     }
   };
@@ -177,10 +296,13 @@ export default function SessionPanel({
 
   const handleDeleteConversation = async () => {
     if (!selectedSessionForAction) return;
-    
+
+    const isDeletingCurrentSession = currentSessionId === selectedSessionForAction;
+
+    isDeletingRef.current = true;
     setIsDeletingConversation(true);
     try {
-      const response = await fetch(`/api/sessions/${selectedSessionForAction}`, {
+      const response = await fetch(`${getApiUrl()}/api/sessions/${selectedSessionForAction}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -191,28 +313,23 @@ export default function SessionPanel({
         throw new Error('Failed to delete conversation');
       }
 
-      // Remove session from local state
       setSessions(prev => prev.filter(s => s.id !== selectedSessionForAction));
-      
-      // If we deleted the current session, trigger a page reload to return to welcome state
-      if (currentSessionId === selectedSessionForAction) {
+
+      if (isDeletingCurrentSession) {
         returnToWelcome();
       }
-      
+
       setDeleteConversationDialogOpen(false);
       setSelectedSessionForAction(null);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       console.error('Error deleting conversation:', error);
       setError(error instanceof Error ? error.message : 'Failed to delete conversation');
     } finally {
+      isDeletingRef.current = false;
       setIsDeletingConversation(false);
     }
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Unknown';
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatRelativeTime = (dateString: string | null) => {
@@ -237,7 +354,7 @@ export default function SessionPanel({
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-border/50">
         <div className="flex items-center space-x-2">
-          <h2 className="text-base font-semibold">Chat History</h2>
+          <h2 id="sessionpanel-title" className="text-base font-semibold">Chat History</h2>
         </div>
         <div className="flex items-center space-x-1">
           {onSearchOpen && (
@@ -261,6 +378,17 @@ export default function SessionPanel({
           {onNewChat && (
             <NewChatButton onClick={onNewChat} variant="outline" />
           )}
+          {variant === 'overlay' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-7 w-7 p-0"
+              aria-label="Close panel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -275,106 +403,87 @@ export default function SessionPanel({
       )}
 
       {/* Sessions List */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-2">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin" />
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No chat history</p>
-              <p className="text-sm">Start a conversation to see it here</p>
-            </div>
-          ) : (
-            sessions.map((session) => (
-              <div
-                key={session.id}
-                className={cn(
-                  "group p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer",
-                  currentSessionId === session.id && "ring-2 ring-primary bg-primary/5"
-                )}
-                onClick={() => onSessionChange(session.id)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="font-medium text-sm truncate">
-                        {session.id}
-                      </h3>
-                      {currentSessionId === session.id && (
-                        <Badge variant="secondary" className="text-xs">
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-1">
-                          <Hash className="h-3 w-3" />
-                          <span>{session.messageCount} messages</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatRelativeTime(session.lastActivity)}</span>
+      <ScrollArea className="flex-1">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="h-6 w-6 animate-spin" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground px-4">
+            <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>No chat history</p>
+            <p className="text-sm">Start a conversation to see it here</p>
+          </div>
+        ) : (
+          <div className="px-3 py-2 space-y-0.5">
+            <TooltipProvider>
+              {sessions.map((session) => {
+                const title = session.title && session.title.trim().length > 0 ? session.title : session.id;
+                const isActive = currentSessionId === session.id;
+                return (
+                  <Tooltip key={session.id} delayDuration={150}>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={isActive
+                          ? "group relative px-3 py-3 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer"
+                          : "group relative px-3 py-2.5 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer"
+                        }
+                        role="button"
+                        tabIndex={0}
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => onSessionChange(session.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSessionChange(session.id);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            <h3 className={isActive ? "font-semibold text-sm truncate" : "font-normal text-sm truncate text-muted-foreground"}>
+                              {title}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground">
+                              {formatRelativeTime(session.lastActivity)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (session.messageCount > 0) {
+                                  setSelectedSessionForAction(session.id);
+                                  setDeleteConversationDialogOpen(true);
+                                } else {
+                                  handleDeleteSession(session.id);
+                                }
+                              }}
+                              disabled={deletingSessionId === session.id}
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                              aria-label={session.messageCount > 0 ? "Delete conversation" : "Delete chat"}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      
-                      {session.createdAt && (
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>Created {formatDate(session.createdAt)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Session Actions */}
-                  <div className="flex items-center space-x-1">
-                    {/* Conversation Actions - Direct Buttons */}
-                    {session.messageCount > 0 && (
-                      <>
-                        {/* Delete Conversation Button */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSessionForAction(session.id);
-                            setDeleteConversationDialogOpen(true);
-                          }}
-                          className="h-8 w-8 p-0"
-                          title="Delete Conversation"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </>
-                    )}
-                    
-                    {/* Delete Session Button */}
-                    {session.messageCount === 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSession(session.id);
-                        }}
-                        disabled={deletingSessionId === session.id}
-                        className="h-8 w-8 p-0"
-                        title="Delete Session"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="center">
+                      <div className="text-xs space-y-1">
+                        <div className="font-mono">{session.id}</div>
+                        <div className="text-muted-foreground">{session.messageCount} messages</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </TooltipProvider>
+          </div>
+        )}
       </ScrollArea>
 
       {/* New Chat Dialog */}
@@ -449,15 +558,36 @@ export default function SessionPanel({
     </div>
   );
 
+  // For inline variant, just return the content wrapped
   if (variant === 'inline') {
-    return <div className="h-full">{content}</div>;
+    return <div className="h-full w-full flex flex-col bg-card">{content}</div>;
   }
 
+  // Overlay variant with slide animation
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
+    <>
+      {/* Backdrop */}
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/50 z-30 transition-opacity duration-300",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sessionpanel-title"
+        tabIndex={-1}
+        className={cn(
+          "fixed top-0 left-0 z-40 h-screen w-80 bg-card border-r border-border shadow-xl transition-transform duration-300 ease-in-out flex flex-col",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
         {content}
-      </DialogContent>
-    </Dialog>
+      </aside>
+    </>
   );
 } 

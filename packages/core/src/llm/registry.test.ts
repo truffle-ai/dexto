@@ -93,7 +93,7 @@ describe('LLM Registry Core Functions', () => {
 
     describe('getDefaultModelForProvider', () => {
         it('returns default model for provider with default', () => {
-            expect(getDefaultModelForProvider('openai')).toBe('gpt-4.1-mini');
+            expect(getDefaultModelForProvider('openai')).toBe('gpt-5-mini');
             expect(getDefaultModelForProvider('groq')).toBe('llama-3.3-70b-versatile');
         });
 
@@ -266,7 +266,7 @@ describe('File Support Functions', () => {
             expect(getSupportedFileTypesForModel('openai', 'gpt-4o-audio-preview')).toEqual([
                 'audio',
             ]);
-            expect(getSupportedFileTypesForModel('openai', 'gpt-4o')).toEqual(['pdf', 'image']);
+            expect(getSupportedFileTypesForModel('openai', 'gpt-5')).toEqual(['pdf', 'image']);
         });
 
         it('returns empty array for models without file support', () => {
@@ -297,11 +297,11 @@ describe('File Support Functions', () => {
     describe('modelSupportsFileType', () => {
         it('returns true for supported model-file combinations', () => {
             expect(modelSupportsFileType('openai', 'gpt-4o-audio-preview', 'audio')).toBe(true);
-            expect(modelSupportsFileType('openai', 'gpt-4o', 'pdf')).toBe(true);
+            expect(modelSupportsFileType('openai', 'gpt-5', 'pdf')).toBe(true);
         });
 
         it('returns false for unsupported model-file combinations', () => {
-            expect(modelSupportsFileType('openai', 'gpt-4o', 'audio')).toBe(false);
+            expect(modelSupportsFileType('openai', 'gpt-5', 'audio')).toBe(false);
         });
 
         it('returns true for openai-compatible models (uses provider capabilities)', () => {
@@ -330,14 +330,14 @@ describe('File Support Functions', () => {
         });
 
         it('rejects unsupported files with descriptive error', () => {
-            const result = validateModelFileSupport('openai', 'gpt-4o', 'audio/mp3');
+            const result = validateModelFileSupport('openai', 'gpt-5', 'audio/mp3');
             expect(result.isSupported).toBe(false);
             expect(result.fileType).toBe('audio');
-            expect(result.error).toBe("Model 'gpt-4o' (openai) does not support audio files");
+            expect(result.error).toBe("Model 'gpt-5' (openai) does not support audio files");
         });
 
         it('handles unknown MIME types', () => {
-            const result = validateModelFileSupport('openai', 'gpt-4o', 'application/unknown');
+            const result = validateModelFileSupport('openai', 'gpt-5', 'application/unknown');
             expect(result.isSupported).toBe(false);
             expect(result.fileType).toBeUndefined();
             expect(result.error).toBe('Unsupported file type: application/unknown');
@@ -365,7 +365,7 @@ describe('File Support Functions', () => {
 
             const pdfResult = validateModelFileSupport(
                 'openai',
-                'gpt-4o',
+                'gpt-5',
                 'application/pdf;version=1.4'
             );
             expect(pdfResult.isSupported).toBe(true);
@@ -374,7 +374,7 @@ describe('File Support Functions', () => {
             // Test that unsupported base types with parameters still fail correctly
             const unknownResult = validateModelFileSupport(
                 'openai',
-                'gpt-4o',
+                'gpt-5',
                 'application/unknown;param=value'
             );
             expect(unknownResult.isSupported).toBe(false);
@@ -412,7 +412,7 @@ describe('Provider-Specific Tests', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('openai');
             expect(getSupportedModels('openai')).toContain('o4-mini');
-            expect(getDefaultModelForProvider('openai')).toBe('gpt-4.1-mini');
+            expect(getDefaultModelForProvider('openai')).toBe('gpt-5-mini');
             expect(supportsBaseURL('openai')).toBe(false);
             expect(requiresBaseURL('openai')).toBe(false);
             expect(acceptsAnyModel('openai')).toBe(false);
@@ -424,7 +424,8 @@ describe('Provider-Specific Tests', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('anthropic');
             expect(getSupportedModels('anthropic')).toContain('claude-4-sonnet-20250514');
-            expect(getDefaultModelForProvider('anthropic')).toBe('claude-4-sonnet-20250514');
+            expect(getSupportedModels('anthropic')).toContain('claude-haiku-4-5-20251001');
+            expect(getDefaultModelForProvider('anthropic')).toBe('claude-haiku-4-5-20251001');
             expect(supportsBaseURL('anthropic')).toBe(false);
             expect(requiresBaseURL('anthropic')).toBe(false);
             expect(acceptsAnyModel('anthropic')).toBe(false);
@@ -532,8 +533,6 @@ describe('Model-Specific Router Support Functions', () => {
             // Other OpenAI models should support both routers
             expect(isRouterSupportedForModel('openai', 'gpt-4.1-mini', 'in-built')).toBe(true);
             expect(isRouterSupportedForModel('openai', 'gpt-4.1-mini', 'vercel')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-4o', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-4o', 'vercel')).toBe(true);
         });
 
         it('falls back to provider-level support for unknown models', () => {
@@ -563,7 +562,7 @@ describe('Model-Specific Router Support Functions', () => {
                 'vercel',
                 'in-built',
             ]);
-            expect(getSupportedRoutersForModel('openai', 'gpt-4o')).toEqual(['vercel', 'in-built']);
+            expect(getSupportedRoutersForModel('openai', 'gpt-5')).toEqual(['vercel', 'in-built']);
         });
 
         it('falls back to provider-level support for unknown models', () => {

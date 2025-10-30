@@ -8,7 +8,14 @@ import type { StorageErrorCode } from '@core/storage/error-codes.js';
 import type { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
 import type { ToolErrorCode } from '@core/tools/error-codes.js';
 import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
+import type { ResourceErrorCode } from '@core/resources/error-codes.js';
 import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
+import type { PromptErrorCode } from '@core/prompts/error-codes.js';
+import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
+import type { MemoryErrorCode } from '@core/memory/error-codes.js';
+import type { PluginErrorCode } from '@core/plugins/error-codes.js';
+import type { FileSystemErrorCode } from '@core/filesystem/error-codes.js';
+import type { ProcessErrorCode } from '@core/process/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -26,6 +33,12 @@ export enum ErrorScope {
     SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
     PREFERENCE = 'preference', // Global preferences file operations and validation
     AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
+    RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
+    PROMPT = 'prompt', // Prompt management, resolution, and providers
+    MEMORY = 'memory', // Memory management and storage
+    PLUGIN = 'plugin', // Plugin loading, validation, and execution
+    FILESYSTEM = 'filesystem', // File system operations and path validation
+    PROCESS = 'process', // Process execution and command validation
 }
 
 /**
@@ -37,6 +50,7 @@ export enum ErrorType {
     NOT_FOUND = 'not_found', // 404 - resource doesn't exist (session, file, etc.)
     FORBIDDEN = 'forbidden', // 403 - permission denied, unauthorized
     TIMEOUT = 'timeout', // 408 - operation timed out
+    CONFLICT = 'conflict', // 409 - resource conflict, concurrent operation
     RATE_LIMIT = 'rate_limit', // 429 - too many requests
     SYSTEM = 'system', // 500 - bugs, internal failures, unexpected states
     THIRD_PARTY = 'third_party', // 502 - upstream provider failures, API errors
@@ -58,7 +72,14 @@ export type DextoErrorCode =
     | StorageErrorCode
     | SystemPromptErrorCode
     | PreferenceErrorCode
-    | RegistryErrorCode;
+    | RegistryErrorCode
+    | ResourceErrorCode
+    | PromptErrorCode
+    | ApprovalErrorCode
+    | MemoryErrorCode
+    | PluginErrorCode
+    | FileSystemErrorCode
+    | ProcessErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';
