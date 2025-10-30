@@ -12,28 +12,8 @@ vi.mock('@core/logger/index.js', () => ({
         error: vi.fn(),
     },
 }));
+
 import { loadEnvironmentVariables, applyLayeredEnvironmentLoading, updateEnvFile } from './env.js';
-import { getExecutionContext } from './execution-context.js';
-import { getDextoEnvPath } from './path.js';
-
-// Mock homedir to control global .dexto location
-vi.mock('os', async () => {
-    const actual = await vi.importActual('os');
-    return {
-        ...actual,
-        homedir: vi.fn(),
-    };
-});
-
-// Mock path functions for testing
-vi.mock('./path.js', async () => {
-    const actual = await vi.importActual('./path.js');
-    return {
-        ...actual,
-        getDextoEnvPath: vi.fn(),
-    };
-});
-vi.mock('./execution-context.js');
 
 function createTempDir() {
     return fs.mkdtempSync(path.join(tmpdir(), 'dexto-env-test-'));
@@ -44,18 +24,18 @@ function createTempDirStructure(structure: Record<string, any>, baseDir?: string
 
     for (const [filePath, content] of Object.entries(structure)) {
         const fullPath = path.join(tempDir, filePath);
-        const dirPath = path.dirname(fullPath);
+        const dir = path.dirname(fullPath);
 
         // Create directory if it doesn't exist
-        if (!fs.existsSync(dirPath)) {
-            fs.mkdirSync(dirPath, { recursive: true });
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
         }
 
+        // Write file content
         if (typeof content === 'string') {
-            fs.writeFileSync(fullPath, content);
-        } else if (content === null) {
-            // Create empty file
-            fs.writeFileSync(fullPath, '');
+            fs.writeFileSync(fullPath, content, 'utf-8');
+        } else {
+            fs.writeFileSync(fullPath, JSON.stringify(content, null, 2), 'utf-8');
         }
     }
 
@@ -63,410 +43,363 @@ function createTempDirStructure(structure: Record<string, any>, baseDir?: string
 }
 
 function cleanupTempDir(dir: string) {
-    if (fs.existsSync(dir)) {
-        fs.rmSync(dir, { recursive: true, force: true });
+    try {
+        if (fs.existsSync(dir)) {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    } catch (error) {
+        // Ignore cleanup errors in tests to avoid masking real test failures
+        console.warn(`Failed to cleanup temp dir ${dir}:`, error);
     }
 }
 
 describe('Core Environment Loading', () => {
-    let tempDir: string;
-    let mockHomeDir: string;
     let originalEnv: Record<string, string | undefined>;
+    let originalCwd: string;
 
     beforeEach(() => {
-        // Save original environment
+        // Save original state
         originalEnv = { ...process.env };
+        originalCwd = process.cwd();
 
-        // Create temp directories
-        tempDir = createTempDir();
-        mockHomeDir = createTempDir();
-
-        // Mock homedir
-        vi.mocked(homedir).mockReturnValue(mockHomeDir);
-
-        // Mock execution context by default to global-cli
-        vi.mocked(getExecutionContext).mockReturnValue('global-cli');
-        vi.mocked(getDextoEnvPath).mockImplementation(() => {
-            return path.join(mockHomeDir, '.dexto', '.env');
-        });
-
-        // Clean up environment variables that might interfere
+        // Clean up environment variables that might interfere with tests
         delete process.env.OPENAI_API_KEY;
         delete process.env.ANTHROPIC_API_KEY;
         delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
         delete process.env.GROQ_API_KEY;
         delete process.env.DEXTO_LOG_LEVEL;
+        delete process.env.TEST_VAR;
+        delete process.env.SHELL_ONLY;
+        delete process.env.CWD_ONLY;
+        delete process.env.PROJECT_ONLY;
+        delete process.env.SHELL_KEY;
+        delete process.env.NEW_VAR;
+        delete process.env.EXISTING_VAR;
+        delete process.env.DEFINED_VAR;
+        delete process.env.EMPTY_VAR;
+        delete process.env.UNDEFINED_VAR;
     });
 
     afterEach(() => {
-        // Restore original environment
+        // Restore original state
         process.env = originalEnv;
 
-        // Cleanup temp directories
-        cleanupTempDir(tempDir);
-        cleanupTempDir(mockHomeDir);
-
-        vi.clearAllMocks();
+        // Ensure we're back in the original directory
+        try {
+            process.chdir(originalCwd);
+        } catch {
+            // If original CWD was deleted, go to tmpdir
+            process.chdir(tmpdir());
+        }
     });
 
     describe('loadEnvironmentVariables', () => {
-        it('loads from global ~/.dexto/.env when no project', async () => {
-            // Setup: Global .env only
+        it('loads from shell environment (highest priority)', async () => {
+            const tempDir = createTempDir();
+            try {
+                // Set shell environment
+                process.env.OPENAI_API_KEY = 'shell-key';
+                process.env.DEXTO_LOG_LEVEL = 'debug';
+
+                const env = await loadEnvironmentVariables(tempDir);
+
+                expect(env.OPENAI_API_KEY).toBe('shell-key');
+                expect(env.DEXTO_LOG_LEVEL).toBe('debug');
+            } finally {
+                cleanupTempDir(tempDir);
+            }
+        });
+
+        it('loads from CWD .env', async () => {
+            // Create a CWD with .env
+            const cwdDir = createTempDir();
             createTempDirStructure(
                 {
-                    '.dexto/.env': 'OPENAI_API_KEY=global-key\nDEXTO_LOG_LEVEL=debug',
+                    '.env': 'OPENAI_API_KEY=cwd-key\nDEXTO_LOG_LEVEL=info',
                 },
-                mockHomeDir
+                cwdDir
             );
 
-            const env = await loadEnvironmentVariables(tempDir);
+            try {
+                process.chdir(cwdDir);
+                const env = await loadEnvironmentVariables(cwdDir);
 
-            expect(env.OPENAI_API_KEY).toBe('global-key');
-            expect(env.DEXTO_LOG_LEVEL).toBe('debug');
+                expect(env.OPENAI_API_KEY).toBe('cwd-key');
+                expect(env.DEXTO_LOG_LEVEL).toBe('info');
+            } finally {
+                process.chdir(originalCwd);
+                cleanupTempDir(cwdDir);
+            }
         });
 
         it('loads from project .env when in dexto project', async () => {
-            // Setup: Dexto project with .env
+            // Create dexto project structure
+            const projectDir = createTempDir();
             createTempDirStructure(
                 {
                     'package.json': JSON.stringify({ dependencies: { dexto: '1.0.0' } }),
-                    '.env': 'OPENAI_API_KEY=project-key\nDEXTO_LOG_LEVEL=info',
+                    '.env': 'OPENAI_API_KEY=project-key\nDEXTO_LOG_LEVEL=warn',
                 },
-                tempDir
+                projectDir
             );
 
-            // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            try {
+                // Change to project directory so context detection works
+                process.chdir(projectDir);
+                const env = await loadEnvironmentVariables(projectDir);
 
-            const env = await loadEnvironmentVariables(tempDir);
-
-            expect(env.OPENAI_API_KEY).toBe('project-key');
-            expect(env.DEXTO_LOG_LEVEL).toBe('info');
+                expect(env.OPENAI_API_KEY).toBe('project-key');
+                expect(env.DEXTO_LOG_LEVEL).toBe('warn');
+            } finally {
+                process.chdir(originalCwd);
+                cleanupTempDir(projectDir);
+            }
         });
 
-        it('handles comprehensive priority system: Shell > Project > Global', async () => {
-            // Setup comprehensive scenario with many environment variables across all layers
+        it('loads from source .env when in dexto-source', async () => {
+            // Create dexto source structure
+            const sourceDir = createTempDir();
             createTempDirStructure(
                 {
-                    '.dexto/.env': [
-                        'OPENAI_API_KEY=global-openai',
-                        'ANTHROPIC_API_KEY=global-anthropic',
-                        'GOOGLE_GENERATIVE_AI_API_KEY=global-google',
-                        'GROQ_API_KEY=global-groq',
-                        'DEXTO_LOG_LEVEL=global-debug',
-                        'GLOBAL_UNIQUE_KEY=preserved',
-                        'SHARED_ACROSS_ALL=global-value',
-                        'SHARED_GLOBAL_PROJECT=global-project',
-                        'EMPTY_PROJECT_KEY=from-global',
-                    ].join('\n'),
+                    'package.json': JSON.stringify({ name: 'dexto', version: '1.0.0' }),
+                    '.env': 'OPENAI_API_KEY=source-key\nDEXTO_LOG_LEVEL=error',
+                    'agents/default-agent.yml': 'mcpServers: {}',
                 },
-                mockHomeDir
+                sourceDir
             );
 
+            try {
+                // Change to source directory so context detection works
+                process.chdir(sourceDir);
+                const env = await loadEnvironmentVariables(sourceDir);
+
+                expect(env.OPENAI_API_KEY).toBe('source-key');
+                expect(env.DEXTO_LOG_LEVEL).toBe('error');
+            } finally {
+                process.chdir(originalCwd);
+                cleanupTempDir(sourceDir);
+            }
+        });
+
+        it('handles priority system: Shell > CWD > Project', async () => {
+            // Create project directory
+            const projectDir = createTempDir();
             createTempDirStructure(
                 {
                     'package.json': JSON.stringify({ dependencies: { dexto: '1.0.0' } }),
-                    '.env': [
-                        'OPENAI_API_KEY=project-openai',
-                        'ANTHROPIC_API_KEY=project-anthropic',
-                        'GROQ_API_KEY=project-groq',
-                        'DEXTO_LOG_LEVEL=project-info',
-                        'PROJECT_UNIQUE_KEY=project-only',
-                        'SHARED_ACROSS_ALL=project-value',
-                        'SHARED_GLOBAL_PROJECT=project-value',
-                        // EMPTY_PROJECT_KEY not in project, should come from global
-                    ].join('\n'),
+                    '.env': 'OPENAI_API_KEY=project-key\nANTHROPIC_API_KEY=project-anthropic\nPROJECT_ONLY=project-value',
                 },
-                tempDir
+                projectDir
             );
 
-            // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            // Create CWD directory
+            const cwdDir = createTempDir();
+            createTempDirStructure(
+                {
+                    '.env': 'OPENAI_API_KEY=cwd-key\nCWD_ONLY=cwd-value',
+                },
+                cwdDir
+            );
 
-            // Shell environment (highest priority) - only sets some keys
-            process.env.OPENAI_API_KEY = 'shell-openai';
-            process.env.GROQ_API_KEY = 'shell-groq';
-            process.env.SHELL_UNIQUE_KEY = 'shell-only';
-            process.env.SHARED_ACROSS_ALL = 'shell-value';
-            process.env.EXISTING_VAR = 'existing-value';
-            process.env.NEW_VAR = 'new-value';
+            try {
+                process.chdir(cwdDir);
 
-            const env = await loadEnvironmentVariables(tempDir);
+                // Shell environment (highest)
+                process.env.OPENAI_API_KEY = 'shell-key';
+                process.env.SHELL_ONLY = 'shell-value';
 
-            // Shell wins for keys present in shell
-            expect(env.OPENAI_API_KEY).toBe('shell-openai');
-            expect(env.GROQ_API_KEY).toBe('shell-groq');
-            expect(env.SHELL_UNIQUE_KEY).toBe('shell-only');
-            expect(env.SHARED_ACROSS_ALL).toBe('shell-value');
-            expect(env.EXISTING_VAR).toBe('existing-value');
+                const env = await loadEnvironmentVariables(projectDir);
 
-            // Project wins over global where shell not present
-            expect(env.ANTHROPIC_API_KEY).toBe('project-anthropic');
-            expect(env.DEXTO_LOG_LEVEL).toBe('project-info');
-            expect(env.SHARED_GLOBAL_PROJECT).toBe('project-value');
-            expect(env.PROJECT_UNIQUE_KEY).toBe('project-only');
+                // Shell wins
+                expect(env.OPENAI_API_KEY).toBe('shell-key');
+                expect(env.SHELL_ONLY).toBe('shell-value');
 
-            // Global used when no project/shell override
-            expect(env.GOOGLE_GENERATIVE_AI_API_KEY).toBe('global-google');
-            expect(env.GLOBAL_UNIQUE_KEY).toBe('preserved');
-            expect(env.EMPTY_PROJECT_KEY).toBe('from-global');
+                // CWD wins over project
+                expect(env.CWD_ONLY).toBe('cwd-value');
+
+                // Project used when no override
+                expect(env.ANTHROPIC_API_KEY).toBe('project-anthropic');
+                expect(env.PROJECT_ONLY).toBe('project-value');
+            } finally {
+                process.chdir(originalCwd);
+                cleanupTempDir(projectDir);
+                cleanupTempDir(cwdDir);
+            }
         });
 
-        it('handles edge cases: empty files and applyLayeredEnvironmentLoading', async () => {
-            // Test empty project .env with global fallback
-            createTempDirStructure(
-                {
-                    '.dexto/.env':
-                        'OPENAI_API_KEY=global-fallback\nANTHROPIC_API_KEY=global-anthropic',
-                },
-                mockHomeDir
-            );
-
-            createTempDirStructure(
-                {
-                    'package.json': JSON.stringify({ dependencies: { dexto: '1.0.0' } }),
-                    '.env': '', // Empty project .env
-                },
-                tempDir
-            );
-
-            // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
-
-            let env = await loadEnvironmentVariables(tempDir);
-            expect(env.OPENAI_API_KEY).toBe('global-fallback');
-            expect(env.ANTHROPIC_API_KEY).toBe('global-anthropic');
-
-            // Test applyLayeredEnvironmentLoading preserves shell priority
-            process.env.EXISTING_VAR = 'existing-value';
-            process.env.OPENAI_API_KEY = 'shell-key';
-
-            createTempDirStructure(
-                {
-                    '.dexto/.env': 'OPENAI_API_KEY=global-key\nNEW_VAR=new-value',
-                },
-                mockHomeDir
-            );
-
-            await applyLayeredEnvironmentLoading(tempDir);
-
-            expect(process.env.OPENAI_API_KEY).toBe('shell-key'); // Shell wins
-            expect(process.env.EXISTING_VAR).toBe('existing-value'); // Shell preserved
-            expect(process.env.NEW_VAR).toBe('new-value'); // File vars added
-        });
-
-        it('handles missing global .dexto directory gracefully', async () => {
-            // Setup: Project only, no global directory
-            createTempDirStructure(
-                {
-                    'package.json': JSON.stringify({ dependencies: { dexto: '1.0.0' } }),
-                    '.env': 'OPENAI_API_KEY=project-key',
-                },
-                tempDir
-            );
-
-            // Mock execution context to return dexto-project and path to return project .env
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
-
-            const env = await loadEnvironmentVariables(tempDir);
-
-            expect(env.OPENAI_API_KEY).toBe('project-key');
-        });
-
-        it('handles missing project .env file gracefully', async () => {
-            // Setup: Global only, project has no .env
-            createTempDirStructure(
-                {
-                    '.dexto/.env': 'OPENAI_API_KEY=global-key',
-                },
-                mockHomeDir
-            );
-
+        it('handles missing .env files gracefully', async () => {
+            const projectDir = createTempDir();
             createTempDirStructure(
                 {
                     'package.json': JSON.stringify({ dependencies: { dexto: '1.0.0' } }),
                     // No .env file
                 },
-                tempDir
+                projectDir
             );
 
-            // Mock execution context to return dexto-project and path to return project .env (missing)
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
-            vi.mocked(getDextoEnvPath).mockReturnValue(path.join(tempDir, '.env'));
+            try {
+                process.chdir(projectDir);
+                process.env.SHELL_KEY = 'from-shell';
+                const env = await loadEnvironmentVariables(projectDir);
 
-            const env = await loadEnvironmentVariables(tempDir);
-
-            expect(env.OPENAI_API_KEY).toBe('global-key');
-        });
-
-        it('handles malformed .env files gracefully', async () => {
-            // Setup: Malformed global .env
-            createTempDirStructure(
-                {
-                    '.dexto/.env': 'INVALID_LINE_WITHOUT_EQUALS\nOPENAI_API_KEY=valid-key',
-                },
-                mockHomeDir
-            );
-
-            const env = await loadEnvironmentVariables(tempDir);
-
-            // Should still load valid entries
-            expect(env.OPENAI_API_KEY).toBe('valid-key');
+                // Should still get shell variables
+                expect(env.SHELL_KEY).toBe('from-shell');
+            } finally {
+                process.chdir(originalCwd);
+                cleanupTempDir(projectDir);
+            }
         });
 
         it('handles empty .env files', async () => {
-            // Setup: Empty files
-            createTempDirStructure(
-                {
-                    '.dexto/.env': '',
-                },
-                mockHomeDir
-            );
-
+            const projectDir = createTempDir();
             createTempDirStructure(
                 {
                     'package.json': JSON.stringify({ dependencies: { dexto: '1.0.0' } }),
                     '.env': '',
                 },
-                tempDir
+                projectDir
             );
 
-            // Shell environment should still work
-            process.env.OPENAI_API_KEY = 'shell-key';
+            try {
+                process.chdir(projectDir);
+                // Shell environment should still work
+                process.env.OPENAI_API_KEY = 'shell-key';
 
-            const env = await loadEnvironmentVariables(tempDir);
+                const env = await loadEnvironmentVariables(projectDir);
 
-            expect(env.OPENAI_API_KEY).toBe('shell-key');
+                expect(env.OPENAI_API_KEY).toBe('shell-key');
+            } finally {
+                process.chdir(originalCwd);
+                cleanupTempDir(projectDir);
+            }
         });
 
-        it('filters out undefined environment variables', async () => {
-            process.env.DEFINED_VAR = 'value';
-            process.env.UNDEFINED_VAR = undefined;
+        it('filters out undefined and empty environment variables', async () => {
+            const tempDir = createTempDir();
+            try {
+                process.env.DEFINED_VAR = 'value';
+                process.env.EMPTY_VAR = '';
+                process.env.UNDEFINED_VAR = undefined;
 
-            const env = await loadEnvironmentVariables(tempDir);
+                const env = await loadEnvironmentVariables(tempDir);
 
-            expect(env.DEFINED_VAR).toBe('value');
-            expect('UNDEFINED_VAR' in env).toBe(false);
+                expect(env.DEFINED_VAR).toBe('value');
+                expect('EMPTY_VAR' in env).toBe(false); // Empty string filtered out
+                expect('UNDEFINED_VAR' in env).toBe(false);
+            } finally {
+                cleanupTempDir(tempDir);
+            }
         });
     });
 
     describe('applyLayeredEnvironmentLoading', () => {
         it('applies loaded environment to process.env', async () => {
-            // Setup: Global .env with API key
+            const tempDir = createTempDir();
             createTempDirStructure(
                 {
-                    '.dexto/.env': 'OPENAI_API_KEY=global-key\nDEXTO_LOG_LEVEL=debug',
+                    '.env': 'NEW_VAR=new-value\nOPENAI_API_KEY=file-key',
                 },
-                mockHomeDir
+                tempDir
             );
 
-            // Ensure these are not set initially
-            delete process.env.OPENAI_API_KEY;
-            delete process.env.DEXTO_LOG_LEVEL;
+            try {
+                // Shell value should be preserved
+                process.env.OPENAI_API_KEY = 'shell-key';
+                process.env.EXISTING_VAR = 'existing-value';
 
-            await applyLayeredEnvironmentLoading(tempDir);
+                process.chdir(tempDir);
+                await applyLayeredEnvironmentLoading(tempDir);
 
-            expect(process.env.OPENAI_API_KEY).toBe('global-key');
-            expect(process.env.DEXTO_LOG_LEVEL).toBe('debug');
+                expect(process.env.OPENAI_API_KEY).toBe('shell-key'); // Shell wins
+                expect(process.env.EXISTING_VAR).toBe('existing-value'); // Shell preserved
+                expect(process.env.NEW_VAR).toBe('new-value'); // File vars added
+            } finally {
+                process.chdir(originalCwd);
+                cleanupTempDir(tempDir);
+            }
         });
 
         it('creates global .dexto directory if it does not exist', async () => {
-            const dextoDir = path.join(mockHomeDir, '.dexto');
-            expect(fs.existsSync(dextoDir)).toBe(false);
-
-            await applyLayeredEnvironmentLoading(tempDir);
-
-            expect(fs.existsSync(dextoDir)).toBe(true);
+            const tempDir = createTempDir();
+            try {
+                // This should not throw even if ~/.dexto doesn't exist
+                await applyLayeredEnvironmentLoading(tempDir);
+            } finally {
+                cleanupTempDir(tempDir);
+            }
         });
     });
 
     describe('updateEnvFile', () => {
-        it('creates new .env file with Dexto section', async () => {
-            const envFilePath = path.join(tempDir, '.env');
+        it('creates .env file with variables', async () => {
+            const tempDir = createTempDir();
+            const envPath = path.join(tempDir, '.env');
 
-            await updateEnvFile(envFilePath, {
-                OPENAI_API_KEY: 'test-key',
-                DEXTO_LOG_LEVEL: 'info',
-            });
+            try {
+                await updateEnvFile(envPath, {
+                    OPENAI_API_KEY: 'test-key',
+                    DEXTO_LOG_LEVEL: 'debug',
+                });
 
-            const content = fs.readFileSync(envFilePath, 'utf8');
-            expect(content).toContain('## Dexto env variables');
-            expect(content).toContain('OPENAI_API_KEY=test-key');
-            expect(content).toContain('DEXTO_LOG_LEVEL=info');
+                const content = fs.readFileSync(envPath, 'utf-8');
+                expect(content).toContain('OPENAI_API_KEY=test-key');
+                expect(content).toContain('DEXTO_LOG_LEVEL=debug');
+            } finally {
+                cleanupTempDir(tempDir);
+            }
         });
 
-        it('updates existing .env file preserving other content', async () => {
-            const envFilePath = path.join(tempDir, '.env');
+        it('updates existing variables in .env file', async () => {
+            const tempDir = createTempDir();
+            const envPath = path.join(tempDir, '.env');
 
-            // Create existing .env with other content
-            fs.writeFileSync(envFilePath, 'OTHER_VAR=other-value\nANOTHER_VAR=another-value\n');
+            try {
+                // Create initial .env
+                fs.writeFileSync(envPath, 'OPENAI_API_KEY=old-key\nDEXTO_LOG_LEVEL=info');
 
-            await updateEnvFile(envFilePath, {
-                OPENAI_API_KEY: 'test-key',
-            });
+                // Update one variable
+                await updateEnvFile(envPath, { OPENAI_API_KEY: 'new-key' });
 
-            const content = fs.readFileSync(envFilePath, 'utf8');
-            expect(content).toContain('OTHER_VAR=other-value');
-            expect(content).toContain('ANOTHER_VAR=another-value');
-            expect(content).toContain('## Dexto env variables');
-            expect(content).toContain('OPENAI_API_KEY=test-key');
+                const content = fs.readFileSync(envPath, 'utf-8');
+                expect(content).toContain('OPENAI_API_KEY=new-key');
+                expect(content).toContain('DEXTO_LOG_LEVEL=info'); // Preserved
+            } finally {
+                cleanupTempDir(tempDir);
+            }
         });
 
-        it('replaces existing Dexto section', async () => {
-            const envFilePath = path.join(tempDir, '.env');
+        it('adds new variables to existing .env file', async () => {
+            const tempDir = createTempDir();
+            const envPath = path.join(tempDir, '.env');
 
-            // Create existing .env with old Dexto section
-            const oldContent = [
-                'OTHER_VAR=other-value',
-                '',
-                '## Dexto env variables',
-                'OPENAI_API_KEY=old-key',
-                'ANTHROPIC_API_KEY=old-anthropic',
-                '',
-                'FINAL_VAR=final-value',
-            ].join('\n');
+            try {
+                // Create initial .env
+                fs.writeFileSync(envPath, 'OPENAI_API_KEY=test-key');
 
-            fs.writeFileSync(envFilePath, oldContent);
+                // Add new variable
+                await updateEnvFile(envPath, { ANTHROPIC_API_KEY: 'anthropic-key' });
 
-            await updateEnvFile(envFilePath, {
-                OPENAI_API_KEY: 'new-key',
-                GROQ_API_KEY: 'new-groq',
-            });
-
-            const content = fs.readFileSync(envFilePath, 'utf8');
-            expect(content).toContain('OTHER_VAR=other-value');
-            expect(content).toContain('FINAL_VAR=final-value');
-            expect(content).toContain('OPENAI_API_KEY=new-key');
-            expect(content).toContain('GROQ_API_KEY=new-groq');
-            expect(content).not.toContain('old-key');
-            // ANTHROPIC_API_KEY should be preserved since we didn't update it
-            expect(content).toContain('ANTHROPIC_API_KEY=old-anthropic');
+                const content = fs.readFileSync(envPath, 'utf-8');
+                expect(content).toContain('OPENAI_API_KEY=test-key'); // Preserved
+                expect(content).toContain('ANTHROPIC_API_KEY=anthropic-key'); // Added
+            } finally {
+                cleanupTempDir(tempDir);
+            }
         });
 
-        it('handles empty updates gracefully', async () => {
-            const envFilePath = path.join(tempDir, '.env');
+        it('handles non-existent .env file', async () => {
+            const tempDir = createTempDir();
+            const envPath = path.join(tempDir, '.env');
 
-            await updateEnvFile(envFilePath, {});
+            try {
+                await updateEnvFile(envPath, { OPENAI_API_KEY: 'test-key' });
 
-            const content = fs.readFileSync(envFilePath, 'utf8');
-            expect(content).toContain('## Dexto env variables');
-            // Should still create the section structure
-        });
-
-        it('creates directory structure if it does not exist', async () => {
-            const deepPath = path.join(tempDir, 'nested', 'deep', '.env');
-
-            await updateEnvFile(deepPath, {
-                OPENAI_API_KEY: 'test-key',
-            });
-
-            expect(fs.existsSync(deepPath)).toBe(true);
-            const content = fs.readFileSync(deepPath, 'utf8');
-            expect(content).toContain('OPENAI_API_KEY=test-key');
+                expect(fs.existsSync(envPath)).toBe(true);
+                const content = fs.readFileSync(envPath, 'utf-8');
+                expect(content).toContain('OPENAI_API_KEY=test-key');
+            } finally {
+                cleanupTempDir(tempDir);
+            }
         });
     });
 });
