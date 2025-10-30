@@ -2,15 +2,20 @@ import * as path from 'path';
 import { homedir } from 'os';
 import { promises as fs } from 'fs';
 import dotenv from 'dotenv';
-import { getExecutionContext } from './execution-context.js';
-import { ensureDextoGlobalDirectory, getDextoEnvPath } from './path.js';
+import {
+    getExecutionContext,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
+} from './execution-context.js';
+import { ensureDextoGlobalDirectory } from './path.js';
 
 /**
  * Multi-layer environment variable loading with context awareness.
  * Loads environment variables in priority order:
  * 1. Shell environment (highest priority)
- * 2. Project .env (if in dexto project)
- * 3. Global ~/.dexto/.env (fallback)
+ * 2. CWD .env (current working directory)
+ * 3. Context-specific .env (repo/project .env)
+ * 4. Global ~/.dexto/.env (lowest priority)
  *
  * @param startPath Starting directory for project detection
  * @returns Combined environment variables object
@@ -21,8 +26,7 @@ export async function loadEnvironmentVariables(
     const context = getExecutionContext(startPath);
     const env: Record<string, string> = {};
 
-    // Layer 3: Global ~/.dexto/.env (lowest priority)
-    // TODO: Maybe don't load this if we are in dexto-source or dexto-project context? need to see
+    // Layer 4: Global ~/.dexto/.env (lowest priority)
     const globalEnvPath = path.join(homedir(), '.dexto', '.env');
     try {
         const globalResult = dotenv.config({ path: globalEnvPath, processEnv: {} });
@@ -33,18 +37,49 @@ export async function loadEnvironmentVariables(
         // Global .env is optional, ignore errors
     }
 
-    // Layer 2: Project .env (medium priority)
-    // load in project/source context only
-    if (context === 'dexto-source' || context === 'dexto-project') {
-        const projectEnvPath = getDextoEnvPath(startPath);
-        try {
-            const projectResult = dotenv.config({ path: projectEnvPath, processEnv: {} });
-            if (projectResult.parsed) {
-                Object.assign(env, projectResult.parsed);
+    // Layer 3a: Dexto source .env (context-specific)
+    // Load from repo .env
+    if (context === 'dexto-source') {
+        const sourceRoot = findDextoSourceRoot(startPath);
+        if (sourceRoot) {
+            const sourceEnvPath = path.join(sourceRoot, '.env');
+            try {
+                const sourceResult = dotenv.config({ path: sourceEnvPath, processEnv: {} });
+                if (sourceResult.parsed) {
+                    Object.assign(env, sourceResult.parsed);
+                }
+            } catch {
+                // Source .env is optional, ignore errors
             }
-        } catch {
-            // Project .env is optional, ignore errors
         }
+    }
+
+    // Layer 3b: Dexto project .env (context-specific)
+    // Load from project root .env
+    if (context === 'dexto-project') {
+        const projectRoot = findDextoProjectRoot(startPath);
+        if (projectRoot) {
+            const projectEnvPath = path.join(projectRoot, '.env');
+            try {
+                const projectResult = dotenv.config({ path: projectEnvPath, processEnv: {} });
+                if (projectResult.parsed) {
+                    Object.assign(env, projectResult.parsed);
+                }
+            } catch {
+                // Project .env is optional, ignore errors
+            }
+        }
+    }
+
+    // Layer 2: CWD .env (current working directory)
+    const cwdEnvPath = path.join(process.cwd(), '.env');
+    try {
+        const cwdResult = dotenv.config({ path: cwdEnvPath, processEnv: {} });
+        if (cwdResult.parsed) {
+            Object.assign(env, cwdResult.parsed);
+        }
+    } catch {
+        // CWD .env is optional, ignore errors
     }
 
     // Layer 1: Shell environment (highest priority)

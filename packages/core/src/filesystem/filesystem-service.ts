@@ -27,6 +27,7 @@ import {
 import { PathValidator } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 import { logger } from '../logger/index.js';
+import { getDextoPath } from '../utils/path.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -50,12 +51,20 @@ export class FileSystemService {
             blockedExtensions: config.blockedExtensions || ['.exe', '.dll', '.so'],
             maxFileSize: config.maxFileSize || DEFAULT_MAX_FILE_SIZE,
             enableBackups: config.enableBackups ?? true,
-            backupPath: config.backupPath || '.dexto/backups',
+            backupPath: config.backupPath, // Optional absolute override, defaults handled by getBackupDir()
             backupRetentionDays: config.backupRetentionDays || 7,
             workingDirectory: config.workingDirectory,
         };
 
         this.pathValidator = new PathValidator(this.config);
+    }
+
+    /**
+     * Get backup directory path (context-aware with optional override)
+     */
+    private getBackupDir(): string {
+        // Use custom path if provided (absolute), otherwise use context-aware default
+        return this.config.backupPath || getDextoPath('backups');
     }
 
     /**
@@ -70,10 +79,7 @@ export class FileSystemService {
         // Create backup directory if backups are enabled
         if (this.config.enableBackups) {
             try {
-                const backupDir = path.resolve(
-                    this.config.workingDirectory || process.cwd(),
-                    this.config.backupPath
-                );
+                const backupDir = this.getBackupDir();
                 await fs.mkdir(backupDir, { recursive: true });
                 logger.debug(`Backup directory created/verified: ${backupDir}`);
             } catch (error) {
@@ -492,10 +498,7 @@ export class FileSystemService {
      * Create a backup of a file
      */
     private async createBackup(filePath: string): Promise<string> {
-        const backupDir = path.resolve(
-            this.config.workingDirectory || process.cwd(),
-            this.config.backupPath
-        );
+        const backupDir = this.getBackupDir();
 
         // Generate backup filename with timestamp
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -528,10 +531,15 @@ export class FileSystemService {
             return 0;
         }
 
-        const backupDir = path.resolve(
-            this.config.workingDirectory || process.cwd(),
-            this.config.backupPath
-        );
+        let backupDir: string;
+        try {
+            backupDir = this.getBackupDir();
+        } catch (error) {
+            logger.warn(
+                `Failed to resolve backup directory: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return 0;
+        }
 
         try {
             // Check if backup directory exists

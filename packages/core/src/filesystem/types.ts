@@ -189,10 +189,10 @@ export interface FileSystemConfig {
     maxFileSize: number;
     /** Enable automatic backups */
     enableBackups: boolean;
-    /** Backup directory path */
-    backupPath: string;
+    /** Backup directory absolute path (optional override, defaults to context-aware getDextoPath('backups')) */
+    backupPath?: string | undefined;
     /** Backup retention period in days (default: 7) */
     backupRetentionDays: number;
-    /** Working directory (defaults to process.cwd()) */
+    /** Working directory for glob/grep operations (defaults to process.cwd()) */
     workingDirectory?: string | undefined;
 }

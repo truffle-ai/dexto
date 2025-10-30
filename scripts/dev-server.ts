@@ -78,6 +78,7 @@ apiProcess = spawn('node', cliArgs, {
         ...process.env,
         PORT: '3001',
         API_PORT: '3001',
+        DEXTO_DEV_MODE: 'true', // Force use of repo config for development
     },
 });
 
