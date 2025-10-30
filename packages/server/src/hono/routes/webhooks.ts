@@ -15,7 +15,7 @@ const WebhookParamSchema = z.object({
 });
 
 export function createWebhooksRouter(
-    _agent: DextoAgent,
+    _getAgent: () => DextoAgent,
     webhookSubscriber: WebhookEventSubscriber
 ) {
     const app = new OpenAPIHono();

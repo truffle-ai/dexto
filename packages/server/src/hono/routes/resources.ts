@@ -8,7 +8,7 @@ const ResourceIdParamSchema = z.object({
         .transform((encoded) => decodeURIComponent(encoded)),
 });
 
-export function createResourcesRouter(agent: DextoAgent) {
+export function createResourcesRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const listRoute = createRoute({
@@ -23,6 +23,7 @@ export function createResourcesRouter(agent: DextoAgent) {
         },
     });
     app.openapi(listRoute, async (ctx) => {
+        const agent = getAgent();
         const resources = await agent.listResources();
         return ctx.json({ ok: true, resources: Object.values(resources) });
     });
@@ -42,6 +43,7 @@ export function createResourcesRouter(agent: DextoAgent) {
         },
     });
     app.openapi(getContentRoute, async (ctx) => {
+        const agent = getAgent();
         const { resourceId } = ctx.req.valid('param');
         const content = await agent.readResource(resourceId);
         return ctx.json({ ok: true, content });
@@ -60,6 +62,7 @@ export function createResourcesRouter(agent: DextoAgent) {
         },
     });
     app.openapi(headRoute, async (ctx) => {
+        const agent = getAgent();
         const { resourceId } = ctx.req.valid('param');
         const exists = await agent.hasResource(resourceId);
         return ctx.body(null, exists ? 200 : 404);

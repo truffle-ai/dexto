@@ -33,7 +33,7 @@ const ResetBodySchema = z.object({
     sessionId: z.string().optional(),
 });
 
-export function createMessagesRouter(agent: DextoAgent) {
+export function createMessagesRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const messageRoute = createRoute({
@@ -54,6 +54,7 @@ export function createMessagesRouter(agent: DextoAgent) {
         },
     });
     app.openapi(messageRoute, async (ctx) => {
+        const agent = getAgent();
         logger.info('Received message via POST /api/message');
         const { message, sessionId, stream, imageData, fileData } = ctx.req.valid('json');
 
@@ -100,6 +101,7 @@ export function createMessagesRouter(agent: DextoAgent) {
         },
     });
     app.openapi(messageSyncRoute, async (ctx) => {
+        const agent = getAgent();
         logger.info('Received message via POST /api/message-sync');
         const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
 
@@ -144,6 +146,7 @@ export function createMessagesRouter(agent: DextoAgent) {
         },
     });
     app.openapi(resetRoute, async (ctx) => {
+        const agent = getAgent();
         logger.info('Received request via POST /api/reset');
         const { sessionId } = ctx.req.valid('json');
         await agent.resetConversation(sessionId);

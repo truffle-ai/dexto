@@ -19,7 +19,7 @@ const ExecuteToolParams = z.object({
 
 const ExecuteToolBodySchema = z.any(); // TODO: tighten schema once tool input structure is standardised.
 
-export function createMcpRouter(agent: DextoAgent) {
+export function createMcpRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const connectRoute = createRoute({
@@ -32,6 +32,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(connectRoute, async (ctx) => {
+        const agent = getAgent();
         const { name, config, persistToAgent } = ctx.req.valid('json');
         await agent.connectMcpServer(name, config);
 
@@ -69,6 +70,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(addServerRoute, async (ctx) => {
+        const agent = getAgent();
         const { name, config, persistToAgent } = ctx.req.valid('json');
         await agent.connectMcpServer(name, config);
 
@@ -109,6 +111,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(listServersRoute, async (ctx) => {
+        const agent = getAgent();
         const clientsMap = agent.getMcpClients();
         const failedConnections = agent.getMcpFailedConnections();
         const servers: Array<{ id: string; name: string; status: string }> = [];
@@ -135,6 +138,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(toolsRoute, async (ctx) => {
+        const agent = getAgent();
         const { serverId } = ctx.req.valid('param');
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
@@ -164,6 +168,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(deleteServerRoute, async (ctx) => {
+        const agent = getAgent();
         const { serverId } = ctx.req.valid('param');
         const clientExists =
             agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
@@ -189,6 +194,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(restartServerRoute, async (ctx) => {
+        const agent = getAgent();
         const { serverId } = ctx.req.valid('param');
         logger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
 
@@ -219,6 +225,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(execToolRoute, async (ctx) => {
+        const agent = getAgent();
         const { serverId, toolName } = ctx.req.valid('param');
         const body = ExecuteToolBodySchema.parse(await ctx.req.json());
         const client = agent.getMcpClients().get(serverId);
@@ -243,6 +250,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(listResourcesRoute, async (ctx) => {
+        const agent = getAgent();
         const { serverId } = ctx.req.valid('param');
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
@@ -274,6 +282,7 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(getResourceContentRoute, async (ctx) => {
+        const agent = getAgent();
         const { serverId, resourceId } = ctx.req.valid('param');
         const client = agent.getMcpClients().get(serverId);
         if (!client) {

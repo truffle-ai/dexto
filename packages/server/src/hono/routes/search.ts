@@ -15,7 +15,7 @@ const SessionSearchQuery = z.object({
     pretty: z.string().optional(),
 });
 
-export function createSearchRouter(agent: DextoAgent) {
+export function createSearchRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const messagesRoute = createRoute({
@@ -31,6 +31,7 @@ export function createSearchRouter(agent: DextoAgent) {
         },
     });
     app.openapi(messagesRoute, async (ctx) => {
+        const agent = getAgent();
         const { q, limit, offset, sessionId, role } = ctx.req.valid('query');
         const options = {
             limit: limit || 20,
@@ -56,6 +57,7 @@ export function createSearchRouter(agent: DextoAgent) {
         },
     });
     app.openapi(sessionsRoute, async (ctx) => {
+        const agent = getAgent();
         const { q } = ctx.req.valid('query');
         const searchResults = await agent.searchSessions(q);
         return ctx.json(searchResults);

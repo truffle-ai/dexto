@@ -26,7 +26,7 @@ const ListMemoriesQuerySchema = z.object({
         .transform((val) => (val ? parseInt(val, 10) : undefined)),
 });
 
-export function createMemoryRouter(agent: DextoAgent) {
+export function createMemoryRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const createMemoryRoute = createRoute({
@@ -65,6 +65,7 @@ export function createMemoryRouter(agent: DextoAgent) {
         if (input.metadata !== undefined) {
             createInput.metadata = input.metadata;
         }
+        const agent = getAgent();
         const memory = await agent.memoryManager.create(createInput);
         return ctx.json({ ok: true, memory }, 201);
     });
@@ -96,6 +97,7 @@ export function createMemoryRouter(agent: DextoAgent) {
         if (query.limit !== undefined) options.limit = query.limit;
         if (query.offset !== undefined) options.offset = query.offset;
 
+        const agent = getAgent();
         const memories = await agent.memoryManager.list(options);
         return ctx.json({ ok: true, memories });
     });
@@ -116,6 +118,7 @@ export function createMemoryRouter(agent: DextoAgent) {
     });
     app.openapi(getRoute, async (ctx) => {
         const { id } = ctx.req.valid('param');
+        const agent = getAgent();
         const memory = await agent.memoryManager.get(id);
         return ctx.json({ ok: true, memory });
     });
@@ -153,6 +156,7 @@ export function createMemoryRouter(agent: DextoAgent) {
         if (updatesRaw.content !== undefined) updates.content = updatesRaw.content;
         if (updatesRaw.metadata !== undefined) updates.metadata = updatesRaw.metadata;
         if (updatesRaw.tags !== undefined) updates.tags = updatesRaw.tags;
+        const agent = getAgent();
         const memory = await agent.memoryManager.update(id, updates);
         return ctx.json({ ok: true, memory });
     });
@@ -173,6 +177,7 @@ export function createMemoryRouter(agent: DextoAgent) {
     });
     app.openapi(deleteRoute, async (ctx) => {
         const { id } = ctx.req.valid('param');
+        const agent = getAgent();
         await agent.memoryManager.delete(id);
         return ctx.json({ ok: true, message: 'Memory deleted successfully' });
     });

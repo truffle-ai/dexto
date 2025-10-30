@@ -4,6 +4,7 @@ import type { DextoAgent, AgentCard } from '@dexto/core';
 import type { DextoApp } from './types.js';
 import { createHealthRouter } from './routes/health.js';
 import { createConfigRouter } from './routes/config.js';
+import { createGreetingRouter } from './routes/greeting.js';
 import { createMessagesRouter } from './routes/messages.js';
 import { createLlmRouter } from './routes/llm.js';
 import { createSessionsRouter } from './routes/sessions.js';
@@ -14,41 +15,60 @@ import { createWebhooksRouter } from './routes/webhooks.js';
 import { createPromptsRouter } from './routes/prompts.js';
 import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
+import { createAgentsRouter } from './routes/agents.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 
 export type CreateDextoAppOptions = {
     apiPrefix?: string;
-    agentCard?: AgentCard;
+    getAgent: () => DextoAgent;
+    getAgentCard: () => AgentCard;
+    agentsContext?: {
+        switchAgentById: (agentId: string) => Promise<{ id: string; name: string }>;
+        switchAgentByPath: (filePath: string) => Promise<{ id: string; name: string }>;
+        resolveAgentInfo: (agentId: string) => Promise<{ id: string; name: string }>;
+        ensureAgentAvailable: () => void;
+        getActiveAgentId: () => string | undefined;
+    };
 };
 
-export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions = {}): DextoApp {
+export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
+    const { getAgent, getAgentCard, agentsContext } = options;
     const app = new OpenAPIHono({ strict: false }) as DextoApp;
     const webhookSubscriber = new WebhookEventSubscriber();
+
+    // Subscribe to agent's event bus (will be updated when agent switches)
+    const agent = getAgent();
     webhookSubscriber.subscribe(agent.agentEventBus);
     app.webhookSubscriber = webhookSubscriber;
+
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
-    app.route('/health', createHealthRouter(agent));
+    app.route('/health', createHealthRouter(getAgent));
 
-    if (options.agentCard) {
-        app.route('/', createA2aRouter(options.agentCard));
-    }
+    // A2A routes use getter for agent card (updated on agent switch)
+    app.route('/', createA2aRouter(getAgentCard));
 
     const api = new OpenAPIHono();
     api.use('*', prettyJsonMiddleware);
     api.use('*', redactionMiddleware);
-    api.route('/', createConfigRouter(agent));
-    api.route('/', createMessagesRouter(agent));
-    api.route('/', createLlmRouter(agent));
-    api.route('/', createSessionsRouter(agent));
-    api.route('/', createSearchRouter(agent));
-    api.route('/', createMcpRouter(agent));
-    api.route('/', createWebhooksRouter(agent, webhookSubscriber));
-    api.route('/', createPromptsRouter(agent));
-    api.route('/', createResourcesRouter(agent));
-    api.route('/', createMemoryRouter(agent));
+    api.route('/', createConfigRouter(getAgent));
+    api.route('/', createGreetingRouter(getAgent));
+    api.route('/', createMessagesRouter(getAgent));
+    api.route('/', createLlmRouter(getAgent));
+    api.route('/', createSessionsRouter(getAgent));
+    api.route('/', createSearchRouter(getAgent));
+    api.route('/', createMcpRouter(getAgent));
+    api.route('/', createWebhooksRouter(getAgent, webhookSubscriber));
+    api.route('/', createPromptsRouter(getAgent));
+    api.route('/', createResourcesRouter(getAgent));
+    api.route('/', createMemoryRouter(getAgent));
+
+    // Add agents router if context is provided
+    if (agentsContext) {
+        api.route('/', createAgentsRouter(getAgent, agentsContext));
+    }
 
     // Apply prefix to all API routes if provided
     const apiPrefix = options.apiPrefix ?? '/api';

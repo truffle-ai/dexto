@@ -14,7 +14,7 @@ const CancelSessionParams = z.object({
     sessionId: z.string(),
 });
 
-export function createSessionsRouter(agent: DextoAgent) {
+export function createSessionsRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const listRoute = createRoute({
@@ -29,6 +29,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(listRoute, async (ctx) => {
+        const agent = getAgent();
         const sessionIds = await agent.listSessions();
         const sessions = await Promise.all(
             sessionIds.map(async (id) => {
@@ -66,6 +67,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(createRouteDef, async (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.valid('json');
         const session = await agent.createSession(sessionId);
         const metadata = await agent.getSessionMetadata(session.id);
@@ -95,6 +97,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(currentRoute, (ctx) => {
+        const agent = getAgent();
         const currentSessionId = agent.getCurrentSessionId();
         return ctx.json({ currentSessionId });
     });
@@ -112,6 +115,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(getRoute, async (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.param();
         const metadata = await agent.getSessionMetadata(sessionId);
         const history = await agent.getSessionHistory(sessionId);
@@ -140,6 +144,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(historyRoute, async (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.param();
         const history = await agent.getSessionHistory(sessionId);
         return ctx.json({ history });
@@ -158,6 +163,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(deleteRoute, async (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.param();
         await agent.deleteSession(sessionId);
         return ctx.json({ status: 'deleted', sessionId });
@@ -176,6 +182,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(cancelRoute, async (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.valid('param');
         const cancelled = await agent.cancel(sessionId);
         if (!cancelled) {
@@ -200,6 +207,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(loadRoute, async (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.valid('param');
         if (sessionId === 'null' || sessionId === 'undefined') {
             await agent.loadSessionAsDefault(null);
@@ -245,6 +253,7 @@ export function createSessionsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(patchRoute, async (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.valid('param');
         const { title } = ctx.req.valid('json');
         await agent.setSessionTitle(sessionId, title);

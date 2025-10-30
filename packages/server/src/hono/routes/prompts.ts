@@ -39,7 +39,7 @@ const ResolvePromptQuerySchema = z.object({
     args: z.string().optional(),
 });
 
-export function createPromptsRouter(agent: DextoAgent) {
+export function createPromptsRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const listRoute = createRoute({
@@ -54,6 +54,7 @@ export function createPromptsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(listRoute, async (ctx) => {
+        const agent = getAgent();
         const prompts = await agent.listPrompts();
         const list = Object.values(prompts);
         return ctx.json({ prompts: list });
@@ -80,6 +81,7 @@ export function createPromptsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(createCustomRoute, async (ctx) => {
+        const agent = getAgent();
         const payload = ctx.req.valid('json');
         const promptArguments = payload.arguments
             ?.map((arg) => ({
@@ -127,6 +129,7 @@ export function createPromptsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(deleteCustomRoute, async (ctx) => {
+        const agent = getAgent();
         const { name } = ctx.req.valid('param');
         // Decode URI component if needed
         const decodedName = decodeURIComponent(name);
@@ -150,6 +153,7 @@ export function createPromptsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(getPromptRoute, async (ctx) => {
+        const agent = getAgent();
         const { name } = ctx.req.valid('param');
         const definition = await agent.getPromptDefinition(name);
         if (!definition) throw PromptError.notFound(name);
@@ -173,6 +177,7 @@ export function createPromptsRouter(agent: DextoAgent) {
         },
     });
     app.openapi(resolvePromptRoute, async (ctx) => {
+        const agent = getAgent();
         const { name } = ctx.req.valid('param');
         const { context, args: argsString } = ctx.req.valid('query');
 

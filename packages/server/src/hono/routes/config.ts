@@ -3,27 +3,10 @@ import type { DextoAgent } from '@dexto/core';
 
 const querySchema = z.object({
     sessionId: z.string().optional(),
-    pretty: z.string().optional(),
 });
 
-export function createConfigRouter(agent: DextoAgent) {
+export function createConfigRouter(_getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
-
-    const greetingRoute = createRoute({
-        method: 'get',
-        path: '/greeting',
-        tags: ['config'],
-        request: { query: querySchema.pick({ sessionId: true }) },
-        responses: {
-            200: { description: 'Greeting', content: { 'application/json': { schema: z.any() } } },
-        },
-    });
-
-    app.openapi(greetingRoute, (ctx) => {
-        const { sessionId } = ctx.req.valid('query');
-        const cfg = agent.getEffectiveConfig(sessionId);
-        return ctx.json({ greeting: cfg.greeting });
-    });
 
     return app;
 }

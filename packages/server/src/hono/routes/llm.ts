@@ -63,7 +63,7 @@ const SessionIdEnvelopeSchema = z
     })
     .passthrough();
 
-export function createLlmRouter(agent: DextoAgent) {
+export function createLlmRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
     const currentRoute = createRoute({
@@ -79,6 +79,7 @@ export function createLlmRouter(agent: DextoAgent) {
         },
     });
     app.openapi(currentRoute, (ctx) => {
+        const agent = getAgent();
         const { sessionId } = ctx.req.valid('query');
 
         const currentConfig = sessionId
@@ -256,6 +257,7 @@ export function createLlmRouter(agent: DextoAgent) {
         request: { body: { content: { 'application/json': { schema: z.any() } } } },
     });
     app.openapi(switchRoute, async (ctx) => {
+        const agent = getAgent();
         const raw = ctx.req.valid('json');
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
         const { sessionId: _omit, ...rest } = raw as Record<string, unknown>;
