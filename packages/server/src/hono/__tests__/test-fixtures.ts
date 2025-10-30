@@ -4,6 +4,7 @@ import type { Server as HttpServer } from 'node:http';
 import { createDextoApp } from '../index.js';
 import type { DextoApp } from '../types.js';
 import { createNodeServer, type NodeBridgeResult } from '../node/index.js';
+import type { CreateDextoAppOptions } from '../index.js';
 
 /**
  * Test configuration for integration tests
@@ -59,8 +60,15 @@ export interface TestServer {
 /**
  * Starts a real HTTP server for testing
  * Uses createDextoApp and createNodeServer directly
+ * @param agent - The agent instance to use
+ * @param port - Optional port (auto-selected if not provided)
+ * @param agentsContext - Optional agent switching context (enables /api/agents routes)
  */
-export async function startTestServer(agent: DextoAgent, port?: number): Promise<TestServer> {
+export async function startTestServer(
+    agent: DextoAgent,
+    port?: number,
+    agentsContext?: CreateDextoAppOptions['agentsContext']
+): Promise<TestServer> {
     // Use provided port or find an available port
     const serverPort = port ?? (await findAvailablePort());
 
@@ -73,6 +81,8 @@ export async function startTestServer(agent: DextoAgent, port?: number): Promise
     });
 
     // Create getter functions
+    // Note: For agent switching tests, getAgent needs to reference activeAgent from agentsContext
+    // This is handled by the agentsContext implementation itself
     const getAgent = () => agent;
     const getAgentCard = () => agentCard;
 
@@ -80,7 +90,7 @@ export async function startTestServer(agent: DextoAgent, port?: number): Promise
     const app = createDextoApp({
         getAgent,
         getAgentCard,
-        // No agentsContext for basic tests (can be added later for agent switching tests)
+        agentsContext, // Include agentsContext if provided
     });
 
     // Create Node server bridge
@@ -206,3 +216,45 @@ export async function httpRequest(
         text,
     };
 }
+
+/**
+ * Validates that a response has the expected structure
+ */
+export function expectResponseStructure(
+    body: unknown,
+    schema: Record<string, (value: unknown) => boolean>
+): void {
+    if (typeof body !== 'object' || body === null) {
+        throw new Error(`Expected object response, got ${typeof body}`);
+    }
+
+    const bodyObj = body as Record<string, unknown>;
+    for (const [key, validator] of Object.entries(schema)) {
+        if (!(key in bodyObj)) {
+            throw new Error(`Missing required field: ${key}`);
+        }
+        if (!validator(bodyObj[key])) {
+            throw new Error(
+                `Invalid type for field '${key}': expected validator to return true, got false`
+            );
+        }
+    }
+}
+
+/**
+ * Common response validators
+ */
+export const validators = {
+    string: (value: unknown): boolean => typeof value === 'string',
+    number: (value: unknown): boolean => typeof value === 'number',
+    boolean: (value: unknown): boolean => typeof value === 'boolean',
+    array: (value: unknown): boolean => Array.isArray(value),
+    object: (value: unknown): boolean =>
+        typeof value === 'object' && value !== null && !Array.isArray(value),
+    optionalString: (value: unknown): boolean => value === undefined || typeof value === 'string',
+    optionalNumber: (value: unknown): boolean => value === undefined || typeof value === 'number',
+    optionalArray: (value: unknown): boolean => value === undefined || Array.isArray(value),
+    optionalObject: (value: unknown): boolean =>
+        value === undefined ||
+        (typeof value === 'object' && value !== null && !Array.isArray(value)),
+};

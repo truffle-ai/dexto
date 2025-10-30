@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createTestAgent, startTestServer, httpRequest, type TestServer } from './test-fixtures.js';
+import {
+    createTestAgent,
+    startTestServer,
+    httpRequest,
+    type TestServer,
+    expectResponseStructure,
+    validators,
+} from './test-fixtures.js';
 
 describe('Hono API Integration Tests', () => {
     let testServer: TestServer | undefined;
@@ -29,10 +36,25 @@ describe('Hono API Integration Tests', () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/llm/current');
             expect(res.status).toBe(200);
-            expect((res.body as { config: unknown }).config).toBeDefined();
-            const config = (res.body as { config: { provider: string; model: string } }).config;
+            expectResponseStructure(res.body, {
+                config: validators.object,
+            });
+            const config = (
+                res.body as {
+                    config: {
+                        provider: string;
+                        model: string;
+                        router?: string;
+                        displayName?: string;
+                    };
+                }
+            ).config;
             expect(config.provider).toBe('openai');
             expect(config.model).toBe('gpt-5-nano');
+            expect(typeof config.router).toBe('string');
+            expect(typeof config.displayName === 'string' || config.displayName === undefined).toBe(
+                true
+            );
         });
 
         it('GET /api/llm/current with sessionId returns session-specific config', async () => {
@@ -56,7 +78,18 @@ describe('Hono API Integration Tests', () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/llm/catalog');
             expect(res.status).toBe(200);
-            expect((res.body as { providers: unknown }).providers).toBeDefined();
+            expectResponseStructure(res.body, {
+                providers: validators.object,
+            });
+            const providers = (res.body as { providers: Record<string, unknown> }).providers;
+            expect(Object.keys(providers).length).toBeGreaterThan(0);
+            // Validate provider structure
+            const firstProvider = Object.values(providers)[0] as {
+                models: unknown;
+                supportedRouters?: unknown[];
+            };
+            expect(firstProvider).toBeDefined();
+            expect(typeof firstProvider === 'object').toBe(true);
         });
 
         it('POST /api/llm/switch validates input', async () => {
@@ -79,7 +112,11 @@ describe('Hono API Integration Tests', () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/sessions');
             expect(res.status).toBe(200);
-            expect(Array.isArray((res.body as { sessions: unknown[] }).sessions)).toBe(true);
+            expectResponseStructure(res.body, {
+                sessions: validators.array,
+            });
+            const sessions = (res.body as { sessions: unknown[] }).sessions;
+            expect(sessions.length).toBe(0);
         });
 
         it('POST /api/sessions creates a new session', async () => {
@@ -88,7 +125,23 @@ describe('Hono API Integration Tests', () => {
                 sessionId: 'test-session-1',
             });
             expect(res.status).toBe(201);
-            expect((res.body as { session: { id: string } }).session.id).toBe('test-session-1');
+            expectResponseStructure(res.body, {
+                session: validators.object,
+            });
+            const session = (
+                res.body as {
+                    session: {
+                        id: string;
+                        createdAt: number | null;
+                        lastActivity: number | null;
+                        messageCount: number;
+                        title: string | null;
+                    };
+                }
+            ).session;
+            expect(session.id).toBe('test-session-1');
+            expect(typeof session.messageCount).toBe('number');
+            expect(session.createdAt === null || typeof session.createdAt === 'number').toBe(true);
         });
 
         it('GET /api/sessions/:id returns session details', async () => {
