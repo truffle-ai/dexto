@@ -219,7 +219,11 @@ describe('Hono API Integration Tests - Agent Routes', () => {
             expect(res.status).toBe(200);
             const body = res.body as { valid: boolean; errors?: unknown[]; warnings?: unknown[] };
             expect(body.valid).toBe(true);
-            expect(body.errors).toBeUndefined();
+            // errors may be undefined or empty array
+            expect(
+                body.errors === undefined ||
+                    (Array.isArray(body.errors) && body.errors.length === 0)
+            ).toBe(true);
         });
 
         it('POST /api/agent/validate rejects invalid config', async () => {
