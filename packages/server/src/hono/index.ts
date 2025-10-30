@@ -11,6 +11,9 @@ import { createSearchRouter } from './routes/search.js';
 import { createMcpRouter } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
 import { createWebhooksRouter } from './routes/webhooks.js';
+import { createPromptsRouter } from './routes/prompts.js';
+import { createResourcesRouter } from './routes/resources.js';
+import { createMemoryRouter } from './routes/memory.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
@@ -43,6 +46,9 @@ export function createDextoApp(agent: DextoAgent, options: CreateDextoAppOptions
     api.route('/', createSearchRouter(agent));
     api.route('/', createMcpRouter(agent));
     api.route('/', createWebhooksRouter(agent, webhookSubscriber));
+    api.route('/', createPromptsRouter(agent));
+    api.route('/', createResourcesRouter(agent));
+    api.route('/', createMemoryRouter(agent));
 
     // Apply prefix to all API routes if provided
     const apiPrefix = options.apiPrefix ?? '/api';

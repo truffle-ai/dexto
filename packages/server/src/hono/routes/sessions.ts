@@ -76,6 +76,7 @@ export function createSessionsRouter(agent: DextoAgent) {
                     createdAt: metadata?.createdAt || Date.now(),
                     lastActivity: metadata?.lastActivity || Date.now(),
                     messageCount: metadata?.messageCount || 0,
+                    title: metadata?.title || null,
                 },
             },
             201
@@ -120,6 +121,7 @@ export function createSessionsRouter(agent: DextoAgent) {
                 createdAt: metadata?.createdAt || null,
                 lastActivity: metadata?.lastActivity || null,
                 messageCount: metadata?.messageCount || 0,
+                title: metadata?.title || null,
                 history: history.length,
             },
         });
@@ -213,6 +215,48 @@ export function createSessionsRouter(agent: DextoAgent) {
             status: 'loaded',
             sessionId,
             currentSession: agent.getCurrentSessionId(),
+        });
+    });
+
+    const patchRoute = createRoute({
+        method: 'patch',
+        path: '/sessions/{sessionId}',
+        tags: ['sessions'],
+        request: {
+            params: z.object({ sessionId: z.string() }),
+            body: {
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            title: z
+                                .string()
+                                .min(1, 'Title is required')
+                                .max(120, 'Title too long'),
+                        }),
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: 'Session updated',
+                content: { 'application/json': { schema: z.any() } },
+            },
+        },
+    });
+    app.openapi(patchRoute, async (ctx) => {
+        const { sessionId } = ctx.req.valid('param');
+        const { title } = ctx.req.valid('json');
+        await agent.setSessionTitle(sessionId, title);
+        const metadata = await agent.getSessionMetadata(sessionId);
+        return ctx.json({
+            session: {
+                id: sessionId,
+                createdAt: metadata?.createdAt || null,
+                lastActivity: metadata?.lastActivity || null,
+                messageCount: metadata?.messageCount || 0,
+                title: metadata?.title || title,
+            },
         });
     });
 

@@ -5,6 +5,7 @@ import { logger, McpServerConfigSchema } from '@dexto/core';
 const ConnectServerSchema = z.object({
     name: z.string().min(1, 'Server name is required'),
     config: McpServerConfigSchema,
+    persistToAgent: z.boolean().optional(),
 });
 
 const ServerParamSchema = z.object({
@@ -31,8 +32,26 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(connectRoute, async (ctx) => {
-        const { name, config } = ctx.req.valid('json');
+        const { name, config, persistToAgent } = ctx.req.valid('json');
         await agent.connectMcpServer(name, config);
+
+        // If persistToAgent is true, save to agent config file
+        if (persistToAgent === true) {
+            try {
+                const currentConfig = agent.getEffectiveConfig();
+                const updates = {
+                    mcpServers: {
+                        ...(currentConfig.mcpServers || {}),
+                        [name]: config,
+                    },
+                };
+                await agent.updateAndSaveConfig(updates);
+                logger.info(`Saved server '${name}' to agent configuration file`);
+            } catch (saveError) {
+                logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
+            }
+        }
+
         logger.info(`Successfully connected to new server '${name}' via API request.`);
         return ctx.json({ status: 'connected', name });
     });
@@ -50,8 +69,31 @@ export function createMcpRouter(agent: DextoAgent) {
         },
     });
     app.openapi(addServerRoute, async (ctx) => {
-        const { name, config } = ctx.req.valid('json');
+        const { name, config, persistToAgent } = ctx.req.valid('json');
         await agent.connectMcpServer(name, config);
+
+        // If persistToAgent is true, save to agent config file
+        if (persistToAgent === true) {
+            try {
+                // Get the current effective config to read existing mcpServers
+                const currentConfig = agent.getEffectiveConfig();
+
+                // Create update with new server added to mcpServers
+                const updates = {
+                    mcpServers: {
+                        ...(currentConfig.mcpServers || {}),
+                        [name]: config,
+                    },
+                };
+
+                await agent.updateAndSaveConfig(updates);
+                logger.info(`Saved server '${name}' to agent configuration file`);
+            } catch (saveError) {
+                logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
+                // Don't fail the request if saving fails - server is still connected
+            }
+        }
+
         return ctx.json({ status: 'connected', name }, 201);
     });
 
@@ -133,6 +175,33 @@ export function createMcpRouter(agent: DextoAgent) {
         return ctx.json({ status: 'disconnected', id: serverId });
     });
 
+    const restartServerRoute = createRoute({
+        method: 'post',
+        path: '/mcp/servers/{serverId}/restart',
+        tags: ['mcp'],
+        request: { params: z.object({ serverId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Server restarted',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            404: { description: 'Not found' },
+        },
+    });
+    app.openapi(restartServerRoute, async (ctx) => {
+        const { serverId } = ctx.req.valid('param');
+        logger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
+
+        const clientExists = agent.getMcpClients().has(serverId);
+        if (!clientExists) {
+            logger.warn(`Attempted to restart non-existent server: ${serverId}`);
+            return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
+        }
+
+        await agent.restartMcpServer(serverId);
+        return ctx.json({ status: 'restarted', id: serverId });
+    });
+
     const execToolRoute = createRoute({
         method: 'post',
         path: '/mcp/servers/{serverId}/tools/{toolName}/execute',
@@ -158,6 +227,61 @@ export function createMcpRouter(agent: DextoAgent) {
         }
         const rawResult = await agent.executeTool(toolName, body);
         return ctx.json({ success: true, data: rawResult });
+    });
+
+    const listResourcesRoute = createRoute({
+        method: 'get',
+        path: '/mcp/servers/{serverId}/resources',
+        tags: ['mcp'],
+        request: { params: z.object({ serverId: z.string() }) },
+        responses: {
+            200: {
+                description: 'Server resources',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            404: { description: 'Not found' },
+        },
+    });
+    app.openapi(listResourcesRoute, async (ctx) => {
+        const { serverId } = ctx.req.valid('param');
+        const client = agent.getMcpClients().get(serverId);
+        if (!client) {
+            return ctx.json({ error: `Server '${serverId}' not found` }, 404);
+        }
+        const resources = await agent.listResourcesForServer(serverId);
+        return ctx.json({ success: true, resources });
+    });
+
+    const getResourceContentRoute = createRoute({
+        method: 'get',
+        path: '/mcp/servers/{serverId}/resources/{resourceId}/content',
+        tags: ['mcp'],
+        request: {
+            params: z.object({
+                serverId: z.string(),
+                resourceId: z
+                    .string()
+                    .min(1, 'Resource ID is required')
+                    .transform((encoded) => decodeURIComponent(encoded)),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Resource content',
+                content: { 'application/json': { schema: z.any() } },
+            },
+            404: { description: 'Not found' },
+        },
+    });
+    app.openapi(getResourceContentRoute, async (ctx) => {
+        const { serverId, resourceId } = ctx.req.valid('param');
+        const client = agent.getMcpClients().get(serverId);
+        if (!client) {
+            return ctx.json({ error: `Server '${serverId}' not found` }, 404);
+        }
+        const qualifiedUri = `mcp:${serverId}:${resourceId}`;
+        const content = await agent.readResource(qualifiedUri);
+        return ctx.json({ success: true, data: { content } });
     });
 
     return app;
