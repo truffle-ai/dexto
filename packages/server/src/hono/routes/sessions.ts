@@ -40,13 +40,16 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         createdAt: metadata?.createdAt || null,
                         lastActivity: metadata?.lastActivity || null,
                         messageCount: metadata?.messageCount || 0,
+                        title: metadata?.title || null,
                     };
                 } catch {
+                    // Skip sessions that no longer exist
                     return {
                         id,
                         createdAt: null,
                         lastActivity: null,
                         messageCount: 0,
+                        title: null,
                     };
                 }
             })

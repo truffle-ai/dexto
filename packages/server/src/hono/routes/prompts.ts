@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { PromptError } from '@dexto/core';
+import { PromptError, ResourceError } from '@dexto/core';
 
 const CustomPromptRequestSchema = z
     .object({
@@ -131,8 +131,13 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
     app.openapi(deleteCustomRoute, async (ctx) => {
         const agent = getAgent();
         const { name } = ctx.req.valid('param');
-        // Decode URI component if needed
-        const decodedName = decodeURIComponent(name);
+        // Decode URI component with error handling (matches Express implementation)
+        let decodedName: string;
+        try {
+            decodedName = decodeURIComponent(name);
+        } catch (_error) {
+            throw ResourceError.invalidUriFormat(name, 'valid URI-encoded resource identifier');
+        }
         await agent.deleteCustomPrompt(decodedName);
         return ctx.body(null, 204);
     });
@@ -204,7 +209,7 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
 
         // Use DextoAgent's resolvePrompt method
         const result = await agent.resolvePrompt(name, options);
-        return ctx.json({ result });
+        return ctx.json({ text: result.text, resources: result.resources });
     });
 
     return app;

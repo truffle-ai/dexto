@@ -3,7 +3,6 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import type { DextoAgent, AgentCard } from '@dexto/core';
 import type { DextoApp } from './types.js';
 import { createHealthRouter } from './routes/health.js';
-import { createConfigRouter } from './routes/config.js';
 import { createGreetingRouter } from './routes/greeting.js';
 import { createMessagesRouter } from './routes/messages.js';
 import { createLlmRouter } from './routes/llm.js';
@@ -53,7 +52,6 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     const api = new OpenAPIHono();
     api.use('*', prettyJsonMiddleware);
     api.use('*', redactionMiddleware);
-    api.route('/', createConfigRouter(getAgent));
     api.route('/', createGreetingRouter(getAgent));
     api.route('/', createMessagesRouter(getAgent));
     api.route('/', createLlmRouter(getAgent));

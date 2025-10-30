@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
 
-const ConnectServerSchema = z.object({
+const McpServerRequestSchema = z.object({
     name: z.string().min(1, 'Server name is required'),
     config: McpServerConfigSchema,
     persistToAgent: z.boolean().optional(),
@@ -22,49 +22,14 @@ const ExecuteToolBodySchema = z.any(); // TODO: tighten schema once tool input s
 export function createMcpRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
-    const connectRoute = createRoute({
-        method: 'post',
-        path: '/connect-server',
-        tags: ['mcp'],
-        request: { body: { content: { 'application/json': { schema: ConnectServerSchema } } } },
-        responses: {
-            200: { description: 'Connected', content: { 'application/json': { schema: z.any() } } },
-        },
-    });
-    app.openapi(connectRoute, async (ctx) => {
-        const agent = getAgent();
-        const { name, config, persistToAgent } = ctx.req.valid('json');
-        await agent.connectMcpServer(name, config);
-
-        // If persistToAgent is true, save to agent config file
-        if (persistToAgent === true) {
-            try {
-                const currentConfig = agent.getEffectiveConfig();
-                const updates = {
-                    mcpServers: {
-                        ...(currentConfig.mcpServers || {}),
-                        [name]: config,
-                    },
-                };
-                await agent.updateAndSaveConfig(updates);
-                logger.info(`Saved server '${name}' to agent configuration file`);
-            } catch (saveError) {
-                logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
-            }
-        }
-
-        logger.info(`Successfully connected to new server '${name}' via API request.`);
-        return ctx.json({ status: 'connected', name });
-    });
-
     const addServerRoute = createRoute({
         method: 'post',
         path: '/mcp/servers',
         tags: ['mcp'],
-        request: { body: { content: { 'application/json': { schema: ConnectServerSchema } } } },
+        request: { body: { content: { 'application/json': { schema: McpServerRequestSchema } } } },
         responses: {
-            201: {
-                description: 'Server added',
+            200: {
+                description: 'Server connected',
                 content: { 'application/json': { schema: z.any() } },
             },
         },
@@ -72,7 +37,10 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     app.openapi(addServerRoute, async (ctx) => {
         const agent = getAgent();
         const { name, config, persistToAgent } = ctx.req.valid('json');
+
+        // Connect the server
         await agent.connectMcpServer(name, config);
+        logger.info(`Successfully connected to new server '${name}' via API request.`);
 
         // If persistToAgent is true, save to agent config file
         if (persistToAgent === true) {
@@ -96,7 +64,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             }
         }
 
-        return ctx.json({ status: 'connected', name }, 201);
+        return ctx.json({ status: 'connected', name }, 200);
     });
 
     const listServersRoute = createRoute({
@@ -232,7 +200,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         if (!client) {
             return ctx.json({ success: false, error: `Server '${serverId}' not found` }, 404);
         }
-        const rawResult = await agent.executeTool(toolName, body);
+        // Execute tool directly on the specified server (matches Express implementation)
+        const rawResult = await client.callTool(toolName, body);
         return ctx.json({ success: true, data: rawResult });
     });
 
