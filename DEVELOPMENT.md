@@ -195,12 +195,18 @@ Test above commands in different execution contexts for manual testing coverage.
 
 **Developer Mode Environment Variable:**
 
-When running `dexto` from within this repository, it normally uses your `dexto setup` preferences. To force use of the repository's `agents/default-agent.yml` file instead:
+When running `dexto` from within this repository, it normally uses your `dexto setup` preferences and global `~/.dexto` directory. To force isolated testing with repository files:
 ```bash
-export DEXTO_DEV_MODE=true  # Test with repo config instead of preferences
+export DEXTO_DEV_MODE=true  # Use repo configs and local .dexto directory
 ```
 
-**Note**: `pnpm run dev` automatically sets `DEXTO_DEV_MODE=true`, so the development server always uses repository configs.
+**DEXTO_DEV_MODE Behavior:**
+- **Agent Config**: Uses `agents/default-agent.yml` from repo (instead of `~/.dexto/agents/`)
+- **Logs/Database**: Uses `repo/.dexto/` (instead of `~/.dexto/`)
+- **Preferences**: Skips global setup validation
+- **Use Case**: Isolated testing and development on Dexto itself
+
+**Note**: `pnpm run dev` automatically sets `DEXTO_DEV_MODE=true`, so the development server always uses repository configs and local storage.
 
 ## Code Quality
 

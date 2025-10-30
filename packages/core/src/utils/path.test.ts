@@ -254,6 +254,7 @@ describe('real-world execution contexts', () => {
 
     describe('CLI in dexto source', () => {
         let tempDir: string;
+        const originalDevMode = process.env.DEXTO_DEV_MODE;
 
         beforeEach(() => {
             tempDir = createTempDirStructure({
@@ -267,11 +268,36 @@ describe('real-world execution contexts', () => {
 
         afterEach(() => {
             fs.rmSync(tempDir, { recursive: true, force: true });
+            // Restore original env
+            if (originalDevMode === undefined) {
+                delete process.env.DEXTO_DEV_MODE;
+            } else {
+                process.env.DEXTO_DEV_MODE = originalDevMode;
+            }
         });
 
-        it('uses project-local storage for development', () => {
+        it('uses local repo storage when DEXTO_DEV_MODE=true', () => {
+            process.env.DEXTO_DEV_MODE = 'true';
             const logPath = getDextoPath('logs', 'dexto.log', tempDir);
             expect(logPath).toBe(path.join(tempDir, '.dexto', 'logs', 'dexto.log'));
+        });
+
+        it('uses global storage when DEXTO_DEV_MODE is not set', () => {
+            delete process.env.DEXTO_DEV_MODE;
+            const logPath = getDextoPath('logs', 'dexto.log', tempDir);
+            expect(logPath).toContain('.dexto');
+            expect(logPath).toContain('logs');
+            expect(logPath).toContain('dexto.log');
+            expect(logPath).not.toContain(tempDir); // Should be global, not local
+        });
+
+        it('uses global storage when DEXTO_DEV_MODE=false', () => {
+            process.env.DEXTO_DEV_MODE = 'false';
+            const logPath = getDextoPath('logs', 'dexto.log', tempDir);
+            expect(logPath).toContain('.dexto');
+            expect(logPath).toContain('logs');
+            expect(logPath).toContain('dexto.log');
+            expect(logPath).not.toContain(tempDir); // Should be global, not local
         });
     });
 });
