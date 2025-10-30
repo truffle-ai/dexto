@@ -1,7 +1,7 @@
 /**
  * Orchestration Service Errors
  *
- * Error factory for orchestration and task management operations
+ * Error factory for todo list management operations
  */
 
 import { DextoRuntimeError } from '../errors/index.js';
@@ -158,72 +158,6 @@ export class OrchestrationError {
             ErrorType.SYSTEM,
             `Transaction failed: ${cause}`,
             { cause }
-        );
-    }
-
-    /**
-     * Spawned task not found error
-     */
-    static taskNotFound(taskId: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TASK_NOT_FOUND,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.NOT_FOUND,
-            `Spawned task not found: ${taskId}`,
-            { taskId }
-        );
-    }
-
-    /**
-     * Spawned task limit exceeded error
-     */
-    static taskLimitExceeded(current: number, max: number): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TASK_LIMIT_EXCEEDED,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.USER,
-            `Spawned task limit exceeded: ${current} tasks. Maximum allowed: ${max}`,
-            { current, max },
-            'Complete or cancel existing spawned tasks before creating new ones'
-        );
-    }
-
-    /**
-     * Spawned task creation failed error
-     */
-    static taskCreateFailed(cause: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TASK_CREATE_FAILED,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.SYSTEM,
-            `Failed to create spawned task: ${cause}`,
-            { cause }
-        );
-    }
-
-    /**
-     * Spawned task update failed error
-     */
-    static taskUpdateFailed(taskId: string, cause: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TASK_UPDATE_FAILED,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.SYSTEM,
-            `Failed to update spawned task ${taskId}: ${cause}`,
-            { taskId, cause }
-        );
-    }
-
-    /**
-     * Invalid spawned task status error
-     */
-    static invalidTaskStatus(status: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.INVALID_TASK_STATUS,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.USER,
-            `Invalid spawned task status: ${status}. Must be 'pending', 'in_progress', 'completed', or 'failed'`,
-            { status }
         );
     }
 }

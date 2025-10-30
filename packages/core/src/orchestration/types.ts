@@ -1,7 +1,7 @@
 /**
  * Orchestration Service Types
  *
- * Types for task management, todo lists, and workflow orchestration
+ * Types for todo list management and workflow tracking
  */
 
 /**
@@ -51,46 +51,4 @@ export interface OrchestrationConfig {
     maxTodosPerSession?: number;
     /** Enable real-time events */
     enableEvents?: boolean;
-    /** Maximum spawned tasks per session */
-    maxSpawnedTasksPerSession?: number;
-}
-
-/**
- * Spawned task status
- */
-export type SpawnedTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
-
-/**
- * Spawned task (sub-agent task)
- */
-export interface SpawnedTask {
-    id: string;
-    sessionId: string;
-    prompt: string;
-    description?: string;
-    status: SpawnedTaskStatus;
-    result?: string;
-    error?: string;
-    createdAt: Date;
-    updatedAt: Date;
-    completedAt?: Date;
-}
-
-/**
- * Spawned task input from tool
- */
-export interface SpawnTaskInput {
-    prompt: string;
-    description?: string;
-}
-
-/**
- * Spawned task result
- */
-export interface SpawnTaskResult {
-    taskId: string;
-    sessionId: string;
-    prompt: string;
-    description?: string;
-    status: SpawnedTaskStatus;
 }
