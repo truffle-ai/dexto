@@ -16,7 +16,6 @@ import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
 
 const CurrentQuerySchema = z.object({
     sessionId: z.string().optional(),
-    pretty: z.string().optional(),
 });
 
 const CatalogQuerySchema = z.object({
@@ -48,8 +47,7 @@ const CatalogQuerySchema = z.object({
                   ? false
                   : undefined
         ),
-    mode: z.enum(['grouped', 'flat']).optional().default('grouped'),
-    pretty: z.string().optional(),
+    mode: z.enum(['grouped', 'flat']).default('grouped'),
 });
 
 const SaveKeySchema = z.object({
@@ -244,6 +242,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         return ctx.json({ ok: true, provider, envVar: meta.envVar });
     });
 
+    // Match Express: SwitchLLMBodySchema uses .passthrough() to allow sessionId + any LLM config fields
+    // Since OpenAPI doesn't support passthrough well, we use z.any() and validate manually
     const switchRoute = createRoute({
         method: 'post',
         path: '/llm/switch',
@@ -258,11 +258,13 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(switchRoute, async (ctx) => {
         const agent = getAgent();
+        // Parse body: extract sessionId and validate remaining fields as LLMUpdatesSchema
+        // Matches Express: SwitchLLMBodySchema.passthrough() allows sessionId + any LLM fields
         const raw = ctx.req.valid('json');
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
-        const { sessionId: _omit, ...rest } = raw as Record<string, unknown>;
-        const llmUpdates = LLMUpdatesSchema.parse(rest);
-        const config = await agent.switchLLM(llmUpdates, sessionId);
+        const { sessionId: _omit, ...llmCandidate } = raw as Record<string, unknown>;
+        const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
+        const config = await agent.switchLLM(llmConfig, sessionId);
         return ctx.json({ config, sessionId });
     });
 

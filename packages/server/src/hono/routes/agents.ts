@@ -667,6 +667,11 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         method: 'get',
         path: '/agent/config/export',
         tags: ['agent'],
+        request: {
+            query: z.object({
+                sessionId: z.string().optional(),
+            }),
+        },
         responses: {
             200: {
                 description: 'Exported configuration',
@@ -676,7 +681,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     });
     app.openapi(exportConfigRoute, async (ctx) => {
         const agent = getAgent();
-        const config = agent.getEffectiveConfig();
+        const { sessionId } = ctx.req.valid('query');
+        const config = agent.getEffectiveConfig(sessionId);
 
         // Redact sensitive values
         const maskedConfig = {

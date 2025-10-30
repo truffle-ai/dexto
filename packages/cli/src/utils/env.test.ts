@@ -13,7 +13,8 @@ vi.mock('@core/logger/index.js', () => ({
     },
 }));
 
-import { loadEnvironmentVariables, applyLayeredEnvironmentLoading, updateEnvFile } from './env.js';
+import { loadEnvironmentVariables, applyLayeredEnvironmentLoading } from './env.js';
+import { updateEnvFile } from '@dexto/core';
 
 function createTempDir() {
     return fs.mkdtempSync(path.join(tmpdir(), 'dexto-env-test-'));

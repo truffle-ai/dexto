@@ -29,15 +29,30 @@ export async function loadEnvironmentVariables(
         // Global .env is optional, ignore errors
     }
 
+    // Load .env from CWD if it exists (may differ from startPath)
+    const cwdEnvPath = path.join(process.cwd(), '.env');
+    try {
+        const cwdResult = dotenv.config({ path: cwdEnvPath, processEnv: {} });
+        if (cwdResult.parsed) {
+            Object.assign(env, cwdResult.parsed);
+        }
+    } catch {
+        // CWD .env is optional, ignore errors
+    }
+
+    // For dexto projects, also load from project root (may differ from CWD)
     if (context === 'dexto-source' || context === 'dexto-project') {
         const projectEnvPath = getDextoEnvPath(startPath);
-        try {
-            const projectResult = dotenv.config({ path: projectEnvPath, processEnv: {} });
-            if (projectResult.parsed) {
-                Object.assign(env, projectResult.parsed);
+        // Only load if different from cwdEnvPath to avoid double-loading
+        if (projectEnvPath !== cwdEnvPath) {
+            try {
+                const projectResult = dotenv.config({ path: projectEnvPath, processEnv: {} });
+                if (projectResult.parsed) {
+                    Object.assign(env, projectResult.parsed);
+                }
+            } catch {
+                // Project .env is optional, ignore errors
             }
-        } catch {
-            // Project .env is optional, ignore errors
         }
     }
 

@@ -7,12 +7,10 @@ const MessageSearchQuery = z.object({
     offset: z.coerce.number().min(0).optional(),
     sessionId: z.string().optional(),
     role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
-    pretty: z.string().optional(),
 });
 
 const SessionSearchQuery = z.object({
     q: z.string().min(1, 'Search query is required'),
-    pretty: z.string().optional(),
 });
 
 export function createSearchRouter(getAgent: () => DextoAgent) {
