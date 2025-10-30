@@ -1,5 +1,15 @@
 # dexto
 
+## 1.2.5
+
+### Patch Changes
+
+- 1a20506: update source context usage to also go through preferences + registry flow. added dexto_dev_mode flag for maintainers
+- Updated dependencies [1a20506]
+- Updated dependencies [0fa6ef5]
+    - @dexto/core@1.2.5
+    - @dexto/analytics@1.2.5
+
 ## 1.2.4
 
 ### Patch Changes

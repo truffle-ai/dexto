@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.2.5
+
+### Patch Changes
+
+- 1a20506: update source context usage to also go through preferences + registry flow. added dexto_dev_mode flag for maintainers
+- 0fa6ef5: add gpt 5 codex
+
 ## 1.2.4
 
 ### Patch Changes
