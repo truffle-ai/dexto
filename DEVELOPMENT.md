@@ -67,6 +67,7 @@ This command:
 - Runs API server on port 3001 (from built dist)
 - Runs WebUI dev server on port 3000 (with hot reload)
 - Prefixes output with `[API]` and `[UI]` for clarity
+- **Automatically sets `DEXTO_DEV_MODE=true`** to use repository agent configs
 
 Access:
 - API: http://localhost:3001
@@ -191,6 +192,15 @@ Based on execution context, Dexto CLI will use defaults for log path, default ag
 Run the CLI in different places and see the console logs to understand this.
 
 Test above commands in different execution contexts for manual testing coverage.
+
+**Developer Mode Environment Variable:**
+
+When running `dexto` from within this repository, it normally uses your `dexto setup` preferences. To force use of the repository's `agents/default-agent.yml` file instead:
+```bash
+export DEXTO_DEV_MODE=true  # Test with repo config instead of preferences
+```
+
+**Note**: `pnpm run dev` automatically sets `DEXTO_DEV_MODE=true`, so the development server always uses repository configs.
 
 ## Code Quality
 

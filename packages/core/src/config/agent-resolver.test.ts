@@ -149,22 +149,111 @@ describe('Agent Resolver', () => {
     });
 
     describe('resolveAgentPath - Default Resolution - Dexto Source Context', () => {
-        beforeEach(() => {
+        let repoConfigPath: string;
+        const originalEnv = process.env.DEXTO_DEV_MODE;
+
+        beforeEach(async () => {
             mockGetExecutionContext.mockReturnValue('dexto-source');
             mockFindDextoSourceRoot.mockReturnValue(tempDir);
+            repoConfigPath = path.join(tempDir, 'agents', 'default-agent.yml');
+            await fs.mkdir(path.join(tempDir, 'agents'), { recursive: true });
+            await fs.writeFile(repoConfigPath, 'test: config');
         });
 
-        it('resolves bundled agent when exists', async () => {
-            const bundledPath = path.join(tempDir, 'agents', 'default-agent.yml');
-            await fs.mkdir(path.join(tempDir, 'agents'), { recursive: true });
-            await fs.writeFile(bundledPath, 'test: config');
+        afterEach(() => {
+            // Restore original env
+            if (originalEnv === undefined) {
+                delete process.env.DEXTO_DEV_MODE;
+            } else {
+                process.env.DEXTO_DEV_MODE = originalEnv;
+            }
+        });
+
+        it('uses repo config when DEXTO_DEV_MODE=true', async () => {
+            process.env.DEXTO_DEV_MODE = 'true';
 
             const result = await resolveAgentPath();
-            expect(result).toBe(bundledPath);
+            expect(result).toBe(repoConfigPath);
+            expect(mockGlobalPreferencesExist).not.toHaveBeenCalled();
         });
 
-        it('throws ConfigError.bundledNotFound when bundled agent missing', async () => {
-            // Don't create the bundled agent file
+        it('uses user preferences when DEXTO_DEV_MODE=false and setup complete', async () => {
+            process.env.DEXTO_DEV_MODE = 'false';
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockResolvedValue({
+                setup: { completed: true },
+                defaults: { defaultAgent: 'my-agent' },
+            });
+            mockRegistry.resolveAgent.mockResolvedValue('/path/to/my-agent.yml');
+
+            const result = await resolveAgentPath();
+
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('my-agent', true, true);
+            expect(result).toBe('/path/to/my-agent.yml');
+        });
+
+        it('uses user preferences when DEXTO_DEV_MODE is not set and setup complete', async () => {
+            delete process.env.DEXTO_DEV_MODE;
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockResolvedValue({
+                setup: { completed: true },
+                defaults: { defaultAgent: 'gemini-agent' },
+            });
+            mockRegistry.resolveAgent.mockResolvedValue('/path/to/gemini-agent.yml');
+
+            const result = await resolveAgentPath();
+
+            expect(mockRegistry.resolveAgent).toHaveBeenCalledWith('gemini-agent', true, true);
+            expect(result).toBe('/path/to/gemini-agent.yml');
+        });
+
+        it('falls back to repo config when no preferences exist', async () => {
+            delete process.env.DEXTO_DEV_MODE;
+            mockGlobalPreferencesExist.mockReturnValue(false);
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(repoConfigPath);
+        });
+
+        it('falls back to repo config when setup incomplete', async () => {
+            delete process.env.DEXTO_DEV_MODE;
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockResolvedValue({
+                setup: { completed: false },
+                defaults: { defaultAgent: 'my-agent' },
+            });
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(repoConfigPath);
+        });
+
+        it('falls back to repo config when preferences loading fails', async () => {
+            delete process.env.DEXTO_DEV_MODE;
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Failed to load preferences'));
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(repoConfigPath);
+        });
+
+        it('throws ConfigError.bundledNotFound when repo config missing in dev mode', async () => {
+            process.env.DEXTO_DEV_MODE = 'true';
+            await fs.rm(repoConfigPath); // Delete the config file
+
+            await expect(resolveAgentPath()).rejects.toThrow(
+                expect.objectContaining({
+                    code: ConfigErrorCode.BUNDLED_NOT_FOUND,
+                    scope: ErrorScope.CONFIG,
+                    type: ErrorType.NOT_FOUND,
+                })
+            );
+        });
+
+        it('throws ConfigError.bundledNotFound when repo config missing and no preferences', async () => {
+            delete process.env.DEXTO_DEV_MODE;
+            mockGlobalPreferencesExist.mockReturnValue(false);
+            await fs.rm(repoConfigPath); // Delete the config file
+
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.BUNDLED_NOT_FOUND,

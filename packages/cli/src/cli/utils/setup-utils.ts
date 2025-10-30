@@ -13,21 +13,32 @@ export function isFirstTimeUser(): boolean {
 
 /**
  * Check if user requires setup (missing, corrupted, or incomplete preferences)
- * Context-aware: only requires setup in global-cli context
+ * Context-aware:
+ * - Dev mode (source + DEXTO_DEV_MODE): Skip setup, uses repo configs
+ * - Project context: Skip setup (might have project-local config)
+ * - First-time user (source/global-cli): Require setup
+ * - Has preferences (source/global-cli): Validate them
  * @returns true if setup is required
  */
 export async function requiresSetup(): Promise<boolean> {
-    // Only require setup in global CLI context (not in development/project contexts)
-    if (getExecutionContext() !== 'global-cli') {
+    const context = getExecutionContext();
+
+    // Skip setup in dev mode when in source context (maintainers testing with repo configs)
+    if (context === 'dexto-source' && process.env.DEXTO_DEV_MODE === 'true') {
         return false;
     }
 
-    // No preferences at all - definitely requires setup
+    // Project context: skip (might have project-local config)
+    if (context === 'dexto-project') {
+        return false;
+    }
+
+    // First-time user (no preferences) - require setup
     if (isFirstTimeUser()) {
         return true;
     }
 
-    // Check if preferences are valid and complete
+    // Has preferences - validate them since we'll use them
     try {
         const preferences = await loadGlobalPreferences();
 

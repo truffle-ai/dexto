@@ -69,6 +69,7 @@ Press `Ctrl+C` to stop all servers.
 - The dev server rebuilds core and CLI packages automatically
 - WebUI runs in dev mode with hot reload for rapid development
 - Agent configuration is loaded at startup
+- Runs with `DEXTO_DEV_MODE=true` to use repository agent configs instead of installed agents
 - Changes to agent.yml require server restart
 - Code changes to core/CLI require full rebuild (stop and restart dev server)
 - WebUI changes reload automatically
