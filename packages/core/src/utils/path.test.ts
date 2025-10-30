@@ -1,7 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { tmpdir } from 'os';
-import { getDextoPath, getDextoGlobalPath, findPackageRoot, resolveBundledScript } from './path.js';
+import { tmpdir, homedir } from 'os';
+import {
+    getDextoPath,
+    getDextoGlobalPath,
+    getDextoEnvPath,
+    findPackageRoot,
+    resolveBundledScript,
+} from './path.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 function createTempDir() {
@@ -222,6 +228,95 @@ describe('resolveBundledScript', () => {
 
     it('throws error when script cannot be resolved', () => {
         expect(() => resolveBundledScript('nonexistent/script.js')).toThrow();
+    });
+});
+
+describe('getDextoEnvPath', () => {
+    describe('in dexto project', () => {
+        let tempDir: string;
+
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'test-project',
+                    dependencies: { dexto: '^1.0.0' },
+                },
+            });
+        });
+
+        afterEach(() => {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        });
+
+        it('returns project root .env path', () => {
+            const result = getDextoEnvPath(tempDir);
+            expect(result).toBe(path.join(tempDir, '.env'));
+        });
+    });
+
+    describe('in dexto source', () => {
+        let tempDir: string;
+        const originalDevMode = process.env.DEXTO_DEV_MODE;
+
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'dexto',
+                    version: '1.0.0',
+                },
+                'agents/default-agent.yml': 'mcpServers: {}',
+            });
+        });
+
+        afterEach(() => {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+            // Restore original env
+            if (originalDevMode === undefined) {
+                delete process.env.DEXTO_DEV_MODE;
+            } else {
+                process.env.DEXTO_DEV_MODE = originalDevMode;
+            }
+        });
+
+        it('returns repo .env when DEXTO_DEV_MODE=true', () => {
+            process.env.DEXTO_DEV_MODE = 'true';
+            const result = getDextoEnvPath(tempDir);
+            expect(result).toBe(path.join(tempDir, '.env'));
+        });
+
+        it('returns global ~/.dexto/.env when DEXTO_DEV_MODE is not set', () => {
+            delete process.env.DEXTO_DEV_MODE;
+            const result = getDextoEnvPath(tempDir);
+            expect(result).toBe(path.join(homedir(), '.dexto', '.env'));
+        });
+
+        it('returns global ~/.dexto/.env when DEXTO_DEV_MODE=false', () => {
+            process.env.DEXTO_DEV_MODE = 'false';
+            const result = getDextoEnvPath(tempDir);
+            expect(result).toBe(path.join(homedir(), '.dexto', '.env'));
+        });
+    });
+
+    describe('in global-cli context', () => {
+        let tempDir: string;
+
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'regular-project',
+                    dependencies: { express: '^4.0.0' },
+                },
+            });
+        });
+
+        afterEach(() => {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        });
+
+        it('returns global ~/.dexto/.env path', () => {
+            const result = getDextoEnvPath(tempDir);
+            expect(result).toBe(path.join(homedir(), '.dexto', '.env'));
+        });
     });
 });
 

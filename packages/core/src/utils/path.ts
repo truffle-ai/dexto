@@ -220,11 +220,18 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
     let envPath = '';
     switch (context) {
         case 'dexto-source': {
-            const sourceRoot = findDextoSourceRoot(startPath);
-            if (!sourceRoot) {
-                throw new Error('Not in dexto source context');
+            // Dev mode: use local repo .env for isolated testing
+            // Normal mode: use global ~/.dexto/.env for user experience
+            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+            if (isDevMode) {
+                const sourceRoot = findDextoSourceRoot(startPath);
+                if (!sourceRoot) {
+                    throw new Error('Not in dexto source context');
+                }
+                envPath = path.join(sourceRoot, '.env');
+            } else {
+                envPath = path.join(homedir(), '.dexto', '.env');
             }
-            envPath = path.join(sourceRoot, '.env');
             break;
         }
         case 'dexto-project': {
