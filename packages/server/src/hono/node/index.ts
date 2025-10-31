@@ -104,7 +104,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
         handleWebsocketConnection(agent, ws);
     });
 
-    const websocketPath = options.websocketPath ?? '/ws';
+    const websocketPath = options.websocketPath ?? '/';
 
     server.on('close', () => {
         webSubscriber.cleanup();
