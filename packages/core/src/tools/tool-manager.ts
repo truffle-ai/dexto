@@ -136,6 +136,16 @@ export class ToolManager {
     }
 
     /**
+     * Set session manager for internal tools that need it (e.g., spawn_agent)
+     */
+    setSessionManager(sessionManager: SessionManager): void {
+        this.sessionManager = sessionManager;
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setSessionManager(sessionManager);
+        }
+    }
+
+    /**
      * Invalidate the tools cache when tool sources change
      */
     private invalidateCache(): void {
@@ -161,8 +171,34 @@ export class ToolManager {
         });
     }
 
+    /**
+     * Getter methods for extracting shared infrastructure.
+     * These are needed when creating sub-agent ToolManager instances that share
+     * the parent's infrastructure (MCP, approval, policies) but have custom tool configurations.
+     * Used by ChatSession.applyAgentConfigOverrides() for spawn_agent tool isolation.
+     */
     getMcpManager(): MCPManager {
         return this.mcpManager;
+    }
+
+    getApprovalManager(): ApprovalManager {
+        return this.approvalManager;
+    }
+
+    getAllowedToolsProvider(): IAllowedToolsProvider {
+        return this.allowedToolsProvider;
+    }
+
+    getApprovalMode(): 'event-based' | 'auto-approve' | 'auto-deny' {
+        return this.approvalMode;
+    }
+
+    getToolPolicies(): ToolPolicies | undefined {
+        return this.toolPolicies;
+    }
+
+    getInternalToolsServices(): InternalToolsServices {
+        return this.internalToolsProvider?.getServices() || {};
     }
 
     /**
