@@ -1,4 +1,3 @@
-import { Hono } from 'hono';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { DextoAgent, AgentCard } from '@dexto/core';
 import type { DextoApp } from './types.js';

@@ -6,14 +6,6 @@ const CreateSessionSchema = z.object({
     sessionId: z.string().optional(),
 });
 
-const LoadSessionParams = z.object({
-    sessionId: z.string(),
-});
-
-const CancelSessionParams = z.object({
-    sessionId: z.string(),
-});
-
 export function createSessionsRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 

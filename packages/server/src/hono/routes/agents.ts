@@ -130,13 +130,7 @@ export type AgentsRouterContext = {
 
 export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRouterContext) {
     const app = new OpenAPIHono();
-    const {
-        switchAgentById,
-        switchAgentByPath,
-        resolveAgentInfo,
-        ensureAgentAvailable,
-        getActiveAgentId,
-    } = context;
+    const { switchAgentById, switchAgentByPath, resolveAgentInfo, getActiveAgentId } = context;
 
     const listRoute = createRoute({
         method: 'get',
@@ -222,7 +216,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             return ctx.json({ installed: true, id, name: displayName, type: 'custom' }, 201);
         } else {
             // Registry agent installation
-            const { id } = body as z.infer<typeof AgentIdentifierSchema>;
+            const { id } = body as z.output<typeof AgentIdentifierSchema>;
             await Dexto.installAgent(id);
             const agentInfo = await resolveAgentInfo(id);
             return ctx.json(

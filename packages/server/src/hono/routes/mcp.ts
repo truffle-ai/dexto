@@ -8,15 +8,6 @@ const McpServerRequestSchema = z.object({
     persistToAgent: z.boolean().optional(),
 });
 
-const ServerParamSchema = z.object({
-    serverId: z.string(),
-});
-
-const ExecuteToolParams = z.object({
-    serverId: z.string(),
-    toolName: z.string(),
-});
-
 const ExecuteToolBodySchema = z.any(); // TODO: tighten schema once tool input structure is standardised.
 
 export function createMcpRouter(getAgent: () => DextoAgent) {

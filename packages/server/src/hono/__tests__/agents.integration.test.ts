@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createTestAgent, startTestServer, httpRequest, type TestServer } from './test-fixtures.js';
 import { DextoAgent } from '@dexto/core';
 import { Dexto } from '@dexto/core';
@@ -40,7 +40,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
         });
 
         // Mock Dexto.createAgent to return a new agent instance
-        vi.spyOn(Dexto, 'createAgent').mockImplementation(async (agentId: string) => {
+        vi.spyOn(Dexto, 'createAgent').mockImplementation(async (_agentId: string) => {
             const agent = await createTestAgent();
             return agent;
         });

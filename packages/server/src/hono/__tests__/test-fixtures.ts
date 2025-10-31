@@ -183,7 +183,7 @@ export async function httpRequest(
     headers?: Record<string, string>
 ): Promise<{
     status: number;
-    headers: Headers;
+    headers: globalThis.Headers;
     body: unknown;
     text: string;
 }> {

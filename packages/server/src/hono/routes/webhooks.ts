@@ -10,10 +10,6 @@ const WebhookBodySchema = z.object({
     description: z.string().optional(),
 });
 
-const WebhookParamSchema = z.object({
-    webhookId: z.string(),
-});
-
 export function createWebhooksRouter(
     _getAgent: () => DextoAgent,
     webhookSubscriber: WebhookEventSubscriber
