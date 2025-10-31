@@ -136,6 +136,20 @@ export class OrchestrationError {
     }
 
     /**
+     * Session invalid error
+     */
+    static sessionInvalid(sessionId: string, reason: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            OrchestrationErrorCode.SESSION_INVALID,
+            ErrorScope.ORCHESTRATION,
+            ErrorType.USER,
+            `Invalid session ${sessionId}: ${reason}`,
+            { sessionId, reason },
+            'Ensure the session ID is valid and the session is properly initialized'
+        );
+    }
+
+    /**
      * Database error
      */
     static databaseError(operation: string, cause: string): DextoRuntimeError {
