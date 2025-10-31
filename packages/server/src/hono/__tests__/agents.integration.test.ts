@@ -214,7 +214,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
         it('POST /api/agent/validate validates config', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'POST', '/api/agent/validate', {
-                yaml: 'systemPrompt: "You are a helpful assistant."\ngreeting: Hello\nllm:\n  provider: openai\n  model: gpt-5\n  apiKey: $OPENAI_API_KEY',
+                yaml: 'systemPrompt: "You are a helpful assistant."\ngreeting: Hello\nllm:\n  provider: openai\n  model: gpt-5\n  apiKey: sk-test-key-for-validation',
             });
             expect(res.status).toBe(200);
             const body = res.body as { valid: boolean; errors?: unknown[]; warnings?: unknown[] };
