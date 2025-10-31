@@ -3,7 +3,7 @@
   "info": {
     "title": "Dexto API",
     "version": "1.2.4",
-    "description": "OpenAPI spec for the Dexto REST API server"
+    "description": "OUTDATED - OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
     {
