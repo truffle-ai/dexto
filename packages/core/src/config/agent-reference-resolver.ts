@@ -13,6 +13,7 @@ import { promises as fs } from 'fs';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { loadAgentConfig } from './loader.js';
 import { ConfigError } from './errors.js';
+import { DextoRuntimeError } from '../errors/index.js';
 import { logger } from '../logger/index.js';
 import { findDextoSourceRoot } from '@core/utils/execution-context.js';
 import { getDextoPath } from '@core/utils/path.js';
@@ -321,9 +322,10 @@ async function resolveInlineConfig(partial: Partial<AgentConfig>): Promise<Resol
             source: { type: 'inline', identifier: 'inline' },
         };
     } catch (error) {
-        throw ConfigError.inlineConfigMergeFailed(
-            error instanceof Error ? error.message : String(error)
-        );
+        if (error instanceof DextoRuntimeError) {
+            throw error;
+        }
+        throw ConfigError.inlineConfigMergeFailed(String(error));
     }
 }
 
