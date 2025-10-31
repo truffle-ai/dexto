@@ -96,6 +96,22 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
             version: packageJson.version,
             description: 'OpenAPI spec for the Dexto REST API server',
         },
+        servers: [
+            {
+                url: 'http://localhost:3001',
+                description: 'Local development server (default port)',
+            },
+            {
+                url: 'http://localhost:{port}',
+                description: 'Local development server (custom port)',
+                variables: {
+                    port: {
+                        default: '3001',
+                        description: 'API server port',
+                    },
+                },
+            },
+        ],
         tags: [
             {
                 name: 'system',
