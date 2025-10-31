@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.0.0",
+    "version": "1.2.4",
     "description": "OpenAPI spec for the Dexto Hono server"
   },
   "tags": [
@@ -2118,6 +2118,550 @@
               "application/json": {
                 "schema": {
                   "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "summary": "List Agents",
+        "description": "Retrieves all agents (installed, available, and current active agent)",
+        "tags": [
+          "agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "List all agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/current": {
+      "get": {
+        "summary": "Get Current Agent",
+        "description": "Retrieves the currently active agent",
+        "tags": [
+          "agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/install": {
+      "post": {
+        "summary": "Install Agent",
+        "description": "Installs an agent from the registry or from a custom source",
+        "tags": [
+          "agents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Unique agent identifier"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Display name (defaults to derived from id)"
+                      },
+                      "sourcePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Path to agent configuration file or directory"
+                      },
+                      "metadata": {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Human-readable description of the agent"
+                          },
+                          "author": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Agent author or organization name"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Tags for categorizing the agent"
+                          },
+                          "main": {
+                            "type": "string",
+                            "description": "Main configuration file name within source directory"
+                          }
+                        },
+                        "required": [
+                          "description",
+                          "author",
+                          "tags"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "injectPreferences": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Whether to inject user preferences into agent config"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "sourcePath",
+                      "metadata"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Unique agent identifier (e.g., \"database-agent\")"
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "Optional absolute file path for file-based agents (e.g., \"/path/to/agent.yml\")"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Agent installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/switch": {
+      "post": {
+        "summary": "Switch Agent",
+        "description": "Switches to a different agent by ID or file path",
+        "tags": [
+          "agents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Unique agent identifier (e.g., \"database-agent\")"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Optional absolute file path for file-based agents (e.g., \"/path/to/agent.yml\")"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent switched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/validate-name": {
+      "post": {
+        "summary": "Validate Agent Name",
+        "description": "Checks if an agent ID conflicts with existing agents",
+        "tags": [
+          "agents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Unique agent identifier (e.g., \"database-agent\")"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Optional absolute file path for file-based agents (e.g., \"/path/to/agent.yml\")"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Name validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/uninstall": {
+      "post": {
+        "summary": "Uninstall Agent",
+        "description": "Removes an agent from the system. Custom agents are removed from registry; builtin agents can be reinstalled",
+        "tags": [
+          "agents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Unique agent identifier to uninstall"
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Force uninstall even if agent is currently active"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/custom/create": {
+      "post": {
+        "summary": "Create Custom Agent",
+        "description": "Creates a new custom agent from scratch via the UI/API",
+        "tags": [
+          "agents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9-]+$",
+                    "description": "Unique agent identifier"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Display name for the agent"
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "One-line description of the agent"
+                  },
+                  "author": {
+                    "type": "string",
+                    "description": "Author or organization"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "description": "Tags for discovery"
+                  },
+                  "llm": {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "openai",
+                          "openai-compatible",
+                          "anthropic",
+                          "google",
+                          "groq",
+                          "xai",
+                          "cohere"
+                        ],
+                        "description": "LLM provider id"
+                      },
+                      "model": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Model name"
+                      },
+                      "apiKey": {
+                        "type": "string",
+                        "description": "API key or environment variable reference (e.g., $OPENAI_API_KEY)"
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "model"
+                    ],
+                    "additionalProperties": false,
+                    "description": "LLM configuration"
+                  },
+                  "systemPrompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "System prompt for the agent"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "description",
+                  "llm",
+                  "systemPrompt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Custom agent created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/path": {
+      "get": {
+        "summary": "Get Agent File Path",
+        "description": "Retrieves the file path of the currently active agent configuration",
+        "tags": [
+          "agent"
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent file path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/config": {
+      "get": {
+        "summary": "Get Agent Configuration",
+        "description": "Retrieves the raw YAML configuration of the currently active agent",
+        "tags": [
+          "agent"
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Save Agent Configuration",
+        "description": "Saves and applies YAML agent configuration. Creates backup before saving",
+        "tags": [
+          "agent"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "yaml": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "yaml"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuration saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/validate": {
+      "post": {
+        "summary": "Validate Agent Configuration",
+        "description": "Validates YAML agent configuration without saving it",
+        "tags": [
+          "agent"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "yaml": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "yaml"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/config/export": {
+      "get": {
+        "summary": "Export Agent Configuration",
+        "description": "Exports the effective agent configuration with sensitive values redacted",
+        "tags": [
+          "agent"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sessionId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported configuration",
+            "content": {
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }

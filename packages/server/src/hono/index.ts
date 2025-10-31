@@ -19,6 +19,15 @@ import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 import { createCorsMiddleware } from './middleware/cors.js';
 import { createAuthMiddleware } from './middleware/auth.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8')) as {
+    version: string;
+};
 
 export type CreateDextoAppOptions = {
     apiPrefix?: string;
@@ -84,7 +93,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         openapi: '3.0.0',
         info: {
             title: 'Dexto API',
-            version: '1.0.0',
+            version: packageJson.version,
             description: 'OpenAPI spec for the Dexto Hono server',
         },
         tags: [

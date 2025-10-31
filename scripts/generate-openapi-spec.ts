@@ -78,10 +78,23 @@ async function syncOpenAPISpec() {
             }
         );
 
-        // Create Hono app with mock agent
+        // Create mock agents context for agent management routes
+        const mockAgentsContext = {
+            switchAgentById: async (agentId: string) => ({ id: agentId, name: agentId }),
+            switchAgentByPath: async (filePath: string) => ({
+                id: 'custom',
+                name: filePath,
+            }),
+            resolveAgentInfo: async (agentId: string) => ({ id: agentId, name: agentId }),
+            ensureAgentAvailable: () => {},
+            getActiveAgentId: () => 'default',
+        };
+
+        // Create Hono app with mock agent and agents context
         const app = createDextoApp({
             getAgent: () => mockAgent,
             getAgentCard: () => mockAgent.getCard(),
+            agentsContext: mockAgentsContext,
         });
 
         // Fetch OpenAPI spec via app.fetch (no server needed!)
