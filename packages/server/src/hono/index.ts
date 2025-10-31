@@ -89,6 +89,11 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     app.route(apiPrefix, api);
 
     // Expose OpenAPI document at the root path for the entire app
+    // TODO: Add securitySchemes and global security to OpenAPI spec
+    // The server requires Bearer auth (DEXTO_SERVER_API_KEY) when auth is enabled via createAuthMiddleware,
+    // but the OpenAPI spec doesn't document this requirement. This misleads integrators and security scanners.
+    // Need to add components.securitySchemes.dextoBearerAuth and global security array.
+    // See: https://github.com/truffle-ai/dexto/pull/438#discussion_r2480537579
     app.doc('/openapi.json', {
         openapi: '3.0.0',
         info: {
