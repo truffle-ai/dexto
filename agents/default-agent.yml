@@ -82,6 +82,7 @@ toolConfirmation:
     alwaysAllow:
       - internal--ask_user
       - mcp--read_file
+      - mcp--list_directory
       - mcp--list_allowed_directories
   #
   #   # Tools that are always denied (high-risk, destructive operations)
