@@ -152,7 +152,12 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
                 await agent.updateAndSaveConfig(updates);
                 logger.info(`Saved server '${name}' to agent configuration file`);
             } catch (saveError) {
-                logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
+                const errorMessage =
+                    saveError instanceof Error ? saveError.message : String(saveError);
+                logger.warn(
+                    `Failed to save server '${name}' to agent config: ${errorMessage}`,
+                    JSON.stringify({ error: saveError })
+                );
                 // Don't fail the request if saving fails - server is still connected
             }
         }

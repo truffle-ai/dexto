@@ -7,6 +7,7 @@ import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
     logger,
+    safeStringify,
     type LLMProvider,
 } from '@dexto/core';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
@@ -509,7 +510,9 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         };
 
         const yamlContent = yamlStringify(agentConfig);
-        logger.info(`Creating agent config for ${id}:`, { agentConfig, yamlContent });
+        logger.info(
+            `Creating agent config for ${id}: agentConfig=${safeStringify(agentConfig)}, yamlContent=${yamlContent}`
+        );
 
         // Create temporary file
         const tmpDir = os.tmpdir();
