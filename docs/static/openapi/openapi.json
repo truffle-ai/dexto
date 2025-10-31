@@ -123,7 +123,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "greeting": {
+                      "type": "string",
+                      "description": "Greeting message from agent configuration"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               }
             }
@@ -207,7 +214,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "response": {
+                      "type": "string",
+                      "description": "Agent response text"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID used for this message"
+                    }
+                  },
+                  "required": [
+                    "response",
+                    "sessionId"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -294,7 +316,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "response": {
+                      "type": "string",
+                      "description": "Agent response text"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID used for this message"
+                    }
+                  },
+                  "required": [
+                    "response",
+                    "sessionId"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -333,7 +370,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Status message indicating reset was initiated"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID that was reset (if specified)"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -366,7 +417,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "config": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true
+                      },
+                      "description": "Current LLM configuration with all fields"
+                    }
+                  },
+                  "required": [
+                    "config"
+                  ],
+                  "description": "Response containing current LLM configuration"
                 }
               }
             }
@@ -523,7 +587,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "nullable": true,
+                  "description": "LLM catalog in grouped or flat format"
                 }
               }
             }
@@ -577,7 +642,40 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Operation success indicator"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "openai",
+                        "openai-compatible",
+                        "anthropic",
+                        "google",
+                        "groq",
+                        "xai",
+                        "cohere"
+                      ],
+                      "description": "Provider for which the key was saved"
+                    },
+                    "envVar": {
+                      "type": "string",
+                      "description": "Environment variable name where key was stored"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "provider",
+                    "envVar"
+                  ],
+                  "additionalProperties": false,
+                  "description": "API key save response"
                 }
               }
             }
@@ -607,7 +705,24 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "config": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true
+                      },
+                      "description": "New LLM configuration with all fields"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID if session-specific switch"
+                    }
+                  },
+                  "required": [
+                    "config"
+                  ],
+                  "description": "LLM switch result"
                 }
               }
             }
@@ -624,11 +739,60 @@
         ],
         "responses": {
           "200": {
-            "description": "List sessions",
+            "description": "List of all active sessions",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Unique session identifier"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Creation timestamp (Unix ms)"
+                          },
+                          "lastActivity": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Last activity timestamp (Unix ms)"
+                          },
+                          "messageCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Total number of messages in session"
+                          },
+                          "title": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Optional session title"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "createdAt",
+                          "lastActivity",
+                          "messageCount"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Session metadata"
+                      },
+                      "description": "Array of session metadata objects"
+                    }
+                  },
+                  "required": [
+                    "sessions"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -658,11 +822,56 @@
         },
         "responses": {
           "201": {
-            "description": "Session created",
+            "description": "Session created successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique session identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "lastActivity": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last activity timestamp (Unix ms)"
+                        },
+                        "messageCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total number of messages in session"
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional session title"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "createdAt",
+                        "lastActivity",
+                        "messageCount"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Newly created session metadata"
+                    }
+                  },
+                  "required": [
+                    "session"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -679,11 +888,22 @@
         ],
         "responses": {
           "200": {
-            "description": "Current session",
+            "description": "Current active session ID",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "currentSessionId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "ID of the current session, or null if none"
+                    }
+                  },
+                  "required": [
+                    "currentSessionId"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -712,11 +932,62 @@
         ],
         "responses": {
           "200": {
-            "description": "Session details",
+            "description": "Session details with metadata",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique session identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "lastActivity": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last activity timestamp (Unix ms)"
+                        },
+                        "messageCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total number of messages in session"
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional session title"
+                        },
+                        "history": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of messages in history"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "createdAt",
+                        "lastActivity",
+                        "messageCount",
+                        "history"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Session metadata with history count"
+                    }
+                  },
+                  "required": [
+                    "session"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -743,11 +1014,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Session deleted",
+            "description": "Session deleted successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "deleted"
+                      ],
+                      "description": "Deletion status"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "ID of the deleted session"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "sessionId"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -794,11 +1083,56 @@
         },
         "responses": {
           "200": {
-            "description": "Session updated",
+            "description": "Session updated successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique session identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "lastActivity": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last activity timestamp (Unix ms)"
+                        },
+                        "messageCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total number of messages in session"
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional session title"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "createdAt",
+                        "lastActivity",
+                        "messageCount"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Updated session metadata"
+                    }
+                  },
+                  "required": [
+                    "session"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -827,11 +1161,260 @@
         ],
         "responses": {
           "200": {
-            "description": "Session history",
+            "description": "Session conversation history",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "user",
+                              "assistant",
+                              "tool"
+                            ],
+                            "description": "Role of the message sender"
+                          },
+                          "timestamp": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Creation timestamp (Unix ms)"
+                          },
+                          "content": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "nullable": true
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "enum": [
+                                            "text"
+                                          ],
+                                          "description": "Part type: text"
+                                        },
+                                        "text": {
+                                          "type": "string",
+                                          "description": "Text content"
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "text"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Text content part"
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "enum": [
+                                            "image"
+                                          ],
+                                          "description": "Part type: image"
+                                        },
+                                        "image": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {},
+                                            {},
+                                            {}
+                                          ],
+                                          "description": "Image data (string, binary, or URL)"
+                                        },
+                                        "mimeType": {
+                                          "type": "string",
+                                          "description": "MIME type of the image"
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "image"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Image content part"
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "enum": [
+                                            "file"
+                                          ],
+                                          "description": "Part type: file"
+                                        },
+                                        "data": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {},
+                                            {},
+                                            {}
+                                          ],
+                                          "description": "File data (string, binary, or URL)"
+                                        },
+                                        "mimeType": {
+                                          "type": "string",
+                                          "description": "MIME type of the file"
+                                        },
+                                        "filename": {
+                                          "type": "string",
+                                          "description": "Optional filename"
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "data",
+                                        "mimeType"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "File content part"
+                                    }
+                                  ],
+                                  "description": "Message content part (text, image, or file)"
+                                }
+                              },
+                              {
+                                "nullable": true
+                              }
+                            ],
+                            "description": "Message content (string, null, or array of parts)"
+                          },
+                          "reasoning": {
+                            "type": "string",
+                            "description": "Optional model reasoning text"
+                          },
+                          "tokenUsage": {
+                            "type": "object",
+                            "properties": {
+                              "inputTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of input tokens"
+                              },
+                              "outputTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of output tokens"
+                              },
+                              "reasoningTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of reasoning tokens"
+                              },
+                              "totalTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Total tokens used"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "description": "Optional token usage accounting"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model identifier for assistant messages"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "Provider identifier for assistant messages"
+                          },
+                          "router": {
+                            "type": "string",
+                            "description": "Router metadata for assistant messages"
+                          },
+                          "toolCalls": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "description": "Unique identifier for this tool call"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "function"
+                                  ],
+                                  "description": "Tool call type (currently only function is supported)"
+                                },
+                                "function": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string",
+                                      "description": "Name of the function to call"
+                                    },
+                                    "arguments": {
+                                      "type": "string",
+                                      "description": "Arguments for the function in JSON string format"
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "arguments"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Function call details"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "type",
+                                "function"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Tool call made by the assistant"
+                            },
+                            "description": "Tool calls made by the assistant"
+                          },
+                          "toolCallId": {
+                            "type": "string",
+                            "description": "ID of the tool call this message responds to"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Name of the tool that produced this result"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "content"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Internal message representation"
+                      },
+                      "description": "Array of messages in conversation history"
+                    }
+                  },
+                  "required": [
+                    "history"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -860,11 +1443,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Cancel in-flight run",
+            "description": "Cancel operation result",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "cancelled": {
+                      "type": "boolean",
+                      "description": "Whether a run was cancelled"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID"
+                    }
+                  },
+                  "required": [
+                    "cancelled",
+                    "sessionId"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -903,11 +1501,37 @@
         },
         "responses": {
           "200": {
-            "description": "Session loaded/reset",
+            "description": "Session loaded or reset successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "loaded",
+                        "reset"
+                      ],
+                      "description": "Operation status"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Loaded session ID or null if reset"
+                    },
+                    "currentSession": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Current active session ID"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "sessionId",
+                    "currentSession"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -991,7 +1615,304 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sessionId": {
+                            "type": "string",
+                            "description": "Session ID where the message was found"
+                          },
+                          "message": {
+                            "type": "object",
+                            "properties": {
+                              "role": {
+                                "type": "string",
+                                "enum": [
+                                  "system",
+                                  "user",
+                                  "assistant",
+                                  "tool"
+                                ],
+                                "description": "Role of the message sender"
+                              },
+                              "timestamp": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Creation timestamp (Unix ms)"
+                              },
+                              "content": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "nullable": true
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text"
+                                              ],
+                                              "description": "Part type: text"
+                                            },
+                                            "text": {
+                                              "type": "string",
+                                              "description": "Text content"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "text"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Text content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "image"
+                                              ],
+                                              "description": "Part type: image"
+                                            },
+                                            "image": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {},
+                                                {},
+                                                {}
+                                              ],
+                                              "description": "Image data (string, binary, or URL)"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the image"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "image"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Image content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "file"
+                                              ],
+                                              "description": "Part type: file"
+                                            },
+                                            "data": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {},
+                                                {},
+                                                {}
+                                              ],
+                                              "description": "File data (string, binary, or URL)"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the file"
+                                            },
+                                            "filename": {
+                                              "type": "string",
+                                              "description": "Optional filename"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "data",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "File content part"
+                                        }
+                                      ],
+                                      "description": "Message content part (text, image, or file)"
+                                    }
+                                  },
+                                  {
+                                    "nullable": true
+                                  }
+                                ],
+                                "description": "Message content (string, null, or array of parts)"
+                              },
+                              "reasoning": {
+                                "type": "string",
+                                "description": "Optional model reasoning text"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Optional token usage accounting"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier for assistant messages"
+                              },
+                              "provider": {
+                                "type": "string",
+                                "description": "Provider identifier for assistant messages"
+                              },
+                              "router": {
+                                "type": "string",
+                                "description": "Router metadata for assistant messages"
+                              },
+                              "toolCalls": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "description": "Unique identifier for this tool call"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "function"
+                                      ],
+                                      "description": "Tool call type (currently only function is supported)"
+                                    },
+                                    "function": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "description": "Name of the function to call"
+                                        },
+                                        "arguments": {
+                                          "type": "string",
+                                          "description": "Arguments for the function in JSON string format"
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "arguments"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Function call details"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "type",
+                                    "function"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Tool call made by the assistant"
+                                },
+                                "description": "Tool calls made by the assistant"
+                              },
+                              "toolCallId": {
+                                "type": "string",
+                                "description": "ID of the tool call this message responds to"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Name of the tool that produced this result"
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "content"
+                            ],
+                            "additionalProperties": false,
+                            "description": "The message that matched the search"
+                          },
+                          "matchedText": {
+                            "type": "string",
+                            "description": "The specific text that matched the search query"
+                          },
+                          "context": {
+                            "type": "string",
+                            "description": "Context around the match for preview"
+                          },
+                          "messageIndex": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Index of the message within the session"
+                          }
+                        },
+                        "required": [
+                          "sessionId",
+                          "message",
+                          "matchedText",
+                          "context",
+                          "messageIndex"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Result of a message search"
+                      },
+                      "description": "Array of search results"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Total number of results available"
+                    },
+                    "hasMore": {
+                      "type": "boolean",
+                      "description": "Whether there are more results beyond the current page"
+                    },
+                    "query": {
+                      "type": "string",
+                      "description": "Query that was searched"
+                    }
+                  },
+                  "required": [
+                    "results",
+                    "total",
+                    "hasMore",
+                    "query"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Message search response"
                 }
               }
             }
@@ -1025,7 +1946,355 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sessionId": {
+                            "type": "string",
+                            "description": "Session ID"
+                          },
+                          "matchCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Number of messages that matched in this session"
+                          },
+                          "firstMatch": {
+                            "type": "object",
+                            "properties": {
+                              "sessionId": {
+                                "type": "string",
+                                "description": "Session ID where the message was found"
+                              },
+                              "message": {
+                                "type": "object",
+                                "properties": {
+                                  "role": {
+                                    "type": "string",
+                                    "enum": [
+                                      "system",
+                                      "user",
+                                      "assistant",
+                                      "tool"
+                                    ],
+                                    "description": "Role of the message sender"
+                                  },
+                                  "timestamp": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true,
+                                    "description": "Creation timestamp (Unix ms)"
+                                  },
+                                  "content": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "nullable": true
+                                      },
+                                      {
+                                        "type": "array",
+                                        "items": {
+                                          "oneOf": [
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "type": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "text"
+                                                  ],
+                                                  "description": "Part type: text"
+                                                },
+                                                "text": {
+                                                  "type": "string",
+                                                  "description": "Text content"
+                                                }
+                                              },
+                                              "required": [
+                                                "type",
+                                                "text"
+                                              ],
+                                              "additionalProperties": false,
+                                              "description": "Text content part"
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "type": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "image"
+                                                  ],
+                                                  "description": "Part type: image"
+                                                },
+                                                "image": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {},
+                                                    {},
+                                                    {}
+                                                  ],
+                                                  "description": "Image data (string, binary, or URL)"
+                                                },
+                                                "mimeType": {
+                                                  "type": "string",
+                                                  "description": "MIME type of the image"
+                                                }
+                                              },
+                                              "required": [
+                                                "type",
+                                                "image"
+                                              ],
+                                              "additionalProperties": false,
+                                              "description": "Image content part"
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "type": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "file"
+                                                  ],
+                                                  "description": "Part type: file"
+                                                },
+                                                "data": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {},
+                                                    {},
+                                                    {}
+                                                  ],
+                                                  "description": "File data (string, binary, or URL)"
+                                                },
+                                                "mimeType": {
+                                                  "type": "string",
+                                                  "description": "MIME type of the file"
+                                                },
+                                                "filename": {
+                                                  "type": "string",
+                                                  "description": "Optional filename"
+                                                }
+                                              },
+                                              "required": [
+                                                "type",
+                                                "data",
+                                                "mimeType"
+                                              ],
+                                              "additionalProperties": false,
+                                              "description": "File content part"
+                                            }
+                                          ],
+                                          "description": "Message content part (text, image, or file)"
+                                        }
+                                      },
+                                      {
+                                        "nullable": true
+                                      }
+                                    ],
+                                    "description": "Message content (string, null, or array of parts)"
+                                  },
+                                  "reasoning": {
+                                    "type": "string",
+                                    "description": "Optional model reasoning text"
+                                  },
+                                  "tokenUsage": {
+                                    "type": "object",
+                                    "properties": {
+                                      "inputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of input tokens"
+                                      },
+                                      "outputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of output tokens"
+                                      },
+                                      "reasoningTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of reasoning tokens"
+                                      },
+                                      "totalTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Total tokens used"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Optional token usage accounting"
+                                  },
+                                  "model": {
+                                    "type": "string",
+                                    "description": "Model identifier for assistant messages"
+                                  },
+                                  "provider": {
+                                    "type": "string",
+                                    "description": "Provider identifier for assistant messages"
+                                  },
+                                  "router": {
+                                    "type": "string",
+                                    "description": "Router metadata for assistant messages"
+                                  },
+                                  "toolCalls": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "description": "Unique identifier for this tool call"
+                                        },
+                                        "type": {
+                                          "type": "string",
+                                          "enum": [
+                                            "function"
+                                          ],
+                                          "description": "Tool call type (currently only function is supported)"
+                                        },
+                                        "function": {
+                                          "type": "object",
+                                          "properties": {
+                                            "name": {
+                                              "type": "string",
+                                              "description": "Name of the function to call"
+                                            },
+                                            "arguments": {
+                                              "type": "string",
+                                              "description": "Arguments for the function in JSON string format"
+                                            }
+                                          },
+                                          "required": [
+                                            "name",
+                                            "arguments"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Function call details"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "type",
+                                        "function"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Tool call made by the assistant"
+                                    },
+                                    "description": "Tool calls made by the assistant"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string",
+                                    "description": "ID of the tool call this message responds to"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "description": "Name of the tool that produced this result"
+                                  }
+                                },
+                                "required": [
+                                  "role",
+                                  "content"
+                                ],
+                                "additionalProperties": false,
+                                "description": "The message that matched the search"
+                              },
+                              "matchedText": {
+                                "type": "string",
+                                "description": "The specific text that matched the search query"
+                              },
+                              "context": {
+                                "type": "string",
+                                "description": "Context around the match for preview"
+                              },
+                              "messageIndex": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Index of the message within the session"
+                              }
+                            },
+                            "required": [
+                              "sessionId",
+                              "message",
+                              "matchedText",
+                              "context",
+                              "messageIndex"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Preview of the first matching message"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "createdAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Session creation timestamp"
+                              },
+                              "lastActivity": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last activity timestamp"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Total messages in session"
+                              }
+                            },
+                            "required": [
+                              "createdAt",
+                              "lastActivity",
+                              "messageCount"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Session metadata"
+                          }
+                        },
+                        "required": [
+                          "sessionId",
+                          "matchCount",
+                          "firstMatch",
+                          "metadata"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Result of a session search"
+                      },
+                      "description": "Array of session search results"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Total number of sessions with matches"
+                    },
+                    "hasMore": {
+                      "type": "boolean",
+                      "description": "Whether there are more results beyond the current page"
+                    },
+                    "query": {
+                      "type": "string",
+                      "description": "Query that was searched"
+                    }
+                  },
+                  "required": [
+                    "results",
+                    "total",
+                    "hasMore",
+                    "query"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Session search response"
                 }
               }
             }
@@ -1206,7 +2475,23 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Connection status"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Server name"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Server status response"
                 }
               }
             }
@@ -1225,7 +2510,42 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Server identifier"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Server name"
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "Server status (connected or error)"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "status"
+                        ],
+                        "additionalProperties": false,
+                        "description": "MCP server information"
+                      },
+                      "description": "Array of server information"
+                    }
+                  },
+                  "required": [
+                    "servers"
+                  ],
+                  "additionalProperties": false,
+                  "description": "List of MCP servers"
                 }
               }
             }
@@ -1258,7 +2578,50 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Tool identifier"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Tool name"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Tool description"
+                          },
+                          "inputSchema": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "JSON Schema for tool input parameters"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "inputSchema"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Tool information"
+                      },
+                      "description": "Array of available tools"
+                    }
+                  },
+                  "required": [
+                    "tools"
+                  ],
+                  "additionalProperties": false,
+                  "description": "List of tools from MCP server"
                 }
               }
             }
@@ -1294,7 +2657,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "disconnected"
+                      ],
+                      "description": "Disconnection status"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Server identifier"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Server disconnection response"
                 }
               }
             }
@@ -1330,7 +2712,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "restarted"
+                      ],
+                      "description": "Restart status"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Server identifier"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Server restart response"
                 }
               }
             }
@@ -1386,7 +2787,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether tool execution succeeded"
+                    },
+                    "data": {
+                      "nullable": true,
+                      "description": "Tool execution result data"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message if execution failed"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Tool execution response"
                 }
               }
             }
@@ -1422,7 +2842,50 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Success indicator"
+                    },
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uri": {
+                            "type": "string",
+                            "description": "Resource URI"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Resource name"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Resource description"
+                          },
+                          "mimeType": {
+                            "type": "string",
+                            "description": "MIME type of the resource"
+                          }
+                        },
+                        "required": [
+                          "uri",
+                          "name"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Resource metadata"
+                      },
+                      "description": "Array of available resources"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "resources"
+                  ],
+                  "additionalProperties": false,
+                  "description": "List of resources from MCP server"
                 }
               }
             }
@@ -1469,7 +2932,30 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Success indicator"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "nullable": true,
+                          "description": "Resource content data"
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "Resource content"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Resource content response"
                 }
               }
             }
@@ -1520,7 +3006,49 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "webhook": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique webhook identifier"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Webhook URL"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Webhook description"
+                        },
+                        "createdAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "description": "Creation timestamp (Date or Unix ms)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "url",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Registered webhook details"
+                    }
+                  },
+                  "required": [
+                    "webhook"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -1539,7 +3067,53 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "webhooks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Unique webhook identifier"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "Webhook URL"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Webhook description"
+                          },
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ],
+                            "description": "Creation timestamp (Date or Unix ms)"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "url",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Webhook response object"
+                      },
+                      "description": "Array of registered webhooks"
+                    }
+                  },
+                  "required": [
+                    "webhooks"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -1572,7 +3146,49 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "webhook": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique webhook identifier"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Webhook URL"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Webhook description"
+                        },
+                        "createdAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "description": "Creation timestamp (Date or Unix ms)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "url",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Webhook details"
+                    }
+                  },
+                  "required": [
+                    "webhook"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -1606,7 +3222,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "removed"
+                      ],
+                      "description": "Operation status indicating successful removal"
+                    },
+                    "webhookId": {
+                      "type": "string",
+                      "description": "ID of the removed webhook"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "webhookId"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -1642,7 +3276,47 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "test": {
+                      "type": "string",
+                      "enum": [
+                        "completed"
+                      ],
+                      "description": "Test status indicating completion"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Whether the webhook test succeeded"
+                        },
+                        "statusCode": {
+                          "type": "number",
+                          "description": "HTTP status code from webhook"
+                        },
+                        "responseTime": {
+                          "type": "number",
+                          "description": "Response time in milliseconds"
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message if test failed"
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Test execution results"
+                    }
+                  },
+                  "required": [
+                    "test",
+                    "result"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -1666,7 +3340,84 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "prompts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Prompt name"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "Prompt title"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Prompt description"
+                          },
+                          "arguments": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Argument name"
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "description": "Argument description"
+                                },
+                                "required": {
+                                  "type": "boolean",
+                                  "description": "Whether the argument is required"
+                                }
+                              },
+                              "required": [
+                                "name"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Prompt argument definition"
+                            },
+                            "description": "Array of argument definitions"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "mcp",
+                              "file",
+                              "starter",
+                              "custom"
+                            ],
+                            "description": "Source of the prompt"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Additional metadata"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Enhanced prompt information"
+                      },
+                      "description": "Array of available prompts"
+                    }
+                  },
+                  "required": [
+                    "prompts"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Prompts list response"
                 }
               }
             }
@@ -1772,7 +3523,80 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "prompt": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Prompt name"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Prompt title"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Prompt description"
+                        },
+                        "arguments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "Argument name"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "Argument description"
+                              },
+                              "required": {
+                                "type": "boolean",
+                                "description": "Whether the argument is required"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Prompt argument definition"
+                          },
+                          "description": "Array of argument definitions"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "mcp",
+                            "file",
+                            "starter",
+                            "custom"
+                          ],
+                          "description": "Source of the prompt"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Additional metadata"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "source"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Created prompt information"
+                    }
+                  },
+                  "required": [
+                    "prompt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Create prompt response"
                 }
               }
             }
@@ -1833,7 +3657,62 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "definition": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Prompt name"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Prompt title"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Prompt description"
+                        },
+                        "arguments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "Argument name"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "Argument description"
+                              },
+                              "required": {
+                                "type": "boolean",
+                                "description": "Whether the argument is required"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Prompt argument definition"
+                          },
+                          "description": "Array of argument definitions"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Prompt definition"
+                    }
+                  },
+                  "required": [
+                    "definition"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Get prompt definition response"
                 }
               }
             }
@@ -1890,7 +3769,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "description": "Resolved prompt text"
+                    },
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Array of resource identifiers"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "resources"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Resolve prompt response"
                 }
               }
             }
@@ -1914,7 +3812,53 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful response"
+                    },
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uri": {
+                            "type": "string",
+                            "description": "Resource URI"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Resource name"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Resource description"
+                          },
+                          "mimeType": {
+                            "type": "string",
+                            "description": "MIME type of the resource"
+                          }
+                        },
+                        "required": [
+                          "uri",
+                          "name"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Resource metadata"
+                      },
+                      "description": "Array of all available resources from all sources"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "resources"
+                  ],
+                  "additionalProperties": false,
+                  "description": "List of all resources"
                 }
               }
             }
@@ -1948,7 +3892,70 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful response"
+                    },
+                    "content": {
+                      "type": "object",
+                      "properties": {
+                        "contents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "uri": {
+                                "type": "string",
+                                "description": "Resource URI"
+                              },
+                              "mimeType": {
+                                "type": "string",
+                                "description": "MIME type of the content"
+                              },
+                              "text": {
+                                "type": "string",
+                                "description": "Text content (for text resources)"
+                              },
+                              "blob": {
+                                "type": "string",
+                                "description": "Base64-encoded binary content (for binary resources)"
+                              }
+                            },
+                            "required": [
+                              "uri",
+                              "mimeType"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Resource content item"
+                          },
+                          "description": "Array of content items (typically one item)"
+                        },
+                        "_meta": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Optional metadata about the resource"
+                        }
+                      },
+                      "required": [
+                        "contents"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Resource content from MCP ReadResourceResult"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "content"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Resource content response"
                 }
               }
             }
@@ -2049,7 +4056,86 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful response"
+                    },
+                    "memory": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Unique identifier for the memory"
+                        },
+                        "content": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 10000,
+                          "description": "The actual memory content"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last update timestamp (Unix ms)"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 50
+                          },
+                          "maxItems": 10,
+                          "description": "Optional tags for categorization"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "system"
+                              ],
+                              "description": "Source of the memory"
+                            },
+                            "pinned": {
+                              "type": "boolean",
+                              "description": "Whether this memory is pinned for auto-loading"
+                            }
+                          },
+                          "description": "Additional metadata"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "content",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The created or retrieved memory"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "memory"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Single memory response"
                 }
               }
             }
@@ -2124,7 +4210,90 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful response"
+                    },
+                    "memories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Unique identifier for the memory"
+                          },
+                          "content": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 10000,
+                            "description": "The actual memory content"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Creation timestamp (Unix ms)"
+                          },
+                          "updatedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Last update timestamp (Unix ms)"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 50
+                            },
+                            "maxItems": 10,
+                            "description": "Optional tags for categorization"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "enum": [
+                                  "user",
+                                  "system"
+                                ],
+                                "description": "Source of the memory"
+                              },
+                              "pinned": {
+                                "type": "boolean",
+                                "description": "Whether this memory is pinned for auto-loading"
+                              }
+                            },
+                            "description": "Additional metadata"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "content",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Memory item stored in the system"
+                      },
+                      "description": "List of memories"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "memories"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Multiple memories response"
                 }
               }
             }
@@ -2158,7 +4327,86 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful response"
+                    },
+                    "memory": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Unique identifier for the memory"
+                        },
+                        "content": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 10000,
+                          "description": "The actual memory content"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last update timestamp (Unix ms)"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 50
+                          },
+                          "maxItems": 10,
+                          "description": "Optional tags for categorization"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "system"
+                              ],
+                              "description": "Source of the memory"
+                            },
+                            "pinned": {
+                              "type": "boolean",
+                              "description": "Whether this memory is pinned for auto-loading"
+                            }
+                          },
+                          "description": "Additional metadata"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "content",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The created or retrieved memory"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "memory"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Single memory response"
                 }
               }
             }
@@ -2237,7 +4485,86 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful response"
+                    },
+                    "memory": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Unique identifier for the memory"
+                        },
+                        "content": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 10000,
+                          "description": "The actual memory content"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last update timestamp (Unix ms)"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 50
+                          },
+                          "maxItems": 10,
+                          "description": "Optional tags for categorization"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "system"
+                              ],
+                              "description": "Source of the memory"
+                            },
+                            "pinned": {
+                              "type": "boolean",
+                              "description": "Whether this memory is pinned for auto-loading"
+                            }
+                          },
+                          "description": "Additional metadata"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "content",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The created or retrieved memory"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "memory"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Single memory response"
                 }
               }
             }
@@ -2269,7 +4596,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful response"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Deletion confirmation message"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "message"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Memory deletion response"
                 }
               }
             }
@@ -2290,7 +4636,133 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "installed": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Unique agent identifier"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Agent name"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Agent description"
+                          },
+                          "author": {
+                            "type": "string",
+                            "description": "Agent author"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Agent tags"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "builtin",
+                              "custom"
+                            ],
+                            "description": "Agent type"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "type"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Agent registry entry"
+                      },
+                      "description": "Agents installed locally"
+                    },
+                    "available": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Unique agent identifier"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Agent name"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Agent description"
+                          },
+                          "author": {
+                            "type": "string",
+                            "description": "Agent author"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Agent tags"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "builtin",
+                              "custom"
+                            ],
+                            "description": "Agent type"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "type"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Agent registry entry"
+                      },
+                      "description": "Agents available from registry"
+                    },
+                    "current": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Agent identifier (null if no active agent)"
+                        },
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Agent display name (null if no active agent)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Currently active agent"
+                    }
+                  },
+                  "required": [
+                    "installed",
+                    "available",
+                    "current"
+                  ],
+                  "additionalProperties": false,
+                  "description": "List of all agents"
                 }
               }
             }
@@ -2311,7 +4783,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Agent identifier (null if no active agent)"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Agent display name (null if no active agent)"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Basic agent information (nullable)"
                 }
               }
             }
@@ -2422,7 +4912,40 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "installed": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful installation"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Installed agent ID"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Installed agent name"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "builtin",
+                        "custom"
+                      ],
+                      "description": "Type of agent installed"
+                    }
+                  },
+                  "required": [
+                    "installed",
+                    "id",
+                    "name",
+                    "type"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Agent installation response"
                 }
               }
             }
@@ -2467,7 +4990,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "switched": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful agent switch"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "New active agent ID"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "New active agent name"
+                    }
+                  },
+                  "required": [
+                    "switched",
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Agent switch response"
                 }
               }
             }
@@ -2512,7 +5059,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean",
+                      "description": "Whether the agent name is valid"
+                    },
+                    "conflict": {
+                      "type": "string",
+                      "description": "Type of conflict if name is invalid"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Validation message"
+                    }
+                  },
+                  "required": [
+                    "valid"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Agent name validation result"
                 }
               }
             }
@@ -2558,7 +5124,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "uninstalled": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates successful uninstallation"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Uninstalled agent ID"
+                    }
+                  },
+                  "required": [
+                    "uninstalled",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Agent uninstallation response"
                 }
               }
             }
@@ -2664,7 +5249,30 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Creation success indicator"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Agent identifier"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Agent name"
+                    }
+                  },
+                  "required": [
+                    "created",
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -2685,7 +5293,32 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Absolute file path to agent configuration"
+                    },
+                    "relativePath": {
+                      "type": "string",
+                      "description": "Base filename"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Agent name (filename without extension)"
+                    },
+                    "isDefault": {
+                      "type": "boolean",
+                      "description": "Whether this is the default agent"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "relativePath",
+                    "name",
+                    "isDefault"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -2706,7 +5339,40 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "yaml": {
+                      "type": "string",
+                      "description": "Raw YAML configuration content"
+                    },
+                    "path": {
+                      "type": "string",
+                      "description": "Absolute file path to agent configuration"
+                    },
+                    "relativePath": {
+                      "type": "string",
+                      "description": "Base filename"
+                    },
+                    "lastModified": {
+                      "type": "string",
+                      "description": "Last modification timestamp"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Configuration warnings"
+                    }
+                  },
+                  "required": [
+                    "yaml",
+                    "path",
+                    "relativePath",
+                    "lastModified",
+                    "warnings"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -2744,7 +5410,48 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "path": {
+                      "type": "string",
+                      "description": "Absolute file path to agent configuration"
+                    },
+                    "reloaded": {
+                      "type": "boolean",
+                      "description": "Whether configuration was reloaded"
+                    },
+                    "restarted": {
+                      "type": "boolean",
+                      "description": "Whether agent was restarted"
+                    },
+                    "changesApplied": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "List of configuration changes that were applied"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable status message"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "path",
+                    "reloaded",
+                    "restarted",
+                    "changesApplied",
+                    "message"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -2784,7 +5491,79 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean",
+                      "description": "Whether configuration is valid"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "line": {
+                            "type": "integer",
+                            "description": "Line number"
+                          },
+                          "column": {
+                            "type": "integer",
+                            "description": "Column number"
+                          },
+                          "path": {
+                            "type": "string",
+                            "description": "Configuration path"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Error message"
+                          },
+                          "code": {
+                            "type": "string",
+                            "description": "Error code"
+                          }
+                        },
+                        "required": [
+                          "message",
+                          "code"
+                        ]
+                      },
+                      "description": "Validation errors"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                            "description": "Configuration path"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Warning message"
+                          },
+                          "code": {
+                            "type": "string",
+                            "description": "Warning code"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "message",
+                          "code"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "Configuration warnings"
+                    }
+                  },
+                  "required": [
+                    "valid",
+                    "errors",
+                    "warnings"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
