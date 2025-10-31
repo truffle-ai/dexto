@@ -187,14 +187,8 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
     app.openapi(deleteCustomRoute, async (ctx) => {
         const agent = getAgent();
         const { name } = ctx.req.valid('param');
-        // Decode URI component with error handling (matches Express implementation)
-        let decodedName: string;
-        try {
-            decodedName = decodeURIComponent(name);
-        } catch (_error) {
-            throw ResourceError.invalidUriFormat(name, 'valid URI-encoded resource identifier');
-        }
-        await agent.deleteCustomPrompt(decodedName);
+        // Hono automatically decodes path parameters, no manual decode needed
+        await agent.deleteCustomPrompt(name);
         return ctx.body(null, 204);
     });
 

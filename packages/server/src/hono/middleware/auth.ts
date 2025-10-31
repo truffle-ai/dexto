@@ -48,21 +48,17 @@ export function createAuthMiddleware(): MiddlewareHandler {
         }
 
         // Production mode or explicit DEXTO_SERVER_REQUIRE_AUTH=true
-        // Requires API key to be set
+        // Requires API key to be set - fail closed for security
         if (!apiKey) {
-            if (requireAuth) {
-                return ctx.json(
-                    {
-                        error: 'Configuration Error',
-                        message:
-                            'DEXTO_SERVER_REQUIRE_AUTH=true but DEXTO_SERVER_API_KEY not set. Set DEXTO_SERVER_API_KEY environment variable.',
-                    },
-                    500
-                );
-            }
-
-            // Production without API key - allow but already warned above
-            return next();
+            return ctx.json(
+                {
+                    error: 'Configuration Error',
+                    message: requireAuth
+                        ? 'DEXTO_SERVER_REQUIRE_AUTH=true but DEXTO_SERVER_API_KEY not set. Set DEXTO_SERVER_API_KEY environment variable.'
+                        : 'NODE_ENV=production requires DEXTO_SERVER_API_KEY. Set DEXTO_SERVER_API_KEY environment variable to secure your API.',
+                },
+                500
+            );
         }
 
         // API key is set - validate it

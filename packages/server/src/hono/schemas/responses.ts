@@ -49,6 +49,14 @@ export { InternalResourceConfigSchema } from '@dexto/core';
  * Uses z.custom<string | unknown>() to avoid DTS complexity - TypeScript consumers see
  * 'string | unknown' (where unknown represents binary data), while runtime validation
  * still properly validates all supported types.
+ *
+ * Note: Even Uint8Array alone causes DTS generation failures due to structural type expansion,
+ * so we must use 'unknown' for binary types to keep .d.ts files manageable.
+ *
+ * TODO: Investigate alternatives for better type information in .d.ts files:
+ *       - Custom type bundling/declaration generation
+ *       - Runtime-only validation with separate type definitions
+ *       - tsup configuration adjustments to handle structural types
  */
 const BinaryDataSchema = z.custom<string | unknown>(
     (val) => {
@@ -334,7 +342,7 @@ export const ToolSchema = z
     .object({
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: z.record(z.any()).describe('JSON Schema for tool input parameters'),
+        inputSchema: z.record(z.unknown()).describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool metadata');
@@ -424,7 +432,7 @@ export const ErrorResponseSchema = z
             .object({
                 message: z.string().describe('Error message'),
                 code: z.string().optional().describe('Error code'),
-                details: z.any().optional().describe('Additional error details'),
+                details: z.unknown().optional().describe('Additional error details'),
             })
             .strict()
             .describe('Error details'),

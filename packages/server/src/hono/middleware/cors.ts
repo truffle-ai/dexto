@@ -10,9 +10,11 @@ import type { MiddlewareHandler } from 'hono';
 export function createCorsMiddleware(): MiddlewareHandler {
     return cors({
         origin: (origin) => {
-            // If no origin header (server-to-server), allow the request
+            // If no origin header (server-to-server), omit CORS headers
+            // Returning null allows the request without Access-Control-Allow-Origin header
+            // This is compatible with credentials: true (unlike '*')
             if (!origin) {
-                return '*';
+                return null;
             }
 
             try {

@@ -98,7 +98,7 @@ async function syncOpenAPISpec() {
         });
 
         // Fetch OpenAPI spec via app.fetch (no server needed!)
-        const req = new Request('http://localhost/openapi.json');
+        const req = new globalThis.Request('http://localhost/openapi.json');
         const res = await app.fetch(req);
 
         if (!res.ok) {

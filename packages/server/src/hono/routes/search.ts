@@ -104,7 +104,7 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
                                 hasMore: z
                                     .boolean()
                                     .describe(
-                                        'Whether there are more results beyond the current page'
+                                        'Always false - session search returns all matching sessions without pagination'
                                     ),
                                 query: z.string().describe('Query that was searched'),
                             })
