@@ -421,10 +421,84 @@
                   "properties": {
                     "config": {
                       "type": "object",
-                      "additionalProperties": {
-                        "nullable": true
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "openai",
+                            "openai-compatible",
+                            "anthropic",
+                            "google",
+                            "groq",
+                            "xai",
+                            "cohere"
+                          ],
+                          "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
+                        },
+                        "model": {
+                          "type": "string",
+                          "description": "Specific model name for the selected provider"
+                        },
+                        "apiKey": {
+                          "type": "string",
+                          "description": "API key for provider; can be given directly or via $ENV reference"
+                        },
+                        "maxIterations": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "default": 50
+                        },
+                        "router": {
+                          "type": "string",
+                          "enum": [
+                            "vercel",
+                            "in-built"
+                          ],
+                          "default": "vercel"
+                        },
+                        "baseURL": {
+                          "type": "string",
+                          "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
+                        },
+                        "maxInputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Max input tokens for history; required for unknown models"
+                        },
+                        "maxOutputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Max tokens for model output"
+                        },
+                        "temperature": {
+                          "type": "number",
+                          "nullable": true,
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "Randomness: 0 deterministic, 1 creative"
+                        },
+                        "allowedMediaTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "Human-readable model display name"
+                        }
                       },
-                      "description": "Current LLM configuration with all fields"
+                      "required": [
+                        "provider",
+                        "model",
+                        "apiKey"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Current LLM configuration"
                     }
                   },
                   "required": [
@@ -587,8 +661,287 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true,
-                  "description": "LLM catalog in grouped or flat format"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "providers": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "Provider display name"
+                              },
+                              "hasApiKey": {
+                                "type": "boolean",
+                                "description": "Whether API key is configured"
+                              },
+                              "primaryEnvVar": {
+                                "type": "string",
+                                "description": "Primary environment variable for API key"
+                              },
+                              "supportedRouters": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "vercel",
+                                    "in-built"
+                                  ]
+                                },
+                                "description": "Routing strategies supported by this provider"
+                              },
+                              "supportsBaseURL": {
+                                "type": "boolean",
+                                "description": "Whether custom base URLs are supported"
+                              },
+                              "models": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string",
+                                      "description": "Model name identifier"
+                                    },
+                                    "maxInputTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "exclusiveMinimum": true,
+                                      "description": "Maximum input tokens"
+                                    },
+                                    "default": {
+                                      "type": "boolean",
+                                      "description": "Whether this is a default model"
+                                    },
+                                    "supportedFileTypes": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "audio",
+                                          "pdf",
+                                          "image"
+                                        ]
+                                      },
+                                      "description": "File types this model supports"
+                                    },
+                                    "supportedRouters": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": [
+                                          "vercel",
+                                          "in-built"
+                                        ]
+                                      },
+                                      "description": "Routing strategies this model supports"
+                                    },
+                                    "displayName": {
+                                      "type": "string",
+                                      "description": "Human-readable display name"
+                                    },
+                                    "pricing": {
+                                      "type": "object",
+                                      "properties": {
+                                        "inputPerM": {
+                                          "type": "number",
+                                          "description": "Input cost per million tokens (USD)"
+                                        },
+                                        "outputPerM": {
+                                          "type": "number",
+                                          "description": "Output cost per million tokens (USD)"
+                                        },
+                                        "cacheReadPerM": {
+                                          "type": "number",
+                                          "description": "Cache read cost per million tokens"
+                                        },
+                                        "cacheWritePerM": {
+                                          "type": "number",
+                                          "description": "Cache write cost per million tokens"
+                                        },
+                                        "currency": {
+                                          "type": "string",
+                                          "enum": [
+                                            "USD"
+                                          ],
+                                          "description": "Currency"
+                                        },
+                                        "unit": {
+                                          "type": "string",
+                                          "enum": [
+                                            "per_million_tokens"
+                                          ],
+                                          "description": "Unit"
+                                        }
+                                      },
+                                      "required": [
+                                        "inputPerM",
+                                        "outputPerM"
+                                      ],
+                                      "description": "Pricing information in USD per million tokens"
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "maxInputTokens",
+                                    "supportedFileTypes"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Model information from LLM registry"
+                                },
+                                "description": "Models available from this provider"
+                              },
+                              "supportedFileTypes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "audio",
+                                    "pdf",
+                                    "image"
+                                  ]
+                                },
+                                "description": "Provider-level file type support"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "hasApiKey",
+                              "primaryEnvVar",
+                              "supportedRouters",
+                              "supportsBaseURL",
+                              "models",
+                              "supportedFileTypes"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Provider catalog entry with models and capabilities"
+                          },
+                          "description": "Providers grouped by ID with their models and capabilities"
+                        }
+                      },
+                      "required": [
+                        "providers"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Grouped catalog response (mode=grouped)"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "models": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "Model name identifier"
+                              },
+                              "maxInputTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Maximum input tokens"
+                              },
+                              "default": {
+                                "type": "boolean",
+                                "description": "Whether this is a default model"
+                              },
+                              "supportedFileTypes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "audio",
+                                    "pdf",
+                                    "image"
+                                  ]
+                                },
+                                "description": "File types this model supports"
+                              },
+                              "supportedRouters": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "vercel",
+                                    "in-built"
+                                  ]
+                                },
+                                "description": "Routing strategies this model supports"
+                              },
+                              "displayName": {
+                                "type": "string",
+                                "description": "Human-readable display name"
+                              },
+                              "pricing": {
+                                "type": "object",
+                                "properties": {
+                                  "inputPerM": {
+                                    "type": "number",
+                                    "description": "Input cost per million tokens (USD)"
+                                  },
+                                  "outputPerM": {
+                                    "type": "number",
+                                    "description": "Output cost per million tokens (USD)"
+                                  },
+                                  "cacheReadPerM": {
+                                    "type": "number",
+                                    "description": "Cache read cost per million tokens"
+                                  },
+                                  "cacheWritePerM": {
+                                    "type": "number",
+                                    "description": "Cache write cost per million tokens"
+                                  },
+                                  "currency": {
+                                    "type": "string",
+                                    "enum": [
+                                      "USD"
+                                    ],
+                                    "description": "Currency"
+                                  },
+                                  "unit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "per_million_tokens"
+                                    ],
+                                    "description": "Unit"
+                                  }
+                                },
+                                "required": [
+                                  "inputPerM",
+                                  "outputPerM"
+                                ],
+                                "description": "Pricing information in USD per million tokens"
+                              },
+                              "provider": {
+                                "type": "string",
+                                "description": "Provider identifier for this model"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "maxInputTokens",
+                              "supportedFileTypes",
+                              "provider"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Flattened model entry with provider information"
+                          },
+                          "description": "Flat list of all models with provider information"
+                        }
+                      },
+                      "required": [
+                        "models"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Flat catalog response (mode=flat)"
+                    }
+                  ],
+                  "description": "LLM catalog in grouped or flat format based on mode query parameter"
                 }
               }
             }
@@ -694,7 +1047,89 @@
           "content": {
             "application/json": {
               "schema": {
-                "nullable": true
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "sessionId": {
+                        "type": "string",
+                        "description": "Session identifier for session-specific LLM configuration"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "openai",
+                          "openai-compatible",
+                          "anthropic",
+                          "google",
+                          "groq",
+                          "xai",
+                          "cohere"
+                        ],
+                        "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
+                      },
+                      "model": {
+                        "type": "string",
+                        "description": "Specific model name for the selected provider"
+                      },
+                      "apiKey": {
+                        "type": "string",
+                        "description": "API key for provider; can be given directly or via $ENV reference"
+                      },
+                      "maxIterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "description": "Max iterations for agentic loops"
+                      },
+                      "router": {
+                        "type": "string",
+                        "enum": [
+                          "vercel",
+                          "in-built"
+                        ],
+                        "description": "Router to use (vercel | in-built)"
+                      },
+                      "baseURL": {
+                        "type": "string",
+                        "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
+                      },
+                      "maxInputTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "description": "Max input tokens for history; required for unknown models"
+                      },
+                      "maxOutputTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "description": "Max tokens for model output"
+                      },
+                      "temperature": {
+                        "type": "number",
+                        "nullable": true,
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Randomness: 0 deterministic, 1 creative"
+                      },
+                      "allowedMediaTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "LLM switch request body with optional session ID"
               }
             }
           }
@@ -709,10 +1144,80 @@
                   "properties": {
                     "config": {
                       "type": "object",
-                      "additionalProperties": {
-                        "nullable": true
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "openai",
+                            "openai-compatible",
+                            "anthropic",
+                            "google",
+                            "groq",
+                            "xai",
+                            "cohere"
+                          ],
+                          "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
+                        },
+                        "model": {
+                          "type": "string",
+                          "description": "Specific model name for the selected provider"
+                        },
+                        "apiKey": {
+                          "type": "string",
+                          "description": "API key for provider; can be given directly or via $ENV reference"
+                        },
+                        "maxIterations": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "default": 50
+                        },
+                        "router": {
+                          "type": "string",
+                          "enum": [
+                            "vercel",
+                            "in-built"
+                          ],
+                          "default": "vercel"
+                        },
+                        "baseURL": {
+                          "type": "string",
+                          "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
+                        },
+                        "maxInputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Max input tokens for history; required for unknown models"
+                        },
+                        "maxOutputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Max tokens for model output"
+                        },
+                        "temperature": {
+                          "type": "number",
+                          "nullable": true,
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "Randomness: 0 deterministic, 1 creative"
+                        },
+                        "allowedMediaTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                        }
                       },
-                      "description": "New LLM configuration with all fields"
+                      "required": [
+                        "provider",
+                        "model",
+                        "apiKey"
+                      ],
+                      "additionalProperties": false,
+                      "description": "New LLM configuration with all defaults applied"
                     },
                     "sessionId": {
                       "type": "string",
@@ -756,15 +1261,17 @@
                           },
                           "createdAt": {
                             "type": "integer",
+                            "nullable": true,
                             "minimum": 0,
                             "exclusiveMinimum": true,
-                            "description": "Creation timestamp (Unix ms)"
+                            "description": "Creation timestamp (Unix ms, null if unavailable)"
                           },
                           "lastActivity": {
                             "type": "integer",
+                            "nullable": true,
                             "minimum": 0,
                             "exclusiveMinimum": true,
-                            "description": "Last activity timestamp (Unix ms)"
+                            "description": "Last activity timestamp (Unix ms, null if unavailable)"
                           },
                           "messageCount": {
                             "type": "integer",
@@ -837,15 +1344,17 @@
                         },
                         "createdAt": {
                           "type": "integer",
+                          "nullable": true,
                           "minimum": 0,
                           "exclusiveMinimum": true,
-                          "description": "Creation timestamp (Unix ms)"
+                          "description": "Creation timestamp (Unix ms, null if unavailable)"
                         },
                         "lastActivity": {
                           "type": "integer",
+                          "nullable": true,
                           "minimum": 0,
                           "exclusiveMinimum": true,
-                          "description": "Last activity timestamp (Unix ms)"
+                          "description": "Last activity timestamp (Unix ms, null if unavailable)"
                         },
                         "messageCount": {
                           "type": "integer",
@@ -947,15 +1456,17 @@
                         },
                         "createdAt": {
                           "type": "integer",
+                          "nullable": true,
                           "minimum": 0,
                           "exclusiveMinimum": true,
-                          "description": "Creation timestamp (Unix ms)"
+                          "description": "Creation timestamp (Unix ms, null if unavailable)"
                         },
                         "lastActivity": {
                           "type": "integer",
+                          "nullable": true,
                           "minimum": 0,
                           "exclusiveMinimum": true,
-                          "description": "Last activity timestamp (Unix ms)"
+                          "description": "Last activity timestamp (Unix ms, null if unavailable)"
                         },
                         "messageCount": {
                           "type": "integer",
@@ -1098,15 +1609,17 @@
                         },
                         "createdAt": {
                           "type": "integer",
+                          "nullable": true,
                           "minimum": 0,
                           "exclusiveMinimum": true,
-                          "description": "Creation timestamp (Unix ms)"
+                          "description": "Creation timestamp (Unix ms, null if unavailable)"
                         },
                         "lastActivity": {
                           "type": "integer",
+                          "nullable": true,
                           "minimum": 0,
                           "exclusiveMinimum": true,
-                          "description": "Last activity timestamp (Unix ms)"
+                          "description": "Last activity timestamp (Unix ms, null if unavailable)"
                         },
                         "messageCount": {
                           "type": "integer",
@@ -1233,14 +1746,6 @@
                                           "description": "Part type: image"
                                         },
                                         "image": {
-                                          "anyOf": [
-                                            {
-                                              "type": "string"
-                                            },
-                                            {},
-                                            {},
-                                            {}
-                                          ],
                                           "description": "Image data (string, binary, or URL)"
                                         },
                                         "mimeType": {
@@ -1266,14 +1771,6 @@
                                           "description": "Part type: file"
                                         },
                                         "data": {
-                                          "anyOf": [
-                                            {
-                                              "type": "string"
-                                            },
-                                            {},
-                                            {},
-                                            {}
-                                          ],
                                           "description": "File data (string, binary, or URL)"
                                         },
                                         "mimeType": {
@@ -1690,14 +2187,6 @@
                                               "description": "Part type: image"
                                             },
                                             "image": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "string"
-                                                },
-                                                {},
-                                                {},
-                                                {}
-                                              ],
                                               "description": "Image data (string, binary, or URL)"
                                             },
                                             "mimeType": {
@@ -1723,14 +2212,6 @@
                                               "description": "Part type: file"
                                             },
                                             "data": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "string"
-                                                },
-                                                {},
-                                                {},
-                                                {}
-                                              ],
                                               "description": "File data (string, binary, or URL)"
                                             },
                                             "mimeType": {
@@ -2033,14 +2514,6 @@
                                                   "description": "Part type: image"
                                                 },
                                                 "image": {
-                                                  "anyOf": [
-                                                    {
-                                                      "type": "string"
-                                                    },
-                                                    {},
-                                                    {},
-                                                    {}
-                                                  ],
                                                   "description": "Image data (string, binary, or URL)"
                                                 },
                                                 "mimeType": {
@@ -2066,14 +2539,6 @@
                                                   "description": "Part type: file"
                                                 },
                                                 "data": {
-                                                  "anyOf": [
-                                                    {
-                                                      "type": "string"
-                                                    },
-                                                    {},
-                                                    {},
-                                                    {}
-                                                  ],
                                                   "description": "File data (string, binary, or URL)"
                                                 },
                                                 "mimeType": {
@@ -2775,8 +3240,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "nullable": true,
-                "description": "Tool execution parameters - schema will be tightened once tool input structure is standardised"
+                "type": "object",
+                "additionalProperties": {
+                  "nullable": true
+                },
+                "description": "Tool execution parameters as JSON object. The specific fields depend on the tool being executed and are defined by the tool's inputSchema."
               }
             }
           }
@@ -2871,8 +3339,7 @@
                           }
                         },
                         "required": [
-                          "uri",
-                          "name"
+                          "uri"
                         ],
                         "additionalProperties": false,
                         "description": "Resource metadata"
@@ -3844,8 +4311,7 @@
                           }
                         },
                         "required": [
-                          "uri",
-                          "name"
+                          "uri"
                         ],
                         "additionalProperties": false,
                         "description": "Resource metadata"
@@ -3927,8 +4393,7 @@
                               }
                             },
                             "required": [
-                              "uri",
-                              "mimeType"
+                              "uri"
                             ],
                             "additionalProperties": false,
                             "description": "Resource content item"
@@ -5297,15 +5762,15 @@
                   "properties": {
                     "path": {
                       "type": "string",
-                      "description": "Absolute file path to agent configuration"
+                      "description": "Absolute path to agent configuration file"
                     },
                     "relativePath": {
                       "type": "string",
-                      "description": "Base filename"
+                      "description": "Relative path or basename"
                     },
                     "name": {
                       "type": "string",
-                      "description": "Agent name (filename without extension)"
+                      "description": "Agent configuration filename without extension"
                     },
                     "isDefault": {
                       "type": "boolean",
@@ -5318,7 +5783,8 @@
                     "name",
                     "isDefault"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Agent file path information"
                 }
               }
             }
@@ -5347,11 +5813,11 @@
                     },
                     "path": {
                       "type": "string",
-                      "description": "Absolute file path to agent configuration"
+                      "description": "Absolute path to configuration file"
                     },
                     "relativePath": {
                       "type": "string",
-                      "description": "Base filename"
+                      "description": "Relative path or basename"
                     },
                     "lastModified": {
                       "type": "string",
@@ -5372,7 +5838,8 @@
                     "lastModified",
                     "warnings"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Agent configuration content"
                 }
               }
             }
@@ -5417,11 +5884,11 @@
                       "enum": [
                         true
                       ],
-                      "description": "Success indicator"
+                      "description": "Indicates successful save"
                     },
                     "path": {
                       "type": "string",
-                      "description": "Absolute file path to agent configuration"
+                      "description": "Path to saved configuration file"
                     },
                     "reloaded": {
                       "type": "boolean",
@@ -5436,11 +5903,11 @@
                       "items": {
                         "type": "string"
                       },
-                      "description": "List of configuration changes that were applied"
+                      "description": "List of changes that were applied"
                     },
                     "message": {
                       "type": "string",
-                      "description": "Human-readable status message"
+                      "description": "Success message"
                     }
                   },
                   "required": [
@@ -5451,7 +5918,8 @@
                     "changesApplied",
                     "message"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Configuration save result"
                 }
               }
             }
