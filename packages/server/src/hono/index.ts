@@ -158,6 +158,10 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
                 description: 'Access and manage resources from MCP servers and internal providers',
             },
             {
+                name: 'agent',
+                description: 'Current agent configuration and file operations',
+            },
+            {
                 name: 'agents',
                 description: 'Install, switch, and manage agent configurations',
             },
