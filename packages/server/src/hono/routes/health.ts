@@ -11,6 +11,8 @@ export function createHealthRouter(_getAgent: () => DextoAgent) {
     const route = createRoute({
         method: 'get',
         path: '/',
+        summary: 'Health Check',
+        description: 'Returns server health status',
         tags: ['system'],
         responses: {
             200: {

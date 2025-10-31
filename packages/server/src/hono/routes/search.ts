@@ -19,6 +19,8 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
     const messagesRoute = createRoute({
         method: 'get',
         path: '/search/messages',
+        summary: 'Search Messages',
+        description: 'Searches for messages across all sessions or within a specific session',
         tags: ['search'],
         request: { query: MessageSearchQuery },
         responses: {
@@ -45,6 +47,8 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
     const sessionsRoute = createRoute({
         method: 'get',
         path: '/search/sessions',
+        summary: 'Search Sessions',
+        description: 'Searches for sessions that contain the specified query',
         tags: ['search'],
         request: { query: SessionSearchQuery },
         responses: {

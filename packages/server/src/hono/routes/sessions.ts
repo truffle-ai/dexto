@@ -12,6 +12,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const listRoute = createRoute({
         method: 'get',
         path: '/sessions',
+        summary: 'List Sessions',
+        description: 'Retrieves a list of all active sessions',
         tags: ['sessions'],
         responses: {
             200: {
@@ -52,6 +54,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const createRouteDef = createRoute({
         method: 'post',
         path: '/sessions',
+        summary: 'Create Session',
+        description: 'Creates a new session',
         tags: ['sessions'],
         request: { body: { content: { 'application/json': { schema: CreateSessionSchema } } } },
         responses: {
@@ -83,6 +87,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const currentRoute = createRoute({
         method: 'get',
         path: '/sessions/current',
+        summary: 'Get Current Session',
+        description: 'Retrieves the ID of the currently active session',
         tags: ['sessions'],
         responses: {
             200: {
@@ -100,6 +106,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const getRoute = createRoute({
         method: 'get',
         path: '/sessions/{sessionId}',
+        summary: 'Get Session Details',
+        description: 'Fetches details for a specific session',
         tags: ['sessions'],
         request: { params: z.object({ sessionId: z.string() }) },
         responses: {
@@ -129,6 +137,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const historyRoute = createRoute({
         method: 'get',
         path: '/sessions/{sessionId}/history',
+        summary: 'Get Session History',
+        description: 'Retrieves the conversation history for a session',
         tags: ['sessions'],
         request: { params: z.object({ sessionId: z.string() }) },
         responses: {
@@ -148,6 +158,9 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const deleteRoute = createRoute({
         method: 'delete',
         path: '/sessions/{sessionId}',
+        summary: 'Delete Session',
+        description:
+            'Permanently deletes a session and all its conversation history. This action cannot be undone',
         tags: ['sessions'],
         request: { params: z.object({ sessionId: z.string() }) },
         responses: {
@@ -167,6 +180,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const cancelRoute = createRoute({
         method: 'post',
         path: '/sessions/{sessionId}/cancel',
+        summary: 'Cancel Session Run',
+        description: 'Cancels an in-flight agent run for the specified session',
         tags: ['sessions'],
         request: { params: z.object({ sessionId: z.string() }) },
         responses: {
@@ -189,6 +204,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const loadRoute = createRoute({
         method: 'post',
         path: '/sessions/{sessionId}/load',
+        summary: 'Load Session',
+        description: 'Sets a session as the current active session',
         tags: ['sessions'],
         request: {
             params: z.object({ sessionId: z.string() }),
@@ -224,6 +241,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     const patchRoute = createRoute({
         method: 'patch',
         path: '/sessions/{sessionId}',
+        summary: 'Update Session Title',
+        description: 'Updates the title of an existing session',
         tags: ['sessions'],
         request: {
             params: z.object({ sessionId: z.string() }),

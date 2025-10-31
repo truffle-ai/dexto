@@ -67,6 +67,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     const currentRoute = createRoute({
         method: 'get',
         path: '/llm/current',
+        summary: 'Get Current LLM Config',
+        description: 'Retrieves the current LLM configuration for the agent or a specific session',
         tags: ['llm'],
         request: { query: CurrentQuerySchema },
         responses: {
@@ -102,6 +104,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     const catalogRoute = createRoute({
         method: 'get',
         path: '/llm/catalog',
+        summary: 'LLM Catalog',
+        description: 'Providers, models, capabilities, and API key status',
         tags: ['llm'],
         request: { query: CatalogQuerySchema },
         responses: {
@@ -227,6 +231,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     const saveKeyRoute = createRoute({
         method: 'post',
         path: '/llm/key',
+        summary: 'Save Provider API Key',
+        description: 'Stores an API key for a provider in .env and makes it available immediately',
         tags: ['llm'],
         request: { body: { content: { 'application/json': { schema: SaveKeySchema } } } },
         responses: {
@@ -247,6 +253,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     const switchRoute = createRoute({
         method: 'post',
         path: '/llm/switch',
+        summary: 'Switch LLM',
+        description: 'Switches the LLM configuration for the agent or a specific session',
         tags: ['llm'],
         responses: {
             200: {

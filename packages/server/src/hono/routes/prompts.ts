@@ -45,6 +45,8 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
     const listRoute = createRoute({
         method: 'get',
         path: '/prompts',
+        summary: 'List Prompts',
+        description: 'Retrieves all available prompts, including both built-in and custom prompts',
         tags: ['prompts'],
         responses: {
             200: {
@@ -63,6 +65,9 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
     const createCustomRoute = createRoute({
         method: 'post',
         path: '/prompts/custom',
+        summary: 'Create Custom Prompt',
+        description:
+            'Creates a new custom prompt with optional resource attachment. Maximum request size: 10MB',
         tags: ['prompts'],
         request: {
             body: {
@@ -118,6 +123,8 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
     const deleteCustomRoute = createRoute({
         method: 'delete',
         path: '/prompts/custom/{name}',
+        summary: 'Delete Custom Prompt',
+        description: 'Permanently deletes a custom prompt. Built-in prompts cannot be deleted',
         tags: ['prompts'],
         request: {
             params: z.object({
@@ -145,6 +152,8 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
     const getPromptRoute = createRoute({
         method: 'get',
         path: '/prompts/{name}',
+        summary: 'Get Prompt Definition',
+        description: 'Fetches the definition for a specific prompt',
         tags: ['prompts'],
         request: {
             params: PromptNameParamSchema,
@@ -168,6 +177,9 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
     const resolvePromptRoute = createRoute({
         method: 'get',
         path: '/prompts/{name}/resolve',
+        summary: 'Resolve Prompt',
+        description:
+            'Resolves a prompt template with provided arguments and returns the final text with resources',
         tags: ['prompts'],
         request: {
             params: PromptNameParamSchema,

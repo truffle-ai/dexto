@@ -32,6 +32,8 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
     const createMemoryRoute = createRoute({
         method: 'post',
         path: '/memory',
+        summary: 'Create Memory',
+        description: 'Creates a new memory',
         tags: ['memory'],
         request: {
             body: {
@@ -73,6 +75,8 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
     const listRoute = createRoute({
         method: 'get',
         path: '/memory',
+        summary: 'List Memories',
+        description: 'Retrieves a list of all memories with optional filtering',
         tags: ['memory'],
         request: { query: ListMemoriesQuerySchema },
         responses: {
@@ -105,6 +109,8 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
     const getRoute = createRoute({
         method: 'get',
         path: '/memory/{id}',
+        summary: 'Get Memory by ID',
+        description: 'Retrieves a specific memory by its unique identifier',
         tags: ['memory'],
         request: {
             params: MemoryIdParamSchema,
@@ -126,6 +132,8 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
     const updateRoute = createRoute({
         method: 'put',
         path: '/memory/{id}',
+        summary: 'Update Memory',
+        description: 'Updates an existing memory. Only provided fields will be updated',
         tags: ['memory'],
         request: {
             params: MemoryIdParamSchema,
@@ -164,6 +172,8 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
     const deleteRoute = createRoute({
         method: 'delete',
         path: '/memory/{id}',
+        summary: 'Delete Memory',
+        description: 'Permanently deletes a memory. This action cannot be undone',
         tags: ['memory'],
         request: {
             params: MemoryIdParamSchema,

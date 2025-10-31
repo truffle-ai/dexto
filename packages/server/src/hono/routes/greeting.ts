@@ -11,6 +11,8 @@ export function createGreetingRouter(getAgent: () => DextoAgent) {
     const greetingRoute = createRoute({
         method: 'get',
         path: '/greeting',
+        summary: 'Get Greeting Message',
+        description: 'Retrieves the greeting message from the agent configuration',
         tags: ['config'],
         request: { query: querySchema.pick({ sessionId: true }) },
         responses: {

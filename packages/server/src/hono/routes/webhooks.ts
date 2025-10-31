@@ -19,6 +19,8 @@ export function createWebhooksRouter(
     const registerRoute = createRoute({
         method: 'post',
         path: '/webhooks',
+        summary: 'Register Webhook',
+        description: 'Registers a new webhook endpoint to receive agent events',
         tags: ['webhooks'],
         request: { body: { content: { 'application/json': { schema: WebhookBodySchema } } } },
         responses: {
@@ -59,6 +61,8 @@ export function createWebhooksRouter(
     const listRoute = createRoute({
         method: 'get',
         path: '/webhooks',
+        summary: 'List Webhooks',
+        description: 'Retrieves a list of all registered webhooks',
         tags: ['webhooks'],
         responses: {
             200: {
@@ -81,6 +85,8 @@ export function createWebhooksRouter(
     const getRoute = createRoute({
         method: 'get',
         path: '/webhooks/{webhookId}',
+        summary: 'Get Webhook Details',
+        description: 'Fetches details for a specific webhook',
         tags: ['webhooks'],
         request: { params: z.object({ webhookId: z.string() }) },
         responses: {
@@ -108,6 +114,8 @@ export function createWebhooksRouter(
     const deleteRoute = createRoute({
         method: 'delete',
         path: '/webhooks/{webhookId}',
+        summary: 'Delete Webhook',
+        description: 'Permanently removes a webhook endpoint. This action cannot be undone',
         tags: ['webhooks'],
         request: { params: z.object({ webhookId: z.string() }) },
         responses: {
@@ -128,6 +136,8 @@ export function createWebhooksRouter(
     const testRoute = createRoute({
         method: 'post',
         path: '/webhooks/{webhookId}/test',
+        summary: 'Test Webhook',
+        description: 'Sends a sample event to test webhook connectivity and configuration',
         tags: ['webhooks'],
         request: { params: z.object({ webhookId: z.string() }) },
         responses: {

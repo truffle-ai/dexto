@@ -135,6 +135,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const listRoute = createRoute({
         method: 'get',
         path: '/agents',
+        summary: 'List Agents',
+        description: 'Retrieves all agents (installed, available, and current active agent)',
         tags: ['agents'],
         responses: {
             200: {
@@ -156,6 +158,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const currentRoute = createRoute({
         method: 'get',
         path: '/agents/current',
+        summary: 'Get Current Agent',
+        description: 'Retrieves the currently active agent',
         tags: ['agents'],
         responses: {
             200: {
@@ -175,6 +179,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const installRoute = createRoute({
         method: 'post',
         path: '/agents/install',
+        summary: 'Install Agent',
+        description: 'Installs an agent from the registry or from a custom source',
         tags: ['agents'],
         request: {
             body: {
@@ -233,6 +239,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const switchRoute = createRoute({
         method: 'post',
         path: '/agents/switch',
+        summary: 'Switch Agent',
+        description: 'Switches to a different agent by ID or file path',
         tags: ['agents'],
         request: {
             body: {
@@ -262,6 +270,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const validateNameRoute = createRoute({
         method: 'post',
         path: '/agents/validate-name',
+        summary: 'Validate Agent Name',
+        description: 'Checks if an agent ID conflicts with existing agents',
         tags: ['agents'],
         request: {
             body: {
@@ -309,6 +319,9 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const uninstallRoute = createRoute({
         method: 'post',
         path: '/agents/uninstall',
+        summary: 'Uninstall Agent',
+        description:
+            'Removes an agent from the system. Custom agents are removed from registry; builtin agents can be reinstalled',
         tags: ['agents'],
         request: {
             body: {
@@ -335,6 +348,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const customCreateRoute = createRoute({
         method: 'post',
         path: '/agents/custom/create',
+        summary: 'Create Custom Agent',
+        description: 'Creates a new custom agent from scratch via the UI/API',
         tags: ['agents'],
         request: {
             body: {
@@ -416,6 +431,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const getPathRoute = createRoute({
         method: 'get',
         path: '/agent/path',
+        summary: 'Get Agent File Path',
+        description: 'Retrieves the file path of the currently active agent configuration',
         tags: ['agent'],
         responses: {
             200: {
@@ -443,6 +460,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const getConfigRoute = createRoute({
         method: 'get',
         path: '/agent/config',
+        summary: 'Get Agent Configuration',
+        description: 'Retrieves the raw YAML configuration of the currently active agent',
         tags: ['agent'],
         responses: {
             200: {
@@ -478,6 +497,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const validateConfigRoute = createRoute({
         method: 'post',
         path: '/agent/validate',
+        summary: 'Validate Agent Configuration',
+        description: 'Validates YAML agent configuration without saving it',
         tags: ['agent'],
         request: {
             body: {
@@ -554,6 +575,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const saveConfigRoute = createRoute({
         method: 'post',
         path: '/agent/config',
+        summary: 'Save Agent Configuration',
+        description: 'Saves and applies YAML agent configuration. Creates backup before saving',
         tags: ['agent'],
         request: {
             body: {
@@ -660,6 +683,8 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     const exportConfigRoute = createRoute({
         method: 'get',
         path: '/agent/config/export',
+        summary: 'Export Agent Configuration',
+        description: 'Exports the effective agent configuration with sensitive values redacted',
         tags: ['agent'],
         request: {
             query: z.object({

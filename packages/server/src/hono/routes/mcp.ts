@@ -16,6 +16,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const addServerRoute = createRoute({
         method: 'post',
         path: '/mcp/servers',
+        summary: 'Add MCP Server',
+        description: 'Connects a new MCP server dynamically',
         tags: ['mcp'],
         request: { body: { content: { 'application/json': { schema: McpServerRequestSchema } } } },
         responses: {
@@ -61,6 +63,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const listServersRoute = createRoute({
         method: 'get',
         path: '/mcp/servers',
+        summary: 'List MCP Servers',
+        description: 'Gets a list of all connected and failed MCP servers',
         tags: ['mcp'],
         responses: {
             200: {
@@ -86,6 +90,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const toolsRoute = createRoute({
         method: 'get',
         path: '/mcp/servers/{serverId}/tools',
+        summary: 'List Server Tools',
+        description: 'Retrieves the list of tools available on a specific MCP server',
         tags: ['mcp'],
         request: { params: z.object({ serverId: z.string() }) },
         responses: {
@@ -116,6 +122,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const deleteServerRoute = createRoute({
         method: 'delete',
         path: '/mcp/servers/{serverId}',
+        summary: 'Remove MCP Server',
+        description: 'Disconnects and removes an MCP server',
         tags: ['mcp'],
         request: { params: z.object({ serverId: z.string() }) },
         responses: {
@@ -142,6 +150,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const restartServerRoute = createRoute({
         method: 'post',
         path: '/mcp/servers/{serverId}/restart',
+        summary: 'Restart MCP Server',
+        description: 'Restarts a connected MCP server',
         tags: ['mcp'],
         request: { params: z.object({ serverId: z.string() }) },
         responses: {
@@ -170,6 +180,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const execToolRoute = createRoute({
         method: 'post',
         path: '/mcp/servers/{serverId}/tools/{toolName}/execute',
+        summary: 'Execute MCP Tool',
+        description: 'Executes a tool on an MCP server directly',
         tags: ['mcp'],
         request: {
             params: z.object({ serverId: z.string(), toolName: z.string() }),
@@ -199,6 +211,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const listResourcesRoute = createRoute({
         method: 'get',
         path: '/mcp/servers/{serverId}/resources',
+        summary: 'List Server Resources',
+        description: 'Retrieves all resources available from a specific MCP server',
         tags: ['mcp'],
         request: { params: z.object({ serverId: z.string() }) },
         responses: {
@@ -223,6 +237,9 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     const getResourceContentRoute = createRoute({
         method: 'get',
         path: '/mcp/servers/{serverId}/resources/{resourceId}/content',
+        summary: 'Read Server Resource Content',
+        description:
+            'Reads content from a specific resource on an MCP server. This endpoint automatically constructs the qualified URI format (mcp:serverId:resourceId)',
         tags: ['mcp'],
         request: {
             params: z.object({

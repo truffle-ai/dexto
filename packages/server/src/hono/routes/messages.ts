@@ -39,6 +39,9 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
     const messageRoute = createRoute({
         method: 'post',
         path: '/message',
+        summary: 'Send Message (async)',
+        description:
+            'Sends a message and returns immediately. The full response will be sent over WebSocket',
         tags: ['messages'],
         request: {
             body: {
@@ -88,6 +91,8 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
     const messageSyncRoute = createRoute({
         method: 'post',
         path: '/message-sync',
+        summary: 'Send Message (sync)',
+        description: 'Sends a message and waits for the full response',
         tags: ['messages'],
         request: {
             body: { content: { 'application/json': { schema: MessageBodySchema } } },
@@ -134,6 +139,8 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
     const resetRoute = createRoute({
         method: 'post',
         path: '/reset',
+        summary: 'Reset Conversation',
+        description: 'Resets the conversation history for a given session',
         tags: ['messages'],
         request: {
             body: { content: { 'application/json': { schema: ResetBodySchema } } },

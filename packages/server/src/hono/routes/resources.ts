@@ -14,6 +14,9 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
     const listRoute = createRoute({
         method: 'get',
         path: '/resources',
+        summary: 'List All Resources',
+        description:
+            'Retrieves a list of all available resources from all sources (MCP servers and internal providers)',
         tags: ['resources'],
         responses: {
             200: {
@@ -31,6 +34,9 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
     const getContentRoute = createRoute({
         method: 'get',
         path: '/resources/{resourceId}/content',
+        summary: 'Read Resource Content',
+        description:
+            'Reads the content of a specific resource by its URI. The resource ID in the URL must be URI-encoded',
         tags: ['resources'],
         request: {
             params: ResourceIdParamSchema,
@@ -52,6 +58,8 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
     const headRoute = createRoute({
         method: 'head',
         path: '/resources/{resourceId}',
+        summary: 'Check Resource Exists',
+        description: 'Checks if a resource exists by its URI without retrieving its content',
         tags: ['resources'],
         request: {
             params: ResourceIdParamSchema,

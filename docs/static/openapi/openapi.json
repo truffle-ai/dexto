@@ -12,6 +12,8 @@
   "paths": {
     "/health": {
       "get": {
+        "summary": "Health Check",
+        "description": "Returns server health status",
         "tags": [
           "system"
         ],
@@ -32,6 +34,8 @@
     },
     "/api/greeting": {
       "get": {
+        "summary": "Get Greeting Message",
+        "description": "Retrieves the greeting message from the agent configuration",
         "tags": [
           "config"
         ],
@@ -61,6 +65,8 @@
     },
     "/api/message": {
       "post": {
+        "summary": "Send Message (async)",
+        "description": "Sends a message and returns immediately. The full response will be sent over WebSocket",
         "tags": [
           "messages"
         ],
@@ -136,6 +142,8 @@
     },
     "/api/message-sync": {
       "post": {
+        "summary": "Send Message (sync)",
+        "description": "Sends a message and waits for the full response",
         "tags": [
           "messages"
         ],
@@ -211,6 +219,8 @@
     },
     "/api/reset": {
       "post": {
+        "summary": "Reset Conversation",
+        "description": "Resets the conversation history for a given session",
         "tags": [
           "messages"
         ],
@@ -244,6 +254,8 @@
     },
     "/api/llm/current": {
       "get": {
+        "summary": "Get Current LLM Config",
+        "description": "Retrieves the current LLM configuration for the agent or a specific session",
         "tags": [
           "llm"
         ],
@@ -273,6 +285,8 @@
     },
     "/api/llm/catalog": {
       "get": {
+        "summary": "LLM Catalog",
+        "description": "Providers, models, capabilities, and API key status",
         "tags": [
           "llm"
         ],
@@ -416,6 +430,8 @@
     },
     "/api/llm/key": {
       "post": {
+        "summary": "Save Provider API Key",
+        "description": "Stores an API key for a provider in .env and makes it available immediately",
         "tags": [
           "llm"
         ],
@@ -466,6 +482,8 @@
     },
     "/api/llm/switch": {
       "post": {
+        "summary": "Switch LLM",
+        "description": "Switches the LLM configuration for the agent or a specific session",
         "tags": [
           "llm"
         ],
@@ -494,6 +512,8 @@
     },
     "/api/sessions": {
       "get": {
+        "summary": "List Sessions",
+        "description": "Retrieves a list of all active sessions",
         "tags": [
           "sessions"
         ],
@@ -511,6 +531,8 @@
         }
       },
       "post": {
+        "summary": "Create Session",
+        "description": "Creates a new session",
         "tags": [
           "sessions"
         ],
@@ -544,6 +566,8 @@
     },
     "/api/sessions/current": {
       "get": {
+        "summary": "Get Current Session",
+        "description": "Retrieves the ID of the currently active session",
         "tags": [
           "sessions"
         ],
@@ -563,6 +587,8 @@
     },
     "/api/sessions/{sessionId}": {
       "get": {
+        "summary": "Get Session Details",
+        "description": "Fetches details for a specific session",
         "tags": [
           "sessions"
         ],
@@ -590,6 +616,8 @@
         }
       },
       "delete": {
+        "summary": "Delete Session",
+        "description": "Permanently deletes a session and all its conversation history. This action cannot be undone",
         "tags": [
           "sessions"
         ],
@@ -617,6 +645,8 @@
         }
       },
       "patch": {
+        "summary": "Update Session Title",
+        "description": "Updates the title of an existing session",
         "tags": [
           "sessions"
         ],
@@ -665,6 +695,8 @@
     },
     "/api/sessions/{sessionId}/history": {
       "get": {
+        "summary": "Get Session History",
+        "description": "Retrieves the conversation history for a session",
         "tags": [
           "sessions"
         ],
@@ -694,6 +726,8 @@
     },
     "/api/sessions/{sessionId}/cancel": {
       "post": {
+        "summary": "Cancel Session Run",
+        "description": "Cancels an in-flight agent run for the specified session",
         "tags": [
           "sessions"
         ],
@@ -723,6 +757,8 @@
     },
     "/api/sessions/{sessionId}/load": {
       "post": {
+        "summary": "Load Session",
+        "description": "Sets a session as the current active session",
         "tags": [
           "sessions"
         ],
@@ -762,6 +798,8 @@
     },
     "/api/search/messages": {
       "get": {
+        "summary": "Search Messages",
+        "description": "Searches for messages across all sessions or within a specific session",
         "tags": [
           "search"
         ],
@@ -834,6 +872,8 @@
     },
     "/api/search/sessions": {
       "get": {
+        "summary": "Search Sessions",
+        "description": "Searches for sessions that contain the specified query",
         "tags": [
           "search"
         ],
@@ -864,6 +904,8 @@
     },
     "/api/mcp/servers": {
       "post": {
+        "summary": "Add MCP Server",
+        "description": "Connects a new MCP server dynamically",
         "tags": [
           "mcp"
         ],
@@ -1038,6 +1080,8 @@
         }
       },
       "get": {
+        "summary": "List MCP Servers",
+        "description": "Gets a list of all connected and failed MCP servers",
         "tags": [
           "mcp"
         ],
@@ -1057,6 +1101,8 @@
     },
     "/api/mcp/servers/{serverId}/tools": {
       "get": {
+        "summary": "List Server Tools",
+        "description": "Retrieves the list of tools available on a specific MCP server",
         "tags": [
           "mcp"
         ],
@@ -1089,6 +1135,8 @@
     },
     "/api/mcp/servers/{serverId}": {
       "delete": {
+        "summary": "Remove MCP Server",
+        "description": "Disconnects and removes an MCP server",
         "tags": [
           "mcp"
         ],
@@ -1121,6 +1169,8 @@
     },
     "/api/mcp/servers/{serverId}/restart": {
       "post": {
+        "summary": "Restart MCP Server",
+        "description": "Restarts a connected MCP server",
         "tags": [
           "mcp"
         ],
@@ -1153,6 +1203,8 @@
     },
     "/api/mcp/servers/{serverId}/tools/{toolName}/execute": {
       "post": {
+        "summary": "Execute MCP Tool",
+        "description": "Executes a tool on an MCP server directly",
         "tags": [
           "mcp"
         ],
@@ -1202,6 +1254,8 @@
     },
     "/api/mcp/servers/{serverId}/resources": {
       "get": {
+        "summary": "List Server Resources",
+        "description": "Retrieves all resources available from a specific MCP server",
         "tags": [
           "mcp"
         ],
@@ -1234,6 +1288,8 @@
     },
     "/api/mcp/servers/{serverId}/resources/{resourceId}/content": {
       "get": {
+        "summary": "Read Server Resource Content",
+        "description": "Reads content from a specific resource on an MCP server. This endpoint automatically constructs the qualified URI format (mcp:serverId:resourceId)",
         "tags": [
           "mcp"
         ],
@@ -1275,6 +1331,8 @@
     },
     "/api/webhooks": {
       "post": {
+        "summary": "Register Webhook",
+        "description": "Registers a new webhook endpoint to receive agent events",
         "tags": [
           "webhooks"
         ],
@@ -1316,6 +1374,8 @@
         }
       },
       "get": {
+        "summary": "List Webhooks",
+        "description": "Retrieves a list of all registered webhooks",
         "tags": [
           "webhooks"
         ],
@@ -1335,6 +1395,8 @@
     },
     "/api/webhooks/{webhookId}": {
       "get": {
+        "summary": "Get Webhook Details",
+        "description": "Fetches details for a specific webhook",
         "tags": [
           "webhooks"
         ],
@@ -1365,6 +1427,8 @@
         }
       },
       "delete": {
+        "summary": "Delete Webhook",
+        "description": "Permanently removes a webhook endpoint. This action cannot be undone",
         "tags": [
           "webhooks"
         ],
@@ -1397,6 +1461,8 @@
     },
     "/api/webhooks/{webhookId}/test": {
       "post": {
+        "summary": "Test Webhook",
+        "description": "Sends a sample event to test webhook connectivity and configuration",
         "tags": [
           "webhooks"
         ],
@@ -1429,6 +1495,8 @@
     },
     "/api/prompts": {
       "get": {
+        "summary": "List Prompts",
+        "description": "Retrieves all available prompts, including both built-in and custom prompts",
         "tags": [
           "prompts"
         ],
@@ -1448,6 +1516,8 @@
     },
     "/api/prompts/custom": {
       "post": {
+        "summary": "Create Custom Prompt",
+        "description": "Creates a new custom prompt with optional resource attachment. Maximum request size: 10MB",
         "tags": [
           "prompts"
         ],
@@ -1540,6 +1610,8 @@
     },
     "/api/prompts/custom/{name}": {
       "delete": {
+        "summary": "Delete Custom Prompt",
+        "description": "Permanently deletes a custom prompt. Built-in prompts cannot be deleted",
         "tags": [
           "prompts"
         ],
@@ -1563,6 +1635,8 @@
     },
     "/api/prompts/{name}": {
       "get": {
+        "summary": "Get Prompt Definition",
+        "description": "Fetches the definition for a specific prompt",
         "tags": [
           "prompts"
         ],
@@ -1596,6 +1670,8 @@
     },
     "/api/prompts/{name}/resolve": {
       "get": {
+        "summary": "Resolve Prompt",
+        "description": "Resolves a prompt template with provided arguments and returns the final text with resources",
         "tags": [
           "prompts"
         ],
@@ -1645,6 +1721,8 @@
     },
     "/api/resources": {
       "get": {
+        "summary": "List All Resources",
+        "description": "Retrieves a list of all available resources from all sources (MCP servers and internal providers)",
         "tags": [
           "resources"
         ],
@@ -1664,6 +1742,8 @@
     },
     "/api/resources/{resourceId}/content": {
       "get": {
+        "summary": "Read Resource Content",
+        "description": "Reads the content of a specific resource by its URI. The resource ID in the URL must be URI-encoded",
         "tags": [
           "resources"
         ],
@@ -1694,6 +1774,8 @@
     },
     "/api/resources/{resourceId}": {
       "head": {
+        "summary": "Check Resource Exists",
+        "description": "Checks if a resource exists by its URI without retrieving its content",
         "tags": [
           "resources"
         ],
@@ -1720,6 +1802,8 @@
     },
     "/api/memory": {
       "post": {
+        "summary": "Create Memory",
+        "description": "Creates a new memory",
         "tags": [
           "memory"
         ],
@@ -1787,6 +1871,8 @@
         }
       },
       "get": {
+        "summary": "List Memories",
+        "description": "Retrieves a list of all memories with optional filtering",
         "tags": [
           "memory"
         ],
@@ -1852,6 +1938,8 @@
     },
     "/api/memory/{id}": {
       "get": {
+        "summary": "Get Memory by ID",
+        "description": "Retrieves a specific memory by its unique identifier",
         "tags": [
           "memory"
         ],
@@ -1880,6 +1968,8 @@
         }
       },
       "put": {
+        "summary": "Update Memory",
+        "description": "Updates an existing memory. Only provided fields will be updated",
         "tags": [
           "memory"
         ],
@@ -1955,6 +2045,8 @@
         }
       },
       "delete": {
+        "summary": "Delete Memory",
+        "description": "Permanently deletes a memory. This action cannot be undone",
         "tags": [
           "memory"
         ],
