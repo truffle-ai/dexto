@@ -207,7 +207,8 @@
                     ],
                     "description": "Optional file data to include with the message"
                   }
-                }
+                },
+                "description": "Request body for sending a message to the agent"
               }
             }
           }
@@ -309,7 +310,8 @@
                     ],
                     "description": "Optional file data to include with the message"
                   }
-                }
+                },
+                "description": "Request body for sending a message to the agent"
               }
             }
           }
@@ -363,7 +365,8 @@
                     "type": "string",
                     "description": "The ID of the session to reset"
                   }
-                }
+                },
+                "description": "Request body for resetting a conversation"
               }
             }
           }
@@ -988,7 +991,8 @@
                 "required": [
                   "provider",
                   "apiKey"
-                ]
+                ],
+                "description": "Request body for saving a provider API key"
               }
             }
           }
@@ -1326,7 +1330,8 @@
                     "type": "string",
                     "description": "A custom ID for the new session"
                   }
-                }
+                },
+                "description": "Request body for creating a new session"
               }
             }
           }
@@ -2749,7 +2754,7 @@
                     },
                     "hasMore": {
                       "type": "boolean",
-                      "description": "Whether there are more results beyond the current page"
+                      "description": "Always false - session search returns all matching sessions without pagination"
                     },
                     "query": {
                       "type": "string",
@@ -2933,7 +2938,8 @@
                 "required": [
                   "name",
                   "config"
-                ]
+                ],
+                "description": "Request body for adding or updating an MCP server"
               }
             }
           }
@@ -3466,7 +3472,8 @@
                 },
                 "required": [
                   "url"
-                ]
+                ],
+                "description": "Request body for registering a webhook"
               }
             }
           }
@@ -3983,7 +3990,8 @@
                   "name",
                   "content"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Request body for creating a custom prompt with optional resource attachment"
               }
             }
           }
@@ -5337,7 +5345,8 @@
                           "author",
                           "tags"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "description": "Agent metadata including description, author, and tags"
                       },
                       "injectPreferences": {
                         "type": "boolean",
@@ -5350,7 +5359,8 @@
                       "sourcePath",
                       "metadata"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Request body for installing a custom agent from file system"
                   },
                   {
                     "type": "object",
@@ -5368,7 +5378,8 @@
                     "required": [
                       "id"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Agent identifier for switching agents by ID or file path"
                   }
                 ]
               }
@@ -5448,7 +5459,8 @@
                 "required": [
                   "id"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Agent identifier for switching agents by ID or file path"
               }
             }
           }
@@ -5517,7 +5529,8 @@
                 "required": [
                   "id"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Agent identifier for switching agents by ID or file path"
               }
             }
           }
@@ -5582,7 +5595,8 @@
                 "required": [
                   "id"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Request body for uninstalling an agent"
               }
             }
           }
@@ -5707,7 +5721,8 @@
                   "llm",
                   "systemPrompt"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Request body for creating a new agent with minimal configuration"
               }
             }
           }
@@ -5870,7 +5885,8 @@
                 },
                 "required": [
                   "yaml"
-                ]
+                ],
+                "description": "Request body for saving agent configuration YAML"
               }
             }
           }
@@ -5952,7 +5968,8 @@
                 },
                 "required": [
                   "yaml"
-                ]
+                ],
+                "description": "Request body for validating agent configuration YAML"
               }
             }
           }
