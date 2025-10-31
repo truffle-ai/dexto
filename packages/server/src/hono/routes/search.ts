@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import { SearchResultSchema, SessionSearchResultSchema } from '../schemas/responses.js';
 
 const MessageSearchQuery = z.object({
     q: z.string().min(1, 'Search query is required').describe('Search query string'),
@@ -38,7 +39,29 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Message search results',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                results: z
+                                    .array(SearchResultSchema)
+                                    .describe('Array of search results'),
+                                total: z
+                                    .number()
+                                    .int()
+                                    .nonnegative()
+                                    .describe('Total number of results available'),
+                                hasMore: z
+                                    .boolean()
+                                    .describe(
+                                        'Whether there are more results beyond the current page'
+                                    ),
+                                query: z.string().describe('Query that was searched'),
+                            })
+                            .strict()
+                            .describe('Message search response'),
+                    },
+                },
             },
         },
     });
@@ -66,7 +89,29 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Session search results',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                results: z
+                                    .array(SessionSearchResultSchema)
+                                    .describe('Array of session search results'),
+                                total: z
+                                    .number()
+                                    .int()
+                                    .nonnegative()
+                                    .describe('Total number of sessions with matches'),
+                                hasMore: z
+                                    .boolean()
+                                    .describe(
+                                        'Whether there are more results beyond the current page'
+                                    ),
+                                query: z.string().describe('Query that was searched'),
+                            })
+                            .strict()
+                            .describe('Session search response'),
+                    },
+                },
             },
         },
     });

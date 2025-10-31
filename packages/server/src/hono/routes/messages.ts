@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
+import { InternalMessageSchema } from '../schemas/responses.js';
 
 const MessageBodySchema = z
     .object({
@@ -56,7 +57,16 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
         responses: {
             202: {
                 description: 'Message queued',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                response: z.string().describe('Agent response text'),
+                                sessionId: z.string().describe('Session ID used for this message'),
+                            })
+                            .strict(),
+                    },
+                },
             },
             400: { description: 'Validation error' },
         },
@@ -105,7 +115,16 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Synchronous response',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                response: z.string().describe('Agent response text'),
+                                sessionId: z.string().describe('Session ID used for this message'),
+                            })
+                            .strict(),
+                    },
+                },
             },
             400: { description: 'Validation error' },
         },
@@ -153,7 +172,21 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Reset initiated',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                status: z
+                                    .string()
+                                    .describe('Status message indicating reset was initiated'),
+                                sessionId: z
+                                    .string()
+                                    .optional()
+                                    .describe('Session ID that was reset (if specified)'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });

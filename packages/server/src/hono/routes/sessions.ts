@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
+import { SessionMetadataSchema, InternalMessageSchema } from '../schemas/responses.js';
 
 const CreateSessionSchema = z.object({
     sessionId: z.string().optional().describe('A custom ID for the new session'),
@@ -17,8 +18,18 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         tags: ['sessions'],
         responses: {
             200: {
-                description: 'List sessions',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'List of all active sessions',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                sessions: z
+                                    .array(SessionMetadataSchema)
+                                    .describe('Array of session metadata objects'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -60,8 +71,18 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         request: { body: { content: { 'application/json': { schema: CreateSessionSchema } } } },
         responses: {
             201: {
-                description: 'Session created',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Session created successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                session: SessionMetadataSchema.describe(
+                                    'Newly created session metadata'
+                                ),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -92,8 +113,19 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         tags: ['sessions'],
         responses: {
             200: {
-                description: 'Current session',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Current active session ID',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                currentSessionId: z
+                                    .string()
+                                    .nullable()
+                                    .describe('ID of the current session, or null if none'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -112,8 +144,24 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
-                description: 'Session details',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Session details with metadata',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                session: SessionMetadataSchema.extend({
+                                    history: z
+                                        .number()
+                                        .int()
+                                        .nonnegative()
+                                        .describe('Number of messages in history'),
+                                })
+                                    .strict()
+                                    .describe('Session metadata with history count'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -143,8 +191,18 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
-                description: 'Session history',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Session conversation history',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                history: z
+                                    .array(InternalMessageSchema)
+                                    .describe('Array of messages in conversation history'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -165,8 +223,17 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
-                description: 'Session deleted',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Session deleted successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                status: z.literal('deleted').describe('Deletion status'),
+                                sessionId: z.string().describe('ID of the deleted session'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -186,8 +253,17 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
-                description: 'Cancel in-flight run',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Cancel operation result',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                cancelled: z.boolean().describe('Whether a run was cancelled'),
+                                sessionId: z.string().describe('Session ID'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -213,8 +289,24 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         },
         responses: {
             200: {
-                description: 'Session loaded/reset',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Session loaded or reset successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                status: z.enum(['loaded', 'reset']).describe('Operation status'),
+                                sessionId: z
+                                    .string()
+                                    .nullable()
+                                    .describe('Loaded session ID or null if reset'),
+                                currentSession: z
+                                    .string()
+                                    .nullable()
+                                    .describe('Current active session ID'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -262,8 +354,16 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         },
         responses: {
             200: {
-                description: 'Session updated',
-                content: { 'application/json': { schema: z.any() } },
+                description: 'Session updated successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                session: SessionMetadataSchema.describe('Updated session metadata'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
