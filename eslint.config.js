@@ -2,6 +2,7 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
+import requireZodDescribe from './eslint-rules/require-zod-describe.js';
 
 export default [
     // Base config for all files
@@ -12,7 +13,7 @@ export default [
         }
     },
 
-    // TypeScript specific config
+    // TypeScript specific config (general rules)
     {
         files: ['**/*.ts'],
         languageOptions: {
@@ -76,6 +77,31 @@ export default [
                 {
                     selector: 'TSTypeReference[typeName.type="TSQualifiedName"][typeName.left.name="z"][typeName.right.name="infer"]',
                     message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
+                },
+            ],
+        },
+    },
+
+    // Zod .describe() enforcement for API route files only
+    {
+        files: ['**/server/src/**/*.ts', '**/api/routes/**/*.ts'],
+        plugins: {
+            'dexto-custom': {
+                rules: {
+                    'require-zod-describe': requireZodDescribe,
+                },
+            },
+        },
+        rules: {
+            // Enforce .describe() on Zod schemas for OpenAPI documentation
+            // Only applies to API route files where OpenAPI docs are generated
+            'dexto-custom/require-zod-describe': [
+                'error',
+                {
+                    exemptSchemaNames: [
+                        // Add schema names here that should be exempt from requiring .describe()
+                        // Example: 'TestMockSchema', 'InternalConfigSchema'
+                    ],
                 },
             ],
         },

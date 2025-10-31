@@ -11,7 +11,11 @@ const McpServerRequestSchema = z.object({
         .describe('If true, saves the server to agent configuration file'),
 });
 
-const ExecuteToolBodySchema = z.any(); // TODO: tighten schema once tool input structure is standardised.
+const ExecuteToolBodySchema = z
+    .any()
+    .describe(
+        'Tool execution parameters - schema will be tightened once tool input structure is standardised'
+    );
 
 export function createMcpRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
