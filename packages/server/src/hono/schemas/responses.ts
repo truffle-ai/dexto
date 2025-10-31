@@ -211,44 +211,66 @@ export type Webhook = z.output<typeof WebhookSchema>;
 
 // --- LLM Provider/Model Schemas ---
 
-export const ModelInfoSchema = z
+// Schema for ModelInfo from core registry
+export const CatalogModelInfoSchema = z
     .object({
-        id: z.string().describe('Model identifier'),
-        name: z.string().describe('Human-readable model name'),
-        provider: z.string().describe('Provider name'),
-        maxInputTokens: z
-            .number()
-            .int()
-            .positive()
+        name: z.string().describe('Model name identifier'),
+        maxInputTokens: z.number().int().positive().describe('Maximum input tokens'),
+        default: z.boolean().optional().describe('Whether this is a default model'),
+        supportedFileTypes: z
+            .array(z.enum(['audio', 'pdf', 'image']))
+            .describe('File types this model supports'),
+        supportedRouters: z
+            .array(z.enum(['vercel', 'in-built']))
             .optional()
-            .describe('Maximum input tokens supported'),
-        maxOutputTokens: z
-            .number()
-            .int()
-            .positive()
+            .describe('Routing strategies this model supports'),
+        displayName: z.string().optional().describe('Human-readable display name'),
+        pricing: z
+            .object({
+                inputPerM: z.number().describe('Input cost per million tokens (USD)'),
+                outputPerM: z.number().describe('Output cost per million tokens (USD)'),
+                cacheReadPerM: z.number().optional().describe('Cache read cost per million tokens'),
+                cacheWritePerM: z
+                    .number()
+                    .optional()
+                    .describe('Cache write cost per million tokens'),
+                currency: z.literal('USD').optional().describe('Currency'),
+                unit: z.literal('per_million_tokens').optional().describe('Unit'),
+            })
             .optional()
-            .describe('Maximum output tokens supported'),
-        supportsStreaming: z.boolean().optional().describe('Whether streaming is supported'),
-        supportsVision: z.boolean().optional().describe('Whether vision/images are supported'),
-        supportsToolCalling: z.boolean().optional().describe('Whether tool calling is supported'),
+            .describe('Pricing information in USD per million tokens'),
     })
     .strict()
-    .describe('Information about an LLM model');
+    .describe('Model information from LLM registry');
 
-export type ModelInfo = z.output<typeof ModelInfoSchema>;
+export type CatalogModelInfo = z.output<typeof CatalogModelInfoSchema>;
 
-export const ProviderInfoSchema = z
+// Schema for ProviderCatalog returned by /llm/catalog (grouped mode)
+export const ProviderCatalogSchema = z
     .object({
-        id: z.string().describe('Provider identifier'),
-        name: z.string().describe('Human-readable provider name'),
-        models: z.array(z.string()).describe('List of supported model IDs'),
-        requiresApiKey: z.boolean().describe('Whether this provider requires an API key'),
-        supportsBaseURL: z.boolean().describe('Whether this provider supports custom base URLs'),
+        name: z.string().describe('Provider display name'),
+        hasApiKey: z.boolean().describe('Whether API key is configured'),
+        primaryEnvVar: z.string().describe('Primary environment variable for API key'),
+        supportedRouters: z
+            .array(z.enum(['vercel', 'in-built']))
+            .describe('Routing strategies supported by this provider'),
+        supportsBaseURL: z.boolean().describe('Whether custom base URLs are supported'),
+        models: z.array(CatalogModelInfoSchema).describe('Models available from this provider'),
+        supportedFileTypes: z
+            .array(z.enum(['audio', 'pdf', 'image']))
+            .describe('Provider-level file type support'),
     })
     .strict()
-    .describe('Information about an LLM provider');
+    .describe('Provider catalog entry with models and capabilities');
 
-export type ProviderInfo = z.output<typeof ProviderInfoSchema>;
+export type ProviderCatalog = z.output<typeof ProviderCatalogSchema>;
+
+// Schema for flat model list (includes provider field)
+export const ModelFlatSchema = CatalogModelInfoSchema.extend({
+    provider: z.string().describe('Provider identifier for this model'),
+}).describe('Flattened model entry with provider information');
+
+export type ModelFlat = z.output<typeof ModelFlatSchema>;
 
 // --- Agent Registry Schemas ---
 

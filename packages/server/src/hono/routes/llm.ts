@@ -13,7 +13,7 @@ import {
     LLMUpdatesSchema,
 } from '@dexto/core';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
-import { LLMConfigSchema } from '../schemas/responses.js';
+import { LLMConfigSchema, ProviderCatalogSchema, ModelFlatSchema } from '../schemas/responses.js';
 
 const CurrentQuerySchema = z.object({
     sessionId: z
@@ -139,7 +139,32 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 description: 'LLM catalog',
                 content: {
                     'application/json': {
-                        schema: z.any().describe('LLM catalog in grouped or flat format'),
+                        schema: z
+                            .union([
+                                z
+                                    .object({
+                                        providers: z
+                                            .record(ProviderCatalogSchema)
+                                            .describe(
+                                                'Providers grouped by ID with their models and capabilities'
+                                            ),
+                                    })
+                                    .strict()
+                                    .describe('Grouped catalog response (mode=grouped)'),
+                                z
+                                    .object({
+                                        models: z
+                                            .array(ModelFlatSchema)
+                                            .describe(
+                                                'Flat list of all models with provider information'
+                                            ),
+                                    })
+                                    .strict()
+                                    .describe('Flat catalog response (mode=flat)'),
+                            ])
+                            .describe(
+                                'LLM catalog in grouped or flat format based on mode query parameter'
+                            ),
                     },
                 },
             },
