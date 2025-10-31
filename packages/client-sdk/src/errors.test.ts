@@ -76,7 +76,7 @@ describe('ClientError Factory', () => {
 
     describe('WebSocket Errors', () => {
         it('should create WebSocket connection failed error', () => {
-            const url = 'ws://localhost:3000/ws';
+            const url = 'ws://localhost:3000/';
             const originalError = new Error('Connection refused');
 
             const error = ClientError.websocketConnectionFailed(url, originalError);

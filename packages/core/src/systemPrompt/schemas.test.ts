@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as path from 'path';
 import {
     SystemPromptConfigSchema,
     type SystemPromptConfig,
@@ -190,7 +191,14 @@ You can help with:
 
         it('should validate file contributors', () => {
             const validFile = {
-                contributors: [{ id: 'docs', type: 'file', priority: 5, files: ['README.md'] }],
+                contributors: [
+                    {
+                        id: 'docs',
+                        type: 'file',
+                        priority: 5,
+                        files: [path.join(process.cwd(), 'README.md')],
+                    },
+                ],
             };
             const validResult = SystemPromptConfigSchema.parse(validFile);
             expect(validResult.contributors[0]?.type).toBe('file');
@@ -203,6 +211,14 @@ You can help with:
             const result = SystemPromptConfigSchema.safeParse(invalidFile);
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['contributors', 0, 'files']);
+
+            const relativePathFile = {
+                contributors: [
+                    { id: 'docs', type: 'file', priority: 5, files: ['relative/path.md'] },
+                ],
+            };
+            const relativeResult = SystemPromptConfigSchema.safeParse(relativePathFile);
+            expect(relativeResult.success).toBe(false);
         });
 
         it('should reject invalid contributor types', () => {
@@ -288,7 +304,10 @@ You can help with:
                         id: 'context',
                         type: 'file' as const,
                         priority: 5,
-                        files: ['context.md', 'guidelines.md'],
+                        files: [
+                            path.join(process.cwd(), 'context.md'),
+                            path.join(process.cwd(), 'guidelines.md'),
+                        ],
                         enabled: true,
                         options: {
                             includeFilenames: true,

@@ -230,6 +230,26 @@ main() {
   run_test "POST /api/webhooks valid" POST "/api/webhooks" 201 '{"url":"https://example.com/webhook"}' || failures=$((failures+1))
   run_test "GET /api/webhooks" GET "/api/webhooks" 200 || failures=$((failures+1))
 
+  # Memory endpoints
+  run_test "GET /api/memory" GET "/api/memory" 200 || failures=$((failures+1))
+  run_test "POST /api/memory no data" POST "/api/memory" 400 '{}' || failures=$((failures+1))
+  run_test "POST /api/memory create" POST "/api/memory" 201 '{"content":"test memory content"}' || failures=$((failures+1))
+
+  # Prompts endpoints
+  run_test "GET /api/prompts" GET "/api/prompts" 200 || failures=$((failures+1))
+
+  # Resources endpoints
+  run_test "GET /api/resources" GET "/api/resources" 200 || failures=$((failures+1))
+
+  # Greeting endpoint
+  run_test "GET /api/greeting" GET "/api/greeting" 200 || failures=$((failures+1))
+
+  # A2A discovery
+  run_test "GET /.well-known/agent.json" GET "/.well-known/agent.json" 200 || failures=$((failures+1))
+
+  # OpenAPI schema
+  run_test "GET /openapi.json" GET "/openapi.json" 200 || failures=$((failures+1))
+
   # Cleanup test data
   run_test "DELETE /api/sessions/test-session-123" DELETE "/api/sessions/test-session-123" 200 || failures=$((failures+1))
 

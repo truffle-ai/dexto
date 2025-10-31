@@ -80,9 +80,9 @@ systemPrompt:
       type: file
       priority: 10
       files:
-        - ./README.md              # Relative to config file location
-        - ./docs/architecture.md   # Relative to config file location  
-        - ./CONTRIBUTING.md        # Relative to config file location
+        - "${{dexto.agent_dir}}/README.md"              # Expands to the agent directory at load time
+        - "${{dexto.agent_dir}}/docs/architecture.md"   
+        - "${{dexto.agent_dir}}/CONTRIBUTING.md"        
       options:
         includeFilenames: true
         separator: "\n\n---\n\n"
@@ -102,7 +102,7 @@ systemPrompt:
       enabled: true
 ```
 
-**File Contributor Options:**
+**File Contributor Options:** (paths must be absolute or use `${{dexto.agent_dir}}` to keep configs portable)
 - `files`: Array of file paths to include (.md and .txt files only)
 - `options.includeFilenames`: Whether to include filename headers (default: true)
 - `options.separator`: Text to separate multiple files (default: "\n\n---\n\n")

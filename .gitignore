@@ -49,6 +49,11 @@ logs/
 # TypeScript cache
 *.tsbuildinfo
 
+# Transient TypeScript emits inside source folders
+packages/server/src/**/*.js
+packages/server/src/**/*.d.ts
+packages/server/src/**/*.d.ts.map
+
 # Optional npm cache directory
 .npm
 

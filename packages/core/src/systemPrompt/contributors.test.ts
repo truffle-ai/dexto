@@ -177,25 +177,14 @@ describe('FileContributor', () => {
         expect(result).toBe('<fileContext>No files could be loaded</fileContext>');
     });
 
-    test('should resolve relative paths from config directory', async () => {
-        // Create a subdirectory to simulate config location
+    test('should read files using absolute paths from arbitrary directories', async () => {
         const configDir = join(testDir, 'config');
         await mkdir(configDir, { recursive: true });
 
-        // Create a file in the config directory
-        await writeFile(
-            join(configDir, 'config-file.md'),
-            '# Config File\n\nThis is a config file.'
-        );
+        const absolutePath = join(configDir, 'config-file.md');
+        await writeFile(absolutePath, '# Config File\n\nThis is a config file.');
 
-        // FileContributor with configDir set to the config directory
-        const contributor = new FileContributor(
-            'test',
-            0,
-            ['config-file.md'], // Relative path
-            {},
-            configDir // Config directory
-        );
+        const contributor = new FileContributor('test', 0, [absolutePath]);
 
         const result = await contributor.getContent(mockContext);
 
@@ -206,52 +195,22 @@ describe('FileContributor', () => {
         expect(result).toContain('</fileContext>');
     });
 
-    test('should resolve relative paths from config directory with subdirectories', async () => {
-        // Create nested directories
+    test('should read files from nested directories when given absolute paths', async () => {
         const configDir = join(testDir, 'config');
         const docsDir = join(configDir, 'docs');
         await mkdir(docsDir, { recursive: true });
 
-        // Create files in subdirectories
-        await writeFile(join(docsDir, 'readme.md'), '# Documentation\n\nThis is documentation.');
+        const nestedPath = join(docsDir, 'readme.md');
+        await writeFile(nestedPath, '# Documentation\n\nThis is documentation.');
 
-        // FileContributor with configDir set to the config directory
-        const contributor = new FileContributor(
-            'test',
-            0,
-            ['docs/readme.md'], // Relative path with subdirectory
-            {},
-            configDir // Config directory
-        );
+        const contributor = new FileContributor('test', 0, [nestedPath]);
 
         const result = await contributor.getContent(mockContext);
 
         expect(result).toContain('<fileContext>');
-        expect(result).toContain('docs/readme.md');
+        expect(result).toContain('readme.md');
         expect(result).toContain('# Documentation');
         expect(result).toContain('This is documentation.');
-        expect(result).toContain('</fileContext>');
-    });
-
-    test('should still work with absolute paths when configDir is set', async () => {
-        const configDir = join(testDir, 'config');
-        await mkdir(configDir, { recursive: true });
-
-        // FileContributor with configDir set but using absolute path
-        const contributor = new FileContributor(
-            'test',
-            0,
-            [join(testDir, 'test1.md')], // Absolute path
-            {},
-            configDir // Config directory (should be ignored for absolute paths)
-        );
-
-        const result = await contributor.getContent(mockContext);
-
-        expect(result).toContain('<fileContext>');
-        expect(result).toContain('test-files/test1.md');
-        expect(result).toContain('# Test Document 1');
-        expect(result).toContain('This is the first test document.');
         expect(result).toContain('</fileContext>');
     });
 });

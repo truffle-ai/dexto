@@ -56,6 +56,21 @@ const config: Config = {
                 },
             } satisfies Preset.Options,
         ],
+        [
+            'redocusaurus',
+            {
+                specs: [
+                    {
+                        id: 'dexto-api',
+                        spec: 'static/openapi/openapi.json',
+                        route: '/api/rest/',
+                    },
+                ],
+                theme: {
+                    primaryColor: '#14b8a6',
+                },
+            },
+        ],
     ],
 
     themes: ['@docusaurus/theme-mermaid'],

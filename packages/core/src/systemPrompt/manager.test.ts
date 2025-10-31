@@ -6,6 +6,7 @@ import * as registry from './registry.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import * as path from 'path';
 
 // Mock the registry functions
 vi.mock('./registry.js', () => ({
@@ -263,7 +264,10 @@ You can help with:
                         id: 'docs',
                         type: 'file',
                         priority: 5,
-                        files: ['README.md', 'GUIDELINES.md'],
+                        files: [
+                            path.join(process.cwd(), 'README.md'),
+                            path.join(process.cwd(), 'GUIDELINES.md'),
+                        ],
                         options: {
                             includeFilenames: true,
                             separator: '\n\n---\n\n',
@@ -281,18 +285,18 @@ You can help with:
         });
 
         it('should use custom config directory', () => {
+            const customConfigDir = '/custom/project/path';
             const config = SystemPromptConfigSchema.parse({
                 contributors: [
                     {
                         id: 'docs',
                         type: 'file',
                         priority: 5,
-                        files: ['context.md'],
+                        files: [path.join(customConfigDir, 'context.md')],
                     },
                 ],
             });
 
-            const customConfigDir = '/custom/project/path';
             const manager = new SystemPromptManager(config, customConfigDir);
 
             // The FileContributor should receive the custom config directory
@@ -486,7 +490,7 @@ You can help with:
                         id: 'context',
                         type: 'file',
                         priority: 5,
-                        files: ['context.md'],
+                        files: [path.join(process.cwd(), 'context.md')],
                         options: { includeFilenames: true },
                     },
                     {

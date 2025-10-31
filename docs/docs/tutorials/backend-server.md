@@ -27,7 +27,7 @@ When Dexto runs in web mode, it provides these endpoints:
 - **`POST /api/mcp/servers/:serverId/tools/:toolName/execute`** - Execute specific tools
 - **WebSocket at `/`** - Real-time streaming responses
 
-For the complete API reference including sessions, LLM management, webhooks, and more, see the **[REST API Documentation](/api/rest/conversation)**.
+For the complete API reference including sessions, LLM management, webhooks, and more, see the **[REST API Documentation](/api/rest/)**.
 
 Let's start simple and build up our React app layer by layer.
 

@@ -182,7 +182,7 @@ Each webhook request includes these headers:
 
 ```typescript
 import express from 'express';
-import type { DextoWebhookEvent } from './webhook-types';
+import type { DextoWebhookEvent } from '@dexto/server';
 
 const app = express();
 // Use raw body middleware for signature verification

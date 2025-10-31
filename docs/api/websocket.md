@@ -7,7 +7,7 @@ sidebar_position: 2
 The WebSocket API offers real-time, bidirectional communication with Dexto. Use this for building highly interactive applications.
 
 ### Connection URL
-<p class="api-endpoint-header"><code>ws://localhost:3000/</code></p>
+<p class="api-endpoint-header"><code>ws://localhost:3001/</code></p>
 <small>_The port may vary based on your server configuration._</small>
 
 ---

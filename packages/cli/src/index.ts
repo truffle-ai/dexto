@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Load environment variables FIRST with layered loading
-import { applyLayeredEnvironmentLoading } from '@dexto/core';
+import { applyLayeredEnvironmentLoading } from './utils/env.js';
 
 // Apply layered environment loading before any other imports
 await applyLayeredEnvironmentLoading();
@@ -43,7 +43,7 @@ import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
-import { getPort } from '@dexto/core';
+import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
     createTsconfigJson,

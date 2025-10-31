@@ -77,8 +77,12 @@ case "$CHECK_TYPE" in
   typecheck)
     run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
     ;;
+  openapi-docs)
+    run_check "pnpm run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
+    ;;
   all)
     run_check "pnpm run build" "Build" "$OUTPUT_LINES"
+    run_check "pnpm run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
     run_check "pnpm test" "Tests" "$OUTPUT_LINES"
     run_check "pnpm run lint" "Lint" "$OUTPUT_LINES"
     run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
@@ -88,7 +92,7 @@ case "$CHECK_TYPE" in
   *)
     echo "Error: Unknown check type '$CHECK_TYPE'"
     echo ""
-    echo "Usage: $0 {build|test|lint|typecheck|all} [lines|all]"
+    echo "Usage: $0 {build|test|lint|typecheck|openapi-docs|all} [lines|all]"
     echo "Examples:"
     echo "  $0 build          - Show last 200 lines on failure (default)"
     echo "  $0 build 100      - Show last 100 lines on failure"
