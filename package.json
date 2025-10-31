@@ -46,6 +46,8 @@
         "repo:lint": "turbo run lint",
         "repo:test": "turbo run test",
         "repo:typecheck": "turbo run typecheck",
+        "sync-openapi-docs": "tsx scripts/generate-openapi-spec.ts",
+        "sync-openapi-docs:check": "tsx scripts/generate-openapi-spec.ts --check",
         "start": "pnpm -C packages/cli start",
         "test": "vitest run",
         "test:ci": "vitest run --coverage",
