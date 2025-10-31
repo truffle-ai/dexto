@@ -47,8 +47,18 @@ export { InternalResourceConfigSchema } from '@dexto/core';
 export const SessionMetadataSchema = z
     .object({
         id: z.string().describe('Unique session identifier'),
-        createdAt: z.number().int().positive().describe('Creation timestamp (Unix ms)'),
-        lastActivity: z.number().int().positive().describe('Last activity timestamp (Unix ms)'),
+        createdAt: z
+            .number()
+            .int()
+            .positive()
+            .nullable()
+            .describe('Creation timestamp (Unix ms, null if unavailable)'),
+        lastActivity: z
+            .number()
+            .int()
+            .positive()
+            .nullable()
+            .describe('Last activity timestamp (Unix ms, null if unavailable)'),
         messageCount: z
             .number()
             .int()
@@ -293,7 +303,7 @@ export type AgentRegistryEntry = z.output<typeof AgentRegistryEntrySchema>;
 export const ResourceSchema = z
     .object({
         uri: z.string().describe('Resource URI'),
-        name: z.string().describe('Resource name'),
+        name: z.string().optional().describe('Resource name'),
         description: z.string().optional().describe('Resource description'),
         mimeType: z.string().optional().describe('MIME type of the resource'),
     })
