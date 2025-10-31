@@ -5,6 +5,56 @@
     "version": "1.0.0",
     "description": "OpenAPI spec for the Dexto Hono server"
   },
+  "tags": [
+    {
+      "name": "system",
+      "description": "System health and status endpoints"
+    },
+    {
+      "name": "config",
+      "description": "Agent configuration and greeting management"
+    },
+    {
+      "name": "messages",
+      "description": "Send messages to the agent and manage conversations"
+    },
+    {
+      "name": "sessions",
+      "description": "Create and manage conversation sessions"
+    },
+    {
+      "name": "llm",
+      "description": "Configure and switch between LLM providers and models"
+    },
+    {
+      "name": "mcp",
+      "description": "Manage Model Context Protocol (MCP) servers and tools"
+    },
+    {
+      "name": "webhooks",
+      "description": "Register and manage webhook endpoints for agent events"
+    },
+    {
+      "name": "search",
+      "description": "Search through messages and sessions"
+    },
+    {
+      "name": "memory",
+      "description": "Store and retrieve agent memories for context"
+    },
+    {
+      "name": "prompts",
+      "description": "Manage custom prompts and templates"
+    },
+    {
+      "name": "resources",
+      "description": "Access and manage resources from MCP servers and internal providers"
+    },
+    {
+      "name": "agents",
+      "description": "Install, switch, and manage agent configurations"
+    }
+  ],
   "components": {
     "schemas": {},
     "parameters": {}
