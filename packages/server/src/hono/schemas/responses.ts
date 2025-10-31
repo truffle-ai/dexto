@@ -42,6 +42,26 @@ export { InternalResourceConfigSchema } from '@dexto/core';
 // New schemas for types that don't have Zod equivalents in core
 // ============================================================================
 
+// --- Binary Data Schema ---
+
+/**
+ * Schema for binary data that can be string, Buffer, Uint8Array, or URL.
+ * Uses z.custom<string | unknown>() to avoid DTS complexity - TypeScript consumers see
+ * 'string | unknown' (where unknown represents binary data), while runtime validation
+ * still properly validates all supported types.
+ */
+const BinaryDataSchema = z.custom<string | unknown>(
+    (val) => {
+        return (
+            typeof val === 'string' ||
+            val instanceof Buffer ||
+            val instanceof Uint8Array ||
+            val instanceof URL
+        );
+    },
+    { message: 'Must be string, Buffer, Uint8Array, or URL' }
+);
+
 // --- Session Schemas ---
 
 export const SessionMetadataSchema = z
@@ -84,9 +104,7 @@ const TextPartSchema = z
 const ImagePartSchema = z
     .object({
         type: z.literal('image').describe('Part type: image'),
-        image: z
-            .union([z.string(), z.instanceof(Uint8Array), z.instanceof(Buffer), z.instanceof(URL)])
-            .describe('Image data (string, binary, or URL)'),
+        image: BinaryDataSchema.describe('Image data (string, binary, or URL)'),
         mimeType: z.string().optional().describe('MIME type of the image'),
     })
     .strict()
@@ -95,9 +113,7 @@ const ImagePartSchema = z
 const FilePartSchema = z
     .object({
         type: z.literal('file').describe('Part type: file'),
-        data: z
-            .union([z.string(), z.instanceof(Uint8Array), z.instanceof(Buffer), z.instanceof(URL)])
-            .describe('File data (string, binary, or URL)'),
+        data: BinaryDataSchema.describe('File data (string, binary, or URL)'),
         mimeType: z.string().describe('MIME type of the file'),
         filename: z.string().optional().describe('Optional filename'),
     })

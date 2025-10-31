@@ -25,7 +25,7 @@ const ListResourcesResponseSchema = z
 const ResourceContentItemSchema = z
     .object({
         uri: z.string().describe('Resource URI'),
-        mimeType: z.string().describe('MIME type of the content'),
+        mimeType: z.string().optional().describe('MIME type of the content'),
         text: z.string().optional().describe('Text content (for text resources)'),
         blob: z
             .string()
