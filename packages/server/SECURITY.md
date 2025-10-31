@@ -39,7 +39,7 @@ curl -H "Authorization: Bearer your-api-key" \
 
 **WebSocket Connections:**
 ```javascript
-const ws = new WebSocket('ws://localhost:3000/ws', {
+const ws = new WebSocket('ws://localhost:3000/', {
   headers: {
     'Authorization': 'Bearer your-api-key'
   }

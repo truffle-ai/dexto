@@ -81,10 +81,8 @@ export async function startNextJsWebServer(
         const resolvedHostname = process.env.HOSTNAME ?? '0.0.0.0';
         const resolvedPort = process.env.FRONTEND_PORT ?? process.env.PORT ?? String(frontPort);
 
-        // Determine WS URL based on whether Hono server is enabled
-        const honoFlag = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
-        const honoEnabled = honoFlag === '1' || honoFlag === 'true' || honoFlag === 'yes';
-        const defaultWsUrl = `ws://localhost:${apiPort}${honoEnabled ? '/ws' : ''}`;
+        // WebSocket URL uses root path for both Express and Hono
+        const defaultWsUrl = `ws://localhost:${apiPort}/`;
         logger.info(`Using WS URL: ${defaultWsUrl}`);
 
         // TODO: env variables set here are actually not used by client side code in next-js apps

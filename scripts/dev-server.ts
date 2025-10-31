@@ -106,10 +106,8 @@ apiProcess.on('error', (err) => {
     cleanup();
 });
 
-// Compute WS path based on Hono flag
-const useHono = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
-const honoEnabled = useHono === '1' || useHono === 'true' || useHono === 'yes';
-const wsUrl = `ws://localhost:3001${honoEnabled ? '/ws' : ''}`;
+// WebSocket URL uses root path for both Express and Hono
+const wsUrl = 'ws://localhost:3001/';
 
 // Give API server time to start
 setTimeout(() => {
