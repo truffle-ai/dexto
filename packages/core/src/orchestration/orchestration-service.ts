@@ -174,13 +174,6 @@ export class OrchestrationService {
     }
 
     /**
-     * Get configuration
-     */
-    getConfig(): Readonly<Required<OrchestrationConfig>> {
-        return { ...this.config };
-    }
-
-    /**
      * Generate database key for session todos
      */
     private getTodosDatabaseKey(sessionId: string): string {

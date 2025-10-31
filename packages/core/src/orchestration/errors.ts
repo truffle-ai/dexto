@@ -31,32 +31,6 @@ export class OrchestrationError {
     }
 
     /**
-     * Invalid configuration error
-     */
-    static invalidConfig(reason: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.INVALID_CONFIG,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.USER,
-            `Invalid Orchestration configuration: ${reason}`,
-            { reason }
-        );
-    }
-
-    /**
-     * Todo not found error
-     */
-    static todoNotFound(todoId: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TODO_NOT_FOUND,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.NOT_FOUND,
-            `Todo not found: ${todoId}`,
-            { todoId }
-        );
-    }
-
-    /**
      * Todo limit exceeded error
      */
     static todoLimitExceeded(current: number, max: number): DextoRuntimeError {
@@ -84,72 +58,6 @@ export class OrchestrationError {
     }
 
     /**
-     * Todo update failed error
-     */
-    static updateFailed(todoId: string, cause: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TODO_UPDATE_FAILED,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.SYSTEM,
-            `Failed to update todo ${todoId}: ${cause}`,
-            { todoId, cause }
-        );
-    }
-
-    /**
-     * Todo creation failed error
-     */
-    static createFailed(cause: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TODO_CREATE_FAILED,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.SYSTEM,
-            `Failed to create todo: ${cause}`,
-            { cause }
-        );
-    }
-
-    /**
-     * Todo deletion failed error
-     */
-    static deleteFailed(todoId: string, cause: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TODO_DELETE_FAILED,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.SYSTEM,
-            `Failed to delete todo ${todoId}: ${cause}`,
-            { todoId, cause }
-        );
-    }
-
-    /**
-     * Session not found error
-     */
-    static sessionNotFound(sessionId: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.SESSION_NOT_FOUND,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.NOT_FOUND,
-            `Session not found: ${sessionId}`,
-            { sessionId }
-        );
-    }
-
-    /**
-     * Session invalid error
-     */
-    static sessionInvalid(sessionId: string, reason: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.SESSION_INVALID,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.USER,
-            `Invalid session ${sessionId}: ${reason}`,
-            { sessionId, reason },
-            'Ensure the session ID is valid and the session is properly initialized'
-        );
-    }
-
-    /**
      * Database error
      */
     static databaseError(operation: string, cause: string): DextoRuntimeError {
@@ -159,19 +67,6 @@ export class OrchestrationError {
             ErrorType.SYSTEM,
             `Database error during ${operation}: ${cause}`,
             { operation, cause }
-        );
-    }
-
-    /**
-     * Transaction failed error
-     */
-    static transactionFailed(cause: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            OrchestrationErrorCode.TRANSACTION_FAILED,
-            ErrorScope.ORCHESTRATION,
-            ErrorType.SYSTEM,
-            `Transaction failed: ${cause}`,
-            { cause }
         );
     }
 }

@@ -395,24 +395,3 @@ export function validateSubAgentConfig(config: AgentConfig): void {
 
     logger.debug('Sub-agent config validation passed');
 }
-
-/**
- * Get list of available built-in agents
- */
-export function getAvailableBuiltInAgents(): readonly BuiltInAgentName[] {
-    return BUILT_IN_AGENTS;
-}
-
-/**
- * Clear the config cache (useful for testing or hot reload)
- */
-export function clearConfigCache(): void {
-    configCache.clear();
-}
-
-/**
- * Get cache statistics (for monitoring/debugging)
- */
-export function getConfigCacheStats() {
-    return configCache.getStats();
-}
