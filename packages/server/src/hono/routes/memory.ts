@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { CreateMemoryInputSchema, UpdateMemoryInputSchema } from '@dexto/core';
+import { MemorySchema } from '../schemas/responses.js';
 
 const MemoryIdParamSchema = z.object({
     id: z.string().min(1, 'Memory ID is required').describe('Memory unique identifier'),
@@ -30,6 +31,31 @@ const ListMemoriesQuerySchema = z.object({
         .describe('Number of memories to skip'),
 });
 
+// Response schemas
+const MemoryResponseSchema = z
+    .object({
+        ok: z.literal(true).describe('Indicates successful response'),
+        memory: MemorySchema.describe('The created or retrieved memory'),
+    })
+    .strict()
+    .describe('Single memory response');
+
+const MemoriesListResponseSchema = z
+    .object({
+        ok: z.literal(true).describe('Indicates successful response'),
+        memories: z.array(MemorySchema).describe('List of memories'),
+    })
+    .strict()
+    .describe('Multiple memories response');
+
+const MemoryDeleteResponseSchema = z
+    .object({
+        ok: z.literal(true).describe('Indicates successful response'),
+        message: z.string().describe('Deletion confirmation message'),
+    })
+    .strict()
+    .describe('Memory deletion response');
+
 export function createMemoryRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
@@ -51,7 +77,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         responses: {
             201: {
                 description: 'Memory created',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: MemoryResponseSchema } },
             },
         },
     });
@@ -86,7 +112,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'List memories',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: MemoriesListResponseSchema } },
             },
         },
     });
@@ -122,7 +148,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Memory details',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: MemoryResponseSchema } },
             },
         },
     });
@@ -152,7 +178,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Memory updated',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: MemoryResponseSchema } },
             },
         },
     });
@@ -185,7 +211,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Memory deleted',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: MemoryDeleteResponseSchema } },
             },
         },
     });

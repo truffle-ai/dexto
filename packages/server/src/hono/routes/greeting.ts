@@ -19,7 +19,21 @@ export function createGreetingRouter(getAgent: () => DextoAgent) {
         tags: ['config'],
         request: { query: querySchema.pick({ sessionId: true }) },
         responses: {
-            200: { description: 'Greeting', content: { 'application/json': { schema: z.any() } } },
+            200: {
+                description: 'Greeting',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                greeting: z
+                                    .string()
+                                    .optional()
+                                    .describe('Greeting message from agent configuration'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
         },
     });
 

@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { PromptError, ResourceError } from '@dexto/core';
+import { PromptInfoSchema, PromptDefinitionSchema } from '../schemas/responses.js';
 
 const CustomPromptRequestSchema = z
     .object({
@@ -74,7 +75,18 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'List all prompts',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                prompts: z
+                                    .array(PromptInfoSchema)
+                                    .describe('Array of available prompts'),
+                            })
+                            .strict()
+                            .describe('Prompts list response'),
+                    },
+                },
             },
         },
     });
@@ -104,7 +116,16 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
         responses: {
             201: {
                 description: 'Custom prompt created',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                prompt: PromptInfoSchema.describe('Created prompt information'),
+                            })
+                            .strict()
+                            .describe('Create prompt response'),
+                    },
+                },
             },
         },
     });
@@ -184,7 +205,16 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Prompt definition',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                definition: PromptDefinitionSchema.describe('Prompt definition'),
+                            })
+                            .strict()
+                            .describe('Get prompt definition response'),
+                    },
+                },
             },
             404: { description: 'Prompt not found' },
         },
@@ -211,7 +241,19 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Resolved prompt content',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                text: z.string().describe('Resolved prompt text'),
+                                resources: z
+                                    .array(z.string())
+                                    .describe('Array of resource identifiers'),
+                            })
+                            .strict()
+                            .describe('Resolve prompt response'),
+                    },
+                },
             },
             404: { description: 'Prompt not found' },
         },

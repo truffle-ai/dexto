@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import { ResourceSchema } from '../schemas/responses.js';
 
 const ResourceIdParamSchema = z.object({
     resourceId: z
@@ -8,6 +9,50 @@ const ResourceIdParamSchema = z.object({
         .transform((encoded) => decodeURIComponent(encoded))
         .describe('The URI-encoded resource identifier'),
 });
+
+// Response schemas for resources endpoints
+
+const ListResourcesResponseSchema = z
+    .object({
+        ok: z.literal(true).describe('Indicates successful response'),
+        resources: z
+            .array(ResourceSchema)
+            .describe('Array of all available resources from all sources'),
+    })
+    .strict()
+    .describe('List of all resources');
+
+const ResourceContentItemSchema = z
+    .object({
+        uri: z.string().describe('Resource URI'),
+        mimeType: z.string().describe('MIME type of the content'),
+        text: z.string().optional().describe('Text content (for text resources)'),
+        blob: z
+            .string()
+            .optional()
+            .describe('Base64-encoded binary content (for binary resources)'),
+    })
+    .strict()
+    .describe('Resource content item');
+
+const ReadResourceResponseSchema = z
+    .object({
+        ok: z.literal(true).describe('Indicates successful response'),
+        content: z
+            .object({
+                contents: z
+                    .array(ResourceContentItemSchema)
+                    .describe('Array of content items (typically one item)'),
+                _meta: z
+                    .record(z.any())
+                    .optional()
+                    .describe('Optional metadata about the resource'),
+            })
+            .strict()
+            .describe('Resource content from MCP ReadResourceResult'),
+    })
+    .strict()
+    .describe('Resource content response');
 
 export function createResourcesRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
@@ -22,7 +67,7 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'List all resources',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ListResourcesResponseSchema } },
             },
         },
     });
@@ -45,7 +90,7 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Resource content',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ReadResourceResponseSchema } },
             },
         },
     });

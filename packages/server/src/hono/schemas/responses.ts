@@ -294,6 +294,49 @@ export type Tool = z.output<typeof ToolSchema>;
 
 // --- Prompt Schemas ---
 
+export const PromptArgumentSchema = z
+    .object({
+        name: z.string().describe('Argument name'),
+        description: z.string().optional().describe('Argument description'),
+        required: z.boolean().optional().describe('Whether the argument is required'),
+    })
+    .strict()
+    .describe('Prompt argument definition');
+
+export type PromptArgument = z.output<typeof PromptArgumentSchema>;
+
+export const PromptDefinitionSchema = z
+    .object({
+        name: z.string().describe('Prompt name'),
+        title: z.string().optional().describe('Prompt title'),
+        description: z.string().optional().describe('Prompt description'),
+        arguments: z
+            .array(PromptArgumentSchema)
+            .optional()
+            .describe('Array of argument definitions'),
+    })
+    .strict()
+    .describe('Prompt definition (MCP-compliant)');
+
+export type PromptDefinition = z.output<typeof PromptDefinitionSchema>;
+
+export const PromptInfoSchema = z
+    .object({
+        name: z.string().describe('Prompt name'),
+        title: z.string().optional().describe('Prompt title'),
+        description: z.string().optional().describe('Prompt description'),
+        arguments: z
+            .array(PromptArgumentSchema)
+            .optional()
+            .describe('Array of argument definitions'),
+        source: z.enum(['mcp', 'file', 'starter', 'custom']).describe('Source of the prompt'),
+        metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
+    })
+    .strict()
+    .describe('Enhanced prompt information');
+
+export type PromptInfo = z.output<typeof PromptInfoSchema>;
+
 export const PromptSchema = z
     .object({
         id: z.string().describe('Unique prompt identifier'),
