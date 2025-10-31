@@ -60,6 +60,11 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                 if (req.method === 'POST') {
                     req.setEncoding('utf8');
                     let body = '';
+                    // TODO: Add body size limit to prevent DoS attacks
+                    // The MCP POST handler reads request body without size limit, allowing
+                    // malicious clients to exhaust server memory with large payloads.
+                    // Should add MAX_BODY_SIZE check (e.g., 10MB) and reject oversized requests.
+                    // See: https://github.com/truffle-ai/dexto/pull/438#discussion_r2480267244
                     req.on('data', (chunk) => {
                         body += chunk;
                     });

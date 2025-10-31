@@ -20,58 +20,69 @@ import {
     LLMConfigBaseSchema,
 } from '../schemas/responses.js';
 
-const CurrentQuerySchema = z.object({
-    sessionId: z
-        .string()
-        .optional()
-        .describe('Session identifier to retrieve session-specific LLM configuration'),
-});
+const CurrentQuerySchema = z
+    .object({
+        sessionId: z
+            .string()
+            .optional()
+            .describe('Session identifier to retrieve session-specific LLM configuration'),
+    })
+    .describe('Query parameters for getting current LLM configuration');
 
-const CatalogQuerySchema = z.object({
-    provider: z
-        .union([z.string(), z.array(z.string())])
-        .optional()
-        .transform((value): string[] | undefined =>
-            Array.isArray(value) ? value : value ? value.split(',') : undefined
-        )
-        .describe('Comma-separated list of LLM providers to filter by'),
-    hasKey: z
-        .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
-        .optional()
-        .transform((raw): boolean | undefined =>
-            raw === 'true' || raw === '1'
-                ? true
-                : raw === 'false' || raw === '0'
-                  ? false
-                  : undefined
-        )
-        .describe('Filter by API key presence (true or false)'),
-    router: z.enum(LLM_ROUTERS).optional().describe('Filter by router type (vercel or in-built)'),
-    fileType: z
-        .enum(SUPPORTED_FILE_TYPES)
-        .optional()
-        .describe('Filter by supported file type (audio, pdf, or image)'),
-    defaultOnly: z
-        .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
-        .optional()
-        .transform((raw): boolean | undefined =>
-            raw === 'true' || raw === '1'
-                ? true
-                : raw === 'false' || raw === '0'
-                  ? false
-                  : undefined
-        )
-        .describe('Include only default models (true or false)'),
-    mode: z
-        .enum(['grouped', 'flat'])
-        .default('grouped')
-        .describe('Response format mode (grouped by provider or flat list)'),
-});
+const CatalogQuerySchema = z
+    .object({
+        provider: z
+            .union([z.string(), z.array(z.string())])
+            .optional()
+            .transform((value): string[] | undefined =>
+                Array.isArray(value) ? value : value ? value.split(',') : undefined
+            )
+            .describe('Comma-separated list of LLM providers to filter by'),
+        hasKey: z
+            .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+            .optional()
+            .transform((raw): boolean | undefined =>
+                raw === 'true' || raw === '1'
+                    ? true
+                    : raw === 'false' || raw === '0'
+                      ? false
+                      : undefined
+            )
+            .describe('Filter by API key presence (true or false)'),
+        router: z
+            .enum(LLM_ROUTERS)
+            .optional()
+            .describe('Filter by router type (vercel or in-built)'),
+        fileType: z
+            .enum(SUPPORTED_FILE_TYPES)
+            .optional()
+            .describe('Filter by supported file type (audio, pdf, or image)'),
+        defaultOnly: z
+            .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
+            .optional()
+            .transform((raw): boolean | undefined =>
+                raw === 'true' || raw === '1'
+                    ? true
+                    : raw === 'false' || raw === '0'
+                      ? false
+                      : undefined
+            )
+            .describe('Include only default models (true or false)'),
+        mode: z
+            .enum(['grouped', 'flat'])
+            .default('grouped')
+            .describe('Response format mode (grouped by provider or flat list)'),
+    })
+    .describe('Query parameters for filtering and formatting the LLM catalog');
 
-const SaveKeySchema = z.object({
-    provider: z.enum(LLM_PROVIDERS).describe('LLM provider identifier (e.g., openai, anthropic)'),
-    apiKey: z.string().min(1, 'API key is required').describe('API key for the provider'),
-});
+const SaveKeySchema = z
+    .object({
+        provider: z
+            .enum(LLM_PROVIDERS)
+            .describe('LLM provider identifier (e.g., openai, anthropic)'),
+        apiKey: z.string().min(1, 'API key is required').describe('API key for the provider'),
+    })
+    .describe('Request body for saving a provider API key');
 
 const SessionIdEnvelopeSchema = z
     .object({
@@ -80,7 +91,8 @@ const SessionIdEnvelopeSchema = z
             .optional()
             .describe('Session identifier for session-specific LLM configuration'),
     })
-    .passthrough();
+    .passthrough()
+    .describe('Envelope schema for extracting sessionId while allowing additional LLM fields');
 
 const SwitchLLMBodySchema = z
     .object({

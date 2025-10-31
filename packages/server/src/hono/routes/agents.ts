@@ -30,7 +30,8 @@ const AgentIdentifierSchema = z
                 'Optional absolute file path for file-based agents (e.g., "/path/to/agent.yml")'
             ),
     })
-    .strict();
+    .strict()
+    .describe('Agent identifier for switching agents by ID or file path');
 
 const UninstallAgentSchema = z
     .object({
@@ -43,7 +44,8 @@ const UninstallAgentSchema = z
             .default(false)
             .describe('Force uninstall even if agent is currently active'),
     })
-    .strict();
+    .strict()
+    .describe('Request body for uninstalling an agent');
 
 const CustomAgentInstallSchema = z
     .object({
@@ -60,13 +62,15 @@ const CustomAgentInstallSchema = z
                     .optional()
                     .describe('Main configuration file name within source directory'),
             })
-            .strict(),
+            .strict()
+            .describe('Agent metadata including description, author, and tags'),
         injectPreferences: z
             .boolean()
             .default(true)
             .describe('Whether to inject user preferences into agent config'),
     })
     .strict()
+    .describe('Request body for installing a custom agent from file system')
     .transform((value) => {
         const displayName = value.name?.trim() || deriveDisplayName(value.id);
         return {
@@ -111,21 +115,26 @@ const CustomAgentCreateSchema = z
             .min(1, 'System prompt is required')
             .describe('System prompt for the agent'),
     })
-    .strict();
+    .strict()
+    .describe('Request body for creating a new agent with minimal configuration');
 
-const AgentConfigValidateSchema = z.object({
-    yaml: z
-        .string()
-        .min(1, 'YAML content is required')
-        .describe('YAML agent configuration content to validate'),
-});
+const AgentConfigValidateSchema = z
+    .object({
+        yaml: z
+            .string()
+            .min(1, 'YAML content is required')
+            .describe('YAML agent configuration content to validate'),
+    })
+    .describe('Request body for validating agent configuration YAML');
 
-const AgentConfigSaveSchema = z.object({
-    yaml: z
-        .string()
-        .min(1, 'YAML content is required')
-        .describe('YAML agent configuration content to save'),
-});
+const AgentConfigSaveSchema = z
+    .object({
+        yaml: z
+            .string()
+            .min(1, 'YAML content is required')
+            .describe('YAML agent configuration content to save'),
+    })
+    .describe('Request body for saving agent configuration YAML');
 
 // Response schemas for agent endpoints
 

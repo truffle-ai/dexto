@@ -21,7 +21,6 @@ import {
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import path from 'path';
 
-const DEFAULT_AGENT_NAME = 'dexto';
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
 function resolvePort(listenPort?: number): number {

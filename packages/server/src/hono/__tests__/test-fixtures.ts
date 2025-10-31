@@ -183,7 +183,7 @@ export async function httpRequest(
     headers?: Record<string, string>
 ): Promise<{
     status: number;
-    headers: globalThis.Headers;
+    headers: Record<string, string>;
     body: unknown;
     text: string;
 }> {
@@ -209,9 +209,15 @@ export async function httpRequest(
         parsedBody = text;
     }
 
+    // Convert Headers to plain object for serialization
+    const headersObject: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+        headersObject[key] = value;
+    });
+
     return {
         status: response.status,
-        headers: response.headers,
+        headers: headersObject,
         body: parsedBody,
         text,
     };

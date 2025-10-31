@@ -32,11 +32,14 @@ const MessageBodySchema = z
             return msg.length > 0 || !!data.imageData || !!data.fileData;
         },
         { message: 'Must provide either message text, image data, or file data' }
-    );
+    )
+    .describe('Request body for sending a message to the agent');
 
-const ResetBodySchema = z.object({
-    sessionId: z.string().optional().describe('The ID of the session to reset'),
-});
+const ResetBodySchema = z
+    .object({
+        sessionId: z.string().optional().describe('The ID of the session to reset'),
+    })
+    .describe('Request body for resetting a conversation');
 
 export function createMessagesRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();

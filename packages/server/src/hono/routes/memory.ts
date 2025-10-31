@@ -3,33 +3,37 @@ import type { DextoAgent } from '@dexto/core';
 import { CreateMemoryInputSchema, UpdateMemoryInputSchema } from '@dexto/core';
 import { MemorySchema } from '../schemas/responses.js';
 
-const MemoryIdParamSchema = z.object({
-    id: z.string().min(1, 'Memory ID is required').describe('Memory unique identifier'),
-});
+const MemoryIdParamSchema = z
+    .object({
+        id: z.string().min(1, 'Memory ID is required').describe('Memory unique identifier'),
+    })
+    .describe('Path parameters for memory endpoints');
 
-const ListMemoriesQuerySchema = z.object({
-    tags: z
-        .string()
-        .optional()
-        .transform((val) => (val ? val.split(',').map((t) => t.trim()) : undefined))
-        .describe('Comma-separated list of tags to filter by'),
-    source: z.enum(['user', 'system']).optional().describe('Filter by source (user or system)'),
-    pinned: z
-        .string()
-        .optional()
-        .transform((val) => (val === 'true' ? true : val === 'false' ? false : undefined))
-        .describe('Filter by pinned status (true or false)'),
-    limit: z
-        .string()
-        .optional()
-        .transform((val) => (val ? parseInt(val, 10) : undefined))
-        .describe('Maximum number of memories to return'),
-    offset: z
-        .string()
-        .optional()
-        .transform((val) => (val ? parseInt(val, 10) : undefined))
-        .describe('Number of memories to skip'),
-});
+const ListMemoriesQuerySchema = z
+    .object({
+        tags: z
+            .string()
+            .optional()
+            .transform((val) => (val ? val.split(',').map((t) => t.trim()) : undefined))
+            .describe('Comma-separated list of tags to filter by'),
+        source: z.enum(['user', 'system']).optional().describe('Filter by source (user or system)'),
+        pinned: z
+            .string()
+            .optional()
+            .transform((val) => (val === 'true' ? true : val === 'false' ? false : undefined))
+            .describe('Filter by pinned status (true or false)'),
+        limit: z
+            .string()
+            .optional()
+            .transform((val) => (val ? parseInt(val, 10) : undefined))
+            .describe('Maximum number of memories to return'),
+        offset: z
+            .string()
+            .optional()
+            .transform((val) => (val ? parseInt(val, 10) : undefined))
+            .describe('Number of memories to skip'),
+    })
+    .describe('Query parameters for listing and filtering memories');
 
 // Response schemas
 const MemoryResponseSchema = z

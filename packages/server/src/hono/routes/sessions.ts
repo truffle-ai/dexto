@@ -3,9 +3,11 @@ import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { SessionMetadataSchema, InternalMessageSchema } from '../schemas/responses.js';
 
-const CreateSessionSchema = z.object({
-    sessionId: z.string().optional().describe('A custom ID for the new session'),
-});
+const CreateSessionSchema = z
+    .object({
+        sessionId: z.string().optional().describe('A custom ID for the new session'),
+    })
+    .describe('Request body for creating a new session');
 
 export function createSessionsRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();

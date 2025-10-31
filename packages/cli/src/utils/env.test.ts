@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { tmpdir, homedir } from 'os';
+import { tmpdir } from 'os';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock logger to prevent initialization issues

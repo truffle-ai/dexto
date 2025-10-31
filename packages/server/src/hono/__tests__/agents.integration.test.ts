@@ -206,7 +206,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/agent/config/export');
             expect(res.status).toBe(200);
             // Export returns YAML text, not JSON
-            expect(res.headers.get('content-type')).toContain('yaml');
+            expect(res.headers['content-type']).toContain('yaml');
             expect(typeof res.text).toBe('string');
             expect(res.text.length).toBeGreaterThan(0);
         });

@@ -3,14 +3,16 @@ import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
 import { ResourceSchema } from '../schemas/responses.js';
 
-const McpServerRequestSchema = z.object({
-    name: z.string().min(1, 'Server name is required').describe('A unique name for the server'),
-    config: McpServerConfigSchema.describe('The server configuration object'),
-    persistToAgent: z
-        .boolean()
-        .optional()
-        .describe('If true, saves the server to agent configuration file'),
-});
+const McpServerRequestSchema = z
+    .object({
+        name: z.string().min(1, 'Server name is required').describe('A unique name for the server'),
+        config: McpServerConfigSchema.describe('The server configuration object'),
+        persistToAgent: z
+            .boolean()
+            .optional()
+            .describe('If true, saves the server to agent configuration file'),
+    })
+    .describe('Request body for adding or updating an MCP server');
 
 const ExecuteToolBodySchema = z
     .record(z.unknown())

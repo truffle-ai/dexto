@@ -25,14 +25,16 @@ const WebhookTestResultSchema = z
     .strict()
     .describe('Webhook test result');
 
-const WebhookBodySchema = z.object({
-    url: z
-        .string()
-        .url('Invalid URL format')
-        .describe('The URL to send webhook events to (must be a valid HTTP/HTTPS URL)'),
-    secret: z.string().optional().describe('A secret key for HMAC signature verification'),
-    description: z.string().optional().describe('A description of the webhook for reference'),
-});
+const WebhookBodySchema = z
+    .object({
+        url: z
+            .string()
+            .url('Invalid URL format')
+            .describe('The URL to send webhook events to (must be a valid HTTP/HTTPS URL)'),
+        secret: z.string().optional().describe('A secret key for HMAC signature verification'),
+        description: z.string().optional().describe('A description of the webhook for reference'),
+    })
+    .describe('Request body for registering a webhook');
 
 export function createWebhooksRouter(
     _getAgent: () => DextoAgent,

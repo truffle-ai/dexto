@@ -2,13 +2,15 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { ResourceSchema } from '../schemas/responses.js';
 
-const ResourceIdParamSchema = z.object({
-    resourceId: z
-        .string()
-        .min(1, 'Resource ID is required')
-        .transform((encoded) => decodeURIComponent(encoded))
-        .describe('The URI-encoded resource identifier'),
-});
+const ResourceIdParamSchema = z
+    .object({
+        resourceId: z
+            .string()
+            .min(1, 'Resource ID is required')
+            .transform((encoded) => decodeURIComponent(encoded))
+            .describe('The URI-encoded resource identifier'),
+    })
+    .describe('Path parameters for resource endpoints');
 
 // Response schemas for resources endpoints
 

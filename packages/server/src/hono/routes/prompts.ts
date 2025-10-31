@@ -49,19 +49,24 @@ const CustomPromptRequestSchema = z
             .optional()
             .describe('Attach a resource to this prompt'),
     })
-    .strict();
+    .strict()
+    .describe('Request body for creating a custom prompt with optional resource attachment');
 
-const PromptNameParamSchema = z.object({
-    name: z.string().min(1, 'Prompt name is required').describe('The prompt name'),
-});
+const PromptNameParamSchema = z
+    .object({
+        name: z.string().min(1, 'Prompt name is required').describe('The prompt name'),
+    })
+    .describe('Path parameters for prompt endpoints');
 
-const ResolvePromptQuerySchema = z.object({
-    context: z.string().optional().describe('Additional context for prompt resolution'),
-    args: z
-        .string()
-        .optional()
-        .describe('Arguments to substitute in the prompt template (pass as a JSON string)'),
-});
+const ResolvePromptQuerySchema = z
+    .object({
+        context: z.string().optional().describe('Additional context for prompt resolution'),
+        args: z
+            .string()
+            .optional()
+            .describe('Arguments to substitute in the prompt template (pass as a JSON string)'),
+    })
+    .describe('Query parameters for resolving prompt templates');
 
 export function createPromptsRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
