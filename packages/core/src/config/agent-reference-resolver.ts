@@ -10,6 +10,7 @@
 
 import path from 'path';
 import { promises as fs } from 'fs';
+import type { Stats } from 'fs';
 import { AgentConfig } from '@core/agent/schemas.js';
 import { loadAgentConfig } from './loader.js';
 import { ConfigError } from './errors.js';
@@ -63,12 +64,14 @@ export interface ResolvedAgentConfig {
 /**
  * Config resolution cache
  * Key: cache identifier (built-in name or absolute file path)
- * Value: resolved config with timestamp
+ * Value: resolved config with timestamp and optional file mtime
  */
 interface CacheEntry {
     config: AgentConfig;
     timestamp: number;
     source: ResolvedAgentConfig['source'];
+    /** File modification time (mtime) for file-based configs */
+    mtime?: number;
 }
 
 class AgentConfigCache {
@@ -77,16 +80,42 @@ class AgentConfigCache {
 
     /**
      * Get cached config if still valid
+     * @param key Cache key
+     * @param filePath Optional file path to validate mtime against cached mtime
      */
-    get(key: string): AgentConfig | null {
+    async get(key: string, filePath?: string): Promise<AgentConfig | null> {
         const entry = this.cache.get(key);
         if (!entry) return null;
 
-        // Check if cache is still valid
+        // Check if cache is still valid (TTL check)
         const age = Date.now() - entry.timestamp;
         if (age > this.ttl) {
             this.cache.delete(key);
             return null;
+        }
+
+        // For file-based configs, validate mtime
+        if (filePath && entry.mtime !== undefined) {
+            try {
+                const stats = await fs.stat(filePath);
+                const currentMtime = stats.mtimeMs;
+
+                // If file was modified since cache, invalidate
+                if (currentMtime !== entry.mtime) {
+                    logger.debug(
+                        `Cache invalidated for ${key}: file mtime changed (cached: ${entry.mtime}, current: ${currentMtime})`
+                    );
+                    this.cache.delete(key);
+                    return null;
+                }
+            } catch (error) {
+                // If stat fails (file deleted, permissions, etc.), invalidate cache to avoid stale data
+                logger.debug(
+                    `Cache invalidated for ${key}: stat failed - ${error instanceof Error ? error.message : String(error)}`
+                );
+                this.cache.delete(key);
+                return null;
+            }
         }
 
         logger.debug(`Cache hit for agent config: ${key}`);
@@ -95,14 +124,27 @@ class AgentConfigCache {
 
     /**
      * Store config in cache
+     * @param key Cache key
+     * @param config Agent config to cache
+     * @param source Source metadata
+     * @param mtime Optional file modification time for file-based configs
      */
-    set(key: string, config: AgentConfig, source: ResolvedAgentConfig['source']): void {
-        this.cache.set(key, {
+    set(
+        key: string,
+        config: AgentConfig,
+        source: ResolvedAgentConfig['source'],
+        mtime?: number
+    ): void {
+        const entry: CacheEntry = {
             config,
             timestamp: Date.now(),
             source,
-        });
-        logger.debug(`Cached agent config: ${key}`);
+            ...(mtime !== undefined && { mtime }),
+        };
+        this.cache.set(key, entry);
+        logger.debug(
+            `Cached agent config: ${key}${mtime !== undefined ? ` (mtime: ${mtime})` : ''}`
+        );
     }
 
     /**
@@ -173,7 +215,7 @@ async function resolveBuiltInAgent(name: BuiltInAgentName): Promise<ResolvedAgen
 
     // Check cache first
     const cacheKey = `built-in:${name}`;
-    const cached = configCache.get(cacheKey);
+    const cached = await configCache.get(cacheKey);
     if (cached) {
         return {
             config: cached,
@@ -242,16 +284,17 @@ async function resolveFilePath(
         ? filePath
         : path.resolve(context.workingDir, filePath);
 
-    // Check if file exists
+    // Get file stats (for existence check and mtime)
+    let fileStats: Stats;
     try {
-        await fs.access(absolutePath);
+        fileStats = await fs.stat(absolutePath);
     } catch {
         throw ConfigError.fileNotFound(absolutePath);
     }
 
     // Check cache (file-based configs cached by absolute path + mtime)
     const cacheKey = `file:${absolutePath}`;
-    const cached = configCache.get(cacheKey);
+    const cached = await configCache.get(cacheKey, absolutePath);
     if (cached) {
         return {
             config: cached,
@@ -263,9 +306,9 @@ async function resolveFilePath(
     try {
         const config = await loadAgentConfig(absolutePath);
 
-        // Cache the result
+        // Cache the result with mtime for future validation
         const source = { type: 'file' as const, identifier: filePath };
-        configCache.set(cacheKey, config, source);
+        configCache.set(cacheKey, config, source, fileStats.mtimeMs);
 
         logger.info(`Loaded agent config from file: ${filePath}`);
         return { config, source };
