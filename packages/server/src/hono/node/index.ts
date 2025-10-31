@@ -25,8 +25,7 @@ type FetchRequest = globalThis.Request;
 type FetchBodyInit = globalThis.BodyInit;
 
 export type NodeBridgeOptions = {
-    agent: DextoAgent;
-    getAgent?: () => DextoAgent;
+    getAgent: () => DextoAgent;
     port?: number;
     hostname?: string;
     websocketPath?: string;
@@ -48,8 +47,7 @@ export type NodeBridgeResult = {
 };
 
 export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): NodeBridgeResult {
-    const { agent } = options;
-    const resolveAgent = options.getAgent ?? (() => agent);
+    const { getAgent } = options;
     const webhookSubscriber = app.webhookSubscriber;
 
     const server = createServer(async (req, res) => {
@@ -103,13 +101,13 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
 
     const websocketServer = new WebSocketServer({ noServer: true });
     const webSubscriber = new WebSocketEventSubscriber(websocketServer);
-    webSubscriber.subscribe(resolveAgent().agentEventBus);
+    webSubscriber.subscribe(getAgent().agentEventBus);
 
     // Normalize connection handling so both our subscriber and the per-connection
     // message handler are wired via the same 'connection' event.
     websocketServer.on('connection', (ws) => {
         logger.info('WebSocket client connected.');
-        handleWebsocketConnection(resolveAgent, ws);
+        handleWebsocketConnection(getAgent, ws);
     });
 
     const websocketPath = options.websocketPath ?? '/';

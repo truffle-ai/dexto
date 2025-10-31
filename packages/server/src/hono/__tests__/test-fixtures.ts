@@ -95,7 +95,7 @@ export async function startTestServer(
 
     // Create Node server bridge
     const bridge = createNodeServer(app, {
-        agent,
+        getAgent: () => agent,
         port: serverPort,
     });
 

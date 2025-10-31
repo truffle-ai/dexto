@@ -298,7 +298,6 @@ export async function initializeHonoApi(
 
     // Create bridge with app - bridge will create webSubscriber
     bridgeRef = createNodeServer(app, {
-        agent: getAgent(),
         getAgent,
         mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
     });
