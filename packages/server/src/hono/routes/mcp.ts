@@ -312,7 +312,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
     app.openapi(execToolRoute, async (ctx) => {
         const agent = getAgent();
         const { serverId, toolName } = ctx.req.valid('param');
-        const body = ExecuteToolBodySchema.parse(await ctx.req.json());
+        const body = ctx.req.valid('json');
         const client = agent.getMcpClients().get(serverId);
         if (!client) {
             return ctx.json({ success: false, error: `Server '${serverId}' not found` }, 404);
