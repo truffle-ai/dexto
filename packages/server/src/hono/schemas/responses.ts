@@ -256,9 +256,10 @@ export const AgentRegistryEntrySchema = z
     .object({
         id: z.string().describe('Unique agent identifier'),
         name: z.string().describe('Agent name'),
-        description: z.string().optional().describe('Agent description'),
-        path: z.string().describe('Path to agent configuration file'),
-        isActive: z.boolean().describe('Whether this is the currently active agent'),
+        description: z.string().describe('Agent description'),
+        author: z.string().optional().describe('Agent author'),
+        tags: z.array(z.string()).optional().describe('Agent tags'),
+        type: z.enum(['builtin', 'custom']).describe('Agent type'),
     })
     .strict()
     .describe('Agent registry entry');

@@ -15,7 +15,7 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { AgentConfigSchema } from '@dexto/core';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
-import { AgentCardSchema } from '../schemas/responses.js';
+import { AgentCardSchema, AgentRegistryEntrySchema } from '../schemas/responses.js';
 
 const AgentIdentifierSchema = z
     .object({
@@ -147,8 +147,8 @@ const AgentInfoNullableSchema = z
 
 const ListAgentsResponseSchema = z
     .object({
-        installed: z.array(AgentCardSchema).describe('Agents installed locally'),
-        available: z.array(AgentCardSchema).describe('Agents available from registry'),
+        installed: z.array(AgentRegistryEntrySchema).describe('Agents installed locally'),
+        available: z.array(AgentRegistryEntrySchema).describe('Agents available from registry'),
         current: AgentInfoNullableSchema.describe('Currently active agent'),
     })
     .strict()
