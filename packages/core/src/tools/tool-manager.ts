@@ -171,6 +171,12 @@ export class ToolManager {
         });
     }
 
+    /**
+     * Getter methods for extracting shared infrastructure.
+     * These are needed when creating sub-agent ToolManager instances that share
+     * the parent's infrastructure (MCP, approval, policies) but have custom tool configurations.
+     * Used by ChatSession.applyAgentConfigOverrides() for spawn_agent tool isolation.
+     */
     getMcpManager(): MCPManager {
         return this.mcpManager;
     }
