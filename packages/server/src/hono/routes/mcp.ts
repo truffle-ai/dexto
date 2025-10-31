@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
+import { ToolSchema, ResourceSchema } from '../schemas/responses.js';
 
 const McpServerRequestSchema = z.object({
     name: z.string().min(1, 'Server name is required').describe('A unique name for the server'),
@@ -17,6 +18,96 @@ const ExecuteToolBodySchema = z
         'Tool execution parameters - schema will be tightened once tool input structure is standardised'
     );
 
+// Response schemas
+const ServerStatusResponseSchema = z
+    .object({
+        status: z.string().describe('Connection status'),
+        name: z.string().describe('Server name'),
+    })
+    .strict()
+    .describe('Server status response');
+
+const ServerInfoSchema = z
+    .object({
+        id: z.string().describe('Server identifier'),
+        name: z.string().describe('Server name'),
+        status: z.string().describe('Server status (connected or error)'),
+    })
+    .strict()
+    .describe('MCP server information');
+
+const ServersListResponseSchema = z
+    .object({
+        servers: z.array(ServerInfoSchema).describe('Array of server information'),
+    })
+    .strict()
+    .describe('List of MCP servers');
+
+const ToolInfoSchema = z
+    .object({
+        id: z.string().describe('Tool identifier'),
+        name: z.string().describe('Tool name'),
+        description: z.string().describe('Tool description'),
+        inputSchema: z.record(z.any()).describe('JSON Schema for tool input parameters'),
+    })
+    .strict()
+    .describe('Tool information');
+
+const ToolsListResponseSchema = z
+    .object({
+        tools: z.array(ToolInfoSchema).describe('Array of available tools'),
+    })
+    .strict()
+    .describe('List of tools from MCP server');
+
+const DisconnectResponseSchema = z
+    .object({
+        status: z.literal('disconnected').describe('Disconnection status'),
+        id: z.string().describe('Server identifier'),
+    })
+    .strict()
+    .describe('Server disconnection response');
+
+const RestartResponseSchema = z
+    .object({
+        status: z.literal('restarted').describe('Restart status'),
+        id: z.string().describe('Server identifier'),
+    })
+    .strict()
+    .describe('Server restart response');
+
+const ToolExecutionResponseSchema = z
+    .object({
+        success: z.boolean().describe('Whether tool execution succeeded'),
+        data: z.any().optional().describe('Tool execution result data'),
+        error: z.string().optional().describe('Error message if execution failed'),
+    })
+    .strict()
+    .describe('Tool execution response');
+
+const ResourcesListResponseSchema = z
+    .object({
+        success: z.boolean().describe('Success indicator'),
+        resources: z.array(ResourceSchema).describe('Array of available resources'),
+    })
+    .strict()
+    .describe('List of resources from MCP server');
+
+const ResourceContentSchema = z
+    .object({
+        content: z.any().describe('Resource content data'),
+    })
+    .strict()
+    .describe('Resource content wrapper');
+
+const ResourceContentResponseSchema = z
+    .object({
+        success: z.boolean().describe('Success indicator'),
+        data: ResourceContentSchema.describe('Resource content'),
+    })
+    .strict()
+    .describe('Resource content response');
+
 export function createMcpRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
@@ -30,7 +121,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Server connected',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ServerStatusResponseSchema } },
             },
         },
     });
@@ -76,7 +167,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Servers list',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ServersListResponseSchema } },
             },
         },
     });
@@ -106,7 +197,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Tools list',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ToolsListResponseSchema } },
             },
             404: { description: 'Not found' },
         },
@@ -140,7 +231,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Disconnected',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: DisconnectResponseSchema } },
             },
             404: { description: 'Not found' },
         },
@@ -170,7 +261,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Server restarted',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: RestartResponseSchema } },
             },
             404: { description: 'Not found' },
         },
@@ -206,7 +297,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Tool executed',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ToolExecutionResponseSchema } },
             },
             404: { description: 'Not found' },
         },
@@ -236,7 +327,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Server resources',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ResourcesListResponseSchema } },
             },
             404: { description: 'Not found' },
         },
@@ -272,7 +363,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Resource content',
-                content: { 'application/json': { schema: z.any() } },
+                content: { 'application/json': { schema: ResourceContentResponseSchema } },
             },
             404: { description: 'Not found' },
         },

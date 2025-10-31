@@ -4,6 +4,27 @@ import { logger } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
 
+// Response schemas
+const WebhookResponseSchema = z
+    .object({
+        id: z.string().describe('Unique webhook identifier'),
+        url: z.string().url().describe('Webhook URL'),
+        description: z.string().optional().describe('Webhook description'),
+        createdAt: z.union([z.date(), z.number()]).describe('Creation timestamp (Date or Unix ms)'),
+    })
+    .strict()
+    .describe('Webhook response object');
+
+const WebhookTestResultSchema = z
+    .object({
+        success: z.boolean().describe('Whether the webhook test succeeded'),
+        statusCode: z.number().optional().describe('HTTP status code from webhook'),
+        responseTime: z.number().optional().describe('Response time in milliseconds'),
+        error: z.string().optional().describe('Error message if test failed'),
+    })
+    .strict()
+    .describe('Webhook test result');
+
 const WebhookBodySchema = z.object({
     url: z
         .string()
@@ -29,7 +50,17 @@ export function createWebhooksRouter(
         responses: {
             201: {
                 description: 'Webhook registered',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                webhook: WebhookResponseSchema.describe(
+                                    'Registered webhook details'
+                                ),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -70,7 +101,17 @@ export function createWebhooksRouter(
         responses: {
             200: {
                 description: 'List webhooks',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                webhooks: z
+                                    .array(WebhookResponseSchema)
+                                    .describe('Array of registered webhooks'),
+                            })
+                            .strict(),
+                    },
+                },
             },
         },
     });
@@ -93,7 +134,18 @@ export function createWebhooksRouter(
         tags: ['webhooks'],
         request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
         responses: {
-            200: { description: 'Webhook', content: { 'application/json': { schema: z.any() } } },
+            200: {
+                description: 'Webhook',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                webhook: WebhookResponseSchema.describe('Webhook details'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
             404: { description: 'Not found' },
         },
     });
@@ -122,7 +174,21 @@ export function createWebhooksRouter(
         tags: ['webhooks'],
         request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
         responses: {
-            200: { description: 'Removed', content: { 'application/json': { schema: z.any() } } },
+            200: {
+                description: 'Removed',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                status: z
+                                    .literal('removed')
+                                    .describe('Operation status indicating successful removal'),
+                                webhookId: z.string().describe('ID of the removed webhook'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
             404: { description: 'Not found' },
         },
     });
@@ -146,7 +212,18 @@ export function createWebhooksRouter(
         responses: {
             200: {
                 description: 'Test result',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                test: z
+                                    .literal('completed')
+                                    .describe('Test status indicating completion'),
+                                result: WebhookTestResultSchema.describe('Test execution results'),
+                            })
+                            .strict(),
+                    },
+                },
             },
             404: { description: 'Not found' },
         },

@@ -13,6 +13,7 @@ import {
     LLMUpdatesSchema,
 } from '@dexto/core';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
+import { LLMConfigSchema } from '../schemas/responses.js';
 
 const CurrentQuerySchema = z.object({
     sessionId: z
@@ -89,7 +90,17 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Current LLM config',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                config: z
+                                    .record(z.any())
+                                    .describe('Current LLM configuration with all fields'),
+                            })
+                            .describe('Response containing current LLM configuration'),
+                    },
+                },
             },
         },
     });
@@ -126,7 +137,11 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'LLM catalog',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z.any().describe('LLM catalog in grouped or flat format'),
+                    },
+                },
             },
         },
     });
@@ -253,7 +268,22 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'API key saved',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                ok: z.literal(true).describe('Operation success indicator'),
+                                provider: z
+                                    .enum(LLM_PROVIDERS)
+                                    .describe('Provider for which the key was saved'),
+                                envVar: z
+                                    .string()
+                                    .describe('Environment variable name where key was stored'),
+                            })
+                            .strict()
+                            .describe('API key save response'),
+                    },
+                },
             },
         },
     });
@@ -274,7 +304,21 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'LLM switch result',
-                content: { 'application/json': { schema: z.any() } },
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                config: z
+                                    .record(z.any())
+                                    .describe('New LLM configuration with all fields'),
+                                sessionId: z
+                                    .string()
+                                    .optional()
+                                    .describe('Session ID if session-specific switch'),
+                            })
+                            .describe('LLM switch result'),
+                    },
+                },
             },
         },
         request: { body: { content: { 'application/json': { schema: z.any() } } } },
