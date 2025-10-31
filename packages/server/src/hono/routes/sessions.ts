@@ -3,7 +3,7 @@ import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 
 const CreateSessionSchema = z.object({
-    sessionId: z.string().optional(),
+    sessionId: z.string().optional().describe('A custom ID for the new session'),
 });
 
 export function createSessionsRouter(getAgent: () => DextoAgent) {
@@ -109,7 +109,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         summary: 'Get Session Details',
         description: 'Fetches details for a specific session',
         tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string() }) },
+        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
                 description: 'Session details',
@@ -140,7 +140,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         summary: 'Get Session History',
         description: 'Retrieves the conversation history for a session',
         tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string() }) },
+        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
                 description: 'Session history',
@@ -162,7 +162,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         description:
             'Permanently deletes a session and all its conversation history. This action cannot be undone',
         tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string() }) },
+        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
                 description: 'Session deleted',
@@ -183,7 +183,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         summary: 'Cancel Session Run',
         description: 'Cancels an in-flight agent run for the specified session',
         tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string() }) },
+        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
             200: {
                 description: 'Cancel in-flight run',
@@ -208,7 +208,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         description: 'Sets a session as the current active session',
         tags: ['sessions'],
         request: {
-            params: z.object({ sessionId: z.string() }),
+            params: z.object({ sessionId: z.string().describe('Session identifier') }),
             body: { content: { 'application/json': { schema: z.object({}).passthrough() } } },
         },
         responses: {
@@ -245,7 +245,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         description: 'Updates the title of an existing session',
         tags: ['sessions'],
         request: {
-            params: z.object({ sessionId: z.string() }),
+            params: z.object({ sessionId: z.string().describe('Session identifier') }),
             body: {
                 content: {
                     'application/json': {
@@ -253,7 +253,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                             title: z
                                 .string()
                                 .min(1, 'Title is required')
-                                .max(120, 'Title too long'),
+                                .max(120, 'Title too long')
+                                .describe('New title for the session (maximum 120 characters)'),
                         }),
                     },
                 },

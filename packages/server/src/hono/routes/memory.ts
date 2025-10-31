@@ -3,27 +3,31 @@ import type { DextoAgent } from '@dexto/core';
 import { CreateMemoryInputSchema, UpdateMemoryInputSchema } from '@dexto/core';
 
 const MemoryIdParamSchema = z.object({
-    id: z.string().min(1, 'Memory ID is required'),
+    id: z.string().min(1, 'Memory ID is required').describe('Memory unique identifier'),
 });
 
 const ListMemoriesQuerySchema = z.object({
     tags: z
         .string()
         .optional()
-        .transform((val) => (val ? val.split(',').map((t) => t.trim()) : undefined)),
-    source: z.enum(['user', 'system']).optional(),
+        .transform((val) => (val ? val.split(',').map((t) => t.trim()) : undefined))
+        .describe('Comma-separated list of tags to filter by'),
+    source: z.enum(['user', 'system']).optional().describe('Filter by source (user or system)'),
     pinned: z
         .string()
         .optional()
-        .transform((val) => (val === 'true' ? true : val === 'false' ? false : undefined)),
+        .transform((val) => (val === 'true' ? true : val === 'false' ? false : undefined))
+        .describe('Filter by pinned status (true or false)'),
     limit: z
         .string()
         .optional()
-        .transform((val) => (val ? parseInt(val, 10) : undefined)),
+        .transform((val) => (val ? parseInt(val, 10) : undefined))
+        .describe('Maximum number of memories to return'),
     offset: z
         .string()
         .optional()
-        .transform((val) => (val ? parseInt(val, 10) : undefined)),
+        .transform((val) => (val ? parseInt(val, 10) : undefined))
+        .describe('Number of memories to skip'),
 });
 
 export function createMemoryRouter(getAgent: () => DextoAgent) {

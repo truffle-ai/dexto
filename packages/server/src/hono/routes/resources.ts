@@ -5,7 +5,8 @@ const ResourceIdParamSchema = z.object({
     resourceId: z
         .string()
         .min(1, 'Resource ID is required')
-        .transform((encoded) => decodeURIComponent(encoded)),
+        .transform((encoded) => decodeURIComponent(encoded))
+        .describe('The URI-encoded resource identifier'),
 });
 
 export function createResourcesRouter(getAgent: () => DextoAgent) {

@@ -2,15 +2,27 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 
 const MessageSearchQuery = z.object({
-    q: z.string().min(1, 'Search query is required'),
-    limit: z.coerce.number().min(1).max(100).optional(),
-    offset: z.coerce.number().min(0).optional(),
-    sessionId: z.string().optional(),
-    role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
+    q: z.string().min(1, 'Search query is required').describe('Search query string'),
+    limit: z.coerce
+        .number()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe('Maximum number of results to return (default: 20)'),
+    offset: z.coerce
+        .number()
+        .min(0)
+        .optional()
+        .describe('Number of results to skip for pagination (default: 0)'),
+    sessionId: z.string().optional().describe('Limit search to a specific session'),
+    role: z
+        .enum(['user', 'assistant', 'system', 'tool'])
+        .optional()
+        .describe('Filter by message role'),
 });
 
 const SessionSearchQuery = z.object({
-    q: z.string().min(1, 'Search query is required'),
+    q: z.string().min(1, 'Search query is required').describe('Search query string'),
 });
 
 export function createSearchRouter(getAgent: () => DextoAgent) {

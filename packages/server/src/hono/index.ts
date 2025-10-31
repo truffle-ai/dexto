@@ -94,7 +94,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         info: {
             title: 'Dexto API',
             version: packageJson.version,
-            description: 'OpenAPI spec for the Dexto Hono server',
+            description: 'OpenAPI spec for the Dexto REST API server',
         },
         tags: [
             {

@@ -3,9 +3,12 @@ import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
 
 const McpServerRequestSchema = z.object({
-    name: z.string().min(1, 'Server name is required'),
-    config: McpServerConfigSchema,
-    persistToAgent: z.boolean().optional(),
+    name: z.string().min(1, 'Server name is required').describe('A unique name for the server'),
+    config: McpServerConfigSchema.describe('The server configuration object'),
+    persistToAgent: z
+        .boolean()
+        .optional()
+        .describe('If true, saves the server to agent configuration file'),
 });
 
 const ExecuteToolBodySchema = z.any(); // TODO: tighten schema once tool input structure is standardised.
@@ -93,7 +96,9 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         summary: 'List Server Tools',
         description: 'Retrieves the list of tools available on a specific MCP server',
         tags: ['mcp'],
-        request: { params: z.object({ serverId: z.string() }) },
+        request: {
+            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+        },
         responses: {
             200: {
                 description: 'Tools list',
@@ -125,7 +130,9 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         summary: 'Remove MCP Server',
         description: 'Disconnects and removes an MCP server',
         tags: ['mcp'],
-        request: { params: z.object({ serverId: z.string() }) },
+        request: {
+            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+        },
         responses: {
             200: {
                 description: 'Disconnected',
@@ -153,7 +160,9 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         summary: 'Restart MCP Server',
         description: 'Restarts a connected MCP server',
         tags: ['mcp'],
-        request: { params: z.object({ serverId: z.string() }) },
+        request: {
+            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+        },
         responses: {
             200: {
                 description: 'Server restarted',
@@ -184,7 +193,10 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         description: 'Executes a tool on an MCP server directly',
         tags: ['mcp'],
         request: {
-            params: z.object({ serverId: z.string(), toolName: z.string() }),
+            params: z.object({
+                serverId: z.string().describe('The ID of the MCP server'),
+                toolName: z.string().describe('The name of the tool to execute'),
+            }),
             body: { content: { 'application/json': { schema: ExecuteToolBodySchema } } },
         },
         responses: {
@@ -214,7 +226,9 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         summary: 'List Server Resources',
         description: 'Retrieves all resources available from a specific MCP server',
         tags: ['mcp'],
-        request: { params: z.object({ serverId: z.string() }) },
+        request: {
+            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+        },
         responses: {
             200: {
                 description: 'Server resources',
@@ -243,11 +257,12 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
         tags: ['mcp'],
         request: {
             params: z.object({
-                serverId: z.string(),
+                serverId: z.string().describe('The ID of the MCP server'),
                 resourceId: z
                     .string()
                     .min(1, 'Resource ID is required')
-                    .transform((encoded) => decodeURIComponent(encoded)),
+                    .transform((encoded) => decodeURIComponent(encoded))
+                    .describe('The URI-encoded resource identifier on that server'),
             }),
         },
         responses: {

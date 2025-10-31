@@ -4,39 +4,62 @@ import { PromptError, ResourceError } from '@dexto/core';
 
 const CustomPromptRequestSchema = z
     .object({
-        name: z.string().min(1, 'Prompt name is required'),
-        title: z.string().optional(),
-        description: z.string().optional(),
-        content: z.string().min(1, 'Prompt content is required'),
+        name: z
+            .string()
+            .min(1, 'Prompt name is required')
+            .describe('Unique name for the custom prompt'),
+        title: z.string().optional().describe('Display title for the prompt'),
+        description: z.string().optional().describe('Description of what the prompt does'),
+        content: z
+            .string()
+            .min(1, 'Prompt content is required')
+            .describe('The prompt content text (can include {{argumentName}} placeholders)'),
         arguments: z
             .array(
                 z
                     .object({
-                        name: z.string().min(1, 'Argument name is required'),
-                        description: z.string().optional(),
-                        required: z.boolean().optional(),
+                        name: z
+                            .string()
+                            .min(1, 'Argument name is required')
+                            .describe('Argument name'),
+                        description: z.string().optional().describe('Argument description'),
+                        required: z
+                            .boolean()
+                            .optional()
+                            .describe('Whether the argument is required'),
                     })
                     .strict()
             )
-            .optional(),
+            .optional()
+            .describe('Array of argument definitions'),
         resource: z
             .object({
-                base64: z.string().min(1, 'Resource data is required'),
-                mimeType: z.string().min(1, 'Resource MIME type is required'),
-                filename: z.string().optional(),
+                base64: z
+                    .string()
+                    .min(1, 'Resource data is required')
+                    .describe('Base64-encoded resource data'),
+                mimeType: z
+                    .string()
+                    .min(1, 'Resource MIME type is required')
+                    .describe('MIME type of the resource (e.g., text/plain, application/pdf)'),
+                filename: z.string().optional().describe('Resource filename'),
             })
             .strict()
-            .optional(),
+            .optional()
+            .describe('Attach a resource to this prompt'),
     })
     .strict();
 
 const PromptNameParamSchema = z.object({
-    name: z.string().min(1, 'Prompt name is required'),
+    name: z.string().min(1, 'Prompt name is required').describe('The prompt name'),
 });
 
 const ResolvePromptQuerySchema = z.object({
-    context: z.string().optional(),
-    args: z.string().optional(),
+    context: z.string().optional().describe('Additional context for prompt resolution'),
+    args: z
+        .string()
+        .optional()
+        .describe('Arguments to substitute in the prompt template (pass as a JSON string)'),
 });
 
 export function createPromptsRouter(getAgent: () => DextoAgent) {
@@ -128,7 +151,7 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
         tags: ['prompts'],
         request: {
             params: z.object({
-                name: z.string().min(1, 'Prompt name is required'),
+                name: z.string().min(1, 'Prompt name is required').describe('The prompt name'),
             }),
         },
         responses: {

@@ -4,22 +4,27 @@ import { logger } from '@dexto/core';
 
 const MessageBodySchema = z
     .object({
-        message: z.string().optional(),
-        sessionId: z.string().optional(),
-        stream: z.boolean().optional(),
+        message: z.string().optional().describe('The user message text'),
+        sessionId: z.string().optional().describe('The session to use for this message'),
+        stream: z
+            .boolean()
+            .optional()
+            .describe('Set to true to receive streaming chunks over WebSocket'),
         imageData: z
             .object({
-                base64: z.string(),
-                mimeType: z.string(),
+                base64: z.string().describe('Base64-encoded image data'),
+                mimeType: z.string().describe('The MIME type of the image (e.g., image/png)'),
             })
-            .optional(),
+            .optional()
+            .describe('Optional image data to include with the message'),
         fileData: z
             .object({
-                base64: z.string(),
-                mimeType: z.string(),
-                filename: z.string().optional(),
+                base64: z.string().describe('Base64-encoded file data'),
+                mimeType: z.string().describe('The MIME type of the file (e.g., application/pdf)'),
+                filename: z.string().optional().describe('The filename'),
             })
-            .optional(),
+            .optional()
+            .describe('Optional file data to include with the message'),
     })
     .refine(
         (data) => {
@@ -30,7 +35,7 @@ const MessageBodySchema = z
     );
 
 const ResetBodySchema = z.object({
-    sessionId: z.string().optional(),
+    sessionId: z.string().optional().describe('The ID of the session to reset'),
 });
 
 export function createMessagesRouter(getAgent: () => DextoAgent) {

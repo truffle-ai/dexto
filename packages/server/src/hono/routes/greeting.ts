@@ -2,7 +2,10 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 
 const querySchema = z.object({
-    sessionId: z.string().optional(),
+    sessionId: z
+        .string()
+        .optional()
+        .describe('Session identifier to retrieve session-specific greeting'),
 });
 
 export function createGreetingRouter(getAgent: () => DextoAgent) {

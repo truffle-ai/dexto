@@ -5,9 +5,12 @@ import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
 
 const WebhookBodySchema = z.object({
-    url: z.string().url('Invalid URL format'),
-    secret: z.string().optional(),
-    description: z.string().optional(),
+    url: z
+        .string()
+        .url('Invalid URL format')
+        .describe('The URL to send webhook events to (must be a valid HTTP/HTTPS URL)'),
+    secret: z.string().optional().describe('A secret key for HMAC signature verification'),
+    description: z.string().optional().describe('A description of the webhook for reference'),
 });
 
 export function createWebhooksRouter(
@@ -88,7 +91,7 @@ export function createWebhooksRouter(
         summary: 'Get Webhook Details',
         description: 'Fetches details for a specific webhook',
         tags: ['webhooks'],
-        request: { params: z.object({ webhookId: z.string() }) },
+        request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
         responses: {
             200: { description: 'Webhook', content: { 'application/json': { schema: z.any() } } },
             404: { description: 'Not found' },
@@ -117,7 +120,7 @@ export function createWebhooksRouter(
         summary: 'Delete Webhook',
         description: 'Permanently removes a webhook endpoint. This action cannot be undone',
         tags: ['webhooks'],
-        request: { params: z.object({ webhookId: z.string() }) },
+        request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
         responses: {
             200: { description: 'Removed', content: { 'application/json': { schema: z.any() } } },
             404: { description: 'Not found' },
@@ -139,7 +142,7 @@ export function createWebhooksRouter(
         summary: 'Test Webhook',
         description: 'Sends a sample event to test webhook connectivity and configuration',
         tags: ['webhooks'],
-        request: { params: z.object({ webhookId: z.string() }) },
+        request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
         responses: {
             200: {
                 description: 'Test result',

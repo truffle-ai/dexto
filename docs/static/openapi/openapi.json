@@ -3,7 +3,7 @@
   "info": {
     "title": "Dexto API",
     "version": "1.2.4",
-    "description": "OpenAPI spec for the Dexto Hono server"
+    "description": "OpenAPI spec for the Dexto REST API server"
   },
   "tags": [
     {
@@ -92,9 +92,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier to retrieve session-specific greeting"
             },
             "required": false,
+            "description": "Session identifier to retrieve session-specific greeting",
             "name": "sessionId",
             "in": "query"
           }
@@ -127,46 +129,56 @@
                 "type": "object",
                 "properties": {
                   "message": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The user message text"
                   },
                   "sessionId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The session to use for this message"
                   },
                   "stream": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Set to true to receive streaming chunks over WebSocket"
                   },
                   "imageData": {
                     "type": "object",
                     "properties": {
                       "base64": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Base64-encoded image data"
                       },
                       "mimeType": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The MIME type of the image (e.g., image/png)"
                       }
                     },
                     "required": [
                       "base64",
                       "mimeType"
-                    ]
+                    ],
+                    "description": "Optional image data to include with the message"
                   },
                   "fileData": {
                     "type": "object",
                     "properties": {
                       "base64": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Base64-encoded file data"
                       },
                       "mimeType": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The MIME type of the file (e.g., application/pdf)"
                       },
                       "filename": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The filename"
                       }
                     },
                     "required": [
                       "base64",
                       "mimeType"
-                    ]
+                    ],
+                    "description": "Optional file data to include with the message"
                   }
                 }
               }
@@ -204,46 +216,56 @@
                 "type": "object",
                 "properties": {
                   "message": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The user message text"
                   },
                   "sessionId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The session to use for this message"
                   },
                   "stream": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Set to true to receive streaming chunks over WebSocket"
                   },
                   "imageData": {
                     "type": "object",
                     "properties": {
                       "base64": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Base64-encoded image data"
                       },
                       "mimeType": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The MIME type of the image (e.g., image/png)"
                       }
                     },
                     "required": [
                       "base64",
                       "mimeType"
-                    ]
+                    ],
+                    "description": "Optional image data to include with the message"
                   },
                   "fileData": {
                     "type": "object",
                     "properties": {
                       "base64": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Base64-encoded file data"
                       },
                       "mimeType": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The MIME type of the file (e.g., application/pdf)"
                       },
                       "filename": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The filename"
                       }
                     },
                     "required": [
                       "base64",
                       "mimeType"
-                    ]
+                    ],
+                    "description": "Optional file data to include with the message"
                   }
                 }
               }
@@ -281,7 +303,8 @@
                 "type": "object",
                 "properties": {
                   "sessionId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The ID of the session to reset"
                   }
                 }
               }
@@ -312,9 +335,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier to retrieve session-specific LLM configuration"
             },
             "required": false,
+            "description": "Session identifier to retrieve session-specific LLM configuration",
             "name": "sessionId",
             "in": "query"
           }
@@ -353,9 +378,11 @@
                     "type": "string"
                   }
                 }
-              ]
+              ],
+              "description": "Comma-separated list of LLM providers to filter by"
             },
             "required": false,
+            "description": "Comma-separated list of LLM providers to filter by",
             "name": "provider",
             "in": "query"
           },
@@ -386,9 +413,11 @@
                     "0"
                   ]
                 }
-              ]
+              ],
+              "description": "Filter by API key presence (true or false)"
             },
             "required": false,
+            "description": "Filter by API key presence (true or false)",
             "name": "hasKey",
             "in": "query"
           },
@@ -398,9 +427,11 @@
               "enum": [
                 "vercel",
                 "in-built"
-              ]
+              ],
+              "description": "Filter by router type (vercel or in-built)"
             },
             "required": false,
+            "description": "Filter by router type (vercel or in-built)",
             "name": "router",
             "in": "query"
           },
@@ -411,9 +442,11 @@
                 "pdf",
                 "image",
                 "audio"
-              ]
+              ],
+              "description": "Filter by supported file type (audio, pdf, or image)"
             },
             "required": false,
+            "description": "Filter by supported file type (audio, pdf, or image)",
             "name": "fileType",
             "in": "query"
           },
@@ -444,9 +477,11 @@
                     "0"
                   ]
                 }
-              ]
+              ],
+              "description": "Include only default models (true or false)"
             },
             "required": false,
+            "description": "Include only default models (true or false)",
             "name": "defaultOnly",
             "in": "query"
           },
@@ -457,9 +492,11 @@
                 "grouped",
                 "flat"
               ],
-              "default": "grouped"
+              "default": "grouped",
+              "description": "Response format mode (grouped by provider or flat list)"
             },
             "required": false,
+            "description": "Response format mode (grouped by provider or flat list)",
             "name": "mode",
             "in": "query"
           }
@@ -501,11 +538,13 @@
                       "groq",
                       "xai",
                       "cohere"
-                    ]
+                    ],
+                    "description": "LLM provider identifier (e.g., openai, anthropic)"
                   },
                   "apiKey": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "API key for the provider"
                   }
                 },
                 "required": [
@@ -593,7 +632,8 @@
                 "type": "object",
                 "properties": {
                   "sessionId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "A custom ID for the new session"
                   }
                 }
               }
@@ -645,9 +685,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier"
             },
             "required": true,
+            "description": "Session identifier",
             "name": "sessionId",
             "in": "path"
           }
@@ -674,9 +716,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier"
             },
             "required": true,
+            "description": "Session identifier",
             "name": "sessionId",
             "in": "path"
           }
@@ -703,9 +747,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier"
             },
             "required": true,
+            "description": "Session identifier",
             "name": "sessionId",
             "in": "path"
           }
@@ -719,7 +765,8 @@
                   "title": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 120
+                    "maxLength": 120,
+                    "description": "New title for the session (maximum 120 characters)"
                   }
                 },
                 "required": [
@@ -753,9 +800,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier"
             },
             "required": true,
+            "description": "Session identifier",
             "name": "sessionId",
             "in": "path"
           }
@@ -784,9 +833,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier"
             },
             "required": true,
+            "description": "Session identifier",
             "name": "sessionId",
             "in": "path"
           }
@@ -815,9 +866,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier"
             },
             "required": true,
+            "description": "Session identifier",
             "name": "sessionId",
             "in": "path"
           }
@@ -857,9 +910,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Search query string"
             },
             "required": true,
+            "description": "Search query string",
             "name": "q",
             "in": "query"
           },
@@ -867,9 +922,11 @@
             "schema": {
               "type": "number",
               "minimum": 1,
-              "maximum": 100
+              "maximum": 100,
+              "description": "Maximum number of results to return (default: 20)"
             },
             "required": false,
+            "description": "Maximum number of results to return (default: 20)",
             "name": "limit",
             "in": "query"
           },
@@ -877,17 +934,21 @@
             "schema": {
               "type": "number",
               "nullable": true,
-              "minimum": 0
+              "minimum": 0,
+              "description": "Number of results to skip for pagination (default: 0)"
             },
             "required": false,
+            "description": "Number of results to skip for pagination (default: 0)",
             "name": "offset",
             "in": "query"
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Limit search to a specific session"
             },
             "required": false,
+            "description": "Limit search to a specific session",
             "name": "sessionId",
             "in": "query"
           },
@@ -899,9 +960,11 @@
                 "assistant",
                 "system",
                 "tool"
-              ]
+              ],
+              "description": "Filter by message role"
             },
             "required": false,
+            "description": "Filter by message role",
             "name": "role",
             "in": "query"
           }
@@ -931,9 +994,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Search query string"
             },
             "required": true,
+            "description": "Search query string",
             "name": "q",
             "in": "query"
           }
@@ -967,7 +1032,8 @@
                 "properties": {
                   "name": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "A unique name for the server"
                   },
                   "config": {
                     "oneOf": [
@@ -1102,10 +1168,12 @@
                         ],
                         "additionalProperties": false
                       }
-                    ]
+                    ],
+                    "description": "The server configuration object"
                   },
                   "persistToAgent": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "If true, saves the server to agent configuration file"
                   }
                 },
                 "required": [
@@ -1159,9 +1227,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The ID of the MCP server"
             },
             "required": true,
+            "description": "The ID of the MCP server",
             "name": "serverId",
             "in": "path"
           }
@@ -1193,9 +1263,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The ID of the MCP server"
             },
             "required": true,
+            "description": "The ID of the MCP server",
             "name": "serverId",
             "in": "path"
           }
@@ -1227,9 +1299,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The ID of the MCP server"
             },
             "required": true,
+            "description": "The ID of the MCP server",
             "name": "serverId",
             "in": "path"
           }
@@ -1261,17 +1335,21 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The ID of the MCP server"
             },
             "required": true,
+            "description": "The ID of the MCP server",
             "name": "serverId",
             "in": "path"
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The name of the tool to execute"
             },
             "required": true,
+            "description": "The name of the tool to execute",
             "name": "toolName",
             "in": "path"
           }
@@ -1312,9 +1390,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The ID of the MCP server"
             },
             "required": true,
+            "description": "The ID of the MCP server",
             "name": "serverId",
             "in": "path"
           }
@@ -1346,18 +1426,22 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The ID of the MCP server"
             },
             "required": true,
+            "description": "The ID of the MCP server",
             "name": "serverId",
             "in": "path"
           },
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "The URI-encoded resource identifier on that server"
             },
             "required": true,
+            "description": "The URI-encoded resource identifier on that server",
             "name": "resourceId",
             "in": "path"
           }
@@ -1394,13 +1478,16 @@
                 "properties": {
                   "url": {
                     "type": "string",
-                    "format": "uri"
+                    "format": "uri",
+                    "description": "The URL to send webhook events to (must be a valid HTTP/HTTPS URL)"
                   },
                   "secret": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "A secret key for HMAC signature verification"
                   },
                   "description": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "A description of the webhook for reference"
                   }
                 },
                 "required": [
@@ -1453,9 +1540,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The webhook identifier"
             },
             "required": true,
+            "description": "The webhook identifier",
             "name": "webhookId",
             "in": "path"
           }
@@ -1485,9 +1574,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The webhook identifier"
             },
             "required": true,
+            "description": "The webhook identifier",
             "name": "webhookId",
             "in": "path"
           }
@@ -1519,9 +1610,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The webhook identifier"
             },
             "required": true,
+            "description": "The webhook identifier",
             "name": "webhookId",
             "in": "path"
           }
@@ -1579,17 +1672,21 @@
                 "properties": {
                   "name": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "Unique name for the custom prompt"
                   },
                   "title": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Display title for the prompt"
                   },
                   "description": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Description of what the prompt does"
                   },
                   "content": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "The prompt content text (can include {{argumentName}} placeholders)"
                   },
                   "arguments": {
                     "type": "array",
@@ -1598,41 +1695,49 @@
                       "properties": {
                         "name": {
                           "type": "string",
-                          "minLength": 1
+                          "minLength": 1,
+                          "description": "Argument name"
                         },
                         "description": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Argument description"
                         },
                         "required": {
-                          "type": "boolean"
+                          "type": "boolean",
+                          "description": "Whether the argument is required"
                         }
                       },
                       "required": [
                         "name"
                       ],
                       "additionalProperties": false
-                    }
+                    },
+                    "description": "Array of argument definitions"
                   },
                   "resource": {
                     "type": "object",
                     "properties": {
                       "base64": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "description": "Base64-encoded resource data"
                       },
                       "mimeType": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "description": "MIME type of the resource (e.g., text/plain, application/pdf)"
                       },
                       "filename": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Resource filename"
                       }
                     },
                     "required": [
                       "base64",
                       "mimeType"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Attach a resource to this prompt"
                   }
                 },
                 "required": [
@@ -1669,9 +1774,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "The prompt name"
             },
             "required": true,
+            "description": "The prompt name",
             "name": "name",
             "in": "path"
           }
@@ -1694,9 +1801,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "The prompt name"
             },
             "required": true,
+            "description": "The prompt name",
             "name": "name",
             "in": "path"
           }
@@ -1729,25 +1838,31 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "The prompt name"
             },
             "required": true,
+            "description": "The prompt name",
             "name": "name",
             "in": "path"
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Additional context for prompt resolution"
             },
             "required": false,
+            "description": "Additional context for prompt resolution",
             "name": "context",
             "in": "query"
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Arguments to substitute in the prompt template (pass as a JSON string)"
             },
             "required": false,
+            "description": "Arguments to substitute in the prompt template (pass as a JSON string)",
             "name": "args",
             "in": "query"
           }
@@ -1801,9 +1916,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "The URI-encoded resource identifier"
             },
             "required": true,
+            "description": "The URI-encoded resource identifier",
             "name": "resourceId",
             "in": "path"
           }
@@ -1833,9 +1950,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "The URI-encoded resource identifier"
             },
             "required": true,
+            "description": "The URI-encoded resource identifier",
             "name": "resourceId",
             "in": "path"
           }
@@ -1929,9 +2048,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Comma-separated list of tags to filter by"
             },
             "required": false,
+            "description": "Comma-separated list of tags to filter by",
             "name": "tags",
             "in": "query"
           },
@@ -1941,33 +2062,41 @@
               "enum": [
                 "user",
                 "system"
-              ]
+              ],
+              "description": "Filter by source (user or system)"
             },
             "required": false,
+            "description": "Filter by source (user or system)",
             "name": "source",
             "in": "query"
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Filter by pinned status (true or false)"
             },
             "required": false,
+            "description": "Filter by pinned status (true or false)",
             "name": "pinned",
             "in": "query"
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Maximum number of memories to return"
             },
             "required": false,
+            "description": "Maximum number of memories to return",
             "name": "limit",
             "in": "query"
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Number of memories to skip"
             },
             "required": false,
+            "description": "Number of memories to skip",
             "name": "offset",
             "in": "query"
           }
@@ -1997,9 +2126,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Memory unique identifier"
             },
             "required": true,
+            "description": "Memory unique identifier",
             "name": "id",
             "in": "path"
           }
@@ -2027,9 +2158,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Memory unique identifier"
             },
             "required": true,
+            "description": "Memory unique identifier",
             "name": "id",
             "in": "path"
           }
@@ -2104,9 +2237,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Memory unique identifier"
             },
             "required": true,
+            "description": "Memory unique identifier",
             "name": "id",
             "in": "path"
           }
@@ -2575,7 +2710,8 @@
                 "properties": {
                   "yaml": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "YAML agent configuration content to save"
                   }
                 },
                 "required": [
@@ -2614,7 +2750,8 @@
                 "properties": {
                   "yaml": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "YAML agent configuration content to validate"
                   }
                 },
                 "required": [
@@ -2648,9 +2785,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Session identifier to export session-specific configuration"
             },
             "required": false,
+            "description": "Session identifier to export session-specific configuration",
             "name": "sessionId",
             "in": "query"
           }

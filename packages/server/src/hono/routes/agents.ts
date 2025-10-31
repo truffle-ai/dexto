@@ -113,11 +113,17 @@ const CustomAgentCreateSchema = z
     .strict();
 
 const AgentConfigValidateSchema = z.object({
-    yaml: z.string().min(1, 'YAML content is required'),
+    yaml: z
+        .string()
+        .min(1, 'YAML content is required')
+        .describe('YAML agent configuration content to validate'),
 });
 
 const AgentConfigSaveSchema = z.object({
-    yaml: z.string().min(1, 'YAML content is required'),
+    yaml: z
+        .string()
+        .min(1, 'YAML content is required')
+        .describe('YAML agent configuration content to save'),
 });
 
 export type AgentsRouterContext = {
@@ -688,7 +694,10 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         tags: ['agent'],
         request: {
             query: z.object({
-                sessionId: z.string().optional(),
+                sessionId: z
+                    .string()
+                    .optional()
+                    .describe('Session identifier to export session-specific configuration'),
             }),
         },
         responses: {
