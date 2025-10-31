@@ -166,7 +166,17 @@ export class WebhookEventSubscriber implements EventSubscriber {
             try {
                 controller.abort();
             } catch (error) {
-                logger.debug('Error aborting controller during unsubscribe:', error);
+                logger.debug(
+                    `Error aborting controller during unsubscribe: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                    JSON.stringify({
+                        location: 'WebhookEventSubscriber.unsubscribe',
+                        ...(error instanceof Error
+                            ? { stack: error.stack }
+                            : { value: String(error) }),
+                    })
+                );
             }
         }
     }

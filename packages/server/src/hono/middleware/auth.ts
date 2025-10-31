@@ -29,8 +29,7 @@ export function createAuthMiddleware(): MiddlewareHandler {
     // Log security configuration on startup
     if (isProduction && !apiKey) {
         logger.warn(
-            '⚠️  SECURITY WARNING: Running in production mode (NODE_ENV=production) without DEXTO_SERVER_API_KEY. ' +
-                'Dexto Server API is UNPROTECTED. Set DEXTO_SERVER_API_KEY environment variable to secure your API.'
+            `⚠️  SECURITY WARNING: Running in production mode (NODE_ENV=production) without DEXTO_SERVER_API_KEY. Dexto Server API is UNPROTECTED. Set DEXTO_SERVER_API_KEY environment variable to secure your API.`
         );
     }
 

@@ -20,7 +20,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
 
             // Add error handling for individual connections
             ws.on('error', (error: Error) => {
-                logger.error('WebSocket client error:', error);
+                logger.error(`WebSocket client error: ${error.message}`);
                 this.connections.delete(ws);
             });
 
@@ -318,7 +318,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             try {
                 controller.abort();
             } catch (error) {
-                logger.debug('Error aborting controller during unsubscribe:', error);
+                logger.debug(`Error aborting controller during unsubscribe: ${error}`);
             }
         }
     }
