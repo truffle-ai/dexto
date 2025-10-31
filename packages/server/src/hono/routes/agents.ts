@@ -15,7 +15,7 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { AgentConfigSchema } from '@dexto/core';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
-import { AgentCardSchema, AgentRegistryEntrySchema } from '../schemas/responses.js';
+import { AgentRegistryEntrySchema } from '../schemas/responses.js';
 
 const AgentIdentifierSchema = z
     .object({
@@ -129,14 +129,6 @@ const AgentConfigSaveSchema = z.object({
 
 // Response schemas for agent endpoints
 
-const AgentInfoSchema = z
-    .object({
-        id: z.string().describe('Agent identifier'),
-        name: z.string().describe('Agent display name'),
-    })
-    .strict()
-    .describe('Basic agent information');
-
 const AgentInfoNullableSchema = z
     .object({
         id: z.string().nullable().describe('Agent identifier (null if no active agent)'),
@@ -190,15 +182,6 @@ const UninstallAgentResponseSchema = z
     .strict()
     .describe('Agent uninstallation response');
 
-const CreateAgentResponseSchema = z
-    .object({
-        created: z.literal(true).describe('Indicates successful agent creation'),
-        id: z.string().describe('Created agent ID'),
-        name: z.string().describe('Created agent name'),
-    })
-    .strict()
-    .describe('Agent creation response');
-
 const AgentPathResponseSchema = z
     .object({
         path: z.string().describe('Absolute path to agent configuration file'),
@@ -219,26 +202,6 @@ const AgentConfigResponseSchema = z
     })
     .strict()
     .describe('Agent configuration content');
-
-const ValidationIssueSchema = z
-    .object({
-        line: z.number().int().optional().describe('Line number of issue'),
-        column: z.number().int().optional().describe('Column number of issue'),
-        path: z.string().optional().describe('Path to the field with issue'),
-        message: z.string().describe('Issue description'),
-        code: z.string().describe('Issue code'),
-    })
-    .strict()
-    .describe('Configuration validation issue');
-
-const ValidateConfigResponseSchema = z
-    .object({
-        valid: z.boolean().describe('Whether the configuration is valid'),
-        errors: z.array(ValidationIssueSchema).describe('Blocking errors'),
-        warnings: z.array(ValidationIssueSchema).describe('Non-blocking warnings'),
-    })
-    .strict()
-    .describe('Configuration validation result');
 
 const SaveConfigResponseSchema = z
     .object({
@@ -581,20 +544,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 description: 'Agent file path',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                path: z
-                                    .string()
-                                    .describe('Absolute file path to agent configuration'),
-                                relativePath: z.string().describe('Base filename'),
-                                name: z
-                                    .string()
-                                    .describe('Agent name (filename without extension)'),
-                                isDefault: z
-                                    .boolean()
-                                    .describe('Whether this is the default agent'),
-                            })
-                            .strict(),
+                        schema: AgentPathResponseSchema,
                     },
                 },
             },
@@ -627,17 +577,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 description: 'Agent configuration',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                yaml: z.string().describe('Raw YAML configuration content'),
-                                path: z
-                                    .string()
-                                    .describe('Absolute file path to agent configuration'),
-                                relativePath: z.string().describe('Base filename'),
-                                lastModified: z.date().describe('Last modification timestamp'),
-                                warnings: z.array(z.string()).describe('Configuration warnings'),
-                            })
-                            .strict(),
+                        schema: AgentConfigResponseSchema,
                     },
                 },
             },
@@ -808,22 +748,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 description: 'Configuration saved',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                ok: z.literal(true).describe('Success indicator'),
-                                path: z
-                                    .string()
-                                    .describe('Absolute file path to agent configuration'),
-                                reloaded: z
-                                    .boolean()
-                                    .describe('Whether configuration was reloaded'),
-                                restarted: z.boolean().describe('Whether agent was restarted'),
-                                changesApplied: z
-                                    .array(z.string())
-                                    .describe('List of configuration changes that were applied'),
-                                message: z.string().describe('Human-readable status message'),
-                            })
-                            .strict(),
+                        schema: SaveConfigResponseSchema,
                     },
                 },
             },

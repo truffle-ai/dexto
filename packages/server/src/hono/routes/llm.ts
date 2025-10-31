@@ -13,7 +13,7 @@ import {
     LLMUpdatesSchema,
 } from '@dexto/core';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
-import { LLMConfigSchema, ProviderCatalogSchema, ModelFlatSchema } from '../schemas/responses.js';
+import { ProviderCatalogSchema, ModelFlatSchema } from '../schemas/responses.js';
 
 const CurrentQuerySchema = z.object({
     sessionId: z

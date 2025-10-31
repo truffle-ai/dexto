@@ -1,7 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
-import { InternalMessageSchema } from '../schemas/responses.js';
 
 const MessageBodySchema = z
     .object({

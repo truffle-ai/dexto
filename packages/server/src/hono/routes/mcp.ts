@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
-import { ToolSchema, ResourceSchema } from '../schemas/responses.js';
+import { ResourceSchema } from '../schemas/responses.js';
 
 const McpServerRequestSchema = z.object({
     name: z.string().min(1, 'Server name is required').describe('A unique name for the server'),
