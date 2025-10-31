@@ -63,7 +63,7 @@ const config: Config = {
                     {
                         id: 'dexto-api',
                         spec: 'static/openapi/openapi.json',
-                        route: '/api-test/',
+                        route: '/api/rest/',
                     },
                 ],
                 theme: {
