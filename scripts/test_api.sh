@@ -58,9 +58,9 @@ main() {
   run_test "GET /api/llm/current" GET "/api/llm/current" 200 || failures=$((failures+1))
 
   # LLM switch scenarios
-  run_test "POST /api/llm/switch empty" POST "/api/llm/switch" 500 '{}' || failures=$((failures+1))
-  run_test "POST /api/llm/switch model wrong type" POST "/api/llm/switch" 500 '{"model":123}' || failures=$((failures+1))
-  run_test "POST /api/llm/switch unknown provider" POST "/api/llm/switch" 500 '{"provider":"unknown_vendor"}' || failures=$((failures+1))
+  run_test "POST /api/llm/switch empty" POST "/api/llm/switch" 400 '{}' || failures=$((failures+1))
+  run_test "POST /api/llm/switch model wrong type" POST "/api/llm/switch" 400 '{"model":123}' || failures=$((failures+1))
+  run_test "POST /api/llm/switch unknown provider" POST "/api/llm/switch" 400 '{"provider":"unknown_vendor"}' || failures=$((failures+1))
   # Router-only tweak should be allowed
   run_test "POST /api/llm/switch router only" POST "/api/llm/switch" 200 '{"router":"vercel"}' || failures=$((failures+1))
   run_test "POST /api/llm/switch valid openai" POST "/api/llm/switch" 200 '{"provider":"openai","model":"gpt-5"}' || failures=$((failures+1))
