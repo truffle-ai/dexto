@@ -885,9 +885,9 @@ export class DextoAgent {
      * Gets the current LLM configuration with all defaults applied.
      * @returns Current LLM configuration
      */
-    public getCurrentLLMConfig(): LLMConfig {
+    public getCurrentLLMConfig(): ValidatedLLMConfig {
         this.ensureStarted();
-        return structuredClone(this.stateManager.getLLMConfig()) as LLMConfig;
+        return structuredClone(this.stateManager.getLLMConfig());
     }
 
     /**

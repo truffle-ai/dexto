@@ -13,9 +13,9 @@ const McpServerRequestSchema = z.object({
 });
 
 const ExecuteToolBodySchema = z
-    .any()
+    .record(z.unknown())
     .describe(
-        'Tool execution parameters - schema will be tightened once tool input structure is standardised'
+        "Tool execution parameters as JSON object. The specific fields depend on the tool being executed and are defined by the tool's inputSchema."
     );
 
 // Response schemas

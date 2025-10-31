@@ -17,7 +17,7 @@ import { z } from 'zod';
 export { MemorySchema } from '@dexto/core';
 
 // LLM schemas
-export { LLMConfigSchema, type ValidatedLLMConfig } from '@dexto/core';
+export { LLMConfigSchema, LLMConfigBaseSchema, type ValidatedLLMConfig } from '@dexto/core';
 
 // Agent schemas
 export { AgentCardSchema, type AgentCard } from '@dexto/core';

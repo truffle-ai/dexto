@@ -13,7 +13,12 @@ import {
     LLMUpdatesSchema,
 } from '@dexto/core';
 import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
-import { ProviderCatalogSchema, ModelFlatSchema } from '../schemas/responses.js';
+import {
+    ProviderCatalogSchema,
+    ModelFlatSchema,
+    LLMConfigSchema,
+    LLMConfigBaseSchema,
+} from '../schemas/responses.js';
 
 const CurrentQuerySchema = z.object({
     sessionId: z
@@ -77,6 +82,27 @@ const SessionIdEnvelopeSchema = z
     })
     .passthrough();
 
+const SwitchLLMBodySchema = z
+    .object({
+        sessionId: z
+            .string()
+            .optional()
+            .describe('Session identifier for session-specific LLM configuration'),
+    })
+    .and(LLMUpdatesSchema)
+    .describe('LLM switch request body with optional session ID');
+
+// Response schema for GET /llm/current - matches actual spread result
+// Note: Spreading ValidatedLLMConfig makes TS infer defaults as optional
+const CurrentLLMConfigResponseSchema = LLMConfigBaseSchema.partial({
+    maxIterations: true,
+    router: true,
+})
+    .extend({
+        displayName: z.string().optional().describe('Human-readable model display name'),
+    })
+    .describe('Current LLM configuration');
+
 export function createLlmRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
@@ -94,9 +120,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                     'application/json': {
                         schema: z
                             .object({
-                                config: z
-                                    .record(z.any())
-                                    .describe('Current LLM configuration with all fields'),
+                                config: CurrentLLMConfigResponseSchema,
                             })
                             .describe('Response containing current LLM configuration'),
                     },
@@ -123,7 +147,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         }
 
         return ctx.json({
-            config: { ...currentConfig, ...(displayName ? { displayName } : {}) },
+            config: { ...currentConfig, displayName },
         });
     });
 
@@ -318,14 +342,21 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         return ctx.json({ ok: true, provider, envVar: meta.envVar });
     });
 
-    // Match Express: SwitchLLMBodySchema uses .passthrough() to allow sessionId + any LLM config fields
-    // Since OpenAPI doesn't support passthrough well, we use z.any() and validate manually
     const switchRoute = createRoute({
         method: 'post',
         path: '/llm/switch',
         summary: 'Switch LLM',
         description: 'Switches the LLM configuration for the agent or a specific session',
         tags: ['llm'],
+        request: {
+            body: {
+                content: {
+                    'application/json': {
+                        schema: SwitchLLMBodySchema,
+                    },
+                },
+            },
+        },
         responses: {
             200: {
                 description: 'LLM switch result',
@@ -333,9 +364,9 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                     'application/json': {
                         schema: z
                             .object({
-                                config: z
-                                    .record(z.any())
-                                    .describe('New LLM configuration with all fields'),
+                                config: LLMConfigSchema.describe(
+                                    'New LLM configuration with all defaults applied'
+                                ),
                                 sessionId: z
                                     .string()
                                     .optional()
@@ -346,7 +377,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 },
             },
         },
-        request: { body: { content: { 'application/json': { schema: z.any() } } } },
     });
     app.openapi(switchRoute, async (ctx) => {
         const agent = getAgent();
