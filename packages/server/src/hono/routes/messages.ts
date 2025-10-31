@@ -44,6 +44,9 @@ const ResetBodySchema = z
 export function createMessagesRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
+    // TODO: Deprecate this endpoint - this async pattern is problematic and should be replaced
+    // with a proper job queue or streaming-only approach. Consider removing in next major version.
+    // Users should use /message/sync for synchronous responses or WebSocket for streaming.
     const messageRoute = createRoute({
         method: 'post',
         path: '/message',
@@ -94,15 +97,17 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
         if (fileDataInput) logger.info('File data included in message.');
         if (sessionId) logger.info(`Message for session: ${sessionId}`);
 
-        const response = await agent.run(
-            message || '',
-            imageDataInput,
-            fileDataInput,
-            sessionId,
-            stream || false
-        );
+        // Fire and forget - start processing asynchronously
+        // Results will be delivered via WebSocket
+        agent
+            .run(message || '', imageDataInput, fileDataInput, sessionId, stream || false)
+            .catch((error) => {
+                logger.error(
+                    `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
+                );
+            });
 
-        return ctx.json({ response, sessionId }, 202);
+        return ctx.json({ response: 'Processing', sessionId }, 202);
     });
 
     const messageSyncRoute = createRoute({

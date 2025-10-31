@@ -290,16 +290,16 @@ export async function initializeHonoApi(
     const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
     try {
         mcpTransport = await createServerMcpTransport(transportType);
-        await initializeServerMcpServer(getAgent(), getAgentCard(), mcpTransport);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to initialize MCP server: ${errorMessage}`);
+        logger.error(`Failed to create MCP transport: ${errorMessage}`);
         mcpTransport = undefined;
     }
 
     // Create bridge with app - bridge will create webSubscriber
     bridgeRef = createNodeServer(app, {
         agent: getAgent(),
+        getAgent,
         mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
     });
 
@@ -327,6 +327,17 @@ export async function initializeHonoApi(
         await activeAgent.start();
     } else if (activeAgent.isStopped()) {
         logger.warn('Initial agent is stopped, this may cause issues');
+    }
+
+    // Initialize MCP server after agent has started
+    if (mcpTransport) {
+        try {
+            await initializeServerMcpServer(activeAgent, getAgentCard(), mcpTransport);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to initialize MCP server: ${errorMessage}`);
+            mcpTransport = undefined;
+        }
     }
 
     return {
