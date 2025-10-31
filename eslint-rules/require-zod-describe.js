@@ -153,6 +153,41 @@ export default {
             return false;
         }
 
+        /**
+         * Walk down a call/member chain to find the root Zod constructor call
+         * For z.string().min(5), returns the z.string() node
+         * For z.array(z.string()), returns the z.array() node
+         */
+        function findRootZodCall(node) {
+            let current = node;
+
+            while (current) {
+                // Check if we found a root Zod call
+                if (
+                    isZodPrimitiveCall(current) ||
+                    isZodMethodCall(current) ||
+                    isZodObjectCall(current)
+                ) {
+                    return current;
+                }
+
+                // Walk down the chain
+                if (current.type === 'CallExpression' && current.callee.type === 'MemberExpression') {
+                    current = current.callee.object;
+                    continue;
+                }
+
+                if (current.type === 'MemberExpression') {
+                    current = current.object;
+                    continue;
+                }
+
+                break;
+            }
+
+            return null;
+        }
+
         return {
             // Check z.object({ field: z.string() }) patterns
             ObjectExpression(node) {
@@ -174,12 +209,10 @@ export default {
                               ? property.key.value
                               : '<unknown>';
 
-                    // Check if the property value is a Zod call
+                    // Check if the property value is a Zod call (walk the chain to find root)
                     const value = property.value;
-                    if (
-                        (isZodPrimitiveCall(value) || isZodMethodCall(value)) &&
-                        !hasDescribeInChain(value)
-                    ) {
+                    const rootZodCall = findRootZodCall(value);
+                    if (rootZodCall && !hasDescribeInChain(value)) {
                         context.report({
                             node: property,
                             messageId: 'missingDescribe',
@@ -202,23 +235,8 @@ export default {
                     }
                 }
 
-                // Walk down the call chain to find the root Zod call
-                let current = node.init;
-                let rootZodCall = null;
-
-                while (current) {
-                    if (isZodPrimitiveCall(current) || isZodMethodCall(current)) {
-                        rootZodCall = current;
-                    }
-
-                    if (current.type === 'CallExpression' && current.callee.type === 'MemberExpression') {
-                        current = current.callee.object;
-                    } else {
-                        break;
-                    }
-                }
-
-                // Check if we found a Zod call and it doesn't have .describe()
+                // Use the same helper to find root Zod call
+                const rootZodCall = findRootZodCall(node.init);
                 if (rootZodCall && !hasDescribeInChain(node.init)) {
                     context.report({
                         node: node.init,
