@@ -23,8 +23,13 @@ import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/
 import ServerRegistryModal from './ServerRegistryModal';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAnalytics } from '@/lib/analytics/index.js';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/queryKeys';
+import {
+    useServers,
+    useServerTools,
+    useAddServer,
+    useDeleteServer,
+    useRestartServer,
+} from './hooks/useServers';
 
 interface ServersPanelProps {
     isOpen: boolean;
@@ -53,64 +58,37 @@ export default function ServersPanel({
 }: ServersPanelProps) {
     const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';
     const analytics = useAnalytics();
-    const queryClient = useQueryClient();
-    const [servers, setServers] = useState<McpServer[]>([]);
+
     const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
-    const [tools, setTools] = useState<McpTool[]>([]);
-    const [isLoadingServers, setIsLoadingServers] = useState(false);
-    const [isLoadingTools, setIsLoadingTools] = useState(false);
-    const [serverError, setServerError] = useState<string | null>(null);
-    const [toolsError, setToolsError] = useState<string | null>(null);
-    const [isToolsExpanded, setIsToolsExpanded] = useState(false); // State for tools section collapse
-    const [isDeletingServer, setIsDeletingServer] = useState<string | null>(null); // Tracks which server is being deleted
-    const [isRestartingServer, setIsRestartingServer] = useState<string | null>(null); // Tracks which server is being restarted
+    const [isToolsExpanded, setIsToolsExpanded] = useState(false);
     const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false);
     const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
-    const handleError = (message: string, area: 'servers' | 'tools' | 'delete') => {
-        console.error(`ServersPanel Error (${area}):`, message);
-        if (area === 'servers') setServerError(message);
-        if (area === 'tools') setToolsError(message);
-        // Potentially a specific error state for delete if needed
-    };
+    // Use TanStack Query hooks
+    const {
+        data: servers = [],
+        isLoading: isLoadingServers,
+        error: serverError,
+        refetch: refetchServers,
+    } = useServers(isOpen);
 
-    const fetchServers = useCallback(async (signal?: AbortSignal) => {
-        setIsLoadingServers(true);
-        setServerError(null);
-        setServers([]); // Clear existing servers
-        setSelectedServerId(null); // Reset selected server
-        setTools([]); // Clear tools
-        setToolsError(null);
-        try {
-            const data = await apiFetch<{ servers: McpServer[] }>(
-                '/api/mcp/servers',
-                signal ? { signal } : {}
-            );
-            const fetchedServers = data.servers || [];
-            setServers(fetchedServers);
-            if (fetchedServers.length > 0) {
-                // Auto-select the first connected server if available
-                const firstConnected = fetchedServers.find(
-                    (s: McpServer) => s.status === 'connected'
-                );
-                if (firstConnected) {
-                    setSelectedServerId(firstConnected.id);
-                } else if (fetchedServers.length > 0) {
-                    setSelectedServerId(fetchedServers[0].id); // Select first server if none are connected
-                }
-            } else {
-                console.log('No MCP servers found or returned from API.');
-            }
-        } catch (err: any) {
-            if (err.name !== 'AbortError') {
-                handleError(err.message, 'servers');
-            }
-        } finally {
-            if (!signal?.aborted) {
-                setIsLoadingServers(false);
-            }
+    const {
+        data: tools = [],
+        isLoading: isLoadingTools,
+        error: toolsError,
+    } = useServerTools(selectedServerId, isOpen && !!selectedServerId);
+
+    const addServerMutation = useAddServer();
+    const deleteServerMutation = useDeleteServer();
+    const restartServerMutation = useRestartServer();
+
+    // Auto-select first connected server when servers load
+    useEffect(() => {
+        if (servers.length > 0 && !selectedServerId) {
+            const firstConnected = servers.find((s) => s.status === 'connected');
+            setSelectedServerId(firstConnected?.id || servers[0].id);
         }
-    }, []);
+    }, [servers, selectedServerId]);
 
     const handleInstallServer = async (
         entry: ServerRegistryEntry
@@ -143,11 +121,11 @@ export default function ServersPanel({
         // Otherwise, connect directly
         try {
             setIsRegistryBusy(true);
-            await apiFetch('/api/mcp/servers', {
-                method: 'POST',
-                body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
+            await addServerMutation.mutateAsync({
+                name: entry.name,
+                config,
+                persistToAgent: false,
             });
-            await fetchServers();
 
             // Sync registry after installation
             try {
@@ -180,19 +158,15 @@ export default function ServersPanel({
             return;
         }
 
-        setIsDeletingServer(serverId);
-        setServerError(null);
-
         try {
-            await apiFetch(`/api/mcp/servers/${serverId}`, { method: 'DELETE' });
-
             // If this was the selected server, deselect it
             if (selectedServerId === serverId) {
                 setSelectedServerId(null);
-                setTools([]);
             }
 
-            // Mark corresponding registry entry as uninstalled if any alias matches this server id
+            await deleteServerMutation.mutateAsync(serverId);
+
+            // Mark corresponding registry entry as uninstalled
             try {
                 const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                 const currentId = normalize(serverId);
@@ -207,25 +181,17 @@ export default function ServersPanel({
                     await serverRegistry.setInstalled(match.id, false);
                 }
             } catch (e) {
-                // non-fatal if registry update fails
                 console.warn('Failed to update registry installed state on delete:', e);
             }
-
-            await fetchServers(); // Refresh server list
-            // Invalidate prompts cache since removed server's prompts are no longer available
-            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
 
             // Sync registry with updated server status
             try {
                 await serverRegistry.syncWithServerStatus();
             } catch (e) {
-                // Non-fatal; continue
                 console.warn('Failed to sync registry status after server deletion:', e);
             }
         } catch (err: any) {
-            handleError(err.message, 'servers');
-        } finally {
-            setIsDeletingServer(null);
+            console.error('Delete server error:', err);
         }
     };
 
@@ -237,14 +203,8 @@ export default function ServersPanel({
             return;
         }
 
-        setIsRestartingServer(serverId);
-        setServerError(null);
-
         try {
-            await apiFetch(`/api/mcp/servers/${serverId}/restart`, { method: 'POST' });
-
-            await fetchServers(); // Refresh server list
-            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all }); // Invalidate prompts cache since server was restarted
+            await restartServerMutation.mutateAsync(serverId);
 
             // Sync registry with updated server status
             try {
@@ -253,60 +213,30 @@ export default function ServersPanel({
                 console.warn('Failed to sync registry status after server restart:', e);
             }
         } catch (err: any) {
-            handleError(err.message, 'servers');
-        } finally {
-            setIsRestartingServer(null);
+            console.error('Restart server error:', err);
         }
     };
 
-    useEffect(() => {
-        if (!isOpen) return;
-        const controller = new AbortController();
-        fetchServers(controller.signal);
-        // When panel opens, ensure no server is stuck in deleting state from a previous quick close
-        setIsDeletingServer(null);
-        return () => {
-            controller.abort();
-        };
-    }, [isOpen, fetchServers]);
-
-    // Effect to handle external refresh triggers
+    // Handle external refresh triggers
     useEffect(() => {
         if (refreshTrigger && isOpen) {
-            const controller = new AbortController();
-            fetchServers(controller.signal);
-            return () => {
-                controller.abort();
-            };
+            refetchServers();
         }
-    }, [refreshTrigger, isOpen, fetchServers]);
+    }, [refreshTrigger, isOpen, refetchServers]);
 
     // Listen for real-time MCP server and resource updates
     useEffect(() => {
         if (!isOpen) return;
 
         const handleServerConnected = (event: any) => {
-            const detail = event?.detail || {};
-            console.log('🔗 Server connected:', detail);
-            // Refresh server list when a new server is connected
-            fetchServers();
+            console.log('🔗 Server connected:', event?.detail || {});
+            refetchServers();
         };
 
         const handleResourceCacheInvalidated = (event: any) => {
-            const detail = event?.detail || {};
-            console.log('💾 Resource cache invalidated for server panel:', detail);
-            // If we have a selected server and it matches the updated server, refresh tools
-            if (selectedServerId && detail.serverName) {
-                const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                const normalizedSelectedId = normalize(selectedServerId);
-                const normalizedServerName = normalize(detail.serverName);
-                if (normalizedSelectedId === normalizedServerName) {
-                    handleServerSelect(selectedServerId);
-                }
-            }
+            console.log('💾 Resource cache invalidated for server panel:', event?.detail || {});
         };
 
-        // Listen for WebSocket events that indicate server/resource changes
         if (typeof window !== 'undefined') {
             window.addEventListener('dexto:mcpServerConnected', handleServerConnected);
             window.addEventListener(
@@ -322,55 +252,11 @@ export default function ServersPanel({
                 );
             };
         }
-    }, [isOpen, fetchServers, selectedServerId]);
+    }, [isOpen, refetchServers]);
 
-    const handleServerSelect = useCallback(
-        async (serverId: string, signal?: AbortSignal) => {
-            const server = servers.find((s) => s.id === serverId);
-            setTools([]);
-            setToolsError(null);
-
-            if (!server || server.status !== 'connected') {
-                console.warn(
-                    `Server "${server?.name || serverId}" is not connected or not found. Cannot fetch tools.`
-                );
-                // Tools list will be empty, UI should reflect server status
-                return;
-            }
-
-            setIsLoadingTools(true);
-            try {
-                const data = await apiFetch<{ tools: any[] }>(
-                    `/api/mcp/servers/${serverId}/tools`,
-                    signal ? { signal } : {}
-                );
-                if (!signal?.aborted) {
-                    setTools(data.tools || []);
-                }
-                if (!data.tools || data.tools.length === 0) {
-                    console.log(`No tools found for server "${server.name}".`);
-                }
-            } catch (err: any) {
-                if (err.name !== 'AbortError') {
-                    handleError(err.message, 'tools');
-                }
-            } finally {
-                if (!signal?.aborted) {
-                    setIsLoadingTools(false);
-                }
-            }
-        },
-        [servers]
-    );
-
-    useEffect(() => {
-        if (!selectedServerId) return;
-        const controller = new AbortController();
-        handleServerSelect(selectedServerId, controller.signal);
-        return () => {
-            controller.abort();
-        };
-    }, [selectedServerId, handleServerSelect]);
+    const handleServerSelect = (serverId: string) => {
+        setSelectedServerId(serverId);
+    };
 
     const selectedServer = servers.find((s) => s.id === selectedServerId);
 
@@ -385,7 +271,7 @@ export default function ServersPanel({
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => fetchServers()}
+                            onClick={() => refetchServers()}
                             disabled={isLoadingServers}
                             className="h-8 w-8 p-0"
                         >
@@ -449,7 +335,7 @@ export default function ServersPanel({
                                             Connection Error
                                         </p>
                                         <p className="text-xs text-destructive/80 mt-1">
-                                            {serverError}
+                                            {serverError?.message || 'Failed to load servers'}
                                         </p>
                                     </div>
                                 </div>
@@ -504,7 +390,8 @@ export default function ServersPanel({
 
                                     <div className="flex items-center gap-1">
                                         {/* Restart button */}
-                                        {isRestartingServer === server.id ? (
+                                        {restartServerMutation.isPending &&
+                                        restartServerMutation.variables === server.id ? (
                                             <div className="h-8 w-8 flex items-center justify-center">
                                                 <RefreshCw
                                                     className="h-4 w-4 animate-spin text-muted-foreground"
@@ -524,7 +411,11 @@ export default function ServersPanel({
                                                         }}
                                                         className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
                                                         aria-label={`Restart server ${server.name}`}
-                                                        disabled={isDeletingServer === server.id}
+                                                        disabled={
+                                                            deleteServerMutation.isPending &&
+                                                            deleteServerMutation.variables ===
+                                                                server.id
+                                                        }
                                                     >
                                                         <RotateCw className="h-3.5 w-3.5" />
                                                     </Button>
@@ -536,7 +427,8 @@ export default function ServersPanel({
                                         )}
 
                                         {/* Delete button */}
-                                        {isDeletingServer === server.id ? (
+                                        {deleteServerMutation.isPending &&
+                                        deleteServerMutation.variables === server.id ? (
                                             <div className="h-8 w-8 flex items-center justify-center">
                                                 <RefreshCw
                                                     className="h-4 w-4 animate-spin text-muted-foreground"
@@ -556,7 +448,11 @@ export default function ServersPanel({
                                                         }}
                                                         className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                                         aria-label={`Remove server ${server.name}`}
-                                                        disabled={isRestartingServer === server.id}
+                                                        disabled={
+                                                            restartServerMutation.isPending &&
+                                                            restartServerMutation.variables ===
+                                                                server.id
+                                                        }
                                                     >
                                                         <Trash2 className="h-3.5 w-3.5" />
                                                     </Button>
@@ -616,7 +512,8 @@ export default function ServersPanel({
                                                         Tools Error
                                                     </p>
                                                     <p className="text-xs text-destructive/80 mt-1">
-                                                        {toolsError}
+                                                        {toolsError?.message ||
+                                                            'Failed to load tools'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -733,7 +630,7 @@ export default function ServersPanel({
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => fetchServers()}
+                            onClick={() => refetchServers()}
                             disabled={isLoadingServers}
                             className="h-8 w-8 p-0"
                         >
@@ -800,7 +697,7 @@ export default function ServersPanel({
                                             Connection Error
                                         </p>
                                         <p className="text-xs text-destructive/80 mt-1">
-                                            {serverError}
+                                            {serverError?.message || 'Failed to load servers'}
                                         </p>
                                     </div>
                                 </div>
@@ -855,7 +752,8 @@ export default function ServersPanel({
 
                                     <div className="flex items-center gap-1">
                                         {/* Restart button */}
-                                        {isRestartingServer === server.id ? (
+                                        {restartServerMutation.isPending &&
+                                        restartServerMutation.variables === server.id ? (
                                             <div className="h-8 w-8 flex items-center justify-center">
                                                 <RefreshCw
                                                     className="h-4 w-4 animate-spin text-muted-foreground"
@@ -875,7 +773,11 @@ export default function ServersPanel({
                                                         }}
                                                         className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
                                                         aria-label={`Restart server ${server.name}`}
-                                                        disabled={isDeletingServer === server.id}
+                                                        disabled={
+                                                            deleteServerMutation.isPending &&
+                                                            deleteServerMutation.variables ===
+                                                                server.id
+                                                        }
                                                     >
                                                         <RotateCw className="h-3.5 w-3.5" />
                                                     </Button>
@@ -887,7 +789,8 @@ export default function ServersPanel({
                                         )}
 
                                         {/* Delete button */}
-                                        {isDeletingServer === server.id ? (
+                                        {deleteServerMutation.isPending &&
+                                        deleteServerMutation.variables === server.id ? (
                                             <div className="h-8 w-8 flex items-center justify-center">
                                                 <RefreshCw
                                                     className="h-4 w-4 animate-spin text-muted-foreground"
@@ -907,7 +810,11 @@ export default function ServersPanel({
                                                         }}
                                                         className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                                         aria-label={`Remove server ${server.name}`}
-                                                        disabled={isRestartingServer === server.id}
+                                                        disabled={
+                                                            restartServerMutation.isPending &&
+                                                            restartServerMutation.variables ===
+                                                                server.id
+                                                        }
                                                     >
                                                         <Trash2 className="h-3.5 w-3.5" />
                                                     </Button>
@@ -967,7 +874,8 @@ export default function ServersPanel({
                                                         Tools Error
                                                     </p>
                                                     <p className="text-xs text-destructive/80 mt-1">
-                                                        {toolsError}
+                                                        {toolsError?.message ||
+                                                            'Failed to load tools'}
                                                     </p>
                                                 </div>
                                             </div>
