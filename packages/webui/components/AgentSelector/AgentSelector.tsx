@@ -57,7 +57,7 @@ const MAX_RECENT_AGENTS = 5;
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
   const router = useRouter();
-  const { returnToWelcome, currentLLM, currentSessionId } = useChatContext();
+  const { currentLLM, currentSessionId } = useChatContext();
   const analytics = useAnalytics();
   const analyticsRef = useRef(analytics);
 
@@ -224,7 +224,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       } catch {}
 
       // Navigate back to home after switching agents
-      returnToWelcome();
+      // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
       router.push('/');
     } catch (err) {
       console.error(`Switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -233,7 +233,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, installed, switchAgentMutation, router, currentId, currentSessionId]);
+  }, [installed, switchAgentMutation, router, currentId, currentSessionId]);
 
   const handleSwitchToPath = useCallback(async (agent: { id: string; name: string; path: string }) => {
     try {
@@ -266,7 +266,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       } catch {}
 
       // Navigate back to home after switching agents
-      returnToWelcome();
+      // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
       router.push('/');
     } catch (err) {
       console.error(`Switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -275,7 +275,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, addToRecentAgents, switchAgentMutation, router, currentId, currentSessionId]);
+  }, [addToRecentAgents, switchAgentMutation, router, currentId, currentSessionId]);
 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
@@ -316,8 +316,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         );
       } catch {}
 
-      // Step 6: Return to welcome
-      returnToWelcome();
+      // Step 6: Navigate to home
+      // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
+      router.push('/');
     } catch (err) {
       console.error(`Install/switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to install/switch agent';
@@ -325,7 +326,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [installAgentMutation, switchAgentMutation, returnToWelcome, currentId, currentSessionId, queryClient, analyticsRef]);
+  }, [installAgentMutation, switchAgentMutation, router, currentId, currentSessionId, queryClient, analyticsRef]);
 
   const handleDelete = useCallback(async (agent: AgentItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering switch when clicking delete
