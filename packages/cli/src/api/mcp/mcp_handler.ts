@@ -157,12 +157,15 @@ export async function initializeMcpServerApiEndpoints(
         try {
             await mcpServer.connect(mcpTransport);
             logger.info('MCP server connected to HTTP transport (sessions managed per-request)');
-        } catch (error: any) {
-            logger.error(
-                `Failed to connect MCP server to HTTP transport: ${error?.message ?? String(error)}`,
-                { error: error?.stack ?? error }
-            );
-            throw error;
+        } catch (error: unknown) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            logger.error(`Failed to connect MCP server to HTTP transport: ${err.message}`, {
+                error: err.stack,
+            });
+            if (error instanceof Error) {
+                throw error;
+            }
+            throw err;
         }
 
         // Mount /mcp for JSON-RPC and SSE handling
