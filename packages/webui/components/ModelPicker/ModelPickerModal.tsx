@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import Image from "next/image";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
@@ -140,8 +141,6 @@ function CompactModelCard({ provider, model, providerInfo, isFavorite, isActive,
 
 export default function ModelPickerModal() {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<Record<string, ProviderCatalog>>({});
   const [search, setSearch] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -149,6 +148,7 @@ export default function ModelPickerModal() {
   const [baseURL, setBaseURL] = useState("");
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'favorites' | 'all' | 'custom'>('favorites');
+  const [error, setError] = useState<string | null>(null);
 
   // Custom models state
   const [customModels, setCustomModels] = useState<CustomModelStorage[]>([]);
@@ -176,6 +176,27 @@ export default function ModelPickerModal() {
     analyticsRef.current = analytics;
   }, [analytics]);
 
+  // Load catalog when opening
+  const {
+    data: catalogData,
+    isLoading: loading,
+    error: catalogError,
+  } = useQuery<CatalogResponse, Error>({
+    queryKey: ['llmCatalog'],
+    queryFn: async () => {
+      const catRes = await fetch(`${getApiUrl()}/api/llm/catalog`);
+      if (!catRes.ok) throw new Error('Failed to load catalog');
+      return (await catRes.json()) as CatalogResponse;
+    },
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (catalogData?.providers) {
+      setProviders(catalogData.providers);
+    }
+  }, [catalogData]);
+
   // When opening, initialize advanced panel inputs from current session LLM
   useEffect(() => {
     if (!open) return;
@@ -184,31 +205,6 @@ export default function ModelPickerModal() {
       setBaseURL(currentLLM.baseURL || '');
     }
   }, [open, currentLLM]);
-
-  // Load catalog when opening
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const catRes = await fetch(`${getApiUrl()}/api/llm/catalog`);
-        if (!cancelled) {
-          if (catRes.ok) {
-            const body = (await catRes.json()) as CatalogResponse;
-            setProviders(body.providers || {});
-          }
-        }
-      } catch (e) {
-        if (!cancelled) setError('Failed to load catalog');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [open]);
 
   const [favorites, setFavorites] = useState<string[]>([]);
   
@@ -487,7 +483,11 @@ export default function ModelPickerModal() {
           <div className="flex flex-col min-h-0 flex-1 space-y-4">
             {/* Search and Error */}
             <div className="flex-shrink-0 space-y-4">
-              {error && (<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>)}
+              {(error || catalogError) && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error || catalogError?.message}</AlertDescription>
+                </Alert>
+              )}
               <SearchBar value={search} onChange={setSearch} placeholder="Search models, providers..." />
             </div>
 

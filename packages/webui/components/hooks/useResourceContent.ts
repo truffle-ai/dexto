@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 
 type NormalizedResourceItem =
@@ -132,6 +133,19 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
     };
 }
 
+async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
+    const response = await fetch(`${getApiUrl()}/api/resources/${encodeURIComponent(uri)}/content`);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+    }
+    const body = await response.json();
+    const contentPayload = body?.content;
+    if (!contentPayload) {
+        throw new Error('No content returned for resource');
+    }
+    return normalizeResource(uri, contentPayload);
+}
+
 export function useResourceContent(resourceUris: string[]): ResourceStateMap {
     const normalizedUris = useMemo(() => {
         const seen = new Set<string>();
@@ -146,62 +160,34 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
         return ordered;
     }, [resourceUris.join('|')]);
 
-    const [resources, setResources] = useState<ResourceStateMap>({});
-    const resourcesRef = useRef<ResourceStateMap>({});
-    const inFlightRef = useRef<Set<string>>(new Set());
+    const queries = useQueries({
+        queries: normalizedUris.map((uri) => ({
+            queryKey: ['resourceContent', uri],
+            queryFn: () => fetchResourceContent(uri),
+            enabled: !!uri,
+            retry: false,
+        })),
+    });
 
-    useEffect(() => {
-        resourcesRef.current = resources;
-    }, [resources]);
-
-    useEffect(() => {
-        normalizedUris.forEach((uri) => {
+    const resources: ResourceStateMap = useMemo(() => {
+        const result: ResourceStateMap = {};
+        queries.forEach((query, index) => {
+            const uri = normalizedUris[index];
             if (!uri) return;
 
-            const existing = resourcesRef.current[uri];
-            if (existing && existing.status !== 'error') {
-                return;
+            if (query.isLoading) {
+                result[uri] = { status: 'loading' };
+            } else if (query.error) {
+                result[uri] = {
+                    status: 'error',
+                    error: query.error instanceof Error ? query.error.message : String(query.error),
+                };
+            } else if (query.data) {
+                result[uri] = { status: 'loaded', data: query.data };
             }
-            if (inFlightRef.current.has(uri)) {
-                return;
-            }
-
-            inFlightRef.current.add(uri);
-            setResources((prev) => ({
-                ...prev,
-                [uri]: { status: 'loading' },
-            }));
-
-            (async () => {
-                try {
-                    const response = await fetch(
-                        `${getApiUrl()}/api/resources/${encodeURIComponent(uri)}/content`
-                    );
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    const body = await response.json();
-                    const contentPayload = body?.content;
-                    if (!contentPayload) {
-                        throw new Error('No content returned for resource');
-                    }
-                    const normalized = normalizeResource(uri, contentPayload);
-                    setResources((prev) => ({
-                        ...prev,
-                        [uri]: { status: 'loaded', data: normalized },
-                    }));
-                } catch (error) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    setResources((prev) => ({
-                        ...prev,
-                        [uri]: { status: 'error', error: message },
-                    }));
-                } finally {
-                    inFlightRef.current.delete(uri);
-                }
-            })();
         });
-    }, [normalizedUris]);
+        return result;
+    }, [queries, normalizedUris]);
 
     return resources;
 }

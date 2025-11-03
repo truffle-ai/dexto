@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, CheckCircle, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,16 +17,14 @@ import { cn } from '@/lib/utils';
 import { getApiUrl } from '@/lib/api-url';
 
 export default function PlaygroundView() {
-  const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServer, setSelectedServer] = useState<McpServer | null>(null);
-  const [tools, setTools] = useState<McpTool[]>([]);
   const [selectedTool, setSelectedTool] = useState<McpTool | null>(null);
   const [toolInputs, setToolInputs] = useState<Record<string, any>>({});
   const [toolResult, setToolResult] = useState<ToolResultType | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [currentError, setCurrentError] = useState<string | null>(null);
   const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [executionLoading, setExecutionLoading] = useState(false);
   const [executionHistory, setExecutionHistory] = useState<ExecutionHistoryItem[]>([]);
   const [clipboardNotification, setClipboardNotification] = useState<{
     message: string;
@@ -44,11 +43,44 @@ export default function PlaygroundView() {
   const toolsAbortControllerRef = useRef<AbortController | null>(null);
   const executionAbortControllerRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    return () => {
-      toolsAbortControllerRef.current?.abort();
-    };
-  }, []);
+  const {
+    data: servers = [],
+    isLoading: serversLoading,
+    error: serversError,
+    refetch: refetchServers,
+  } = useQuery<McpServer[], Error>({
+    queryKey: ['mcpServers'],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/mcp/servers`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch servers' }));
+        throw new Error(errorData.error || `Server List: ${response.statusText}`);
+      }
+      const data = await response.json();
+      return data.servers || [];
+    },
+  });
+
+  const {
+    data: tools = [],
+    isLoading: toolsLoading,
+    error: toolsError,
+  } = useQuery<McpTool[], Error>({
+    queryKey: ['mcpTools', selectedServer?.id],
+    queryFn: async () => {
+      if (!selectedServer || selectedServer.status !== 'connected') {
+        return [];
+      }
+      const response = await fetch(`${API_BASE_URL}/mcp/servers/${selectedServer.id}/tools`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `Failed to fetch tools for ${selectedServer.name}` }));
+        throw new Error(errorData.error || `Tool List (${selectedServer.name}): ${response.statusText}`);
+      }
+      const data = await response.json();
+      return data.tools || [];
+    },
+    enabled: !!selectedServer && selectedServer.status === 'connected',
+  });
 
   const handleError = (message: string, area?: 'servers' | 'tools' | 'execution' | 'input') => {
     console.error(`Playground Error (${area || 'general'}):`, message);
@@ -57,68 +89,12 @@ export default function PlaygroundView() {
     }
   };
 
-  const fetchServers = useCallback(async () => {
-    setIsLoading(true);
-    setCurrentError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch servers' }));
-        throw new Error(errorData.error || `Server List: ${response.statusText}`);
-      }
-      const data = await response.json();
-      setServers(data.servers || []);
-    } catch (err: any) {
-      handleError(err.message, 'servers');
-      setServers([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchServers();
-  }, [fetchServers]);
-
-  const handleServerSelect = useCallback(async (server: McpServer) => {
-    toolsAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    toolsAbortControllerRef.current = controller;
+  const handleServerSelect = useCallback((server: McpServer) => {
     setSelectedServer(server);
     setSelectedTool(null);
     setToolResult(null);
-    setTools([]);
     setCurrentError(null);
     setInputErrors({});
-
-    if (server.status !== 'connected') {
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers/${server.id}/tools`, {
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: `Failed to fetch tools for ${server.name}` }));
-        throw new Error(errorData.error || `Tool List (${server.name}): ${response.statusText}`);
-      }
-      const data = await response.json();
-      if (controller.signal.aborted) return;
-      setTools(data.tools || []);
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        handleError(err.message, 'tools');
-        setTools([]);
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        setIsLoading(false);
-      }
-    }
   }, []);
 
   const handleToolSelect = useCallback((tool: McpTool) => {
@@ -227,7 +203,7 @@ export default function PlaygroundView() {
     const executionStart = Date.now();
     const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    setIsLoading(true);
+      setExecutionLoading(true);
     try {
       const processedInputs: Record<string, any> = {};
       if (selectedTool.inputSchema && selectedTool.inputSchema.properties) {
@@ -243,7 +219,7 @@ export default function PlaygroundView() {
               const num = Number(value);
               if (!Number.isInteger(num)) {
                 setInputErrors((prev) => ({ ...prev, [key]: 'Must be a valid integer.' }));
-                setIsLoading(false);
+                setExecutionLoading(false);
                 return;
               }
               value = num;
@@ -263,7 +239,7 @@ export default function PlaygroundView() {
               value = JSON.parse(value);
             } catch (e) {
               setInputErrors((prev) => ({ ...prev, [key]: 'Invalid JSON before sending.' }));
-              setIsLoading(false);
+              setExecutionLoading(false);
               return;
             }
           } else if ((prop.type === 'object' || prop.type === 'array') && (value === undefined || value === '')) {
@@ -326,14 +302,14 @@ export default function PlaygroundView() {
       }
     } finally {
       if (!controller.signal.aborted) {
-        setIsLoading(false);
+        setExecutionLoading(false);
       }
     }
   }, [selectedServer, selectedTool, toolInputs, validateInputs, toolResult]);
 
   const handleModalClose = () => {
     setIsConnectModalOpen(false);
-    fetchServers();
+    refetchServers();
   };
 
   const copyToClipboard = async (text: string, successMessage?: string) => {
@@ -418,8 +394,8 @@ export default function PlaygroundView() {
             <ServersList
               servers={servers}
               selectedServer={selectedServer}
-              isLoading={isLoading && !selectedServer}
-              error={currentError}
+              isLoading={serversLoading}
+              error={serversError?.message || currentError}
               searchQuery={serverSearchQuery}
               onSearchChange={setServerSearchQuery}
               onServerSelect={handleServerSelect}
@@ -442,8 +418,8 @@ export default function PlaygroundView() {
             tools={tools}
             selectedTool={selectedTool}
             selectedServer={selectedServer}
-            isLoading={isLoading && selectedServer?.status === 'connected' && tools.length === 0}
-            error={selectedServer?.status === 'connected' ? currentError : null}
+            isLoading={toolsLoading}
+            error={toolsError?.message || (selectedServer?.status === 'connected' ? currentError : null)}
             searchQuery={toolSearchQuery}
             onSearchChange={setToolSearchQuery}
             onToolSelect={handleToolSelect}
@@ -551,7 +527,7 @@ export default function PlaygroundView() {
               tool={selectedTool}
               inputs={toolInputs}
               errors={inputErrors}
-              isLoading={isLoading}
+              isLoading={executionLoading}
               onInputChange={handleInputChange}
               onSubmit={handleExecuteTool}
               onCopyConfig={copyToolConfiguration}

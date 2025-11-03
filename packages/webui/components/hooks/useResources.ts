@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import type { ResourceMetadata } from '@dexto/core';
-
-let cachedResources: ResourceMetadata[] | null = null;
-let cachedError: string | null = null;
-let pendingRequest: Promise<ResourceMetadata[]> | null = null;
 
 async function fetchResources(): Promise<ResourceMetadata[]> {
     const response = await fetch(`${getApiUrl()}/api/resources`);
@@ -19,83 +16,23 @@ async function fetchResources(): Promise<ResourceMetadata[]> {
     return body.resources as ResourceMetadata[];
 }
 
-async function loadResources(forceRefresh = false): Promise<ResourceMetadata[]> {
-    if (forceRefresh) {
-        cachedResources = null;
-        cachedError = null;
-    }
-
-    if (cachedResources) {
-        return cachedResources;
-    }
-
-    if (!pendingRequest) {
-        pendingRequest = fetchResources()
-            .then((resources) => {
-                cachedResources = resources;
-                cachedError = null;
-                return resources;
-            })
-            .catch((error) => {
-                cachedError = error instanceof Error ? error.message : String(error);
-                throw error;
-            })
-            .finally(() => {
-                pendingRequest = null;
-            });
-    }
-
-    return pendingRequest;
-}
-
 export function clearResourcesCache(): void {
-    cachedResources = null;
-    cachedError = null;
-    pendingRequest = null;
+    // This function is kept for backwards compatibility
+    // TanStack Query handles cache invalidation via queryClient
 }
 
 export function useResources() {
-    const [resources, setResources] = useState<ResourceMetadata[]>(() => cachedResources ?? []);
-    const [loading, setLoading] = useState<boolean>(() => cachedResources === null);
-    const [error, setError] = useState<string | null>(() => cachedError);
+    const queryClient = useQueryClient();
 
-    useEffect(() => {
-        let cancelled = false;
-
-        loadResources()
-            .then((data) => {
-                if (!cancelled) {
-                    setResources(data);
-                    setError(null);
-                    setLoading(false);
-                }
-            })
-            .catch((err) => {
-                if (!cancelled) {
-                    const message = err instanceof Error ? err.message : String(err);
-                    setError(message);
-                    setLoading(false);
-                }
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-
-    const refresh = useCallback(async () => {
-        setLoading(true);
-        try {
-            const data = await loadResources(true);
-            setResources(data);
-            setError(null);
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const {
+        data: resources = [],
+        isLoading: loading,
+        error,
+        refetch: refresh,
+    } = useQuery<ResourceMetadata[], Error>({
+        queryKey: ['resources'],
+        queryFn: fetchResources,
+    });
 
     // Listen for real-time resource cache invalidation events
     useEffect(() => {
@@ -103,15 +40,16 @@ export function useResources() {
             const detail = event?.detail || {};
             console.log('💾 Resource cache invalidated:', detail);
 
-            // Refresh resources when cache is invalidated
-            refresh();
+            // Invalidate and refetch resources when cache is invalidated
+            queryClient.invalidateQueries({ queryKey: ['resources'] });
         };
 
         const handleAgentSwitched = (event: any) => {
             const detail = event?.detail || {};
             console.log('🔁 Agent switched, refreshing resources:', detail);
-            clearResourcesCache();
-            refresh();
+
+            // Invalidate and refetch resources when agent is switched
+            queryClient.invalidateQueries({ queryKey: ['resources'] });
         };
 
         // Listen for our custom WebSocket event that gets dispatched when resources change
@@ -130,7 +68,14 @@ export function useResources() {
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }
-    }, [refresh]);
+    }, [queryClient]);
 
-    return { resources, loading, error, refresh } as const;
+    return {
+        resources,
+        loading,
+        error: error?.message ?? null,
+        refresh: async () => {
+            await refresh();
+        },
+    } as const;
 }

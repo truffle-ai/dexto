@@ -6,6 +6,7 @@ import { SpeechReset } from "../components/ui/speech-reset";
 import { cookies } from 'next/headers';
 import { loadState, isAnalyticsDisabled, DEFAULT_POSTHOG_KEY, DEFAULT_POSTHOG_HOST } from '@dexto/analytics';
 import { AnalyticsProvider } from '../lib/analytics/index.js';
+import { QueryProvider } from '../components/providers/QueryProvider.js';
 import packageJson from '../package.json';
 
 const geistSans = Geist({
@@ -113,12 +114,14 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <AnalyticsProvider>
-          <ChatProvider>
-            <SpeechReset />
-            <div className="flex h-screen w-screen flex-col supports-[height:100svh]:h-[100svh] supports-[height:100dvh]:h-[100dvh]">{children}</div>
-          </ChatProvider>
-        </AnalyticsProvider>
+        <QueryProvider>
+          <AnalyticsProvider>
+            <ChatProvider>
+              <SpeechReset />
+              <div className="flex h-screen w-screen flex-col supports-[height:100svh]:h-[100svh] supports-[height:100dvh]:h-[100dvh]">{children}</div>
+            </ChatProvider>
+          </AnalyticsProvider>
+        </QueryProvider>
       </body>
     </html>
   );

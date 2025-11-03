@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -42,47 +43,37 @@ interface MemoryPanelProps {
   variant?: 'inline' | 'modal';
 }
 
+async function fetchMemories(): Promise<Memory[]> {
+  const response = await fetch(`${getApiUrl()}/api/memory`);
+  if (!response.ok) throw new Error('Failed to fetch memories');
+  const data = await response.json();
+  return data.memories || [];
+}
+
 export default function MemoryPanel({
   isOpen,
   onClose,
   variant = 'modal',
 }: MemoryPanelProps) {
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-
-  // Delete confirmation dialog
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMemoryForDelete, setSelectedMemoryForDelete] = useState<Memory | null>(null);
 
-  const fetchMemories = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${getApiUrl()}/api/memory`);
-      if (!response.ok) throw new Error('Failed to fetch memories');
-      const data = await response.json();
-      setMemories(data.memories || []);
-    } catch (err) {
-      console.error('Error fetching memories:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch memories');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    data: memories = [],
+    isLoading: loading,
+    error,
+    refetch: refetchMemories,
+  } = useQuery<Memory[], Error>({
+    queryKey: ['memories'],
+    queryFn: fetchMemories,
+    enabled: isOpen,
+  });
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchMemories();
-    }
-  }, [isOpen, fetchMemories]);
-
-  const handleDeleteMemory = async (memoryId: string) => {
-    setDeletingMemoryId(memoryId);
-    try {
+  const deleteMemoryMutation = useMutation({
+    mutationFn: async (memoryId: string) => {
       const response = await fetch(`${getApiUrl()}/api/memory/${memoryId}`, {
         method: 'DELETE',
       });
@@ -91,16 +82,17 @@ export default function MemoryPanel({
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete memory');
       }
-
-      setMemories(prev => prev.filter(m => m.id !== memoryId));
+      return memoryId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['memories'] });
       setDeleteDialogOpen(false);
       setSelectedMemoryForDelete(null);
-    } catch (err) {
-      console.error('Error deleting memory:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete memory');
-    } finally {
-      setDeletingMemoryId(null);
-    }
+    },
+  });
+
+  const handleDeleteMemory = async (memoryId: string) => {
+    await deleteMemoryMutation.mutateAsync(memoryId);
   };
 
   const formatDate = (timestamp: number) => {
@@ -186,7 +178,7 @@ export default function MemoryPanel({
         <div className="p-4">
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         </div>
       )}
@@ -287,7 +279,7 @@ export default function MemoryPanel({
         open={isCreateModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onSuccess={() => {
-          fetchMemories();
+          refetchMemories();
         }}
       />
 
@@ -316,11 +308,11 @@ export default function MemoryPanel({
             <Button
               variant="destructive"
               onClick={() => selectedMemoryForDelete && handleDeleteMemory(selectedMemoryForDelete.id)}
-              disabled={deletingMemoryId === selectedMemoryForDelete?.id}
+              disabled={deleteMemoryMutation.isPending && deleteMemoryMutation.variables === selectedMemoryForDelete?.id}
               className="flex items-center space-x-2"
             >
               <Trash2 className="h-4 w-4" />
-              <span>{deletingMemoryId === selectedMemoryForDelete?.id ? 'Deleting...' : 'Delete Memory'}</span>
+              <span>{deleteMemoryMutation.isPending && deleteMemoryMutation.variables === selectedMemoryForDelete?.id ? 'Deleting...' : 'Delete Memory'}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,60 +1,41 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GreetingResponse } from '@/types';
 import { getApiUrl } from '@/lib/api-url';
 
+async function fetchGreeting(sessionId?: string | null): Promise<string | null> {
+    const url = sessionId
+        ? `${getApiUrl()}/api/greeting?sessionId=${encodeURIComponent(sessionId)}`
+        : `${getApiUrl()}/api/greeting`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch greeting: HTTP ${response.status} ${response.statusText}`);
+    }
+
+    const data: GreetingResponse = await response.json();
+    return data.greeting ?? null;
+}
+
 export function useGreeting(sessionId?: string | null) {
-    const [greeting, setGreeting] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [agentVersion, setAgentVersion] = useState(0);
-    const fetchGreeting = useCallback(
-        async (signal: AbortSignal) => {
-            setIsLoading(true);
-            setError(null);
+    const queryClient = useQueryClient();
 
-            try {
-                const url = sessionId
-                    ? `${getApiUrl()}/api/greeting?sessionId=${encodeURIComponent(sessionId)}`
-                    : `${getApiUrl()}/api/greeting`;
-
-                const response = await fetch(url, { signal });
-
-                if (!response.ok) {
-                    const msg = `Failed to fetch greeting: HTTP ${response.status} ${response.statusText}`;
-                    setGreeting(null);
-                    setError(msg);
-                    return;
-                }
-
-                const data: GreetingResponse = await response.json();
-                setGreeting(data.greeting ?? null);
-            } catch (err) {
-                // Ignore abort errors
-                if ((err as { name?: string } | null | undefined)?.name === 'AbortError') return;
-                const errorMessage =
-                    err instanceof Error ? err.message : 'Failed to fetch greeting';
-                setError(errorMessage);
-                console.error(`Error fetching greeting: ${errorMessage}`);
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [sessionId]
-    );
-
-    useEffect(() => {
-        const controller = new AbortController();
-        const { signal } = controller;
-        fetchGreeting(signal);
-        return () => controller.abort();
-    }, [fetchGreeting, agentVersion]);
+    const {
+        data: greeting = null,
+        isLoading,
+        error,
+    } = useQuery<string | null, Error>({
+        queryKey: ['greeting', sessionId ?? 'default'],
+        queryFn: () => fetchGreeting(sessionId),
+    });
 
     // Listen for agent switching events to refresh greeting
     useEffect(() => {
         const handleAgentSwitched = () => {
-            setAgentVersion((prev) => prev + 1);
+            queryClient.invalidateQueries({ queryKey: ['greeting'] });
         };
         if (typeof window !== 'undefined') {
             window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
@@ -62,7 +43,7 @@ export function useGreeting(sessionId?: string | null) {
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }
-    }, []);
+    }, [queryClient]);
 
-    return { greeting, isLoading, error };
+    return { greeting, isLoading, error: error?.message ?? null };
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -40,6 +41,34 @@ interface SessionPanelProps {
 
 import NewChatButton from './NewChatButton';
 
+function sortSessions(sessions: Session[]): Session[] {
+  return sessions.sort((a, b) => {
+    const timeA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+    const timeB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+    return timeB - timeA;
+  });
+}
+
+async function fetchSessions(): Promise<Session[]> {
+  const response = await fetch(`${getApiUrl()}/api/sessions`);
+  if (!response.ok) throw new Error('Failed to fetch sessions');
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    return [];
+  }
+
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseError) {
+    console.error('Failed to parse sessions response:', parseError);
+    throw new Error('Failed to parse sessions data');
+  }
+
+  return sortSessions(data.sessions || []);
+}
+
 export default function SessionPanel({
   isOpen,
   onClose,
@@ -50,111 +79,114 @@ export default function SessionPanel({
   onSearchOpen,
   onNewChat,
 }: SessionPanelProps) {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [isNewSessionOpen, setNewSessionOpen] = useState(false);
   const [newSessionId, setNewSessionId] = useState('');
-  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
-  const isDeletingRef = React.useRef(false);
-  const requestIdRef = React.useRef(0);
-  const hasLoadedOnceRef = React.useRef(false);
-
-  // Conversation management states
   const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
   const [selectedSessionForAction, setSelectedSessionForAction] = useState<string | null>(null);
-  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
 
-  const fetchSessions = useCallback(async () => {
-    if (isDeletingRef.current) {
-      return;
-    }
+  const {
+    data: sessions = [],
+    isLoading: loading,
+    error,
+  } = useQuery<Session[], Error>({
+    queryKey: ['sessions'],
+    queryFn: fetchSessions,
+    enabled: isOpen,
+  });
 
-    requestIdRef.current += 1;
-    const currentRequestId = requestIdRef.current;
+  const createSessionMutation = useMutation({
+    mutationFn: async (sessionId?: string) => {
+      const response = await fetch(`${getApiUrl()}/api/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionId?.trim() || undefined }),
+      });
 
-    // Only show loading spinner on first load
-    if (!hasLoadedOnceRef.current) {
-      setLoading(true);
-    }
-    setError(null);
-    try {
-      const response = await fetch(`${getApiUrl()}/api/sessions`);
-      if (!response.ok) throw new Error('Failed to fetch sessions');
-      const responseText = await response.text();
-
-      if (currentRequestId !== requestIdRef.current) {
-        return;
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = { error: 'Failed to create session' };
+        }
+        throw new Error(errorData.error || 'Failed to create session');
       }
 
+      const responseText = await response.text();
       if (!responseText.trim()) {
-        setSessions([]);
-        return;
+        throw new Error('Empty response from session creation');
       }
 
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('Failed to parse sessions response:', parseError);
-        setError('Failed to parse sessions data');
-        return;
+        console.error('Failed to parse session creation response:', parseError);
+        throw new Error('Invalid response from session creation');
       }
+      return data.session as Session;
+    },
+    onSuccess: (newSession) => {
+      queryClient.setQueryData<Session[]>(['sessions'], (old = []) => {
+        const updated = [...old, newSession];
+        return sortSessions(updated);
+      });
+      setNewSessionId('');
+      setNewSessionOpen(false);
+      onSessionChange(newSession.id);
+    },
+  });
 
-      const sortedSessions = (data.sessions || []).sort((a: Session, b: Session) => {
-        const timeA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
-        const timeB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
-        return timeB - timeA;
+  const deleteSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}`, {
+        method: 'DELETE',
       });
 
-      if (currentRequestId === requestIdRef.current) {
-        setSessions(sortedSessions);
-        hasLoadedOnceRef.current = true;
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = { error: 'Failed to delete session' };
+        }
+        throw new Error(errorData.error || 'Failed to delete session');
       }
-    } catch (err) {
-      if (currentRequestId === requestIdRef.current) {
-        console.error('Error fetching sessions:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      return sessionId;
+    },
+    onSuccess: (sessionId) => {
+      queryClient.setQueryData<Session[]>(['sessions'], (old = []) =>
+        old.filter(s => s.id !== sessionId)
+      );
+      const isDeletingCurrentSession = currentSessionId === sessionId;
+      if (isDeletingCurrentSession) {
+        returnToWelcome();
       }
-    } finally {
-      if (currentRequestId === requestIdRef.current) {
-        setLoading(false);
-        hasLoadedOnceRef.current = true;
-      }
-    }
-  }, []);
+    },
+  });
 
+  // Listen for events and update state optimistically
   useEffect(() => {
-    // Only fetch sessions on initial mount when panel opens
-    // hasLoadedOnceRef ensures we don't refetch unnecessarily
-    if (isOpen && !hasLoadedOnceRef.current) {
-      fetchSessions();
-    }
-  }, [isOpen, fetchSessions]);
-
-  // Listen for events and update state locally (no API calls)
-  useEffect(() => {
-    // Also listen for agent switches - this is when we DO want to refresh
     const handleAgentSwitched = () => {
-      // Force a fresh fetch when agent is switched
-      hasLoadedOnceRef.current = false;
-      fetchSessions();
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
     };
+
     const handleMessage: EventListener = (event: Event) => {
       const customEvent = event as CustomEvent;
       const eventSessionId = customEvent.detail?.sessionId;
       if (eventSessionId) {
-        setSessions(prev => {
-          const sessionExists = prev.some(s => s.id === eventSessionId);
+        queryClient.setQueryData<Session[]>(['sessions'], (old = []) => {
+          const sessionExists = old.some(s => s.id === eventSessionId);
           if (sessionExists) {
-            // Update existing session
-            return prev.map(session =>
+            return sortSessions(old.map(session =>
               session.id === eventSessionId
                 ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
                 : session
-            );
+            ));
           } else {
-            // New session created (first message from welcome state)
             const newSession: Session = {
               id: eventSessionId,
               createdAt: new Date().toISOString(),
@@ -162,7 +194,7 @@ export default function SessionPanel({
               messageCount: 1,
               title: null
             };
-            return [newSession, ...prev];
+            return sortSessions([newSession, ...old]);
           }
         });
       }
@@ -172,13 +204,12 @@ export default function SessionPanel({
       const customEvent = event as CustomEvent;
       const eventSessionId = customEvent.detail?.sessionId;
       if (eventSessionId) {
-        // Update message count and last activity locally
-        setSessions(prev =>
-          prev.map(session =>
+        queryClient.setQueryData<Session[]>(['sessions'], (old = []) =>
+          sortSessions(old.map(session =>
             session.id === eventSessionId
               ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
               : session
-          )
+          ))
         );
       }
     };
@@ -188,12 +219,9 @@ export default function SessionPanel({
       const eventSessionId = customEvent.detail?.sessionId;
       const title = customEvent.detail?.title;
       if (eventSessionId && title) {
-        // Update title locally
-        setSessions(prev =>
-          prev.map(session =>
-            session.id === eventSessionId
-              ? { ...session, title }
-              : session
+        queryClient.setQueryData<Session[]>(['sessions'], (old = []) =>
+          old.map(session =>
+            session.id === eventSessionId ? { ...session, title } : session
           )
         );
       }
@@ -212,124 +240,21 @@ export default function SessionPanel({
         window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
       };
     }
-  }, [fetchSessions]);
+  }, [queryClient, currentSessionId]);
 
   const handleCreateSession = async () => {
-    // Allow empty session ID for auto-generation
-    try {
-      const response = await fetch(`${getApiUrl()}/api/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: newSessionId.trim() || undefined }),
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = errorText ? JSON.parse(errorText) : {};
-        } catch {
-          errorData = { error: 'Failed to create session' };
-        }
-        throw new Error(errorData.error || 'Failed to create session');
-      }
-      
-      const responseText = await response.text();
-      if (!responseText.trim()) {
-        throw new Error('Empty response from session creation');
-      }
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse session creation response:', parseError);
-        throw new Error('Invalid response from session creation');
-      }
-      setSessions(prev => [...prev, data.session]);
-      setNewSessionId('');
-      setNewSessionOpen(false);
-      onSessionChange(data.session.id);
-    } catch (err) {
-      console.error('Error creating session:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create session');
-    }
+    await createSessionMutation.mutateAsync(newSessionId.trim() || undefined);
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    const isDeletingCurrentSession = currentSessionId === sessionId;
-
-    isDeletingRef.current = true;
-    setDeletingSessionId(sessionId);
-    try {
-      const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = errorText ? JSON.parse(errorText) : {};
-        } catch {
-          errorData = { error: 'Failed to delete session' };
-        }
-        throw new Error(errorData.error || 'Failed to delete session');
-      }
-
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-
-      if (isDeletingCurrentSession) {
-        returnToWelcome();
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-    } catch (err) {
-      console.error('Error deleting session:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete session');
-    } finally {
-      isDeletingRef.current = false;
-      setDeletingSessionId(null);
-    }
+    await deleteSessionMutation.mutateAsync(sessionId);
   };
-
 
   const handleDeleteConversation = async () => {
     if (!selectedSessionForAction) return;
-
-    const isDeletingCurrentSession = currentSessionId === selectedSessionForAction;
-
-    isDeletingRef.current = true;
-    setIsDeletingConversation(true);
-    try {
-      const response = await fetch(`${getApiUrl()}/api/sessions/${selectedSessionForAction}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete conversation');
-      }
-
-      setSessions(prev => prev.filter(s => s.id !== selectedSessionForAction));
-
-      if (isDeletingCurrentSession) {
-        returnToWelcome();
-      }
-
-      setDeleteConversationDialogOpen(false);
-      setSelectedSessionForAction(null);
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-    } catch (error) {
-      console.error('Error deleting conversation:', error);
-      setError(error instanceof Error ? error.message : 'Failed to delete conversation');
-    } finally {
-      isDeletingRef.current = false;
-      setIsDeletingConversation(false);
-    }
+    await deleteSessionMutation.mutateAsync(selectedSessionForAction);
+    setDeleteConversationDialogOpen(false);
+    setSelectedSessionForAction(null);
   };
 
   const formatRelativeTime = (dateString: string | null) => {
@@ -397,7 +322,7 @@ export default function SessionPanel({
         <div className="p-4">
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         </div>
       )}
@@ -461,7 +386,7 @@ export default function SessionPanel({
                                   handleDeleteSession(session.id);
                                 }
                               }}
-                              disabled={deletingSessionId === session.id}
+                              disabled={deleteSessionMutation.isPending && deleteSessionMutation.variables === session.id}
                               className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                               aria-label={session.messageCount > 0 ? "Delete conversation" : "Delete chat"}
                               title="Delete"
@@ -546,11 +471,11 @@ export default function SessionPanel({
             <Button 
               variant="destructive"
               onClick={handleDeleteConversation}
-              disabled={isDeletingConversation}
+              disabled={deleteSessionMutation.isPending && deleteSessionMutation.variables === selectedSessionForAction}
               className="flex items-center space-x-2"
             >
               <Trash2 className="h-4 w-4" />
-              <span>{isDeletingConversation ? 'Deleting...' : 'Delete Conversation'}</span>
+              <span>{deleteSessionMutation.isPending && deleteSessionMutation.variables === selectedSessionForAction ? 'Deleting...' : 'Delete Conversation'}</span>
             </Button>
           </DialogFooter>
         </DialogContent>
