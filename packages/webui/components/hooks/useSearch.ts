@@ -2,30 +2,40 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-interface SearchMessage {
+interface SearchResult {
     sessionId: string;
-    role: string;
-    content: string;
-    timestamp: number;
-    preview?: string;
-}
-
-interface SearchSession {
-    sessionId: string;
-    title?: string;
-    lastActivity: string;
-    messageCount: number;
-    preview?: string;
+    message: {
+        role: 'user' | 'assistant' | 'system' | 'tool';
+        content: string | null;
+    };
+    matchedText: string;
+    context: string;
+    messageIndex: number;
 }
 
 interface MessageSearchResponse {
-    results: SearchMessage[];
+    results: SearchResult[];
     total: number;
+    hasMore: boolean;
+    query: string;
+}
+
+interface SessionSearchResult {
+    sessionId: string;
+    matchCount: number;
+    firstMatch: SearchResult;
+    metadata: {
+        createdAt: number;
+        lastActivity: number;
+        messageCount: number;
+    };
 }
 
 interface SessionSearchResponse {
-    results: SearchSession[];
+    results: SessionSearchResult[];
     total: number;
+    hasMore: boolean;
+    query: string;
 }
 
 // Search messages

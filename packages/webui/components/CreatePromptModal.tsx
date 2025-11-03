@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client.js';
+import { queryKeys } from '@/lib/queryKeys.js';
 import {
     Dialog,
     DialogContent,
@@ -31,6 +33,8 @@ interface ResourcePayload {
 }
 
 export default function CreatePromptModal({ open, onClose, onCreated }: CreatePromptModalProps) {
+    const queryClient = useQueryClient();
+
     const [name, setName] = useState('');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -38,9 +42,30 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     const [resource, setResource] = useState<ResourcePayload | null>(null);
     const [resourcePreview, setResourcePreview] = useState<string | null>(null);
     const [resourceName, setResourceName] = useState<string | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
+
+    const createPromptMutation = useMutation({
+        mutationFn: async (payload: {
+            name: string;
+            title?: string;
+            description?: string;
+            content: string;
+            resource?: ResourcePayload;
+        }) => {
+            const data = await apiFetch<{ prompt: { name: string } }>('/api/prompts/custom', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+            return data;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
+            if (data?.prompt) {
+                onCreated({ name: data.prompt.name });
+            }
+            onClose();
+        },
+    });
 
     useEffect(() => {
         if (!open) {
@@ -51,11 +76,10 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
             setResource(null);
             setResourcePreview(null);
             setResourceName(null);
-            setErrorMessage(null);
-            setIsSaving(false);
             setIsDragOver(false);
+            createPromptMutation.reset();
         }
-    }, [open]);
+    }, [open, createPromptMutation]);
 
     const handleFile = async (file: File) => {
         try {
@@ -69,7 +93,6 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
             setResourceName(file.name);
         } catch (error) {
             console.error('Failed to read file:', error);
-            setErrorMessage('Failed to read file. Please try a different file.');
         }
     };
 
@@ -113,12 +136,8 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!name.trim() || !content.trim()) {
-            setErrorMessage('Name and content are required.');
             return;
         }
-
-        setIsSaving(true);
-        setErrorMessage(null);
 
         const payload = {
             name: name.trim(),
@@ -128,27 +147,7 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
             resource: resource || undefined,
         };
 
-        try {
-            const data = await apiFetch<{ prompt: { name: string } }>('/api/prompts/custom', {
-                method: 'POST',
-                body: JSON.stringify(payload),
-            });
-
-            if (data?.prompt) {
-                onCreated({
-                    name: data.prompt.name,
-                });
-            }
-        } catch (error) {
-            console.error('Failed to create prompt:', error);
-            setErrorMessage(
-                error instanceof Error
-                    ? error.message
-                    : 'Failed to create prompt. Please try again.'
-            );
-        } finally {
-            setIsSaving(false);
-        }
+        createPromptMutation.mutate(payload);
     };
 
     return (
@@ -163,9 +162,13 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {errorMessage && (
+                    {createPromptMutation.error && (
                         <Alert variant="destructive">
-                            <AlertDescription>{errorMessage}</AlertDescription>
+                            <AlertDescription>
+                                {createPromptMutation.error instanceof Error
+                                    ? createPromptMutation.error.message
+                                    : 'Failed to create prompt'}
+                            </AlertDescription>
                         </Alert>
                     )}
 
@@ -275,11 +278,16 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
                     </div>
 
                     <DialogFooter className="flex items-center justify-between gap-2">
-                        <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={onClose}
+                            disabled={createPromptMutation.isPending}
+                        >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isSaving}>
-                            {isSaving ? (
+                        <Button type="submit" disabled={createPromptMutation.isPending}>
+                            {createPromptMutation.isPending ? (
                                 <>
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...
                                 </>
