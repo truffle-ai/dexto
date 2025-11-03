@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client.js';
+import { queryKeys } from '@/lib/queryKeys.js';
 import Image from 'next/image';
 import {
     Dialog,
@@ -217,7 +218,7 @@ export default function ModelPickerModal() {
         isLoading: loading,
         error: catalogError,
     } = useQuery<CatalogResponse, Error>({
-        queryKey: ['llmCatalog'],
+        queryKey: queryKeys.llm.catalog,
         queryFn: async () => {
             return await apiFetch<CatalogResponse>('/api/llm/catalog');
         },

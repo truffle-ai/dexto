@@ -25,6 +25,7 @@ export const queryKeys = {
     llm: {
         current: (sessionId: string | null | undefined) =>
             ['llm', 'current', sessionId ?? null] as const,
+        catalog: ['llm', 'catalog'] as const,
     },
 
     // Session-related queries
