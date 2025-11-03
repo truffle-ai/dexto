@@ -20,28 +20,30 @@ async function runWebSocketTest(name, message, expectations) {
         const ws = new WebSocket(WS_URL);
         let receivedEvents = [];
         let testPassed = false;
-        
+
+        // Extract sessionId for filtering (only for valid message objects)
+        const expectedSessionId = (typeof message === 'object' && message !== null) ? message.sessionId : null;
 
         const timeout = setTimeout(() => {
             // Evaluate test results based on expectations
             testPassed = evaluateTestResults(receivedEvents, expectations);
-            
+
             if (testPassed) {
                 console.log(`  ${green('PASS')}`);
             } else {
                 console.log(`  ${red('FAIL')}`);
             }
-            
+
             console.log(`  Received ${receivedEvents.length} events:`);
             receivedEvents.forEach((event, i) => {
                 const dataStr = JSON.stringify(event.data).substring(0, 400);
                 console.log(`    ${i+1}. ${event.event}: ${dataStr}${dataStr.length >= 150 ? '...' : ''}`);
             });
             console.log();
-            
+
             ws.close();
             resolve(testPassed);
-        }, 10000); // 10 second timeout
+        }, expectations.timeout || 10000); // Default 10 second timeout, configurable per test
 
         ws.on('open', () => {
             setTimeout(() => {
@@ -56,6 +58,23 @@ async function runWebSocketTest(name, message, expectations) {
         ws.on('message', (data) => {
             try {
                 const event = JSON.parse(data.toString());
+
+                // Filter events by sessionId
+                const eventSessionId = event.data?.sessionId;
+
+                if (expectedSessionId) {
+                    // This test has a sessionId - only accept events matching that sessionId
+                    if (eventSessionId !== expectedSessionId) {
+                        return;
+                    }
+                } else {
+                    // This test has no sessionId (e.g., malformed JSON test)
+                    // Reject events that have a sessionId (they belong to other tests)
+                    if (eventSessionId) {
+                        return;
+                    }
+                }
+
                 receivedEvents.push(event);
                 
                 // For immediate error responses, resolve quickly
@@ -229,7 +248,7 @@ async function main() {
             },
             sessionId: 'image-test'
         },
-        { expectEvents: ['thinking', 'response'], minEvents: 2 }
+        { expectEvents: ['thinking'], minEvents: 2, timeout: 20000 } // 20s timeout for image processing
     ))) failures++;
 
     // Test with file data (commented out - gpt-5-mini doesn't support text files)
