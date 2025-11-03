@@ -29,8 +29,9 @@ import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import CreatePromptModal from './CreatePromptModal';
 import CreateMemoryModal from './CreateMemoryModal';
 import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
-import { clearPromptCache } from '../lib/promptCache';
 import { useAnalytics } from '@/lib/analytics/index.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface ModelOption {
   name: string;
@@ -49,6 +50,7 @@ interface InputAreaProps {
 }
 
 export default function InputArea({ onSend, isSending, variant = 'chat' }: InputAreaProps) {
+  const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [imageData, setImageData] = useState<{ base64: string; mimeType: string } | null>(null);
@@ -154,8 +156,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
   const handlePromptCreated = React.useCallback(
     (prompt: { name: string; arguments?: Array<{ name: string; required?: boolean }> }) => {
-      // Manual cache clear needed for custom prompt creation (not triggered by WebSocket events)
-      clearPromptCache();
+      // Manual cache invalidation needed for custom prompt creation (not triggered by WebSocket events)
+      queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
       setShowCreatePromptModal(false);
       setSlashRefreshKey((prev) => prev + 1);
       const slashCommand = `/${prompt.name}`;
@@ -165,7 +167,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         textareaRef.current.setSelectionRange(slashCommand.length, slashCommand.length);
       }
     },
-    []
+    [queryClient]
   );
 
   const handleCloseCreatePrompt = React.useCallback(() => {

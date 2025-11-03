@@ -9,10 +9,11 @@ import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
-import { clearPromptCache } from '../lib/promptCache';
 import ServerRegistryModal from './ServerRegistryModal';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { useAnalytics } from '@/lib/analytics/index.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface ServersPanelProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ const API_BASE_URL = `${getApiUrl()}/api`;
 export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant: variantProp, refreshTrigger }: ServersPanelProps) {
   const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';
   const analytics = useAnalytics();
+  const queryClient = useQueryClient();
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [tools, setTools] = useState<McpTool[]>([]);
@@ -198,8 +200,8 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       }
 
       await fetchServers(); // Refresh server list
-      // Clear prompt cache since removed server's prompts are no longer available
-      clearPromptCache();
+      // Invalidate prompts cache since removed server's prompts are no longer available
+      queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
 
       // Sync registry with updated server status
       try {
@@ -234,7 +236,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
       }
 
       await fetchServers(); // Refresh server list
-      clearPromptCache(); // Clear prompt cache since server was restarted
+      queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all }); // Invalidate prompts cache since server was restarted
 
       // Sync registry with updated server status
       try {

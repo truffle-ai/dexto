@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap, Plus } from 'lucide-react';
 import { Badge } from './ui/badge';
 import type { PromptArgument, PromptInfo as CorePromptInfo } from '@dexto/core';
-import { loadPrompts } from '../lib/promptCache';
+import { usePrompts } from './hooks/usePrompts';
 
 // Use canonical types from @dexto/core for alignment
 type PromptInfo = CorePromptInfo;
@@ -127,25 +127,36 @@ interface SlashCommandAutocompleteProps {
   refreshKey?: number;
 }
 
-export default function SlashCommandAutocomplete({ 
-  isVisible, 
+export default function SlashCommandAutocomplete({
+  isVisible,
   searchQuery,
-  onSelectPrompt, 
+  onSelectPrompt,
   onClose,
   onCreatePrompt,
   refreshKey,
 }: SlashCommandAutocompleteProps) {
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedIndexRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastRefreshKeyRef = useRef<number>(0);
 
+  // Fetch prompts using TanStack Query
+  const { data: prompts = [], isLoading, refetch } = usePrompts({ enabled: isVisible });
+
   // Keep the latest selected index accessible in callbacks without needing extra effect deps
   selectedIndexRef.current = selectedIndex;
+
+  // Refetch when refreshKey changes
+  useEffect(() => {
+    if (!isVisible) return;
+    const effectiveKey = refreshKey ?? 0;
+    if (effectiveKey > 0 && effectiveKey !== lastRefreshKeyRef.current) {
+      refetch();
+      lastRefreshKeyRef.current = effectiveKey;
+    }
+  }, [isVisible, refreshKey, refetch]);
 
   const showCreateOption = React.useMemo(() => {
     const trimmed = searchQuery.trim();
@@ -164,39 +175,6 @@ export default function SlashCommandAutocomplete({
     return items;
   }, [showCreateOption, filteredPrompts]);
 
-  // Fetch available prompts
-  useEffect(() => {
-    if (!isVisible) return;
-
-    let cancelled = false;
-    setIsLoading(true);
-
-    const effectiveKey = refreshKey ?? 0;
-    const shouldForceRefresh = effectiveKey > 0 && effectiveKey !== lastRefreshKeyRef.current;
-
-    loadPrompts({ forceRefresh: shouldForceRefresh })
-      .then((data) => {
-        if (cancelled) return;
-        setPrompts(data);
-        setFilteredPrompts(data);
-        lastRefreshKeyRef.current = effectiveKey;
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setPrompts([]);
-        setFilteredPrompts([]);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isVisible, refreshKey]);
-
   // Listen for real-time prompts list changes
   useEffect(() => {
     if (!isVisible) return;
@@ -204,32 +182,18 @@ export default function SlashCommandAutocomplete({
     const handlePromptsListChanged = (event: any) => {
       const detail = event?.detail || {};
       console.log('✨ Prompts list changed:', detail);
-      
-      // Refresh prompts when MCP server prompts change
-      setIsLoading(true);
-      loadPrompts({ forceRefresh: true })
-        .then((data) => {
-          setPrompts(data);
-          setFilteredPrompts(data);
-        })
-        .catch(() => {
-          setPrompts([]);
-          setFilteredPrompts([]);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
+      // Refetch prompts when MCP server prompts change
+      refetch();
     };
 
     // Listen for WebSocket events that indicate prompts changes
     if (typeof window !== 'undefined') {
       window.addEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
-      
       return () => {
         window.removeEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
       };
     }
-  }, [isVisible]);
+  }, [isVisible, refetch]);
 
   // Filter prompts based on search query from parent input
   useEffect(() => {

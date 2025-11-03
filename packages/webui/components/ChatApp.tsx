@@ -2,11 +2,12 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
+import { usePrompts } from './hooks/usePrompts';
 import { queryKeys } from '@/lib/queryKeys';
 import { apiFetch } from '@/lib/api-client';
 import MessageList from './MessageList';
@@ -98,22 +99,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
   const queryClient = useQueryClient();
 
-  // Fetch starter prompts using TanStack Query with persistence
-  const {
-    data: promptsData,
-    isLoading: promptsLoading,
-  } = useQuery({
-    queryKey: queryKeys.prompts.all,
-    queryFn: async () => {
-      const response = await apiFetch<{ prompts: PromptInfo[] }>('/api/prompts');
-      return response.prompts;
-    },
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
-    enabled: isWelcomeState, // Only fetch when on welcome screen
-  });
+  // Fetch starter prompts using shared usePrompts hook
+  const { data: promptsData = [], isLoading: promptsLoading } = usePrompts({ enabled: isWelcomeState });
 
-  const starterPrompts = promptsData?.filter((prompt) => prompt.source === 'starter') ?? [];
+  const starterPrompts = promptsData.filter((prompt) => prompt.source === 'starter');
   const starterPromptsLoaded = !promptsLoading;
 
   // Listen for agent switch events to invalidate prompts cache

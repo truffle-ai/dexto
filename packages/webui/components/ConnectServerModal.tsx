@@ -18,8 +18,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
-import { clearPromptCache } from '../lib/promptCache';
 import { Checkbox } from './ui/checkbox';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface ConnectServerModalProps {
     isOpen: boolean;
@@ -32,6 +33,7 @@ interface ConnectServerModalProps {
 
 
 export default function ConnectServerModal({ isOpen, onClose, onServerConnected, initialName, initialConfig, lockName }: ConnectServerModalProps) {
+    const queryClient = useQueryClient();
     const [serverName, setServerName] = useState('');
     const [serverType, setServerType] = useState<'stdio' | 'sse' | 'http'>('stdio');
     const [command, setCommand] = useState('');
@@ -241,9 +243,9 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 }
                 console.debug(`[ConnectServerModal.handleSubmit] Connect server response: ${JSON.stringify({ ...result, config: safeConfig })}`);
             }
-            // Clear prompt cache on server connect (slash dropdown may be closed when WebSocket event fires)
+            // Invalidate prompts cache on server connect (slash dropdown may be closed when WebSocket event fires)
             // Resources are handled automatically via useResources hook which is always listening
-            clearPromptCache();
+            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
             // Notify parent component that server was connected successfully
             if (onServerConnected) {
                 onServerConnected();
