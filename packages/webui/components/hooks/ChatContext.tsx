@@ -40,7 +40,14 @@ interface ChatContextType {
   greeting: string | null;
 }
 
-import { getWsUrl, getApiUrl } from '@/lib/api-url';
+import { getWsUrl } from '@/lib/api-url';
+
+// Helper function to fetch and convert session history to UI messages
+async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
+  const data = await apiFetch<{ history: any[] }>(`/api/sessions/${sessionId}/history`);
+  const history = data.history || [];
+  return convertHistoryToMessages(history, sessionId);
+}
 
 // Helper function to convert session history API response to UI messages
 function convertHistoryToMessages(history: any[], sessionId: string): Message[] {
@@ -237,28 +244,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Auto-create session on first message with random UUID
   const createAutoSession = useCallback(async (): Promise<string> => {
-    const response = await fetch(`${getApiUrl()}/api/sessions`, {
+    const data = await apiFetch<{ session: { id: string } }>('/api/sessions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}), // Let server generate random UUID
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
-    }
-
-    const responseText = await response.text();
-    if (!responseText.trim()) {
-      throw new Error('Empty response from session creation');
-    }
-
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse session creation response:', parseError);
-      throw new Error('Invalid response from session creation');
-    }
 
     if (!data.session?.id) {
       throw new Error('Session ID not found in server response');
@@ -350,29 +339,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!currentSessionId) {
         return [];
       }
-      const response = await fetch(`${getApiUrl()}/api/sessions/${currentSessionId}/history`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          return [];
-        }
-        throw new Error('Failed to load session history');
-      }
-      
-      const responseText = await response.text();
-      if (!responseText.trim()) {
+      try {
+        return await fetchSessionHistory(currentSessionId);
+      } catch (error) {
+        // Return empty array for 404 or other errors
         return [];
       }
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse session history response:', parseError);
-        throw new Error('Invalid session history response');
-      }
-      
-      const history = data.history || [];
-      return convertHistoryToMessages(history, currentSessionId);
     },
     enabled: false, // Manual refetch only
     retry: false,
@@ -393,29 +365,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const result = await queryClient.fetchQuery<Message[], Error>({
         queryKey: queryKeys.sessions.history(sessionId),
         queryFn: async () => {
-          const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}/history`);
-          if (!response.ok) {
-            if (response.status === 404) {
-              return [];
-            }
-            throw new Error('Failed to load session history');
-          }
-          
-          const responseText = await response.text();
-          if (!responseText.trim()) {
+          try {
+            return await fetchSessionHistory(sessionId);
+          } catch (error) {
+            // Return empty array for 404 or other errors
             return [];
           }
-          
-          let data;
-          try {
-            data = JSON.parse(responseText);
-          } catch (parseError) {
-            console.error('Failed to parse session history response:', parseError);
-            throw new Error('Invalid session history response');
-          }
-          
-          const history = data.history || [];
-          return convertHistoryToMessages(history, sessionId);
         },
         retry: false,
       });
