@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch, ApiError } from '@/lib/api-client';
 import {
   Dialog,
   DialogContent,
@@ -49,16 +49,10 @@ export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMe
         },
       };
 
-      const res = await fetch(`${getApiUrl()}/api/memory`, {
+      await apiFetch('/api/memory', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create memory');
-      }
 
       // Success - reset and close
       setContent('');
@@ -66,7 +60,13 @@ export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMe
       onSuccess?.();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create memory');
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to create memory');
+      }
     } finally {
       setIsSubmitting(false);
     }
