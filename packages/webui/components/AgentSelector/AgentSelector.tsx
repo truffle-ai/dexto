@@ -133,7 +133,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
+        // Extract error message from various API response formats
+        const errorMessage =
+          errorData.error ||
+          errorData.message ||
+          (errorData.issues && errorData.issues[0]?.message) ||
+          `Switch failed: ${res.status} ${res.statusText}`;
+        throw new Error(errorMessage);
       }
       return { id, path };
     },
@@ -154,7 +160,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Install failed: ${res.status}`);
+        // Extract error message from various API response formats
+        const errorMessage =
+          errorData.error ||
+          errorData.message ||
+          (errorData.issues && errorData.issues[0]?.message) ||
+          `Install failed: ${res.status}`;
+        throw new Error(errorMessage);
       }
       return agentId;
     },
@@ -174,7 +186,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Delete failed: ${res.status}`);
+        // Extract error message from various API response formats
+        const errorMessage =
+          errorData.error ||
+          errorData.message ||
+          (errorData.issues && errorData.issues[0]?.message) ||
+          `Delete failed: ${res.status}`;
+        throw new Error(errorMessage);
       }
       return agentId;
     },
