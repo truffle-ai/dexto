@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch, ApiError } from '@/lib/api-client';
 import { Button } from './ui/button';
 import { X, Server, ListChecks, RefreshCw, AlertTriangle, ChevronDown, Trash2, Package, RotateCw, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -30,8 +30,6 @@ interface ServersPanelProps {
   variant?: 'overlay' | 'inline';
   refreshTrigger?: number; // Add a trigger to force refresh
 }
-
-const API_BASE_URL = `${getApiUrl()}/api`;
 
 export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOpenConnectWithPrefill, onServerConnected, variant: variantProp, refreshTrigger }: ServersPanelProps) {
   const variant: 'overlay' | 'inline' = variantProp ?? 'overlay';
@@ -65,12 +63,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     setTools([]); // Clear tools
     setToolsError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers`, signal ? { signal } : {});
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch servers' }));
-        throw new Error(errorData.message || errorData.error || `Server List: ${response.statusText}`);
-      }
-      const data = await response.json();
+      const data = await apiFetch<{ servers: McpServer[] }>('/api/mcp/servers', signal ? { signal } : {});
       const fetchedServers = data.servers || [];
       setServers(fetchedServers);
       if (fetchedServers.length > 0) {
@@ -122,15 +115,10 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     // Otherwise, connect directly
     try {
       setIsRegistryBusy(true);
-      const res = await fetch(`${getApiUrl()}/api/mcp/servers`, {
+      await apiFetch('/api/mcp/servers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
       });
-      const result = await res.json();
-      if (!res.ok) {
-        throw new Error(result.error || `Server returned status ${res.status}`);
-      }
       await fetchServers();
 
       // Sync registry after installation
@@ -168,11 +156,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     setServerError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers/${serverId}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to remove server' }));
-        throw new Error(errorData.message || errorData.error || `Server Removal: ${response.statusText}`);
-      }
+      await apiFetch(`/api/mcp/servers/${serverId}`, { method: 'DELETE' });
 
       // If this was the selected server, deselect it
       if (selectedServerId === serverId) {
@@ -229,11 +213,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
     setServerError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers/${serverId}/restart`, { method: 'POST' });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to restart server' }));
-        throw new Error(errorData.message || errorData.error || `Server Restart: ${response.statusText}`);
-      }
+      await apiFetch(`/api/mcp/servers/${serverId}/restart`, { method: 'POST' });
 
       await fetchServers(); // Refresh server list
       queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all }); // Invalidate prompts cache since server was restarted
@@ -323,12 +303,7 @@ export default function ServersPanel({ isOpen, onClose, onOpenConnectModal, onOp
 
     setIsLoadingTools(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers/${serverId}/tools`, signal ? { signal } : {});
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: `Failed to fetch tools for ${server.name}` }));
-        throw new Error(errorData.message || errorData.error || `Tool List (${server.name}): ${response.statusText}`);
-      }
-      const data = await response.json();
+      const data = await apiFetch<{ tools: any[] }>(`/api/mcp/servers/${serverId}/tools`, signal ? { signal } : {});
       if (!signal?.aborted) {
         setTools(data.tools || []);
       }

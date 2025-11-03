@@ -1,6 +1,6 @@
 import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';
 import builtinRegistryData from './server-registry-data.js';
-import { getApiUrl } from './api-url';
+import { apiFetch } from './api-client';
 
 /**
  * MCP Server Registry Service
@@ -134,13 +134,10 @@ export class ServerRegistryService {
             // Fetch current server states
             const controller = new AbortController();
             const t = setTimeout(() => controller.abort(), 10000);
-            const response = await fetch(`${getApiUrl()}/api/mcp/servers`, {
+            const data = await apiFetch<{ servers: any[] }>('/api/mcp/servers', {
                 signal: controller.signal,
             });
             clearTimeout(t);
-            if (!response.ok) return; // Graceful failure
-
-            const data = await response.json();
             const servers = data.servers || [];
 
             // Create set for all server IDs

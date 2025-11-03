@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useQueryClient } from '@tanstack/react-query';
-import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
@@ -251,11 +250,12 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   useEffect(() => {
     if (isExportOpen) {
       // Include current session ID in config export if available
-      const exportUrl = currentSessionId
-        ? `${getApiUrl()}/api/agent/config/export?sessionId=${currentSessionId}`
-        : `${getApiUrl()}/api/agent/config/export`;
+      const endpoint = currentSessionId
+        ? `/api/agent/config/export?sessionId=${currentSessionId}`
+        : '/api/agent/config/export';
 
-      fetch(exportUrl)
+      // Note: Using raw fetch here because endpoint returns YAML text, not JSON
+      fetch(`${window.location.origin}${endpoint}`)
         .then((res) => {
           if (!res.ok) throw new Error('Failed to fetch configuration');
           return res.text();
@@ -277,11 +277,12 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
   const handleDownload = useCallback(async () => {
     try {
-      const exportUrl = currentSessionId
-        ? `${getApiUrl()}/api/agent/config/export?sessionId=${currentSessionId}`
-        : `${getApiUrl()}/api/agent/config/export`;
+      const endpoint = currentSessionId
+        ? `/api/agent/config/export?sessionId=${currentSessionId}`
+        : '/api/agent/config/export';
 
-      const res = await fetch(exportUrl);
+      // Note: Using raw fetch here because endpoint returns YAML text, not JSON
+      const res = await fetch(`${window.location.origin}${endpoint}`);
       if (!res.ok) throw new Error('Failed to fetch configuration');
       const yamlText = await res.text();
       const blob = new Blob([yamlText], { type: 'application/x-yaml' });
@@ -437,15 +438,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
       try {
         setIsRegistryBusy(true);
-        const res = await fetch(`${getApiUrl()}/api/mcp/servers`, {
+        await apiFetch('/api/mcp/servers', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
         });
-        const result = await res.json();
-        if (!res.ok) {
-          throw new Error(result.error || `Server returned status ${res.status}`);
-        }
 
         if (entry.id) {
           try {
@@ -497,17 +493,13 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
   const handleDeleteConversation = useCallback(async () => {
     if (!currentSessionId) return;
-    
+
     setIsDeleting(true);
     try {
-      const response = await fetch(`${getApiUrl()}/api/sessions/${currentSessionId}`, {
+      await apiFetch(`/api/sessions/${currentSessionId}`, {
         method: 'DELETE',
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete conversation');
-      }
-      
+
       setDeleteDialogOpen(false);
       handleReturnToWelcome();
     } catch (error) {
@@ -576,19 +568,12 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
           action: async () => {
             try {
               // Resolve the prompt server-side just like InputArea does
-              const url = new URL(`${getApiUrl()}/api/prompts/${encodeURIComponent(prompt.name)}/resolve`);
-              const res = await fetch(url.toString());
-              if (res.ok) {
-                const data = await res.json();
-                const resolvedText = typeof data?.text === 'string' ? data.text : '';
-                if (resolvedText.trim()) {
-                  handleSend(resolvedText.trim());
-                } else {
-                  // Fallback: send slash command if resolution returned empty
-                  handleSend(`/${prompt.name}`);
-                }
+              const data = await apiFetch<{ text?: string }>(`/api/prompts/${encodeURIComponent(prompt.name)}/resolve`);
+              const resolvedText = typeof data?.text === 'string' ? data.text : '';
+              if (resolvedText.trim()) {
+                handleSend(resolvedText.trim());
               } else {
-                // Fallback: send slash command if API fails
+                // Fallback: send slash command if resolution returned empty
                 handleSend(`/${prompt.name}`);
               }
             } catch (error) {

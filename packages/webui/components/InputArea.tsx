@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
@@ -82,7 +82,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
   }, [analytics]);
 
   // LLM selector state
-  const [currentModel, setCurrentModel] = useState<ModelOption | null>(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
@@ -177,48 +176,12 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     }
   }, [text]);
 
-  // Fetch current LLM configuration
-  useEffect(() => {
-    const fetchCurrentModel = async () => {
-      try {
-        // Include session ID in the request to get the model for the specific session
-        const url = currentSessionId
-          ? `${getApiUrl()}/api/llm/current?sessionId=${currentSessionId}`
-          : `${getApiUrl()}/api/llm/current`;
-
-        const response = await fetch(url);
-        if (response.ok) {
-          const config = await response.json();
-          // Try to match with core models first
-          const matchedModel = coreModels.find(m => m.model === config.config.model);
-          if (matchedModel) {
-            setCurrentModel(matchedModel);
-          } else {
-            // Fallback to provider/model display - create a ModelOption
-            setCurrentModel({
-              name: `${config.config.provider}/${config.config.model}`,
-              provider: config.config.provider,
-              model: config.config.model
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch current model:', error);
-        setCurrentModel(null);
-      }
-    };
-
-    fetchCurrentModel();
-  }, [currentSessionId]); // Re-fetch whenever the session changes
-
   // Fetch supported file types for the active model to drive Attach menu
   useEffect(() => {
     const loadSupportedFileTypes = async () => {
       try {
-        const res = await fetch(`${getApiUrl()}/api/llm/catalog?mode=flat`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const models: Array<{ provider: string; name: string; supportedFileTypes?: string[] }> = data.models || [];
+        const data = await apiFetch<{ models: Array<{ provider: string; name: string; supportedFileTypes?: string[] }> }>('/api/llm/catalog?mode=flat');
+        const models = data.models || [];
         const provider = currentLLM?.provider;
         const model = currentLLM?.model;
         if (!provider || !model) return;
@@ -251,7 +214,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
       const originalArgsText = trimmed.slice(1 + name.length).trimStart();
       if (name) {
         try {
-          const url = new URL(`/api/prompts/${encodeURIComponent(name)}/resolve`, getApiUrl());
+          // Build query parameters
+          const params = new URLSearchParams();
           // Build structured args from tokens: key=value map + positional array
           if (parsed.argsArray && parsed.argsArray.length > 0) {
             const { keyValues, positional } = splitKeyValueAndPositional(parsed.argsArray);
@@ -259,28 +223,27 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             if (positional.length > 0) argsPayload._positional = positional;
             if (Object.keys(argsPayload).length > 0) {
               try {
-                url.searchParams.set('args', JSON.stringify(argsPayload));
+                params.set('args', JSON.stringify(argsPayload));
               } catch {
                 // ignore JSON errors and fall back to context-only
               }
             }
           }
           // Keep context for natural language compatibility
-          if (originalArgsText) url.searchParams.set('context', originalArgsText);
+          if (originalArgsText) params.set('context', originalArgsText);
+
+          const queryString = params.toString() ? `?${params.toString()}` : '';
 
           // Add timeout to prevent hanging on slow responses
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
           try {
-            const res = await fetch(url.toString(), { signal: controller.signal });
+            const data = await apiFetch<{ text?: string }>(`/api/prompts/${encodeURIComponent(name)}/resolve${queryString}`, { signal: controller.signal });
             clearTimeout(timeoutId);
-            if (res.ok) {
-              const data = await res.json();
-              const txt = typeof data?.text === 'string' ? data.text : '';
-              if (txt.trim()) {
-                trimmed = txt;
-              }
+            const txt = typeof data?.text === 'string' ? data.text : '';
+            if (txt.trim()) {
+              trimmed = txt;
             }
           } finally {
             clearTimeout(timeoutId);

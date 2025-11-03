@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useDebounce } from 'use-debounce';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';

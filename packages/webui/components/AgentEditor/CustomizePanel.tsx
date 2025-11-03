@@ -29,7 +29,7 @@ import { useDebounce } from 'use-debounce';
 import { Button } from '../ui/button';
 import { X, Save, RefreshCw, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch, ApiError } from '@/lib/api-client';
 import YAMLEditorView from './YAMLEditorView';
 import FormEditorView from './FormEditorView';
 import type { editor } from 'monaco-editor';
@@ -50,8 +50,6 @@ interface CustomizePanelProps {
   onClose: () => void;
   variant?: 'overlay' | 'inline';
 }
-
-const API_BASE_URL = `${getApiUrl()}/api`;
 
 interface ValidationError {
   line?: number;
@@ -132,12 +130,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     setIsLoading(true);
     setLoadError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/agent/config`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to load configuration' }));
-        throw new Error(errorData.message || errorData.error || `Load failed: ${response.statusText}`);
-      }
-      const data: AgentConfigResponse = await response.json();
+      const data = await apiFetch<AgentConfigResponse>('/api/agent/config');
       setYamlContent(data.yaml);
       setOriginalYamlContent(data.yaml);
       setRelativePath(data.relativePath);
@@ -168,13 +161,10 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     latestValidationRequestRef.current = requestId;
     setIsValidating(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/agent/validate`, {
+      const data = await apiFetch<ValidationResponse>('/api/agent/validate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ yaml }),
       });
-
-      const data: ValidationResponse = await response.json();
       if (latestValidationRequestRef.current === requestId) {
         setIsValid(data.valid);
         setErrors(data.errors || []);
@@ -447,18 +437,10 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     setSaveMessage('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/agent/config`, {
+      const data = await apiFetch<SaveConfigResponse>('/api/agent/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ yaml: yamlContent }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to save configuration' }));
-        throw new Error(errorData.message || errorData.error || `Save failed: ${response.statusText}`);
-      }
-
-      const data: SaveConfigResponse = await response.json();
 
       setOriginalYamlContent(yamlContent);
       setHasUnsavedChanges(false);

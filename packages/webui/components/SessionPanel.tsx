@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
 import { Button } from './ui/button';

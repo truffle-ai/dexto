@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Alert, AlertDescription } from "./ui/alert";
-import { getApiUrl } from "@/lib/api-url";
 import { apiFetch } from '@/lib/api-client.js';
 
 export type ApiKeyModalProps = {

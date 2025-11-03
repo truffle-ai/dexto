@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
 import { apiFetch } from '@/lib/api-client.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';

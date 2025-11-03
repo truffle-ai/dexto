@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback } from 'react';
 import { useDebounce } from 'use-debounce';
-import { getApiUrl } from '@/lib/api-url';
 import { apiFetch } from '@/lib/api-client.js';
 import { formatDate, formatTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
