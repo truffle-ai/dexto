@@ -60,4 +60,11 @@ export const queryKeys = {
     prompts: {
         all: ['prompts'] as const,
     },
+
+    // MCP Server queries
+    servers: {
+        all: ['servers'] as const,
+        detail: (serverId: string) => ['servers', 'detail', serverId] as const,
+        tools: (serverId: string) => ['servers', 'tools', serverId] as const,
+    },
 } as const;
