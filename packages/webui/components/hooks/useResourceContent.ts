@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client';
 
 type NormalizedResourceItem =
     | {
@@ -134,11 +134,9 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
 }
 
 async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
-    const response = await fetch(`${getApiUrl()}/api/resources/${encodeURIComponent(uri)}/content`);
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-    }
-    const body = await response.json();
+    const body = await apiFetch<{ content: any }>(
+        `/api/resources/${encodeURIComponent(uri)}/content`
+    );
     const contentPayload = body?.content;
     if (!contentPayload) {
         throw new Error('No content returned for resource');
