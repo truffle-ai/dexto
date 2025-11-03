@@ -1070,9 +1070,6 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                 <CreateMemoryModal
                     open={showCreateMemoryModal}
                     onClose={() => setShowCreateMemoryModal(false)}
-                    onSuccess={() => {
-                        // Could add a success toast here if desired
-                    }}
                 />
             </div>
         </div>
