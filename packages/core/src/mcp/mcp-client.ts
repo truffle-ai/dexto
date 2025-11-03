@@ -238,8 +238,13 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         serverAlias?: string
     ): Promise<Client> {
         logger.info(`Connecting to HTTP MCP server at ${url}`);
+        // Ensure required Accept headers are set for Streamable HTTP transport
+        const defaultHeaders = {
+            Accept: 'application/json, text/event-stream',
+        };
+        const mergedHeaders = { ...defaultHeaders, ...headers };
         this.transport = new StreamableHTTPClientTransport(new URL(url), {
-            requestInit: { headers: headers || {} },
+            requestInit: { headers: mergedHeaders },
         });
         this.client = new Client(
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },

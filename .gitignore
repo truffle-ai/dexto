@@ -13,6 +13,7 @@ dist/
 build/
 .next/
 .turbo/
+.vercel/
 
 # Environment files
 .env
