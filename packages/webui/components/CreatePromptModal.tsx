@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
@@ -122,19 +123,11 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     };
 
     try {
-      const response = await fetch(`${getApiUrl()}/api/prompts/custom`, {
+      const data = await apiFetch<{ prompt: { name: string } }>('/api/prompts/custom', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        const message = errorBody?.message || 'Failed to create prompt.';
-        throw new Error(message);
-      }
-
-      const data = await response.json();
       if (data?.prompt) {
         onCreated({
           name: data.prompt.name,

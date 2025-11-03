@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client.js';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -113,32 +114,22 @@ export default function SearchPanel({
           limit: '20',
           offset: '0'
         });
-        
+
         if (roleFilter !== 'all') {
           params.append('role', roleFilter);
         }
-        
+
         if (sessionFilter) {
           params.append('sessionId', sessionFilter);
         }
 
-        const response = await fetch(`${getApiUrl()}/api/search/messages?${params}`);
-        if (!response.ok) {
-          throw new Error('Search failed');
-        }
-        
-        const data: SearchResponse = await response.json();
+        const data = await apiFetch<SearchResponse>(`/api/search/messages?${params}`);
         setMessageResults(data.results);
         setTotal(data.total);
         setHasMore(data.hasMore);
       } else {
         const params = new URLSearchParams({ q: query });
-        const response = await fetch(`${getApiUrl()}/api/search/sessions?${params}`);
-        if (!response.ok) {
-          throw new Error('Search failed');
-        }
-        
-        const data: SessionSearchResponse = await response.json();
+        const data = await apiFetch<SessionSearchResponse>(`/api/search/sessions?${params}`);
         setSessionResults(data.results);
         setTotal(data.total);
         setHasMore(data.hasMore);
