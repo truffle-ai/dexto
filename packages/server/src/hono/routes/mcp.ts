@@ -317,8 +317,17 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             return ctx.json({ success: false, error: `Server '${serverId}' not found` }, 404);
         }
         // Execute tool directly on the specified server (matches Express implementation)
-        const rawResult = await client.callTool(toolName, body);
-        return ctx.json({ success: true, data: rawResult });
+        try {
+            const rawResult = await client.callTool(toolName, body);
+            return ctx.json({ success: true, data: rawResult });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(
+                `Tool execution failed for '${toolName}' on server '${serverId}': ${errorMessage}`,
+                { error }
+            );
+            return ctx.json({ success: false, error: errorMessage }, 200);
+        }
     });
 
     const listResourcesRoute = createRoute({
