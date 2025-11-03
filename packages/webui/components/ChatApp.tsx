@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { useHotkeys } from 'react-hotkeys-hook';
 import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
+import { useThemeStore } from '@/lib/stores/themeStore';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
 import ConnectServerModal from './ConnectServerModal';
@@ -52,6 +54,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const router = useRouter();
   const [isMac, setIsMac] = useState(false);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting, isStreaming, setStreaming } = useChatContext();
+
+  // Theme management from zustand store
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -619,86 +625,60 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     return actions;
   }, [starterPrompts, starterPromptsLoaded, quickActions, handleSend, setServersPanelOpen]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + Backspace to delete current session
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
-        if (currentSessionId && !isWelcomeState) {
-          e.preventDefault();
-          // If session has messages, show confirmation dialog
-          if (messages.length > 0) {
-            setDeleteDialogOpen(true);
-          } else {
-            // No messages, delete immediately
-            handleDeleteConversation();
-          }
-        }
+  // Keyboard shortcuts (using react-hotkeys-hook)
+  // Cmd/Ctrl + Backspace to delete current session
+  useHotkeys('mod+backspace', () => {
+    if (currentSessionId && !isWelcomeState) {
+      // If session has messages, show confirmation dialog
+      if (messages.length > 0) {
+        setDeleteDialogOpen(true);
+      } else {
+        // No messages, delete immediately
+        handleDeleteConversation();
       }
-      // Ctrl/Cmd + H to toggle sessions panel
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'h') {
-        e.preventDefault();
-        handleOpenSessionsPanel();
-      }
-      // Ctrl/Cmd + K to create new chat (return to welcome)
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'k') {
-        e.preventDefault();
-        handleReturnToWelcome();
-      }
-      // Ctrl/Cmd + J to toggle tools/servers panel
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'j') {
-        e.preventDefault();
-        handleOpenServersPanel();
-      }
-      // Ctrl/Cmd + M to toggle memory panel
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'm') {
-        e.preventDefault();
-        setMemoryPanelOpen(prev => !prev);
-      }
-      // Ctrl/Cmd + Shift + S to open search
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 's') {
-        e.preventDefault();
-        e.stopPropagation();
-        setSearchOpen(true);
-      }
-      // Ctrl/Cmd + L to open MCP playground
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'l') {
-        e.preventDefault();
-        window.open('/playground', '_blank');
-      }
-      // Ctrl/Cmd + E to open customize panel
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'e') {
-        e.preventDefault();
-        setCustomizePanelOpen(prev => !prev);
-      }
-      // Ctrl/Cmd + Shift + E to export config
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'e') {
-        e.preventDefault();
-        setExportOpen(true);
-      }
-      // Ctrl/Cmd + / to show shortcuts
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === '/') {
-        e.preventDefault();
-        setShowShortcuts(true);
-      }
-      // Escape to close panels or cancel run
-      if (e.key === 'Escape') {
-        if (isCustomizePanelOpen) setCustomizePanelOpen(false);
-        else if (isServersPanelOpen) setServersPanelOpen(false);
-        else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
-        else if (isMemoryPanelOpen) setMemoryPanelOpen(false);
-        else if (isServerRegistryOpen) setServerRegistryOpen(false);
-        else if (isExportOpen) setExportOpen(false);
-        else if (showShortcuts) setShowShortcuts(false);
-        else if (isDeleteDialogOpen) setDeleteDialogOpen(false);
-        else if (errorMessage) setErrorMessage(null);
-        else if (processing) cancel(currentSessionId || undefined);
-      }
-    };
+    }
+  }, { preventDefault: true }, [currentSessionId, isWelcomeState, messages.length, handleDeleteConversation]);
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isSearchOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, setSearchOpen, handleOpenSessionsPanel, handleOpenServersPanel, handleReturnToWelcome, handleDeleteConversation, processing, cancel, currentSessionId]);
+  // Ctrl/Cmd + H to toggle sessions panel
+  useHotkeys('mod+h', handleOpenSessionsPanel, { preventDefault: true }, [handleOpenSessionsPanel]);
+
+  // Ctrl/Cmd + K to create new chat (return to welcome)
+  useHotkeys('mod+k', handleReturnToWelcome, { preventDefault: true }, [handleReturnToWelcome]);
+
+  // Ctrl/Cmd + J to toggle tools/servers panel
+  useHotkeys('mod+j', handleOpenServersPanel, { preventDefault: true }, [handleOpenServersPanel]);
+
+  // Ctrl/Cmd + M to toggle memory panel
+  useHotkeys('mod+m', () => setMemoryPanelOpen(prev => !prev), { preventDefault: true });
+
+  // Ctrl/Cmd + Shift + S to open search
+  useHotkeys('mod+shift+s', () => setSearchOpen(true), { preventDefault: true });
+
+  // Ctrl/Cmd + L to open MCP playground
+  useHotkeys('mod+l', () => window.open('/playground', '_blank'), { preventDefault: true });
+
+  // Ctrl/Cmd + E to open customize panel
+  useHotkeys('mod+e', () => setCustomizePanelOpen(prev => !prev), { preventDefault: true });
+
+  // Ctrl/Cmd + Shift + E to export config
+  useHotkeys('mod+shift+e', () => setExportOpen(true), { preventDefault: true });
+
+  // Ctrl/Cmd + / to show shortcuts
+  useHotkeys('mod+slash', () => setShowShortcuts(true), { preventDefault: true });
+
+  // Escape to close panels or cancel run
+  useHotkeys('escape', () => {
+    if (isCustomizePanelOpen) setCustomizePanelOpen(false);
+    else if (isServersPanelOpen) setServersPanelOpen(false);
+    else if (isSessionsPanelOpen) setSessionsPanelOpen(false);
+    else if (isMemoryPanelOpen) setMemoryPanelOpen(false);
+    else if (isServerRegistryOpen) setServerRegistryOpen(false);
+    else if (isExportOpen) setExportOpen(false);
+    else if (showShortcuts) setShowShortcuts(false);
+    else if (isDeleteDialogOpen) setDeleteDialogOpen(false);
+    else if (errorMessage) setErrorMessage(null);
+    else if (processing) cancel(currentSessionId || undefined);
+  }, [isCustomizePanelOpen, isServersPanelOpen, isSessionsPanelOpen, isMemoryPanelOpen, isServerRegistryOpen, isExportOpen, showShortcuts, isDeleteDialogOpen, errorMessage, processing, cancel, currentSessionId]);
 
   return (
     <div
@@ -973,12 +953,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   </DropdownMenuItem>
 
                   <DropdownMenuItem onClick={() => {
-                    const isDark = document.documentElement.classList.contains('dark');
-                    const next = isDark ? 'light' : 'dark';
-                    document.documentElement.classList.toggle('dark', next === 'dark');
-                    localStorage.setItem('theme', next);
-                    // Keep SSR in sync with client theme to avoid hydration mismatch
-                    document.cookie = `theme=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
+                    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+                    setTheme(nextTheme);
                     setMobileMenuOpen(false);
                   }}>
                     <span className="h-4 w-4 mr-2">🌙</span>

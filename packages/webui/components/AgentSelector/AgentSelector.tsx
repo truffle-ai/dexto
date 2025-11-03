@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
+import { useRecentAgentsStore } from '@/lib/stores/recentAgentsStore';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -52,16 +53,15 @@ type AgentSelectorProps = {
   mode?: 'default' | 'badge' | 'title';
 };
 
-const RECENT_AGENTS_KEY = 'dexto:recentAgents';
-const MAX_RECENT_AGENTS = 5;
-
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
   const router = useRouter();
   const { currentLLM, currentSessionId } = useChatContext();
   const analytics = useAnalytics();
   const analyticsRef = useRef(analytics);
 
-  const [recentAgents, setRecentAgents] = useState<RecentAgent[]>([]);
+  const recentAgents = useRecentAgentsStore((state) => state.recentAgents);
+  const addToRecentAgents = useRecentAgentsStore((state) => state.addRecentAgent);
+
   const [switching, setSwitching] = useState(false);
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -101,24 +101,6 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   });
 
   const currentAgentPath = currentAgentPathData ?? null;
-
-  // Save agent to recent list
-  const addToRecentAgents = useCallback((agent: { id: string; name: string; path: string }) => {
-    try {
-      const stored = localStorage.getItem(RECENT_AGENTS_KEY);
-      const recent = stored ? (JSON.parse(stored) as RecentAgent[]) : [];
-      const filtered = recent.filter(a => a.path !== agent.path);
-      const updated: RecentAgent[] = [
-        { ...agent, lastUsed: Date.now() },
-        ...filtered
-      ].slice(0, MAX_RECENT_AGENTS);
-
-      localStorage.setItem(RECENT_AGENTS_KEY, JSON.stringify(updated));
-      setRecentAgents(updated);
-    } catch (err) {
-      console.error('Failed to save recent agent:', err);
-    }
-  }, []);
 
   // Agent switch mutation
   const switchAgentMutation = useMutation({
@@ -163,19 +145,6 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.path });
     },
   });
-
-  // Load recent agents from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(RECENT_AGENTS_KEY);
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as RecentAgent[];
-      setRecentAgents(parsed.sort((a, b) => b.lastUsed - a.lastUsed).slice(0, MAX_RECENT_AGENTS));
-    } catch (err) {
-      console.error('Failed to load recent agents:', err);
-      localStorage.removeItem(RECENT_AGENTS_KEY);
-    }
-  }, []);
 
   // Sync current agent path to recent agents when it loads
   useEffect(() => {

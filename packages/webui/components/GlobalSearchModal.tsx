@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useDebounce } from 'use-debounce';
+import { useHotkeys } from 'react-hotkeys-hook';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
@@ -97,49 +98,29 @@ export default function GlobalSearchModal({
     }
   }, [isOpen]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    if (!isOpen) return;
+  // Keyboard navigation (using react-hotkeys-hook)
+  // ArrowDown to navigate down in results
+  useHotkeys('down', () => {
+    setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
+  }, { enabled: isOpen, preventDefault: true }, [isOpen, results.length]);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle keys when modal is open and focused
-      if (!isOpen) return;
+  // ArrowUp to navigate up in results
+  useHotkeys('up', () => {
+    setSelectedIndex(prev => Math.max(prev - 1, 0));
+  }, { enabled: isOpen, preventDefault: true }, [isOpen]);
 
-      // Don't handle the search shortcut here - let the parent handle it
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
-        return;
-      }
+  // Enter to select current result
+  useHotkeys('enter', () => {
+    if (results[selectedIndex]) {
+      handleResultClick(results[selectedIndex]);
+      setSelectedIndex(0);
+    }
+  }, { enabled: isOpen, preventDefault: true }, [isOpen, results, selectedIndex, handleResultClick]);
 
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          e.stopPropagation();
-          setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          e.stopPropagation();
-          setSelectedIndex(prev => Math.max(prev - 1, 0));
-          break;
-        case 'Enter':
-          e.preventDefault();
-          e.stopPropagation();
-          if (results[selectedIndex]) {
-            handleResultClick(results[selectedIndex]);
-            setSelectedIndex(0);
-          }
-          break;
-        case 'Escape':
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, results, selectedIndex, onClose, handleResultClick]);
+  // Escape to close modal
+  useHotkeys('escape', () => {
+    onClose();
+  }, { enabled: isOpen, preventDefault: true }, [isOpen, onClose]);
 
   const getRoleIcon = (role: string) => {
     switch (role) {
