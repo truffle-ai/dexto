@@ -83,9 +83,17 @@ export async function initializeMcpServer(
     await initializeAgentCardResource(mcpServer, getAgentCard);
 
     // Connect server to transport AFTER all registrations
-    logger.info(`Initializing MCP protocol server connection...`);
-    await mcpServer.connect(mcpTransport);
-    logger.info(`✅ MCP server protocol connected via transport.`);
+    // Note: For StreamableHTTPServerTransport, we don't connect at startup
+    // as sessions are created per-request via handleRequest().
+    // The connection will happen in initializeMcpServerApiEndpoints when setting up routes.
+    if (!(mcpTransport instanceof StreamableHTTPServerTransport)) {
+        // For stdio and other persistent transports, connect at startup
+        logger.info(`Initializing MCP protocol server connection...`);
+        await mcpServer.connect(mcpTransport);
+        logger.info(`✅ MCP server protocol connected via transport.`);
+    } else {
+        logger.info(`MCP server configured for HTTP transport (sessions created per-request)`);
+    }
     return mcpServer;
 }
 
@@ -130,10 +138,18 @@ export async function initializeAgentCardResource(
  */
 export async function initializeMcpServerApiEndpoints(
     app: Express,
-    mcpTransport: Transport
+    mcpTransport: Transport,
+    mcpServer?: McpServer
 ): Promise<void> {
     // Only set up HTTP routes for StreamableHTTPServerTransport
     if (mcpTransport instanceof StreamableHTTPServerTransport) {
+        // For HTTP transport, connect the server once to the transport
+        // handleRequest() will manage sessions per-request based on Mcp-Session-Id headers
+        if (mcpServer) {
+            await mcpServer.connect(mcpTransport);
+            logger.info('MCP server connected to HTTP transport (sessions managed per-request)');
+        }
+
         // Mount /mcp for JSON-RPC and SSE handling
         app.post('/mcp', express.json(), (req, res) => {
             logger.info(`MCP POST /mcp received request body: ${JSON.stringify(req.body)}`);

@@ -1221,12 +1221,12 @@ export async function initializeApi(
         const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
         const mcpTransport = await createMcpTransport(transportType);
 
-        await initializeMcpServer(
+        const mcpServer = await initializeMcpServer(
             () => activeAgent,
             () => agentCardData,
             mcpTransport
         );
-        await initializeMcpServerApiEndpoints(app, mcpTransport);
+        await initializeMcpServerApiEndpoints(app, mcpTransport, mcpServer);
     } catch (error: any) {
         logger.error(`Failed to initialize MCP server: ${error.message}`);
         // Add error middleware to handle the failure gracefully
