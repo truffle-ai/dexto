@@ -124,9 +124,10 @@ export async function initializeAgentCardResource(
         logger.info(
             `Registered MCP Resource: '${agentCardResourceProgrammaticName}' at URI '${agentCardResourceUri}'`
         );
-    } catch (e: any) {
+    } catch (e: unknown) {
+        const err = e instanceof Error ? e : new Error(String(e));
         logger.warn(
-            `Error attempting to register MCP Resource '${agentCardResourceProgrammaticName}': ${e.message}. Check SDK.`
+            `Error attempting to register MCP Resource '${agentCardResourceProgrammaticName}': ${err.message}. Check SDK.`
         );
     }
 }
