@@ -68,7 +68,6 @@ export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: Memo
         data: memories = [],
         isLoading: loading,
         error,
-        refetch: refetchMemories,
     } = useQuery<Memory[], Error>({
         queryKey: queryKeys.memories.all,
         queryFn: fetchMemories,
@@ -264,13 +263,7 @@ export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: Memo
             </ScrollArea>
 
             {/* Create Memory Modal */}
-            <CreateMemoryModal
-                open={isCreateModalOpen}
-                onClose={() => setCreateModalOpen(false)}
-                onSuccess={() => {
-                    refetchMemories();
-                }}
-            />
+            <CreateMemoryModal open={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} />
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

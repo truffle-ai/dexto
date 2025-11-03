@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api-client';
+import { queryKeys } from '@/lib/queryKeys.js';
 import {
     Dialog,
     DialogContent,
@@ -20,66 +22,54 @@ import { Alert, AlertDescription } from './ui/alert';
 interface CreateMemoryModalProps {
     open: boolean;
     onClose: () => void;
-    onSuccess?: () => void;
 }
 
-export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMemoryModalProps) {
+export default function CreateMemoryModal({ open, onClose }: CreateMemoryModalProps) {
+    const queryClient = useQueryClient();
     const [content, setContent] = useState('');
     const [tags, setTags] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = async () => {
-        if (!content.trim()) {
-            setError('Memory content is required');
-            return;
-        }
-
-        setIsSubmitting(true);
-        setError(null);
-
-        try {
-            const payload = {
-                content: content.trim(),
-                ...(tags.trim() && {
-                    tags: tags
-                        .split(',')
-                        .map((t) => t.trim())
-                        .filter(Boolean),
-                }),
-                metadata: {
-                    source: 'user',
-                },
-            };
-
+    const createMemoryMutation = useMutation({
+        mutationFn: async (payload: {
+            content: string;
+            tags?: string[];
+            metadata: { source: string };
+        }) => {
             await apiFetch('/api/memory', {
                 method: 'POST',
                 body: JSON.stringify(payload),
             });
-
-            // Success - reset and close
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
             setContent('');
             setTags('');
-            onSuccess?.();
             onClose();
-        } catch (err) {
-            if (err instanceof ApiError) {
-                setError(err.message);
-            } else if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError('Failed to create memory');
-            }
-        } finally {
-            setIsSubmitting(false);
-        }
+        },
+    });
+
+    const handleSubmit = async () => {
+        if (!content.trim()) return;
+
+        const payload = {
+            content: content.trim(),
+            ...(tags.trim() && {
+                tags: tags
+                    .split(',')
+                    .map((t) => t.trim())
+                    .filter(Boolean),
+            }),
+            metadata: { source: 'user' },
+        };
+
+        createMemoryMutation.mutate(payload);
     };
 
     const handleClose = () => {
-        if (!isSubmitting) {
+        if (!createMemoryMutation.isPending) {
             setContent('');
             setTags('');
-            setError(null);
+            createMemoryMutation.reset();
             onClose();
         }
     };
@@ -96,10 +86,14 @@ export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMe
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
-                    {error && (
+                    {createMemoryMutation.error && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>{error}</AlertDescription>
+                            <AlertDescription>
+                                {createMemoryMutation.error instanceof Error
+                                    ? createMemoryMutation.error.message
+                                    : 'Failed to create memory'}
+                            </AlertDescription>
                         </Alert>
                     )}
 
@@ -111,7 +105,7 @@ export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMe
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             className="min-h-[100px] resize-none"
-                            disabled={isSubmitting}
+                            disabled={createMemoryMutation.isPending}
                             autoFocus
                         />
                         <p className="text-sm text-muted-foreground">
@@ -126,7 +120,7 @@ export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMe
                             placeholder="e.g., preferences, work, coding-style"
                             value={tags}
                             onChange={(e) => setTags(e.target.value)}
-                            disabled={isSubmitting}
+                            disabled={createMemoryMutation.isPending}
                         />
                         <p className="text-sm text-muted-foreground">
                             Comma-separated tags for organizing memories
@@ -135,11 +129,18 @@ export default function CreateMemoryModal({ open, onClose, onSuccess }: CreateMe
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+                    <Button
+                        variant="outline"
+                        onClick={handleClose}
+                        disabled={createMemoryMutation.isPending}
+                    >
                         Cancel
                     </Button>
-                    <Button onClick={handleSubmit} disabled={isSubmitting || !content.trim()}>
-                        {isSubmitting ? (
+                    <Button
+                        onClick={handleSubmit}
+                        disabled={createMemoryMutation.isPending || !content.trim()}
+                    >
+                        {createMemoryMutation.isPending ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 Creating...
