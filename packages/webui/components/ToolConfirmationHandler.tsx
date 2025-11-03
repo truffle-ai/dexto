@@ -24,7 +24,13 @@ export type { ApprovalEvent } from '../types/approval.js';
  * WebUI component for handling approval requests
  * Manages approval state and sends responses back through WebSocket
  */
-export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprove: externalOnApprove, onDeny: externalOnDeny, onHandlersReady }: ToolConfirmationHandlerProps) {
+export function ToolConfirmationHandler({
+    websocket,
+    onApprovalRequest,
+    onApprove: externalOnApprove,
+    onDeny: externalOnDeny,
+    onHandlersReady,
+}: ToolConfirmationHandlerProps) {
     const [pendingConfirmation, setPendingConfirmation] = useState<ApprovalEvent | null>(null);
     const { currentSessionId } = useChatContext();
 
@@ -47,7 +53,9 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                 if (message.event === 'approvalRequest') {
                     // Validate message.data exists and is an object
                     if (!message?.data || typeof message.data !== 'object') {
-                        console.error('[WebUI] Invalid approvalRequest: message.data is missing or not an object');
+                        console.error(
+                            '[WebUI] Invalid approvalRequest: message.data is missing or not an object'
+                        );
                         return;
                     }
 
@@ -67,7 +75,9 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                     const approvalId = message.data.approvalId;
                     const timestamp = message.data.timestamp;
                     if (typeof approvalId !== 'string' || typeof timestamp !== 'string') {
-                        console.error('[WebUI] Invalid approvalRequest: approvalId and timestamp must be strings');
+                        console.error(
+                            '[WebUI] Invalid approvalRequest: approvalId and timestamp must be strings'
+                        );
                         return;
                     }
 
@@ -77,7 +87,9 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         // Validate metadata exists and has required properties
                         const metadata = message.data.metadata;
                         if (!metadata || typeof metadata !== 'object') {
-                            console.error('[WebUI] Invalid tool_confirmation: metadata is missing or not an object');
+                            console.error(
+                                '[WebUI] Invalid tool_confirmation: metadata is missing or not an object'
+                            );
                             return;
                         }
 
@@ -85,12 +97,16 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         const args = metadata.args;
 
                         if (typeof toolName !== 'string') {
-                            console.error('[WebUI] Invalid tool_confirmation: metadata.toolName must be a string');
+                            console.error(
+                                '[WebUI] Invalid tool_confirmation: metadata.toolName must be a string'
+                            );
                             return;
                         }
 
                         if (!args || typeof args !== 'object') {
-                            console.error('[WebUI] Invalid tool_confirmation: metadata.args must be an object');
+                            console.error(
+                                '[WebUI] Invalid tool_confirmation: metadata.args must be an object'
+                            );
                             return;
                         }
 
@@ -99,7 +115,10 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                             type: messageType,
                             toolName: toolName,
                             args: args,
-                            description: typeof metadata.description === 'string' ? metadata.description : undefined,
+                            description:
+                                typeof metadata.description === 'string'
+                                    ? metadata.description
+                                    : undefined,
                             timestamp,
                             sessionId: message.data.sessionId,
                             metadata: metadata,
@@ -115,7 +134,9 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                         };
                     }
 
-                    console.debug(`[WebUI] Received approvalRequest: ${JSON.stringify(approvalEvent)}`);
+                    console.debug(
+                        `[WebUI] Received approvalRequest: ${JSON.stringify(approvalEvent)}`
+                    );
 
                     if (pendingConfirmation) {
                         // Buffer the request to be shown later
@@ -125,7 +146,9 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
                     }
                 }
             } catch (error) {
-                console.error(`[WebUI] Error handling approvalRequest message: ${error instanceof Error ? error.message : String(error)}`);
+                console.error(
+                    `[WebUI] Error handling approvalRequest message: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
         };
 
@@ -137,60 +160,70 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
     }, [websocket, pendingConfirmation, currentSessionId]);
 
     // Send confirmation response
-    const sendResponse = useCallback((approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {
-        if (!pendingConfirmation || !websocket) return;
+    const sendResponse = useCallback(
+        (approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {
+            if (!pendingConfirmation || !websocket) return;
 
-        const isElicitation = pendingConfirmation.type === 'elicitation';
+            const isElicitation = pendingConfirmation.type === 'elicitation';
 
-        // For elicitation: only include data when approved AND formData exists
-        // For tool confirmation: always include rememberChoice
-        const responseData = isElicitation
-            ? approved && formData
-                ? { formData }
-                : undefined
-            : { rememberChoice: rememberChoice ?? false };
+            // For elicitation: only include data when approved AND formData exists
+            // For tool confirmation: always include rememberChoice
+            const responseData = isElicitation
+                ? approved && formData
+                    ? { formData }
+                    : undefined
+                : { rememberChoice: rememberChoice ?? false };
 
-        const response = {
-            type: 'approvalResponse',
-            data: {
-                approvalId: pendingConfirmation.approvalId,
-                status: approved ? 'approved' : 'denied',
-                sessionId: pendingConfirmation.sessionId,
-                ...(responseData ? { data: responseData } : {}),
-            },
-        };
+            const response = {
+                type: 'approvalResponse',
+                data: {
+                    approvalId: pendingConfirmation.approvalId,
+                    status: approved ? 'approved' : 'denied',
+                    sessionId: pendingConfirmation.sessionId,
+                    ...(responseData ? { data: responseData } : {}),
+                },
+            };
 
-        console.debug(`[WebUI] Sending approvalResponse: ${JSON.stringify(response)}`);
+            console.debug(`[WebUI] Sending approvalResponse: ${JSON.stringify(response)}`);
 
-        // Check websocket is open before sending
-        if (websocket.readyState !== WebSocket.OPEN) {
-            console.warn(`[WebUI] WebSocket not open (readyState: ${websocket.readyState}), cannot send approval response for ${pendingConfirmation.approvalId}`);
-            return;
-        }
+            // Check websocket is open before sending
+            if (websocket.readyState !== WebSocket.OPEN) {
+                console.warn(
+                    `[WebUI] WebSocket not open (readyState: ${websocket.readyState}), cannot send approval response for ${pendingConfirmation.approvalId}`
+                );
+                return;
+            }
 
-        try {
-            websocket.send(JSON.stringify(response));
-        } catch (error) {
-            console.error(`[WebUI] Failed to send approval response: ${error instanceof Error ? error.message : String(error)}`);
-            return;
-        }
+            try {
+                websocket.send(JSON.stringify(response));
+            } catch (error) {
+                console.error(
+                    `[WebUI] Failed to send approval response: ${error instanceof Error ? error.message : String(error)}`
+                );
+                return;
+            }
 
-        // Clear current approval
-        setPendingConfirmation(null);
+            // Clear current approval
+            setPendingConfirmation(null);
 
-        // If there are queued requests, show the next one
-        if (queuedRequestsRef.current.length > 0) {
-            const next = queuedRequestsRef.current.shift()!;
-            setTimeout(() => {
-                setPendingConfirmation(next);
-            }, 100);
-        }
-    }, [pendingConfirmation, websocket]);
+            // If there are queued requests, show the next one
+            if (queuedRequestsRef.current.length > 0) {
+                const next = queuedRequestsRef.current.shift()!;
+                setTimeout(() => {
+                    setPendingConfirmation(next);
+                }, 100);
+            }
+        },
+        [pendingConfirmation, websocket]
+    );
 
-    const handleApprove = useCallback((formData?: Record<string, unknown>, rememberChoice?: boolean) => {
-        sendResponse(true, formData, rememberChoice);
-        externalOnApprove?.(formData, rememberChoice);
-    }, [sendResponse, externalOnApprove]);
+    const handleApprove = useCallback(
+        (formData?: Record<string, unknown>, rememberChoice?: boolean) => {
+            sendResponse(true, formData, rememberChoice);
+            externalOnApprove?.(formData, rememberChoice);
+        },
+        [sendResponse, externalOnApprove]
+    );
 
     const handleDeny = useCallback(() => {
         sendResponse(false);
@@ -202,7 +235,7 @@ export function ToolConfirmationHandler({ websocket, onApprovalRequest, onApprov
         if (onHandlersReady) {
             onHandlersReady({
                 onApprove: handleApprove,
-                onDeny: handleDeny
+                onDeny: handleDeny,
             });
         }
     }, [handleApprove, handleDeny, onHandlersReady]);

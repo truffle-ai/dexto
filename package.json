@@ -31,8 +31,8 @@
         "dev": "tsx scripts/dev-server.ts",
         "dev:cli": "pnpm run link-cli",
         "embed-webui": "tsx scripts/copy-webui-dist.ts",
-        "format": "prettier --write \"src/**/*.ts\"",
-        "format:check": "prettier --check \"src/**/*.ts\"",
+        "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
+        "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
         "install-cli": "pnpm run build:all && tsx scripts/install-global-cli.ts",
         "install-cli-fast": "pnpm run build:cli-only && tsx scripts/install-global-cli.ts",
         "link-cli": "pnpm run build:all && npm uninstall -g dexto 2>/dev/null || true && cd packages/cli && pnpm link --global",
@@ -106,7 +106,7 @@
         "ws": "^8.18.1"
     },
     "lint-staged": {
-        "*.ts": [
+        "*.{ts,tsx,js,jsx}": [
             "prettier --write"
         ]
     },
