@@ -9,6 +9,7 @@ import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
+import { apiFetch } from '@/lib/api-client.js';
 
 interface ChatContextType {
   messages: Message[];
@@ -211,14 +212,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   } = useQuery<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string }, Error>({
     queryKey: queryKeys.llm.current(currentSessionId),
     queryFn: async () => {
-      const url = currentSessionId 
-        ? `${getApiUrl()}/api/llm/current?sessionId=${currentSessionId}` 
-        : `${getApiUrl()}/api/llm/current`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`Failed to fetch LLM config: ${res.status}`);
-      }
-      const data = await res.json();
+      const endpoint = currentSessionId
+        ? `/api/llm/current?sessionId=${currentSessionId}`
+        : '/api/llm/current';
+      const data = await apiFetch<{ config?: any; provider?: string; model?: string; displayName?: string; router?: string; baseURL?: string }>(endpoint);
       const cfg = data.config || data;
       return {
         provider: cfg.provider,

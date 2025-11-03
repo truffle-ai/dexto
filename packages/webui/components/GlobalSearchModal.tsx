@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
+import { apiFetch } from '@/lib/api-client.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -80,13 +81,7 @@ export default function GlobalSearchModal({
         offset: '0'
       });
 
-      const response = await fetch(`${getApiUrl()}/api/search/messages?${params}`);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Search failed: ${response.status} ${errorText}`);
-      }
-      
-      const data: SearchResponse = await response.json();
+      const data = await apiFetch<SearchResponse>(`/api/search/messages?${params}`);
       return data.results;
     },
     enabled: debouncedQuery.trim().length > 0,

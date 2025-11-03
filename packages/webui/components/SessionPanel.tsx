@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
-import { extractErrorMessage, type DextoErrorResponse } from '@/lib/api-errors.js';
+import { apiFetch } from '@/lib/api-client.js';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -52,22 +52,7 @@ function sortSessions(sessions: Session[]): Session[] {
 }
 
 async function fetchSessions(): Promise<Session[]> {
-  const response = await fetch(`${getApiUrl()}/api/sessions`);
-  if (!response.ok) throw new Error('Failed to fetch sessions');
-  const responseText = await response.text();
-
-  if (!responseText.trim()) {
-    return [];
-  }
-
-  let data;
-  try {
-    data = JSON.parse(responseText);
-  } catch (parseError) {
-    console.error('Failed to parse sessions response:', parseError);
-    throw new Error('Failed to parse sessions data');
-  }
-
+  const data = await apiFetch<{ sessions: Session[] }>('/api/sessions');
   return sortSessions(data.sessions || []);
 }
 
@@ -99,34 +84,11 @@ export default function SessionPanel({
 
   const createSessionMutation = useMutation({
     mutationFn: async (sessionId?: string) => {
-      const response = await fetch(`${getApiUrl()}/api/sessions`, {
+      const data = await apiFetch<{ session: Session }>('/api/sessions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: sessionId?.trim() || undefined }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = extractErrorMessage(
-          errorData as Partial<DextoErrorResponse>,
-          'Failed to create session'
-        );
-        throw new Error(errorMessage);
-      }
-
-      const responseText = await response.text();
-      if (!responseText.trim()) {
-        throw new Error('Empty response from session creation');
-      }
-
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse session creation response:', parseError);
-        throw new Error('Invalid response from session creation');
-      }
-      return data.session as Session;
+      return data.session;
     },
     onSuccess: (newSession) => {
       queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
@@ -141,18 +103,9 @@ export default function SessionPanel({
 
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
-      const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}`, {
+      await apiFetch(`/api/sessions/${sessionId}`, {
         method: 'DELETE',
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = extractErrorMessage(
-          errorData as Partial<DextoErrorResponse>,
-          'Failed to delete session'
-        );
-        throw new Error(errorMessage);
-      }
       return sessionId;
     },
     onSuccess: (sessionId) => {
