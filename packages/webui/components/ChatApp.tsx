@@ -79,9 +79,6 @@ interface ChatAppProps {
 
 export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     const router = useRouter();
-    const [isMac] = useState(
-        () => typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
-    );
     const {
         messages,
         sendMessage,
@@ -1238,7 +1235,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                             </kbd>{' '}
                                             for playground,
                                             <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">
-                                                {isMac ? '⌘⌫' : 'Ctrl+⌫'}
+                                                ⌘⌫
                                             </kbd>{' '}
                                             to delete session,
                                             <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">
@@ -1547,7 +1544,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                 { key: '⌘L', desc: 'Open MCP playground' },
                                 { key: '⌘⇧E', desc: 'Export config' },
                                 { key: '⌘/', desc: 'Show shortcuts' },
-                                { key: isMac ? '⌘⌫' : 'Ctrl+⌫', desc: 'Delete current session' },
+                                { key: '⌘⌫', desc: 'Delete current session' },
                                 { key: 'Esc', desc: 'Close panels' },
                             ].map((shortcut, index) => (
                                 <div key={index} className="flex justify-between items-center py-1">
