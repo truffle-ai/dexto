@@ -134,10 +134,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         // Extract error message from various API response formats
+        // Prefer detailed issues message over generic error field
         const errorMessage =
+          (errorData.issues && errorData.issues[0]?.message) ||
           errorData.error ||
           errorData.message ||
-          (errorData.issues && errorData.issues[0]?.message) ||
           `Switch failed: ${res.status} ${res.statusText}`;
         throw new Error(errorMessage);
       }
@@ -161,10 +162,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         // Extract error message from various API response formats
+        // Prefer detailed issues message over generic error field
         const errorMessage =
+          (errorData.issues && errorData.issues[0]?.message) ||
           errorData.error ||
           errorData.message ||
-          (errorData.issues && errorData.issues[0]?.message) ||
           `Install failed: ${res.status}`;
         throw new Error(errorMessage);
       }
@@ -187,10 +189,11 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         // Extract error message from various API response formats
+        // Prefer detailed issues message over generic error field
         const errorMessage =
+          (errorData.issues && errorData.issues[0]?.message) ||
           errorData.error ||
           errorData.message ||
-          (errorData.issues && errorData.issues[0]?.message) ||
           `Delete failed: ${res.status}`;
         throw new Error(errorMessage);
       }
