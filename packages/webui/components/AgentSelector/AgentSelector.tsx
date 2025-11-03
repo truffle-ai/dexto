@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
-import { extractErrorMessage, type DextoErrorResponse } from '@/lib/api-errors.js';
+import { apiFetch } from '@/lib/api-client.js';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -81,9 +81,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   } = useQuery<AgentsResponse, Error>({
     queryKey: queryKeys.agents.all,
     queryFn: async () => {
-      const res = await fetch(`${getApiUrl()}/api/agents`);
-      if (!res.ok) throw new Error('Failed to fetch agents');
-      return res.json() as Promise<AgentsResponse>;
+      return await apiFetch<AgentsResponse>('/api/agents');
     },
   });
 
@@ -97,9 +95,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   } = useQuery<AgentPath, Error>({
     queryKey: queryKeys.agents.path,
     queryFn: async () => {
-      const pathRes = await fetch(`${getApiUrl()}/api/agent/path`);
-      if (!pathRes.ok) throw new Error('Failed to fetch agent path');
-      return pathRes.json() as Promise<AgentPath>;
+      return await apiFetch<AgentPath>('/api/agent/path');
     },
     retry: false, // Don't retry if path fetch fails
   });
@@ -127,20 +123,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   // Agent switch mutation
   const switchAgentMutation = useMutation({
     mutationFn: async ({ id, path }: { id: string; path?: string }) => {
-      const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
+      return await apiFetch('/api/agents/switch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...(path ? { path } : {}) }),
       });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const errorMessage = extractErrorMessage(
-          errorData as Partial<DextoErrorResponse>,
-          `Switch failed: ${res.status} ${res.statusText}`
-        );
-        throw new Error(errorMessage);
-      }
-      return { id, path };
     },
     onSuccess: () => {
       // Invalidate and refetch agents and path after successful switch
@@ -152,20 +138,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   // Agent install mutation (no chaining - coordination happens in handleInstall)
   const installAgentMutation = useMutation({
     mutationFn: async (agentId: string) => {
-      const res = await fetch(`${getApiUrl()}/api/agents/install`, {
+      return await apiFetch('/api/agents/install', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: agentId }),
       });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const errorMessage = extractErrorMessage(
-          errorData as Partial<DextoErrorResponse>,
-          `Install failed: ${res.status}`
-        );
-        throw new Error(errorMessage);
-      }
-      return agentId;
     },
     onSuccess: async () => {
       // Just invalidate the cache - let handleInstall coordinate the full flow
@@ -176,20 +152,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   // Agent delete mutation
   const deleteAgentMutation = useMutation({
     mutationFn: async (agentId: string) => {
-      const res = await fetch(`${getApiUrl()}/api/agents/uninstall`, {
+      return await apiFetch('/api/agents/uninstall', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: agentId }),
       });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const errorMessage = extractErrorMessage(
-          errorData as Partial<DextoErrorResponse>,
-          `Delete failed: ${res.status}`
-        );
-        throw new Error(errorMessage);
-      }
-      return agentId;
     },
     onSuccess: () => {
       // Invalidate and refetch agents after successful delete

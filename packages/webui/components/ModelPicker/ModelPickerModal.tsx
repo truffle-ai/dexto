@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client.js';
 import Image from "next/image";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -29,6 +30,7 @@ import type { LLMProvider } from "@dexto/core";
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from "./constants";
 import { CapabilityIcons } from "./CapabilityIcons";
 import { useAnalytics } from '@/lib/analytics/index.js';
+import { extractErrorMessage, type DextoErrorResponse } from '@/lib/api-errors.js';
 
 interface CompactModelCardProps {
   provider: LLMProvider;
@@ -146,7 +148,6 @@ export default function ModelPickerModal() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | "">("");
   const [baseURL, setBaseURL] = useState("");
-  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'favorites' | 'all' | 'custom'>('favorites');
   const [error, setError] = useState<string | null>(null);
 
@@ -159,13 +160,14 @@ export default function ModelPickerModal() {
     maxOutputTokens: '',
   });
   const [showCustomModelForm, setShowCustomModelForm] = useState(false);
-  
+
   // API key modal
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [pendingKeyProvider, setPendingKeyProvider] = useState<string | null>(null);
   const [pendingSelection, setPendingSelection] = useState<{ provider: string; model: string } | null>(null);
 
   const { currentSessionId, currentLLM, refreshCurrentLLM } = useChatContext();
+  const queryClient = useQueryClient();
 
   // Analytics tracking
   const analytics = useAnalytics();
@@ -184,9 +186,7 @@ export default function ModelPickerModal() {
   } = useQuery<CatalogResponse, Error>({
     queryKey: ['llmCatalog'],
     queryFn: async () => {
-      const catRes = await fetch(`${getApiUrl()}/api/llm/catalog`);
-      if (!catRes.ok) throw new Error('Failed to load catalog');
-      return (await catRes.json()) as CatalogResponse;
+      return await apiFetch<CatalogResponse>('/api/llm/catalog');
     },
     enabled: open,
   });
@@ -311,40 +311,34 @@ export default function ModelPickerModal() {
     return modelRouters[0] || providerRouters[0] || 'vercel';
   }
 
-  async function performSwitch(providerId: string, model: ModelInfo, useBaseURL?: string) {
-    setSaving(true);
-    setError(null);
-
-    // Capture current LLM before switching for analytics
-    const fromLLM = currentLLM;
-
-    try {
+  // LLM switch mutation using TanStack Query
+  const switchLLMMutation = useMutation({
+    mutationFn: async ({ providerId, model, useBaseURL }: {
+      providerId: string;
+      model: ModelInfo;
+      useBaseURL?: string;
+    }) => {
       const router = pickRouterFor(providerId, model);
       const body: Record<string, any> = { provider: providerId, model: model.name, router };
       if (useBaseURL && providers[providerId]?.supportsBaseURL) body.baseURL = useBaseURL;
       if (currentSessionId) body.sessionId = currentSessionId;
 
-      const res = await fetch(`${getApiUrl()}/api/llm/switch`, {
+      return await apiFetch('/api/llm/switch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = (json?.issues && json.issues[0]?.message) || 'Failed to switch model';
-        setError(msg);
-        return;
-      }
+    },
+    onSuccess: async (_data, variables) => {
       // Update context config immediately so the trigger label updates
       await refreshCurrentLLM();
 
       // Track LLM switch using ref to avoid stale closure
-      if (fromLLM) {
+      if (currentLLM) {
         analyticsRef.current.trackLLMSwitched({
-          fromProvider: fromLLM.provider,
-          fromModel: fromLLM.model,
-          toProvider: providerId,
-          toModel: model.name,
+          fromProvider: currentLLM.provider,
+          fromModel: currentLLM.model,
+          toProvider: variables.providerId,
+          toModel: variables.model.name,
           sessionId: currentSessionId || undefined,
           trigger: 'user_action',
         });
@@ -352,12 +346,12 @@ export default function ModelPickerModal() {
 
       // Close immediately for snappy feel
       setOpen(false);
-    } catch {
-      setError('Network error while switching');
-    } finally {
-      setSaving(false);
-    }
-  }
+      setError(null);
+    },
+    onError: (error: Error) => {
+      setError(error.message);
+    },
+  });
 
   function onPickModel(providerId: string, model: ModelInfo, customBaseURL?: string) {
     const provider = providers[providerId];
@@ -376,7 +370,7 @@ export default function ModelPickerModal() {
       setKeyModalOpen(true);
       return;
     }
-    performSwitch(providerId, model, effectiveBaseURL);
+    switchLLMMutation.mutate({ providerId, model, useBaseURL: effectiveBaseURL });
   }
 
   function onPickCustomModel(customModel: CustomModelStorage) {
@@ -402,7 +396,7 @@ export default function ModelPickerModal() {
     if (pendingSelection) {
       const { provider, model } = pendingSelection;
       const m = providers[provider]?.models.find((x) => x.name === model);
-      if (m) performSwitch(provider, m, baseURL);
+      if (m) switchLLMMutation.mutate({ providerId: provider, model: m, useBaseURL: baseURL });
       setPendingSelection(null);
     }
   }
