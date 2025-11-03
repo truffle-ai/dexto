@@ -133,6 +133,10 @@ export async function initializeAgentCardResource(
 
 /**
  * Initializes and sets up the MCP HTTP endpoints.
+ * @param app - Express application instance
+ * @param mcpTransport - MCP transport instance
+ * @param mcpServer - MCP server instance (required when using HTTP transport)
+ * @throws {Error} If HTTP transport is used but mcpServer is undefined/null
  */
 export async function initializeMcpServerApiEndpoints(
     app: Express,
@@ -141,11 +145,24 @@ export async function initializeMcpServerApiEndpoints(
 ): Promise<void> {
     // Only set up HTTP routes for StreamableHTTPServerTransport
     if (mcpTransport instanceof StreamableHTTPServerTransport) {
+        // HTTP transport requires a non-null mcpServer
+        if (!mcpServer) {
+            throw new Error(
+                'HTTP transport requires a non-null mcpServer parameter. Please provide an initialized McpServer instance when using HTTP transport.'
+            );
+        }
+
         // For HTTP transport, connect the server once to the transport
         // handleRequest() will manage sessions per-request based on Mcp-Session-Id headers
-        if (mcpServer) {
+        try {
             await mcpServer.connect(mcpTransport);
             logger.info('MCP server connected to HTTP transport (sessions managed per-request)');
+        } catch (error: any) {
+            logger.error(
+                `Failed to connect MCP server to HTTP transport: ${error?.message ?? String(error)}`,
+                { error: error?.stack ?? error }
+            );
+            throw error;
         }
 
         // Mount /mcp for JSON-RPC and SSE handling
