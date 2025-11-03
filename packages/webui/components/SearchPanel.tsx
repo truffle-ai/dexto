@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useDebounce } from 'use-debounce';
 import { getApiUrl } from '@/lib/api-url';
 import { apiFetch } from '@/lib/api-client.js';
+import { formatDate, formatTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -10,11 +12,11 @@ import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
-import { 
-  Search, 
-  MessageSquare, 
-  Clock, 
-  User, 
+import {
+  Search,
+  MessageSquare,
+  Clock,
+  User,
   Bot,
   Settings,
   X,
@@ -25,7 +27,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from './ui/alert';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -85,6 +87,7 @@ export default function SearchPanel({
   variant = 'modal'
 }: SearchPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery] = useDebounce(searchQuery, 300);
   const [searchMode, setSearchMode] = useState<SearchMode>('messages');
   const [messageResults, setMessageResults] = useState<SearchResult[]>([]);
   const [sessionResults, setSessionResults] = useState<SessionSearchResult[]>([]);
@@ -141,14 +144,10 @@ export default function SearchPanel({
     }
   }, [roleFilter, sessionFilter]);
 
-  // Debounced search
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      performSearch(searchQuery, searchMode);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchMode, performSearch]);
+  // Perform search when debounced query changes
+  React.useEffect(() => {
+    performSearch(debouncedQuery, searchMode);
+  }, [debouncedQuery, searchMode, performSearch]);
 
   const handleResultClick = (result: SearchResult) => {
     onNavigateToSession(result.sessionId, result.messageIndex);
@@ -160,16 +159,6 @@ export default function SearchPanel({
     onClose();
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString();
-  };
-
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
 
   const getRoleIcon = (role: string) => {
     switch (role) {

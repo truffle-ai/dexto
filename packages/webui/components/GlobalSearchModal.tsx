@@ -2,16 +2,17 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useDebounce } from 'use-debounce';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
-import { 
-  Search, 
-  MessageSquare, 
-  User, 
+import {
+  Search,
+  MessageSquare,
+  User,
   Bot,
   Settings,
   Clock,
@@ -51,17 +52,8 @@ export default function GlobalSearchModal({
   onNavigateToSession
 }: GlobalSearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [debouncedQuery] = useDebounce(searchQuery, 300);
   const [selectedIndex, setSelectedIndex] = useState(0);
-
-  // Debounce search query to avoid hammering the API
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, 300); // Wait 300ms after user stops typing
-
-    return () => clearTimeout(timer); // Cancel timer if user types again
-  }, [searchQuery]);
 
   // Use TanStack Query for search with debouncing
   const {
@@ -101,7 +93,6 @@ export default function GlobalSearchModal({
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
-      setDebouncedQuery('');
       setSelectedIndex(0);
     }
   }, [isOpen]);

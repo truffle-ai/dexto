@@ -25,6 +25,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useDebounce } from 'use-debounce';
 import { Button } from '../ui/button';
 import { X, Save, RefreshCw, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -122,8 +123,8 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
-  // Debounce timer for validation
-  const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Debounced validation
+  const [debouncedYamlContent] = useDebounce(yamlContent, 500);
   const latestValidationRequestRef = useRef(0);
 
   // Load agent configuration from API
@@ -380,14 +381,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       setParsedConfig(config);
       setYamlDocument(document);
     }
-
-    // Debounce validation
-    if (validationTimerRef.current) {
-      clearTimeout(validationTimerRef.current);
-    }
-    validationTimerRef.current = setTimeout(() => {
-      validateYaml(value);
-    }, 500);
+    // Validation happens automatically via debouncedYamlContent useEffect
   };
 
   // Handle form editor changes
@@ -408,14 +402,7 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
     setHasUnsavedChanges(!configsAreEqual(newConfig, originalParsedConfig));
     setSaveError(null);
     setSaveSuccess(false);
-
-    // Debounce validation
-    if (validationTimerRef.current) {
-      clearTimeout(validationTimerRef.current);
-    }
-    validationTimerRef.current = setTimeout(() => {
-      validateYaml(newYaml);
-    }, 500);
+    // Validation happens automatically via debouncedYamlContent useEffect
   };
 
   // Handle mode switch
@@ -531,6 +518,13 @@ export default function CustomizePanel({ isOpen, onClose, variant = 'overlay' }:
       loadAgentConfig();
     }
   }, [isOpen, loadAgentConfig]);
+
+  // Trigger validation when debounced content changes
+  useEffect(() => {
+    if (debouncedYamlContent && isOpen) {
+      validateYaml(debouncedYamlContent);
+    }
+  }, [debouncedYamlContent, isOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {

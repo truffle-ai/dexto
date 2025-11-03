@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
+import { formatDateTime, formatRelativeTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -87,24 +88,6 @@ export default function MemoryPanel({
     await deleteMemoryMutation.mutateAsync(memoryId);
   };
 
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatRelativeTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    return `${days}d ago`;
-  };
 
   const truncateContent = (content: string, maxLength: number = 120) => {
     if (content.length <= maxLength) return content;
