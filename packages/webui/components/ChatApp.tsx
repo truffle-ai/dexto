@@ -52,7 +52,9 @@ interface ChatAppProps {
 
 export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const router = useRouter();
-  const [isMac, setIsMac] = useState(false);
+  const [isMac] = useState(() =>
+    typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+  );
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting, isStreaming, setStreaming } = useChatContext();
 
   // Theme management
@@ -158,10 +160,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const [isRegistryBusy, setIsRegistryBusy] = useState(false);
 
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)) {
-      setIsMac(true);
-    }
-
     const updateViewportHeight = () => {
       if (typeof document === 'undefined') return;
       const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
