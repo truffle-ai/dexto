@@ -5,7 +5,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
-import { useThemeStore } from '@/lib/stores/themeStore';
+import { useTheme } from './hooks/useTheme';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
 import ConnectServerModal from './ConnectServerModal';
@@ -55,9 +55,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
   const [isMac, setIsMac] = useState(false);
   const { messages, sendMessage, currentSessionId, switchSession, isWelcomeState, returnToWelcome, websocket, activeError, clearError, processing, cancel, greeting, isStreaming, setStreaming } = useChatContext();
 
-  // Theme management from zustand store
-  const theme = useThemeStore((state) => state.theme);
-  const setTheme = useThemeStore((state) => state.setTheme);
+  // Theme management
+  const { theme, toggleTheme } = useTheme();
 
   const [isModalOpen, setModalOpen] = useState(false);
   const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -953,8 +952,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                   </DropdownMenuItem>
 
                   <DropdownMenuItem onClick={() => {
-                    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-                    setTheme(nextTheme);
+                    toggleTheme(theme === 'light');
                     setMobileMenuOpen(false);
                   }}>
                     <span className="h-4 w-4 mr-2">🌙</span>
