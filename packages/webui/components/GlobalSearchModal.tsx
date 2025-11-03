@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
+import { queryKeys } from '@/lib/queryKeys.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -42,29 +44,38 @@ interface GlobalSearchModalProps {
   onNavigateToSession: (sessionId: string, messageIndex?: number) => void;
 }
 
-export default function GlobalSearchModal({ 
-  isOpen, 
-  onClose, 
-  onNavigateToSession 
+export default function GlobalSearchModal({
+  isOpen,
+  onClose,
+  onNavigateToSession
 }: GlobalSearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const performSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setResults([]);
-      setError(null);
-      return;
-    }
+  // Debounce search query to avoid hammering the API
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300); // Wait 300ms after user stops typing
 
-    setIsLoading(true);
-    setError(null);
-    try {
+    return () => clearTimeout(timer); // Cancel timer if user types again
+  }, [searchQuery]);
+
+  // Use TanStack Query for search with debouncing
+  const {
+    data: searchResults = [],
+    isLoading,
+    error,
+  } = useQuery<SearchResult[], Error>({
+    queryKey: queryKeys.search.messages(debouncedQuery),
+    queryFn: async () => {
+      if (!debouncedQuery.trim()) {
+        return [];
+      }
+
       const params = new URLSearchParams({
-        q: query,
+        q: debouncedQuery,
         limit: '10',
         offset: '0'
       });
@@ -76,32 +87,26 @@ export default function GlobalSearchModal({
       }
       
       const data: SearchResponse = await response.json();
-      setResults(data.results);
-      setSelectedIndex(0);
-    } catch (err) {
-      console.error('Search error:', err);
-      setResults([]);
-      setError(err instanceof Error ? err.message : 'Search failed');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      return data.results;
+    },
+    enabled: debouncedQuery.trim().length > 0,
+    staleTime: 5000, // Consider results fresh for 5 seconds
+    gcTime: 30000, // Keep in cache for 30 seconds
+  });
 
-  // Debounced search
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      performSearch(searchQuery);
-    }, 300);
+  const results = searchResults;
+  const searchError = error?.message ?? null;
 
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, performSearch]);
+  const handleResultClick = useCallback((result: SearchResult) => {
+    onNavigateToSession(result.sessionId, result.messageIndex);
+    onClose();
+  }, [onNavigateToSession, onClose]);
 
   // Reset when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
-      setResults([]);
-      setError(null);
+      setDebouncedQuery('');
       setSelectedIndex(0);
     }
   }, [isOpen]);
@@ -135,6 +140,7 @@ export default function GlobalSearchModal({
           e.stopPropagation();
           if (results[selectedIndex]) {
             handleResultClick(results[selectedIndex]);
+            setSelectedIndex(0);
           }
           break;
         case 'Escape':
@@ -147,12 +153,7 @@ export default function GlobalSearchModal({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, results, selectedIndex, onClose]);
-
-  const handleResultClick = (result: SearchResult) => {
-    onNavigateToSession(result.sessionId, result.messageIndex);
-    onClose();
-  };
+  }, [isOpen, results, selectedIndex, onClose, handleResultClick]);
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -229,7 +230,7 @@ export default function GlobalSearchModal({
                 <div className="text-center">
                   <Search className="w-12 h-12 mx-auto mb-4 text-destructive opacity-50" />
                   <p className="text-destructive font-medium">Search Error</p>
-                  <p className="text-sm text-muted-foreground mt-2">{error}</p>
+                  <p className="text-sm text-muted-foreground mt-2">{searchError}</p>
                   <p className="text-xs text-muted-foreground mt-2">Try again or check your connection.</p>
                 </div>
               </div>
@@ -269,7 +270,7 @@ export default function GlobalSearchModal({
                             </div>
                             
                             <div className="text-sm text-muted-foreground line-clamp-2">
-                              {highlightText(result.context, searchQuery)}
+                              {highlightText(result.context, debouncedQuery)}
                             </div>
                           </div>
                           
@@ -277,7 +278,7 @@ export default function GlobalSearchModal({
                         </div>
                       ))}
                     </div>
-                  ) : searchQuery ? (
+                  ) : debouncedQuery ? (
                     <div className="text-center py-12">
                       <Search className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                       <p className="text-muted-foreground">No messages found matching your search.</p>

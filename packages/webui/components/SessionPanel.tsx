@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
+import { queryKeys } from '@/lib/queryKeys.js';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -90,7 +91,7 @@ export default function SessionPanel({
     isLoading: loading,
     error,
   } = useQuery<Session[], Error>({
-    queryKey: ['sessions'],
+    queryKey: queryKeys.sessions.all,
     queryFn: fetchSessions,
     enabled: isOpen,
   });
@@ -129,7 +130,7 @@ export default function SessionPanel({
       return data.session as Session;
     },
     onSuccess: (newSession) => {
-      queryClient.setQueryData<Session[]>(['sessions'], (old = []) => {
+      queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
         const updated = [...old, newSession];
         return sortSessions(updated);
       });
@@ -158,7 +159,7 @@ export default function SessionPanel({
       return sessionId;
     },
     onSuccess: (sessionId) => {
-      queryClient.setQueryData<Session[]>(['sessions'], (old = []) =>
+      queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
         old.filter(s => s.id !== sessionId)
       );
       const isDeletingCurrentSession = currentSessionId === sessionId;
@@ -171,14 +172,14 @@ export default function SessionPanel({
   // Listen for events and update state optimistically
   useEffect(() => {
     const handleAgentSwitched = () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
     };
 
     const handleMessage: EventListener = (event: Event) => {
       const customEvent = event as CustomEvent;
       const eventSessionId = customEvent.detail?.sessionId;
       if (eventSessionId) {
-        queryClient.setQueryData<Session[]>(['sessions'], (old = []) => {
+        queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
           const sessionExists = old.some(s => s.id === eventSessionId);
           if (sessionExists) {
             return sortSessions(old.map(session =>
@@ -204,7 +205,7 @@ export default function SessionPanel({
       const customEvent = event as CustomEvent;
       const eventSessionId = customEvent.detail?.sessionId;
       if (eventSessionId) {
-        queryClient.setQueryData<Session[]>(['sessions'], (old = []) =>
+        queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
           sortSessions(old.map(session =>
             session.id === eventSessionId
               ? { ...session, messageCount: session.messageCount + 1, lastActivity: new Date().toISOString() }
@@ -219,7 +220,7 @@ export default function SessionPanel({
       const eventSessionId = customEvent.detail?.sessionId;
       const title = customEvent.detail?.title;
       if (eventSessionId && title) {
-        queryClient.setQueryData<Session[]>(['sessions'], (old = []) =>
+        queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
           old.map(session =>
             session.id === eventSessionId ? { ...session, title } : session
           )

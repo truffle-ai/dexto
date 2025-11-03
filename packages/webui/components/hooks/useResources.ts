@@ -1,19 +1,15 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getApiUrl } from '@/lib/api-url';
 import type { ResourceMetadata } from '@dexto/core';
+import { apiFetch } from '@/lib/api-client.js';
+import { queryKeys } from '@/lib/queryKeys.js';
 
 async function fetchResources(): Promise<ResourceMetadata[]> {
-    const response = await fetch(`${getApiUrl()}/api/resources`);
-    if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(text ? `HTTP ${response.status}: ${text}` : `HTTP ${response.status}`);
-    }
-    const body = await response.json();
+    const body = await apiFetch<{ ok: boolean; resources: ResourceMetadata[] }>('/api/resources');
     if (!body || !body.ok || !Array.isArray(body.resources)) {
         throw new Error('Invalid response shape');
     }
-    return body.resources as ResourceMetadata[];
+    return body.resources;
 }
 
 export function clearResourcesCache(): void {
@@ -30,7 +26,7 @@ export function useResources() {
         error,
         refetch: refresh,
     } = useQuery<ResourceMetadata[], Error>({
-        queryKey: ['resources'],
+        queryKey: queryKeys.resources.all,
         queryFn: fetchResources,
     });
 
@@ -41,7 +37,7 @@ export function useResources() {
             console.log('💾 Resource cache invalidated:', detail);
 
             // Invalidate and refetch resources when cache is invalidated
-            queryClient.invalidateQueries({ queryKey: ['resources'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
         };
 
         const handleAgentSwitched = (event: any) => {
@@ -49,7 +45,7 @@ export function useResources() {
             console.log('🔁 Agent switched, refreshing resources:', detail);
 
             // Invalidate and refetch resources when agent is switched
-            queryClient.invalidateQueries({ queryKey: ['resources'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
         };
 
         // Listen for our custom WebSocket event that gets dispatched when resources change

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';
+import { queryKeys } from '@/lib/queryKeys.js';
 
 interface UseServerRegistryOptions {
     autoLoad?: boolean;
@@ -19,7 +20,7 @@ export function useServerRegistry(options: UseServerRegistryOptions = {}) {
         isLoading,
         error,
     } = useQuery<ServerRegistryEntry[], Error>({
-        queryKey: ['serverRegistry', filter],
+        queryKey: queryKeys.serverRegistry(filter),
         queryFn: () => serverRegistry.getEntries(filter),
         enabled: autoLoad,
     });
@@ -32,7 +33,7 @@ export function useServerRegistry(options: UseServerRegistryOptions = {}) {
         onSuccess: (entryId) => {
             // Optimistically update the cache
             queryClient.setQueryData<ServerRegistryEntry[]>(
-                ['serverRegistry', filter],
+                queryKeys.serverRegistry(filter),
                 (old) =>
                     old?.map((entry) =>
                         entry.id === entryId ? { ...entry, isInstalled: true } : entry
@@ -50,7 +51,7 @@ export function useServerRegistry(options: UseServerRegistryOptions = {}) {
             setFilter(newFilter);
         } else {
             // Trigger a refetch with current filter
-            await queryClient.refetchQueries({ queryKey: ['serverRegistry', filter] });
+            await queryClient.refetchQueries({ queryKey: queryKeys.serverRegistry(filter) });
         }
     };
 

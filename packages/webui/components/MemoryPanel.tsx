@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client.js';
+import { queryKeys } from '@/lib/queryKeys.js';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -44,9 +45,7 @@ interface MemoryPanelProps {
 }
 
 async function fetchMemories(): Promise<Memory[]> {
-  const response = await fetch(`${getApiUrl()}/api/memory`);
-  if (!response.ok) throw new Error('Failed to fetch memories');
-  const data = await response.json();
+  const data = await apiFetch<{ memories: Memory[] }>('/api/memory');
   return data.memories || [];
 }
 
@@ -67,25 +66,18 @@ export default function MemoryPanel({
     error,
     refetch: refetchMemories,
   } = useQuery<Memory[], Error>({
-    queryKey: ['memories'],
+    queryKey: queryKeys.memories.all,
     queryFn: fetchMemories,
     enabled: isOpen,
   });
 
   const deleteMemoryMutation = useMutation({
     mutationFn: async (memoryId: string) => {
-      const response = await fetch(`${getApiUrl()}/api/memory/${memoryId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete memory');
-      }
+      await apiFetch<void>(`/api/memory/${memoryId}`, { method: 'DELETE' });
       return memoryId;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['memories'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
       setDeleteDialogOpen(false);
       setSelectedMemoryForDelete(null);
     },

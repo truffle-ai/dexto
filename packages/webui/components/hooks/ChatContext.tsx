@@ -2,11 +2,13 @@
 
 import React, { createContext, useContext, ReactNode, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
 import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
+import { queryKeys } from '@/lib/queryKeys.js';
 
 interface ChatContextType {
   messages: Message[];
@@ -22,7 +24,7 @@ interface ChatContextType {
   loadSessionHistory: (sessionId: string) => Promise<void>;
   // Active LLM config for the current session (UI source of truth)
   currentLLM: { provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null;
-  refreshCurrentLLM: (sessionId?: string | null) => Promise<void>;
+  refreshCurrentLLM: () => Promise<void>;
   isWelcomeState: boolean;
   returnToWelcome: () => void;
   isStreaming: boolean;
@@ -37,13 +39,159 @@ interface ChatContextType {
   greeting: string | null;
 }
 
-const ChatContext = createContext<ChatContextType | undefined>(undefined);
-
 import { getWsUrl, getApiUrl } from '@/lib/api-url';
+
+// Helper function to convert session history API response to UI messages
+function convertHistoryToMessages(history: any[], sessionId: string): Message[] {
+  const uiMessages: Message[] = [];
+  const pendingToolCalls = new Map<string, number>();
+  
+  for (let index = 0; index < history.length; index++) {
+    const msg: any = history[index];
+    const baseMessage = {
+      id: `session-${sessionId}-${index}`,
+      role: msg.role,
+      content: msg.content,
+      createdAt: Date.now() - (history.length - index) * 1000, // Approximate timestamps
+      sessionId: sessionId,
+      // Preserve token usage, reasoning, model, and router metadata from storage
+      tokenUsage: msg.tokenUsage,
+      reasoning: msg.reasoning,
+      model: msg.model,
+      router: msg.router,
+      provider: msg.provider,
+    };
+
+    const deriveResources = (
+      content: Array<TextPart | ImagePart | FilePart>
+    ): SanitizedToolResult['resources'] => {
+      const resources: NonNullable<SanitizedToolResult['resources']> = [];
+
+      for (const part of content) {
+        if (part.type === 'image' && typeof part.image === 'string' && part.image.startsWith('@blob:')) {
+          const uri = part.image.substring(1);
+          resources.push({
+            uri,
+            kind: 'image',
+            mimeType: part.mimeType ?? 'image/jpeg',
+          });
+        }
+
+        if (part.type === 'file' && typeof part.data === 'string' && part.data.startsWith('@blob:')) {
+          const uri = part.data.substring(1);
+          const mimeType = part.mimeType ?? 'application/octet-stream';
+          const kind = getResourceKind(mimeType);
+
+          resources.push({
+            uri,
+            kind,
+            mimeType,
+            ...(part.filename ? { filename: part.filename } : {}),
+          });
+        }
+      }
+
+      return resources.length > 0 ? resources : undefined;
+    };
+
+    if (msg.role === 'assistant') {
+      if (msg.content) {
+        uiMessages.push(baseMessage);
+      }
+
+      if (msg.toolCalls && msg.toolCalls.length > 0) {
+        msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
+          let toolArgs: Record<string, unknown> = {};
+          if (toolCall?.function) {
+            try {
+              toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+            } catch (e) {
+              console.warn(`Failed to parse toolCall arguments for ${toolCall.function?.name || 'unknown'}: ${e}`);
+              toolArgs = {};
+            }
+          }
+          const toolName = toolCall.function?.name || 'unknown';
+
+          const toolMessage: Message = {
+            id: `session-${sessionId}-${index}-tool-${toolIndex}`,
+            role: 'tool',
+            content: null,
+            createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
+            sessionId,
+            toolName,
+            toolArgs,
+            toolResult: undefined,
+            toolResultMeta: undefined,
+            toolResultSuccess: undefined,
+          };
+
+          if (typeof toolCall.id === 'string' && toolCall.id.length > 0) {
+            pendingToolCalls.set(toolCall.id, uiMessages.length);
+          }
+
+          uiMessages.push(toolMessage);
+        });
+      }
+
+      continue;
+    }
+
+    if (msg.role === 'tool') {
+      const toolCallId = typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined;
+      const toolName = typeof msg.name === 'string' ? msg.name : 'unknown';
+      const normalizedContent: Array<TextPart | ImagePart | FilePart> = Array.isArray(msg.content)
+        ? (msg.content as Array<TextPart | ImagePart | FilePart>)
+        : typeof msg.content === 'string'
+          ? [{ type: 'text', text: msg.content }]
+          : [];
+
+      const inferredResources = deriveResources(normalizedContent);
+      const sanitizedFromHistory: SanitizedToolResult = {
+        content: normalizedContent,
+        ...(inferredResources ? { resources: inferredResources } : {}),
+        meta: {
+          toolName,
+          toolCallId: toolCallId ?? `tool-${index}`,
+          ...(typeof msg.success === 'boolean' ? { success: msg.success } : {}),
+        },
+      };
+
+      if (toolCallId && pendingToolCalls.has(toolCallId)) {
+        const messageIndex = pendingToolCalls.get(toolCallId)!;
+        uiMessages[messageIndex] = {
+          ...uiMessages[messageIndex],
+          toolResult: sanitizedFromHistory,
+          toolResultMeta: sanitizedFromHistory.meta,
+          toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
+        };
+      } else {
+        uiMessages.push({
+          ...baseMessage,
+          role: 'tool',
+          content: null,
+          toolName,
+          toolArgs: typeof msg.args === 'object' ? msg.args : undefined,
+          toolResult: sanitizedFromHistory,
+          toolResultMeta: sanitizedFromHistory.meta,
+          toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
+        });
+      }
+
+      continue;
+    }
+
+    uiMessages.push(baseMessage);
+  }
+
+  return uiMessages;
+}
+
+const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const analytics = useAnalytics();
+  const queryClient = useQueryClient();
 
   // Calculate WebSocket URL at runtime based on frontend port
   const wsUrl = getWsUrl();
@@ -55,36 +203,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
   const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
   const { messages, sendMessage: originalSendMessage, status, reset: originalReset, setMessages, websocket, activeError, clearError, processing, cancel } = useChat(wsUrl, () => currentSessionId);
-  const [currentLLM, setCurrentLLM] = useState<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string } | null>(null);
 
-  // Helper to fetch current LLM (session-scoped if applicable)
-  const fetchCurrentLLM = useCallback(async (sessionIdOverride?: string | null) => {
-    try {
-      const targetSessionId = sessionIdOverride !== undefined ? sessionIdOverride : currentSessionId;
-      const url = targetSessionId ? `${getApiUrl()}/api/llm/current?sessionId=${targetSessionId}` : `${getApiUrl()}/api/llm/current`;
+  // Fetch current LLM config using TanStack Query
+  const {
+    data: currentLLMData,
+    refetch: refetchCurrentLLM,
+  } = useQuery<{ provider: string; model: string; displayName?: string; router?: string; baseURL?: string }, Error>({
+    queryKey: queryKeys.llm.current(currentSessionId),
+    queryFn: async () => {
+      const url = currentSessionId 
+        ? `${getApiUrl()}/api/llm/current?sessionId=${currentSessionId}` 
+        : `${getApiUrl()}/api/llm/current`;
       const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        const cfg = data.config || data;
-        setCurrentLLM({
-          provider: cfg.provider,
-          model: cfg.model,
-          displayName: cfg.displayName,
-          router: cfg.router,
-          baseURL: cfg.baseURL,
-        });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch LLM config: ${res.status}`);
       }
-    } catch {
-      // ignore fetch errors here; UI can still operate
-    }
-  }, [currentSessionId]);
+      const data = await res.json();
+      const cfg = data.config || data;
+      return {
+        provider: cfg.provider,
+        model: cfg.model,
+        displayName: cfg.displayName,
+        router: cfg.router,
+        baseURL: cfg.baseURL,
+      };
+    },
+    enabled: true, // Always fetch when sessionId changes
+    retry: false, // Don't retry on error - UI can still operate
+  });
 
-  // On initial mount (welcome state), fetch default LLM to populate UI label
-  useEffect(() => {
-    if (!currentLLM) {
-      void fetchCurrentLLM();
-    }
-  }, [currentLLM, fetchCurrentLLM]);
+  const currentLLM = currentLLMData ?? null;
 
   
   // Get greeting from API
@@ -152,8 +300,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Navigate using Next.js router to properly handle client-side routing
         router.replace(`/chat/${sessionId}`);
 
-        // Prime currentLLM for this session to avoid UI flicker
-        await fetchCurrentLLM(sessionId);
+        // Note: currentLLM will automatically refetch when currentSessionId changes
       } catch (error) {
         console.error('Failed to create session:', error);
         return; // Don't send message if session creation fails
@@ -180,7 +327,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } else {
       console.error('No session available for sending message');
     }
-  }, [originalSendMessage, currentSessionId, isWelcomeState, isCreatingSession, createAutoSession, isStreaming, fetchCurrentLLM, router, analytics, currentLLM]);
+  }, [originalSendMessage, currentSessionId, isWelcomeState, isCreatingSession, createAutoSession, isStreaming, router, analytics, currentLLM]);
 
   // Enhanced reset with session support
   const reset = useCallback(() => {
@@ -197,28 +344,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [originalReset, currentSessionId, analytics, messages]);
 
   // Load session history when switching sessions
-  const loadSessionHistory = useCallback(async (sessionId: string) => {
-
-    try {
-      const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}/history`);
+  const {
+    data: sessionHistoryData,
+    refetch: refetchSessionHistory,
+  } = useQuery<Message[], Error>({
+    queryKey: queryKeys.sessions.history(currentSessionId || ''),
+    queryFn: async () => {
+      if (!currentSessionId) {
+        return [];
+      }
+      const response = await fetch(`${getApiUrl()}/api/sessions/${currentSessionId}/history`);
       if (!response.ok) {
         if (response.status === 404) {
-          // Session doesn't exist - don't auto-create, just clear messages
-          // Sessions should only be created when user sends first message
-          setMessages([]);
-          return;
+          return [];
         }
         throw new Error('Failed to load session history');
       }
       
       const responseText = await response.text();
       if (!responseText.trim()) {
-        // Empty response, keep any in-flight messages for this session
-        setMessages((prev) => {
-          const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
-          return hasSessionMsgs ? prev : [];
-        });
-        return;
+        return [];
       }
       
       let data;
@@ -226,163 +371,67 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         data = JSON.parse(responseText);
       } catch (parseError) {
         console.error('Failed to parse session history response:', parseError);
-        setMessages([]);
-        return;
+        throw new Error('Invalid session history response');
       }
       
       const history = data.history || [];
-      
-      // Convert API history to UI messages
-      const uiMessages: Message[] = [];
-      const pendingToolCalls = new Map<string, number>();
-      
-      for (let index = 0; index < history.length; index++) {
-        const msg: any = history[index];
-        const baseMessage = {
-          id: `session-${sessionId}-${index}`,
-          role: msg.role,
-          content: msg.content,
-          createdAt: Date.now() - (history.length - index) * 1000, // Approximate timestamps
-          sessionId: sessionId,
-          // Preserve token usage, reasoning, model, and router metadata from storage
-          tokenUsage: msg.tokenUsage,
-          reasoning: msg.reasoning,
-          model: msg.model,
-          router: msg.router,
-          provider: msg.provider,
-        };
+      return convertHistoryToMessages(history, currentSessionId);
+    },
+    enabled: false, // Manual refetch only
+    retry: false,
+  });
 
-        const deriveResources = (
-          content: Array<TextPart | ImagePart | FilePart>
-        ): SanitizedToolResult['resources'] => {
-          const resources: NonNullable<SanitizedToolResult['resources']> = [];
+  // Sync session history data to messages when it changes
+  useEffect(() => {
+    if (sessionHistoryData && currentSessionId) {
+      setMessages((prev) => {
+        const hasSessionMsgs = prev.some((m) => m.sessionId === currentSessionId);
+        return hasSessionMsgs ? prev : sessionHistoryData;
+      });
+    }
+  }, [sessionHistoryData, currentSessionId, setMessages]);
 
-          for (const part of content) {
-            if (part.type === 'image' && typeof part.image === 'string' && part.image.startsWith('@blob:')) {
-              const uri = part.image.substring(1);
-              resources.push({
-                uri,
-                kind: 'image',
-                mimeType: part.mimeType ?? 'image/jpeg',
-              });
+  const loadSessionHistory = useCallback(async (sessionId: string) => {
+    try {
+      const result = await queryClient.fetchQuery<Message[], Error>({
+        queryKey: queryKeys.sessions.history(sessionId),
+        queryFn: async () => {
+          const response = await fetch(`${getApiUrl()}/api/sessions/${sessionId}/history`);
+          if (!response.ok) {
+            if (response.status === 404) {
+              return [];
             }
-
-            if (part.type === 'file' && typeof part.data === 'string' && part.data.startsWith('@blob:')) {
-              const uri = part.data.substring(1);
-              const mimeType = part.mimeType ?? 'application/octet-stream';
-              const kind = getResourceKind(mimeType);
-
-              resources.push({
-                uri,
-                kind,
-                mimeType,
-                ...(part.filename ? { filename: part.filename } : {}),
-              });
-            }
+            throw new Error('Failed to load session history');
           }
-
-          return resources.length > 0 ? resources : undefined;
-        };
-
-        if (msg.role === 'assistant') {
-          if (msg.content) {
-            uiMessages.push(baseMessage);
+          
+          const responseText = await response.text();
+          if (!responseText.trim()) {
+            return [];
           }
-
-          if (msg.toolCalls && msg.toolCalls.length > 0) {
-            msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
-              let toolArgs: Record<string, unknown> = {};
-              if (toolCall?.function) {
-                try {
-                  toolArgs = JSON.parse(toolCall.function.arguments || '{}');
-                } catch (e) {
-                  console.warn(`Failed to parse toolCall arguments for ${toolCall.function?.name || 'unknown'}: ${e}`);
-                  toolArgs = {};
-                }
-              }
-              const toolName = toolCall.function?.name || 'unknown';
-
-              const toolMessage: Message = {
-                id: `session-${sessionId}-${index}-tool-${toolIndex}`,
-                role: 'tool',
-                content: null,
-                createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
-                sessionId,
-                toolName,
-                toolArgs,
-                toolResult: undefined,
-                toolResultMeta: undefined,
-                toolResultSuccess: undefined,
-              };
-
-              if (typeof toolCall.id === 'string' && toolCall.id.length > 0) {
-                pendingToolCalls.set(toolCall.id, uiMessages.length);
-              }
-
-              uiMessages.push(toolMessage);
-            });
+          
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error('Failed to parse session history response:', parseError);
+            throw new Error('Invalid session history response');
           }
-
-          continue;
-        }
-
-        if (msg.role === 'tool') {
-          const toolCallId = typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined;
-          const toolName = typeof msg.name === 'string' ? msg.name : 'unknown';
-          const normalizedContent: Array<TextPart | ImagePart | FilePart> = Array.isArray(msg.content)
-            ? (msg.content as Array<TextPart | ImagePart | FilePart>)
-            : typeof msg.content === 'string'
-              ? [{ type: 'text', text: msg.content }]
-              : [];
-
-          const inferredResources = deriveResources(normalizedContent);
-          const sanitizedFromHistory: SanitizedToolResult = {
-            content: normalizedContent,
-            ...(inferredResources ? { resources: inferredResources } : {}),
-            meta: {
-              toolName,
-              toolCallId: toolCallId ?? `tool-${index}`,
-              ...(typeof msg.success === 'boolean' ? { success: msg.success } : {}),
-            },
-          };
-
-          if (toolCallId && pendingToolCalls.has(toolCallId)) {
-            const messageIndex = pendingToolCalls.get(toolCallId)!;
-            uiMessages[messageIndex] = {
-              ...uiMessages[messageIndex],
-              toolResult: sanitizedFromHistory,
-              toolResultMeta: sanitizedFromHistory.meta,
-              toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
-            };
-          } else {
-            uiMessages.push({
-              ...baseMessage,
-              role: 'tool',
-              content: null,
-              toolName,
-              toolArgs: typeof msg.args === 'object' ? msg.args : undefined,
-              toolResult: sanitizedFromHistory,
-              toolResultMeta: sanitizedFromHistory.meta,
-              toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
-            });
-          }
-
-          continue;
-        }
-
-        uiMessages.push(baseMessage);
-      }
+          
+          const history = data.history || [];
+          return convertHistoryToMessages(history, sessionId);
+        },
+        retry: false,
+      });
 
       setMessages((prev) => {
         const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
-        return hasSessionMsgs ? prev : uiMessages;
+        return hasSessionMsgs ? prev : result;
       });
     } catch (error) {
       console.error('Error loading session history:', error);
-      // On error, just clear messages and continue
       setMessages([]);
     }
-  }, [setMessages, fetchCurrentLLM]);
+  }, [setMessages, queryClient]);
 
   // Switch to a different session and load it on the backend
   const switchSession = useCallback(async (sessionId: string) => {
@@ -401,9 +450,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setCurrentSessionId(sessionId);
       setIsWelcomeState(false); // No longer in welcome state
       await loadSessionHistory(sessionId);
-      // After switching sessions, simply hydrate UI from the server's
-      // authoritative per-session LLM config (no client-side switching)
-      await fetchCurrentLLM(sessionId);
+      // Note: currentLLM will automatically refetch when currentSessionId changes via useQuery
     } catch (error) {
       console.error('Error switching session:', error);
       throw error; // Re-throw so UI can handle the error
@@ -411,7 +458,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Always reset the switching flag, even if error occurs
       setIsSwitchingSession(false);
     }
-  }, [currentSessionId, isSwitchingSession, loadSessionHistory, fetchCurrentLLM, analytics]);
+  }, [currentSessionId, isSwitchingSession, loadSessionHistory, analytics, queryClient]);
 
 
   // Return to welcome state (no active session)
@@ -419,8 +466,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setCurrentSessionId(null);
     setIsWelcomeState(true);
     setMessages([]);
-    // Don't reset currentLLM here - it causes unnecessary refreshes in AgentSelector
-    // The LLM config will be updated when needed via fetchCurrentLLM
+    // Note: currentLLM will automatically refetch when currentSessionId changes to null
   }, [setMessages]);
 
   // Listen for config-related WebSocket events via DOM events
@@ -430,7 +476,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const detail = event?.detail || {};
       if (detail.config?.llm) {
         const llm = detail.config.llm;
-        setCurrentLLM({ provider: llm.provider, model: llm.model, router: llm.router, baseURL: llm.baseURL });
+        queryClient.setQueryData(queryKeys.llm.current(currentSessionId), {
+          provider: llm.provider,
+          model: llm.model,
+          router: llm.router,
+          baseURL: llm.baseURL,
+        });
       }
     };
 
@@ -474,7 +525,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setStreaming: setIsStreaming,
       websocket,
       currentLLM,
-      refreshCurrentLLM: fetchCurrentLLM,
+      refreshCurrentLLM: refetchCurrentLLM,
       processing,
       cancel,
       // Error state

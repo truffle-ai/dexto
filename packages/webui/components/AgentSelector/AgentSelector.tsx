@@ -2,7 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
+import { queryKeys } from '@/lib/queryKeys.js';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -58,12 +60,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
   const analytics = useAnalytics();
   const analyticsRef = useRef(analytics);
 
-  const [installed, setInstalled] = useState<AgentItem[]>([]);
-  const [available, setAvailable] = useState<AgentItem[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
-  const [currentAgentPath, setCurrentAgentPath] = useState<AgentPath | null>(null);
   const [recentAgents, setRecentAgents] = useState<RecentAgent[]>([]);
-  const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -73,29 +70,47 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     analyticsRef.current = analytics;
   }, [analytics]);
 
-  // Load recent agents from localStorage
-  const loadRecentAgents = useCallback((): RecentAgent[] => {
-    try {
-      const stored = localStorage.getItem(RECENT_AGENTS_KEY);
-      if (!stored) return [];
-      const parsed = JSON.parse(stored) as RecentAgent[];
-      // Sort by lastUsed descending
-      return parsed.sort((a, b) => b.lastUsed - a.lastUsed).slice(0, MAX_RECENT_AGENTS);
-    } catch (err) {
-      console.error('Failed to load recent agents:', err);
-      // Clear corrupted data
-      localStorage.removeItem(RECENT_AGENTS_KEY);
-      return [];
-    }
-  }, []);
+  const queryClient = useQueryClient();
+
+  // Fetch agents list using TanStack Query
+  const {
+    data: agentsData,
+    isLoading: agentsLoading,
+    refetch: refetchAgents,
+  } = useQuery<AgentsResponse, Error>({
+    queryKey: queryKeys.agents.all,
+    queryFn: async () => {
+      const res = await fetch(`${getApiUrl()}/api/agents`);
+      if (!res.ok) throw new Error('Failed to fetch agents');
+      return res.json() as Promise<AgentsResponse>;
+    },
+  });
+
+  const installed = agentsData?.installed || [];
+  const available = agentsData?.available || [];
+  const currentId = agentsData?.current.id || null;
+
+  // Fetch current agent path using TanStack Query
+  const {
+    data: currentAgentPathData,
+  } = useQuery<AgentPath, Error>({
+    queryKey: queryKeys.agents.path,
+    queryFn: async () => {
+      const pathRes = await fetch(`${getApiUrl()}/api/agent/path`);
+      if (!pathRes.ok) throw new Error('Failed to fetch agent path');
+      return pathRes.json() as Promise<AgentPath>;
+    },
+    retry: false, // Don't retry if path fetch fails
+  });
+
+  const currentAgentPath = currentAgentPathData ?? null;
 
   // Save agent to recent list
   const addToRecentAgents = useCallback((agent: { id: string; name: string; path: string }) => {
     try {
-      const recent = loadRecentAgents();
-      // Remove existing entry if present
+      const stored = localStorage.getItem(RECENT_AGENTS_KEY);
+      const recent = stored ? (JSON.parse(stored) as RecentAgent[]) : [];
       const filtered = recent.filter(a => a.path !== agent.path);
-      // Add to front
       const updated: RecentAgent[] = [
         { ...agent, lastUsed: Date.now() },
         ...filtered
@@ -106,51 +121,95 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } catch (err) {
       console.error('Failed to save recent agent:', err);
     }
-  }, [loadRecentAgents]);
+  }, []);
 
-  const loadAgents = useCallback(async (): Promise<AgentsResponse | null> => {
-    try {
-      // Fetch agents list
-      const res = await fetch(`${getApiUrl()}/api/agents`);
-      if (!res.ok) throw new Error('Failed to fetch agents');
-      const data: AgentsResponse = await res.json();
-      setInstalled(data.installed || []);
-      setAvailable(data.available || []);
-      setCurrentId(data.current.id);
-
-      // Fetch current agent path
-      try {
-        const pathRes = await fetch(`${getApiUrl()}/api/agent/path`);
-        if (pathRes.ok) {
-          const pathData: AgentPath = await pathRes.json();
-          setCurrentAgentPath(pathData);
-          // Add current agent to recent list
-          if (pathData.path && pathData.name) {
-            addToRecentAgents({
-              id: pathData.name,
-              name: pathData.name,
-              path: pathData.path
-            });
-          }
-        }
-      } catch (pathErr) {
-        console.error('Failed to fetch agent path:', pathErr);
+  // Agent switch mutation
+  const switchAgentMutation = useMutation({
+    mutationFn: async ({ id, path }: { id: string; path?: string }) => {
+      const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...(path ? { path } : {}) }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
       }
+      return { id, path };
+    },
+    onSuccess: () => {
+      // Invalidate and refetch agents and path after successful switch
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.path });
+    },
+  });
 
-      return data;
-    } catch (err) {
-      console.error(`AgentSelector load error: ${err}`);
-      return null;
-    }
-  }, [addToRecentAgents]);
+  // Agent install mutation (no chaining - coordination happens in handleInstall)
+  const installAgentMutation = useMutation({
+    mutationFn: async (agentId: string) => {
+      const res = await fetch(`${getApiUrl()}/api/agents/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: agentId }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Install failed: ${res.status}`);
+      }
+      return agentId;
+    },
+    onSuccess: async () => {
+      // Just invalidate the cache - let handleInstall coordinate the full flow
+      await queryClient.invalidateQueries({ queryKey: queryKeys.agents.all });
+    },
+  });
 
+  // Agent delete mutation
+  const deleteAgentMutation = useMutation({
+    mutationFn: async (agentId: string) => {
+      const res = await fetch(`${getApiUrl()}/api/agents/uninstall`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: agentId }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Delete failed: ${res.status}`);
+      }
+      return agentId;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch agents after successful delete
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.path });
+    },
+  });
+
+  // Load recent agents from localStorage on mount
   useEffect(() => {
-    setLoading(true);
-    // Load recent agents from localStorage
-    setRecentAgents(loadRecentAgents());
-    // Load agents from API
-    loadAgents().finally(() => setLoading(false));
-  }, [loadAgents, loadRecentAgents]);
+    try {
+      const stored = localStorage.getItem(RECENT_AGENTS_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as RecentAgent[];
+      setRecentAgents(parsed.sort((a, b) => b.lastUsed - a.lastUsed).slice(0, MAX_RECENT_AGENTS));
+    } catch (err) {
+      console.error('Failed to load recent agents:', err);
+      localStorage.removeItem(RECENT_AGENTS_KEY);
+    }
+  }, []);
+
+  // Sync current agent path to recent agents when it loads
+  useEffect(() => {
+    if (currentAgentPath?.path && currentAgentPath?.name) {
+      addToRecentAgents({
+        id: currentAgentPath.name,
+        name: currentAgentPath.name,
+        path: currentAgentPath.path
+      });
+    }
+  }, [currentAgentPath, addToRecentAgents]);
+
+  const loading = agentsLoading;
 
   const handleSwitch = useCallback(async (agentId: string) => {
     try {
@@ -165,21 +224,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       // Capture current agent ID before switch
       const fromAgentId = currentId;
 
-      const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: agentId }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
-        throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
-      }
-      setCurrentId(agentId);
-      setOpen(false); // Close dropdown after successful switch
+      await switchAgentMutation.mutateAsync({ id: agentId });
 
-      // Refresh agent list and current path to reflect the switch
-      await loadAgents();
+      setOpen(false); // Close dropdown after successful switch
 
       // Track agent switch using ref to avoid stale closure
       analyticsRef.current.trackAgentSwitched({
@@ -207,7 +254,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, installed, loadAgents, router, currentId, currentSessionId]);
+  }, [returnToWelcome, installed, switchAgentMutation, router, currentId, currentSessionId]);
 
   const handleSwitchToPath = useCallback(async (agent: { id: string; name: string; path: string }) => {
     try {
@@ -216,21 +263,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       // Capture current agent ID before switch
       const fromAgentId = currentId;
 
-      const res = await fetch(`${getApiUrl()}/api/agents/switch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: agent.id, path: agent.path }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
-        throw new Error(errorData.error || errorData.message || `Switch failed: ${res.status} ${res.statusText}`);
-      }
-      setCurrentId(agent.id);
-      setOpen(false); // Close dropdown after successful switch
+      await switchAgentMutation.mutateAsync({ id: agent.id, path: agent.path });
 
-      // Refresh agent list and current path to reflect the switch
-      await loadAgents();
+      setOpen(false); // Close dropdown after successful switch
 
       // Add to recent agents
       addToRecentAgents(agent);
@@ -261,52 +296,31 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [returnToWelcome, addToRecentAgents, loadAgents, router, currentId, currentSessionId]);
+  }, [returnToWelcome, addToRecentAgents, switchAgentMutation, router, currentId, currentSessionId]);
 
   const handleInstall = useCallback(async (agentId: string) => {
     try {
       setSwitching(true);
 
-      // Capture current agent ID before switch
+      // Capture current agent ID before operations
       const fromAgentId = currentId;
 
-      const res = await fetch(`${getApiUrl()}/api/agents/install`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: agentId }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Install failed: ${res.status}`);
-      }
-      // Reload agents list to get fresh data
-      const freshData = await loadAgents();
-      if (!freshData) {
-        throw new Error('Failed to reload agents list after installation');
-      }
+      // Step 1: Install the agent
+      await installAgentMutation.mutateAsync(agentId);
 
-      // Check if the agent exists in the freshly loaded installed list
-      const agent = freshData.installed.find(a => a.id === agentId);
+      // Step 2: Verify agent is now in installed list
+      const freshData = queryClient.getQueryData<AgentsResponse>(queryKeys.agents.all);
+      const agent = freshData?.installed.find(a => a.id === agentId);
       if (!agent) {
-        console.error(`Agent not found in fresh installed list: ${agentId}`);
         throw new Error(`Agent '${agentId}' not found after installation. Please refresh.`);
       }
 
-      // After successful install, switch to the agent
-      const switchRes = await fetch(`${getApiUrl()}/api/agents/switch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: agentId }),
-      });
-      if (!switchRes.ok) {
-        const errorData = await switchRes.json().catch(() => ({}));
-        console.error(`Agent switch failed: ${JSON.stringify(errorData)}`);
-        throw new Error(errorData.error || errorData.message || `Switch failed: ${switchRes.status} ${switchRes.statusText}`);
-      }
-      setCurrentId(agentId);
+      // Step 3: Switch to the newly installed agent
+      await switchAgentMutation.mutateAsync({ id: agentId });
+
       setOpen(false);
 
-      // Track agent switch using ref to avoid stale closure
+      // Step 4: Track the switch analytics
       analyticsRef.current.trackAgentSwitched({
         fromAgentId,
         toAgentId: agentId,
@@ -314,6 +328,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         sessionId: currentSessionId || undefined,
       });
 
+      // Step 5: Dispatch event
       try {
         window.dispatchEvent(
           new CustomEvent('dexto:agentSwitched', {
@@ -321,15 +336,17 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
           })
         );
       } catch {}
+
+      // Step 6: Return to welcome
       returnToWelcome();
     } catch (err) {
-      console.error(`Install agent failed: ${err instanceof Error ? err.message : String(err)}`);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to install agent';
-      alert(`Failed to install agent: ${errorMessage}`);
+      console.error(`Install/switch agent failed: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to install/switch agent';
+      alert(`Failed to install/switch agent: ${errorMessage}`);
     } finally {
       setSwitching(false);
     }
-  }, [loadAgents, returnToWelcome, currentId, currentSessionId]);
+  }, [installAgentMutation, switchAgentMutation, returnToWelcome, currentId, currentSessionId, queryClient, analyticsRef]);
 
   const handleDelete = useCallback(async (agent: AgentItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering switch when clicking delete
@@ -338,20 +355,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     }
     try {
       setSwitching(true);
-      const res = await fetch(`${getApiUrl()}/api/agents/uninstall`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: agent.id }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Delete failed: ${res.status}`);
-      }
-      const updated = await loadAgents();
-      // If the backend still reports the deleted id as current, clear it locally
-      if (updated?.current.id === agent.id) {
-        setCurrentId(null);
-      }
+      await deleteAgentMutation.mutateAsync(agent.id);
     } catch (err) {
       console.error(`Delete agent failed: ${err instanceof Error ? err.message : String(err)}`);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete agent';
@@ -359,22 +363,22 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     } finally {
       setSwitching(false);
     }
-  }, [currentId, loadAgents]);
-
-  const handleAgentCreated = useCallback(async (_agentName: string) => {
-    // Add a small delay to ensure the agent is fully installed
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    // Reload agents list to show the newly created agent
-    await loadAgents();
-    // Note: We don't automatically switch to the newly created agent to avoid race conditions
-    // The user can manually switch to it from the dropdown
-  }, [loadAgents]);
+  }, [deleteAgentMutation]);
 
   const currentLabel = useMemo(() => {
     if (!currentId) return 'Choose Agent';
     const match = installed.find(agent => agent.id === currentId) || available.find(agent => agent.id === currentId);
     return match?.name ?? currentId;
   }, [available, currentId, installed]);
+
+  const handleAgentCreated = useCallback(async (_agentName: string) => {
+    // Add a small delay to ensure the agent is fully installed
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Reload agents list to show the newly created agent
+    await refetchAgents();
+    // Note: We don't automatically switch to the newly created agent to avoid race conditions
+    // The user can manually switch to it from the dropdown
+  }, [refetchAgents]);
 
   const getButtonClassName = (mode: string) => {
     const baseClasses = 'transition-all duration-200 shadow-lg hover:shadow-xl font-semibold rounded-full';
