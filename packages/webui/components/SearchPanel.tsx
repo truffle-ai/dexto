@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useDebounce } from 'use-debounce';
-import { apiFetch } from '@/lib/api-client.js';
+import { useSearchMessages, useSearchSessions } from './hooks/useSearch';
 import { formatDate, formatTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -82,70 +82,33 @@ export default function SearchPanel({
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery] = useDebounce(searchQuery, 300);
     const [searchMode, setSearchMode] = useState<SearchMode>('messages');
-    const [messageResults, setMessageResults] = useState<SearchResult[]>([]);
-    const [sessionResults, setSessionResults] = useState<SessionSearchResult[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [sessionFilter, setSessionFilter] = useState<string>('');
-    const [hasMore, setHasMore] = useState(false);
-    const [total, setTotal] = useState(0);
 
-    const performSearch = useCallback(
-        async (query: string, mode: SearchMode) => {
-            if (!query.trim()) {
-                setMessageResults([]);
-                setSessionResults([]);
-                setTotal(0);
-                setHasMore(false);
-                return;
-            }
-
-            setIsLoading(true);
-            setError(null);
-
-            try {
-                if (mode === 'messages') {
-                    const params = new URLSearchParams({
-                        q: query,
-                        limit: '20',
-                        offset: '0',
-                    });
-
-                    if (roleFilter !== 'all') {
-                        params.append('role', roleFilter);
-                    }
-
-                    if (sessionFilter) {
-                        params.append('sessionId', sessionFilter);
-                    }
-
-                    const data = await apiFetch<SearchResponse>(`/api/search/messages?${params}`);
-                    setMessageResults(data.results);
-                    setTotal(data.total);
-                    setHasMore(data.hasMore);
-                } else {
-                    const params = new URLSearchParams({ q: query });
-                    const data = await apiFetch<SessionSearchResponse>(
-                        `/api/search/sessions?${params}`
-                    );
-                    setSessionResults(data.results);
-                    setTotal(data.total);
-                    setHasMore(data.hasMore);
-                }
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Search failed');
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [roleFilter, sessionFilter]
+    // Use TanStack Query hooks for search
+    const {
+        data: messageData,
+        isLoading: messageLoading,
+        error: messageError,
+    } = useSearchMessages(
+        debouncedQuery,
+        sessionFilter || undefined,
+        20,
+        isOpen && searchMode === 'messages'
     );
 
-    // Perform search when debounced query changes
-    React.useEffect(() => {
-        performSearch(debouncedQuery, searchMode);
-    }, [debouncedQuery, searchMode, performSearch]);
+    const {
+        data: sessionData,
+        isLoading: sessionLoading,
+        error: sessionError,
+    } = useSearchSessions(debouncedQuery, 20, isOpen && searchMode === 'sessions');
+
+    // Derive state from query results
+    const messageResults = messageData?.results || [];
+    const sessionResults = sessionData?.results || [];
+    const isLoading = searchMode === 'messages' ? messageLoading : sessionLoading;
+    const error = searchMode === 'messages' ? messageError : sessionError;
+    const total = searchMode === 'messages' ? messageData?.total || 0 : sessionData?.total || 0;
 
     const handleResultClick = (result: SearchResult) => {
         onNavigateToSession(result.sessionId, result.messageIndex);
@@ -267,7 +230,7 @@ export default function SearchPanel({
                     <div className="p-4">
                         <Alert variant="destructive">
                             <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>{error}</AlertDescription>
+                            <AlertDescription>{error?.message || 'Search failed'}</AlertDescription>
                         </Alert>
                     </div>
                 )}

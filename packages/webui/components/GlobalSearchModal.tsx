@@ -1,11 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useDebounce } from 'use-debounce';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { queryKeys } from '@/lib/queryKeys.js';
-import { apiFetch } from '@/lib/api-client.js';
+import { useSearchMessages } from './hooks/useSearch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -56,32 +54,9 @@ export default function GlobalSearchModal({
     const [selectedIndex, setSelectedIndex] = useState(0);
 
     // Use TanStack Query for search with debouncing
-    const {
-        data: searchResults = [],
-        isLoading,
-        error,
-    } = useQuery<SearchResult[], Error>({
-        queryKey: queryKeys.search.messages(debouncedQuery),
-        queryFn: async () => {
-            if (!debouncedQuery.trim()) {
-                return [];
-            }
+    const { data, isLoading, error } = useSearchMessages(debouncedQuery, undefined, 10, isOpen);
 
-            const params = new URLSearchParams({
-                q: debouncedQuery,
-                limit: '10',
-                offset: '0',
-            });
-
-            const data = await apiFetch<SearchResponse>(`/api/search/messages?${params}`);
-            return data.results;
-        },
-        enabled: debouncedQuery.trim().length > 0,
-        staleTime: 5000, // Consider results fresh for 5 seconds
-        gcTime: 30000, // Keep in cache for 30 seconds
-    });
-
-    const results = searchResults;
+    const results = data?.results || [];
     const searchError = error?.message ?? null;
 
     const handleResultClick = useCallback(

@@ -36,7 +36,9 @@ export const queryKeys = {
 
     // Search queries
     search: {
-        messages: (query: string) => ['search', 'messages', query] as const,
+        messages: (query: string, sessionId?: string, limit?: number) =>
+            ['search', 'messages', query, sessionId, limit] as const,
+        sessions: (query: string, limit?: number) => ['search', 'sessions', query, limit] as const,
     },
 
     // Greeting queries
