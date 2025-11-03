@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import * as path from 'path';
 import { PROMPT_GENERATOR_SOURCES } from './registry.js';
 
 // Define a base schema for common fields
@@ -35,7 +36,17 @@ const DynamicContributorSchema = BaseContributorSchema.extend({
 const FileContributorSchema = BaseContributorSchema.extend({
     type: z.literal('file'),
     files: z
-        .array(z.string())
+        .array(
+            z.string().superRefine((filePath, ctx) => {
+                if (!path.isAbsolute(filePath)) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message:
+                            'FileContributor paths must be absolute after template expansion (use ${{dexto.agent_dir}} or provide an absolute path).',
+                    });
+                }
+            })
+        )
         .min(1)
         .describe('Array of file paths to include as context (.md and .txt files)'),
     options: z

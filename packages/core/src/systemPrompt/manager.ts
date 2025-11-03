@@ -56,8 +56,7 @@ export class SystemPromptManager {
                     config.id,
                     config.priority,
                     config.files,
-                    config.options,
-                    this.configDir
+                    config.options
                 );
             }
 

@@ -71,7 +71,8 @@ const LLMConfigFields = {
 } as const;
 /** Business rules + compatibility checks */
 
-export const LLMConfigSchema = z
+// Base LLM config object schema (before validation/branding) - can be extended
+export const LLMConfigBaseSchema = z
     .object({
         provider: LLMConfigFields.provider,
         model: LLMConfigFields.model,
@@ -85,141 +86,142 @@ export const LLMConfigSchema = z
         temperature: LLMConfigFields.temperature,
         allowedMediaTypes: LLMConfigFields.allowedMediaTypes,
     })
-    .strict()
-    .superRefine((data, ctx) => {
-        const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
-        const maxInputTokensIsSet = data.maxInputTokens != null;
+    .strict();
 
-        // API key validation with provider context
-        if (!data.apiKey?.trim()) {
-            const primaryVar = getPrimaryApiKeyEnvVar(data.provider);
+export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
+    const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
+    const maxInputTokensIsSet = data.maxInputTokens != null;
+
+    // API key validation with provider context
+    if (!data.apiKey?.trim()) {
+        const primaryVar = getPrimaryApiKeyEnvVar(data.provider);
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['apiKey'],
+            message: `Missing API key for provider '${data.provider}' – set $${primaryVar}`,
+            params: {
+                code: LLMErrorCode.API_KEY_MISSING,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+                provider: data.provider,
+                envVar: primaryVar,
+            },
+        });
+    }
+
+    if (baseURLIsSet) {
+        if (!supportsBaseURL(data.provider)) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                path: ['apiKey'],
-                message: `Missing API key for provider '${data.provider}' – set $${primaryVar}`,
+                path: ['provider'],
+                message:
+                    `Provider '${data.provider}' does not support baseURL. ` +
+                    `Use an 'openai-compatible' provider if you need a custom base URL.`,
                 params: {
-                    code: LLMErrorCode.API_KEY_MISSING,
+                    code: LLMErrorCode.BASE_URL_INVALID,
                     scope: ErrorScope.LLM,
                     type: ErrorType.USER,
-                    provider: data.provider,
-                    envVar: primaryVar,
                 },
             });
         }
-
-        if (baseURLIsSet) {
-            if (!supportsBaseURL(data.provider)) {
+    } else if (requiresBaseURL(data.provider)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['baseURL'],
+            message: `Provider '${data.provider}' requires a 'baseURL'.`,
+            params: {
+                code: LLMErrorCode.BASE_URL_MISSING,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+            },
+        });
+    } else {
+        if (!acceptsAnyModel(data.provider)) {
+            const supportedModelsList = getSupportedModels(data.provider);
+            if (!isValidProviderModel(data.provider, data.model)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    path: ['provider'],
+                    path: ['model'],
                     message:
-                        `Provider '${data.provider}' does not support baseURL. ` +
-                        `Use an 'openai-compatible' provider if you need a custom base URL.`,
+                        `Model '${data.model}' is not supported for provider '${data.provider}'. ` +
+                        `Supported: ${supportedModelsList.join(', ')}`,
                     params: {
-                        code: LLMErrorCode.BASE_URL_INVALID,
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
                         scope: ErrorScope.LLM,
                         type: ErrorType.USER,
                     },
                 });
             }
-        } else if (requiresBaseURL(data.provider)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['baseURL'],
-                message: `Provider '${data.provider}' requires a 'baseURL'.`,
-                params: {
-                    code: LLMErrorCode.BASE_URL_MISSING,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                },
-            });
-        } else {
-            if (!acceptsAnyModel(data.provider)) {
-                const supportedModelsList = getSupportedModels(data.provider);
-                if (!isValidProviderModel(data.provider, data.model)) {
+        }
+
+        if (maxInputTokensIsSet && !acceptsAnyModel(data.provider)) {
+            try {
+                const cap = getMaxInputTokensForModel(data.provider, data.model);
+                if (data.maxInputTokens! > cap) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,
-                        path: ['model'],
+                        path: ['maxInputTokens'],
                         message:
-                            `Model '${data.model}' is not supported for provider '${data.provider}'. ` +
-                            `Supported: ${supportedModelsList.join(', ')}`,
+                            `Max input tokens for model '${data.model}' is ${cap}. ` +
+                            `You provided ${data.maxInputTokens}`,
                         params: {
-                            code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                            code: LLMErrorCode.TOKENS_EXCEEDED,
                             scope: ErrorScope.LLM,
                             type: ErrorType.USER,
                         },
                     });
                 }
-            }
-
-            if (maxInputTokensIsSet && !acceptsAnyModel(data.provider)) {
-                try {
-                    const cap = getMaxInputTokensForModel(data.provider, data.model);
-                    if (data.maxInputTokens! > cap) {
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            path: ['maxInputTokens'],
-                            message:
-                                `Max input tokens for model '${data.model}' is ${cap}. ` +
-                                `You provided ${data.maxInputTokens}`,
-                            params: {
-                                code: LLMErrorCode.TOKENS_EXCEEDED,
-                                scope: ErrorScope.LLM,
-                                type: ErrorType.USER,
-                            },
-                        });
-                    }
-                } catch (error: unknown) {
-                    if (
-                        error instanceof DextoRuntimeError &&
-                        error.code === LLMErrorCode.MODEL_UNKNOWN
-                    ) {
-                        // Model not found in registry
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            path: ['model'],
-                            message: error.message,
-                            params: {
-                                code: error.code,
-                                scope: error.scope,
-                                type: error.type,
-                            },
-                        });
-                    } else {
-                        // Unexpected error
-                        const message =
-                            error instanceof Error ? error.message : 'Unknown error occurred';
-                        ctx.addIssue({
-                            code: z.ZodIssueCode.custom,
-                            path: ['model'],
-                            message,
-                            params: {
-                                code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
-                                scope: ErrorScope.LLM,
-                                type: ErrorType.SYSTEM,
-                            },
-                        });
-                    }
+            } catch (error: unknown) {
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === LLMErrorCode.MODEL_UNKNOWN
+                ) {
+                    // Model not found in registry
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message: error.message,
+                        params: {
+                            code: error.code,
+                            scope: error.scope,
+                            type: error.type,
+                        },
+                    });
+                } else {
+                    // Unexpected error
+                    const message =
+                        error instanceof Error ? error.message : 'Unknown error occurred';
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['model'],
+                        message,
+                        params: {
+                            code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.SYSTEM,
+                        },
+                    });
                 }
             }
         }
+    }
 
-        if (!isRouterSupportedForModel(data.provider, data.model, data.router)) {
-            const supportedRouters = getSupportedRoutersForModel(data.provider, data.model);
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['router'],
-                message:
-                    `Model '${data.model}' (${data.provider}) does not support router '${data.router}'. ` +
-                    `Supported: ${supportedRouters.join(', ')}`,
-                params: {
-                    code: LLMErrorCode.ROUTER_UNSUPPORTED,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                },
-            });
-        }
-    }) // Brand the validated type so it can be distinguished at compile time
+    if (!isRouterSupportedForModel(data.provider, data.model, data.router)) {
+        const supportedRouters = getSupportedRoutersForModel(data.provider, data.model);
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['router'],
+            message:
+                `Model '${data.model}' (${data.provider}) does not support router '${data.router}'. ` +
+                `Supported: ${supportedRouters.join(', ')}`,
+            params: {
+                code: LLMErrorCode.ROUTER_UNSUPPORTED,
+                scope: ErrorScope.LLM,
+                type: ErrorType.USER,
+            },
+        });
+    }
+}) // Brand the validated type so it can be distinguished at compile time
     .brand<'ValidatedLLMConfig'>();
 // Input type and output types for the zod schema
 

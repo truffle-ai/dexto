@@ -12,7 +12,7 @@ import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
-import { ValidatedLLMConfig, LLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
+import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { AgentError } from './errors.js';
@@ -885,9 +885,9 @@ export class DextoAgent {
      * Gets the current LLM configuration with all defaults applied.
      * @returns Current LLM configuration
      */
-    public getCurrentLLMConfig(): LLMConfig {
+    public getCurrentLLMConfig(): ValidatedLLMConfig {
         this.ensureStarted();
-        return structuredClone(this.stateManager.getLLMConfig()) as LLMConfig;
+        return structuredClone(this.stateManager.getLLMConfig());
     }
 
     /**

@@ -8,6 +8,7 @@
   "dependencies": {
     "@dexto/analytics": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/server": "workspace:*",
     "@clack/prompts": "^0.10.1",
     "@modelcontextprotocol/sdk": "^1.18.1",
     "boxen": "^7.1.1",

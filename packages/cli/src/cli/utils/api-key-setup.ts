@@ -3,13 +3,9 @@
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import type { LLMProvider } from '@dexto/core';
-import {
-    logger,
-    getPrimaryApiKeyEnvVar,
-    getExecutionContext,
-    saveProviderApiKey,
-    applyLayeredEnvironmentLoading,
-} from '@dexto/core';
+import { logger, getPrimaryApiKeyEnvVar, getExecutionContext } from '@dexto/core';
+import { saveProviderApiKey } from '@dexto/core';
+import { applyLayeredEnvironmentLoading } from '../../utils/env.js';
 import {
     getProviderDisplayName,
     isValidApiKeyFormat,

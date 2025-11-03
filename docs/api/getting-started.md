@@ -50,5 +50,5 @@ Use the **WebSocket API** for building interactive, real-time applications that 
 
 Now that your server is running and you know which API to use, you can dive into the specifics:
 
--   Explore the **[REST API](./rest/conversation.md)** endpoints.
+-   Explore the **[REST API Reference](/api/rest)** - comprehensive documentation of all HTTP endpoints.
 -   Learn about the **[WebSocket API](./websocket.md)** events and messages. 

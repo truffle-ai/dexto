@@ -2319,7 +2319,7 @@ export async function initializeApi(
     // List all registered webhooks
     app.get('/api/webhooks', async (_req, res, next) => {
         try {
-            const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
+            const webhooks = webhookSubscriber.getWebhooks().map((webhook: WebhookConfig) => ({
                 id: webhook.id,
                 url: webhook.url,
                 description: webhook.description,
@@ -2419,6 +2419,13 @@ export async function startApiServer(
     agentCardOverride?: Partial<AgentCard>,
     agentId?: string
 ) {
+    if (shouldUseHonoServer()) {
+        // TODO: Remove feature flag and delete Express implementation once Hono server reaches GA.
+        console.log('🌐 USING HONO SERVER');
+        const { startHonoApiServer } = await import('./server-hono.js');
+        return startHonoApiServer(agent, port, agentCardOverride);
+    }
+
     const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
         agent,
         agentCardOverride,
@@ -2446,4 +2453,9 @@ export async function startApiServer(
     });
 
     return { server, wss, webSubscriber, webhookSubscriber };
+}
+
+export function shouldUseHonoServer(): boolean {
+    const flag = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
+    return flag === '1' || flag === 'true' || flag === 'yes';
 }

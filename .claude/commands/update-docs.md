@@ -67,9 +67,9 @@ Present a structured list of recommended documentation updates:
 ## Recommended Documentation Updates
 
 ### High Priority
-- [ ] **File**: `docs/docs/api/rest/conversation.md`
+- [ ] **File**: `docs/static/openapi/openapi.json`
   - **Reason**: New `fileDataInput` parameter added to `/api/message` endpoint
-  - **Changes Needed**: Add parameter documentation, add example usage
+  - **Changes Needed**: Update OpenAPI spec with new parameter (regenerate via sync-openapi-docs script)
 
 ### Medium Priority
 - [ ] **File**: `packages/core/README.md`

@@ -35,6 +35,13 @@ execSync('pnpm pack', {
     stdio: 'inherit',
 });
 
+// Pack @dexto/server
+console.log('  Packing @dexto/server...');
+execSync('pnpm pack', {
+    cwd: join(rootDir, 'packages/server'),
+    stdio: 'inherit',
+});
+
 // Pack dexto CLI
 console.log('  Packing dexto CLI...');
 execSync('pnpm pack', {
@@ -45,26 +52,33 @@ execSync('pnpm pack', {
 // Find and move tarballs to root
 const coreDir = join(rootDir, 'packages/core');
 const cliDir = join(rootDir, 'packages/cli');
+const serverDir = join(rootDir, 'packages/server');
 
 const coreTarballs = readdirSync(coreDir).filter(
     (f) => f.startsWith('dexto-core-') && f.endsWith('.tgz')
+);
+const serverTarballs = readdirSync(serverDir).filter(
+    (f) => f.startsWith('dexto-server-') && f.endsWith('.tgz')
 );
 const cliTarballs = readdirSync(cliDir).filter(
     (f) => f.startsWith('dexto-') && !f.includes('core') && f.endsWith('.tgz')
 );
 
-if (coreTarballs.length === 0 || cliTarballs.length === 0) {
+if (coreTarballs.length === 0 || serverTarballs.length === 0 || cliTarballs.length === 0) {
     console.error('❌ Failed to find tarballs');
     process.exit(1);
 }
 
 const coreTarball = coreTarballs[0];
+const serverTarball = serverTarballs[0];
 const cliTarball = cliTarballs[0];
 
 console.log(`  Found core tarball: ${coreTarball}`);
+console.log(`  Found server tarball: ${serverTarball}`);
 console.log(`  Found CLI tarball: ${cliTarball}`);
 
 execSync(`mv packages/core/${coreTarball} .`, { stdio: 'inherit' });
+execSync(`mv packages/server/${serverTarball} .`, { stdio: 'inherit' });
 execSync(`mv packages/cli/${cliTarball} .`, { stdio: 'inherit' });
 
 // Uninstall existing global dexto (both pnpm and npm)
@@ -86,12 +100,15 @@ try {
 
 // Install both packages globally
 console.log('🚀 Installing packages globally...');
-execSync(`npm install -g ./${coreTarball} ./${cliTarball}`, { stdio: 'inherit' });
+execSync(`npm install -g ./${coreTarball} ./${serverTarball} ./${cliTarball}`, {
+    stdio: 'inherit',
+});
 
 // Clean up tarballs
 
 console.log('🧹 Cleaning up tarballs...');
 unlinkSync(coreTarball);
+unlinkSync(serverTarball);
 unlinkSync(cliTarball);
 
 console.log('✅ Successfully installed dexto globally!');

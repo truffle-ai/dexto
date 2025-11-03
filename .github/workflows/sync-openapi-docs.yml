@@ -1,0 +1,65 @@
+name: Sync OpenAPI Docs
+
+on:
+  pull_request:
+    paths:
+      - packages/server/src/hono/**
+      - scripts/generate-openapi-spec.ts
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Ensure OpenAPI docs are in sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build server package with dependencies
+        run: pnpm --filter @dexto/server... build
+
+      - name: Run sync script
+        run: pnpm run sync-openapi-docs
+
+      - name: Commit changes (same-repo PRs)
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          if ! git diff --quiet --exit-code docs/static/openapi/openapi.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add docs/static/openapi/openapi.json
+            git commit -m "docs: sync OpenAPI specification"
+            git push
+          else
+            echo "OpenAPI docs already in sync; no commit needed."
+          fi
+
+      - name: Fail for forks when out of sync
+        if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          if ! git diff --quiet --exit-code docs/static/openapi/openapi.json; then
+            echo "OpenAPI docs are out of sync with API routes." >&2
+            echo "Please run: pnpm run sync-openapi-docs and commit the updated docs/static/openapi/openapi.json" >&2
+            exit 1
+          else
+            echo "OpenAPI docs already in sync."
+          fi

@@ -146,7 +146,7 @@ Once deployed, your Dexto server provides:
 - `GET /health` - Health check
 - And many more for sessions, LLM management, agents, webhooks, etc.
 
-**See the complete [REST API Documentation](/api/rest/conversation)** for all available endpoints.
+**See the complete [REST API Documentation](/api/rest/)** for all available endpoints.
 
 ### WebSocket
 - Real-time events and streaming responses

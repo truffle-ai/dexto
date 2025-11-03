@@ -76,15 +76,10 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 
 ### API Reference
 
-- [DextoAgent API](https://docs.dexto.ai/api/dexto-agent.md): DextoAgent API
-- [Events Reference](https://docs.dexto.ai/api/events.md): Events Reference
-- [Getting Started](https://docs.dexto.ai/api/getting-started.md): Getting Started
-- [MCPManager](https://docs.dexto.ai/api/mcp-manager.md): MCPManager
-- [Conversation](https://docs.dexto.ai/api/rest/conversation.md): Conversation
-- [LLM Configuration](https://docs.dexto.ai/api/rest/llm.md): LLM Configuration
-- [MCP Management](https://docs.dexto.ai/api/rest/mcp.md): MCP Management
-- [Search API](https://docs.dexto.ai/api/rest/search.md): Search API
-- [Session Management](https://docs.dexto.ai/api/rest/sessions.md): Session Management
-- [System](https://docs.dexto.ai/api/rest/system.md): System
-- [SDK Types for TypeScript](https://docs.dexto.ai/api/types.md): SDK Types for TypeScript
-- [WebSocket API](https://docs.dexto.ai/api/websocket.md): WebSocket API
+- [Getting Started](https://docs.dexto.ai/api/): API Getting Started Guide
+- [REST API Reference](https://docs.dexto.ai/api/rest/): Complete REST API documentation (OpenAPI)
+- [WebSocket API](https://docs.dexto.ai/api/websocket): WebSocket API
+- [DextoAgent SDK](https://docs.dexto.ai/api/sdk/dexto-agent): DextoAgent API
+- [MCPManager SDK](https://docs.dexto.ai/api/sdk/mcp-manager): MCPManager
+- [Events Reference](https://docs.dexto.ai/api/sdk/events): Events Reference
+- [SDK Types](https://docs.dexto.ai/api/sdk/types): SDK Types for TypeScript

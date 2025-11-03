@@ -38,7 +38,7 @@ export function getApiUrl(): string {
 export function getWsUrl(): string {
     if (typeof window === 'undefined') {
         // SSR fallback
-        return 'ws://localhost:3001';
+        return 'ws://localhost:3001/';
     }
 
     // Use injected API port if available, otherwise fall back to frontend port + 1
@@ -48,5 +48,5 @@ export function getWsUrl(): string {
         : frontendPort + 1;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
-    return `${protocol}//${window.location.hostname}:${apiPort}`;
+    return `${protocol}//${window.location.hostname}:${apiPort}/`;
 }

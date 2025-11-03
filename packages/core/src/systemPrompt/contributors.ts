@@ -47,12 +47,9 @@ export class FileContributor implements SystemPromptContributor {
         public id: string,
         public priority: number,
         private files: string[],
-        private options: FileContributorOptions = {},
-        private configDir: string = process.cwd()
+        private options: FileContributorOptions = {}
     ) {
-        logger.debug(
-            `[FileContributor] Created "${id}" with configDir: ${configDir} and files: ${JSON.stringify(files)}`
-        );
+        logger.debug(`[FileContributor] Created "${id}" with files: ${JSON.stringify(files)}`);
     }
 
     async getContent(_context: DynamicContributorContext): Promise<string> {
@@ -79,11 +76,8 @@ export class FileContributor implements SystemPromptContributor {
 
         for (const filePath of this.files) {
             try {
-                // Resolve relative paths from config directory
-                const resolvedPath = resolve(this.configDir, filePath);
-                logger.debug(
-                    `[FileContributor] Resolving path: ${filePath} with configDir: ${this.configDir} → ${resolvedPath}`
-                );
+                const resolvedPath = resolve(filePath);
+                logger.debug(`[FileContributor] Resolving path: ${filePath} → ${resolvedPath}`);
 
                 // Check if file is .md or .txt
                 const ext = extname(resolvedPath).toLowerCase();
