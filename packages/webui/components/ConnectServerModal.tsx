@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch, ApiError } from '@/lib/api-client';
 import type { McpServerConfig, StdioServerConfig, SseServerConfig, HttpServerConfig } from '@dexto/core';
 import {
     Dialog,
@@ -220,19 +220,11 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30_000);
         try {
-            const res = await fetch(`${getApiUrl()}/api/mcp/servers`, {
+            const result = await apiFetch<any>('/api/mcp/servers', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: serverName.trim(), config, persistToAgent }),
                 signal: controller.signal,
             });
-            const result = await res.json();
-            if (!res.ok) {
-                // Server returned error JSON in { error: string }
-                setError(result.error || `Server returned status ${res.status}`);
-                setIsSubmitting(false);
-                return;
-            }
             if (process.env.NODE_ENV === 'development') {
                 // Create a safe version for logging with masked sensitive values
                 const safeConfig = { ...config };
@@ -255,6 +247,8 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
             let message = 'Failed to connect server';
             if (err instanceof DOMException && err.name === 'AbortError') {
                 message = 'Connection timed out';
+            } else if (err instanceof ApiError) {
+                message = err.message;
             } else if (err instanceof Error) {
                 message = err.message || message;
             } else if (typeof err === 'string') {
