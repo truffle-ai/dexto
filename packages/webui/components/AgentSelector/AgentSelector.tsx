@@ -136,6 +136,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         // Extract error message from various API response formats
         // Prefer detailed issues message over generic error field
         const errorMessage =
+          (errorData.context?.issues && errorData.context.issues[0]?.message) ||
           (errorData.issues && errorData.issues[0]?.message) ||
           errorData.error ||
           errorData.message ||
@@ -164,6 +165,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         // Extract error message from various API response formats
         // Prefer detailed issues message over generic error field
         const errorMessage =
+          (errorData.context?.issues && errorData.context.issues[0]?.message) ||
           (errorData.issues && errorData.issues[0]?.message) ||
           errorData.error ||
           errorData.message ||
@@ -191,6 +193,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         // Extract error message from various API response formats
         // Prefer detailed issues message over generic error field
         const errorMessage =
+          (errorData.context?.issues && errorData.context.issues[0]?.message) ||
           (errorData.issues && errorData.issues[0]?.message) ||
           errorData.error ||
           errorData.message ||
