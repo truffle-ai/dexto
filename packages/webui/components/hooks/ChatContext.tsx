@@ -525,7 +525,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setStreaming: setIsStreaming,
       websocket,
       currentLLM,
-      refreshCurrentLLM: refetchCurrentLLM,
+      refreshCurrentLLM: async () => { await refetchCurrentLLM(); },
       processing,
       cancel,
       // Error state

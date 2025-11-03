@@ -78,8 +78,9 @@ export function extractErrorMessage(
 ): string {
     // Priority 1: Check for wrapped validation errors (context.issues[0].message)
     // This handles DextoRuntimeError wrapping DextoValidationError
-    if (errorData.context?.issues && Array.isArray(errorData.context.issues)) {
-        const firstIssue = errorData.context.issues[0];
+    const runtimeError = errorData as Partial<DextoRuntimeErrorResponse>;
+    if (runtimeError.context?.issues && Array.isArray(runtimeError.context.issues)) {
+        const firstIssue = runtimeError.context.issues[0];
         if (firstIssue?.message) {
             return firstIssue.message;
         }
@@ -133,8 +134,9 @@ export function extractErrorDetails(errorData: Partial<DextoErrorResponse>): {
 
     // Get issues from either wrapped or direct validation errors
     let issues: DextoIssue[] | undefined;
-    if (errorData.context?.issues) {
-        issues = errorData.context.issues;
+    const runtimeErr = errorData as Partial<DextoRuntimeErrorResponse>;
+    if (runtimeErr.context?.issues) {
+        issues = runtimeErr.context.issues;
     } else if ((errorData as DextoValidationErrorResponse).issues) {
         issues = (errorData as DextoValidationErrorResponse).issues;
     }
