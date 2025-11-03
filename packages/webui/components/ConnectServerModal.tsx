@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { apiFetch, ApiError } from '@/lib/api-client';
+import { ApiError } from '@/lib/api-client';
 import type {
     McpServerConfig,
     StdioServerConfig,
@@ -26,6 +26,7 @@ import { KeyValueEditor } from './ui/key-value-editor';
 import { Checkbox } from './ui/checkbox';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
+import { useAddServer } from './hooks/useServers';
 
 interface ConnectServerModalProps {
     isOpen: boolean;
@@ -48,6 +49,8 @@ export default function ConnectServerModal({
     lockName,
 }: ConnectServerModalProps) {
     const queryClient = useQueryClient();
+    const addServerMutation = useAddServer();
+
     const [serverName, setServerName] = useState('');
     const [serverType, setServerType] = useState<'stdio' | 'sse' | 'http'>('stdio');
     const [command, setCommand] = useState('');
@@ -57,8 +60,6 @@ export default function ConnectServerModal({
         Array<{ key: string; value: string; id: string }>
     >([]);
     const [envPairs, setEnvPairs] = useState<Array<{ key: string; value: string; id: string }>>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [persistToAgent, setPersistToAgent] = useState(false);
 
     // Helper function to convert header pairs to record
@@ -261,14 +262,13 @@ export default function ConnectServerModal({
             };
         }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30_000);
         try {
-            const result = await apiFetch<any>('/api/mcp/servers', {
-                method: 'POST',
-                body: JSON.stringify({ name: serverName.trim(), config, persistToAgent }),
-                signal: controller.signal,
+            await addServerMutation.mutateAsync({
+                name: serverName.trim(),
+                config,
+                persistToAgent,
             });
+
             if (process.env.NODE_ENV === 'development') {
                 // Create a safe version for logging with masked sensitive values
                 const safeConfig = { ...config };
@@ -281,31 +281,24 @@ export default function ConnectServerModal({
                     safeConfig.headers = maskSensitiveHeaders(safeConfig.headers);
                 }
                 console.debug(
-                    `[ConnectServerModal.handleSubmit] Connect server response: ${JSON.stringify({ ...result, config: safeConfig })}`
+                    `[ConnectServerModal.handleSubmit] Connected server with config: ${JSON.stringify(safeConfig)}`
                 );
             }
-            // Invalidate prompts cache on server connect (slash dropdown may be closed when WebSocket event fires)
-            // Resources are handled automatically via useResources hook which is always listening
-            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
-            // Notify parent component that server was connected successfully
-            if (onServerConnected) {
-                onServerConnected();
-            }
+
+            onServerConnected?.();
             onClose();
         } catch (err: unknown) {
             let message = 'Failed to connect server';
-            if (err instanceof DOMException && err.name === 'AbortError') {
-                message = 'Connection timed out';
-            } else if (err instanceof ApiError) {
+            if (err instanceof ApiError) {
                 message = err.message;
             } else if (err instanceof Error) {
                 message = err.message || message;
             } else if (typeof err === 'string') {
                 message = err;
             }
+            addServerMutation.reset();
             setError(message);
         } finally {
-            clearTimeout(timeoutId);
             setIsSubmitting(false);
         }
     };
