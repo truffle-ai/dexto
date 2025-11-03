@@ -2,10 +2,13 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
+import { queryKeys } from '@/lib/queryKeys';
+import { apiFetch } from '@/lib/api-client';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
 import ConnectServerModal from './ConnectServerModal';
@@ -43,7 +46,6 @@ import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
-import { loadPrompts, clearPromptCache } from '../lib/promptCache';
 import type { ServerRegistryEntry } from '@/types';
 
 interface ChatAppProps {
@@ -94,47 +96,37 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     onDeny: () => void;
   } | null>(null);
 
-  // Starter prompts state (from agent config via /api/prompts)
-  const [starterPrompts, setStarterPrompts] = useState<PromptInfo[]>([]);
-  const [starterPromptsLoaded, setStarterPromptsLoaded] = useState(false);
-  const [promptsReloadKey, setPromptsReloadKey] = useState(0);
+  const queryClient = useQueryClient();
 
-  // Listen for agent switch events to reload prompts
+  // Fetch starter prompts using TanStack Query with persistence
+  const {
+    data: promptsData,
+    isLoading: promptsLoading,
+  } = useQuery({
+    queryKey: queryKeys.prompts.all,
+    queryFn: async () => {
+      const response = await apiFetch<{ prompts: PromptInfo[] }>('/api/prompts');
+      return response.prompts;
+    },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    enabled: isWelcomeState, // Only fetch when on welcome screen
+  });
+
+  const starterPrompts = promptsData?.filter((prompt) => prompt.source === 'starter') ?? [];
+  const starterPromptsLoaded = !promptsLoading;
+
+  // Listen for agent switch events to invalidate prompts cache
   useEffect(() => {
     const handleAgentSwitch = () => {
-      clearPromptCache(); // Clear cached prompts from previous agent
-      setPromptsReloadKey((key) => key + 1);
+      queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
     };
 
     window.addEventListener('dexto:agentSwitched', handleAgentSwitch);
     return () => {
       window.removeEventListener('dexto:agentSwitched', handleAgentSwitch);
     };
-  }, []);
-
-  // Fetch starter prompts when in welcome state or when agent switches
-  useEffect(() => {
-    if (!isWelcomeState) return;
-
-    let cancelled = false;
-    setStarterPromptsLoaded(false);
-    loadPrompts()
-      .then((prompts) => {
-        if (!cancelled) {
-          setStarterPrompts(prompts.filter((prompt) => prompt.source === 'starter'));
-          setStarterPromptsLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStarterPromptsLoaded(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isWelcomeState, promptsReloadKey]);
+  }, [queryClient]);
 
   // Scroll management for robust autoscroll
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);

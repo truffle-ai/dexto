@@ -55,4 +55,9 @@ export const queryKeys = {
 
     // Server registry queries
     serverRegistry: (filter: ServerRegistryFilter) => ['serverRegistry', filter] as const,
+
+    // Prompt queries
+    prompts: {
+        all: ['prompts'] as const,
+    },
 } as const;
