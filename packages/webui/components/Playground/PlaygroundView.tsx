@@ -14,7 +14,7 @@ import { ToolResult } from './ToolResult';
 import { ExecutionHistory, type ExecutionHistoryItem } from './ExecutionHistory';
 import type { JsonSchemaProperty, McpServer, McpTool, ToolResult as ToolResultType } from '@/types';
 import { cn } from '@/lib/utils';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client';
 
 export default function PlaygroundView() {
   const [selectedServer, setSelectedServer] = useState<McpServer | null>(null);
@@ -39,7 +39,6 @@ export default function PlaygroundView() {
   const [showServersSidebar, setShowServersSidebar] = useState(true);
   const [showToolsSidebar, setShowToolsSidebar] = useState(true);
 
-  const API_BASE_URL = `${getApiUrl()}/api`;
   const toolsAbortControllerRef = useRef<AbortController | null>(null);
   const executionAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -51,12 +50,7 @@ export default function PlaygroundView() {
   } = useQuery<McpServer[], Error>({
     queryKey: ['mcpServers'],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/mcp/servers`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch servers' }));
-        throw new Error(errorData.error || `Server List: ${response.statusText}`);
-      }
-      const data = await response.json();
+      const data = await apiFetch<{ servers: McpServer[] }>('/api/mcp/servers');
       return data.servers || [];
     },
   });
@@ -71,12 +65,7 @@ export default function PlaygroundView() {
       if (!selectedServer || selectedServer.status !== 'connected') {
         return [];
       }
-      const response = await fetch(`${API_BASE_URL}/mcp/servers/${selectedServer.id}/tools`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: `Failed to fetch tools for ${selectedServer.name}` }));
-        throw new Error(errorData.error || `Tool List (${selectedServer.name}): ${response.statusText}`);
-      }
-      const data = await response.json();
+      const data = await apiFetch<{ tools: McpTool[] }>(`/api/mcp/servers/${selectedServer.id}/tools`);
       return data.tools || [];
     },
     enabled: !!selectedServer && selectedServer.status === 'connected',
@@ -251,22 +240,14 @@ export default function PlaygroundView() {
         }
       }
 
-      const response = await fetch(
-        `${API_BASE_URL}/mcp/servers/${selectedServer.id}/tools/${selectedTool.id}/execute`,
+      const resultData = await apiFetch<ToolResultType>(
+        `/api/mcp/servers/${selectedServer.id}/tools/${selectedTool.id}/execute`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(processedInputs),
           signal: controller.signal,
         }
       );
-
-      const resultData = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          resultData.error || `Tool Execution (${selectedTool.name}): ${response.statusText}`
-        );
-      }
 
       const duration = Date.now() - executionStart;
       setToolResult(resultData);
