@@ -82,10 +82,8 @@ export async function initializeMcpServer(
     // Register Agent Card data as an MCP Resource
     await initializeAgentCardResource(mcpServer, getAgentCard);
 
-    // Connect server to transport AFTER all registrations
-    // Note: For StreamableHTTPServerTransport, we don't connect at startup
-    // as sessions are created per-request via handleRequest().
-    // The connection will happen in initializeMcpServerApiEndpoints when setting up routes.
+    // For HTTP transport, connect per request.
+    // Connection is handled in initializeMcpServerApiEndpoints.
     if (!(mcpTransport instanceof StreamableHTTPServerTransport)) {
         // For stdio and other persistent transports, connect at startup
         logger.info(`Initializing MCP protocol server connection...`);
