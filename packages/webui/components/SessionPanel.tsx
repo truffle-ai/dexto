@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
+import { extractErrorMessage, type DextoErrorResponse } from '@/lib/api-errors.js';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -105,14 +106,12 @@ export default function SessionPanel({
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = errorText ? JSON.parse(errorText) : {};
-        } catch {
-          errorData = { error: 'Failed to create session' };
-        }
-        throw new Error(errorData.error || 'Failed to create session');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = extractErrorMessage(
+          errorData as Partial<DextoErrorResponse>,
+          'Failed to create session'
+        );
+        throw new Error(errorMessage);
       }
 
       const responseText = await response.text();
@@ -147,14 +146,12 @@ export default function SessionPanel({
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = errorText ? JSON.parse(errorText) : {};
-        } catch {
-          errorData = { error: 'Failed to delete session' };
-        }
-        throw new Error(errorData.error || 'Failed to delete session');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = extractErrorMessage(
+          errorData as Partial<DextoErrorResponse>,
+          'Failed to delete session'
+        );
+        throw new Error(errorMessage);
       }
       return sessionId;
     },

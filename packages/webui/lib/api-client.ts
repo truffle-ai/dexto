@@ -14,12 +14,19 @@
  */
 
 import { getApiUrl } from './api-url';
+import { extractErrorMessage, extractErrorDetails, type DextoErrorResponse } from './api-errors.js';
 
 /**
  * Custom error class for API errors
  * Provides structured error information including status code and response data
  */
 export class ApiError extends Error {
+    public readonly code?: string;
+    public readonly scope?: string;
+    public readonly type?: string;
+    public readonly traceId?: string;
+    public readonly recovery?: string | string[];
+
     constructor(
         message: string,
         public status: number,
@@ -27,6 +34,16 @@ export class ApiError extends Error {
     ) {
         super(message);
         this.name = 'ApiError';
+
+        // Extract additional error details if available
+        if (data && typeof data === 'object') {
+            const details = extractErrorDetails(data as Partial<DextoErrorResponse>);
+            this.code = details.code;
+            this.scope = details.scope;
+            this.type = details.type;
+            this.traceId = details.traceId;
+            this.recovery = details.recovery;
+        }
     }
 }
 
@@ -73,11 +90,11 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
             errorData = null;
         }
 
-        // Extract error message from response
-        const errorMessage =
-            (errorData as any)?.error ||
-            (errorData as any)?.message ||
-            `HTTP ${response.status} ${response.statusText}`;
+        // Extract the most specific error message using our utility
+        const errorMessage = extractErrorMessage(
+            (errorData as Partial<DextoErrorResponse>) || {},
+            `HTTP ${response.status} ${response.statusText}`
+        );
 
         throw new ApiError(errorMessage, response.status, errorData);
     }

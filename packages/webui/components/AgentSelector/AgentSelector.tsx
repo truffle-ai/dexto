@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api-url';
 import { queryKeys } from '@/lib/queryKeys.js';
+import { extractErrorMessage, type DextoErrorResponse } from '@/lib/api-errors.js';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -133,14 +134,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        // Extract error message from various API response formats
-        // Prefer detailed issues message over generic error field
-        const errorMessage =
-          (errorData.context?.issues && errorData.context.issues[0]?.message) ||
-          (errorData.issues && errorData.issues[0]?.message) ||
-          errorData.error ||
-          errorData.message ||
-          `Switch failed: ${res.status} ${res.statusText}`;
+        const errorMessage = extractErrorMessage(
+          errorData as Partial<DextoErrorResponse>,
+          `Switch failed: ${res.status} ${res.statusText}`
+        );
         throw new Error(errorMessage);
       }
       return { id, path };
@@ -162,14 +159,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        // Extract error message from various API response formats
-        // Prefer detailed issues message over generic error field
-        const errorMessage =
-          (errorData.context?.issues && errorData.context.issues[0]?.message) ||
-          (errorData.issues && errorData.issues[0]?.message) ||
-          errorData.error ||
-          errorData.message ||
-          `Install failed: ${res.status}`;
+        const errorMessage = extractErrorMessage(
+          errorData as Partial<DextoErrorResponse>,
+          `Install failed: ${res.status}`
+        );
         throw new Error(errorMessage);
       }
       return agentId;
@@ -190,14 +183,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        // Extract error message from various API response formats
-        // Prefer detailed issues message over generic error field
-        const errorMessage =
-          (errorData.context?.issues && errorData.context.issues[0]?.message) ||
-          (errorData.issues && errorData.issues[0]?.message) ||
-          errorData.error ||
-          errorData.message ||
-          `Delete failed: ${res.status}`;
+        const errorMessage = extractErrorMessage(
+          errorData as Partial<DextoErrorResponse>,
+          `Delete failed: ${res.status}`
+        );
         throw new Error(errorMessage);
       }
       return agentId;
