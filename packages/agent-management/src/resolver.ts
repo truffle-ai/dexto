@@ -2,15 +2,15 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { isPath } from '@core/utils/path.js';
 import {
+    isPath,
     getExecutionContext,
     findDextoSourceRoot,
     findDextoProjectRoot,
-} from '@core/utils/execution-context.js';
-import { loadGlobalPreferences, globalPreferencesExist } from '@core/preferences/loader.js';
-import { logger } from '@core/logger/index.js';
-import { ConfigError } from './errors.js';
+    logger,
+} from '@dexto/core';
+import { loadGlobalPreferences, globalPreferencesExist } from './preferences/loader.js';
+import { ConfigError } from '@dexto/core';
 
 /**
  * Resolve agent path with preference integration

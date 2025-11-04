@@ -2,22 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs, mkdtempSync } from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import { resolveAgentPath, updateDefaultAgentPreference } from './agent-resolver.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { ConfigErrorCode } from './error-codes.js';
+import { resolveAgentPath, updateDefaultAgentPreference } from './resolver.js';
+import { ErrorScope, ErrorType, ConfigErrorCode } from '@dexto/core';
 
 // Mock dependencies
-vi.mock('@core/utils/execution-context.js');
-vi.mock('@core/preferences/loader.js');
-vi.mock('@core/agent/registry/registry.js');
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
-}));
+vi.mock('@dexto/core');
+vi.mock('./preferences/loader.js');
+vi.mock('./registry/registry.js');
 
 const mockGetExecutionContext = vi.fn();
 const mockFindDextoSourceRoot = vi.fn();
@@ -27,19 +18,16 @@ const mockLoadGlobalPreferences = vi.fn();
 const mockUpdateGlobalPreferences = vi.fn();
 const mockGetAgentRegistry = vi.fn();
 // Import mocked modules
-vi.mocked(await import('@core/utils/execution-context.js')).getExecutionContext =
-    mockGetExecutionContext;
-vi.mocked(await import('@core/utils/execution-context.js')).findDextoSourceRoot =
-    mockFindDextoSourceRoot;
-vi.mocked(await import('@core/utils/execution-context.js')).findDextoProjectRoot =
-    mockFindDextoProjectRoot;
-vi.mocked(await import('@core/preferences/loader.js')).globalPreferencesExist =
+vi.mocked(await import('@dexto/core')).getExecutionContext = mockGetExecutionContext;
+vi.mocked(await import('@dexto/core')).findDextoSourceRoot = mockFindDextoSourceRoot;
+vi.mocked(await import('@dexto/core')).findDextoProjectRoot = mockFindDextoProjectRoot;
+vi.mocked(await import('./preferences/loader.js')).globalPreferencesExist =
     mockGlobalPreferencesExist;
-vi.mocked(await import('@core/preferences/loader.js')).loadGlobalPreferences =
+vi.mocked(await import('./preferences/loader.js')).loadGlobalPreferences =
     mockLoadGlobalPreferences;
-vi.mocked(await import('@core/preferences/loader.js')).updateGlobalPreferences =
+vi.mocked(await import('./preferences/loader.js')).updateGlobalPreferences =
     mockUpdateGlobalPreferences;
-vi.mocked(await import('@core/agent/registry/registry.js')).getAgentRegistry = mockGetAgentRegistry;
+vi.mocked(await import('./registry/registry.js')).getAgentRegistry = mockGetAgentRegistry;
 
 function createTempDir() {
     return mkdtempSync(path.join(tmpdir(), 'agent-resolver-test-'));
