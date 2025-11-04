@@ -101,8 +101,8 @@ const SwitchLLMBodySchema = z
             .optional()
             .describe('Session identifier for session-specific LLM configuration'),
     })
-    .and(LLMUpdatesSchema)
-    .describe('LLM switch request body with optional session ID');
+    .passthrough()
+    .describe('LLM switch request body with optional session ID and LLM fields');
 
 // Response schema for GET /llm/current - matches actual spread result
 // Note: Spreading ValidatedLLMConfig makes TS infer defaults as optional
