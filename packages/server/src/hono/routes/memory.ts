@@ -88,6 +88,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
     app.openapi(createMemoryRoute, async (ctx) => {
         const input = ctx.req.valid('json');
 
+        console.log('input', input);
         // Defensive check: ensure input is defined and has required fields
         if (!input || typeof input !== 'object') {
             throw new Error('Invalid request body: expected JSON object');
@@ -112,7 +113,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         }
         const agent = getAgent();
         const memory = await agent.memoryManager.create(createInput);
-        return ctx.json({ ok: true, memory }, 201);
+        return ctx.json({ ok: true as const, memory }, 201);
     });
 
     const listRoute = createRoute({
@@ -146,7 +147,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
 
         const agent = getAgent();
         const memories = await agent.memoryManager.list(options);
-        return ctx.json({ ok: true, memories });
+        return ctx.json({ ok: true as const, memories });
     });
 
     const getRoute = createRoute({
@@ -169,7 +170,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         const { id } = ctx.req.valid('param');
         const agent = getAgent();
         const memory = await agent.memoryManager.get(id);
-        return ctx.json({ ok: true, memory });
+        return ctx.json({ ok: true as const, memory });
     });
 
     const updateRoute = createRoute({
@@ -209,7 +210,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         if (updatesRaw.tags !== undefined) updates.tags = updatesRaw.tags;
         const agent = getAgent();
         const memory = await agent.memoryManager.update(id, updates);
-        return ctx.json({ ok: true, memory });
+        return ctx.json({ ok: true as const, memory });
     });
 
     const deleteRoute = createRoute({
@@ -232,7 +233,7 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         const { id } = ctx.req.valid('param');
         const agent = getAgent();
         await agent.memoryManager.delete(id);
-        return ctx.json({ ok: true, message: 'Memory deleted successfully' });
+        return ctx.json({ ok: true as const, message: 'Memory deleted successfully' });
     });
 
     return app;
