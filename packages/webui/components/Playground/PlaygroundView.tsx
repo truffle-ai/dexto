@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, CheckCircle, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { ExecutionHistory, type ExecutionHistoryItem } from './ExecutionHistory'
 import type { JsonSchemaProperty, McpServer, McpTool, ToolResult as ToolResultType } from '@/types';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api-client';
+import { useServers, useServerTools } from '../hooks/useServers';
 
 export default function PlaygroundView() {
     const [selectedServer, setSelectedServer] = useState<McpServer | null>(null);
@@ -47,31 +48,16 @@ export default function PlaygroundView() {
         isLoading: serversLoading,
         error: serversError,
         refetch: refetchServers,
-    } = useQuery<McpServer[], Error>({
-        queryKey: ['mcpServers'],
-        queryFn: async () => {
-            const data = await apiFetch<{ servers: McpServer[] }>('/api/mcp/servers');
-            return data.servers || [];
-        },
-    });
+    } = useServers();
 
     const {
         data: tools = [],
         isLoading: toolsLoading,
         error: toolsError,
-    } = useQuery<McpTool[], Error>({
-        queryKey: ['mcpTools', selectedServer?.id],
-        queryFn: async () => {
-            if (!selectedServer || selectedServer.status !== 'connected') {
-                return [];
-            }
-            const data = await apiFetch<{ tools: McpTool[] }>(
-                `/api/mcp/servers/${selectedServer.id}/tools`
-            );
-            return data.tools || [];
-        },
-        enabled: !!selectedServer && selectedServer.status === 'connected',
-    });
+    } = useServerTools(
+        selectedServer?.id || null,
+        !!selectedServer && selectedServer.status === 'connected'
+    );
 
     const handleError = (message: string, area?: 'servers' | 'tools' | 'execution' | 'input') => {
         console.error(`Playground Error (${area || 'general'}):`, message);
