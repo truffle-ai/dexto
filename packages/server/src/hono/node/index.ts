@@ -397,6 +397,14 @@ async function toRequest(req: IncomingMessage): Promise<FetchRequest> {
     const body: FetchBodyInit | null =
         method === 'GET' || method === 'HEAD' ? null : (req as unknown as FetchBodyInit);
 
+    console.log('[toRequest] method:', method, 'hasBody:', body !== null, 'url:', url.pathname);
+    console.log(
+        '[toRequest] readable:',
+        (req as any).readable,
+        'readableLength:',
+        (req as any).readableLength
+    );
+
     return new globalThis.Request(url, {
         method,
         headers,

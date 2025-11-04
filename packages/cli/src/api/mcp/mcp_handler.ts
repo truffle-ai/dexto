@@ -1,3 +1,4 @@
+import type { Express } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ReadResourceCallback } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -6,6 +7,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { AgentCard } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { z } from 'zod';
+import express from 'express';
 import { DextoAgent } from '@dexto/core';
 import { randomUUID } from 'crypto';
 
@@ -120,5 +122,33 @@ export async function initializeAgentCardResource(
         logger.warn(
             `Error attempting to register MCP Resource '${agentCardResourceProgrammaticName}': ${e.message}. Check SDK.`
         );
+    }
+}
+
+/**
+ * Initializes and sets up the MCP HTTP endpoints.
+ */
+export async function initializeMcpServerApiEndpoints(
+    app: Express,
+    mcpTransport: Transport
+): Promise<void> {
+    // Only set up HTTP routes for StreamableHTTPServerTransport
+    if (mcpTransport instanceof StreamableHTTPServerTransport) {
+        // Mount /mcp for JSON-RPC and SSE handling
+        app.post('/mcp', express.json(), (req, res) => {
+            logger.info(`MCP POST /mcp received request body: ${JSON.stringify(req.body)}`);
+            mcpTransport
+                .handleRequest(req, res, req.body)
+                .catch((err) => logger.error(`MCP POST error: ${JSON.stringify(err, null, 2)}`));
+        });
+        app.get('/mcp', (req, res) => {
+            logger.info(`MCP GET /mcp received request, attempting to establish SSE connection.`);
+            mcpTransport
+                .handleRequest(req, res)
+                .catch((err) => logger.error(`MCP GET error: ${JSON.stringify(err, null, 2)}`));
+        });
+        logger.info('Mounted MCP routes (/mcp for POST and GET).');
+    } else {
+        logger.info('Non-HTTP transport detected. Skipping HTTP route setup.');
     }
 }

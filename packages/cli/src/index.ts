@@ -37,7 +37,7 @@ import {
 } from '@dexto/agent-management';
 import type { AgentConfig } from '@dexto/core';
 import { startAiCli, startHeadlessCli, loadMostRecentSession } from './cli/cli.js';
-import { startHonoApiServer as startApiServer } from './api/server-hono.js';
+import { startApiServer } from './api/server.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
