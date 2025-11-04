@@ -1,12 +1,9 @@
-import { logger } from './logger/index.js';
-import { getAgentRegistry } from './agent/registry/registry.js';
-import { loadAgentConfig } from './config/loader.js';
-import { AgentError } from './agent/errors.js';
-import { DextoAgent } from './agent/DextoAgent.js';
-import { deriveDisplayName } from './agent/registry/types.js';
+import { logger, loadAgentConfig, AgentError, DextoAgent } from '@dexto/core';
+import { getAgentRegistry } from './registry/registry.js';
+import { deriveDisplayName } from './registry/types.js';
 
 /**
- * Dexto - Main orchestrator class for managing Dexto agents
+ * AgentOrchestrator - Main orchestrator class for managing Dexto agents
  *
  * This class serves as the primary entry point for agent lifecycle management,
  * including installation, creation, and coordination of multiple agent instances.
@@ -54,25 +51,25 @@ import { deriveDisplayName } from './agent/registry/types.js';
  * @example
  * ```typescript
  * // List available agents
- * const agents = await Dexto.listAgents();
+ * const agents = await AgentOrchestrator.listAgents();
  * console.log(agents.installed, agents.available);
  *
  * // Install agent
- * await Dexto.installAgent('productivity');
+ * await AgentOrchestrator.installAgent('productivity');
  *
  * // Create and start agent
- * const agent = await Dexto.createAgent('productivity');
+ * const agent = await AgentOrchestrator.createAgent('productivity');
  * await agent.start();
  *
  * // Install custom agent
- * await Dexto.installCustomAgent('my-agent', '/path/to/config.yml', {
+ * await AgentOrchestrator.installCustomAgent('my-agent', '/path/to/config.yml', {
  *   description: 'My custom agent',
  *   author: 'John Doe',
  *   tags: ['custom', 'specialized']
  * });
  * ```
  */
-export class Dexto {
+export class AgentOrchestrator {
     /**
      * Lists available and installed agents from the registry.
      * Returns a structured object containing both installed and available agents,
@@ -82,7 +79,7 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * const agents = await Dexto.listAgents();
+     * const agents = await AgentOrchestrator.listAgents();
      * console.log(agents.installed); // ['default', 'my-custom-agent']
      * console.log(agents.available); // [{ name: 'productivity', description: '...', ... }]
      * console.log(agents.current?.name); // 'default'
@@ -201,7 +198,7 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * await Dexto.installAgent('productivity');
+     * await AgentOrchestrator.installAgent('productivity');
      * console.log('Productivity agent installed successfully');
      * ```
      */
@@ -239,7 +236,7 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * await Dexto.installCustomAgent('my-coding-agent', '/path/to/agent.yml', {
+     * await AgentOrchestrator.installCustomAgent('my-coding-agent', '/path/to/agent.yml', {
      *   description: 'Custom coding assistant',
      *   author: 'John Doe',
      *   tags: ['coding', 'custom']
@@ -293,7 +290,7 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * await Dexto.uninstallAgent('my-custom-agent');
+     * await AgentOrchestrator.uninstallAgent('my-custom-agent');
      * console.log('Agent uninstalled successfully');
      * ```
      */
@@ -328,7 +325,7 @@ export class Dexto {
      *
      * @example
      * ```typescript
-     * const newAgent = await Dexto.createAgent('productivity');
+     * const newAgent = await AgentOrchestrator.createAgent('productivity');
      * await newAgent.start();
      * ```
      */
