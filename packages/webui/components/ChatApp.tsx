@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
 import { usePrompts } from './hooks/usePrompts';
+import { useDeleteSession } from './hooks/useSessions';
 import { queryKeys } from '@/lib/queryKeys';
 import { apiFetch } from '@/lib/api-client';
 import MessageList from './MessageList';
@@ -124,7 +125,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     // Conversation management states
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
 
     // Approval state (for inline rendering in message stream)
     const [pendingApproval, setPendingApproval] = useState<ApprovalEvent | null>(null);
@@ -134,6 +134,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     } | null>(null);
 
     const queryClient = useQueryClient();
+    const deleteSessionMutation = useDeleteSession();
 
     // Fetch starter prompts using shared usePrompts hook
     const { data: promptsData = [], isLoading: promptsLoading } = usePrompts({
@@ -545,12 +546,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     const handleDeleteConversation = useCallback(async () => {
         if (!currentSessionId) return;
 
-        setIsDeleting(true);
         try {
-            await apiFetch(`/api/sessions/${currentSessionId}`, {
-                method: 'DELETE',
-            });
-
+            await deleteSessionMutation.mutateAsync({ sessionId: currentSessionId });
             setDeleteDialogOpen(false);
             handleReturnToWelcome();
         } catch (error) {
@@ -559,10 +556,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 error instanceof Error ? error.message : 'Failed to delete conversation'
             );
             setTimeout(() => setErrorMessage(null), 5000);
-        } finally {
-            setIsDeleting(false);
         }
-    }, [currentSessionId, handleReturnToWelcome]);
+    }, [currentSessionId, handleReturnToWelcome, deleteSessionMutation]);
 
     // Memoize quick actions to prevent unnecessary recomputation
     const quickActions = React.useMemo(
@@ -1513,11 +1508,15 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                             <Button
                                 variant="destructive"
                                 onClick={handleDeleteConversation}
-                                disabled={isDeleting}
+                                disabled={deleteSessionMutation.isPending}
                                 className="flex items-center space-x-2"
                             >
                                 <Trash2 className="h-4 w-4" />
-                                <span>{isDeleting ? 'Deleting...' : 'Delete Conversation'}</span>
+                                <span>
+                                    {deleteSessionMutation.isPending
+                                        ? 'Deleting...'
+                                        : 'Delete Conversation'}
+                                </span>
                             </Button>
                         </DialogFooter>
                     </DialogContent>
