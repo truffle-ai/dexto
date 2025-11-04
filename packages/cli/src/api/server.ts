@@ -6,7 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
-import { logger, redactSensitiveData, deriveDisplayName, type AgentCard } from '@dexto/core';
+import { logger, redactSensitiveData, type AgentCard } from '@dexto/core';
 import { setupA2ARoutes } from './a2a.js';
 import { setupMemoryRoutes } from './memory/memory-handler.js';
 import {
@@ -15,7 +15,8 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, Dexto, DextoAgent, loadAgentConfig } from '@dexto/core';
+import { createAgentCard, DextoAgent, loadAgentConfig } from '@dexto/core';
+import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -2419,43 +2420,44 @@ export async function startApiServer(
     agentCardOverride?: Partial<AgentCard>,
     agentId?: string
 ) {
-    if (shouldUseHonoServer()) {
-        // TODO: Remove feature flag and delete Express implementation once Hono server reaches GA.
-        console.log('🌐 USING HONO SERVER');
-        const { startHonoApiServer } = await import('./server-hono.js');
-        return startHonoApiServer(agent, port, agentCardOverride);
-    }
+    if (shouldUseExpressServer()) {
+        console.log('🌐 USING EXPRESS SERVER');
+        const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
+            agent,
+            agentCardOverride,
+            port,
+            agentId
+        );
 
-    const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
-        agent,
-        agentCardOverride,
-        port,
-        agentId
-    );
-
-    // API server for REST endpoints and WebSocket connections
-    server.listen(port, '0.0.0.0', () => {
-        const networkInterfaces = os.networkInterfaces();
-        let localIp = 'localhost';
-        Object.values(networkInterfaces).forEach((ifaceList) => {
-            ifaceList?.forEach((iface) => {
-                if (iface.family === 'IPv4' && !iface.internal) {
-                    localIp = iface.address;
-                }
+        // API server for REST endpoints and WebSocket connections
+        server.listen(port, '0.0.0.0', () => {
+            const networkInterfaces = os.networkInterfaces();
+            let localIp = 'localhost';
+            Object.values(networkInterfaces).forEach((ifaceList) => {
+                ifaceList?.forEach((iface) => {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        localIp = iface.address;
+                    }
+                });
             });
+
+            logger.info(
+                `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
+                null,
+                'green'
+            );
         });
 
-        logger.info(
-            `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
-            null,
-            'green'
-        );
-    });
+        return { server, wss, webSubscriber, webhookSubscriber };
+    }
 
-    return { server, wss, webSubscriber, webhookSubscriber };
+    // Default to Hono
+    console.log('🌐 USING HONO SERVER');
+    const { startHonoApiServer } = await import('./server-hono.js');
+    return startHonoApiServer(agent, port, agentCardOverride);
 }
 
-export function shouldUseHonoServer(): boolean {
-    const flag = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
+export function shouldUseExpressServer(): boolean {
+    const flag = (process.env.DEXTO_USE_EXPRESS ?? '').toLowerCase();
     return flag === '1' || flag === 'true' || flag === 'yes';
 }

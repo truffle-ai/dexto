@@ -6,10 +6,12 @@
 'dexto': patch
 ---
 
-Migrate server API to Hono framework with feature flag
+Migrate server API to Hono framework (now default) with Express fallback
 
 - Migrated Express server to Hono with OpenAPI schema generation
-- Added DEXTO_USE_HONO environment variable flag (default: false for backward compatibility)
+- **Hono is now the default API server** for improved performance and type safety
+- Added DEXTO_USE_EXPRESS environment variable flag to optionally use Express (default: false)
+- Express implementation remains available during migration period
 - Fixed WebSocket test isolation by adding sessionId filtering
 - Fixed logger context to pass structured objects instead of stringified JSON
 - Fixed CI workflow for OpenAPI docs synchronization
