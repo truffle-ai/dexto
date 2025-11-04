@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-interface SearchResult {
+export interface SearchResult {
     sessionId: string;
     message: {
         role: 'user' | 'assistant' | 'system' | 'tool';
@@ -13,14 +13,14 @@ interface SearchResult {
     messageIndex: number;
 }
 
-interface MessageSearchResponse {
+export interface MessageSearchResponse {
     results: SearchResult[];
     total: number;
     hasMore: boolean;
     query: string;
 }
 
-interface SessionSearchResult {
+export interface SessionSearchResult {
     sessionId: string;
     matchCount: number;
     firstMatch: SearchResult;
@@ -31,7 +31,7 @@ interface SessionSearchResult {
     };
 }
 
-interface SessionSearchResponse {
+export interface SessionSearchResponse {
     results: SessionSearchResult[];
     total: number;
     hasMore: boolean;

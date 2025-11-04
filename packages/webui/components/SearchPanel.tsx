@@ -2,7 +2,12 @@
 
 import React, { useState, useCallback } from 'react';
 import { useDebounce } from 'use-debounce';
-import { useSearchMessages, useSearchSessions } from './hooks/useSearch';
+import {
+    useSearchMessages,
+    useSearchSessions,
+    type SearchResult,
+    type SessionSearchResult,
+} from './hooks/useSearch';
 import { formatDate, formatTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -27,42 +32,6 @@ import {
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from './ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-
-interface SearchResult {
-    sessionId: string;
-    message: {
-        role: 'user' | 'assistant' | 'system' | 'tool';
-        content: string | null;
-    };
-    matchedText: string;
-    context: string;
-    messageIndex: number;
-}
-
-interface SearchResponse {
-    results: SearchResult[];
-    total: number;
-    hasMore: boolean;
-    query: string;
-}
-
-interface SessionSearchResult {
-    sessionId: string;
-    matchCount: number;
-    firstMatch: SearchResult;
-    metadata: {
-        createdAt: number;
-        lastActivity: number;
-        messageCount: number;
-    };
-}
-
-interface SessionSearchResponse {
-    results: SessionSearchResult[];
-    total: number;
-    hasMore: boolean;
-    query: string;
-}
 
 interface SearchPanelProps {
     isOpen: boolean;

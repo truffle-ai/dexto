@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from 'use-debounce';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useSearchMessages } from './hooks/useSearch';
+import { useSearchMessages, type SearchResult } from './hooks/useSearch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -19,24 +19,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
-
-interface SearchResult {
-    sessionId: string;
-    message: {
-        role: 'user' | 'assistant' | 'system' | 'tool';
-        content: string | null;
-    };
-    matchedText: string;
-    context: string;
-    messageIndex: number;
-}
-
-interface SearchResponse {
-    results: SearchResult[];
-    total: number;
-    hasMore: boolean;
-    query: string;
-}
 
 interface GlobalSearchModalProps {
     isOpen: boolean;
