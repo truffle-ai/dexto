@@ -213,7 +213,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [installed, switchAgentMutation, router, currentId, currentSessionId]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [installed, router, currentId, currentSessionId]
     );
 
     const handleSwitchToPath = useCallback(
@@ -260,7 +261,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [addToRecentAgents, switchAgentMutation, router, currentId, currentSessionId]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [addToRecentAgents, router, currentId, currentSessionId]
     );
 
     const handleInstall = useCallback(
@@ -319,15 +321,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [
-            installAgentMutation,
-            switchAgentMutation,
-            router,
-            currentId,
-            currentSessionId,
-            queryClient,
-            analyticsRef,
-        ]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [router, currentId, currentSessionId, queryClient, analyticsRef]
     );
 
     const handleDelete = useCallback(
@@ -349,7 +344,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [deleteAgentMutation]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        []
     );
 
     const currentLabel = useMemo(() => {

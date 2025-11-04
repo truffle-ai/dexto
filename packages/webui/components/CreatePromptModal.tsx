@@ -68,7 +68,7 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     });
 
     useEffect(() => {
-        if (!open) {
+        if (open) {
             setName('');
             setTitle('');
             setDescription('');
@@ -79,7 +79,8 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
             setIsDragOver(false);
             createPromptMutation.reset();
         }
-    }, [open, createPromptMutation]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const handleFile = async (file: File) => {
         try {

@@ -557,7 +557,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             );
             setTimeout(() => setErrorMessage(null), 5000);
         }
-    }, [currentSessionId, handleReturnToWelcome, deleteSessionMutation]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentSessionId, handleReturnToWelcome]);
 
     // Memoize quick actions to prevent unnecessary recomputation
     const quickActions = React.useMemo(
