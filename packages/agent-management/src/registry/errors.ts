@@ -1,5 +1,4 @@
-import { DextoRuntimeError } from '@core/errors/index.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 import { RegistryErrorCode } from './error-codes.js';
 
 /**

@@ -4,20 +4,26 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import { LocalAgentRegistry } from './registry.js';
 import { RegistryErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { ErrorScope, ErrorType } from '@dexto/core';
 
 // Mock dependencies
-vi.mock('@core/utils/path.js');
-vi.mock('@core/preferences/loader.js');
-vi.mock('@core/config/writer.js');
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
-}));
+vi.mock('@dexto/core', async () => {
+    const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
+    return {
+        ...actual,
+        resolveBundledScript: vi.fn(),
+        getDextoGlobalPath: vi.fn(),
+        copyDirectory: vi.fn(),
+        logger: {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+        },
+    };
+});
+vi.mock('../preferences/loader.js');
+vi.mock('../writer.js');
 
 describe('LocalAgentRegistry', () => {
     let tempDir: string;

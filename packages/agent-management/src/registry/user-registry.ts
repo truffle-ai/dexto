@@ -1,7 +1,7 @@
 import { promises as fs, readFileSync } from 'fs';
 import { existsSync } from 'fs';
 import path from 'path';
-import { getDextoGlobalPath } from '@core/utils/path.js';
+import { getDextoGlobalPath } from '@dexto/core';
 import {
     Registry,
     RegistrySchema,
@@ -10,7 +10,7 @@ import {
     deriveDisplayName,
 } from './types.js';
 import { RegistryError } from './errors.js';
-import { logger } from '@core/logger/index.js';
+import { logger } from '@dexto/core';
 
 const USER_REGISTRY_FILENAME = 'user-agent-registry.json';
 
