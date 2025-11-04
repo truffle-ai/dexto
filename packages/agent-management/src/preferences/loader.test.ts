@@ -12,7 +12,7 @@ import {
 } from './loader.js';
 import { type GlobalPreferences } from './schemas.js';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@dexto/core';
+import { ErrorType } from '@dexto/core';
 
 // Mock getDextoGlobalPath to use a temporary directory
 import * as pathUtils from '../utils/path.js';

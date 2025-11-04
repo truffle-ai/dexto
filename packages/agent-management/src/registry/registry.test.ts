@@ -4,7 +4,7 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import { LocalAgentRegistry } from './registry.js';
 import { RegistryErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@dexto/core';
+import { ErrorType } from '@dexto/core';
 
 // Mock dependencies
 vi.mock('../utils/path.js', () => ({
