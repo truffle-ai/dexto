@@ -29,7 +29,7 @@ import { useDebounce } from 'use-debounce';
 import { Button } from '../ui/button';
 import { X, Save, RefreshCw, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { apiFetch, ApiError } from '@/lib/api-client';
+import { useAgentConfig, useValidateAgent, useSaveAgentConfig } from '../hooks/useAgentConfig';
 import YAMLEditorView from './YAMLEditorView';
 import FormEditorView from './FormEditorView';
 import type { editor } from 'monaco-editor';
@@ -95,6 +95,16 @@ export default function CustomizePanel({
     onClose,
     variant = 'overlay',
 }: CustomizePanelProps) {
+    // TanStack Query hooks
+    const {
+        data: configData,
+        isLoading,
+        error: loadError,
+        refetch: refetchConfig,
+    } = useAgentConfig(isOpen);
+    const validateMutation = useValidateAgent();
+    const saveMutation = useSaveAgentConfig();
+
     // Content state
     const [yamlContent, setYamlContent] = useState<string>('');
     const [originalYamlContent, setOriginalYamlContent] = useState<string>('');
@@ -107,16 +117,7 @@ export default function CustomizePanel({
     const [editorMode, setEditorMode] = useState<EditorMode>('yaml');
     const [parseError, setParseError] = useState<string | null>(null);
 
-    // Loading/saving state
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [loadError, setLoadError] = useState<string | null>(null);
-    const [saveError, setSaveError] = useState<string | null>(null);
-    const [saveSuccess, setSaveSuccess] = useState(false);
-    const [saveMessage, setSaveMessage] = useState<string>('');
-
     // Validation state
-    const [isValidating, setIsValidating] = useState(false);
     const [isValid, setIsValid] = useState(true);
     const [errors, setErrors] = useState<ValidationError[]>([]);
     const [warnings, setWarnings] = useState<ValidationWarning[]>([]);
@@ -125,23 +126,24 @@ export default function CustomizePanel({
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
+    // Save state (for success messages)
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<string>('');
+
     // Debounced validation
     const [debouncedYamlContent] = useDebounce(yamlContent, 500);
     const latestValidationRequestRef = useRef(0);
 
-    // Load agent configuration from API
-    const loadAgentConfig = useCallback(async () => {
-        setIsLoading(true);
-        setLoadError(null);
-        try {
-            const data = await apiFetch<AgentConfigResponse>('/api/agent/config');
-            setYamlContent(data.yaml);
-            setOriginalYamlContent(data.yaml);
-            setRelativePath(data.relativePath);
+    // Initialize state when config data loads
+    useEffect(() => {
+        if (configData && isOpen) {
+            setYamlContent(configData.yaml);
+            setOriginalYamlContent(configData.yaml);
+            setRelativePath(configData.relativePath);
             setHasUnsavedChanges(false);
 
             // Parse for form mode
-            const { config, document } = parseYamlToConfig(data.yaml);
+            const { config, document } = parseYamlToConfig(configData.yaml);
             if (config && document) {
                 setParsedConfig(config);
                 setOriginalParsedConfig(config);
@@ -149,26 +151,17 @@ export default function CustomizePanel({
             }
 
             // Initial validation
-            await validateYaml(data.yaml);
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err);
-            setLoadError(message);
-            console.error(`Error loading agent config: ${message}`);
-        } finally {
-            setIsLoading(false);
+            validateYaml(configData.yaml);
         }
-    }, []);
+    }, [configData, isOpen]);
 
     // Validate YAML content via API
     const validateYaml = async (yaml: string) => {
         const requestId = latestValidationRequestRef.current + 1;
         latestValidationRequestRef.current = requestId;
-        setIsValidating(true);
+
         try {
-            const data = await apiFetch<ValidationResponse>('/api/agent/validate', {
-                method: 'POST',
-                body: JSON.stringify({ yaml }),
-            });
+            const data = await validateMutation.mutateAsync({ yaml });
             if (latestValidationRequestRef.current === requestId) {
                 setIsValid(data.valid);
                 setErrors(data.errors || []);
@@ -181,10 +174,6 @@ export default function CustomizePanel({
                 setErrors([
                     { message: 'Failed to validate configuration', code: 'VALIDATION_ERROR' },
                 ]);
-            }
-        } finally {
-            if (latestValidationRequestRef.current === requestId) {
-                setIsValidating(false);
             }
         }
     };
@@ -373,7 +362,6 @@ export default function CustomizePanel({
     const handleYamlChange = (value: string) => {
         setYamlContent(value);
         setHasUnsavedChanges(value !== originalYamlContent);
-        setSaveError(null);
         setSaveSuccess(false);
 
         // Update parsed config and document for potential form mode switch
@@ -401,7 +389,6 @@ export default function CustomizePanel({
         setYamlContent(newYaml);
         // Use semantic comparison for form mode to handle YAML formatting differences
         setHasUnsavedChanges(!configsAreEqual(newConfig, originalParsedConfig));
-        setSaveError(null);
         setSaveSuccess(false);
         // Validation happens automatically via debouncedYamlContent useEffect
     };
@@ -443,20 +430,14 @@ export default function CustomizePanel({
     // Save configuration
     const handleSave = async () => {
         if (!isValid || errors.length > 0) {
-            setSaveError('Cannot save: configuration has errors');
             return;
         }
 
-        setIsSaving(true);
-        setSaveError(null);
         setSaveSuccess(false);
         setSaveMessage('');
 
         try {
-            const data = await apiFetch<SaveConfigResponse>('/api/agent/config', {
-                method: 'POST',
-                body: JSON.stringify({ yaml: yamlContent }),
-            });
+            const data = await saveMutation.mutateAsync({ yaml: yamlContent });
 
             setOriginalYamlContent(yamlContent);
             setHasUnsavedChanges(false);
@@ -477,10 +458,7 @@ export default function CustomizePanel({
             }, 5000);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err);
-            setSaveError(message);
             console.error(`Error saving agent config: ${message}`);
-        } finally {
-            setIsSaving(false);
         }
     };
 
@@ -489,7 +467,7 @@ export default function CustomizePanel({
         if (hasUnsavedChanges) {
             setShowUnsavedDialog(true);
         } else {
-            loadAgentConfig();
+            refetchConfig();
         }
     };
 
@@ -507,15 +485,10 @@ export default function CustomizePanel({
         setShowUnsavedDialog(false);
         setYamlContent(originalYamlContent);
         setHasUnsavedChanges(false);
-        loadAgentConfig();
+        refetchConfig();
     };
 
-    // Load config when panel opens
-    useEffect(() => {
-        if (isOpen) {
-            loadAgentConfig();
-        }
-    }, [isOpen, loadAgentConfig]);
+    // Config loads automatically via useAgentConfig hook when isOpen is true
 
     // Trigger validation when debounced content changes
     useEffect(() => {
@@ -532,7 +505,7 @@ export default function CustomizePanel({
             // Cmd+S / Ctrl+S to save
             if ((e.metaKey || e.ctrlKey) && e.key === 's') {
                 e.preventDefault();
-                if (!isSaving && isValid) {
+                if (!saveMutation.isPending && isValid) {
                     handleSave();
                 }
             }
@@ -545,13 +518,13 @@ export default function CustomizePanel({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, isSaving, isValid, hasUnsavedChanges]);
+    }, [isOpen, saveMutation.isPending, isValid, hasUnsavedChanges]);
 
     if (!isOpen) return null;
 
     // Calculate save button disabled reason
     const getSaveDisabledReason = (): string | null => {
-        if (isSaving) return null; // Not really disabled, just in progress
+        if (saveMutation.isPending) return null; // Not really disabled, just in progress
         if (!hasUnsavedChanges) return 'No changes to save';
         if (errors.length > 0) {
             // Find the most relevant error
@@ -566,7 +539,8 @@ export default function CustomizePanel({
     };
 
     const saveDisabledReason = getSaveDisabledReason();
-    const isSaveDisabled = !hasUnsavedChanges || isSaving || !isValid || errors.length > 0;
+    const isSaveDisabled =
+        !hasUnsavedChanges || saveMutation.isPending || !isValid || errors.length > 0;
 
     const panelContent = (
         <div className="flex flex-col h-full bg-background">
@@ -660,8 +634,10 @@ export default function CustomizePanel({
                             <h3 className="text-lg font-semibold mb-2">
                                 Failed to load configuration
                             </h3>
-                            <p className="text-sm text-muted-foreground mb-4">{loadError}</p>
-                            <Button onClick={loadAgentConfig} variant="outline">
+                            <p className="text-sm text-muted-foreground mb-4">
+                                {loadError?.message || 'Unknown error'}
+                            </p>
+                            <Button onClick={() => refetchConfig()} variant="outline">
                                 <RefreshCw className="h-4 w-4 mr-2" />
                                 Retry
                             </Button>
@@ -691,7 +667,7 @@ export default function CustomizePanel({
                     <YAMLEditorView
                         value={yamlContent}
                         onChange={handleYamlChange}
-                        isValidating={isValidating}
+                        isValidating={validateMutation.isPending}
                         isValid={isValid}
                         errors={errors}
                         warnings={warnings}
@@ -718,7 +694,7 @@ export default function CustomizePanel({
             {!loadError && !isLoading && (
                 <div className="flex flex-col border-t border-border">
                     {/* Save status messages */}
-                    {(saveSuccess || saveError) && (
+                    {(saveSuccess || saveMutation.error) && (
                         <div className="px-4 py-3 bg-muted/50 border-b border-border">
                             {saveSuccess && (
                                 <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
@@ -726,10 +702,10 @@ export default function CustomizePanel({
                                     <span>{saveMessage}</span>
                                 </div>
                             )}
-                            {saveError && (
+                            {saveMutation.error && (
                                 <div className="flex items-center gap-2 text-sm text-destructive">
                                     <AlertTriangle className="h-4 w-4" />
-                                    <span>{saveError}</span>
+                                    <span>{saveMutation.error.message}</span>
                                 </div>
                             )}
                         </div>
@@ -751,7 +727,7 @@ export default function CustomizePanel({
                                             onClick={handleSave}
                                             disabled={isSaveDisabled}
                                         >
-                                            {isSaving ? (
+                                            {saveMutation.isPending ? (
                                                 <>
                                                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
                                                     Saving...

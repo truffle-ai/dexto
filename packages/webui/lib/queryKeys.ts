@@ -21,6 +21,11 @@ export const queryKeys = {
         path: ['agentPath'] as const,
     },
 
+    // Agent configuration queries
+    agent: {
+        config: ['agent', 'config'] as const,
+    },
+
     // LLM configuration queries
     llm: {
         current: (sessionId: string | null | undefined) =>
