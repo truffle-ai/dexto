@@ -9,9 +9,6 @@
  * - Node: Routes to this file (full exports)
  */
 
-// Core Orchestrator
-export { Dexto } from './Dexto.js';
-
 // Core Agent
 export * from './agent/index.js';
 
@@ -35,9 +32,6 @@ export * from './logger/index.js';
 
 // MCP
 export * from './mcp/index.js';
-
-// Preferences
-export * from './preferences/index.js';
 
 // Session
 export * from './session/index.js';
