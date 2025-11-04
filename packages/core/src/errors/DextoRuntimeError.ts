@@ -9,8 +9,8 @@ import type { DextoErrorCode } from './types.js';
  */
 export class DextoRuntimeError<C = unknown> extends DextoBaseError {
     constructor(
-        public readonly code: DextoErrorCode,
-        public readonly scope: ErrorScope,
+        public readonly code: DextoErrorCode | string,
+        public readonly scope: ErrorScope | string,
         public readonly type: ErrorType,
         message: string,
         public readonly context?: C,

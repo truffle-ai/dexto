@@ -54,6 +54,7 @@
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
+    "@dexto/agent-management": "workspace:*",
     "@types/json-schema": "^7.0.15",
     "zod": "^3.25.0"
   },

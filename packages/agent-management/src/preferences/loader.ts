@@ -3,7 +3,7 @@
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { getDextoGlobalPath } from '@dexto/core';
+import { getDextoGlobalPath } from '../utils/path.js';
 import { logger } from '@dexto/core';
 import { DextoValidationError, DextoRuntimeError } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';

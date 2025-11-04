@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@dexto/core';
-import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '@dexto/core';
+import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '../utils/path.js';
 import { loadGlobalPreferences } from '../preferences/loader.js';
 import { writePreferencesToAgent } from '../writer.js';
 import {

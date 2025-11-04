@@ -10,7 +10,7 @@ import {
     getDextoGlobalPath,
     globalPreferencesExist,
     loadGlobalPreferences,
-} from '@dexto/core';
+} from '@dexto/agent-management';
 
 // Zod schema for list-agents command validation
 const ListAgentsCommandSchema = z

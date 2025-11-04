@@ -1,6 +1,6 @@
-// packages/core/src/utils/execution-context.ts
-// TODO: (migration) This file is duplicated in @dexto/agent-management for short-term compatibility
-// Remove from core once all services accept paths via initialization options
+// packages/agent-management/src/utils/execution-context.ts
+// TODO: (migration) This file is duplicated from @dexto/core for short-term compatibility
+// This will become the primary location once core services accept paths via initialization
 
 import { walkUpDirectories } from './fs-walk.js';
 import { readFileSync } from 'fs';

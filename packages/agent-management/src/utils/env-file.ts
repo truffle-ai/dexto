@@ -1,5 +1,5 @@
-// TODO: (migration) This file is duplicated in @dexto/agent-management for short-term compatibility
-// Remove from core once path utilities are fully migrated
+// TODO: (migration) This file is duplicated from @dexto/core for short-term compatibility
+// This will become the primary location once path utilities are fully migrated
 
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';

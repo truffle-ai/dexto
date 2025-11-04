@@ -2,13 +2,13 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
+import { isPath } from './utils/path.js';
 import {
-    isPath,
     getExecutionContext,
     findDextoSourceRoot,
     findDextoProjectRoot,
-    logger,
-} from '@dexto/core';
+} from './utils/execution-context.js';
+import { logger } from '@dexto/core';
 import { loadGlobalPreferences, globalPreferencesExist } from './preferences/loader.js';
 import { ConfigError } from '@dexto/core';
 

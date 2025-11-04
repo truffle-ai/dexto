@@ -34,3 +34,23 @@ export { AgentOrchestrator } from './AgentOrchestrator.js';
 
 // Re-export for backward compatibility
 export { AgentOrchestrator as Dexto } from './AgentOrchestrator.js';
+
+// Path utilities (duplicated from core for short-term compatibility)
+export {
+    getDextoPath,
+    getDextoGlobalPath,
+    getDextoEnvPath,
+    copyDirectory,
+    isPath,
+    findPackageRoot,
+    resolveBundledScript,
+    ensureDextoGlobalDirectory,
+} from './utils/path.js';
+export {
+    getExecutionContext,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
+    type ExecutionContext,
+} from './utils/execution-context.js';
+export { walkUpDirectories } from './utils/fs-walk.js';
+export { updateEnvFile } from './utils/env-file.js';

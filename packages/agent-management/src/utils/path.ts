@@ -1,5 +1,5 @@
-// TODO: (migration) This file is duplicated in @dexto/agent-management for short-term compatibility
-// Remove from core once all services accept paths via initialization options
+// TODO: (migration) This file is duplicated from @dexto/core for short-term compatibility
+// This will become the primary location once core services accept paths via initialization
 
 import * as path from 'path';
 import { existsSync } from 'fs';
@@ -13,7 +13,6 @@ import {
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
-import { logger } from '../logger/index.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
@@ -250,6 +249,6 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
             break;
         }
     }
-    logger.debug(`Dexto env path: ${envPath}, context: ${context}`);
+    // logger.debug(`Dexto env path: ${envPath}, context: ${context}`); // TODO: (migration) Removed logger dependency
     return envPath;
 }

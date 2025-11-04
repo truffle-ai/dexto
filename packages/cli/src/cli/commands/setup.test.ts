@@ -9,13 +9,21 @@ vi.mock('@dexto/core', async () => {
     const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
     return {
         ...actual,
+        resolveApiKeyForProvider: vi.fn(),
+    };
+});
+
+vi.mock('@dexto/agent-management', async () => {
+    const actual =
+        await vi.importActual<typeof import('@dexto/agent-management')>('@dexto/agent-management');
+    return {
+        ...actual,
         createInitialPreferences: vi.fn((provider, model, apiKeyVar, defaultAgent) => ({
             llm: { provider, model, apiKey: apiKeyVar },
             defaults: { defaultAgent },
             setup: { completed: true },
         })),
         saveGlobalPreferences: vi.fn().mockResolvedValue(undefined),
-        resolveApiKeyForProvider: vi.fn(),
     };
 });
 
@@ -65,7 +73,7 @@ describe('Setup Command', () => {
         tempDir = createTempDir();
 
         // Get mock functions
-        const prefLoader = await import('@dexto/core');
+        const prefLoader = await import('@dexto/agent-management');
         const apiKeySetup = await import('../utils/api-key-setup.js');
         const apiKeyResolver = await import('@dexto/core');
         const providerSetup = await import('../utils/provider-setup.js');

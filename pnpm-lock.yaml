@@ -306,6 +306,9 @@ importers:
         specifier: ^3.24.6
         version: 3.24.6(zod@3.25.76)
     devDependencies:
+      '@dexto/agent-management':
+        specifier: workspace:*
+        version: link:../agent-management
       '@types/json-schema':
         specifier: ^7.0.15
         version: 7.0.15

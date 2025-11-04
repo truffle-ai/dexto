@@ -1,4 +1,4 @@
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import { RegistryErrorCode } from './error-codes.js';
 
 /**
@@ -10,7 +10,7 @@ export class RegistryError {
     static agentNotFound(agentId: string, availableAgents: string[]) {
         return new DextoRuntimeError(
             RegistryErrorCode.AGENT_NOT_FOUND,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.USER,
             `Agent '${agentId}' not found in registry`,
             { agentId, availableAgents },
@@ -21,7 +21,7 @@ export class RegistryError {
     static agentInvalidEntry(agentId: string, reason: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.AGENT_INVALID_ENTRY,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Registry entry for '${agentId}' is invalid: ${reason}`,
             { agentId, reason },
@@ -32,7 +32,7 @@ export class RegistryError {
     static agentAlreadyExists(agentId: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.AGENT_ALREADY_EXISTS,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.USER,
             `Agent '${agentId}' already exists in user registry`,
             { agentId },
@@ -43,7 +43,7 @@ export class RegistryError {
     static customAgentNameConflict(agentId: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.AGENT_ALREADY_EXISTS,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.USER,
             `Cannot create custom agent '${agentId}': name conflicts with builtin agent`,
             { agentId, conflictType: 'builtin' },
@@ -55,7 +55,7 @@ export class RegistryError {
     static installationFailed(agentId: string, cause: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.INSTALLATION_FAILED,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Failed to install agent '${agentId}': ${cause}`,
             { agentId, cause },
@@ -66,7 +66,7 @@ export class RegistryError {
     static installationValidationFailed(agentId: string, missingPath: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.INSTALLATION_VALIDATION_FAILED,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Installation validation failed for '${agentId}': missing main config`,
             { agentId, missingPath },
@@ -78,7 +78,7 @@ export class RegistryError {
     static configNotFound(configPath: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.CONFIG_NOT_FOUND,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Agent config file not found: ${configPath}`,
             { configPath },
@@ -89,7 +89,7 @@ export class RegistryError {
     static mainConfigMissing(agentId: string, expectedPath: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.MAIN_CONFIG_MISSING,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Main config file not found for agent '${agentId}': ${expectedPath}`,
             { agentId, expectedPath },
@@ -101,7 +101,7 @@ export class RegistryError {
     static agentNotInstalled(agentId: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.AGENT_NOT_INSTALLED,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.USER,
             `Agent '${agentId}' is not installed`,
             { agentId },
@@ -112,7 +112,7 @@ export class RegistryError {
     static agentProtected(agentId: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.AGENT_PROTECTED,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.USER,
             `Agent '${agentId}' is protected and cannot be uninstalled. Use --force to override (not recommended for critical agents)`,
             { agentId },
@@ -123,7 +123,7 @@ export class RegistryError {
     static uninstallationFailed(agentId: string, cause: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.UNINSTALLATION_FAILED,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Failed to uninstall agent '${agentId}': ${cause}`,
             { agentId, cause },
@@ -135,7 +135,7 @@ export class RegistryError {
     static registryNotFound(registryPath: string, cause: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.REGISTRY_NOT_FOUND,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Agent registry not found: ${registryPath}: ${cause}`,
             { registryPath },
@@ -146,7 +146,7 @@ export class RegistryError {
     static registryParseError(registryPath: string, cause: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.REGISTRY_PARSE_ERROR,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Failed to parse agent registry from ${registryPath}: ${cause}`,
             { registryPath, cause },
@@ -157,7 +157,7 @@ export class RegistryError {
     static registryWriteError(registryPath: string, cause: string) {
         return new DextoRuntimeError(
             RegistryErrorCode.REGISTRY_WRITE_ERROR,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.SYSTEM,
             `Failed to save agent registry to ${registryPath}: ${cause}`,
             { registryPath, cause },
@@ -169,7 +169,7 @@ export class RegistryError {
     static agentNotInstalledAutoInstallDisabled(agentId: string, availableAgents: string[]) {
         return new DextoRuntimeError(
             RegistryErrorCode.AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED,
-            ErrorScope.AGENT_REGISTRY,
+            'agent_registry',
             ErrorType.USER,
             `Agent '${agentId}' is not installed locally and auto-install is disabled`,
             { agentId, availableAgents },

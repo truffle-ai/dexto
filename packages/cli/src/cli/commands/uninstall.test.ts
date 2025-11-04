@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock the registry module
-vi.mock('@dexto/core', async (importOriginal) => {
+vi.mock('@dexto/agent-management', async (importOriginal) => {
     const mod = (await importOriginal()) as any;
     return {
         ...mod,
@@ -27,7 +27,7 @@ describe('Uninstall Command', () => {
         };
 
         // Mock getAgentRegistry to return our mock
-        const registryModule = await import('@dexto/core');
+        const registryModule = await import('@dexto/agent-management');
         vi.mocked(registryModule.getAgentRegistry).mockReturnValue(mockRegistry);
 
         // Mock console

@@ -6,8 +6,16 @@ vi.mock('@dexto/core', async (importOriginal) => {
     const actual = await importOriginal<any>();
     return {
         ...actual,
-        getAgentRegistry: vi.fn(),
         getDextoGlobalPath: vi.fn(),
+    };
+});
+
+// Mock @dexto/agent-management
+vi.mock('@dexto/agent-management', async (importOriginal) => {
+    const actual = await importOriginal<any>();
+    return {
+        ...actual,
+        getAgentRegistry: vi.fn(),
     };
 });
 
@@ -49,10 +57,11 @@ describe('Install Command', () => {
             installCustomAgentFromPath: vi.fn(),
         };
 
-        // Mock @dexto/core functions
-        const registryModule = await import('@dexto/core');
+        // Mock functions
+        const registryModule = await import('@dexto/agent-management');
+        const coreModule = await import('@dexto/core');
         vi.mocked(registryModule.getAgentRegistry).mockReturnValue(mockRegistry);
-        vi.mocked(registryModule.getDextoGlobalPath).mockReturnValue('/mock/global/path');
+        vi.mocked(coreModule.getDextoGlobalPath).mockReturnValue('/mock/global/path');
 
         // Mock existsSync to return false by default (agent not installed)
         vi.mocked(existsSync).mockReturnValue(false);

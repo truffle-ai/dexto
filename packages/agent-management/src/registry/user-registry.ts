@@ -1,7 +1,7 @@
 import { promises as fs, readFileSync } from 'fs';
 import { existsSync } from 'fs';
 import path from 'path';
-import { getDextoGlobalPath } from '@dexto/core';
+import { getDextoGlobalPath } from '../utils/path.js';
 import {
     Registry,
     RegistrySchema,
