@@ -108,59 +108,65 @@ execSync(`mv packages/cli/${cliTarball} .`, { stdio: 'inherit' });
 // Uninstall existing global dexto (both pnpm and npm)
 console.log('🗑️  Removing any existing global dexto installations (npm & pnpm)...');
 
-// Get npm global root
-const npmGlobalRoot = execSync('npm root -g', { encoding: 'utf-8' }).trim();
-const dextoDir = join(npmGlobalRoot, '@dexto');
-const dextoCliDir = join(npmGlobalRoot, 'dexto');
-
+// Check if pnpm global has dexto
 try {
-    // First try to remove pnpm link/install
-    execSync('pnpm rm -g dexto', { stdio: 'pipe' });
-    console.log('  ✓ Removed pnpm global link/install');
-} catch (e) {
-    // Ignore if not installed
-}
-
-// Force remove directories to avoid ENOTEMPTY errors
-console.log('  🧹 Force removing existing installations...');
-
-if (existsSync(dextoDir)) {
-    try {
-        execSync(`rm -rf "${dextoDir}"`, { stdio: 'pipe' });
-        console.log('  ✓ Removed @dexto packages');
-    } catch (e) {
-        console.error('  ❌ Failed to remove @dexto packages');
-        console.error('  Try running: sudo rm -rf ' + dextoDir);
-        process.exit(1);
+    const pnpmList = execSync('pnpm list -g --depth=0', { encoding: 'utf-8' });
+    if (pnpmList.includes('dexto')) {
+        execSync('pnpm rm -g dexto', { stdio: 'inherit' });
+        console.log('  ✓ Removed pnpm global link/install');
     }
+} catch (e) {
+    console.error('  ❌ Failed to remove pnpm global install');
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(1);
 }
 
-if (existsSync(dextoCliDir)) {
-    try {
-        execSync(`rm -rf "${dextoCliDir}"`, { stdio: 'pipe' });
-        console.log('  ✓ Removed dexto CLI');
-    } catch (e) {
-        console.error('  ❌ Failed to remove dexto CLI');
-        console.error('  Try running: sudo rm -rf ' + dextoCliDir);
+// Check if npm global has dexto
+try {
+    const npmList = execSync('npm list -g dexto --depth=0', { encoding: 'utf-8', stdio: 'pipe' });
+    if (!npmList.includes('(empty)')) {
+        execSync('npm uninstall -g dexto', { stdio: 'inherit' });
+        console.log('  ✓ Removed npm global install');
+    }
+} catch (e) {
+    // npm list returns non-zero if package not found, which is fine
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    if (!errorMessage.includes('(empty)') && !errorMessage.includes('ENOENT')) {
+        console.error('  ❌ Failed to check/remove npm global install');
+        console.error(errorMessage);
         process.exit(1);
     }
 }
 
 // Install all packages globally
+// Use absolute paths and explicit prefix to avoid npm workspace detection issues
 console.log('🚀 Installing packages globally...');
+const coreAbsPath = join(rootDir, coreTarball);
+const analyticsAbsPath = join(rootDir, analyticsTarball);
+const serverAbsPath = join(rootDir, serverTarball);
+const cliAbsPath = join(rootDir, cliTarball);
+
+// Get npm global prefix from node binary path (avoids workspace detection)
+const nodePath = execSync('which node', { encoding: 'utf-8' }).trim();
+// Node is typically at /path/to/prefix/bin/node, so go up one level for prefix
+const npmGlobalPrefix = join(nodePath, '..', '..');
+const resolvedPrefix = execSync(`cd "${npmGlobalPrefix}" && pwd`, { encoding: 'utf-8' }).trim();
+console.log(`  📍 Installing to npm global prefix: ${resolvedPrefix}`);
+
 execSync(
-    `npm install -g ./${coreTarball} ./${analyticsTarball} ./${serverTarball} ./${cliTarball}`,
+    `npm install --global --prefix "${resolvedPrefix}" "${coreAbsPath}" "${analyticsAbsPath}" "${serverAbsPath}" "${cliAbsPath}"`,
     {
         stdio: 'inherit',
+        cwd: '/tmp', // Run from /tmp to avoid workspace context
     }
 );
 
 // Clean up tarballs
 console.log('🧹 Cleaning up tarballs...');
-unlinkSync(coreTarball);
-unlinkSync(analyticsTarball);
-unlinkSync(serverTarball);
-unlinkSync(cliTarball);
+unlinkSync(coreTarball!);
+unlinkSync(analyticsTarball!);
+unlinkSync(serverTarball!);
+unlinkSync(cliTarball!);
 
 console.log('✅ Successfully installed dexto globally!');
 console.log('   Run "dexto --help" to get started');

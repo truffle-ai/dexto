@@ -89,8 +89,21 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         console.log('[MEMORY DEBUG] Route handler called');
         console.log('[MEMORY DEBUG] Request headers:', ctx.req.header());
         console.log('[MEMORY DEBUG] Request method:', ctx.req.method);
+        console.log('[MEMORY DEBUG] Request bodyUsed:', (ctx.req.raw as any).bodyUsed);
+        console.log('[MEMORY DEBUG] Request body:', (ctx.req.raw as any).body);
 
-        const input = ctx.req.valid('json');
+        // Try using ctx.req.json() directly instead of ctx.req.valid('json')
+        let input;
+        try {
+            input = await ctx.req.json();
+            console.log('[MEMORY DEBUG] Direct json() parse:', input);
+        } catch (e) {
+            console.log(
+                '[MEMORY DEBUG] Direct json() failed:',
+                e instanceof Error ? e.message : String(e)
+            );
+            input = ctx.req.valid('json');
+        }
         console.log('[MEMORY DEBUG] Parsed input:', input);
         // Defensive check: ensure input is defined and has required fields
         if (!input || typeof input !== 'object') {
