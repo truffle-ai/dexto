@@ -87,6 +87,15 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(createMemoryRoute, async (ctx) => {
         const input = ctx.req.valid('json');
+
+        // Defensive check: ensure input is defined and has required fields
+        if (!input || typeof input !== 'object') {
+            throw new Error('Invalid request body: expected JSON object');
+        }
+        if (!input.content || typeof input.content !== 'string') {
+            throw new Error('Invalid request body: content is required and must be a string');
+        }
+
         // Filter out undefined values for exactOptionalPropertyTypes compatibility
         const createInput: {
             content: string;
