@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-interface ValidationError {
+export interface ValidationError {
     line?: number;
     column?: number;
     path?: string;
@@ -10,7 +10,7 @@ interface ValidationError {
     code: string;
 }
 
-interface ValidationWarning {
+export interface ValidationWarning {
     path: string;
     message: string;
     code: string;

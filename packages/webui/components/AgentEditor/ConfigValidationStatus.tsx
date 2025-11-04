@@ -10,20 +10,7 @@
 
 import React from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
-
-interface ValidationError {
-    line?: number;
-    column?: number;
-    path?: string;
-    message: string;
-    code: string;
-}
-
-interface ValidationWarning {
-    path: string;
-    message: string;
-    code: string;
-}
+import type { ValidationError, ValidationWarning } from '../hooks/useAgentConfig';
 
 interface ConfigValidationStatusProps {
     isValidating: boolean;

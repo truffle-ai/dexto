@@ -4,20 +4,7 @@ import React from 'react';
 import AgentConfigEditor from './AgentConfigEditor';
 import ConfigValidationStatus from './ConfigValidationStatus';
 import type { editor } from 'monaco-editor';
-
-interface ValidationError {
-    line?: number;
-    column?: number;
-    path?: string;
-    message: string;
-    code: string;
-}
-
-interface ValidationWarning {
-    path: string;
-    message: string;
-    code: string;
-}
+import type { ValidationError, ValidationWarning } from '../hooks/useAgentConfig';
 
 interface YAMLEditorViewProps {
     value: string;

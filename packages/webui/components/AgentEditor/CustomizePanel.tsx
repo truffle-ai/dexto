@@ -29,7 +29,13 @@ import { useDebounce } from 'use-debounce';
 import { Button } from '../ui/button';
 import { X, Save, RefreshCw, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAgentConfig, useValidateAgent, useSaveAgentConfig } from '../hooks/useAgentConfig';
+import {
+    useAgentConfig,
+    useValidateAgent,
+    useSaveAgentConfig,
+    type ValidationError,
+    type ValidationWarning,
+} from '../hooks/useAgentConfig';
 import YAMLEditorView from './YAMLEditorView';
 import FormEditorView from './FormEditorView';
 import type { editor } from 'monaco-editor';
@@ -49,20 +55,6 @@ interface CustomizePanelProps {
     isOpen: boolean;
     onClose: () => void;
     variant?: 'overlay' | 'inline';
-}
-
-interface ValidationError {
-    line?: number;
-    column?: number;
-    path?: string;
-    message: string;
-    code: string;
-}
-
-interface ValidationWarning {
-    path: string;
-    message: string;
-    code: string;
 }
 
 interface AgentConfigResponse {
