@@ -91,17 +91,64 @@ const SessionIdEnvelopeSchema = z
             .optional()
             .describe('Session identifier for session-specific LLM configuration'),
     })
-    .passthrough()
-    .describe('Envelope schema for extracting sessionId while allowing additional LLM fields');
+    .describe('Envelope schema for extracting sessionId');
 
+// Explicit schema for LLM switch that includes sessionId + all LLM config fields
+// This provides proper OpenAPI documentation and type-safe validation
 const SwitchLLMBodySchema = z
     .object({
         sessionId: z
             .string()
             .optional()
             .describe('Session identifier for session-specific LLM configuration'),
+        provider: z
+            .enum(LLM_PROVIDERS)
+            .optional()
+            .describe("LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"),
+        model: z.string().optional().describe('Specific model name for the selected provider'),
+        apiKey: z
+            .string()
+            .optional()
+            .describe('API key for provider; can be given directly or via $ENV reference'),
+        maxIterations: z.coerce
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Max iterations for agentic loops'),
+        router: z.enum(LLM_ROUTERS).optional().describe('Router to use (vercel | in-built)'),
+        baseURL: z
+            .string()
+            .optional()
+            .describe(
+                'Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this.'
+            ),
+        maxInputTokens: z.coerce
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Max input tokens for history; required for unknown models'),
+        maxOutputTokens: z.coerce
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Max tokens for model output'),
+        temperature: z.coerce
+            .number()
+            .min(0)
+            .max(1)
+            .optional()
+            .describe('Randomness: 0 deterministic, 1 creative'),
+        allowedMediaTypes: z
+            .array(z.string())
+            .optional()
+            .describe(
+                'MIME type patterns for media expansion (e.g., "image/*", "application/pdf"). Supports wildcards.'
+            ),
     })
-    .passthrough()
+    .strict()
     .describe('LLM switch request body with optional session ID and LLM fields');
 
 // Response schema for GET /llm/current - matches actual spread result
@@ -392,8 +439,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(switchRoute, async (ctx) => {
         const agent = getAgent();
-        // Parse body: extract sessionId and validate remaining fields as LLMUpdatesSchema
-        // Matches Express: SwitchLLMBodySchema.passthrough() allows sessionId + any LLM fields
+        // Parse body: extract sessionId and validate LLM fields
+        // Schema validates all fields at OpenAPI level for proper type safety
         const raw = ctx.req.valid('json');
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
         const { sessionId: _omit, ...llmCandidate } = raw as Record<string, unknown>;
