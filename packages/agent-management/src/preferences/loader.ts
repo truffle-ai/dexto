@@ -3,10 +3,10 @@
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { getDextoGlobalPath } from '@dexto/coreutils/path.js';
-import { logger } from '@dexto/corelogger/index.js';
-import { DextoValidationError, DextoRuntimeError } from '@dexto/coreerrors/index.js';
-import type { LLMProvider } from '@dexto/corellm/types.js';
+import { getDextoGlobalPath } from '@dexto/core';
+import { logger } from '@dexto/core';
+import { DextoValidationError, DextoRuntimeError } from '@dexto/core';
+import type { LLMProvider } from '@dexto/core';
 import { GlobalPreferencesSchema, type GlobalPreferences } from './schemas.js';
 import { PREFERENCES_FILE } from './constants.js';
 import { PreferenceError } from './errors.js';
@@ -140,7 +140,7 @@ export function createInitialPreferences(
 /**
  * Updates type that allows partial nested objects
  */
-type GlobalPreferencesUpdates = {
+export type GlobalPreferencesUpdates = {
     llm?: GlobalPreferences['llm'];
     defaults?: Partial<GlobalPreferences['defaults']>;
     setup?: Partial<GlobalPreferences['setup']>;

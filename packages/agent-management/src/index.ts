@@ -1,14 +1,9 @@
 // Agent registry
 export { getAgentRegistry } from './registry/registry.js';
-export type {
-    AgentRegistry,
-    AgentRegistryEntry,
-    Registry,
-    BuiltinRegistryEntry,
-    CustomRegistryEntry,
-} from './registry/types.js';
+export type { AgentRegistry, AgentRegistryEntry, Registry } from './registry/types.js';
 export { deriveDisplayName } from './registry/types.js';
-export { RegistryError, RegistryErrorCode } from './registry/errors.js';
+export { RegistryError } from './registry/errors.js';
+export { RegistryErrorCode } from './registry/error-codes.js';
 
 // Global preferences
 export {
@@ -18,8 +13,9 @@ export {
     getGlobalPreferencesPath,
     createInitialPreferences,
     updateGlobalPreferences,
+    type GlobalPreferencesUpdates,
 } from './preferences/loader.js';
-export type { GlobalPreferences, GlobalPreferencesUpdates } from './preferences/schemas.js';
+export type { GlobalPreferences } from './preferences/schemas.js';
 export { PreferenceError, PreferenceErrorCode } from './preferences/errors.js';
 
 // Agent resolver

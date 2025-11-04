@@ -1,7 +1,6 @@
 // packages/core/src/preferences/errors.ts
 
-import { DextoRuntimeError, DextoValidationError } from '@dexto/coreerrors/index.js';
-import { ErrorScope, ErrorType } from '@dexto/coreerrors/types.js';
+import { DextoRuntimeError, DextoValidationError, ErrorScope, ErrorType } from '@dexto/core';
 import { type ZodError } from 'zod';
 import { PreferenceErrorCode } from './error-codes.js';
 
