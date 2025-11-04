@@ -1,8 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import {
-    Dexto,
-    deriveDisplayName,
     LLM_PROVIDERS,
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
@@ -10,6 +8,7 @@ import {
     safeStringify,
     type LLMProvider,
 } from '@dexto/core';
+import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import path from 'path';
