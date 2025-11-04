@@ -4,7 +4,8 @@ import { existsSync, statSync } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import * as p from '@clack/prompts';
-import { getAgentRegistry, getDextoGlobalPath } from '@dexto/core';
+import { getDextoGlobalPath } from '@dexto/core';
+import { getAgentRegistry } from '@dexto/agent-management';
 import { capture } from '../../analytics/index.js';
 
 // Zod schema for install command validation

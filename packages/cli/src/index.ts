@@ -24,17 +24,17 @@ import {
     getAllSupportedModels,
     DextoAgent,
     loadAgentConfig,
-    globalPreferencesExist,
-    loadGlobalPreferences,
     type LLMProvider,
-} from '@dexto/core';
-import {
-    resolveAgentPath,
-    getAgentRegistry,
     isPath,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
 } from '@dexto/core';
+import {
+    resolveAgentPath,
+    getAgentRegistry,
+    globalPreferencesExist,
+    loadGlobalPreferences,
+} from '@dexto/agent-management';
 import type { AgentConfig } from '@dexto/core';
 import { startAiCli, startHeadlessCli, loadMostRecentSession } from './cli/cli.js';
 import { startHonoApiServer as startApiServer } from './api/server-hono.js';

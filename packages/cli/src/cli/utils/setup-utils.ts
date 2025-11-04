@@ -1,6 +1,6 @@
 // packages/cli/src/cli/utils/setup-utils.ts
 
-import { globalPreferencesExist, loadGlobalPreferences } from '@dexto/core';
+import { globalPreferencesExist, loadGlobalPreferences } from '@dexto/agent-management';
 import { getExecutionContext } from '@dexto/core';
 
 /**

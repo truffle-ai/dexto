@@ -1,7 +1,7 @@
 // packages/cli/src/cli/commands/uninstall.ts
 
 import { z } from 'zod';
-import { getAgentRegistry } from '@dexto/core';
+import { getAgentRegistry } from '@dexto/agent-management';
 import { capture } from '../../analytics/index.js';
 
 // Zod schema for uninstall command validation

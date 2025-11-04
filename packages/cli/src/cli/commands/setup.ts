@@ -9,7 +9,7 @@ import {
     getSupportedModels,
 } from '@dexto/core';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@dexto/core';
-import { createInitialPreferences, saveGlobalPreferences } from '@dexto/core';
+import { createInitialPreferences, saveGlobalPreferences } from '@dexto/agent-management';
 import { interactiveApiKeySetup } from '../utils/api-key-setup.js';
 import { selectProvider } from '../utils/provider-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';

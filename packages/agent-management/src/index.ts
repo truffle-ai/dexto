@@ -7,6 +7,7 @@ export type {
     BuiltinRegistryEntry,
     CustomRegistryEntry,
 } from './registry/types.js';
+export { deriveDisplayName } from './registry/types.js';
 export { RegistryError, RegistryErrorCode } from './registry/errors.js';
 
 // Global preferences
