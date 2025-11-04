@@ -21,7 +21,7 @@
  * readlink $(which dexto)
  */
 import { execSync } from 'child_process';
-import { readdirSync, unlinkSync } from 'fs';
+import { readdirSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 
 console.log('📦 Creating tarballs for local installation...');
@@ -107,6 +107,12 @@ execSync(`mv packages/cli/${cliTarball} .`, { stdio: 'inherit' });
 
 // Uninstall existing global dexto (both pnpm and npm)
 console.log('🗑️  Removing any existing global dexto installations (npm & pnpm)...');
+
+// Get npm global root
+const npmGlobalRoot = execSync('npm root -g', { encoding: 'utf-8' }).trim();
+const dextoDir = join(npmGlobalRoot, '@dexto');
+const dextoCliDir = join(npmGlobalRoot, 'dexto');
+
 try {
     // First try to remove pnpm link/install
     execSync('pnpm rm -g dexto', { stdio: 'pipe' });
@@ -114,12 +120,30 @@ try {
 } catch (e) {
     // Ignore if not installed
 }
-try {
-    // Then try to remove npm install
-    execSync('npm uninstall -g dexto', { stdio: 'pipe' });
-    console.log('  ✓ Removed npm global install');
-} catch (e) {
-    // Ignore if not installed
+
+// Force remove directories to avoid ENOTEMPTY errors
+console.log('  🧹 Force removing existing installations...');
+
+if (existsSync(dextoDir)) {
+    try {
+        execSync(`rm -rf "${dextoDir}"`, { stdio: 'pipe' });
+        console.log('  ✓ Removed @dexto packages');
+    } catch (e) {
+        console.error('  ❌ Failed to remove @dexto packages');
+        console.error('  Try running: sudo rm -rf ' + dextoDir);
+        process.exit(1);
+    }
+}
+
+if (existsSync(dextoCliDir)) {
+    try {
+        execSync(`rm -rf "${dextoCliDir}"`, { stdio: 'pipe' });
+        console.log('  ✓ Removed dexto CLI');
+    } catch (e) {
+        console.error('  ❌ Failed to remove dexto CLI');
+        console.error('  Try running: sudo rm -rf ' + dextoCliDir);
+        process.exit(1);
+    }
 }
 
 // Install all packages globally
