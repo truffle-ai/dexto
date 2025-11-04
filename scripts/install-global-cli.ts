@@ -21,8 +21,72 @@
  * readlink $(which dexto)
  */
 import { execSync } from 'child_process';
-import { readdirSync, unlinkSync, existsSync } from 'fs';
-import { join } from 'path';
+import { readdirSync, unlinkSync, existsSync, rmSync, mkdirSync, lstatSync, symlinkSync } from 'fs';
+import { join, dirname, relative } from 'path';
+
+function dedupeZod(globalPrefix: string) {
+    const candidateNodeModules = [
+        join(globalPrefix, 'lib', 'node_modules'),
+        join(globalPrefix, 'node_modules'),
+    ];
+    const globalNodeModules = candidateNodeModules.find((candidate) => existsSync(candidate));
+
+    if (!globalNodeModules) {
+        console.warn('  ⚠️  Unable to find global node_modules directory, skipping Zod dedupe.');
+        return;
+    }
+
+    const possibleSources = [
+        join(globalNodeModules, 'dexto', 'node_modules', 'zod'),
+        join(globalNodeModules, 'zod'),
+    ];
+
+    const sourceZod = possibleSources.find((candidate) => existsSync(candidate));
+
+    if (!sourceZod) {
+        console.warn(
+            '  ⚠️  No shared zod installation found after npm install; skipping dedupe. ' +
+                'The CLI should still work, but memory route validation may remain broken.'
+        );
+        return;
+    }
+
+    const packagesNeedingSymlink = ['@dexto/core', '@dexto/server', '@dexto/analytics'];
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+
+    for (const pkg of packagesNeedingSymlink) {
+        const nestedZod = join(globalNodeModules, pkg, 'node_modules', 'zod');
+        if (!existsSync(nestedZod)) {
+            continue;
+        }
+
+        try {
+            const stat = lstatSync(nestedZod);
+            if (stat.isSymbolicLink()) {
+                continue;
+            }
+        } catch (error) {
+            console.warn(`  ⚠️  Unable to inspect ${nestedZod}: ${error}`);
+            continue;
+        }
+
+        try {
+            rmSync(nestedZod, { recursive: true, force: true });
+        } catch (error) {
+            console.warn(`  ⚠️  Failed to remove ${nestedZod}: ${error}`);
+            continue;
+        }
+
+        try {
+            mkdirSync(dirname(nestedZod), { recursive: true });
+            const relativePath = relative(dirname(nestedZod), sourceZod) || '.';
+            symlinkSync(relativePath, nestedZod, linkType);
+            console.log(`  🔗 Linked ${nestedZod} → ${sourceZod}`);
+        } catch (error) {
+            console.warn(`  ⚠️  Failed to link ${nestedZod} to ${sourceZod}: ${error}`);
+        }
+    }
+}
 
 console.log('📦 Creating tarballs for local installation...');
 
@@ -160,6 +224,9 @@ execSync(
         cwd: '/tmp', // Run from /tmp to avoid workspace context
     }
 );
+
+console.log('🔄 Deduplicating Zod across installed packages...');
+dedupeZod(resolvedPrefix);
 
 // Clean up tarballs
 console.log('🧹 Cleaning up tarballs...');
