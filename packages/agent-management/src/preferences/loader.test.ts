@@ -12,10 +12,10 @@ import {
 } from './loader.js';
 import { type GlobalPreferences } from './schemas.js';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { ErrorScope, ErrorType } from '@dexto/coreerrors/types.js';
 
 // Mock getDextoGlobalPath to use a temporary directory
-import * as pathUtils from '@core/utils/path.js';
+import * as pathUtils from '@dexto/coreutils/path.js';
 import { vi } from 'vitest';
 
 describe('Preferences Loader', () => {

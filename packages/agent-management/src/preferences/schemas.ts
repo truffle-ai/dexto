@@ -1,11 +1,11 @@
 // packages/core/src/preferences/schemas.ts
 
 import { z } from 'zod';
-import { isValidProviderModel, getSupportedModels } from '@core/llm/registry.js';
-import { LLM_PROVIDERS } from '@core/llm/types.js';
-import { NonEmptyTrimmed } from '@core/utils/result.js';
+import { isValidProviderModel, getSupportedModels } from '@dexto/corellm/registry.js';
+import { LLM_PROVIDERS } from '@dexto/corellm/types.js';
+import { NonEmptyTrimmed } from '@dexto/coreutils/result.js';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { ErrorScope, ErrorType } from '@dexto/coreerrors/types.js';
 
 export const PreferenceLLMSchema = z
     .object({
