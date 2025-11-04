@@ -86,9 +86,12 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
         },
     });
     app.openapi(createMemoryRoute, async (ctx) => {
-        const input = ctx.req.valid('json');
+        console.log('[MEMORY DEBUG] Route handler called');
+        console.log('[MEMORY DEBUG] Request headers:', ctx.req.header());
+        console.log('[MEMORY DEBUG] Request method:', ctx.req.method);
 
-        console.log('input', input);
+        const input = ctx.req.valid('json');
+        console.log('[MEMORY DEBUG] Parsed input:', input);
         // Defensive check: ensure input is defined and has required fields
         if (!input || typeof input !== 'object') {
             throw new Error('Invalid request body: expected JSON object');
