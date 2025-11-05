@@ -24,7 +24,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
 import { Checkbox } from './ui/checkbox';
-import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAddServer } from './hooks/useServers';
 
@@ -48,7 +47,6 @@ export default function ConnectServerModal({
     initialConfig,
     lockName,
 }: ConnectServerModalProps) {
-    const queryClient = useQueryClient();
     const addServerMutation = useAddServer();
 
     const [serverName, setServerName] = useState('');

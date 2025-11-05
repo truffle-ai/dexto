@@ -274,7 +274,7 @@ export default function CustomizePanel({
             // null and undefined are empty
             if (value === null || value === undefined) return true;
             // Empty string is empty
-            if (value === '' || value === '') return true;
+            if (value === '') return true;
             // Empty arrays are empty
             if (Array.isArray(value) && value.length === 0) return true;
             // Empty objects are empty (but not Date, etc)
