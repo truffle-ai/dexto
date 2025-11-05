@@ -1,11 +1,11 @@
 // packages/core/src/preferences/schemas.ts
 
 import { z } from 'zod';
-import { isValidProviderModel, getSupportedModels } from '@core/llm/registry.js';
-import { LLM_PROVIDERS } from '@core/llm/types.js';
-import { NonEmptyTrimmed } from '@core/utils/result.js';
+import { isValidProviderModel, getSupportedModels } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/core';
+import { NonEmptyTrimmed } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { ErrorType } from '@dexto/core';
 
 export const PreferenceLLMSchema = z
     .object({
@@ -31,7 +31,7 @@ export const PreferenceLLMSchema = z
                 message: `Model '${data.model}' is not supported by provider '${data.provider}'. Supported models: ${supportedModels.join(', ')}`,
                 params: {
                     code: PreferenceErrorCode.MODEL_INCOMPATIBLE,
-                    scope: ErrorScope.PREFERENCE,
+                    scope: 'preference',
                     type: ErrorType.USER,
                 },
             });

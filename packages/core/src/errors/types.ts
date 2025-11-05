@@ -7,9 +7,7 @@ import type { SessionErrorCode } from '@core/session/error-codes.js';
 import type { StorageErrorCode } from '@core/storage/error-codes.js';
 import type { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
 import type { ToolErrorCode } from '@core/tools/error-codes.js';
-import type { PreferenceErrorCode } from '@core/preferences/error-codes.js';
 import type { ResourceErrorCode } from '@core/resources/error-codes.js';
-import type { RegistryErrorCode } from '@core/agent/registry/error-codes.js';
 import type { PromptErrorCode } from '@core/prompts/error-codes.js';
 import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
 import type { MemoryErrorCode } from '@core/memory/error-codes.js';
@@ -31,8 +29,6 @@ export enum ErrorScope {
     TOOLS = 'tools', // Tool execution and authorization
     STORAGE = 'storage', // Storage backend operations
     SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
-    PREFERENCE = 'preference', // Global preferences file operations and validation
-    AGENT_REGISTRY = 'agent_registry', // Agent registry operations, installation, resolution
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
     PROMPT = 'prompt', // Prompt management, resolution, and providers
     MEMORY = 'memory', // Memory management and storage
@@ -71,8 +67,6 @@ export type DextoErrorCode =
     | ToolErrorCode
     | StorageErrorCode
     | SystemPromptErrorCode
-    | PreferenceErrorCode
-    | RegistryErrorCode
     | ResourceErrorCode
     | PromptErrorCode
     | ApprovalErrorCode
@@ -86,9 +80,9 @@ export type Severity = 'error' | 'warning';
 
 /** Generic issue type for validation results */
 export interface Issue<C = unknown> {
-    code: DextoErrorCode;
+    code: DextoErrorCode | string;
     message: string;
-    scope: ErrorScope; // Domain that generated this issue
+    scope: ErrorScope | string; // Domain that generated this issue
     type: ErrorType; // HTTP status mapping
     severity: Severity;
     path?: Array<string | number>;

@@ -91,18 +91,18 @@ const SessionIdEnvelopeSchema = z
             .optional()
             .describe('Session identifier for session-specific LLM configuration'),
     })
-    .passthrough()
-    .describe('Envelope schema for extracting sessionId while allowing additional LLM fields');
+    .describe('Envelope schema for extracting sessionId');
 
-const SwitchLLMBodySchema = z
-    .object({
+// Intersect LLMUpdatesSchema with sessionId for LLM switch endpoint
+// This avoids duplicating all LLM config fields while providing proper OpenAPI documentation
+const SwitchLLMBodySchema = LLMUpdatesSchema.and(
+    z.object({
         sessionId: z
             .string()
             .optional()
             .describe('Session identifier for session-specific LLM configuration'),
     })
-    .and(LLMUpdatesSchema)
-    .describe('LLM switch request body with optional session ID');
+).describe('LLM switch request body with optional session ID and LLM fields');
 
 // Response schema for GET /llm/current - matches actual spread result
 // Note: Spreading ValidatedLLMConfig makes TS infer defaults as optional
@@ -392,8 +392,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(switchRoute, async (ctx) => {
         const agent = getAgent();
-        // Parse body: extract sessionId and validate remaining fields as LLMUpdatesSchema
-        // Matches Express: SwitchLLMBodySchema.passthrough() allows sessionId + any LLM fields
+        // Parse body: extract sessionId and validate LLM fields
+        // Schema validates all fields at OpenAPI level for proper type safety
         const raw = ctx.req.valid('json');
         const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
         const { sessionId: _omit, ...llmCandidate } = raw as Record<string, unknown>;

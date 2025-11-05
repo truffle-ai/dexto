@@ -4,20 +4,29 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import { LocalAgentRegistry } from './registry.js';
 import { RegistryErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { ErrorType } from '@dexto/core';
 
 // Mock dependencies
-vi.mock('@core/utils/path.js');
-vi.mock('@core/preferences/loader.js');
-vi.mock('@core/config/writer.js');
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
+vi.mock('../utils/path.js', () => ({
+    resolveBundledScript: vi.fn(),
+    getDextoGlobalPath: vi.fn(),
+    copyDirectory: vi.fn(),
 }));
+
+vi.mock('@dexto/core', async () => {
+    const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
+    return {
+        ...actual,
+        logger: {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+        },
+    };
+});
+vi.mock('../preferences/loader.js');
+vi.mock('../writer.js');
 
 describe('LocalAgentRegistry', () => {
     let tempDir: string;
@@ -46,9 +55,9 @@ describe('LocalAgentRegistry', () => {
         tempDir = createTempDir();
 
         // Import and mock path utilities
-        const pathUtils = await import('@core/utils/path.js');
-        const prefUtils = await import('@core/preferences/loader.js');
-        const writerUtils = await import('@core/config/writer.js');
+        const pathUtils = await import('../utils/path.js');
+        const prefUtils = await import('../preferences/loader.js');
+        const writerUtils = await import('../writer.js');
 
         mockResolveBundledScript = vi.mocked(pathUtils.resolveBundledScript);
         mockGetDextoGlobalPath = vi.mocked(pathUtils.getDextoGlobalPath);
@@ -217,7 +226,7 @@ describe('LocalAgentRegistry', () => {
         it('throws proper error for unknown agent', async () => {
             await expect(registry.installAgent('unknown-agent', true)).rejects.toMatchObject({
                 code: RegistryErrorCode.AGENT_NOT_FOUND,
-                scope: ErrorScope.AGENT_REGISTRY,
+                scope: 'agent_registry',
                 type: ErrorType.USER,
                 context: {
                     agentId: 'unknown-agent',
@@ -311,7 +320,7 @@ describe('LocalAgentRegistry', () => {
             fs.writeFileSync(path.join(dirAgentPath, 'extra.md'), '# Documentation');
 
             // We also need to mock copyDirectory since it's used for directory agents
-            const pathUtils = await import('@core/utils/path.js');
+            const pathUtils = await import('../utils/path.js');
             const mockCopyDirectory = vi.mocked(pathUtils.copyDirectory);
             mockCopyDirectory.mockImplementation(async (src: string, dest: string) => {
                 // Manually copy the directory structure for the test
@@ -366,7 +375,7 @@ describe('LocalAgentRegistry', () => {
         it('throws structured RegistryError for unknown agent with complete error properties', async () => {
             await expect(registry.resolveAgent('unknown-agent')).rejects.toMatchObject({
                 code: RegistryErrorCode.AGENT_NOT_FOUND,
-                scope: ErrorScope.AGENT_REGISTRY,
+                scope: 'agent_registry',
                 type: ErrorType.USER,
                 context: {
                     agentId: 'unknown-agent',
@@ -457,7 +466,7 @@ describe('LocalAgentRegistry', () => {
                     registry.resolveAgent('auto-test-agent', false, true)
                 ).rejects.toMatchObject({
                     code: RegistryErrorCode.AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED,
-                    scope: ErrorScope.AGENT_REGISTRY,
+                    scope: 'agent_registry',
                     type: ErrorType.USER,
                     context: {
                         agentId: 'auto-test-agent',
@@ -543,7 +552,7 @@ describe('LocalAgentRegistry', () => {
             expect(() => badRegistry.resolveMainConfig('/path', 'bad-dir-agent')).toThrow(
                 expect.objectContaining({
                     code: RegistryErrorCode.AGENT_INVALID_ENTRY,
-                    scope: ErrorScope.AGENT_REGISTRY,
+                    scope: 'agent_registry',
                     type: ErrorType.SYSTEM,
                     context: {
                         agentId: 'bad-dir-agent',

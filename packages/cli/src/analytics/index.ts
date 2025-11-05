@@ -10,7 +10,7 @@ import {
     saveState,
 } from '@dexto/analytics';
 import type { AnalyticsState } from '@dexto/analytics';
-import { getExecutionContext } from '@dexto/core';
+import { getExecutionContext } from '@dexto/agent-management';
 import { randomUUID } from 'crypto';
 import {
     AnalyticsEventName,

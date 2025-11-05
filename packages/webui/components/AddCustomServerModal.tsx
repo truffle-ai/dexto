@@ -9,21 +9,15 @@ import {
     DialogTitle,
     DialogDescription,
     DialogFooter,
-} from "./ui/dialog";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "./ui/select";
-import { Alert, AlertDescription } from "./ui/alert";
+} from './ui/dialog';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Alert, AlertDescription } from './ui/alert';
 import { Plus, Save } from 'lucide-react';
-import { KeyValueEditor } from "./ui/key-value-editor";
+import { KeyValueEditor } from './ui/key-value-editor';
 
 interface HeaderPair {
     key: string;
@@ -34,18 +28,27 @@ interface HeaderPair {
 interface AddCustomServerModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAddServer: (entry: Omit<ServerRegistryEntry, 'id' | 'isOfficial' | 'lastUpdated'>) => Promise<void>;
+    onAddServer: (
+        entry: Omit<ServerRegistryEntry, 'id' | 'isOfficial' | 'lastUpdated'>
+    ) => Promise<void>;
 }
 
-export default function AddCustomServerModal({ 
-    isOpen, 
-    onClose, 
-    onAddServer 
+export default function AddCustomServerModal({
+    isOpen,
+    onClose,
+    onAddServer,
 }: AddCustomServerModalProps) {
     const [formData, setFormData] = useState<{
         name: string;
         description: string;
-        category: 'productivity' | 'development' | 'research' | 'creative' | 'data' | 'communication' | 'custom';
+        category:
+            | 'productivity'
+            | 'development'
+            | 'research'
+            | 'creative'
+            | 'data'
+            | 'communication'
+            | 'custom';
         icon: string;
         version: string;
         author: string;
@@ -93,7 +96,7 @@ export default function AddCustomServerModal({
             dependencies: [],
         },
     });
-    
+
     const [argsInput, setArgsInput] = useState('');
     const [tagsInput, setTagsInput] = useState('');
     const [envInput, setEnvInput] = useState('');
@@ -126,10 +129,19 @@ export default function AddCustomServerModal({
 
         try {
             // Parse inputs
-            const args = argsInput.split(',').map(s => s.trim()).filter(Boolean);
-            const tags = tagsInput.split(',').map(s => s.trim()).filter(Boolean);
-            const dependencies = dependenciesInput.split(',').map(s => s.trim()).filter(Boolean);
-            
+            const args = argsInput
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const tags = tagsInput
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const dependencies = dependenciesInput
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+
             // Parse environment variables
             const env: Record<string, string> = {};
             if (envInput.trim()) {
@@ -140,13 +152,14 @@ export default function AddCustomServerModal({
                     if (!trimmedLine) {
                         continue;
                     }
-                    
+
                     // Split only at the first '=' character
                     const equalIndex = trimmedLine.indexOf('=');
-                    if (equalIndex > 0) { // Key must exist (equalIndex > 0, not >= 0)
+                    if (equalIndex > 0) {
+                        // Key must exist (equalIndex > 0, not >= 0)
                         const key = trimmedLine.substring(0, equalIndex).trim();
                         const value = trimmedLine.substring(equalIndex + 1).trim();
-                        
+
                         // Only add if key is not empty
                         if (key) {
                             env[key] = value; // Value can be empty string
@@ -157,7 +170,7 @@ export default function AddCustomServerModal({
 
             // Convert header pairs to record
             const headers: Record<string, string> = {};
-            headerPairs.forEach(pair => {
+            headerPairs.forEach((pair) => {
                 if (pair.key.trim() && pair.value.trim()) {
                     headers[pair.key.trim()] = pair.value.trim();
                 }
@@ -197,7 +210,7 @@ export default function AddCustomServerModal({
 
             await onAddServer(entry);
             onClose();
-            
+
             // Reset form
             setFormData({
                 name: '',
@@ -239,7 +252,7 @@ export default function AddCustomServerModal({
 
     const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
+        setFormData((prev) => ({
             ...prev,
             config: {
                 ...prev.config,
@@ -275,7 +288,9 @@ export default function AddCustomServerModal({
                             <Input
                                 id="name"
                                 value={formData.name}
-                                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                                }
                                 placeholder="My Custom Server"
                                 required
                             />
@@ -284,13 +299,15 @@ export default function AddCustomServerModal({
                             <Label htmlFor="category">Category</Label>
                             <Select
                                 value={formData.category}
-                                onValueChange={(value: any) => setFormData(prev => ({ ...prev, category: value }))}
+                                onValueChange={(value: any) =>
+                                    setFormData((prev) => ({ ...prev, category: value }))
+                                }
                             >
                                 <SelectTrigger id="category">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {categories.map(cat => (
+                                    {categories.map((cat) => (
                                         <SelectItem key={cat.value} value={cat.value}>
                                             {cat.label}
                                         </SelectItem>
@@ -305,7 +322,9 @@ export default function AddCustomServerModal({
                         <Textarea
                             id="description"
                             value={formData.description}
-                            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                            onChange={(e) =>
+                                setFormData((prev) => ({ ...prev, description: e.target.value }))
+                            }
                             placeholder="Describe what this server does..."
                             required
                         />
@@ -314,15 +333,15 @@ export default function AddCustomServerModal({
                     {/* Server Configuration */}
                     <div className="space-y-3">
                         <h3 className="text-sm font-medium">Server Configuration</h3>
-                        
+
                         <div>
                             <Label htmlFor="serverType">Server Type</Label>
                             <Select
                                 value={formData.config.type}
-                                onValueChange={(value: 'stdio' | 'sse' | 'http') => 
-                                    setFormData(prev => ({ 
-                                        ...prev, 
-                                        config: { ...prev.config, type: value } 
+                                onValueChange={(value: 'stdio' | 'sse' | 'http') =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        config: { ...prev.config, type: value },
                                     }))
                                 }
                             >
@@ -344,10 +363,12 @@ export default function AddCustomServerModal({
                                     <Input
                                         id="command"
                                         value={formData.config.command}
-                                        onChange={(e) => setFormData(prev => ({ 
-                                            ...prev, 
-                                            config: { ...prev.config, command: e.target.value } 
-                                        }))}
+                                        onChange={(e) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                config: { ...prev.config, command: e.target.value },
+                                            }))
+                                        }
                                         placeholder="npx or python"
                                         required
                                     />
@@ -407,7 +428,10 @@ export default function AddCustomServerModal({
                                     label="Headers"
                                     pairs={headerPairs}
                                     onChange={setHeaderPairs}
-                                    placeholder={{ key: 'Authorization', value: 'Bearer your-token' }}
+                                    placeholder={{
+                                        key: 'Authorization',
+                                        value: 'Bearer your-token',
+                                    }}
                                     keyLabel="Header"
                                     valueLabel="Value"
                                 />
@@ -431,7 +455,9 @@ export default function AddCustomServerModal({
                             <Input
                                 id="icon"
                                 value={formData.icon}
-                                onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, icon: e.target.value }))
+                                }
                                 placeholder="⚡"
                                 maxLength={2}
                             />
@@ -444,7 +470,9 @@ export default function AddCustomServerModal({
                             <Input
                                 id="version"
                                 value={formData.version}
-                                onChange={(e) => setFormData(prev => ({ ...prev, version: e.target.value }))}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, version: e.target.value }))
+                                }
                                 placeholder="1.0.0"
                             />
                         </div>
@@ -453,7 +481,9 @@ export default function AddCustomServerModal({
                             <Input
                                 id="author"
                                 value={formData.author}
-                                onChange={(e) => setFormData(prev => ({ ...prev, author: e.target.value }))}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, author: e.target.value }))
+                                }
                                 placeholder="Your Name"
                             />
                         </div>
@@ -464,7 +494,9 @@ export default function AddCustomServerModal({
                         <Input
                             id="homepage"
                             value={formData.homepage}
-                            onChange={(e) => setFormData(prev => ({ ...prev, homepage: e.target.value }))}
+                            onChange={(e) =>
+                                setFormData((prev) => ({ ...prev, homepage: e.target.value }))
+                            }
                             placeholder="https://github.com/youruser/yourserver"
                         />
                     </div>
@@ -472,16 +504,16 @@ export default function AddCustomServerModal({
                     {/* Requirements Section */}
                     <div className="space-y-3">
                         <h3 className="text-sm font-medium">Requirements</h3>
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="platform">Platform</Label>
                                 <Select
                                     value={formData.requirements.platform}
-                                    onValueChange={(value: 'win32' | 'darwin' | 'linux' | 'all') => 
-                                        setFormData(prev => ({ 
-                                            ...prev, 
-                                            requirements: { ...prev.requirements, platform: value } 
+                                    onValueChange={(value: 'win32' | 'darwin' | 'linux' | 'all') =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            requirements: { ...prev.requirements, platform: value },
                                         }))
                                     }
                                 >
@@ -489,7 +521,7 @@ export default function AddCustomServerModal({
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {platforms.map(platform => (
+                                        {platforms.map((platform) => (
                                             <SelectItem key={platform.value} value={platform.value}>
                                                 {platform.label}
                                             </SelectItem>
@@ -514,10 +546,15 @@ export default function AddCustomServerModal({
                                 <Input
                                     id="nodeVersion"
                                     value={formData.requirements.node}
-                                    onChange={(e) => setFormData(prev => ({ 
-                                        ...prev, 
-                                        requirements: { ...prev.requirements, node: e.target.value } 
-                                    }))}
+                                    onChange={(e) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            requirements: {
+                                                ...prev.requirements,
+                                                node: e.target.value,
+                                            },
+                                        }))
+                                    }
                                     placeholder=">=16.0.0"
                                 />
                             </div>
@@ -526,10 +563,15 @@ export default function AddCustomServerModal({
                                 <Input
                                     id="pythonVersion"
                                     value={formData.requirements.python}
-                                    onChange={(e) => setFormData(prev => ({ 
-                                        ...prev, 
-                                        requirements: { ...prev.requirements, python: e.target.value } 
-                                    }))}
+                                    onChange={(e) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            requirements: {
+                                                ...prev.requirements,
+                                                python: e.target.value,
+                                            },
+                                        }))
+                                    }
                                     placeholder=">=3.8"
                                 />
                             </div>
@@ -555,4 +597,4 @@ export default function AddCustomServerModal({
             </DialogContent>
         </Dialog>
     );
-} 
+}

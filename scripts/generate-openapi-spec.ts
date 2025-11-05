@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,12 +29,20 @@ async function syncOpenAPISpec() {
             console.log('📝 Syncing OpenAPI specification to docs...\n');
         }
 
-        // Check if server is built
+        // Build server package if not built or check mode
         if (!fs.existsSync(SERVER_DIST_PATH)) {
-            throw new Error(
-                'Server package not built. Run: pnpm run build:server\n' +
-                    `  Missing file: ${path.relative(process.cwd(), SERVER_DIST_PATH)}`
-            );
+            console.log('📦 Server package not built, building now...\n');
+            try {
+                execSync('pnpm --filter @dexto/server... build', {
+                    stdio: 'inherit',
+                    cwd: path.join(__dirname, '..'),
+                });
+                console.log('✓ Server package built successfully\n');
+            } catch (err) {
+                throw new Error(
+                    'Failed to build server package. Please fix build errors and try again.'
+                );
+            }
         }
 
         // Import server package

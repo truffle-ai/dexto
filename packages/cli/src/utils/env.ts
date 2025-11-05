@@ -1,7 +1,11 @@
 import * as path from 'path';
 import { homedir } from 'os';
 import dotenv from 'dotenv';
-import { getExecutionContext, ensureDextoGlobalDirectory, getDextoEnvPath } from '@dexto/core';
+import {
+    getExecutionContext,
+    ensureDextoGlobalDirectory,
+    getDextoEnvPath,
+} from '@dexto/agent-management';
 
 /**
  * Multi-layer environment variable loading with context awareness.

@@ -1,7 +1,6 @@
 // packages/core/src/preferences/errors.ts
 
-import { DextoRuntimeError, DextoValidationError } from '@core/errors/index.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError, DextoValidationError, ErrorType } from '@dexto/core';
 import { type ZodError } from 'zod';
 import { PreferenceErrorCode } from './error-codes.js';
 
@@ -11,7 +10,7 @@ export class PreferenceError {
     static fileNotFound(preferencesPath: string) {
         return new DextoRuntimeError(
             PreferenceErrorCode.FILE_NOT_FOUND,
-            ErrorScope.PREFERENCE,
+            'preference',
             ErrorType.USER,
             `Preferences file not found: ${preferencesPath}`,
             { preferencesPath },
@@ -22,7 +21,7 @@ export class PreferenceError {
     static fileReadError(preferencesPath: string, cause: string) {
         return new DextoRuntimeError(
             PreferenceErrorCode.FILE_READ_ERROR,
-            ErrorScope.PREFERENCE,
+            'preference',
             ErrorType.SYSTEM,
             `Failed to read preferences: ${cause}`,
             { preferencesPath, cause },
@@ -33,7 +32,7 @@ export class PreferenceError {
     static fileWriteError(preferencesPath: string, cause: string) {
         return new DextoRuntimeError(
             PreferenceErrorCode.FILE_WRITE_ERROR,
-            ErrorScope.PREFERENCE,
+            'preference',
             ErrorType.SYSTEM,
             `Failed to save preferences: ${cause}`,
             { preferencesPath, cause },
@@ -45,7 +44,7 @@ export class PreferenceError {
         const issues = zodError.issues.map((issue) => ({
             code: PreferenceErrorCode.VALIDATION_ERROR,
             message: `${issue.path.join('.')}: ${issue.message}`,
-            scope: ErrorScope.PREFERENCE,
+            scope: 'preference',
             type: ErrorType.USER,
             severity: 'error' as const,
         }));

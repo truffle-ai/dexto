@@ -10,17 +10,19 @@
     "private": true,
     "packageManager": "pnpm@10.12.4",
     "scripts": {
-        "build": "pnpm run clean && pnpm run build:all && pnpm run copy-webui-dist",
-        "build:all": "pnpm run build:core && pnpm run build:analytics && pnpm run build:server && pnpm run build:client-sdk && pnpm run build:webui && pnpm run build:cli && pnpm run embed-webui",
+        "build": "pnpm run clean && pnpm run build:packages && pnpm run copy-webui-dist",
+        "build:packages": "turbo run build --filter='./packages/*'",
+        "build:all": "pnpm run build:packages && pnpm run embed-webui",
+        "build:agent-management": "pnpm -C packages/agent-management build",
         "build:analytics": "pnpm -C packages/analytics build",
         "build:client-sdk": "pnpm -C packages/client-sdk build",
         "build:check": "pnpm run typecheck && pnpm run build",
         "build:cli": "pnpm -C packages/cli build",
-        "build:cli-only": "pnpm run build:core && pnpm run build:analytics && pnpm run build:server && pnpm run build:cli",
+        "build:cli-only": "turbo run build --filter='dexto...'",
         "build:core": "pnpm -C packages/core build",
         "build:server": "pnpm -C packages/server build",
         "build:strict": "pnpm run typecheck && pnpm run build",
-        "build:webui": "BUILD_STANDALONE=true pnpm -C packages/webui build",
+        "build:webui": "pnpm -C packages/webui build",
         "build:webui:dev": "pnpm -C packages/webui build",
         "build-webui": "npx rimraf packages/webui/node_modules packages/webui/package-lock.json && pnpm -C packages/webui install && pnpm -C packages/webui build",
         "changeset:version": "pnpm -w changeset version && pnpm -w install --no-frozen-lockfile",
@@ -31,8 +33,8 @@
         "dev": "tsx scripts/dev-server.ts",
         "dev:cli": "pnpm run link-cli",
         "embed-webui": "tsx scripts/copy-webui-dist.ts",
-        "format": "prettier --write \"src/**/*.ts\"",
-        "format:check": "prettier --check \"src/**/*.ts\"",
+        "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
+        "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
         "install-cli": "pnpm run build:all && tsx scripts/install-global-cli.ts",
         "install-cli-fast": "pnpm run build:cli-only && tsx scripts/install-global-cli.ts",
         "link-cli": "pnpm run build:all && npm uninstall -g dexto 2>/dev/null || true && cd packages/cli && pnpm link --global",
@@ -106,7 +108,7 @@
         "ws": "^8.18.1"
     },
     "lint-staged": {
-        "*.ts": [
+        "*.{ts,tsx,js,jsx}": [
             "prettier --write"
         ]
     },

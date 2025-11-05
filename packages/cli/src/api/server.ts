@@ -6,7 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
-import { logger, redactSensitiveData, deriveDisplayName, type AgentCard } from '@dexto/core';
+import { logger, redactSensitiveData, type AgentCard } from '@dexto/core';
 import { setupA2ARoutes } from './a2a.js';
 import { setupMemoryRoutes } from './memory/memory-handler.js';
 import {
@@ -15,7 +15,8 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, Dexto, DextoAgent, loadAgentConfig } from '@dexto/core';
+import { createAgentCard, DextoAgent, loadAgentConfig } from '@dexto/core';
+import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -1467,60 +1468,48 @@ export async function initializeApi(
                 .describe('One-line description of the agent'),
             author: z.string().optional().describe('Author or organization'),
             tags: z.array(z.string()).default([]).describe('Tags for discovery'),
-            // Agent configuration
-            llm: z
-                .object({
-                    provider: z.enum(LLM_PROVIDERS).describe('LLM provider id'),
-                    model: z.string().min(1, 'Model is required').describe('Model name'),
-                    apiKey: z
-                        .string()
-                        .optional()
-                        .describe(
-                            'API key or environment variable reference (e.g., $OPENAI_API_KEY)'
-                        ),
-                })
-                .strict()
-                .describe('LLM configuration'),
-            systemPrompt: z
-                .string()
-                .min(1, 'System prompt is required')
-                .describe('System prompt for the agent'),
+            // Full agent configuration
+            config: AgentConfigSchema.describe('Complete agent configuration'),
         })
         .strict();
 
     // Create a new custom agent from UI
     app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
         try {
-            const { id, name, description, author, tags, llm, systemPrompt } = parseBody(
+            const { id, name, description, author, tags, config } = parseBody(
                 CustomAgentCreateSchema,
                 req.body
             );
 
-            const provider: LLMProvider = llm.provider;
-
             // Handle API key: if it's a raw key, store securely and use env var reference
-            let apiKeyRef: string | undefined;
-            if (llm.apiKey && !llm.apiKey.startsWith('$')) {
+            const provider: LLMProvider = config.llm.provider;
+            let agentConfig = config;
+
+            if (config.llm.apiKey && !config.llm.apiKey.startsWith('$')) {
                 // Raw API key provided - store securely and get env var reference
-                const meta = await saveProviderApiKey(provider, llm.apiKey, process.cwd());
-                apiKeyRef = `$${meta.envVar}`;
+                const meta = await saveProviderApiKey(provider, config.llm.apiKey, process.cwd());
+                const apiKeyRef = `$${meta.envVar}`;
                 logger.info(
                     `Stored API key securely for ${provider}, using env var: ${meta.envVar}`
                 );
-            } else if (llm.apiKey) {
-                // Already an env var reference
-                apiKeyRef = llm.apiKey;
+                // Update config with env var reference
+                agentConfig = {
+                    ...config,
+                    llm: {
+                        ...config.llm,
+                        apiKey: apiKeyRef,
+                    },
+                };
+            } else if (!config.llm.apiKey) {
+                // No API key provided, use default env var
+                agentConfig = {
+                    ...config,
+                    llm: {
+                        ...config.llm,
+                        apiKey: `$${getPrimaryApiKeyEnvVar(provider)}`,
+                    },
+                };
             }
-
-            // Create agent YAML content (with env var reference instead of raw key)
-            const agentConfig = {
-                llm: {
-                    provider,
-                    model: llm.model,
-                    apiKey: apiKeyRef || `$${getPrimaryApiKeyEnvVar(provider)}`,
-                },
-                systemPrompt,
-            };
 
             const yamlContent = yamlStringify(agentConfig);
             logger.info(`Creating agent config for ${id}:`, { agentConfig, yamlContent });
@@ -2419,43 +2408,44 @@ export async function startApiServer(
     agentCardOverride?: Partial<AgentCard>,
     agentId?: string
 ) {
-    if (shouldUseHonoServer()) {
-        // TODO: Remove feature flag and delete Express implementation once Hono server reaches GA.
-        console.log('🌐 USING HONO SERVER');
-        const { startHonoApiServer } = await import('./server-hono.js');
-        return startHonoApiServer(agent, port, agentCardOverride);
-    }
+    if (shouldUseExpressServer()) {
+        console.log('🌐 USING EXPRESS SERVER');
+        const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
+            agent,
+            agentCardOverride,
+            port,
+            agentId
+        );
 
-    const { server, wss, webSubscriber, webhookSubscriber } = await initializeApi(
-        agent,
-        agentCardOverride,
-        port,
-        agentId
-    );
-
-    // API server for REST endpoints and WebSocket connections
-    server.listen(port, '0.0.0.0', () => {
-        const networkInterfaces = os.networkInterfaces();
-        let localIp = 'localhost';
-        Object.values(networkInterfaces).forEach((ifaceList) => {
-            ifaceList?.forEach((iface) => {
-                if (iface.family === 'IPv4' && !iface.internal) {
-                    localIp = iface.address;
-                }
+        // API server for REST endpoints and WebSocket connections
+        server.listen(port, '0.0.0.0', () => {
+            const networkInterfaces = os.networkInterfaces();
+            let localIp = 'localhost';
+            Object.values(networkInterfaces).forEach((ifaceList) => {
+                ifaceList?.forEach((iface) => {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        localIp = iface.address;
+                    }
+                });
             });
+
+            logger.info(
+                `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
+                null,
+                'green'
+            );
         });
 
-        logger.info(
-            `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
-            null,
-            'green'
-        );
-    });
+        return { server, wss, webSubscriber, webhookSubscriber };
+    }
 
-    return { server, wss, webSubscriber, webhookSubscriber };
+    // Default to Hono
+    console.log('🌐 USING HONO SERVER');
+    const { startHonoApiServer } = await import('./server-hono.js');
+    return startHonoApiServer(agent, port, agentCardOverride, agentId);
 }
 
-export function shouldUseHonoServer(): boolean {
-    const flag = (process.env.DEXTO_USE_HONO ?? '').toLowerCase();
+export function shouldUseExpressServer(): boolean {
+    const flag = (process.env.DEXTO_USE_EXPRESS ?? '').toLowerCase();
     return flag === '1' || flag === 'true' || flag === 'yes';
 }

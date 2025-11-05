@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "BUILD_STANDALONE=true next build",
     "start": "next start",
     "lint": "eslint -c eslint.config.mjs . --ext .ts,.tsx"
   },
@@ -22,6 +22,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/react-query": "^5.90.6",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -31,6 +32,7 @@
     "posthog-js": "^1.281.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hotkeys-hook": "^5.2.1",
     "react-markdown": "^10.1.0",
     "react-textarea-autosize": "^8.5.9",
     "rehype-highlight": "^7.0.2",
@@ -38,7 +40,9 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.2.0",
     "tailwindcss": "^4",
-    "yaml": "^2.8.1"
+    "use-debounce": "^10.0.4",
+    "yaml": "^2.8.1",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -48,6 +52,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "json-schema": "^0.4.0",
     "monaco-editor": "^0.53.0",
     "tw-animate-css": "^1.2.9",

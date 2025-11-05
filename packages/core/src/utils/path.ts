@@ -1,3 +1,6 @@
+// TODO: (migration) This file is duplicated in @dexto/agent-management for short-term compatibility
+// Remove from core once all services accept paths via initialization options
+
 import * as path from 'path';
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';

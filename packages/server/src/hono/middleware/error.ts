@@ -67,18 +67,25 @@ export function handleHonoError(ctx: any, err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
     logger.error(`Unhandled error in API middleware: ${errorMessage}`, {
-        error: err,
         stack: errorStack,
         type: typeof err,
     });
 
+    // Only expose error details in development, use generic message in production
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const userMessage = isDevelopment
+        ? `An unexpected error occurred: ${errorMessage}`
+        : 'An unexpected error occurred. Please try again later.';
+
     return ctx.json(
         {
             code: 'internal_error',
-            message: 'An unexpected error occurred',
+            message: userMessage,
             scope: 'system',
             type: 'system',
             severity: 'error',
+            // Only include stack traces in development to avoid exposing internals
+            ...(isDevelopment && errorStack ? { stack: errorStack } : {}),
         },
         500
     );

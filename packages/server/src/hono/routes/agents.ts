@@ -1,20 +1,18 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import {
-    Dexto,
-    deriveDisplayName,
-    LLM_PROVIDERS,
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
     logger,
     safeStringify,
+    AgentConfigSchema,
     type LLMProvider,
 } from '@dexto/core';
+import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import path from 'path';
 import { promises as fs } from 'fs';
-import { AgentConfigSchema } from '@dexto/core';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
 import { AgentRegistryEntrySchema } from '../schemas/responses.js';
 
@@ -85,6 +83,7 @@ const CustomAgentInstallSchema = z
 
 const CustomAgentCreateSchema = z
     .object({
+        // Registry metadata
         id: z
             .string()
             .min(1, 'Agent ID is required')
@@ -100,24 +99,11 @@ const CustomAgentCreateSchema = z
             .describe('One-line description of the agent'),
         author: z.string().optional().describe('Author or organization'),
         tags: z.array(z.string()).default([]).describe('Tags for discovery'),
-        llm: z
-            .object({
-                provider: z.enum(LLM_PROVIDERS).describe('LLM provider id'),
-                model: z.string().min(1, 'Model is required').describe('Model name'),
-                apiKey: z
-                    .string()
-                    .optional()
-                    .describe('API key or environment variable reference (e.g., $OPENAI_API_KEY)'),
-            })
-            .strict()
-            .describe('LLM configuration'),
-        systemPrompt: z
-            .string()
-            .min(1, 'System prompt is required')
-            .describe('System prompt for the agent'),
+        // Full agent configuration
+        config: AgentConfigSchema.describe('Complete agent configuration'),
     })
     .strict()
-    .describe('Request body for creating a new agent with minimal configuration');
+    .describe('Request body for creating a new custom agent with full configuration');
 
 const AgentConfigValidateSchema = z
     .object({
@@ -483,31 +469,35 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         },
     });
     app.openapi(customCreateRoute, async (ctx) => {
-        const { id, name, description, author, tags, llm, systemPrompt } = ctx.req.valid('json');
-
-        const provider: LLMProvider = llm.provider;
+        const { id, name, description, author, tags, config } = ctx.req.valid('json');
 
         // Handle API key: if it's a raw key, store securely and use env var reference
-        let apiKeyRef: string | undefined;
-        if (llm.apiKey && !llm.apiKey.startsWith('$')) {
-            // Raw API key provided - store securely and get env var reference
-            const meta = await saveProviderApiKey(provider, llm.apiKey, process.cwd());
-            apiKeyRef = `$${meta.envVar}`;
-            logger.info(`Stored API key securely for ${provider}, using env var: ${meta.envVar}`);
-        } else if (llm.apiKey) {
-            // Already an env var reference
-            apiKeyRef = llm.apiKey;
-        }
+        const provider: LLMProvider = config.llm.provider;
+        let agentConfig = config;
 
-        // Create agent YAML content (with env var reference instead of raw key)
-        const agentConfig = {
-            llm: {
-                provider,
-                model: llm.model,
-                apiKey: apiKeyRef || `$${getPrimaryApiKeyEnvVar(provider)}`,
-            },
-            systemPrompt,
-        };
+        if (config.llm.apiKey && !config.llm.apiKey.startsWith('$')) {
+            // Raw API key provided - store securely and get env var reference
+            const meta = await saveProviderApiKey(provider, config.llm.apiKey, process.cwd());
+            const apiKeyRef = `$${meta.envVar}`;
+            logger.info(`Stored API key securely for ${provider}, using env var: ${meta.envVar}`);
+            // Update config with env var reference
+            agentConfig = {
+                ...config,
+                llm: {
+                    ...config.llm,
+                    apiKey: apiKeyRef,
+                },
+            };
+        } else if (!config.llm.apiKey) {
+            // No API key provided, use default env var
+            agentConfig = {
+                ...config,
+                llm: {
+                    ...config.llm,
+                    apiKey: `$${getPrimaryApiKeyEnvVar(provider)}`,
+                },
+            };
+        }
 
         const yamlContent = yamlStringify(agentConfig);
         logger.info(

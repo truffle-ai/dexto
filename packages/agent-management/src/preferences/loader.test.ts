@@ -12,10 +12,10 @@ import {
 } from './loader.js';
 import { type GlobalPreferences } from './schemas.js';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { ErrorType } from '@dexto/core';
 
 // Mock getDextoGlobalPath to use a temporary directory
-import * as pathUtils from '@core/utils/path.js';
+import * as pathUtils from '../utils/path.js';
 import { vi } from 'vitest';
 
 describe('Preferences Loader', () => {
@@ -173,7 +173,7 @@ describe('Preferences Loader', () => {
                     issues: expect.arrayContaining([
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
-                            scope: ErrorScope.PREFERENCE,
+                            scope: 'preference',
                             type: ErrorType.USER,
                         }),
                     ]),
@@ -212,7 +212,7 @@ describe('Preferences Loader', () => {
             await expect(loadGlobalPreferences()).rejects.toThrow(
                 expect.objectContaining({
                     code: PreferenceErrorCode.FILE_NOT_FOUND,
-                    scope: ErrorScope.PREFERENCE,
+                    scope: 'preference',
                     type: ErrorType.USER,
                 })
             );
@@ -225,7 +225,7 @@ describe('Preferences Loader', () => {
             await expect(loadGlobalPreferences()).rejects.toThrow(
                 expect.objectContaining({
                     code: PreferenceErrorCode.FILE_READ_ERROR,
-                    scope: ErrorScope.PREFERENCE,
+                    scope: 'preference',
                     type: ErrorType.SYSTEM,
                 })
             );
@@ -247,7 +247,7 @@ describe('Preferences Loader', () => {
                     issues: expect.arrayContaining([
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
-                            scope: ErrorScope.PREFERENCE,
+                            scope: 'preference',
                             type: ErrorType.USER,
                         }),
                     ]),
@@ -272,7 +272,7 @@ setup:
                     issues: expect.arrayContaining([
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
-                            scope: ErrorScope.PREFERENCE,
+                            scope: 'preference',
                             type: ErrorType.USER,
                         }),
                     ]),
@@ -414,7 +414,7 @@ setup:
                     issues: expect.arrayContaining([
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
-                            scope: ErrorScope.PREFERENCE,
+                            scope: 'preference',
                             type: ErrorType.USER,
                         }),
                     ]),

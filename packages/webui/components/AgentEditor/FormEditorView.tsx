@@ -5,9 +5,9 @@ import FormEditor from './FormEditor';
 import type { AgentConfig } from '@dexto/core';
 
 interface FormEditorViewProps {
-  config: AgentConfig;
-  onChange: (config: AgentConfig) => void;
-  errors?: Record<string, string>;
+    config: AgentConfig;
+    onChange: (config: AgentConfig) => void;
+    errors?: Record<string, string>;
 }
 
 /**
@@ -19,9 +19,9 @@ interface FormEditorViewProps {
  * Reusable in both edit and create flows.
  */
 export default function FormEditorView({ config, onChange, errors = {} }: FormEditorViewProps) {
-  return (
-    <div className="flex flex-col h-full">
-      <FormEditor config={config} onChange={onChange} errors={errors} />
-    </div>
-  );
+    return (
+        <div className="flex flex-col h-full">
+            <FormEditor config={config} onChange={onChange} errors={errors} />
+        </div>
+    );
 }

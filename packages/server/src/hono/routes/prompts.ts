@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { PromptError, ResourceError } from '@dexto/core';
+import { PromptError } from '@dexto/core';
 import { PromptInfoSchema, PromptDefinitionSchema } from '../schemas/responses.js';
 
 const CustomPromptRequestSchema = z

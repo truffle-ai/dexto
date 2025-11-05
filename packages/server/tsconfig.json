@@ -5,7 +5,8 @@
     "noEmit": true,
     "paths": {
       "@dexto/core": ["../core/src/index.ts"],
-      "@core/*": ["../core/src/*"]
+      "@core/*": ["../core/src/*"],
+      "@dexto/agent-management": ["../agent-management/src/index.ts"]
     }
   },
   "include": [

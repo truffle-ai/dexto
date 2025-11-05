@@ -15,6 +15,9 @@
       ],
       "@core/*": [
         "../core/src/*"
+      ],
+      "@dexto/agent-management": [
+        "../agent-management/src/index.ts"
       ]
     }
   },

@@ -3,7 +3,7 @@ import tsParser from '@typescript-eslint/parser';
 // TODO: Improve imports to make them browser-safe.
 // Local ESLint config for the Web UI only.
 // Keeps the UI browser-safe by restricting imports to types (and `toError`) from '@dexto/core'.
-// If a rule fails, it means an import would pull Node-only modules (fs/path/winston) 
+// If a rule fails, it means an import would pull Node-only modules (fs/path/winston)
 // into the UI bundle — use the API for runtime instead.
 export default [
   {
@@ -23,6 +23,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': await import('@typescript-eslint/eslint-plugin').then(m => m.default || m),
+      'react-hooks': await import('eslint-plugin-react-hooks').then(m => m.default || m),
     },
     rules: {
       // Block specific problematic imports only
@@ -48,6 +49,9 @@ export default [
           ],
         },
       ],
+      // React Hooks rules
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   // Ignore build artifacts in this package

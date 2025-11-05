@@ -1,60 +1,37 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GreetingResponse } from '@/types';
-import { getApiUrl } from '@/lib/api-url';
+import { apiFetch } from '@/lib/api-client.js';
+import { queryKeys } from '@/lib/queryKeys.js';
+
+async function fetchGreeting(sessionId?: string | null): Promise<string | null> {
+    const endpoint = sessionId
+        ? `/api/greeting?sessionId=${encodeURIComponent(sessionId)}`
+        : `/api/greeting`;
+
+    const data = await apiFetch<GreetingResponse>(endpoint);
+    return data.greeting ?? null;
+}
 
 export function useGreeting(sessionId?: string | null) {
-    const [greeting, setGreeting] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [agentVersion, setAgentVersion] = useState(0);
-    const fetchGreeting = useCallback(
-        async (signal: AbortSignal) => {
-            setIsLoading(true);
-            setError(null);
+    const queryClient = useQueryClient();
 
-            try {
-                const url = sessionId
-                    ? `${getApiUrl()}/api/greeting?sessionId=${encodeURIComponent(sessionId)}`
-                    : `${getApiUrl()}/api/greeting`;
-
-                const response = await fetch(url, { signal });
-
-                if (!response.ok) {
-                    const msg = `Failed to fetch greeting: HTTP ${response.status} ${response.statusText}`;
-                    setGreeting(null);
-                    setError(msg);
-                    return;
-                }
-
-                const data: GreetingResponse = await response.json();
-                setGreeting(data.greeting ?? null);
-            } catch (err) {
-                // Ignore abort errors
-                if ((err as { name?: string } | null | undefined)?.name === 'AbortError') return;
-                const errorMessage =
-                    err instanceof Error ? err.message : 'Failed to fetch greeting';
-                setError(errorMessage);
-                console.error(`Error fetching greeting: ${errorMessage}`);
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [sessionId]
-    );
-
-    useEffect(() => {
-        const controller = new AbortController();
-        const { signal } = controller;
-        fetchGreeting(signal);
-        return () => controller.abort();
-    }, [fetchGreeting, agentVersion]);
+    const {
+        data: greeting = null,
+        isLoading,
+        error,
+    } = useQuery<string | null, Error>({
+        queryKey: queryKeys.greeting(sessionId),
+        queryFn: () => fetchGreeting(sessionId),
+    });
 
     // Listen for agent switching events to refresh greeting
     useEffect(() => {
         const handleAgentSwitched = () => {
-            setAgentVersion((prev) => prev + 1);
+            // Invalidate all greeting queries (hierarchical invalidation)
+            queryClient.invalidateQueries({ queryKey: [queryKeys.greeting(sessionId)[0]] });
         };
         if (typeof window !== 'undefined') {
             window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
@@ -62,7 +39,9 @@ export function useGreeting(sessionId?: string | null) {
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }
-    }, []);
+        // queryClient is a stable reference from TanStack Query, safe to omit
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId]);
 
-    return { greeting, isLoading, error };
+    return { greeting, isLoading, error: error?.message ?? null };
 }

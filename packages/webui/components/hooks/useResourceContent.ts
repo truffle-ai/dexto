@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api-client';
 
 type NormalizedResourceItem =
     | {
@@ -132,7 +133,24 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
     };
 }
 
+async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
+    const body = await apiFetch<{ content: any }>(
+        `/api/resources/${encodeURIComponent(uri)}/content`
+    );
+    const contentPayload = body?.content;
+    if (!contentPayload) {
+        throw new Error('No content returned for resource');
+    }
+    return normalizeResource(uri, contentPayload);
+}
+
 export function useResourceContent(resourceUris: string[]): ResourceStateMap {
+    // Serialize array for stable dependency comparison.
+    // Arrays are compared by reference in React, so ['a','b'] !== ['a','b'] even though
+    // values are identical. Serializing to 'a|b' allows value-based comparison to avoid
+    // unnecessary re-computation when parent passes new array reference with same contents.
+    const serializedUris = resourceUris.join('|');
+
     const normalizedUris = useMemo(() => {
         const seen = new Set<string>();
         const ordered: string[] = [];
@@ -144,64 +162,41 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
             ordered.push(trimmed);
         }
         return ordered;
-    }, [resourceUris.join('|')]);
+        // We use resourceUris inside but only depend on serializedUris. This is safe because
+        // serializedUris is derived from resourceUris - when the string changes, the array
+        // values changed too. This is an intentional optimization to prevent re-runs when
+        // array reference changes but values remain the same.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serializedUris]);
 
-    const [resources, setResources] = useState<ResourceStateMap>({});
-    const resourcesRef = useRef<ResourceStateMap>({});
-    const inFlightRef = useRef<Set<string>>(new Set());
+    const queries = useQueries({
+        queries: normalizedUris.map((uri) => ({
+            queryKey: ['resourceContent', uri],
+            queryFn: () => fetchResourceContent(uri),
+            enabled: !!uri,
+            retry: false,
+        })),
+    });
 
-    useEffect(() => {
-        resourcesRef.current = resources;
-    }, [resources]);
-
-    useEffect(() => {
-        normalizedUris.forEach((uri) => {
+    const resources: ResourceStateMap = useMemo(() => {
+        const result: ResourceStateMap = {};
+        queries.forEach((query, index) => {
+            const uri = normalizedUris[index];
             if (!uri) return;
 
-            const existing = resourcesRef.current[uri];
-            if (existing && existing.status !== 'error') {
-                return;
+            if (query.isLoading) {
+                result[uri] = { status: 'loading' };
+            } else if (query.error) {
+                result[uri] = {
+                    status: 'error',
+                    error: query.error instanceof Error ? query.error.message : String(query.error),
+                };
+            } else if (query.data) {
+                result[uri] = { status: 'loaded', data: query.data };
             }
-            if (inFlightRef.current.has(uri)) {
-                return;
-            }
-
-            inFlightRef.current.add(uri);
-            setResources((prev) => ({
-                ...prev,
-                [uri]: { status: 'loading' },
-            }));
-
-            (async () => {
-                try {
-                    const response = await fetch(
-                        `${getApiUrl()}/api/resources/${encodeURIComponent(uri)}/content`
-                    );
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    const body = await response.json();
-                    const contentPayload = body?.content;
-                    if (!contentPayload) {
-                        throw new Error('No content returned for resource');
-                    }
-                    const normalized = normalizeResource(uri, contentPayload);
-                    setResources((prev) => ({
-                        ...prev,
-                        [uri]: { status: 'loaded', data: normalized },
-                    }));
-                } catch (error) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    setResources((prev) => ({
-                        ...prev,
-                        [uri]: { status: 'error', error: message },
-                    }));
-                } finally {
-                    inFlightRef.current.delete(uri);
-                }
-            })();
         });
-    }, [normalizedUris]);
+        return result;
+    }, [queries, normalizedUris]);
 
     return resources;
 }

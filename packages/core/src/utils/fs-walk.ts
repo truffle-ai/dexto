@@ -1,3 +1,6 @@
+// TODO: (migration) This file is duplicated in @dexto/agent-management for short-term compatibility
+// Remove from core once path utilities are fully migrated
+
 import * as path from 'path';
 
 /**

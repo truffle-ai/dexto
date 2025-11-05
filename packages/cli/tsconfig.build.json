@@ -12,6 +12,9 @@
       ],
       "@dexto/core/*": [
         "../core/dist/*"
+      ],
+      "@dexto/agent-management": [
+        "../agent-management/dist/index.d.ts"
       ]
     }
   },

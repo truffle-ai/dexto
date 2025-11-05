@@ -4,7 +4,7 @@
 // `capture(event, properties)`. Base context (app, version, OS, execution context,
 // session_id, etc.) is merged automatically in analytics/index.ts.
 
-import type { ExecutionContext } from '@dexto/core';
+import type { ExecutionContext } from '@dexto/agent-management';
 
 export interface BaseEventContext {
     app?: 'dexto';

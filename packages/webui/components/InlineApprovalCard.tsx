@@ -27,9 +27,9 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
 
     // Update form field value
     const updateFormField = (fieldName: string, value: unknown) => {
-        setFormData(prev => ({ ...prev, [fieldName]: value }));
+        setFormData((prev) => ({ ...prev, [fieldName]: value }));
         if (formErrors[fieldName]) {
-            setFormErrors(prev => {
+            setFormErrors((prev) => {
                 const newErrors = { ...prev };
                 delete newErrors[fieldName];
                 return newErrors;
@@ -50,7 +50,9 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         <Checkbox
                             id={fieldName}
                             checked={fieldValue === true}
-                            onCheckedChange={(checked) => updateFormField(fieldName, checked === true)}
+                            onCheckedChange={(checked) =>
+                                updateFormField(fieldName, checked === true)
+                            }
                         />
                         <label htmlFor={fieldName} className="text-sm font-medium">
                             {fieldName}
@@ -58,7 +60,9 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         </label>
                     </div>
                     {fieldSchema.description && (
-                        <p className="text-xs text-muted-foreground ml-6">{fieldSchema.description}</p>
+                        <p className="text-xs text-muted-foreground ml-6">
+                            {fieldSchema.description}
+                        </p>
                     )}
                 </div>
             );
@@ -106,7 +110,11 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                     )}
                     <select
                         id={fieldName}
-                        value={fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : ''}
+                        value={
+                            fieldValue !== undefined && fieldValue !== null
+                                ? String(fieldValue)
+                                : ''
+                        }
                         onChange={(e) => {
                             const selected = e.target.value;
                             if (selected === '') {
@@ -148,7 +156,13 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                 <input
                     id={fieldName}
                     type="text"
-                    value={fieldValue !== undefined && fieldValue !== null && typeof fieldValue !== 'object' ? String(fieldValue) : ''}
+                    value={
+                        fieldValue !== undefined &&
+                        fieldValue !== null &&
+                        typeof fieldValue !== 'object'
+                            ? String(fieldValue)
+                            : ''
+                    }
                     onChange={(e) => updateFormField(fieldName, e.target.value)}
                     className={`w-full px-3 py-2 border rounded-md text-sm bg-background ${
                         hasError ? 'border-red-500' : 'border-border'
@@ -227,7 +241,10 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                             <div>
                                 {(() => {
                                     const schema = elicitationMeta.schema;
-                                    if (!schema?.properties || typeof schema.properties !== 'object') {
+                                    if (
+                                        !schema?.properties ||
+                                        typeof schema.properties !== 'object'
+                                    ) {
                                         return (
                                             <p className="text-sm text-red-600 dark:text-red-400">
                                                 Invalid form schema
@@ -240,14 +257,16 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
 
                                     return (
                                         <div className="space-y-4">
-                                            {Object.entries(properties).map(([fieldName, fieldSchema]) => {
-                                                const isRequired = required.includes(fieldName);
-                                                return renderFormField(
-                                                    fieldName,
-                                                    fieldSchema as JSONSchema7,
-                                                    isRequired
-                                                );
-                                            })}
+                                            {Object.entries(properties).map(
+                                                ([fieldName, fieldSchema]) => {
+                                                    const isRequired = required.includes(fieldName);
+                                                    return renderFormField(
+                                                        fieldName,
+                                                        fieldSchema as JSONSchema7,
+                                                        isRequired
+                                                    );
+                                                }
+                                            )}
                                         </div>
                                     );
                                 })()}
@@ -265,42 +284,35 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                     </div>
 
                     {approval.description && (
-                                <p className="text-sm break-words">{approval.description}</p>
-                            )}
+                        <p className="text-sm break-words">{approval.description}</p>
+                    )}
 
-                            <div className="min-w-0">
-                                <span className="font-medium text-sm block mb-2">Arguments:</span>
-                                <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-auto max-h-40 border border-border break-words whitespace-pre-wrap max-w-full">
-                                    {JSON.stringify(approval.args, null, 2)}
-                                </pre>
-                            </div>
+                    <div className="min-w-0">
+                        <span className="font-medium text-sm block mb-2">Arguments:</span>
+                        <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-auto max-h-40 border border-border break-words whitespace-pre-wrap max-w-full">
+                            {JSON.stringify(approval.args, null, 2)}
+                        </pre>
+                    </div>
 
-                            <div className="flex items-center space-x-2 pt-2">
-                                <Checkbox
-                                    id="remember"
-                                    checked={rememberChoice}
-                                    onCheckedChange={(checked) => setRememberChoice(checked === true)}
-                                />
-                                <label htmlFor="remember" className="text-sm">
-                                    Remember this choice for this session
-                                </label>
-                            </div>
-                        </div>
-                    ) : null}
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox
+                            id="remember"
+                            checked={rememberChoice}
+                            onCheckedChange={(checked) => setRememberChoice(checked === true)}
+                        />
+                        <label htmlFor="remember" className="text-sm">
+                            Remember this choice for this session
+                        </label>
+                    </div>
+                </div>
+            ) : null}
 
             {/* Actions */}
             <div className="flex gap-2 justify-end pt-3 border-t border-border">
-                <Button
-                    variant="outline"
-                    onClick={onDeny}
-                    size="sm"
-                >
+                <Button variant="outline" onClick={onDeny} size="sm">
                     {isElicitation ? 'Decline' : 'Deny'}
                 </Button>
-                <Button
-                    onClick={handleApprove}
-                    size="sm"
-                >
+                <Button onClick={handleApprove} size="sm">
                     {isElicitation ? 'Submit' : 'Approve'}
                 </Button>
             </div>

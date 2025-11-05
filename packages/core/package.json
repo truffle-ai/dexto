@@ -51,11 +51,14 @@
     "tsx": "^4.19.2",
     "winston": "^3.17.0",
     "yaml": "^2.7.1",
-    "zod": "^3.25.0",
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
-    "@types/json-schema": "^7.0.15"
+    "@types/json-schema": "^7.0.15",
+    "zod": "^3.25.0"
+  },
+  "peerDependencies": {
+    "zod": "^3.25.0"
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",

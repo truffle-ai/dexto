@@ -70,7 +70,6 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
     logger.error(`Unhandled error in API middleware: ${errorMessage}`, {
-        error: err,
         stack: errorStack,
         type: typeof err,
     });

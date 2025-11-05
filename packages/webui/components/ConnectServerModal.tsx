@@ -1,8 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getApiUrl } from '@/lib/api-url';
-import type { McpServerConfig, StdioServerConfig, SseServerConfig, HttpServerConfig } from '@dexto/core';
+import { ApiError } from '@/lib/api-client';
+import type {
+    McpServerConfig,
+    StdioServerConfig,
+    SseServerConfig,
+    HttpServerConfig,
+} from '@dexto/core';
 import {
     Dialog,
     DialogContent,
@@ -18,33 +23,49 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyValueEditor } from './ui/key-value-editor';
-import { clearPromptCache } from '../lib/promptCache';
 import { Checkbox } from './ui/checkbox';
+import { queryKeys } from '@/lib/queryKeys';
+import { useAddServer } from './hooks/useServers';
 
 interface ConnectServerModalProps {
     isOpen: boolean;
     onClose: () => void;
     onServerConnected?: () => void;
     initialName?: string;
-    initialConfig?: Partial<StdioServerConfig> | Partial<SseServerConfig> | Partial<HttpServerConfig>;
+    initialConfig?:
+        | Partial<StdioServerConfig>
+        | Partial<SseServerConfig>
+        | Partial<HttpServerConfig>;
     lockName?: boolean;
 }
 
+export default function ConnectServerModal({
+    isOpen,
+    onClose,
+    onServerConnected,
+    initialName,
+    initialConfig,
+    lockName,
+}: ConnectServerModalProps) {
+    const addServerMutation = useAddServer();
 
-export default function ConnectServerModal({ isOpen, onClose, onServerConnected, initialName, initialConfig, lockName }: ConnectServerModalProps) {
     const [serverName, setServerName] = useState('');
     const [serverType, setServerType] = useState<'stdio' | 'sse' | 'http'>('stdio');
     const [command, setCommand] = useState('');
     const [args, setArgs] = useState('');
     const [url, setUrl] = useState('');
-    const [headerPairs, setHeaderPairs] = useState<Array<{key: string; value: string; id: string}>>([]);
-    const [envPairs, setEnvPairs] = useState<Array<{key: string; value: string; id: string}>>([]);
+    const [headerPairs, setHeaderPairs] = useState<
+        Array<{ key: string; value: string; id: string }>
+    >([]);
+    const [envPairs, setEnvPairs] = useState<Array<{ key: string; value: string; id: string }>>([]);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [persistToAgent, setPersistToAgent] = useState(false);
 
     // Helper function to convert header pairs to record
-    const headersToRecord = (pairs: Array<{key: string; value: string; id: string}>): Record<string, string> => {
+    const headersToRecord = (
+        pairs: Array<{ key: string; value: string; id: string }>
+    ): Record<string, string> => {
         const headers: Record<string, string> = {};
         pairs.forEach((pair) => {
             if (pair.key.trim() && pair.value.trim()) {
@@ -55,7 +76,9 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
     };
 
     // Helper function to convert env pairs to record
-    const envToRecord = (pairs: Array<{key: string; value: string; id: string}>): Record<string, string> => {
+    const envToRecord = (
+        pairs: Array<{ key: string; value: string; id: string }>
+    ): Record<string, string> => {
         const env: Record<string, string> = {};
         for (const { key, value } of pairs) {
             const k = key.trim();
@@ -70,7 +93,7 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
         const sensitiveKeys = ['api_key', 'secret', 'token', 'password', 'key'];
         const masked: Record<string, string> = {};
         for (const [key, value] of Object.entries(env)) {
-            const isSensitive = sensitiveKeys.some(sk => key.toLowerCase().includes(sk));
+            const isSensitive = sensitiveKeys.some((sk) => key.toLowerCase().includes(sk));
             masked[key] = isSensitive ? '***masked***' : value;
         }
         return masked;
@@ -78,11 +101,19 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
 
     // Helper to mask sensitive headers for logging
     const maskSensitiveHeaders = (headers: Record<string, string>): Record<string, string> => {
-        const sensitive = ['authorization', 'proxy-authorization', 'api-key', 'x-api-key', 'token', 'cookie', 'set-cookie'];
+        const sensitive = [
+            'authorization',
+            'proxy-authorization',
+            'api-key',
+            'x-api-key',
+            'token',
+            'cookie',
+            'set-cookie',
+        ];
         const masked: Record<string, string> = {};
         for (const [k, v] of Object.entries(headers)) {
             const key = k.toLowerCase();
-            const isSensitive = sensitive.some(s => key === s || key.includes(s));
+            const isSensitive = sensitive.some((s) => key === s || key.includes(s));
             masked[k] = isSensitive ? '***masked***' : v;
         }
         return masked;
@@ -116,7 +147,13 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
             setCommand(typeof std.command === 'string' ? std.command : '');
             setArgs(Array.isArray(std.args) ? std.args.join(', ') : '');
             const envEntries = Object.entries(std.env ?? {});
-            setEnvPairs(envEntries.map(([key, value], idx) => ({ key, value: String(value ?? ''), id: `env-${idx}` })));
+            setEnvPairs(
+                envEntries.map(([key, value], idx) => ({
+                    key,
+                    value: String(value ?? ''),
+                    id: `env-${idx}`,
+                }))
+            );
             // clear URL/header state
             setUrl('');
             setHeaderPairs([]);
@@ -124,7 +161,13 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
             const net = (initialConfig ?? {}) as Partial<SseServerConfig | HttpServerConfig>;
             setUrl(typeof net.url === 'string' ? net.url : '');
             const hdrEntries = Object.entries(net.headers ?? {});
-            setHeaderPairs(hdrEntries.map(([key, value], idx) => ({ key, value: String(value ?? ''), id: `hdr-${idx}` })));
+            setHeaderPairs(
+                hdrEntries.map(([key, value], idx) => ({
+                    key,
+                    value: String(value ?? ''),
+                    id: `hdr-${idx}`,
+                }))
+            );
             // clear stdio state
             setCommand('');
             setArgs('');
@@ -151,17 +194,21 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
                 setIsSubmitting(false);
                 return;
             }
-            
+
             // Validate environment variables
             const requiredKeys = envPairs.map((p) => p.key.trim()).filter(Boolean);
             if (requiredKeys.length) {
                 const dupes = requiredKeys.filter((k, i) => requiredKeys.indexOf(k) !== i);
                 if (dupes.length) {
-                    setError(`Duplicate environment variables: ${Array.from(new Set(dupes)).join(', ')}`);
+                    setError(
+                        `Duplicate environment variables: ${Array.from(new Set(dupes)).join(', ')}`
+                    );
                     setIsSubmitting(false);
                     return;
                 }
-                const missing = envPairs.filter((p) => p.key.trim() && !p.value.trim()).map((p) => p.key.trim());
+                const missing = envPairs
+                    .filter((p) => p.key.trim() && !p.value.trim())
+                    .map((p) => p.key.trim());
                 if (missing.length) {
                     setError(`Please set required environment variables: ${missing.join(', ')}`);
                     setIsSubmitting(false);
@@ -215,52 +262,43 @@ export default function ConnectServerModal({ isOpen, onClose, onServerConnected,
             };
         }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30_000);
         try {
-            const res = await fetch(`${getApiUrl()}/api/mcp/servers`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: serverName.trim(), config, persistToAgent }),
-                signal: controller.signal,
+            await addServerMutation.mutateAsync({
+                name: serverName.trim(),
+                config,
+                persistToAgent,
             });
-            const result = await res.json();
-            if (!res.ok) {
-                // Server returned error JSON in { error: string }
-                setError(result.error || `Server returned status ${res.status}`);
-                setIsSubmitting(false);
-                return;
-            }
+
             if (process.env.NODE_ENV === 'development') {
                 // Create a safe version for logging with masked sensitive values
                 const safeConfig = { ...config };
                 if (safeConfig.type === 'stdio' && safeConfig.env) {
                     safeConfig.env = maskSensitiveEnv(safeConfig.env);
-                } else if ((safeConfig.type === 'sse' || safeConfig.type === 'http') && safeConfig.headers) {
+                } else if (
+                    (safeConfig.type === 'sse' || safeConfig.type === 'http') &&
+                    safeConfig.headers
+                ) {
                     safeConfig.headers = maskSensitiveHeaders(safeConfig.headers);
                 }
-                console.debug(`[ConnectServerModal.handleSubmit] Connect server response: ${JSON.stringify({ ...result, config: safeConfig })}`);
+                console.debug(
+                    `[ConnectServerModal.handleSubmit] Connected server with config: ${JSON.stringify(safeConfig)}`
+                );
             }
-            // Clear prompt cache on server connect (slash dropdown may be closed when WebSocket event fires)
-            // Resources are handled automatically via useResources hook which is always listening
-            clearPromptCache();
-            // Notify parent component that server was connected successfully
-            if (onServerConnected) {
-                onServerConnected();
-            }
+
+            onServerConnected?.();
             onClose();
         } catch (err: unknown) {
             let message = 'Failed to connect server';
-            if (err instanceof DOMException && err.name === 'AbortError') {
-                message = 'Connection timed out';
+            if (err instanceof ApiError) {
+                message = err.message;
             } else if (err instanceof Error) {
                 message = err.message || message;
             } else if (typeof err === 'string') {
                 message = err;
             }
+            addServerMutation.reset();
             setError(message);
         } finally {
-            clearTimeout(timeoutId);
             setIsSubmitting(false);
         }
     };

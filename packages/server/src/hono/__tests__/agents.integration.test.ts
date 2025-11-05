@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createTestAgent, startTestServer, httpRequest, type TestServer } from './test-fixtures.js';
 import { DextoAgent } from '@dexto/core';
-import { Dexto } from '@dexto/core';
+import { Dexto } from '@dexto/agent-management';
 import type { CreateDextoAppOptions } from '../index.js';
 
 describe('Hono API Integration Tests - Agent Routes', () => {

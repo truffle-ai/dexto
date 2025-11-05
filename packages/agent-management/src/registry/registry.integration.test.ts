@@ -5,23 +5,27 @@ import { tmpdir } from 'os';
 import { LocalAgentRegistry } from './registry.js';
 import type { Registry } from './types.js';
 
-vi.mock('@core/utils/path.js');
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
-}));
+vi.mock('../utils/path.js');
+vi.mock('@dexto/core', async () => {
+    const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
+    return {
+        ...actual,
+        logger: {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+        },
+    };
+});
 
-vi.mock('@core/preferences/loader.js', () => ({
+vi.mock('../preferences/loader.js', () => ({
     loadGlobalPreferences: vi.fn().mockResolvedValue({
         defaults: { defaultAgent: 'default-agent' },
     }),
 }));
 
-vi.mock('@core/config/writer.js', () => ({
+vi.mock('../writer.js', () => ({
     writePreferencesToAgent: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -83,7 +87,7 @@ describe('LocalAgentRegistry - Integration Tests', () => {
         );
 
         // Mock path utilities
-        const pathUtils = await import('@core/utils/path.js');
+        const pathUtils = await import('../utils/path.js');
         mockGetDextoGlobalPath = vi.mocked(pathUtils.getDextoGlobalPath);
         mockGetDextoGlobalPath.mockImplementation((type: string, filename?: string) => {
             if (filename) {

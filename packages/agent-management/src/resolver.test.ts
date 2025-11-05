@@ -2,44 +2,29 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs, mkdtempSync } from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import { resolveAgentPath, updateDefaultAgentPreference } from './agent-resolver.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { ConfigErrorCode } from './error-codes.js';
+import { resolveAgentPath, updateDefaultAgentPreference } from './resolver.js';
+import { ErrorScope, ErrorType, ConfigErrorCode } from '@dexto/core';
 
-// Mock dependencies
-vi.mock('@core/utils/execution-context.js');
-vi.mock('@core/preferences/loader.js');
-vi.mock('@core/agent/registry/registry.js');
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
+// Mock dependencies - use vi.fn() in factory to avoid hoisting issues
+vi.mock('./utils/execution-context.js', () => ({
+    getExecutionContext: vi.fn(),
+    findDextoSourceRoot: vi.fn(),
+    findDextoProjectRoot: vi.fn(),
 }));
 
-const mockGetExecutionContext = vi.fn();
-const mockFindDextoSourceRoot = vi.fn();
-const mockFindDextoProjectRoot = vi.fn();
-const mockGlobalPreferencesExist = vi.fn();
-const mockLoadGlobalPreferences = vi.fn();
-const mockUpdateGlobalPreferences = vi.fn();
-const mockGetAgentRegistry = vi.fn();
-// Import mocked modules
-vi.mocked(await import('@core/utils/execution-context.js')).getExecutionContext =
-    mockGetExecutionContext;
-vi.mocked(await import('@core/utils/execution-context.js')).findDextoSourceRoot =
-    mockFindDextoSourceRoot;
-vi.mocked(await import('@core/utils/execution-context.js')).findDextoProjectRoot =
-    mockFindDextoProjectRoot;
-vi.mocked(await import('@core/preferences/loader.js')).globalPreferencesExist =
-    mockGlobalPreferencesExist;
-vi.mocked(await import('@core/preferences/loader.js')).loadGlobalPreferences =
-    mockLoadGlobalPreferences;
-vi.mocked(await import('@core/preferences/loader.js')).updateGlobalPreferences =
-    mockUpdateGlobalPreferences;
-vi.mocked(await import('@core/agent/registry/registry.js')).getAgentRegistry = mockGetAgentRegistry;
+vi.mock('./utils/path.js', () => ({
+    isPath: (str: string) => str.endsWith('.yml') || str.includes('/') || str.includes('\\'),
+}));
+
+vi.mock('./preferences/loader.js', () => ({
+    globalPreferencesExist: vi.fn(),
+    loadGlobalPreferences: vi.fn(),
+    updateGlobalPreferences: vi.fn(),
+}));
+
+vi.mock('./registry/registry.js', () => ({
+    getAgentRegistry: vi.fn(),
+}));
 
 function createTempDir() {
     return mkdtempSync(path.join(tmpdir(), 'agent-resolver-test-'));
@@ -48,12 +33,32 @@ function createTempDir() {
 describe('Agent Resolver', () => {
     let tempDir: string;
     let mockRegistry: any;
+    let mockGetExecutionContext: any;
+    let mockFindDextoSourceRoot: any;
+    let mockFindDextoProjectRoot: any;
+    let mockGlobalPreferencesExist: any;
+    let mockLoadGlobalPreferences: any;
+    let mockUpdateGlobalPreferences: any;
+    let mockGetAgentRegistry: any;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         tempDir = createTempDir();
 
         // Reset all mocks
         vi.clearAllMocks();
+
+        // Get mocked functions
+        const execContext = await import('./utils/execution-context.js');
+        const prefs = await import('./preferences/loader.js');
+        const registry = await import('./registry/registry.js');
+
+        mockGetExecutionContext = vi.mocked(execContext.getExecutionContext);
+        mockFindDextoSourceRoot = vi.mocked(execContext.findDextoSourceRoot);
+        mockFindDextoProjectRoot = vi.mocked(execContext.findDextoProjectRoot);
+        mockGlobalPreferencesExist = vi.mocked(prefs.globalPreferencesExist);
+        mockLoadGlobalPreferences = vi.mocked(prefs.loadGlobalPreferences);
+        mockUpdateGlobalPreferences = vi.mocked(prefs.updateGlobalPreferences);
+        mockGetAgentRegistry = vi.mocked(registry.getAgentRegistry);
 
         // Setup execution context mocks with default values
         mockGetExecutionContext.mockReturnValue('global-cli');

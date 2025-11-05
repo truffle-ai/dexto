@@ -3,11 +3,9 @@
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
-import type { LLMProvider } from '@core/llm/types.js';
-import { type GlobalPreferences } from '@core/preferences/schemas.js';
-import { logger } from '@core/logger/index.js';
-import { type AgentConfig } from '@core/agent/schemas.js';
-import { ConfigError } from './errors.js';
+import type { LLMProvider, AgentConfig } from '@dexto/core';
+import { type GlobalPreferences } from './preferences/schemas.js';
+import { logger, ConfigError } from '@dexto/core';
 
 export interface LLMOverrides {
     provider?: LLMProvider;

@@ -10,7 +10,7 @@ const requireCJS = createRequire(import.meta.url);
 const { machineIdSync } = requireCJS('node-machine-id') as {
     machineIdSync: (original?: boolean) => string;
 };
-import { getDextoGlobalPath } from '@dexto/core';
+import { getDextoGlobalPath } from '@dexto/agent-management';
 
 /**
  * Shape of the persisted analytics state written to
