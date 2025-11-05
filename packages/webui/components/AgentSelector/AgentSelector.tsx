@@ -220,8 +220,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [installed, router, currentId, currentSessionId]
+        [installed, router, currentId, currentSessionId, switchAgentMutation]
     );
 
     const handleSwitchToPath = useCallback(
@@ -268,8 +267,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [addToRecentAgents, router, currentId, currentSessionId]
+        [addToRecentAgents, router, currentId, currentSessionId, switchAgentMutation]
     );
 
     const handleInstall = useCallback(
@@ -328,8 +326,15 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [router, currentId, currentSessionId, queryClient, analyticsRef]
+        [
+            router,
+            currentId,
+            currentSessionId,
+            queryClient,
+            analyticsRef,
+            installAgentMutation,
+            switchAgentMutation,
+        ]
     );
 
     const handleDelete = useCallback(
