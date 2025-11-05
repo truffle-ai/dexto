@@ -145,6 +145,12 @@ async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
 }
 
 export function useResourceContent(resourceUris: string[]): ResourceStateMap {
+    // Serialize array for stable dependency comparison.
+    // Arrays are compared by reference in React, so ['a','b'] !== ['a','b'] even though
+    // values are identical. Serializing to 'a|b' allows value-based comparison to avoid
+    // unnecessary re-computation when parent passes new array reference with same contents.
+    const serializedUris = resourceUris.join('|');
+
     const normalizedUris = useMemo(() => {
         const seen = new Set<string>();
         const ordered: string[] = [];
@@ -156,7 +162,12 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
             ordered.push(trimmed);
         }
         return ordered;
-    }, [resourceUris.join('|')]);
+        // We use resourceUris inside but only depend on serializedUris. This is safe because
+        // serializedUris is derived from resourceUris - when the string changes, the array
+        // values changed too. This is an intentional optimization to prevent re-runs when
+        // array reference changes but values remain the same.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serializedUris]);
 
     const queries = useQueries({
         queries: normalizedUris.map((uri) => ({

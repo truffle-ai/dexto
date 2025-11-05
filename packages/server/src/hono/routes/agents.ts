@@ -1,7 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import {
-    LLM_PROVIDERS,
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
     logger,

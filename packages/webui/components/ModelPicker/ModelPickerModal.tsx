@@ -332,16 +332,19 @@ export default function ModelPickerModal() {
         [customModels]
     );
 
-    function modelMatchesSearch(providerId: string, model: ModelInfo): boolean {
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        return (
-            model.name.toLowerCase().includes(q) ||
-            (model.displayName?.toLowerCase().includes(q) ?? false) ||
-            providerId.toLowerCase().includes(q) ||
-            (providers[providerId]?.name.toLowerCase().includes(q) ?? false)
-        );
-    }
+    const modelMatchesSearch = useCallback(
+        (providerId: string, model: ModelInfo): boolean => {
+            const q = search.trim().toLowerCase();
+            if (!q) return true;
+            return (
+                model.name.toLowerCase().includes(q) ||
+                (model.displayName?.toLowerCase().includes(q) ?? false) ||
+                providerId.toLowerCase().includes(q) ||
+                (providers[providerId]?.name.toLowerCase().includes(q) ?? false)
+            );
+        },
+        [search, providers]
+    );
 
     function pickRouterFor(providerId: string, model: ModelInfo): SupportedRouter {
         const currentRouter = (currentLLM?.router as SupportedRouter) || 'vercel';
@@ -482,7 +485,7 @@ export default function ModelPickerModal() {
             }
         });
         return filtered;
-    }, [providers, search, providerIds]);
+    }, [providers, search, providerIds, modelMatchesSearch]);
 
     const isCurrentModel = (providerId: string, modelName: string) =>
         currentLLM?.provider === providerId && currentLLM?.model === modelName;

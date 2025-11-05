@@ -39,7 +39,9 @@ export function useGreeting(sessionId?: string | null) {
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }
-    }, [queryClient]);
+        // queryClient is a stable reference from TanStack Query, safe to omit
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId]);
 
     return { greeting, isLoading, error: error?.message ?? null };
 }

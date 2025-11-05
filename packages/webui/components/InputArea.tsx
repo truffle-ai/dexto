@@ -716,7 +716,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
         if (text && fileUploadError) {
             setFileUploadError(null);
         }
-    }, [text, modelSwitchError]);
+    }, [text, modelSwitchError, fileUploadError]);
 
     const showClearButton = text.length > 0 || !!imageData || !!fileData;
 

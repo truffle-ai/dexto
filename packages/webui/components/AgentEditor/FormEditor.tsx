@@ -61,8 +61,10 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
 
     // Auto-expand sections with errors
     useEffect(() => {
-        const sectionsWithErrors = Object.keys(sectionErrors).filter(
-            (section) => sectionErrors[section as SectionKey].length > 0
+        // Compute derived value inside effect to avoid stale closures
+        const derivedSectionErrors = mapErrorsToSections(errors);
+        const sectionsWithErrors = Object.keys(derivedSectionErrors).filter(
+            (section) => derivedSectionErrors[section as SectionKey].length > 0
         ) as SectionKey[];
 
         if (sectionsWithErrors.length > 0) {

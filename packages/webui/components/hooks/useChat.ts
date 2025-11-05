@@ -762,7 +762,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         return () => {
             ws.close();
         };
-    }, [wsUrl]);
+    }, [wsUrl, isForActiveSession]);
 
     const sendMessage = useCallback(
         (

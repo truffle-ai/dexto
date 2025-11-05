@@ -118,7 +118,7 @@ export default function PlaygroundView() {
         [inputErrors]
     );
 
-    const validateInputs = (): boolean => {
+    const validateInputs = useCallback((): boolean => {
         if (!selectedTool || !selectedTool.inputSchema || !selectedTool.inputSchema.properties) {
             return true;
         }
@@ -161,7 +161,7 @@ export default function PlaygroundView() {
         }
         setInputErrors(currentInputErrors);
         return allValid;
-    };
+    }, [selectedTool, toolInputs]);
 
     const handleExecuteTool = useCallback(async () => {
         if (!selectedServer || !selectedTool) {

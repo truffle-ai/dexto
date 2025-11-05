@@ -92,8 +92,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         },
     });
 
-    const installed = agentsData?.installed || [];
-    const available = agentsData?.available || [];
+    const installed = useMemo(() => agentsData?.installed || [], [agentsData?.installed]);
+    const available = useMemo(() => agentsData?.available || [], [agentsData?.available]);
     const currentId = agentsData?.current.id || null;
 
     // Fetch current agent path using TanStack Query

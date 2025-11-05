@@ -475,7 +475,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 setIsSwitchingSession(false);
             }
         },
-        [currentSessionId, isSwitchingSession, loadSessionHistory, analytics, queryClient]
+        [currentSessionId, isSwitchingSession, loadSessionHistory, analytics]
     );
 
     // Return to welcome state (no active session)
@@ -525,6 +525,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 window.removeEventListener('dexto:conversationReset', handleSessionReset);
             };
         }
+        // queryClient is a stable reference from TanStack Query, safe to omit
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentSessionId, setMessages]);
 
     return (

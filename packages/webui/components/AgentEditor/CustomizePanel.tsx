@@ -425,7 +425,7 @@ export default function CustomizePanel({
     };
 
     // Save configuration
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (!isValid || errors.length > 0) {
             return;
         }
@@ -457,7 +457,7 @@ export default function CustomizePanel({
             const message = err instanceof Error ? err.message : String(err);
             console.error(`Error saving agent config: ${message}`);
         }
-    };
+    }, [isValid, errors, saveMutation, yamlContent]);
 
     // Reload configuration
     const handleReload = () => {
@@ -469,13 +469,13 @@ export default function CustomizePanel({
     };
 
     // Handle close with unsaved changes check
-    const handleClose = () => {
+    const handleClose = useCallback(() => {
         if (hasUnsavedChanges) {
             setShowUnsavedDialog(true);
         } else {
             onClose();
         }
-    };
+    }, [hasUnsavedChanges, onClose]);
 
     // Confirm discard changes
     const handleDiscardChanges = () => {
@@ -515,7 +515,7 @@ export default function CustomizePanel({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, saveMutation.isPending, isValid, hasUnsavedChanges]);
+    }, [isOpen, saveMutation.isPending, isValid, hasUnsavedChanges, handleSave, handleClose]);
 
     if (!isOpen) return null;
 
