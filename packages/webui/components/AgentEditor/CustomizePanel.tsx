@@ -484,7 +484,7 @@ export default function CustomizePanel({
 
     // Trigger validation when debounced content changes
     useEffect(() => {
-        if (debouncedYamlContent && isOpen) {
+        if (isOpen) {
             validateYaml(debouncedYamlContent);
         }
     }, [debouncedYamlContent, isOpen]);

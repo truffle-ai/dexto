@@ -104,14 +104,14 @@ export default async function RootLayout({
                 {apiPort && (
                     <script
                         dangerouslySetInnerHTML={{
-                            __html: `window.__DEXTO_API_PORT__ = ${JSON.stringify(apiPort)};`,
+                            __html: `window.__DEXTO_API_PORT__ = ${JSON.stringify(apiPort).replace(/</g, '\\u003c')};`,
                         }}
                     />
                 )}
                 {analyticsConfig && (
                     <script
                         dangerouslySetInnerHTML={{
-                            __html: `window.__DEXTO_ANALYTICS__ = ${JSON.stringify(analyticsConfig)};`,
+                            __html: `window.__DEXTO_ANALYTICS__ = ${JSON.stringify(analyticsConfig).replace(/</g, '\\u003c')};`,
                         }}
                     />
                 )}

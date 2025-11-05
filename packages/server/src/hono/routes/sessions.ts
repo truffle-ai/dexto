@@ -287,7 +287,9 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         tags: ['sessions'],
         request: {
             params: z.object({ sessionId: z.string().describe('Session identifier') }),
-            body: { content: { 'application/json': { schema: z.object({}).strict() } } },
+            body: {
+                content: { 'application/json': { schema: z.object({}).strict().optional() } },
+            },
         },
         responses: {
             200: {
