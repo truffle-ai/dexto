@@ -1055,79 +1055,88 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "sessionId": {
-                    "type": "string",
-                    "description": "Session identifier for session-specific LLM configuration"
-                  },
-                  "provider": {
-                    "type": "string",
-                    "enum": [
-                      "openai",
-                      "openai-compatible",
-                      "anthropic",
-                      "google",
-                      "groq",
-                      "xai",
-                      "cohere"
-                    ],
-                    "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
-                  },
-                  "model": {
-                    "type": "string",
-                    "description": "Specific model name for the selected provider"
-                  },
-                  "apiKey": {
-                    "type": "string",
-                    "description": "API key for provider; can be given directly or via $ENV reference"
-                  },
-                  "maxIterations": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true,
-                    "description": "Max iterations for agentic loops"
-                  },
-                  "router": {
-                    "type": "string",
-                    "enum": [
-                      "vercel",
-                      "in-built"
-                    ],
-                    "description": "Router to use (vercel | in-built)"
-                  },
-                  "baseURL": {
-                    "type": "string",
-                    "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
-                  },
-                  "maxInputTokens": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true,
-                    "description": "Max input tokens for history; required for unknown models"
-                  },
-                  "maxOutputTokens": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true,
-                    "description": "Max tokens for model output"
-                  },
-                  "temperature": {
-                    "type": "number",
-                    "nullable": true,
-                    "minimum": 0,
-                    "maximum": 1,
-                    "description": "Randomness: 0 deterministic, 1 creative"
-                  },
-                  "allowedMediaTypes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "openai",
+                          "openai-compatible",
+                          "anthropic",
+                          "google",
+                          "groq",
+                          "xai",
+                          "cohere"
+                        ],
+                        "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
+                      },
+                      "model": {
+                        "type": "string",
+                        "description": "Specific model name for the selected provider"
+                      },
+                      "apiKey": {
+                        "type": "string",
+                        "description": "API key for provider; can be given directly or via $ENV reference"
+                      },
+                      "maxIterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "description": "Max iterations for agentic loops"
+                      },
+                      "router": {
+                        "type": "string",
+                        "enum": [
+                          "vercel",
+                          "in-built"
+                        ],
+                        "description": "Router to use (vercel | in-built)"
+                      },
+                      "baseURL": {
+                        "type": "string",
+                        "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
+                      },
+                      "maxInputTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "description": "Max input tokens for history; required for unknown models"
+                      },
+                      "maxOutputTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "description": "Max tokens for model output"
+                      },
+                      "temperature": {
+                        "type": "number",
+                        "nullable": true,
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Randomness: 0 deterministic, 1 creative"
+                      },
+                      "allowedMediaTypes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                      }
                     },
-                    "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). Supports wildcards."
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "sessionId": {
+                        "type": "string",
+                        "description": "Session identifier for session-specific LLM configuration"
+                      }
+                    }
                   }
-                },
-                "additionalProperties": false,
+                ],
                 "description": "LLM switch request body with optional session ID and LLM fields"
               }
             }
