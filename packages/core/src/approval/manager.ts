@@ -18,12 +18,14 @@ import { ApprovalError } from './errors.js';
  * Configuration for the approval manager
  */
 export interface ApprovalManagerConfig {
-    mode: 'event-based' | 'auto-approve' | 'auto-deny';
-    /**
-     * Timeout in milliseconds for approval requests
-     * @default 120000 (2 minutes)
-     */
-    timeout: number;
+    toolConfirmation: {
+        mode: 'event-based' | 'auto-approve' | 'auto-deny';
+        timeout: number;
+    };
+    elicitation: {
+        enabled: boolean;
+        timeout: number;
+    };
 }
 
 /**
@@ -57,38 +59,65 @@ export interface ApprovalManagerConfig {
  * ```
  */
 export class ApprovalManager {
-    private provider: ApprovalProvider;
+    private toolProvider: ApprovalProvider;
+    private elicitationProvider: ApprovalProvider | null;
     private config: ApprovalManagerConfig;
 
     constructor(agentEventBus: AgentEventBus, config: ApprovalManagerConfig) {
         this.config = config;
-        this.provider = this.createProvider(agentEventBus, config);
+
+        // Create provider for tool/command confirmations
+        this.toolProvider = this.createToolProvider(agentEventBus, config.toolConfirmation);
+
+        // Create provider for elicitation (or null if disabled)
+        this.elicitationProvider = config.elicitation.enabled
+            ? new EventBasedApprovalProvider(agentEventBus, {
+                  defaultTimeout: config.elicitation.timeout,
+              })
+            : null;
 
         logger.debug(
-            `ApprovalManager initialized with mode: ${config.mode}, timeout: ${config.timeout}ms`
+            `ApprovalManager initialized with toolConfirmation.mode: ${config.toolConfirmation.mode}, elicitation.enabled: ${config.elicitation.enabled}`
         );
     }
 
     /**
-     * Create appropriate approval provider based on configuration
-     * TODO: Move this into factory.ts
+     * Create appropriate approval provider for tool/command confirmations
      */
-    private createProvider(
+    private createToolProvider(
         agentEventBus: AgentEventBus,
-        config: ApprovalManagerConfig
+        toolConfig: { mode: 'event-based' | 'auto-approve' | 'auto-deny'; timeout: number }
     ): ApprovalProvider {
-        switch (config.mode) {
+        switch (toolConfig.mode) {
             case 'event-based':
                 return new EventBasedApprovalProvider(agentEventBus, {
-                    defaultTimeout: config.timeout,
+                    defaultTimeout: toolConfig.timeout,
                 });
             case 'auto-approve':
                 return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.APPROVED });
             case 'auto-deny':
                 return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.DENIED });
             default:
-                throw ApprovalError.invalidConfig(`Unknown approval mode: ${config.mode}`);
+                throw ApprovalError.invalidConfig(
+                    `Unknown approval mode: ${toolConfig.mode as string}`
+                );
         }
+    }
+
+    /**
+     * Get the appropriate provider based on approval type
+     */
+    private getProviderForType(type: ApprovalType): ApprovalProvider {
+        if (type === ApprovalType.ELICITATION) {
+            if (this.elicitationProvider === null) {
+                throw ApprovalError.invalidConfig(
+                    'Elicitation is disabled. Enable elicitation in your agent configuration to use the ask_user tool or MCP server elicitations.'
+                );
+            }
+            return this.elicitationProvider;
+        }
+        // All other types (TOOL_CONFIRMATION, COMMAND_CONFIRMATION, CUSTOM) use tool provider
+        return this.toolProvider;
     }
 
     /**
@@ -96,7 +125,8 @@ export class ApprovalManager {
      */
     async requestApproval(details: ApprovalRequestDetails): Promise<ApprovalResponse> {
         const request = createApprovalRequest(details);
-        return this.provider.requestApproval(request);
+        const provider = this.getProviderForType(request.type);
+        return provider.requestApproval(request);
     }
 
     /**
@@ -110,7 +140,7 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_CONFIRMATION,
-            timeout: timeout ?? this.config.timeout,
+            timeout: timeout ?? this.config.toolConfirmation.timeout,
             metadata: toolMetadata,
         };
 
@@ -146,7 +176,7 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.COMMAND_CONFIRMATION,
-            timeout: timeout ?? this.config.timeout,
+            timeout: timeout ?? this.config.toolConfirmation.timeout,
             metadata: commandMetadata,
         };
 
@@ -171,7 +201,7 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.ELICITATION,
-            timeout: timeout ?? this.config.timeout,
+            timeout: timeout ?? this.config.elicitation.timeout,
             metadata: elicitationMetadata,
         };
 
@@ -194,9 +224,18 @@ export class ApprovalManager {
         if (response.status === ApprovalStatus.APPROVED) {
             return true;
         } else if (response.status === ApprovalStatus.DENIED) {
-            throw ApprovalError.toolConfirmationDenied(metadata.toolName, metadata.sessionId);
+            throw ApprovalError.toolConfirmationDenied(
+                metadata.toolName,
+                response.reason,
+                response.message,
+                metadata.sessionId
+            );
         } else {
-            throw ApprovalError.cancelled(response.approvalId, ApprovalType.TOOL_CONFIRMATION);
+            throw ApprovalError.cancelled(
+                response.approvalId,
+                ApprovalType.TOOL_CONFIRMATION,
+                response.message ?? response.reason
+            );
         }
     }
 
@@ -224,9 +263,18 @@ export class ApprovalManager {
             // Auto-approve without data returns empty form
             return {};
         } else if (response.status === ApprovalStatus.DENIED) {
-            throw ApprovalError.elicitationDenied(metadata.serverName, metadata.sessionId);
+            throw ApprovalError.elicitationDenied(
+                metadata.serverName,
+                response.reason,
+                response.message,
+                metadata.sessionId
+            );
         } else {
-            throw ApprovalError.cancelled(response.approvalId, ApprovalType.ELICITATION);
+            throw ApprovalError.cancelled(
+                response.approvalId,
+                ApprovalType.ELICITATION,
+                response.message ?? response.reason
+            );
         }
     }
 
@@ -234,21 +282,26 @@ export class ApprovalManager {
      * Cancel a specific approval request
      */
     cancelApproval(approvalId: string): void {
-        this.provider.cancelApproval(approvalId);
+        // Try to cancel in both providers since we don't track which provider owns which ID
+        this.toolProvider.cancelApproval(approvalId);
+        this.elicitationProvider?.cancelApproval(approvalId);
     }
 
     /**
      * Cancel all pending approval requests
      */
     cancelAllApprovals(): void {
-        this.provider.cancelAllApprovals();
+        this.toolProvider.cancelAllApprovals();
+        this.elicitationProvider?.cancelAllApprovals();
     }
 
     /**
      * Get list of pending approval IDs
      */
     getPendingApprovals(): string[] {
-        return this.provider.getPendingApprovals();
+        const toolApprovals = this.toolProvider.getPendingApprovals();
+        const elicitationApprovals = this.elicitationProvider?.getPendingApprovals() ?? [];
+        return [...toolApprovals, ...elicitationApprovals];
     }
 
     /**

@@ -91,6 +91,12 @@ toolConfirmation:
   #     - mcp--filesystem--delete_file
   #     - mcp--playwright--execute_script
 
+# Elicitation configuration - separate from tool confirmation
+# Allows auto-approve for tools while still supporting user input requests
+elicitation:
+  enabled: true            # Enable ask_user tool and MCP server elicitations
+  timeout: 120000          # Time to wait for user input (ms)
+
 # Internal tools - built-in Dexto capabilities
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input

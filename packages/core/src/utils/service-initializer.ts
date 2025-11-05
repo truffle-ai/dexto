@@ -105,8 +105,14 @@ export async function createAgentServices(
     // Created before MCP manager since MCP manager depends on it for elicitation support
     logger.debug('Initializing approval manager');
     const approvalManager = new ApprovalManager(agentEventBus, {
-        mode: config.toolConfirmation.mode,
-        timeout: config.toolConfirmation.timeout,
+        toolConfirmation: {
+            mode: config.toolConfirmation.mode,
+            timeout: config.toolConfirmation.timeout,
+        },
+        elicitation: {
+            enabled: config.elicitation.enabled,
+            timeout: config.elicitation.timeout,
+        },
     });
     logger.debug('Approval system initialized');
 
