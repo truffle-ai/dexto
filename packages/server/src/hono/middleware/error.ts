@@ -71,7 +71,11 @@ export function handleHonoError(ctx: any, err: unknown) {
         type: typeof err,
     });
 
-    const userMessage = `An unexpected error occurred: ${errorMessage}`;
+    // Only expose error details in development, use generic message in production
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const userMessage = isDevelopment
+        ? `An unexpected error occurred: ${errorMessage}`
+        : 'An unexpected error occurred. Please try again later.';
 
     return ctx.json(
         {
@@ -80,7 +84,8 @@ export function handleHonoError(ctx: any, err: unknown) {
             scope: 'system',
             type: 'system',
             severity: 'error',
-            ...(errorStack ? { stack: errorStack } : {}),
+            // Only include stack traces in development to avoid exposing internals
+            ...(isDevelopment && errorStack ? { stack: errorStack } : {}),
         },
         500
     );
