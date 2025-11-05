@@ -77,14 +77,15 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     // Global pattern: /Users/<user>/.dexto/agents or /home/<user>/.dexto/agents
     // Also handles Windows: C:\Users\<user>\.dexto\agents
     const isGlobalAgent = useCallback((path: string): boolean => {
-        // Match paths where .dexto appears within first 3 segments (home directory level)
-        // Global: /Users/username/.dexto/agents/... (3 segments to .dexto)
+        // Match paths where .dexto appears within first 4 segments (home directory level)
+        // POSIX: /Users/username/.dexto/agents/... (index 2)
+        // Windows: C:/Users/username/.dexto/agents/... (index 3, drive letter adds extra segment)
         // Project: /Users/username/Projects/my-project/.dexto/agents/... (5+ segments)
         // Normalize Windows backslashes to forward slashes for consistent parsing
         const normalized = path.replace(/\\/g, '/');
         const segments = normalized.split('/').filter(Boolean);
         const dextoIndex = segments.findIndex((s) => s === '.dexto');
-        return dextoIndex >= 0 && dextoIndex <= 2;
+        return dextoIndex >= 0 && dextoIndex <= 3;
     }, []);
 
     // Fetch agents list using TanStack Query
