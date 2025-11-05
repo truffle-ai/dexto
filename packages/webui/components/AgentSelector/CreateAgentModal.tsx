@@ -154,36 +154,6 @@ export default function CreateAgentModal({
         setCreateError(null);
 
         try {
-            // Extract system prompt content from contributors
-            let systemPromptContent = '';
-            if (
-                config.systemPrompt &&
-                typeof config.systemPrompt === 'object' &&
-                'contributors' in config.systemPrompt
-            ) {
-                const contributors = config.systemPrompt.contributors;
-                if (Array.isArray(contributors)) {
-                    // Find the first static contributor with content
-                    const staticContributor = contributors.find(
-                        (c: Record<string, unknown>) => c.type === 'static' && c.content
-                    );
-                    if (
-                        staticContributor &&
-                        'content' in staticContributor &&
-                        typeof staticContributor.content === 'string'
-                    ) {
-                        systemPromptContent = staticContributor.content.trim();
-                    }
-                }
-            } else if (typeof config.systemPrompt === 'string') {
-                systemPromptContent = config.systemPrompt.trim();
-            }
-
-            // Ensure we have a valid system prompt
-            if (!systemPromptContent) {
-                systemPromptContent = 'You are a helpful AI assistant.';
-            }
-
             const data = await apiFetch<{ id: string }>('/api/agents/custom/create', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -197,13 +167,11 @@ export default function CreateAgentModal({
                         .map((t) => t.trim())
                         .filter(Boolean),
 
-                    // Agent config
-                    llm: {
-                        provider: config.llm?.provider,
-                        model: config.llm?.model?.trim(),
-                        ...(config.llm?.apiKey?.trim() && { apiKey: config.llm.apiKey.trim() }),
+                    // Full agent configuration
+                    config: {
+                        llm: config.llm,
+                        systemPrompt: config.systemPrompt,
                     },
-                    systemPrompt: systemPromptContent,
                 }),
             });
 

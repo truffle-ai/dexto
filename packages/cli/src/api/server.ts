@@ -1468,60 +1468,48 @@ export async function initializeApi(
                 .describe('One-line description of the agent'),
             author: z.string().optional().describe('Author or organization'),
             tags: z.array(z.string()).default([]).describe('Tags for discovery'),
-            // Agent configuration
-            llm: z
-                .object({
-                    provider: z.enum(LLM_PROVIDERS).describe('LLM provider id'),
-                    model: z.string().min(1, 'Model is required').describe('Model name'),
-                    apiKey: z
-                        .string()
-                        .optional()
-                        .describe(
-                            'API key or environment variable reference (e.g., $OPENAI_API_KEY)'
-                        ),
-                })
-                .strict()
-                .describe('LLM configuration'),
-            systemPrompt: z
-                .string()
-                .min(1, 'System prompt is required')
-                .describe('System prompt for the agent'),
+            // Full agent configuration
+            config: AgentConfigSchema.describe('Complete agent configuration'),
         })
         .strict();
 
     // Create a new custom agent from UI
     app.post('/api/agents/custom/create', express.json(), async (req, res, next) => {
         try {
-            const { id, name, description, author, tags, llm, systemPrompt } = parseBody(
+            const { id, name, description, author, tags, config } = parseBody(
                 CustomAgentCreateSchema,
                 req.body
             );
 
-            const provider: LLMProvider = llm.provider;
-
             // Handle API key: if it's a raw key, store securely and use env var reference
-            let apiKeyRef: string | undefined;
-            if (llm.apiKey && !llm.apiKey.startsWith('$')) {
+            const provider: LLMProvider = config.llm.provider;
+            let agentConfig = config;
+
+            if (config.llm.apiKey && !config.llm.apiKey.startsWith('$')) {
                 // Raw API key provided - store securely and get env var reference
-                const meta = await saveProviderApiKey(provider, llm.apiKey, process.cwd());
-                apiKeyRef = `$${meta.envVar}`;
+                const meta = await saveProviderApiKey(provider, config.llm.apiKey, process.cwd());
+                const apiKeyRef = `$${meta.envVar}`;
                 logger.info(
                     `Stored API key securely for ${provider}, using env var: ${meta.envVar}`
                 );
-            } else if (llm.apiKey) {
-                // Already an env var reference
-                apiKeyRef = llm.apiKey;
+                // Update config with env var reference
+                agentConfig = {
+                    ...config,
+                    llm: {
+                        ...config.llm,
+                        apiKey: apiKeyRef,
+                    },
+                };
+            } else if (!config.llm.apiKey) {
+                // No API key provided, use default env var
+                agentConfig = {
+                    ...config,
+                    llm: {
+                        ...config.llm,
+                        apiKey: `$${getPrimaryApiKeyEnvVar(provider)}`,
+                    },
+                };
             }
-
-            // Create agent YAML content (with env var reference instead of raw key)
-            const agentConfig = {
-                llm: {
-                    provider,
-                    model: llm.model,
-                    apiKey: apiKeyRef || `$${getPrimaryApiKeyEnvVar(provider)}`,
-                },
-                systemPrompt,
-            };
 
             const yamlContent = yamlStringify(agentConfig);
             logger.info(`Creating agent config for ${id}:`, { agentConfig, yamlContent });
