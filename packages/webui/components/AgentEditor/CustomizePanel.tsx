@@ -126,6 +126,34 @@ export default function CustomizePanel({
     const [debouncedYamlContent] = useDebounce(yamlContent, 500);
     const latestValidationRequestRef = useRef(0);
 
+    // Validate YAML content via API
+    const validateYaml = useCallback(
+        async (yaml: string) => {
+            const requestId = latestValidationRequestRef.current + 1;
+            latestValidationRequestRef.current = requestId;
+
+            try {
+                const data = await validateMutation.mutateAsync({ yaml });
+                if (latestValidationRequestRef.current === requestId) {
+                    setIsValid(data.valid);
+                    setErrors(data.errors || []);
+                    setWarnings(data.warnings || []);
+                }
+            } catch (err: any) {
+                console.error(
+                    `Validation error: ${err instanceof Error ? err.message : String(err)}`
+                );
+                if (latestValidationRequestRef.current === requestId) {
+                    setIsValid(false);
+                    setErrors([
+                        { message: 'Failed to validate configuration', code: 'VALIDATION_ERROR' },
+                    ]);
+                }
+            }
+        },
+        [validateMutation]
+    );
+
     // Initialize state when config data loads
     useEffect(() => {
         if (configData && isOpen) {
@@ -145,30 +173,7 @@ export default function CustomizePanel({
             // Initial validation
             validateYaml(configData.yaml);
         }
-    }, [configData, isOpen]);
-
-    // Validate YAML content via API
-    const validateYaml = async (yaml: string) => {
-        const requestId = latestValidationRequestRef.current + 1;
-        latestValidationRequestRef.current = requestId;
-
-        try {
-            const data = await validateMutation.mutateAsync({ yaml });
-            if (latestValidationRequestRef.current === requestId) {
-                setIsValid(data.valid);
-                setErrors(data.errors || []);
-                setWarnings(data.warnings || []);
-            }
-        } catch (err: any) {
-            console.error(`Validation error: ${err instanceof Error ? err.message : String(err)}`);
-            if (latestValidationRequestRef.current === requestId) {
-                setIsValid(false);
-                setErrors([
-                    { message: 'Failed to validate configuration', code: 'VALIDATION_ERROR' },
-                ]);
-            }
-        }
-    };
+    }, [configData, isOpen, validateYaml]);
 
     // Parse YAML to config object and document
     const parseYamlToConfig = (
@@ -487,7 +492,7 @@ export default function CustomizePanel({
         if (isOpen) {
             validateYaml(debouncedYamlContent);
         }
-    }, [debouncedYamlContent, isOpen]);
+    }, [debouncedYamlContent, isOpen, validateYaml]);
 
     // Keyboard shortcuts
     useEffect(() => {
