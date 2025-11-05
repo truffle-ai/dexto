@@ -41,6 +41,15 @@ export default function GlobalSearchModal({
     const results = data?.results || [];
     const searchError = error?.message ?? null;
 
+    // Clamp selectedIndex when results change to prevent out-of-bounds selection
+    useEffect(() => {
+        if (selectedIndex >= results.length && results.length > 0) {
+            setSelectedIndex(results.length - 1);
+        } else if (results.length === 0) {
+            setSelectedIndex(0);
+        }
+    }, [results.length, selectedIndex]);
+
     const handleResultClick = useCallback(
         (result: SearchResult) => {
             onNavigateToSession(result.sessionId, result.messageIndex);
