@@ -1,4 +1,4 @@
-import { logger, ApprovalType, ApprovalStatus } from '@dexto/core';
+import { logger, ApprovalType, ApprovalStatus, DenialReason } from '@dexto/core';
 import * as readline from 'readline';
 import chalk from 'chalk';
 import boxen from 'boxen';
@@ -50,9 +50,17 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 error instanceof Error ? { error } : undefined
             );
             // Send denial response on error
-            const errorResponse: any = {
+            const errorResponse: {
+                approvalId: string;
+                status: ApprovalStatus;
+                reason: DenialReason;
+                message: string;
+                sessionId?: string;
+            } = {
                 approvalId: event.approvalId,
                 status: ApprovalStatus.DENIED,
+                reason: DenialReason.SYSTEM_DENIED,
+                message: `Approval request failed due to error: ${error instanceof Error ? error.message : String(error)}`,
             };
 
             if (event.sessionId !== undefined) {
@@ -94,6 +102,8 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             status: ApprovalStatus;
             sessionId?: string;
             data: { rememberChoice: boolean };
+            reason?: DenialReason;
+            message?: string;
         } = {
             approvalId: event.approvalId,
             status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
@@ -104,6 +114,12 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
 
         if (event.sessionId !== undefined) {
             response.sessionId = event.sessionId;
+        }
+
+        // Add reason and message when denied
+        if (!approved) {
+            response.reason = DenialReason.USER_DENIED;
+            response.message = `User denied the tool execution`;
         }
 
         this.sendApprovalResponse(response);
@@ -155,9 +171,13 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 approvalId: string;
                 status: ApprovalStatus;
                 sessionId?: string;
+                reason?: DenialReason;
+                message?: string;
             } = {
                 approvalId: event.approvalId,
                 status: ApprovalStatus.CANCELLED,
+                reason: DenialReason.USER_CANCELLED,
+                message: 'User cancelled the elicitation request',
             };
 
             if (event.sessionId !== undefined) {
@@ -468,6 +488,8 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
         status: ApprovalStatus;
         sessionId?: string;
         data?: Record<string, any>;
+        reason?: DenialReason;
+        message?: string;
     }): void {
         if (!this.agentEventBus) {
             logger.error('AgentEventBus not available for sending approval response');
@@ -512,7 +534,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             this.renderSelection(selection);
 
             // Handle keypress events
-            const keypressHandler = (str: string, key: readline.Key) => {
+            const keypressHandler = (_str: string, key: readline.Key) => {
                 // Handle left/right arrow keys
                 if (key.name === 'left') {
                     selection = true; // Left = Approve

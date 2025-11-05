@@ -46,8 +46,14 @@ describe('ToolManager Integration Tests', () => {
 
         // Create ApprovalManager in auto-approve mode for integration tests
         approvalManager = new ApprovalManager(mockAgentEventBus, {
-            mode: 'auto-approve',
-            timeout: 120000,
+            toolConfirmation: {
+                mode: 'auto-approve',
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: true,
+                timeout: 120000,
+            },
         });
 
         // Create mock AllowedToolsProvider
@@ -201,8 +207,14 @@ describe('ToolManager Integration Tests', () => {
     describe('Confirmation Flow Integration', () => {
         it('should work with auto-approve mode', async () => {
             const autoApproveManager = new ApprovalManager(mockAgentEventBus, {
-                mode: 'auto-approve',
-                timeout: 120000,
+                toolConfirmation: {
+                    mode: 'auto-approve',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
             });
             const mockClient: IMCPClient = {
                 getTools: vi.fn().mockResolvedValue({
@@ -235,8 +247,14 @@ describe('ToolManager Integration Tests', () => {
 
         it('should work with auto-deny mode', async () => {
             const autoDenyManager = new ApprovalManager(mockAgentEventBus, {
-                mode: 'auto-deny',
-                timeout: 120000,
+                toolConfirmation: {
+                    mode: 'auto-deny',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
             });
             const mockClient: IMCPClient = {
                 getTools: vi.fn().mockResolvedValue({

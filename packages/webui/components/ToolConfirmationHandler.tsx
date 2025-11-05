@@ -181,7 +181,14 @@ export function ToolConfirmationHandler({
                     status: approved ? 'approved' : 'denied',
                     sessionId: pendingConfirmation.sessionId,
                     ...(responseData ? { data: responseData } : {}),
-                },
+                    // Add reason and message when denied
+                ...(!approved ? {
+                    reason: 'user_denied' as const,
+                    message: isElicitation
+                        ? `User denied the elicitation request`
+                        : `User denied the tool execution`
+                } : {}),
+            },
             };
 
             console.debug(`[WebUI] Sending approvalResponse: ${JSON.stringify(response)}`);

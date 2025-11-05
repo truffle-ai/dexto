@@ -10,7 +10,11 @@ import { ServerConfigsSchema as McpServersConfigSchema } from '@core/mcp/schemas
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
-import { InternalToolsSchema, ToolConfirmationConfigSchema } from '@core/tools/schemas.js';
+import {
+    InternalToolsSchema,
+    ToolConfirmationConfigSchema,
+    ElicitationConfigSchema,
+} from '@core/tools/schemas.js';
 import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
 import { StarterPromptsSchema } from '@core/prompts/schemas.js';
@@ -118,6 +122,10 @@ export const AgentConfigSchema = z
 
         toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
             'Tool confirmation and approval configuration'
+        ),
+
+        elicitation: ElicitationConfigSchema.default({}).describe(
+            'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode.'
         ),
 
         // Internal resources configuration (filesystem, etc.)

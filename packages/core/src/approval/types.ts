@@ -66,6 +66,27 @@ export enum ApprovalStatus {
     CANCELLED = 'cancelled',
 }
 
+/**
+ * Reason for denial or cancellation
+ * Provides context about why an approval was not granted
+ */
+export enum DenialReason {
+    /** User explicitly clicked deny/reject */
+    USER_DENIED = 'user_denied',
+    /** System denied due to policy (auto-deny mode, alwaysDeny list) */
+    SYSTEM_DENIED = 'system_denied',
+    /** Request timed out waiting for user response */
+    TIMEOUT = 'timeout',
+    /** User cancelled the request */
+    USER_CANCELLED = 'user_cancelled',
+    /** System cancelled (session ended, agent stopped) */
+    SYSTEM_CANCELLED = 'system_cancelled',
+    /** Validation failed (form validation, schema mismatch) */
+    VALIDATION_FAILED = 'validation_failed',
+    /** Elicitation disabled in configuration */
+    ELICITATION_DISABLED = 'elicitation_disabled',
+}
+
 // ============================================================================
 // Metadata Types - Derived from Zod schemas
 // ============================================================================

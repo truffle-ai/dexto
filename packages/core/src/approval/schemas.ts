@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { z } from 'zod';
-import { ApprovalType, ApprovalStatus } from './types.js';
+import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 
 /**
  * Schema for approval types
@@ -14,6 +14,11 @@ export const ApprovalTypeSchema = z.nativeEnum(ApprovalType);
  * Schema for approval status
  */
 export const ApprovalStatusSchema = z.nativeEnum(ApprovalStatus);
+
+/**
+ * Schema for denial/cancellation reasons
+ */
+export const DenialReasonSchema = z.nativeEnum(DenialReason);
 
 /**
  * Tool confirmation metadata schema
@@ -162,6 +167,13 @@ export const BaseApprovalResponseSchema = z
         approvalId: z.string().uuid().describe('Must match request approvalId'),
         status: ApprovalStatusSchema.describe('Approval status'),
         sessionId: z.string().optional().describe('Session identifier'),
+        reason: DenialReasonSchema.optional().describe(
+            'Reason for denial/cancellation (only present when status is denied or cancelled)'
+        ),
+        message: z
+            .string()
+            .optional()
+            .describe('Human-readable message explaining the denial/cancellation'),
     })
     .describe('Base approval response');
 

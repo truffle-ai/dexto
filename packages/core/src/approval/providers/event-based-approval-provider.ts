@@ -1,5 +1,5 @@
 import type { ApprovalProvider, ApprovalRequest, ApprovalResponse } from '../types.js';
-import { ApprovalStatus } from '../types.js';
+import { ApprovalStatus, DenialReason } from '../types.js';
 import type { AgentEventBus } from '../../events/index.js';
 import { logger } from '../../logger/index.js';
 import { ApprovalError } from '../errors.js';
@@ -56,10 +56,14 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                           approvalId: request.approvalId,
                           status: ApprovalStatus.CANCELLED,
                           sessionId: request.sessionId,
+                          reason: DenialReason.TIMEOUT,
+                          message: `Approval request timed out after ${timeout}ms`,
                       }
                     : {
                           approvalId: request.approvalId,
                           status: ApprovalStatus.CANCELLED,
+                          reason: DenialReason.TIMEOUT,
+                          message: `Approval request timed out after ${timeout}ms`,
                       };
 
                 logger.warn(
@@ -129,7 +133,13 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
     private async handleApprovalResponse(response: ApprovalResponse): Promise<void> {
         const pending = this.pendingApprovals.get(response.approvalId);
         if (!pending) {
-            logger.warn(`Received approvalResponse for unknown approvalId ${response.approvalId}`);
+            // Only warn if this provider has pending approvals it cannot match
+            // (avoids spurious warnings when multiple providers share the event bus)
+            if (this.pendingApprovals.size > 0) {
+                logger.warn(
+                    `Received approvalResponse for unknown approvalId ${response.approvalId}`
+                );
+            }
             return;
         }
 
@@ -163,6 +173,8 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                 approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: pending.request.sessionId,
+                reason: DenialReason.SYSTEM_CANCELLED,
+                message: 'Approval request was cancelled',
             });
         }
     }
@@ -179,6 +191,8 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                 approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: pending.request.sessionId,
+                reason: DenialReason.SYSTEM_CANCELLED,
+                message: 'All approval requests were cancelled',
             });
         }
         this.pendingApprovals.clear();
