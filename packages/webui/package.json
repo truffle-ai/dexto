@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "BUILD_STANDALONE=true next build",
     "start": "next start",
     "lint": "eslint -c eslint.config.mjs . --ext .ts,.tsx"
   },
