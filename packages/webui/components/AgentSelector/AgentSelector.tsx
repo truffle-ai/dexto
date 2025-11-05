@@ -348,8 +348,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        []
+        [deleteAgentMutation]
     );
 
     const currentLabel = useMemo(() => {
