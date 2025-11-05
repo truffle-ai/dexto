@@ -6800,6 +6800,26 @@
                         "additionalProperties": false,
                         "description": "Tool confirmation and approval configuration"
                       },
+                      "elicitation": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Enable elicitation support (ask_user tool and MCP server elicitations). When disabled, elicitation requests will be rejected."
+                          },
+                          "timeout": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "default": 120000,
+                            "description": "Timeout for elicitation requests in milliseconds, defaults to 120000ms (2 mins)"
+                          }
+                        },
+                        "default": {},
+                        "additionalProperties": false,
+                        "description": "Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode."
+                      },
                       "internalResources": {
                         "anyOf": [
                           {

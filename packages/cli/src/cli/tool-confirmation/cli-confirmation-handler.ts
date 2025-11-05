@@ -528,7 +528,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             this.renderSelection(selection);
 
             // Handle keypress events
-            const keypressHandler = (str: string, key: readline.Key) => {
+            const keypressHandler = (_str: string, key: readline.Key) => {
                 // Handle left/right arrow keys
                 if (key.name === 'left') {
                     selection = true; // Left = Approve
