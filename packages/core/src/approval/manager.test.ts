@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ApprovalManager } from './manager.js';
-import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+import { ApprovalStatus, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
@@ -375,7 +375,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should handle user_denied reason in error message', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
+            const _manager = new ApprovalManager(agentEventBus, {
                 toolConfirmation: {
                     mode: 'event-based',
                     timeout: 1, // Quick timeout for test
