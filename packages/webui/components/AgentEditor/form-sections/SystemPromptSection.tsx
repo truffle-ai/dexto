@@ -406,7 +406,8 @@ export function SystemPromptSection({
                                                                         contributor.id,
                                                                         {
                                                                             options: {
-                                                                                ...contributor.options,
+                                                                                ...(contributor.options ??
+                                                                                    {}),
                                                                                 includeFilenames:
                                                                                     e.target
                                                                                         .checked,
@@ -433,7 +434,8 @@ export function SystemPromptSection({
                                                                         contributor.id,
                                                                         {
                                                                             options: {
-                                                                                ...contributor.options,
+                                                                                ...(contributor.options ??
+                                                                                    {}),
                                                                                 includeMetadata:
                                                                                     e.target
                                                                                         .checked,
@@ -464,7 +466,8 @@ export function SystemPromptSection({
                                                                         contributor.id,
                                                                         {
                                                                             options: {
-                                                                                ...contributor.options,
+                                                                                ...(contributor.options ??
+                                                                                    {}),
                                                                                 separator:
                                                                                     e.target.value,
                                                                             },
@@ -493,7 +496,8 @@ export function SystemPromptSection({
                                                                         contributor.id,
                                                                         {
                                                                             options: {
-                                                                                ...contributor.options,
+                                                                                ...(contributor.options ??
+                                                                                    {}),
                                                                                 errorHandling: e
                                                                                     .target
                                                                                     .value as
@@ -538,7 +542,8 @@ export function SystemPromptSection({
                                                                         contributor.id,
                                                                         {
                                                                             options: {
-                                                                                ...contributor.options,
+                                                                                ...(contributor.options ??
+                                                                                    {}),
                                                                                 maxFileSize:
                                                                                     Number.isNaN(
                                                                                         num
