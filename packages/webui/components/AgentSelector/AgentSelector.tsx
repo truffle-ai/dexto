@@ -73,6 +73,17 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
     const queryClient = useQueryClient();
 
+    // Check if an agent path is from the global ~/.dexto directory
+    // Global pattern: /Users/<user>/.dexto/agents or /home/<user>/.dexto/agents
+    const isGlobalAgent = useCallback((path: string): boolean => {
+        // Match paths where .dexto appears within first 3 segments (home directory level)
+        // Global: /Users/username/.dexto/agents/... (3 segments to .dexto)
+        // Project: /Users/username/Projects/my-project/.dexto/agents/... (5+ segments)
+        const segments = path.split('/').filter((s) => s);
+        const dextoIndex = segments.findIndex((s) => s === '.dexto');
+        return dextoIndex >= 0 && dextoIndex <= 2;
+    }, []);
+
     // Fetch agents list using TanStack Query
     const {
         data: agentsData,
@@ -351,12 +362,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
     const handleAgentCreated = useCallback(
         async (_agentName: string) => {
-            // Add a small delay to ensure the agent is fully installed
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            // Reload agents list to show the newly created agent
             await refetchAgents();
-            // Note: We don't automatically switch to the newly created agent to avoid race conditions
-            // The user can manually switch to it from the dropdown
         },
         [refetchAgents]
     );
@@ -474,7 +480,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                             (ra) =>
                                                 !installed.some((a) => a.id === ra.id) &&
                                                 ra.id !== currentAgentPath?.name &&
-                                                !ra.path.includes('/.dexto/') // Filter out global dexto directory agents
+                                                !isGlobalAgent(ra.path) // Filter out global dexto directory agents
                                         )
                                         .slice(0, 3)
                                         .map((agent) => (

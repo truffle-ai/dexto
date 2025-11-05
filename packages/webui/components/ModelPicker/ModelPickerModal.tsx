@@ -80,6 +80,19 @@ function CompactModelCard({
                 <TooltipTrigger asChild>
                     <div
                         onClick={onClick}
+                        onKeyDown={(event) => {
+                            const target = event.target as HTMLElement | null;
+                            if (target && target.closest('button')) return;
+
+                            const isEnter = event.key === 'Enter';
+                            const isSpace =
+                                event.key === ' ' ||
+                                event.key === 'Spacebar' ||
+                                event.code === 'Space';
+                            if (!isEnter && !isSpace) return;
+                            if (isSpace) event.preventDefault();
+                            onClick();
+                        }}
                         className={cn(
                             'w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 cursor-pointer group',
                             'hover:bg-accent/50 hover:shadow-md hover:scale-[1.01]',
