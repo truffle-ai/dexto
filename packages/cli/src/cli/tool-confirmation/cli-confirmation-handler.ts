@@ -50,7 +50,13 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
                 error instanceof Error ? { error } : undefined
             );
             // Send denial response on error
-            const errorResponse: any = {
+            const errorResponse: {
+                approvalId: string;
+                status: ApprovalStatus;
+                reason: DenialReason;
+                message: string;
+                sessionId?: string;
+            } = {
                 approvalId: event.approvalId,
                 status: ApprovalStatus.DENIED,
                 reason: DenialReason.SYSTEM_DENIED,

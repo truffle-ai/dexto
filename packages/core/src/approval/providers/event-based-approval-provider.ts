@@ -133,7 +133,13 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
     private async handleApprovalResponse(response: ApprovalResponse): Promise<void> {
         const pending = this.pendingApprovals.get(response.approvalId);
         if (!pending) {
-            logger.warn(`Received approvalResponse for unknown approvalId ${response.approvalId}`);
+            // Only warn if this provider has pending approvals it cannot match
+            // (avoids spurious warnings when multiple providers share the event bus)
+            if (this.pendingApprovals.size > 0) {
+                logger.warn(
+                    `Received approvalResponse for unknown approvalId ${response.approvalId}`
+                );
+            }
             return;
         }
 
