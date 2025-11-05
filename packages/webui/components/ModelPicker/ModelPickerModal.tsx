@@ -404,22 +404,26 @@ export default function ModelPickerModal() {
 
     function onPickModel(providerId: string, model: ModelInfo, customBaseURL?: string) {
         const provider = providers[providerId];
-        if (!provider) return;
         const effectiveBaseURL = customBaseURL || baseURL;
-        if (provider.supportsBaseURL && effectiveBaseURL) {
+        const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
+        if (supportsBaseURL && effectiveBaseURL) {
             const v = validateBaseURL(effectiveBaseURL);
             if (!v.isValid) {
                 setError(v.error || 'Invalid base URL');
                 return;
             }
         }
-        if (!provider.hasApiKey) {
+        if (provider && !provider.hasApiKey) {
             setPendingSelection({ provider: providerId, model: model.name });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);
             return;
         }
-        switchLLMMutation.mutate({ providerId, model, useBaseURL: effectiveBaseURL });
+        switchLLMMutation.mutate({
+            providerId,
+            model,
+            useBaseURL: supportsBaseURL ? effectiveBaseURL : undefined,
+        });
     }
 
     function onPickCustomModel(customModel: CustomModelStorage) {

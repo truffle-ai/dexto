@@ -981,7 +981,10 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                                         onToggleRecording={
                                             isRecording ? stopRecording : startRecording
                                         }
-                                        disabled={!supportedFileTypes.includes('audio')}
+                                        disabled={
+                                            supportedFileTypes.length > 0 &&
+                                            !supportedFileTypes.includes('audio')
+                                        }
                                     />
                                 </div>
                             }

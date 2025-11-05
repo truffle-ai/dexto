@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
-import { useRecentAgentsStore } from '@/lib/stores/recentAgentsStore';
+import { useRecentAgentsStore, type RecentAgent } from '@/lib/stores/recentAgentsStore';
 import { Button } from '../ui/button';
 import {
     DropdownMenu,
@@ -47,13 +47,6 @@ type AgentPath = {
     name: string;
     relativePath: string;
     isDefault: boolean;
-};
-
-type RecentAgent = {
-    id: string;
-    name: string;
-    path: string;
-    lastUsed: number;
 };
 
 type AgentSelectorProps = {
