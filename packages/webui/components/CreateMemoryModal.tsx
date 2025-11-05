@@ -75,7 +75,14 @@ export default function CreateMemoryModal({ open, onClose }: CreateMemoryModalPr
     };
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
+        <Dialog
+            open={open}
+            onOpenChange={(nextOpen) => {
+                if (!nextOpen) {
+                    handleClose();
+                }
+            }}
+        >
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Create Memory</DialogTitle>

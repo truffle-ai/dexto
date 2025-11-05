@@ -2454,7 +2454,7 @@ export async function startApiServer(
     // Default to Hono
     console.log('🌐 USING HONO SERVER');
     const { startHonoApiServer } = await import('./server-hono.js');
-    return startHonoApiServer(agent, port, agentCardOverride);
+    return startHonoApiServer(agent, port, agentCardOverride, agentId);
 }
 
 export function shouldUseExpressServer(): boolean {

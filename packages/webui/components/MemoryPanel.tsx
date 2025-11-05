@@ -53,8 +53,8 @@ interface MemoryPanelProps {
 }
 
 async function fetchMemories(): Promise<Memory[]> {
-    const data = await apiFetch<{ memories: Memory[] }>('/api/memory');
-    return data.memories || [];
+    const data = await apiFetch<{ memories?: Memory[] } | null>('/api/memory');
+    return data?.memories ?? [];
 }
 
 export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: MemoryPanelProps) {

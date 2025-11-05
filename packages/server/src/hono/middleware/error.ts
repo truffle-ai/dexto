@@ -66,9 +66,10 @@ export function handleHonoError(ctx: any, err: unknown) {
 
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
-    logger.error(
-        `Unhandled error in API middleware: ${errorMessage}: ${JSON.stringify({ error: err, stack: errorStack, type: typeof err })}`
-    );
+    logger.error(`Unhandled error in API middleware: ${errorMessage}`, {
+        stack: errorStack,
+        type: typeof err,
+    });
 
     const userMessage = `An unexpected error occurred: ${errorMessage}`;
 
