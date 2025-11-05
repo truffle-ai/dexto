@@ -75,11 +75,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
     // Check if an agent path is from the global ~/.dexto directory
     // Global pattern: /Users/<user>/.dexto/agents or /home/<user>/.dexto/agents
+    // Also handles Windows: C:\Users\<user>\.dexto\agents
     const isGlobalAgent = useCallback((path: string): boolean => {
         // Match paths where .dexto appears within first 3 segments (home directory level)
         // Global: /Users/username/.dexto/agents/... (3 segments to .dexto)
         // Project: /Users/username/Projects/my-project/.dexto/agents/... (5+ segments)
-        const segments = path.split('/').filter((s) => s);
+        // Normalize Windows backslashes to forward slashes for consistent parsing
+        const normalized = path.replace(/\\/g, '/');
+        const segments = normalized.split('/').filter(Boolean);
         const dextoIndex = segments.findIndex((s) => s === '.dexto');
         return dextoIndex >= 0 && dextoIndex <= 2;
     }, []);
