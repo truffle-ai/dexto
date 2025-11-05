@@ -144,7 +144,7 @@ export default function GlobalSearchModal({
         const parts = text.split(regex);
 
         return parts.map((part, index) =>
-            regex.test(part) ? (
+            part.toLowerCase() === query.toLowerCase() ? (
                 <mark
                     key={index}
                     className="bg-yellow-200 dark:bg-yellow-800 font-medium rounded px-1"

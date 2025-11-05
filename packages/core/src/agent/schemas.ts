@@ -126,7 +126,9 @@ export const AgentConfigSchema = z
         ).default([]),
 
         // Agent-specific starter prompts configuration (used by WebUI and PromptManager)
-        starterPrompts: StarterPromptsSchema.default([]),
+        starterPrompts: StarterPromptsSchema.describe(
+            'Agent-specific starter prompts configuration (used by WebUI and PromptManager)'
+        ).default([]),
 
         // Plugin configuration
         plugins: PluginsConfigSchema.describe(
