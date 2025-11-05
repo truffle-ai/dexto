@@ -7067,7 +7067,7 @@
                           "additionalProperties": false
                         },
                         "default": [],
-                        "description": "Starter prompts that appear as clickable buttons in the WebUI"
+                        "description": "Agent-specific starter prompts configuration (used by WebUI and PromptManager)"
                       },
                       "plugins": {
                         "type": "object",
