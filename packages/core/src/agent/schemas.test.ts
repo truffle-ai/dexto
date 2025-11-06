@@ -255,6 +255,11 @@ describe('AgentConfigSchema', () => {
             model: 'gpt-5',
             apiKey: 'test-key',
         },
+        storage: {
+            cache: { type: 'in-memory' },
+            database: { type: 'in-memory' },
+            blob: { type: 'local', storePath: '/tmp/test-blobs' },
+        },
     };
 
     describe('Basic Structure Validation', () => {
