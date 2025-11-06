@@ -434,13 +434,32 @@ export class DextoAgent {
             span.setAttribute('sessionId', targetSessionId);
         }
 
-        // Add sessionId to baggage for propagation to child spans
-        const baggageEntries: Record<string, { value: string }> = {
-            sessionId: { value: targetSessionId },
-        };
+        // Preserve existing baggage entries and add sessionId
+        const existingBaggage = propagation.getBaggage(activeContext);
+        const baggageEntries: Record<string, { value: string }> = {};
+
+        // Copy existing baggage entries to preserve them
+        if (existingBaggage) {
+            existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                baggageEntries[key] = { value: entry.value };
+            });
+        }
+
+        // Add or update sessionId
+        baggageEntries.sessionId = { value: targetSessionId };
+
+        // Create updated context with merged baggage
         const updatedContext = propagation.setBaggage(
             activeContext,
             propagation.createBaggage(baggageEntries)
+        );
+
+        // Debug logging to verify baggage propagation
+        const verifyBaggage = propagation.getBaggage(updatedContext);
+        logger.debug(
+            `Baggage after setting sessionId: ${JSON.stringify(
+                Array.from(verifyBaggage?.getAllEntries() || [])
+            )}`
         );
 
         // Execute the rest of the method within the updated context

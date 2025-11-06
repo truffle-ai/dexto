@@ -15,7 +15,7 @@ import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
-import { trace } from '@opentelemetry/api';
+import { trace, context, propagation } from '@opentelemetry/api';
 
 /**
  * Anthropic implementation of LLMService
@@ -86,271 +86,305 @@ export class AnthropicService implements ILLMService {
         fileData?: FileData,
         stream?: boolean
     ): Promise<string> {
-        // Set provider and model attributes at the start of the span
+        // Get active span and context
         const activeSpan = trace.getActiveSpan();
+        const currentContext = context.active();
+
+        const provider = this.config.provider;
+        const model = this.config.model;
+
+        // Set on active span
         if (activeSpan) {
-            activeSpan.setAttribute('llm.provider', this.config.provider);
-            activeSpan.setAttribute('llm.model', this.config.model);
+            activeSpan.setAttribute('llm.provider', provider);
+            activeSpan.setAttribute('llm.model', model);
         }
 
-        // Add user message with optional image and file data
-        await this.contextManager.addUserMessage(textInput, imageData, fileData);
+        // Add to baggage for child span propagation
+        const existingBaggage = propagation.getBaggage(currentContext);
+        const baggageEntries: Record<string, import('@opentelemetry/api').BaggageEntry> = {};
 
-        // Get all tools
-        const rawTools = await this.toolManager.getAllTools();
-        const formattedTools = this.formatToolsForClaude(rawTools);
+        // Preserve existing baggage
+        if (existingBaggage) {
+            existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                baggageEntries[key] = entry;
+            });
+        }
 
-        logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
+        // Add LLM metadata
+        baggageEntries['llm.provider'] = { value: provider };
+        baggageEntries['llm.model'] = { value: model };
 
-        // Notify thinking
-        this.sessionEventBus.emit('llmservice:thinking');
+        const updatedContext = propagation.setBaggage(
+            currentContext,
+            propagation.createBaggage(baggageEntries)
+        );
 
-        let iterationCount = 0;
-        let fullResponse = '';
-        let totalTokens = 0;
+        // Execute rest of method in updated context
+        return await context.with(updatedContext, async () => {
+            // Add user message with optional image and file data
+            await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
-        try {
-            while (iterationCount < this.config.maxIterations) {
-                if (options?.signal?.aborted) {
-                    throw Object.assign(new Error('Aborted'), {
-                        name: 'AbortError',
-                        aborted: true,
-                    });
-                }
-                iterationCount++;
-                logger.debug(`Iteration ${iterationCount}`);
+            // Get all tools
+            const rawTools = await this.toolManager.getAllTools();
+            const formattedTools = this.formatToolsForClaude(rawTools);
 
-                // Use the new method that implements proper flow: get system prompt, compress history, format messages
-                // For system prompt generation, we need to pass the mcpManager as the context expects
+            logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
 
-                const contributorContext = {
-                    mcpManager: this.toolManager.getMcpManager(),
-                };
+            // Notify thinking
+            this.sessionEventBus.emit('llmservice:thinking');
 
-                const llmContext = {
-                    provider: this.config.provider,
-                    model: this.config.model,
-                };
+            let iterationCount = 0;
+            let fullResponse = '';
+            let totalTokens = 0;
 
-                const {
-                    formattedMessages,
-                    systemPrompt: _systemPrompt,
-                    tokensUsed,
-                } = await this.contextManager.getFormattedMessagesWithCompression(
-                    contributorContext,
-                    llmContext
-                );
-
-                // For Anthropic, we need to get the formatted system prompt separately
-                const formattedSystemPrompt =
-                    await this.contextManager.getFormattedSystemPrompt(contributorContext);
-
-                logger.debug(`Messages: ${JSON.stringify(formattedMessages, null, 2)}`);
-                logger.debug(`Estimated tokens being sent to Anthropic: ${tokensUsed}`);
-
-                // Get response with appropriate method
-                const { message, usage } = stream
-                    ? await this.getAnthropicStreamingResponse(
-                          formattedMessages,
-                          formattedSystemPrompt || null,
-                          formattedTools,
-                          options?.signal
-                      )
-                    : await this.getAnthropicResponse(
-                          formattedMessages,
-                          formattedSystemPrompt || null,
-                          formattedTools,
-                          options?.signal
-                      );
-
-                // Track token usage
-                if (usage) {
-                    totalTokens += usage.input_tokens + usage.output_tokens;
-                }
-
-                // Extract text content and tool uses from message
-                let textContent = '';
-                const toolUses = [];
-
-                for (const content of message.content) {
-                    if (content.type === 'text') {
-                        textContent += content.text;
-                    } else if (content.type === 'tool_use') {
-                        toolUses.push(content);
-                    }
-                }
-
-                // Process assistant message
-                if (toolUses.length > 0) {
-                    // Transform all tool uses into the format expected by ContextManager
-                    const formattedToolCalls = toolUses.map((toolUse) => ({
-                        id: toolUse.id,
-                        type: 'function' as const,
-                        function: {
-                            name: toolUse.name,
-                            arguments: JSON.stringify(toolUse.input),
-                        },
-                    }));
-
-                    // Add assistant message with all tool calls
-                    await this.contextManager.addAssistantMessage(textContent, formattedToolCalls, {
-                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-                    });
-                } else {
-                    // Add regular assistant message
-                    await this.contextManager.addAssistantMessage(textContent, undefined, {
-                        tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-                    });
-                }
-
-                // If no tools were used, we're done
-                if (toolUses.length === 0) {
-                    fullResponse += textContent;
-
-                    // Update ContextManager with actual token count for hybrid approach
-                    if (totalTokens > 0) {
-                        this.contextManager.updateActualTokenCount(totalTokens);
-                    }
-
-                    this.sessionEventBus.emit('llmservice:response', {
-                        content: fullResponse,
-                        provider: this.config.provider,
-                        model: this.config.model,
-                        router: 'in-built',
-                        ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
-                    });
-
-                    // Add token usage to active span (if telemetry is enabled)
-                    // Note: llm.provider and llm.model are already set at the start of completeTask
-                    const activeSpan = trace.getActiveSpan();
-                    if (activeSpan && totalTokens > 0) {
-                        activeSpan.setAttribute('gen_ai.usage.total_tokens', totalTokens);
-                    }
-
-                    return fullResponse;
-                }
-
-                // If text content exists, append it to the full response
-                if (textContent) {
-                    fullResponse += textContent + '\n';
-                }
-
-                // Handle tool uses
-                for (const toolUse of toolUses) {
+            try {
+                while (iterationCount < this.config.maxIterations) {
                     if (options?.signal?.aborted) {
                         throw Object.assign(new Error('Aborted'), {
                             name: 'AbortError',
                             aborted: true,
                         });
                     }
-                    const toolName = toolUse.name;
-                    const args = toolUse.input as Record<string, unknown>;
-                    const toolUseId = toolUse.id;
+                    iterationCount++;
+                    logger.debug(`Iteration ${iterationCount}`);
 
-                    // Notify tool call
-                    this.sessionEventBus.emit('llmservice:toolCall', {
-                        toolName,
-                        args,
-                        callId: toolUseId,
-                    });
+                    // Use the new method that implements proper flow: get system prompt, compress history, format messages
+                    // For system prompt generation, we need to pass the mcpManager as the context expects
 
-                    // Execute tool
-                    try {
-                        const result = await this.toolManager.executeTool(
-                            toolName,
-                            args,
-                            this.sessionId
+                    const contributorContext = {
+                        mcpManager: this.toolManager.getMcpManager(),
+                    };
+
+                    const llmContext = {
+                        provider: this.config.provider,
+                        model: this.config.model,
+                    };
+
+                    const {
+                        formattedMessages,
+                        systemPrompt: _systemPrompt,
+                        tokensUsed,
+                    } = await this.contextManager.getFormattedMessagesWithCompression(
+                        contributorContext,
+                        llmContext
+                    );
+
+                    // For Anthropic, we need to get the formatted system prompt separately
+                    const formattedSystemPrompt =
+                        await this.contextManager.getFormattedSystemPrompt(contributorContext);
+
+                    logger.debug(`Messages: ${JSON.stringify(formattedMessages, null, 2)}`);
+                    logger.debug(`Estimated tokens being sent to Anthropic: ${tokensUsed}`);
+
+                    // Get response with appropriate method
+                    const { message, usage } = stream
+                        ? await this.getAnthropicStreamingResponse(
+                              formattedMessages,
+                              formattedSystemPrompt || null,
+                              formattedTools,
+                              options?.signal
+                          )
+                        : await this.getAnthropicResponse(
+                              formattedMessages,
+                              formattedSystemPrompt || null,
+                              formattedTools,
+                              options?.signal
+                          );
+
+                    // Track token usage
+                    if (usage) {
+                        totalTokens += usage.input_tokens + usage.output_tokens;
+                    }
+
+                    // Extract text content and tool uses from message
+                    let textContent = '';
+                    const toolUses = [];
+
+                    for (const content of message.content) {
+                        if (content.type === 'text') {
+                            textContent += content.text;
+                        } else if (content.type === 'tool_use') {
+                            toolUses.push(content);
+                        }
+                    }
+
+                    // Process assistant message
+                    if (toolUses.length > 0) {
+                        // Transform all tool uses into the format expected by ContextManager
+                        const formattedToolCalls = toolUses.map((toolUse) => ({
+                            id: toolUse.id,
+                            type: 'function' as const,
+                            function: {
+                                name: toolUse.name,
+                                arguments: JSON.stringify(toolUse.input),
+                            },
+                        }));
+
+                        // Add assistant message with all tool calls
+                        await this.contextManager.addAssistantMessage(
+                            textContent,
+                            formattedToolCalls,
+                            {
+                                tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
+                            }
                         );
-
-                        // Add tool result to message manager
-                        const sanitized = await this.contextManager.addToolResult(
-                            toolUseId,
-                            toolName,
-                            result,
-                            { success: true }
-                        );
-
-                        // Notify tool result
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName,
-                            callId: toolUseId,
-                            success: true,
-                            sanitized,
-                            ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
-                        });
-                    } catch (error) {
-                        // Handle tool execution error
-                        const errorMessage = error instanceof Error ? error.message : String(error);
-                        logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
-
-                        // Add error as tool result
-                        const sanitized = await this.contextManager.addToolResult(
-                            toolUseId,
-                            toolName,
-                            { error: errorMessage },
-                            { success: false }
-                        );
-
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName,
-                            callId: toolUseId,
-                            success: false,
-                            sanitized,
-                            ...(shouldIncludeRawToolResult()
-                                ? { rawResult: { error: errorMessage } }
-                                : {}),
+                    } else {
+                        // Add regular assistant message
+                        await this.contextManager.addAssistantMessage(textContent, undefined, {
+                            tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
                         });
                     }
+
+                    // If no tools were used, we're done
+                    if (toolUses.length === 0) {
+                        fullResponse += textContent;
+
+                        // Update ContextManager with actual token count for hybrid approach
+                        if (totalTokens > 0) {
+                            this.contextManager.updateActualTokenCount(totalTokens);
+                        }
+
+                        this.sessionEventBus.emit('llmservice:response', {
+                            content: fullResponse,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: 'in-built',
+                            ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
+                        });
+
+                        // Add token usage to active span (if telemetry is enabled)
+                        // Note: llm.provider and llm.model are already set at the start of completeTask
+                        const activeSpan = trace.getActiveSpan();
+                        if (activeSpan && totalTokens > 0) {
+                            activeSpan.setAttribute('gen_ai.usage.total_tokens', totalTokens);
+                        }
+
+                        return fullResponse;
+                    }
+
+                    // If text content exists, append it to the full response
+                    if (textContent) {
+                        fullResponse += textContent + '\n';
+                    }
+
+                    // Handle tool uses
+                    for (const toolUse of toolUses) {
+                        if (options?.signal?.aborted) {
+                            throw Object.assign(new Error('Aborted'), {
+                                name: 'AbortError',
+                                aborted: true,
+                            });
+                        }
+                        const toolName = toolUse.name;
+                        const args = toolUse.input as Record<string, unknown>;
+                        const toolUseId = toolUse.id;
+
+                        // Notify tool call
+                        this.sessionEventBus.emit('llmservice:toolCall', {
+                            toolName,
+                            args,
+                            callId: toolUseId,
+                        });
+
+                        // Execute tool
+                        try {
+                            const result = await this.toolManager.executeTool(
+                                toolName,
+                                args,
+                                this.sessionId
+                            );
+
+                            // Add tool result to message manager
+                            const sanitized = await this.contextManager.addToolResult(
+                                toolUseId,
+                                toolName,
+                                result,
+                                { success: true }
+                            );
+
+                            // Notify tool result
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName,
+                                callId: toolUseId,
+                                success: true,
+                                sanitized,
+                                ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
+                            });
+                        } catch (error) {
+                            // Handle tool execution error
+                            const errorMessage =
+                                error instanceof Error ? error.message : String(error);
+                            logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
+
+                            // Add error as tool result
+                            const sanitized = await this.contextManager.addToolResult(
+                                toolUseId,
+                                toolName,
+                                { error: errorMessage },
+                                { success: false }
+                            );
+
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName,
+                                callId: toolUseId,
+                                success: false,
+                                sanitized,
+                                ...(shouldIncludeRawToolResult()
+                                    ? { rawResult: { error: errorMessage } }
+                                    : {}),
+                            });
+                        }
+                    }
+
+                    // Continue to next iteration without additional thinking notification
                 }
 
-                // Continue to next iteration without additional thinking notification
+                // If we reached max iterations
+                logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
+
+                // Update ContextManager with actual token count for hybrid approach
+                if (totalTokens > 0) {
+                    this.contextManager.updateActualTokenCount(totalTokens);
+                }
+
+                this.sessionEventBus.emit('llmservice:response', {
+                    content: fullResponse,
+                    provider: this.config.provider,
+                    model: this.config.model,
+                    router: 'in-built',
+                    ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
+                });
+
+                // Add token usage to active span (if telemetry is enabled)
+                // Note: llm.provider and llm.model are already set at the start of completeTask
+                const activeSpan = trace.getActiveSpan();
+                if (activeSpan && totalTokens > 0) {
+                    activeSpan.setAttribute('gen_ai.usage.total_tokens', totalTokens);
+                }
+
+                return (
+                    fullResponse ||
+                    'Reached maximum number of tool call iterations without a final response.'
+                );
+            } catch (error) {
+                if (
+                    error instanceof Error &&
+                    (error.name === 'AbortError' || (error as any).aborted === true)
+                ) {
+                    throw error;
+                }
+                // Handle API errors
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                logger.error(`Error in Anthropic service API call: ${errorMessage}`, { error });
+
+                this.sessionEventBus.emit('llmservice:error', {
+                    error: error instanceof Error ? error : new Error(errorMessage),
+                    context: 'Anthropic API call',
+                    recoverable: false,
+                });
+                return `Error processing request: ${errorMessage}`;
             }
-
-            // If we reached max iterations
-            logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
-
-            // Update ContextManager with actual token count for hybrid approach
-            if (totalTokens > 0) {
-                this.contextManager.updateActualTokenCount(totalTokens);
-            }
-
-            this.sessionEventBus.emit('llmservice:response', {
-                content: fullResponse,
-                provider: this.config.provider,
-                model: this.config.model,
-                router: 'in-built',
-                ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
-            });
-
-            // Add token usage to active span (if telemetry is enabled)
-            // Note: llm.provider and llm.model are already set at the start of completeTask
-            const activeSpan = trace.getActiveSpan();
-            if (activeSpan && totalTokens > 0) {
-                activeSpan.setAttribute('gen_ai.usage.total_tokens', totalTokens);
-            }
-
-            return (
-                fullResponse ||
-                'Reached maximum number of tool call iterations without a final response.'
-            );
-        } catch (error) {
-            if (
-                error instanceof Error &&
-                (error.name === 'AbortError' || (error as any).aborted === true)
-            ) {
-                throw error;
-            }
-            // Handle API errors
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error(`Error in Anthropic service API call: ${errorMessage}`, { error });
-
-            this.sessionEventBus.emit('llmservice:error', {
-                error: error instanceof Error ? error : new Error(errorMessage),
-                context: 'Anthropic API call',
-                recoverable: false,
-            });
-            return `Error processing request: ${errorMessage}`;
-        }
+        });
     }
 
     /**

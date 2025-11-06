@@ -68,26 +68,33 @@ export function withSpan(options: {
                 getBaggageValues(ctx);
 
             // Add all baggage values to span attributes
+            // Set both direct attributes and baggage-prefixed versions for storage schema fallback
+            if (sessionId) {
+                span.setAttribute('sessionId', sessionId);
+                span.setAttribute('baggage.sessionId', sessionId); // Fallback for storage
+            }
+
             if (requestId) {
                 span.setAttribute('http.request_id', requestId);
+                span.setAttribute('baggage.http.request_id', requestId);
             }
 
             if (threadId) {
                 span.setAttribute('threadId', threadId);
+                span.setAttribute('baggage.threadId', threadId);
             }
 
             if (resourceId) {
                 span.setAttribute('resourceId', resourceId);
-            }
-
-            if (sessionId) {
-                span.setAttribute('sessionId', sessionId);
+                span.setAttribute('baggage.resourceId', resourceId);
             }
 
             if (componentName) {
                 span.setAttribute('componentName', componentName);
+                span.setAttribute('baggage.componentName', componentName);
                 if (runId !== undefined) {
                     span.setAttribute('runId', String(runId));
+                    span.setAttribute('baggage.runId', String(runId));
                 }
             } else if (this && typeof this === 'object') {
                 const contextObj = this as {
