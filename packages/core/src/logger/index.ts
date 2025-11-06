@@ -1,3 +1,7 @@
+// Logger factory for dependency injection
+export { createLogger } from './factory.js';
+export type { CreateLoggerOptions } from './factory.js';
+
 // New multi-transport logger (Phase 1A) - v2 subfolder
 export * from './v2/types.js';
 export * from './v2/schemas.js';
