@@ -696,7 +696,7 @@ export class MCPManager {
             return;
         }
 
-        const client = new MCPClient();
+        const client = new MCPClient(this.logger);
         try {
             this.logger.info(`Attempting to connect to new server '${name}'...`);
             await client.connect(config, name);
@@ -830,7 +830,7 @@ export class MCPManager {
 
         // Reconnect with original config
         try {
-            const newClient = new MCPClient();
+            const newClient = new MCPClient(this.logger);
             await newClient.connect(config, name);
 
             // Set approval manager if available

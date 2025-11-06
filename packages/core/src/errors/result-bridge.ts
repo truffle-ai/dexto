@@ -1,6 +1,6 @@
 import type { Result } from '../utils/result.js';
 import { DextoValidationError } from './DextoValidationError.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
  * Bridge function to convert Result pattern to validation exceptions
@@ -9,6 +9,7 @@ import { logger } from '../logger/index.js';
  * Note: Runtime errors are thrown directly, not through Result pattern
  *
  * @param result - The Result to check (typically from validation functions)
+ * @param logger - Optional logger instance for logging
  * @returns The data if successful
  * @throws DextoValidationError if the result contains validation issues
  *
@@ -23,12 +24,12 @@ import { logger } from '../logger/index.js';
  * const validatedConfig = ensureOk(configResult);
  * ```
  */
-export function ensureOk<T, C>(result: Result<T, C>): T {
+export function ensureOk<T, C>(result: Result<T, C>, logger?: IDextoLogger): T {
     if (result.ok) {
         return result.data;
     }
 
-    logger.error(
+    logger?.error(
         `ensureOk: found validation errors, throwing DextoValidationError: ${result.issues}`
     );
     // Result pattern is used for validation - throw validation error

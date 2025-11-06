@@ -6,7 +6,8 @@ import {
     propagation,
     SpanOptions,
 } from '@opentelemetry/api';
-import { logger } from '../logger/index.js';
+import { noOpLogger } from '../logger/v2/noop-logger.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 import { safeStringify } from '../utils/safe-stringify.js';
 
@@ -152,7 +153,8 @@ export function withSpan(options: {
                 // Return regular results
                 return result;
             } catch (error) {
-                logger.error(
+                // Use no-op logger since decorators can't receive DI
+                noOpLogger.error(
                     `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`
                 );
                 span.setStatus({

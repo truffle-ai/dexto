@@ -166,7 +166,7 @@ export class DextoAgent {
     private telemetry?: Telemetry;
 
     // Logger instance for this agent (dependency injection)
-    private logger: IDextoLogger;
+    public readonly logger: IDextoLogger;
 
     constructor(
         config: AgentConfig,
@@ -238,7 +238,8 @@ export class DextoAgent {
                 this.resourceManager,
                 this.config,
                 this.agentEventBus,
-                services.storageManager.getDatabase()
+                services.storageManager.getDatabase(),
+                this.logger
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
@@ -454,7 +455,8 @@ export class DextoAgent {
                 {
                     provider: llmConfig.provider,
                     model: llmConfig.model,
-                }
+                },
+                this.logger
             );
 
             // Validate input and throw if invalid

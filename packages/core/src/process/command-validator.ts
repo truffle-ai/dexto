@@ -5,7 +5,7 @@
  */
 
 import { ProcessConfig, CommandValidation } from './types.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 const MAX_COMMAND_LENGTH = 10000; // 10K characters
 
@@ -278,10 +278,14 @@ const WRITE_PATTERNS = [
  */
 export class CommandValidator {
     private config: ProcessConfig;
+    private logger: IDextoLogger | undefined;
 
-    constructor(config: ProcessConfig) {
+    constructor(config: ProcessConfig, logger?: IDextoLogger) {
         this.config = config;
-        logger.debug(`CommandValidator initialized with security level: ${config.securityLevel}`);
+        this.logger = logger;
+        this.logger?.debug(
+            `CommandValidator initialized with security level: ${config.securityLevel}`
+        );
     }
 
     /**

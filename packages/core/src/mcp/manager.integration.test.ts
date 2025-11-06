@@ -57,7 +57,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -90,7 +90,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -119,7 +119,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -149,7 +149,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -180,7 +180,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -216,7 +216,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -251,7 +251,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'memory');
 
             manager.registerClient('memory', client);
@@ -280,7 +280,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const resourcesClient = new MCPClient();
+            const resourcesClient = new MCPClient(mockLogger);
             await resourcesClient.connect(resourcesConfig, 'resources-demo');
 
             // Connect memory server
@@ -291,7 +291,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const memoryClient = new MCPClient();
+            const memoryClient = new MCPClient(mockLogger);
             await memoryClient.connect(memoryConfig, 'memory');
 
             // Register both
@@ -322,7 +322,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const resourcesClient = new MCPClient();
+            const resourcesClient = new MCPClient(mockLogger);
             await resourcesClient.connect(resourcesConfig, 'resources-demo');
 
             const memoryConfig = McpServerConfigSchema.parse({
@@ -332,7 +332,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const memoryClient = new MCPClient();
+            const memoryClient = new MCPClient(mockLogger);
             await memoryClient.connect(memoryConfig, 'memory');
 
             manager.registerClient('resources-demo', resourcesClient);
@@ -367,7 +367,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient();
+            const client = new MCPClient(mockLogger);
             await client.connect(config, 'memory');
 
             manager.registerClient('memory', client);

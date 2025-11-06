@@ -198,7 +198,8 @@ export class ChatSession {
         // This persists across LLM switches to maintain conversation history
         this.historyProvider = createDatabaseHistoryProvider(
             this.services.storageManager.getDatabase(),
-            this.id
+            this.id,
+            this.logger
         );
 
         // Create session-specific LLM service

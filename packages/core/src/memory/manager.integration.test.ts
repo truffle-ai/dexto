@@ -22,7 +22,7 @@ describe('MemoryManager Integration Tests', () => {
             destroy: vi.fn(),
         } as any;
         // Use in-memory database for integration tests
-        database = await createDatabase({ type: 'in-memory' });
+        database = await createDatabase({ type: 'in-memory' }, mockLogger);
         await database.connect();
         memoryManager = new MemoryManager(database, mockLogger);
     });

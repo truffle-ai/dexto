@@ -1,5 +1,5 @@
 import { ToolExecutionContext, ToolSet, InternalTool } from '../types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo } from './registry.js';
@@ -23,37 +23,40 @@ export class InternalToolsProvider {
     private tools: Map<string, InternalTool> = new Map(); // ← Store original InternalTool
     private approvalManager: ApprovalManager;
     private config: InternalToolsConfig;
+    private logger: IDextoLogger | undefined;
 
     constructor(
         services: InternalToolsServices,
         approvalManager: ApprovalManager,
-        config: InternalToolsConfig = []
+        config: InternalToolsConfig = [],
+        logger?: IDextoLogger
     ) {
         this.services = services;
         this.approvalManager = approvalManager;
         this.config = config;
-        logger.debug('InternalToolsProvider initialized with config:', config);
+        this.logger = logger;
+        this.logger?.debug('InternalToolsProvider initialized with config:', { config });
     }
 
     /**
      * Initialize the internal tools provider by registering all available internal tools
      */
     async initialize(): Promise<void> {
-        logger.info('Initializing InternalToolsProvider...');
+        this.logger?.info('Initializing InternalToolsProvider...');
 
         try {
             // Check if any internal tools are enabled
             if (this.config.length === 0) {
-                logger.info('No internal tools enabled by configuration');
+                this.logger?.info('No internal tools enabled by configuration');
                 return;
             }
 
             this.registerInternalTools();
 
             const toolCount = this.tools.size;
-            logger.info(`InternalToolsProvider initialized with ${toolCount} internal tools`);
+            this.logger?.info(`InternalToolsProvider initialized with ${toolCount} internal tools`);
         } catch (error) {
-            logger.error(
+            this.logger?.error(
                 `Failed to initialize InternalToolsProvider: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -79,7 +82,7 @@ export class InternalToolsProvider {
             );
 
             if (missingServices.length > 0) {
-                logger.debug(
+                this.logger?.debug(
                     `Skipping ${toolName} internal tool - missing services: ${missingServices.join(', ')}`
                 );
                 continue;
@@ -89,9 +92,9 @@ export class InternalToolsProvider {
                 // Create the tool using its factory and store directly
                 const tool = toolInfo.factory(servicesWithApproval);
                 this.tools.set(toolName, tool); // ← Store original InternalTool directly
-                logger.debug(`Registered ${toolName} internal tool`);
+                this.logger?.debug(`Registered ${toolName} internal tool`);
             } catch (error) {
-                logger.error(
+                this.logger?.error(
                     `Failed to register ${toolName} internal tool: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -115,17 +118,18 @@ export class InternalToolsProvider {
     ): Promise<unknown> {
         const tool = this.tools.get(toolName);
         if (!tool) {
-            logger.error(`❌ No internal tool found: ${toolName}`);
-            logger.debug(`Available internal tools: ${Array.from(this.tools.keys()).join(', ')}`);
+            this.logger?.error(`❌ No internal tool found: ${toolName}`);
+            this.logger?.debug(
+                `Available internal tools: ${Array.from(this.tools.keys()).join(', ')}`
+            );
             throw ToolError.notFound(toolName);
         }
 
         // Validate input against tool's Zod schema
         const validationResult = tool.inputSchema.safeParse(args);
         if (!validationResult.success) {
-            logger.error(
-                `❌ Invalid arguments for tool ${toolName}:`,
-                validationResult.error.message
+            this.logger?.error(
+                `❌ Invalid arguments for tool ${toolName}: ${validationResult.error.message}`
             );
             throw ToolError.invalidName(
                 toolName,
@@ -138,7 +142,9 @@ export class InternalToolsProvider {
             const result = await tool.execute(validationResult.data, context);
             return result;
         } catch (error) {
-            logger.error(`❌ Internal tool execution failed: ${toolName}`, error);
+            this.logger?.error(`❌ Internal tool execution failed: ${toolName}`, {
+                error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
         }
     }
@@ -153,7 +159,7 @@ export class InternalToolsProvider {
             toolSet[name] = {
                 name: tool.id,
                 description: tool.description,
-                parameters: convertZodSchemaToJsonSchema(tool.inputSchema), // ← Convert on-demand
+                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger), // ← Convert on-demand
             };
         }
 

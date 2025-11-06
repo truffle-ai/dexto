@@ -1,7 +1,8 @@
 import type { ApprovalProvider, ApprovalRequest, ApprovalResponse } from '../types.js';
 import { ApprovalStatus } from '../types.js';
 import type { AgentEventBus } from '../../events/index.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ApprovalError } from '../errors.js';
 
 /**
@@ -23,15 +24,18 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
     >();
     private defaultTimeout: number;
     private agentEventBus: AgentEventBus;
+    private logger: IDextoLogger;
 
     constructor(
         agentEventBus: AgentEventBus,
         options: {
             defaultTimeout: number;
-        }
+        },
+        logger: IDextoLogger
     ) {
         this.agentEventBus = agentEventBus;
         this.defaultTimeout = options.defaultTimeout;
+        this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 
         // Listen for approval responses from application layers
         this.agentEventBus.on('dexto:approvalResponse', this.handleApprovalResponse.bind(this));
@@ -43,7 +47,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
     async requestApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
         const timeout = request.timeout ?? this.defaultTimeout;
 
-        logger.info(
+        this.logger.info(
             `Approval request '${request.type}' created, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
         );
 
@@ -62,7 +66,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                           status: ApprovalStatus.CANCELLED,
                       };
 
-                logger.warn(
+                this.logger.warn(
                     `Approval request timeout for '${request.type}', approvalId: ${request.approvalId}`
                 );
 
@@ -129,14 +133,16 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
     private async handleApprovalResponse(response: ApprovalResponse): Promise<void> {
         const pending = this.pendingApprovals.get(response.approvalId);
         if (!pending) {
-            logger.warn(`Received approvalResponse for unknown approvalId ${response.approvalId}`);
+            this.logger.warn(
+                `Received approvalResponse for unknown approvalId ${response.approvalId}`
+            );
             return;
         }
 
         // Remove from pending map immediately to prevent duplicate processing
         this.pendingApprovals.delete(response.approvalId);
 
-        logger.info(
+        this.logger.info(
             `Approval '${pending.request.type}' ${response.status}, approvalId: ${response.approvalId}, sessionId: ${response.sessionId ?? 'global'}`
         );
 

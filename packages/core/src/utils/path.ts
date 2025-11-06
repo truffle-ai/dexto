@@ -13,7 +13,7 @@ import {
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
@@ -216,9 +216,10 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  * Uses the same project detection logic as other dexto paths.
  *
  * @param startPath Starting directory for project detection
+ * @param logger Optional logger instance for logging
  * @returns Absolute path to .env file for saving
  */
-export function getDextoEnvPath(startPath: string = process.cwd()): string {
+export function getDextoEnvPath(startPath: string = process.cwd(), logger?: IDextoLogger): string {
     const context = getExecutionContext(startPath);
     let envPath = '';
     switch (context) {
@@ -250,6 +251,6 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
             break;
         }
     }
-    logger.debug(`Dexto env path: ${envPath}, context: ${context}`);
+    logger?.debug(`Dexto env path: ${envPath}, context: ${context}`);
     return envPath;
 }

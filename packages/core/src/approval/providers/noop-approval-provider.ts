@@ -4,7 +4,8 @@ import type {
     ApprovalResponse,
     ApprovalStatus,
 } from '../types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 
 /**
  * No-op approval provider that automatically approves or denies all requests
@@ -14,13 +15,15 @@ import { logger } from '../../logger/index.js';
  */
 export class NoOpApprovalProvider implements ApprovalProvider {
     private defaultStatus: ApprovalStatus;
+    private logger: IDextoLogger;
 
-    constructor(options: { defaultStatus: ApprovalStatus }) {
+    constructor(options: { defaultStatus: ApprovalStatus }, logger: IDextoLogger) {
         this.defaultStatus = options.defaultStatus;
+        this.logger = logger.createChild(DextoLogComponent.APPROVAL);
     }
 
     async requestApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
-        logger.info(
+        this.logger.info(
             `Auto-${this.defaultStatus} approval '${request.type}', approvalId: ${request.approvalId}`
         );
 

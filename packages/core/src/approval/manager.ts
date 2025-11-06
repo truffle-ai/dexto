@@ -82,13 +82,23 @@ export class ApprovalManager {
     ): ApprovalProvider {
         switch (config.mode) {
             case 'event-based':
-                return new EventBasedApprovalProvider(agentEventBus, {
-                    defaultTimeout: config.timeout,
-                });
+                return new EventBasedApprovalProvider(
+                    agentEventBus,
+                    {
+                        defaultTimeout: config.timeout,
+                    },
+                    this.logger
+                );
             case 'auto-approve':
-                return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.APPROVED });
+                return new NoOpApprovalProvider(
+                    { defaultStatus: ApprovalStatus.APPROVED },
+                    this.logger
+                );
             case 'auto-deny':
-                return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.DENIED });
+                return new NoOpApprovalProvider(
+                    { defaultStatus: ApprovalStatus.DENIED },
+                    this.logger
+                );
             default:
                 throw ApprovalError.invalidConfig(`Unknown approval mode: ${config.mode}`);
         }

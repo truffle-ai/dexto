@@ -91,7 +91,7 @@ export async function createAgentServices(
         );
     }
     logger.debug('Initializing storage manager');
-    const storageManager = await createStorageManager(config.storage);
+    const storageManager = await createStorageManager(config.storage, logger);
 
     logger.debug('Storage manager initialized', {
         cache: config.storage.cache.type,
