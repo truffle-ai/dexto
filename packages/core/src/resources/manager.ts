@@ -32,12 +32,17 @@ export class ResourceManager {
 
         const config = options.internalResourcesConfig;
         if (config.enabled || config.resources.length > 0) {
-            this.internalResourcesProvider = new InternalResourcesProvider(config, services);
+            this.internalResourcesProvider = new InternalResourcesProvider(
+                config,
+                services,
+                this.logger
+            );
         } else {
             // Always create provider to enable blob resources even if no other internal resources configured
             this.internalResourcesProvider = new InternalResourcesProvider(
                 { enabled: true, resources: [] },
-                services
+                services,
+                this.logger
             );
         }
 
