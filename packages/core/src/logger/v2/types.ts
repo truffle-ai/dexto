@@ -97,6 +97,19 @@ export interface IDextoLogger {
      * @param context Optional additional context
      */
     trackException(error: Error, context?: Record<string, unknown>): void;
+
+    /**
+     * Create a child logger with a different component
+     * Shares the same transports, agentId, and level but uses a different component identifier
+     * @param component Component identifier for the child logger
+     * @returns New logger instance with specified component
+     */
+    createChild(component: DextoLogComponent): IDextoLogger;
+
+    /**
+     * Cleanup resources and close transports
+     */
+    destroy(): Promise<void>;
 }
 
 /**
