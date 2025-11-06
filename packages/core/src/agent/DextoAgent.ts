@@ -168,22 +168,6 @@ export class DextoAgent {
     // Logger instance for this agent (dependency injection)
     private logger: IDextoLogger;
 
-    /**
-     * Sanitizes agent ID by converting to lowercase and replacing special characters with dashes.
-     * Used to derive a clean identifier from agentCard.name or provide a default.
-     */
-    private static sanitizeAgentId(name: string | undefined): string {
-        if (!name) {
-            return 'default-agent';
-        }
-
-        return name
-            .toLowerCase()
-            .replace(/[^a-z0-9-]/g, '-') // Replace non-alphanumeric (except dash) with dash
-            .replace(/-+/g, '-') // Collapse multiple dashes
-            .replace(/^-+|-+$/g, ''); // Trim leading/trailing dashes
-    }
-
     constructor(
         config: AgentConfig,
         private configPath?: string
@@ -192,10 +176,10 @@ export class DextoAgent {
         this.config = AgentConfigSchema.parse(config);
 
         // Create logger instance for this agent
-        const agentId = DextoAgent.sanitizeAgentId(this.config.agentCard?.name);
+        // agentId is set by CLI enrichment from agentCard.name or filename
         this.logger = createLogger({
             config: this.config.logger,
-            agentId,
+            agentId: this.config.agentId,
             component: DextoLogComponent.AGENT,
         });
 

@@ -118,6 +118,13 @@ export const AgentConfigSchema = z
         // ========================================
         // FIELDS WITH DEFAULTS (always present after parsing)
         // ========================================
+        agentId: z
+            .string()
+            .describe(
+                'Unique identifier for this agent instance - CLI enrichment derives from agentCard.name or filename'
+            )
+            .default('default-agent'),
+
         mcpServers: McpServersConfigSchema.describe(
             'Configurations for MCP (Model Context Protocol) servers used by the agent'
         ).default({}),

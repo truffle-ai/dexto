@@ -68,6 +68,7 @@ export function enrichAgentConfig(
     // Create enriched config (shallow copy with deep updates)
     const enriched: AgentConfig = {
         ...config,
+        agentId, // Set agentId explicitly (single source of truth)
     };
 
     // Enrich logger config: only provide if not set

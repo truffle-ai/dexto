@@ -191,6 +191,38 @@ describe('enrichAgentConfig', () => {
         vi.clearAllMocks();
     });
 
+    describe('Agent ID enrichment', () => {
+        it('should set agentId from filename', () => {
+            const config = createMinimalConfig();
+            const enriched = enrichAgentConfig(config, '/path/to/my-agent.yml');
+
+            expect(enriched.agentId).toBe('my-agent');
+        });
+
+        it('should set agentId from agentCard.name if available', () => {
+            const config: AgentConfig = {
+                ...createMinimalConfig(),
+                agentCard: {
+                    name: 'Custom Agent Name',
+                    url: 'http://example.com',
+                    version: '1.0.0',
+                    description: 'Test',
+                },
+            };
+
+            const enriched = enrichAgentConfig(config);
+
+            expect(enriched.agentId).toBe('custom-agent-name');
+        });
+
+        it('should use default agentId when no path or agentCard provided', () => {
+            const config = createMinimalConfig();
+            const enriched = enrichAgentConfig(config);
+
+            expect(enriched.agentId).toBe('default-agent');
+        });
+    });
+
     describe('Logger enrichment', () => {
         it('should add file transport when logger not provided', () => {
             const config = createMinimalConfig();
