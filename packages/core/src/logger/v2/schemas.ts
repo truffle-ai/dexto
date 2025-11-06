@@ -92,7 +92,6 @@ export const LoggerConfigSchema = z
             .describe('Log output destinations'),
     })
     .strict()
-    .optional()
     .describe('Logger configuration with multi-transport support');
 
 export type LoggerConfig = z.infer<typeof LoggerConfigSchema>;
