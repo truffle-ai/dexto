@@ -5679,184 +5679,6 @@
                   "config": {
                     "type": "object",
                     "properties": {
-                      "agentCard": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "description": {
-                            "type": "string",
-                            "default": "Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols."
-                          },
-                          "url": {
-                            "type": "string",
-                            "format": "uri"
-                          },
-                          "provider": {
-                            "type": "object",
-                            "properties": {
-                              "organization": {
-                                "type": "string"
-                              },
-                              "url": {
-                                "type": "string",
-                                "format": "uri"
-                              }
-                            },
-                            "required": [
-                              "organization",
-                              "url"
-                            ]
-                          },
-                          "version": {
-                            "type": "string"
-                          },
-                          "documentationUrl": {
-                            "type": "string",
-                            "format": "uri"
-                          },
-                          "capabilities": {
-                            "type": "object",
-                            "properties": {
-                              "streaming": {
-                                "type": "boolean",
-                                "default": true
-                              },
-                              "pushNotifications": {
-                                "type": "boolean"
-                              },
-                              "stateTransitionHistory": {
-                                "type": "boolean",
-                                "default": false
-                              }
-                            },
-                            "default": {},
-                            "additionalProperties": false
-                          },
-                          "authentication": {
-                            "type": "object",
-                            "properties": {
-                              "schemes": {
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                },
-                                "default": []
-                              },
-                              "credentials": {
-                                "type": "string"
-                              }
-                            },
-                            "default": {},
-                            "additionalProperties": false
-                          },
-                          "defaultInputModes": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            },
-                            "default": [
-                              "application/json",
-                              "text/plain"
-                            ]
-                          },
-                          "defaultOutputModes": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            },
-                            "default": [
-                              "application/json",
-                              "text/event-stream",
-                              "text/plain"
-                            ]
-                          },
-                          "skills": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                },
-                                "description": {
-                                  "type": "string"
-                                },
-                                "tags": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "examples": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
-                                },
-                                "inputModes": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "default": [
-                                    "text/plain"
-                                  ]
-                                },
-                                "outputModes": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "default": [
-                                    "text/plain"
-                                  ]
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name",
-                                "description",
-                                "tags"
-                              ]
-                            },
-                            "default": [
-                              {
-                                "id": "chat_with_agent",
-                                "name": "chat_with_agent",
-                                "description": "Allows you to chat with an AI agent. Send a message to interact.",
-                                "tags": [
-                                  "chat",
-                                  "AI",
-                                  "assistant",
-                                  "mcp",
-                                  "natural language"
-                                ],
-                                "examples": [
-                                  "Send a JSON-RPC request to /mcp with method: \"chat_with_agent\" and params: {\"message\":\"Your query...\"}",
-                                  "Alternatively, use a compatible MCP client library."
-                                ]
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "url",
-                          "version"
-                        ],
-                        "additionalProperties": false,
-                        "description": "Configuration for the agent card"
-                      },
-                      "greeting": {
-                        "type": "string",
-                        "maxLength": 500,
-                        "description": "Default greeting text to show when a chat starts (for UI consumption)"
-                      },
                       "systemPrompt": {
                         "anyOf": [
                           {
@@ -6111,6 +5933,338 @@
                         ],
                         "description": "System prompt: string shorthand or structured config"
                       },
+                      "llm": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere"
+                            ],
+                            "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Specific model name for the selected provider"
+                          },
+                          "apiKey": {
+                            "type": "string",
+                            "description": "API key for provider; can be given directly or via $ENV reference"
+                          },
+                          "maxIterations": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "default": 50
+                          },
+                          "router": {
+                            "type": "string",
+                            "enum": [
+                              "vercel",
+                              "in-built"
+                            ],
+                            "default": "vercel"
+                          },
+                          "baseURL": {
+                            "type": "string",
+                            "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
+                          },
+                          "maxInputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Max input tokens for history; required for unknown models"
+                          },
+                          "maxOutputTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Max tokens for model output"
+                          },
+                          "temperature": {
+                            "type": "number",
+                            "nullable": true,
+                            "minimum": 0,
+                            "maximum": 1,
+                            "description": "Randomness: 0 deterministic, 1 creative"
+                          },
+                          "allowedMediaTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "apiKey"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Core LLM configuration for the agent"
+                      },
+                      "agentCard": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string",
+                            "default": "Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols."
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "provider": {
+                            "type": "object",
+                            "properties": {
+                              "organization": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              }
+                            },
+                            "required": [
+                              "organization",
+                              "url"
+                            ]
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "documentationUrl": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "capabilities": {
+                            "type": "object",
+                            "properties": {
+                              "streaming": {
+                                "type": "boolean",
+                                "default": true
+                              },
+                              "pushNotifications": {
+                                "type": "boolean"
+                              },
+                              "stateTransitionHistory": {
+                                "type": "boolean",
+                                "default": false
+                              }
+                            },
+                            "default": {},
+                            "additionalProperties": false
+                          },
+                          "authentication": {
+                            "type": "object",
+                            "properties": {
+                              "schemes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "default": []
+                              },
+                              "credentials": {
+                                "type": "string"
+                              }
+                            },
+                            "default": {},
+                            "additionalProperties": false
+                          },
+                          "defaultInputModes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "default": [
+                              "application/json",
+                              "text/plain"
+                            ]
+                          },
+                          "defaultOutputModes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "default": [
+                              "application/json",
+                              "text/event-stream",
+                              "text/plain"
+                            ]
+                          },
+                          "skills": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "tags": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "examples": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "inputModes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "default": [
+                                    "text/plain"
+                                  ]
+                                },
+                                "outputModes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "default": [
+                                    "text/plain"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "description",
+                                "tags"
+                              ]
+                            },
+                            "default": [
+                              {
+                                "id": "chat_with_agent",
+                                "name": "chat_with_agent",
+                                "description": "Allows you to chat with an AI agent. Send a message to interact.",
+                                "tags": [
+                                  "chat",
+                                  "AI",
+                                  "assistant",
+                                  "mcp",
+                                  "natural language"
+                                ],
+                                "examples": [
+                                  "Send a JSON-RPC request to /mcp with method: \"chat_with_agent\" and params: {\"message\":\"Your query...\"}",
+                                  "Alternatively, use a compatible MCP client library."
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "url",
+                          "version"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Configuration for the agent card"
+                      },
+                      "greeting": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "description": "Default greeting text to show when a chat starts (for UI consumption)"
+                      },
+                      "telemetry": {
+                        "type": "object",
+                        "properties": {
+                          "serviceName": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "tracerName": {
+                            "type": "string"
+                          },
+                          "export": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "otlp"
+                                    ]
+                                  },
+                                  "protocol": {
+                                    "type": "string",
+                                    "enum": [
+                                      "grpc",
+                                      "http"
+                                    ]
+                                  },
+                                  "endpoint": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "uri"
+                                      },
+                                      {
+                                        "type": "string",
+                                        "pattern": "^[\\w.-]+:\\d+$"
+                                      }
+                                    ]
+                                  },
+                                  "headers": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "type"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "console"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "type"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "description": "OpenTelemetry configuration for distributed tracing and observability"
+                      },
+                      "agentId": {
+                        "type": "string",
+                        "default": "default-agent",
+                        "description": "Unique identifier for this agent instance - CLI enrichment derives from agentCard.name or filename"
+                      },
                       "mcpServers": {
                         "type": "object",
                         "additionalProperties": {
@@ -6270,84 +6424,152 @@
                           "description": "Available internal tool names"
                         },
                         "default": [],
-                        "description": "Array of internal tool names to enable. Empty array = disabled. Available tools: search_history, ask_user, read_file, glob_files, grep_content, write_file, edit_file, bash_exec, bash_output, kill_process"
+                        "description": "Internal tools configuration (read-file, write-file, bash-exec, etc.)"
                       },
-                      "llm": {
+                      "logger": {
                         "type": "object",
                         "properties": {
-                          "provider": {
+                          "level": {
                             "type": "string",
                             "enum": [
-                              "openai",
-                              "openai-compatible",
-                              "anthropic",
-                              "google",
-                              "groq",
-                              "xai",
-                              "cohere"
+                              "debug",
+                              "info",
+                              "warn",
+                              "error",
+                              "silly"
                             ],
-                            "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
+                            "default": "info",
+                            "description": "Minimum log level to record"
                           },
-                          "model": {
-                            "type": "string",
-                            "description": "Specific model name for the selected provider"
-                          },
-                          "apiKey": {
-                            "type": "string",
-                            "description": "API key for provider; can be given directly or via $ENV reference"
-                          },
-                          "maxIterations": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "exclusiveMinimum": true,
-                            "default": 50
-                          },
-                          "router": {
-                            "type": "string",
-                            "enum": [
-                              "vercel",
-                              "in-built"
-                            ],
-                            "default": "vercel"
-                          },
-                          "baseURL": {
-                            "type": "string",
-                            "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
-                          },
-                          "maxInputTokens": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "exclusiveMinimum": true,
-                            "description": "Max input tokens for history; required for unknown models"
-                          },
-                          "maxOutputTokens": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "exclusiveMinimum": true,
-                            "description": "Max tokens for model output"
-                          },
-                          "temperature": {
-                            "type": "number",
-                            "nullable": true,
-                            "minimum": 0,
-                            "maximum": 1,
-                            "description": "Randomness: 0 deterministic, 1 creative"
-                          },
-                          "allowedMediaTypes": {
+                          "transports": {
                             "type": "array",
                             "items": {
-                              "type": "string"
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "console"
+                                      ]
+                                    },
+                                    "colorize": {
+                                      "type": "boolean",
+                                      "default": true,
+                                      "description": "Enable colored output"
+                                    }
+                                  },
+                                  "required": [
+                                    "type"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Console transport for terminal output"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "file"
+                                      ]
+                                    },
+                                    "path": {
+                                      "type": "string",
+                                      "description": "Absolute path to log file"
+                                    },
+                                    "maxSize": {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "exclusiveMinimum": true,
+                                      "default": 10485760,
+                                      "description": "Max file size in bytes before rotation (default: 10MB)"
+                                    },
+                                    "maxFiles": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "exclusiveMinimum": true,
+                                      "default": 5,
+                                      "description": "Max number of rotated files to keep (default: 5)"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "path"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "File transport with rotation support"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "upstash"
+                                      ]
+                                    },
+                                    "url": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "Upstash Redis REST URL"
+                                    },
+                                    "token": {
+                                      "type": "string",
+                                      "description": "Upstash Redis REST token"
+                                    },
+                                    "listName": {
+                                      "type": "string",
+                                      "default": "dexto-logs",
+                                      "description": "Redis list name for log entries"
+                                    },
+                                    "maxListLength": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "exclusiveMinimum": true,
+                                      "default": 10000,
+                                      "description": "Max entries in Redis list (default: 10000)"
+                                    },
+                                    "batchSize": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "exclusiveMinimum": true,
+                                      "default": 100,
+                                      "description": "Number of log entries to batch before sending (default: 100)"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "url",
+                                    "token"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Upstash Redis transport for remote logging"
+                                }
+                              ]
                             },
-                            "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                            "minItems": 1,
+                            "default": [
+                              {
+                                "type": "console",
+                                "colorize": true
+                              }
+                            ],
+                            "description": "Log output destinations"
                           }
                         },
-                        "required": [
-                          "provider",
-                          "model",
-                          "apiKey"
-                        ],
+                        "default": {
+                          "level": "info",
+                          "transports": [
+                            {
+                              "type": "console",
+                              "colorize": true
+                            }
+                          ]
+                        },
                         "additionalProperties": false,
-                        "description": "Core LLM configuration for the agent"
+                        "description": "Logger configuration with multi-transport support (file, console, remote) - CLI enrichment adds per-agent file transport"
                       },
                       "storage": {
                         "type": "object",
@@ -6538,15 +6760,12 @@
                                   },
                                   "path": {
                                     "type": "string",
-                                    "description": "SQLite database file path (optional, will auto-detect using path resolver if not provided)"
-                                  },
-                                  "database": {
-                                    "type": "string",
-                                    "description": "Database filename (default: <agent-id>.db)"
+                                    "description": "SQLite database file path (required - CLI enrichment provides per-agent path)"
                                   }
                                 },
                                 "required": [
-                                  "type"
+                                  "type",
+                                  "path"
                                 ],
                                 "additionalProperties": false
                               },
@@ -6663,7 +6882,7 @@
                                   },
                                   "storePath": {
                                     "type": "string",
-                                    "description": "Custom storage path (defaults to context-aware path)"
+                                    "description": "Blob storage directory path (required - CLI enrichment provides per-agent default)"
                                   },
                                   "maxBlobSize": {
                                     "type": "integer",
@@ -6688,15 +6907,13 @@
                                   }
                                 },
                                 "required": [
-                                  "type"
+                                  "type",
+                                  "storePath"
                                 ],
                                 "additionalProperties": false
                               }
                             ],
-                            "default": {
-                              "type": "local"
-                            },
-                            "description": "Blob store configuration (for large, unstructured data)"
+                            "description": "Blob store configuration (for large, unstructured data) - required for ResourceManager"
                           }
                         },
                         "default": {
@@ -6707,15 +6924,16 @@
                             "type": "in-memory"
                           },
                           "blob": {
-                            "type": "local"
+                            "type": "in-memory"
                           }
                         },
                         "required": [
                           "cache",
-                          "database"
+                          "database",
+                          "blob"
                         ],
                         "additionalProperties": false,
-                        "description": "Storage configuration for cache, database, and blob storage"
+                        "description": "Storage configuration for cache, database, and blob storage - defaults to in-memory, CLI enrichment provides filesystem paths"
                       },
                       "sessions": {
                         "type": "object",
@@ -7165,78 +7383,6 @@
                         "default": {},
                         "additionalProperties": false,
                         "description": "Plugin system configuration for built-in and custom plugins"
-                      },
-                      "telemetry": {
-                        "type": "object",
-                        "properties": {
-                          "serviceName": {
-                            "type": "string"
-                          },
-                          "enabled": {
-                            "type": "boolean"
-                          },
-                          "tracerName": {
-                            "type": "string"
-                          },
-                          "export": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "otlp"
-                                    ]
-                                  },
-                                  "protocol": {
-                                    "type": "string",
-                                    "enum": [
-                                      "grpc",
-                                      "http"
-                                    ]
-                                  },
-                                  "endpoint": {
-                                    "anyOf": [
-                                      {
-                                        "type": "string",
-                                        "format": "uri"
-                                      },
-                                      {
-                                        "type": "string",
-                                        "pattern": "^[\\w.-]+:\\d+$"
-                                      }
-                                    ]
-                                  },
-                                  "headers": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    }
-                                  }
-                                },
-                                "required": [
-                                  "type"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "console"
-                                    ]
-                                  }
-                                },
-                                "required": [
-                                  "type"
-                                ]
-                              }
-                            ]
-                          }
-                        },
-                        "description": "OpenTelemetry configuration for distributed tracing and observability"
                       }
                     },
                     "required": [
