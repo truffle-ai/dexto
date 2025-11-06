@@ -1,18 +1,18 @@
 import { propagation } from '@opentelemetry/api';
 import type { Context, Span } from '@opentelemetry/api';
 import { Telemetry } from './telemetry.js';
-import { noOpLogger } from '../logger/v2/noop-logger.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 // Helper function to check if telemetry is active
-export function hasActiveTelemetry(): boolean {
-    noOpLogger.silly('hasActiveTelemetry called.');
+export function hasActiveTelemetry(logger?: IDextoLogger): boolean {
+    logger?.silly('hasActiveTelemetry called.');
     try {
         const telemetryInstance = Telemetry.get();
         const isActive = telemetryInstance.isInitialized();
-        noOpLogger.silly(`hasActiveTelemetry: Telemetry is initialized: ${isActive}`);
+        logger?.silly(`hasActiveTelemetry: Telemetry is initialized: ${isActive}`);
         return isActive;
     } catch (error) {
-        noOpLogger.silly(
+        logger?.silly(
             `hasActiveTelemetry: Telemetry not active or initialized. Error: ${error instanceof Error ? error.message : String(error)}`
         );
         return false;
@@ -22,17 +22,18 @@ export function hasActiveTelemetry(): boolean {
 /**
  * Get baggage values from context
  * @param ctx The context to get baggage values from
+ * @param logger Optional logger instance
  * @returns
  */
-export function getBaggageValues(ctx: Context) {
-    noOpLogger.silly('getBaggageValues called.');
+export function getBaggageValues(ctx: Context, logger?: IDextoLogger) {
+    logger?.silly('getBaggageValues called.');
     const currentBaggage = propagation.getBaggage(ctx);
     const requestId = currentBaggage?.getEntry('http.request_id')?.value;
     const componentName = currentBaggage?.getEntry('componentName')?.value;
     const runId = currentBaggage?.getEntry('runId')?.value;
     const threadId = currentBaggage?.getEntry('threadId')?.value;
     const resourceId = currentBaggage?.getEntry('resourceId')?.value;
-    noOpLogger.silly(
+    logger?.silly(
         `getBaggageValues: Extracted - requestId: ${requestId}, componentName: ${componentName}, runId: ${runId}, threadId: ${threadId}, resourceId: ${resourceId}`
     );
     return {
@@ -48,10 +49,11 @@ export function getBaggageValues(ctx: Context) {
  * Attaches baggage values from the given context to the provided span as attributes.
  * @param span The OpenTelemetry Span to add attributes to.
  * @param ctx The OpenTelemetry Context from which to extract baggage values.
+ * @param logger Optional logger instance
  */
-export function addBaggageAttributesToSpan(span: Span, ctx: Context): void {
-    noOpLogger.debug('addBaggageAttributesToSpan called.');
-    const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx);
+export function addBaggageAttributesToSpan(span: Span, ctx: Context, logger?: IDextoLogger): void {
+    logger?.debug('addBaggageAttributesToSpan called.');
+    const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx, logger);
 
     if (componentName) {
         span.setAttribute('componentName', componentName);
@@ -68,5 +70,5 @@ export function addBaggageAttributesToSpan(span: Span, ctx: Context): void {
     if (resourceId) {
         span.setAttribute('resourceId', resourceId);
     }
-    noOpLogger.debug('addBaggageAttributesToSpan: Baggage attributes added to span.');
+    logger?.debug('addBaggageAttributesToSpan: Baggage attributes added to span.');
 }

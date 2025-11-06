@@ -6,7 +6,6 @@ import {
     propagation,
     SpanOptions,
 } from '@opentelemetry/api';
-import { noOpLogger } from '../logger/v2/noop-logger.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 import { safeStringify } from '../utils/safe-stringify.js';
@@ -29,11 +28,14 @@ export function withSpan(options: {
         const methodName = String(propertyKey);
 
         descriptor.value = function (this: unknown, ...args: unknown[]) {
+            // Try to get logger from instance for DI pattern (optional)
+            const logger = (this as any)?.logger as IDextoLogger | undefined;
+
             // Skip if no telemetry is available and skipIfNoTelemetry is true
             // Guard against Telemetry.get() throwing if globalThis.__TELEMETRY__ is not yet defined
             if (
                 options?.skipIfNoTelemetry &&
-                (!globalThis.__TELEMETRY__ || !hasActiveTelemetry())
+                (!globalThis.__TELEMETRY__ || !hasActiveTelemetry(logger))
             ) {
                 return originalMethod.apply(this, args);
             }
@@ -153,9 +155,11 @@ export function withSpan(options: {
                 // Return regular results
                 return result;
             } catch (error) {
-                // Use no-op logger since decorators can't receive DI
-                noOpLogger.error(
-                    `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`
+                // Try to use instance logger if available (DI pattern)
+                const logger = (this as any)?.logger as IDextoLogger | undefined;
+                logger?.error(
+                    `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
+                    { error }
                 );
                 span.setStatus({
                     code: SpanStatusCode.ERROR,
