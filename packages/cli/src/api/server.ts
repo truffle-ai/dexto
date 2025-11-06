@@ -1067,7 +1067,8 @@ export async function initializeApi(
                         {
                             provider: currentConfig.llm.provider,
                             model: currentConfig.llm.model,
-                        }
+                        },
+                        activeAgent.logger
                     );
 
                     if (!validation.ok) {
