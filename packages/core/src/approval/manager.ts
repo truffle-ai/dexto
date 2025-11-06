@@ -11,7 +11,8 @@ import { EventBasedApprovalProvider } from './providers/event-based-approval-pro
 import { NoOpApprovalProvider } from './providers/noop-approval-provider.js';
 import { createApprovalRequest } from './providers/factory.js';
 import type { AgentEventBus } from '../events/index.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 
 /**
@@ -59,12 +60,14 @@ export interface ApprovalManagerConfig {
 export class ApprovalManager {
     private provider: ApprovalProvider;
     private config: ApprovalManagerConfig;
+    private logger: IDextoLogger;
 
-    constructor(agentEventBus: AgentEventBus, config: ApprovalManagerConfig) {
+    constructor(agentEventBus: AgentEventBus, config: ApprovalManagerConfig, logger: IDextoLogger) {
         this.config = config;
+        this.logger = logger.createChild(DextoLogComponent.APPROVAL);
         this.provider = this.createProvider(agentEventBus, config);
 
-        logger.debug(
+        this.logger.debug(
             `ApprovalManager initialized with mode: ${config.mode}, timeout: ${config.timeout}ms`
         );
     }

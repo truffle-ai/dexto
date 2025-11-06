@@ -1,4 +1,3 @@
-import { logger } from '../logger/index.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from './error-codes.js';
 import { loadPluginModule, resolvePluginPath } from './loader.js';
@@ -16,6 +15,8 @@ import type { SessionManager } from '../session/index.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 
 /**
  * Options for PluginManager construction
@@ -54,13 +55,15 @@ export class PluginManager {
     private pluginsByExtensionPoint: Map<ExtensionPoint, LoadedPlugin[]> = new Map();
     private options: PluginManagerOptions;
     private initialized: boolean = false;
+    private logger: IDextoLogger;
 
     /** Default timeout for plugin execution (milliseconds) */
     private static readonly DEFAULT_TIMEOUT = 5000;
 
-    constructor(options: PluginManagerOptions) {
+    constructor(options: PluginManagerOptions, logger: IDextoLogger) {
         this.options = options;
-        logger.debug('PluginManager created');
+        this.logger = logger.createChild(DextoLogComponent.PLUGIN);
+        this.logger.debug('PluginManager created');
     }
 
     /**
@@ -98,7 +101,7 @@ export class PluginManager {
         };
 
         this.plugins.set(name, loadedPlugin);
-        logger.debug(`Built-in plugin registered: ${name}`);
+        this.logger.debug(`Built-in plugin registered: ${name}`);
     }
 
     /**
@@ -144,7 +147,7 @@ export class PluginManager {
         // 2. Load custom plugins from config
         for (const pluginConfig of customPlugins) {
             if (!pluginConfig.enabled) {
-                logger.debug(`Skipping disabled plugin: ${pluginConfig.name}`);
+                this.logger.debug(`Skipping disabled plugin: ${pluginConfig.name}`);
                 continue;
             }
 
@@ -165,7 +168,7 @@ export class PluginManager {
                 };
                 this.plugins.set(pluginConfig.name, loadedPlugin);
 
-                logger.info(`Custom plugin loaded: ${pluginConfig.name}`);
+                this.logger.info(`Custom plugin loaded: ${pluginConfig.name}`);
             } catch (error) {
                 // Fail fast - cannot run with broken plugins
                 throw new DextoRuntimeError(
@@ -186,7 +189,7 @@ export class PluginManager {
             try {
                 if (loadedPlugin.plugin.initialize) {
                     await loadedPlugin.plugin.initialize(loadedPlugin.config.config || {});
-                    logger.debug(`Plugin initialized: ${name}`);
+                    this.logger.debug(`Plugin initialized: ${name}`);
                 }
             } catch (error) {
                 // Fail fast - plugin initialization failure is critical
@@ -210,7 +213,7 @@ export class PluginManager {
         // 5. Sort plugins by priority for each extension point (low to high)
         for (const [extensionPoint, plugins] of this.pluginsByExtensionPoint.entries()) {
             plugins.sort((a, b) => a.config.priority - b.config.priority);
-            logger.debug(
+            this.logger.debug(
                 `Extension point '${extensionPoint}': ${plugins.length} plugin(s) registered`,
                 {
                     plugins: plugins.map((p) => ({
@@ -222,7 +225,7 @@ export class PluginManager {
         }
 
         this.initialized = true;
-        logger.info(`PluginManager initialized with ${this.plugins.size} plugin(s)`);
+        this.logger.info(`PluginManager initialized with ${this.plugins.size} plugin(s)`);
     }
 
     /**
@@ -288,7 +291,7 @@ export class PluginManager {
             userId: asyncCtx?.userId ?? undefined,
             tenantId: asyncCtx?.tenantId ?? undefined,
             llmConfig,
-            logger,
+            logger: this.logger,
             abortSignal: options.abortSignal ?? undefined,
             agent: {
                 sessionManager: options.sessionManager,
@@ -319,7 +322,7 @@ export class PluginManager {
                 const duration = Date.now() - startTime;
 
                 // Log execution
-                logger.debug(`Plugin '${config.name}' executed at ${extensionPoint}`, {
+                this.logger.debug(`Plugin '${config.name}' executed at ${extensionPoint}`, {
                     ok: result.ok,
                     cancelled: result.cancel,
                     duration,
@@ -331,7 +334,7 @@ export class PluginManager {
                     for (const notice of result.notices) {
                         const level =
                             notice.kind === 'block' || notice.kind === 'warn' ? 'warn' : 'info';
-                        logger[level](`Plugin notice (${notice.kind}): ${notice.message}`, {
+                        this.logger[level](`Plugin notice (${notice.kind}): ${notice.message}`, {
                             plugin: config.name,
                             code: notice.code,
                             details: notice.details,
@@ -341,7 +344,7 @@ export class PluginManager {
 
                 // Handle failure
                 if (!result.ok) {
-                    logger.warn(`Plugin '${config.name}' returned error`, {
+                    this.logger.warn(`Plugin '${config.name}' returned error`, {
                         message: result.message,
                     });
 
@@ -367,7 +370,7 @@ export class PluginManager {
                 // Apply modifications
                 if (result.modify) {
                     currentPayload = { ...currentPayload, ...result.modify };
-                    logger.debug(`Plugin '${config.name}' modified payload`, {
+                    this.logger.debug(`Plugin '${config.name}' modified payload`, {
                         keys: Object.keys(result.modify),
                     });
                 }
@@ -395,7 +398,7 @@ export class PluginManager {
                 }
 
                 // Plugin threw exception
-                logger.error(`Plugin '${config.name}' threw error`, {
+                this.logger.error(`Plugin '${config.name}' threw error`, {
                     error: error instanceof Error ? error.message : String(error),
                     duration,
                 });
@@ -417,7 +420,7 @@ export class PluginManager {
                 }
 
                 // Non-blocking: continue
-                logger.debug(`Non-blocking plugin error, continuing execution`);
+                this.logger.debug(`Non-blocking plugin error, continuing execution`);
             }
         }
 
@@ -467,15 +470,15 @@ export class PluginManager {
             if (loadedPlugin.plugin.cleanup) {
                 try {
                     await loadedPlugin.plugin.cleanup();
-                    logger.debug(`Plugin cleaned up: ${name}`);
+                    this.logger.debug(`Plugin cleaned up: ${name}`);
                 } catch (error) {
-                    logger.error(`Plugin cleanup failed: ${name}`, {
+                    this.logger.error(`Plugin cleanup failed: ${name}`, {
                         error: error instanceof Error ? error.message : String(error),
                     });
                 }
             }
         }
-        logger.info('PluginManager cleanup complete');
+        this.logger.info('PluginManager cleanup complete');
     }
 
     /**

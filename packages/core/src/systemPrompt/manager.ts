@@ -5,7 +5,8 @@ import type { MemoryManager } from '../memory/index.js';
 
 import type { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { DynamicContributor } from './contributors.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { SystemPromptError } from './errors.js';
 
 /**
@@ -16,16 +17,19 @@ export class SystemPromptManager {
     private contributors: SystemPromptContributor[];
     private configDir: string;
     private memoryManager?: MemoryManager | undefined;
+    private logger: IDextoLogger;
 
     // TODO: move config dir logic somewhere else
     constructor(
         config: ValidatedSystemPromptConfig,
         configDir: string = process.cwd(),
-        memoryManager?: MemoryManager | undefined
+        memoryManager?: MemoryManager | undefined,
+        logger: IDextoLogger
     ) {
         this.configDir = configDir;
         this.memoryManager = memoryManager;
-        logger.debug(`[SystemPromptManager] Initializing with configDir: ${configDir}`);
+        this.logger = logger.createChild(DextoLogComponent.SYSTEM_PROMPT);
+        this.logger.debug(`[SystemPromptManager] Initializing with configDir: ${configDir}`);
 
         // Filter enabled contributors and create contributor instances
         const enabledContributors = config.contributors.filter((c) => c.enabled !== false);
@@ -49,7 +53,7 @@ export class SystemPromptManager {
             }
 
             case 'file': {
-                logger.debug(
+                this.logger.debug(
                     `[SystemPromptManager] Creating FileContributor "${config.id}" with files: ${JSON.stringify(config.files)}`
                 );
                 return new FileContributor(
@@ -66,7 +70,7 @@ export class SystemPromptManager {
                         'memory (MemoryManager not provided)'
                     );
                 }
-                logger.debug(
+                this.logger.debug(
                     `[SystemPromptManager] Creating MemoryContributor "${config.id}" with options: ${JSON.stringify(config.options)}`
                 );
                 return new MemoryContributor(
@@ -92,7 +96,7 @@ export class SystemPromptManager {
         const parts = await Promise.all(
             this.contributors.map(async (contributor) => {
                 const content = await contributor.getContent(ctx);
-                logger.debug(
+                this.logger.debug(
                     `[SystemPrompt] Contributor "${contributor.id}" provided content: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`
                 );
                 return content;
