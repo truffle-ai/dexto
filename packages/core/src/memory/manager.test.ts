@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MemoryManager } from './manager.js';
 import type { Database } from '../storage/database/types.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 import type { CreateMemoryInput, UpdateMemoryInput } from './types.js';
 
 describe('MemoryManager', () => {
     let memoryManager: MemoryManager;
     let mockDatabase: Database;
+    let mockLogger: IDextoLogger;
 
     beforeEach(() => {
         // Create a mock database
@@ -22,7 +24,18 @@ describe('MemoryManager', () => {
             getStoreType: vi.fn(),
         };
 
-        memoryManager = new MemoryManager(mockDatabase);
+        // Create a mock logger
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(() => mockLogger),
+            destroy: vi.fn(),
+        } as any;
+
+        memoryManager = new MemoryManager(mockDatabase, mockLogger);
     });
 
     describe('create', () => {

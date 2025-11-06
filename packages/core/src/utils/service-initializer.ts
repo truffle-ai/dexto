@@ -116,10 +116,10 @@ export async function createAgentServices(
     logger.debug('Approval manager connected to MCP manager for elicitation support');
 
     // 5. Initialize search service
-    const searchService = new SearchService(storageManager.getDatabase());
+    const searchService = new SearchService(storageManager.getDatabase(), logger);
 
     // 6. Initialize memory manager
-    const memoryManager = new MemoryManager(storageManager.getDatabase());
+    const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize plugin manager
