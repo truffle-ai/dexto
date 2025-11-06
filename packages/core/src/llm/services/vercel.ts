@@ -82,8 +82,8 @@ export class VercelLLMService implements ILLMService {
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
-        const tokenizer = createTokenizer(config.provider, this.getModelId());
-        const maxInputTokens = getEffectiveMaxInputTokens(config);
+        const tokenizer = createTokenizer(config.provider, this.getModelId(), this.logger);
+        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         // Use the provided ResourceManager
 
@@ -95,7 +95,8 @@ export class VercelLLMService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            resourceManager
+            resourceManager,
+            this.logger
             // compressionStrategies uses default
         );
 

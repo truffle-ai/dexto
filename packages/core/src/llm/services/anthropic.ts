@@ -61,8 +61,8 @@ export class AnthropicService implements ILLMService {
 
         // Create properly-typed ContextManager for Anthropic
         const formatter = new AnthropicMessageFormatter(this.logger);
-        const tokenizer = createTokenizer(config.provider, config.model);
-        const maxInputTokens = getEffectiveMaxInputTokens(config);
+        const tokenizer = createTokenizer(config.provider, config.model, this.logger);
+        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         // Use the provided ResourceManager
 
@@ -74,7 +74,8 @@ export class AnthropicService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            resourceManager
+            resourceManager,
+            this.logger
             // compressionStrategies uses default
         );
     }

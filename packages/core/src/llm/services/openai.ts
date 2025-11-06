@@ -63,8 +63,8 @@ export class OpenAIService implements ILLMService {
 
         // Create properly-typed ContextManager for OpenAI
         const formatter = new OpenAIMessageFormatter(this.logger);
-        const tokenizer = createTokenizer(config.provider, config.model);
-        const maxInputTokens = getEffectiveMaxInputTokens(config);
+        const tokenizer = createTokenizer(config.provider, config.model, this.logger);
+        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         this.contextManager = new ContextManager<ChatCompletionMessageParam>(
             config,
@@ -74,7 +74,8 @@ export class OpenAIService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            resourceManager
+            resourceManager,
+            this.logger
             // compressionStrategies uses default
         );
     }

@@ -8,7 +8,7 @@ import {
     type LLMRouter,
     type SupportedFileType,
 } from './types.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 export interface ModelInfo {
     name: string;
@@ -738,22 +738,31 @@ export function getSupportedModels(provider: LLMProvider): string[] {
  * Retrieves the maximum input token limit for a given provider and model from the registry.
  * @param provider The name of the provider (e.g., 'openai', 'anthropic', 'google').
  * @param model The specific model name.
+ * @param logger Optional logger instance for logging.
  * @returns The maximum input token limit for the model.
  * @throws {LLMError} If the model is not found in the registry.
  */
-export function getMaxInputTokensForModel(provider: LLMProvider, model: string): number {
+export function getMaxInputTokensForModel(
+    provider: LLMProvider,
+    model: string,
+    logger?: IDextoLogger
+): number {
     const providerInfo = LLM_REGISTRY[provider];
 
     const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
     if (!modelInfo) {
         const supportedModels = getSupportedModels(provider).join(', ');
-        logger.error(
-            `Model '${model}' not found for provider '${provider}' in LLM registry. Supported models: ${supportedModels}`
-        );
+        if (logger) {
+            logger.error(
+                `Model '${model}' not found for provider '${provider}' in LLM registry. Supported models: ${supportedModels}`
+            );
+        }
         throw LLMError.unknownModel(provider, model);
     }
 
-    logger.debug(`Found max tokens for ${provider}/${model}: ${modelInfo.maxInputTokens}`);
+    if (logger) {
+        logger.debug(`Found max tokens for ${provider}/${model}: ${modelInfo.maxInputTokens}`);
+    }
     return modelInfo.maxInputTokens;
 }
 
@@ -1004,54 +1013,69 @@ export function isRouterSupportedForProvider(provider: LLMProvider, router: LLMR
  * 2. Registry lookup for known provider/model.
  *
  * @param config The validated LLM configuration.
+ * @param logger Optional logger instance for logging.
  * @returns The effective maximum input token count for the LLM.
  * @throws {Error}
  * If `baseURL` is set but `maxInputTokens` is missing (indicating a Zod validation inconsistency).
  * Or if `baseURL` is not set, but model isn't found in registry.
  * TODO: make more readable
  */
-export function getEffectiveMaxInputTokens(config: LLMConfig): number {
+export function getEffectiveMaxInputTokens(config: LLMConfig, logger?: IDextoLogger): number {
     const configuredMaxInputTokens = config.maxInputTokens;
 
     // Priority 1: Explicit config override or required value with baseURL
     if (configuredMaxInputTokens != null) {
         // Case 1a: baseURL is set. maxInputTokens is required and validated by Zod. Trust it.
         if (config.baseURL) {
-            logger.debug(
-                `Using maxInputTokens from configuration (with baseURL): ${configuredMaxInputTokens}`
-            );
+            if (logger) {
+                logger.debug(
+                    `Using maxInputTokens from configuration (with baseURL): ${configuredMaxInputTokens}`
+                );
+            }
             return configuredMaxInputTokens;
         }
 
         // Case 1b: baseURL is NOT set, but maxInputTokens is provided (override).
         // Sanity-check against registry limits.
         try {
-            const registryMaxInputTokens = getMaxInputTokensForModel(config.provider, config.model);
+            const registryMaxInputTokens = getMaxInputTokensForModel(
+                config.provider,
+                config.model,
+                logger
+            );
             if (configuredMaxInputTokens > registryMaxInputTokens) {
-                logger.warn(
-                    `Provided maxInputTokens (${configuredMaxInputTokens}) for ${config.provider}/${config.model} exceeds the known limit (${registryMaxInputTokens}) for model ${config.model}. Capping to registry limit.`
-                );
+                if (logger) {
+                    logger.warn(
+                        `Provided maxInputTokens (${configuredMaxInputTokens}) for ${config.provider}/${config.model} exceeds the known limit (${registryMaxInputTokens}) for model ${config.model}. Capping to registry limit.`
+                    );
+                }
                 return registryMaxInputTokens;
             } else {
-                logger.debug(
-                    `Using valid maxInputTokens override from configuration: ${configuredMaxInputTokens} (Registry limit: ${registryMaxInputTokens})`
-                );
+                if (logger) {
+                    logger.debug(
+                        `Using valid maxInputTokens override from configuration: ${configuredMaxInputTokens} (Registry limit: ${registryMaxInputTokens})`
+                    );
+                }
                 return configuredMaxInputTokens;
             }
         } catch (error: any) {
             // Handle registry lookup failures during override check
             if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
-                logger.warn(
-                    `Registry lookup failed during maxInputTokens override check for ${config.provider}/${config.model}: ${error.message}. ` +
-                        `Proceeding with the provided maxInputTokens value (${configuredMaxInputTokens}), but it might be invalid.`
-                );
+                if (logger) {
+                    logger.warn(
+                        `Registry lookup failed during maxInputTokens override check for ${config.provider}/${config.model}: ${error.message}. ` +
+                            `Proceeding with the provided maxInputTokens value (${configuredMaxInputTokens}), but it might be invalid.`
+                    );
+                }
                 // Return the user's value, assuming Zod validation passed for provider/model existence initially.
                 return configuredMaxInputTokens;
             } else {
                 // Re-throw unexpected errors
-                logger.error(
-                    `Unexpected error during registry lookup for maxInputTokens override check: ${error}`
-                );
+                if (logger) {
+                    logger.error(
+                        `Unexpected error during registry lookup for maxInputTokens override check: ${error}`
+                    );
+                }
                 throw error;
             }
         }
@@ -1059,40 +1083,56 @@ export function getEffectiveMaxInputTokens(config: LLMConfig): number {
 
     // Priority 2: baseURL is set but maxInputTokens is missing - default to 128k tokens
     if (config.baseURL) {
-        logger.warn(
-            `baseURL is set but maxInputTokens is missing. Defaulting to ${DEFAULT_MAX_INPUT_TOKENS}. ` +
-                `Provide 'maxInputTokens' in configuration to avoid default fallback.`
-        );
+        if (logger) {
+            logger.warn(
+                `baseURL is set but maxInputTokens is missing. Defaulting to ${DEFAULT_MAX_INPUT_TOKENS}. ` +
+                    `Provide 'maxInputTokens' in configuration to avoid default fallback.`
+            );
+        }
         return DEFAULT_MAX_INPUT_TOKENS;
     }
 
     // Priority 3: Check if provider accepts any model (like openai-compatible)
     if (acceptsAnyModel(config.provider)) {
-        logger.debug(
-            `Provider ${config.provider} accepts any model, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
-        );
+        if (logger) {
+            logger.debug(
+                `Provider ${config.provider} accepts any model, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
+            );
+        }
         return DEFAULT_MAX_INPUT_TOKENS;
     }
 
     // Priority 4: No override, no baseURL - use registry.
     try {
-        const registryMaxInputTokens = getMaxInputTokensForModel(config.provider, config.model);
-        logger.debug(
-            `Using maxInputTokens from registry for ${config.provider}/${config.model}: ${registryMaxInputTokens}`
+        const registryMaxInputTokens = getMaxInputTokensForModel(
+            config.provider,
+            config.model,
+            logger
         );
+        if (logger) {
+            logger.debug(
+                `Using maxInputTokens from registry for ${config.provider}/${config.model}: ${registryMaxInputTokens}`
+            );
+        }
         return registryMaxInputTokens;
     } catch (error: any) {
         // Handle registry lookup failures gracefully (e.g., typo in validated config)
         if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
             // Log as error and throw a specific fatal error
-            logger.error(
-                `Registry lookup failed for ${config.provider}/${config.model}: ${error.message}. ` +
-                    `Effective maxInputTokens cannot be determined.`
-            );
+            if (logger) {
+                logger.error(
+                    `Registry lookup failed for ${config.provider}/${config.model}: ${error.message}. ` +
+                        `Effective maxInputTokens cannot be determined.`
+                );
+            }
             throw LLMError.unknownModel(config.provider, config.model);
         } else {
             // Re-throw unexpected errors during registry lookup
-            logger.error(`Unexpected error during registry lookup for maxInputTokens: ${error}`);
+            if (logger) {
+                logger.error(
+                    `Unexpected error during registry lookup for maxInputTokens: ${error}`
+                );
+            }
             throw error;
         }
     }
