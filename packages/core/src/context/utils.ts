@@ -1,6 +1,6 @@
 import { InternalMessage, TextPart, ImagePart, FilePart, SanitizedToolResult } from './types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
 import { ContextError } from './errors.js';
@@ -401,7 +401,7 @@ async function resolveBlobReferenceToParts(
 
         return parts;
     } catch (error) {
-        logger.warn(`Failed to resolve blob reference ${resourceUri}: ${String(error)}`);
+        // logger is not available in this utility function
         return [{ type: 'text', text: `[Attachment unavailable: ${resourceUri}]` }];
     }
 }
@@ -425,10 +425,11 @@ async function resolveBlobReferenceToParts(
 export function countMessagesTokens(
     history: InternalMessage[],
     tokenizer: ITokenizer,
-    overheadPerMessage: number = DEFAULT_OVERHEAD_PER_MESSAGE
+    overheadPerMessage: number = DEFAULT_OVERHEAD_PER_MESSAGE,
+    logger?: IDextoLogger
 ): number {
     let total = 0;
-    logger.debug(`Counting tokens for ${history.length} messages`);
+    logger?.debug(`Counting tokens for ${history.length} messages`);
     try {
         for (const message of history) {
             if (message.content) {
@@ -506,7 +507,7 @@ export function countMessagesTokens(
             total += overheadPerMessage;
         }
     } catch (error) {
-        logger.error(
+        logger?.error(
             `countMessagesTokens failed: ${error instanceof Error ? error.message : String(error)}`
         );
         // Re-throw to indicate failure
@@ -520,9 +521,12 @@ export function countMessagesTokens(
  * @param imagePart The image part containing image data
  * @returns Base64-encoded string or URL string
  */
-export function getImageData(imagePart: {
-    image: string | Uint8Array | Buffer | ArrayBuffer | URL;
-}): string {
+export function getImageData(
+    imagePart: {
+        image: string | Uint8Array | Buffer | ArrayBuffer | URL;
+    },
+    logger?: IDextoLogger
+): string {
     const { image } = imagePart;
     if (typeof image === 'string') {
         return image;
@@ -535,18 +539,22 @@ export function getImageData(imagePart: {
     } else if (image instanceof URL) {
         return image.toString();
     }
-    logger.warn(`Unexpected image data type in getImageData: ${typeof image}`);
+    logger?.warn(`Unexpected image data type in getImageData: ${typeof image}`);
     return '';
 }
 
 /**
  * Extracts file data (base64 or URL) from a FilePart or raw buffer.
  * @param filePart The file part containing file data
+ * @param logger Optional logger instance
  * @returns Base64-encoded string or URL string
  */
-export function getFileData(filePart: {
-    data: string | Uint8Array | Buffer | ArrayBuffer | URL;
-}): string {
+export function getFileData(
+    filePart: {
+        data: string | Uint8Array | Buffer | ArrayBuffer | URL;
+    },
+    logger?: IDextoLogger
+): string {
     const { data } = filePart;
     if (typeof data === 'string') {
         return data;
@@ -559,7 +567,7 @@ export function getFileData(filePart: {
     } else if (data instanceof URL) {
         return data.toString();
     }
-    logger.warn(`Unexpected file data type in getFileData: ${typeof data}`);
+    logger?.warn(`Unexpected file data type in getFileData: ${typeof data}`);
     return '';
 }
 
@@ -568,13 +576,15 @@ export function getFileData(filePart: {
  * If the image is a blob reference, resolves it from the resource manager.
  * @param imagePart The image part containing image data or blob reference
  * @param resourceManager Resource manager for resolving blob references
+ * @param logger Optional logger instance
  * @returns Promise<Base64-encoded string or URL string>
  */
 export async function getImageDataWithBlobSupport(
     imagePart: {
         image: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger?: IDextoLogger
 ): Promise<string> {
     const { image } = imagePart;
 
@@ -588,14 +598,14 @@ export async function getImageDataWithBlobSupport(
             if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
                 return result.contents[0].blob;
             }
-            logger.warn(`Blob reference ${image} did not contain blob data`);
+            logger?.warn(`Blob reference ${image} did not contain blob data`);
         } catch (error) {
-            logger.warn(`Failed to resolve blob reference ${image}: ${String(error)}`);
+            logger?.warn(`Failed to resolve blob reference ${image}: ${String(error)}`);
         }
     }
 
     // Fallback to original behavior
-    return getImageData(imagePart);
+    return getImageData(imagePart, logger);
 }
 
 /**
@@ -609,7 +619,8 @@ export async function getFileDataWithBlobSupport(
     filePart: {
         data: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger?: IDextoLogger
 ): Promise<string> {
     const { data } = filePart;
 
@@ -623,14 +634,14 @@ export async function getFileDataWithBlobSupport(
             if (result.contents[0]?.blob && typeof result.contents[0].blob === 'string') {
                 return result.contents[0].blob;
             }
-            logger.warn(`Blob reference ${data} did not contain blob data`);
+            logger?.warn(`Blob reference ${data} did not contain blob data`);
         } catch (error) {
-            logger.warn(`Failed to resolve blob reference ${data}: ${String(error)}`);
+            logger?.warn(`Failed to resolve blob reference ${data}: ${String(error)}`);
         }
     }
 
     // Fallback to original behavior
-    return getFileData(filePart);
+    return getFileData(filePart, logger);
 }
 
 /**
@@ -648,7 +659,8 @@ export async function getFileDataWithBlobSupport(
 export async function expandBlobReferences(
     content: InternalMessage['content'],
     resourceManager: import('../resources/index.js').ResourceManager,
-    allowedMediaTypes?: string[]
+    allowedMediaTypes?: string[],
+    logger?: IDextoLogger
 ): Promise<InternalMessage['content']> {
     // Handle string content with blob references
     if (typeof content === 'string') {
@@ -755,11 +767,12 @@ export async function expandBlobReferences(
                     try {
                         const resolvedData = await getFileDataWithBlobSupport(
                             part,
-                            resourceManager
+                            resourceManager,
+                            logger
                         );
                         expandedParts.push({ ...part, data: resolvedData });
                     } catch (error) {
-                        logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
+                        logger?.warn(`Failed to resolve file blob reference: ${String(error)}`);
                         expandedParts.push(part);
                     }
                 }
@@ -770,7 +783,8 @@ export async function expandBlobReferences(
                 const expanded = await expandBlobReferences(
                     part.text,
                     resourceManager,
-                    allowedMediaTypes
+                    allowedMediaTypes,
+                    logger
                 );
                 if (typeof expanded === 'string') {
                     expandedParts.push({ ...part, text: expanded });
@@ -801,7 +815,8 @@ export async function expandBlobReferences(
  */
 export function filterMessagesByLLMCapabilities(
     messages: InternalMessage[],
-    config: LLMContext
+    config: LLMContext,
+    logger?: IDextoLogger
 ): InternalMessage[] {
     try {
         return messages.map((message) => {
@@ -844,7 +859,7 @@ export function filterMessagesByLLMCapabilities(
         });
     } catch (error) {
         // If filtering fails, return original messages to avoid breaking the flow
-        logger.warn(`Failed to filter messages by LLM capabilities: ${String(error)}`);
+        logger?.warn(`Failed to filter messages by LLM capabilities: ${String(error)}`);
         return messages;
     }
 }
@@ -941,7 +956,7 @@ export function matchesAnyMimePattern(mimeType: string | undefined, patterns: st
  * @param fileTypes Array of supported file types from LLM registry (e.g., ['image', 'pdf', 'audio'])
  * @returns Array of MIME type patterns (e.g., ['image/*', 'application/pdf', 'audio/*'])
  */
-export function fileTypesToMimePatterns(fileTypes: string[]): string[] {
+export function fileTypesToMimePatterns(fileTypes: string[], logger?: IDextoLogger): string[] {
     const patterns: string[] = [];
     for (const fileType of fileTypes) {
         switch (fileType) {
@@ -959,7 +974,7 @@ export function fileTypesToMimePatterns(fileTypes: string[]): string[] {
                 break;
             default:
                 // Unknown file type - skip it
-                logger.warn(`Unknown file type in registry: ${fileType}`);
+                logger?.warn(`Unknown file type in registry: ${fileType}`);
         }
     }
     return patterns;
@@ -1003,32 +1018,40 @@ function generateMediaPlaceholder(metadata: {
  * Recursively sanitize objects by replacing suspiciously-large base64 strings
  * with placeholders to avoid blowing up the context window.
  */
-function sanitizeDeepObject(obj: unknown): unknown {
+function sanitizeDeepObject(obj: unknown, logger?: IDextoLogger): unknown {
     if (obj == null) return obj;
     if (typeof obj === 'string') {
         if (isLikelyBase64String(obj)) {
             // Replace with short placeholder; do not keep raw data
             const approxBytes = Math.floor((obj.length * 3) / 4);
-            logger.debug(
+            logger?.debug(
                 `sanitizeDeepObject: replaced large base64 string (~${approxBytes} bytes) with placeholder`
             );
             return `[binary data omitted ~${approxBytes} bytes]`;
         }
         return obj;
     }
-    if (Array.isArray(obj)) return obj.map((x) => sanitizeDeepObject(x));
+    if (Array.isArray(obj)) return obj.map((x) => sanitizeDeepObject(x, logger));
     if (typeof obj === 'object') {
         const out: Record<string, any> = {};
         for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-            out[k] = sanitizeDeepObject(v);
+            out[k] = sanitizeDeepObject(v, logger);
         }
         return out;
     }
     return obj;
 }
 
-export async function normalizeToolResult(result: unknown): Promise<NormalizedToolResult> {
-    const content = await sanitizeToolResultToContentWithBlobs(result);
+export async function normalizeToolResult(
+    result: unknown,
+    logger?: IDextoLogger
+): Promise<NormalizedToolResult> {
+    const content = await sanitizeToolResultToContentWithBlobs(
+        result,
+        undefined,
+        undefined,
+        logger
+    );
     const parts = coerceContentToParts(content);
     const inlineMedia: InlineMediaHint[] = [];
 
@@ -1055,7 +1078,8 @@ function shouldPersistInlineMedia(hint: InlineMediaHint): boolean {
 
 export async function persistToolMedia(
     normalized: NormalizedToolResult,
-    options: PersistToolMediaOptions
+    options: PersistToolMediaOptions,
+    logger?: IDextoLogger
 ): Promise<PersistToolMediaResult> {
     const parts = normalized.parts.map((part) => clonePart(part));
     const blobStore = options.blobStore;
@@ -1098,7 +1122,7 @@ export async function persistToolMedia(
                     parts[hint.index] = createBlobFilePart(resourceUri, resolvedMimeType, filename);
                 }
             } catch (error) {
-                logger.warn(
+                logger?.warn(
                     `Failed to persist tool media: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -1123,7 +1147,8 @@ export async function persistToolMedia(
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
     blobStore?: import('../storage/blob/types.js').BlobStore,
-    namingOptions?: ToolBlobNamingOptions
+    namingOptions?: ToolBlobNamingOptions,
+    logger?: IDextoLogger
 ): Promise<InternalMessage['content']> {
     try {
         // Case 1: string outputs
@@ -1132,7 +1157,7 @@ export async function sanitizeToolResultToContentWithBlobs(
             const dataUri = parseDataUri(result);
             if (dataUri) {
                 const mediaType = dataUri.mediaType;
-                logger.debug(
+                logger?.debug(
                     `sanitizeToolResultToContentWithBlobs: detected data URI (${mediaType})`
                 );
 
@@ -1142,7 +1167,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 if (shouldStoreAsBlob) {
                     try {
-                        logger.debug(
+                        logger?.debug(
                             `Storing data URI as blob (${approxSize} bytes, ${mediaType})`
                         );
                         const blobRef = await blobStore.store(result, {
@@ -1150,14 +1175,14 @@ export async function sanitizeToolResultToContentWithBlobs(
                             source: 'tool',
                             originalName: buildToolBlobName('output', mediaType, namingOptions),
                         });
-                        logger.debug(`Stored blob: ${blobRef.uri} (${approxSize} bytes)`);
+                        logger?.debug(`Stored blob: ${blobRef.uri} (${approxSize} bytes)`);
 
                         if (mediaType.startsWith('image/')) {
                             return [createBlobImagePart(blobRef.uri, mediaType)];
                         }
                         return [createBlobFilePart(blobRef.uri, mediaType, undefined)];
                     } catch (error) {
-                        logger.warn(
+                        logger?.warn(
                             `Failed to store blob, falling back to inline: ${String(error)}`
                         );
                         // Fall through to original behavior
@@ -1179,7 +1204,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
             // Raw base64-like blob
             if (isLikelyBase64String(result)) {
-                logger.debug('sanitizeToolResultToContentWithBlobs: detected base64-like string');
+                logger?.debug('sanitizeToolResultToContentWithBlobs: detected base64-like string');
 
                 // Check if we should store as blob
                 const approxSize = Math.floor((result.length * 3) / 4);
@@ -1192,7 +1217,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                             source: 'tool',
                             originalName: buildToolBlobName('output', undefined, namingOptions),
                         });
-                        logger.debug(
+                        logger?.debug(
                             `Stored tool result as blob: ${blobRef.uri} (${approxSize} bytes)`
                         );
                         return [
@@ -1203,7 +1228,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                             ),
                         ];
                     } catch (error) {
-                        logger.warn(
+                        logger?.warn(
                             `Failed to store blob, falling back to inline: ${String(error)}`
                         );
                     }
@@ -1224,7 +1249,7 @@ export async function sanitizeToolResultToContentWithBlobs(
             if (result.length > MAX_TOOL_TEXT_CHARS) {
                 const head = result.slice(0, 4000);
                 const tail = result.slice(-1000);
-                logger.debug(
+                logger?.debug(
                     `sanitizeToolResultToContentWithBlobs: truncating long text tool output (len=${result.length})`
                 );
                 return `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`;
@@ -1242,7 +1267,8 @@ export async function sanitizeToolResultToContentWithBlobs(
                 const processedItem = await sanitizeToolResultToContentWithBlobs(
                     item,
                     blobStore,
-                    namingOptions
+                    namingOptions,
+                    logger
                 );
 
                 if (typeof processedItem === 'string') {
@@ -1260,7 +1286,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
             // Handle MCP tool results with nested content array
             if ('content' in anyObj && Array.isArray(anyObj.content)) {
-                logger.debug(
+                logger?.debug(
                     `Processing MCP tool result with ${anyObj.content.length} content items`
                 );
                 const processedContent = [];
@@ -1283,7 +1309,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                                 if (shouldStoreAsBlob) {
                                     try {
-                                        logger.debug(
+                                        logger?.debug(
                                             `Storing MCP resource as blob (${approxSize} bytes, ${mimeType})`
                                         );
                                         const blobRef = await blobStore.store(fileData, {
@@ -1296,7 +1322,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                                                 resource.title
                                             ),
                                         });
-                                        logger.debug(
+                                        logger?.debug(
                                             `Stored MCP resource blob: ${blobRef.uri} (${approxSize} bytes)`
                                         );
                                         if (mimeType.startsWith('image/')) {
@@ -1314,7 +1340,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                                         }
                                         continue;
                                     } catch (error) {
-                                        logger.warn(
+                                        logger?.warn(
                                             `Failed to store MCP resource blob, falling back to inline: ${String(error)}`
                                         );
                                     }
@@ -1348,7 +1374,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                         // Handle legacy data field (for backwards compatibility)
                         if ('data' in item && item.mimeType) {
-                            const fileData = getFileData({ data: item.data });
+                            const fileData = getFileData({ data: item.data }, logger);
                             const mimeType = item.mimeType;
 
                             // Check if we should store as blob
@@ -1360,7 +1386,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                             if (shouldStoreAsBlob) {
                                 try {
-                                    logger.debug(
+                                    logger?.debug(
                                         `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
                                     );
                                     const blobRef = await blobStore.store(fileData, {
@@ -1373,7 +1399,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                                             item.filename
                                         ),
                                     });
-                                    logger.debug(
+                                    logger?.debug(
                                         `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
                                     );
                                     if (item.type === 'image') {
@@ -1387,7 +1413,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                                     }
                                     continue;
                                 } catch (error) {
-                                    logger.warn(
+                                    logger?.warn(
                                         `Failed to store MCP blob, falling back to inline: ${String(error)}`
                                     );
                                 }
@@ -1421,7 +1447,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
             // Common shapes: { image, mimeType? } or { data, mimeType }
             if ('image' in anyObj) {
-                const imageData = getImageData({ image: anyObj.image });
+                const imageData = getImageData({ image: anyObj.image }, logger);
                 const mimeType = anyObj.mimeType || 'image/jpeg';
 
                 // Check if we should store as blob
@@ -1436,12 +1462,12 @@ export async function sanitizeToolResultToContentWithBlobs(
                             source: 'tool',
                             originalName: buildToolBlobName('image', mimeType, namingOptions),
                         });
-                        logger.debug(
+                        logger?.debug(
                             `Stored tool image as blob: ${blobRef.uri} (${approxSize} bytes)`
                         );
                         return [createBlobImagePart(blobRef.uri, mimeType)];
                     } catch (error) {
-                        logger.warn(
+                        logger?.warn(
                             `Failed to store image blob, falling back to inline: ${String(error)}`
                         );
                     }
@@ -1457,7 +1483,7 @@ export async function sanitizeToolResultToContentWithBlobs(
             }
 
             if ('data' in anyObj && anyObj.mimeType) {
-                const fileData = getFileData({ data: anyObj.data });
+                const fileData = getFileData({ data: anyObj.data }, logger);
                 const mimeType = anyObj.mimeType;
 
                 // Check if we should store as blob
@@ -1477,12 +1503,12 @@ export async function sanitizeToolResultToContentWithBlobs(
                                 anyObj.filename
                             ),
                         });
-                        logger.debug(
+                        logger?.debug(
                             `Stored tool file as blob: ${blobRef.uri} (${approxSize} bytes)`
                         );
                         return [createBlobFilePart(blobRef.uri, mimeType, anyObj.filename)];
                     } catch (error) {
-                        logger.warn(
+                        logger?.warn(
                             `Failed to store file blob, falling back to inline: ${String(error)}`
                         );
                     }
@@ -1499,14 +1525,14 @@ export async function sanitizeToolResultToContentWithBlobs(
             }
 
             // Generic object: remove huge base64 fields and stringify
-            const cleaned = sanitizeDeepObject(anyObj);
+            const cleaned = sanitizeDeepObject(anyObj, logger);
             return safeStringify(cleaned);
         }
 
         // Fallback
         return safeStringify(result ?? '');
     } catch (err) {
-        logger.warn(
+        logger?.warn(
             `sanitizeToolResultToContentWithBlobs failed, falling back to string: ${String(err)}`
         );
         try {
@@ -1581,14 +1607,19 @@ export async function sanitizeToolResult(
         toolName: string;
         toolCallId: string;
         success?: boolean;
-    }
+    },
+    logger?: IDextoLogger
 ): Promise<SanitizedToolResult> {
-    const normalized = await normalizeToolResult(result);
-    const persisted = await persistToolMedia(normalized, {
-        ...(options.blobStore ? { blobStore: options.blobStore } : {}),
-        toolName: options.toolName,
-        toolCallId: options.toolCallId,
-    });
+    const normalized = await normalizeToolResult(result, logger);
+    const persisted = await persistToolMedia(
+        normalized,
+        {
+            ...(options.blobStore ? { blobStore: options.blobStore } : {}),
+            toolName: options.toolName,
+            toolCallId: options.toolCallId,
+        },
+        logger
+    );
 
     const fallbackContent: TextPart[] = [{ type: 'text', text: '' }];
     const content = persisted.parts.length > 0 ? persisted.parts : fallbackContent;

@@ -5,7 +5,8 @@ import { ITokenizer } from '../llm/tokenizer/types.js';
 import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
 import { OldestRemovalStrategy } from './compression/oldest-removal.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
 import {
     countMessagesTokens,
@@ -98,6 +99,8 @@ export class ContextManager<TMessage = unknown> {
      */
     private resourceManager: import('../resources/index.js').ResourceManager;
 
+    private logger: IDextoLogger;
+
     /**
      * Get the ResourceManager instance
      */
@@ -171,7 +174,7 @@ export class ContextManager<TMessage = unknown> {
                     source: metadata.source || 'user',
                 });
 
-                logger.info(
+                this.logger.info(
                     `Stored user input as blob: ${blobRef.uri} (${estimatedSize} bytes, ${metadata.mimeType})`
                 );
 
@@ -184,7 +187,7 @@ export class ContextManager<TMessage = unknown> {
 
                 return `@${blobRef.uri}`; // Return @blob:id reference for ResourceManager
             } catch (error) {
-                logger.warn(`Failed to store user input as blob: ${String(error)}`);
+                this.logger.warn(`Failed to store user input as blob: ${String(error)}`);
                 // Fallback to storing original data
                 return data;
             }
@@ -204,6 +207,7 @@ export class ContextManager<TMessage = unknown> {
      * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
      * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
      * @param resourceManager Optional ResourceManager for resolving blob references in messages
+     * @param logger Logger instance for logging
      */
     constructor(
         llmConfig: ValidatedLLMConfig,
@@ -214,6 +218,7 @@ export class ContextManager<TMessage = unknown> {
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
+        logger: IDextoLogger,
         compressionStrategies: ICompressionStrategy[] = [
             new MiddleRemovalStrategy(),
             new OldestRemovalStrategy(),
@@ -228,8 +233,9 @@ export class ContextManager<TMessage = unknown> {
         this.sessionId = sessionId;
         this.compressionStrategies = compressionStrategies;
         this.resourceManager = resourceManager;
+        this.logger = logger.createChild(DextoLogComponent.CONTEXT);
 
-        logger.debug(
+        this.logger.debug(
             `ContextManager: Initialized for session ${sessionId} - history will be managed by ${historyProvider.constructor.name}`
         );
     }
@@ -240,7 +246,7 @@ export class ContextManager<TMessage = unknown> {
      */
     async getTokenCount(): Promise<number> {
         const history = await this.historyProvider.getHistory();
-        return countMessagesTokens(history, this.tokenizer);
+        return countMessagesTokens(history, this.tokenizer, undefined, this.logger);
     }
 
     /**
@@ -266,7 +272,12 @@ export class ContextManager<TMessage = unknown> {
             history = await this.compressHistoryIfNeeded(history, systemPromptTokens);
 
             // Count history message tokens (after compression)
-            const historyTokens = countMessagesTokens(history, this.tokenizer);
+            const historyTokens = countMessagesTokens(
+                history,
+                this.tokenizer,
+                undefined,
+                this.logger
+            );
 
             // Add a small overhead for provider-specific formatting
             // This accounts for any additional structure the formatter adds
@@ -274,13 +285,16 @@ export class ContextManager<TMessage = unknown> {
 
             const totalTokens = systemPromptTokens + historyTokens + formattingOverhead;
 
-            logger.debug(
+            this.logger.debug(
                 `Token breakdown - System: ${systemPromptTokens}, History: ${historyTokens}, Overhead: ${formattingOverhead}, Total: ${totalTokens}`
             );
 
             return totalTokens;
         } catch (error) {
-            logger.error('Error calculating total token count:', error);
+            this.logger.error(
+                `Error calculating total token count: ${error instanceof Error ? error.message : String(error)}`,
+                { error }
+            );
             // Fallback to history-only count
             return this.getTokenCount();
         }
@@ -317,7 +331,7 @@ export class ContextManager<TMessage = unknown> {
             this.formatter = newFormatter;
         }
 
-        logger.debug(
+        this.logger.debug(
             `ContextManager config updated: maxInputTokens ${oldMaxInputTokens} -> ${newMaxInputTokens}`
         );
     }
@@ -330,7 +344,7 @@ export class ContextManager<TMessage = unknown> {
      */
     updateActualTokenCount(actualTokens: number): void {
         this.lastActualTokenCount = actualTokens;
-        logger.debug(`Updated actual token count to: ${actualTokens}`);
+        this.logger.debug(`Updated actual token count to: ${actualTokens}`);
     }
 
     /**
@@ -344,7 +358,7 @@ export class ContextManager<TMessage = unknown> {
         const estimatedTotal = this.lastActualTokenCount + newInputTokens;
         const compressionTrigger = this.maxInputTokens * this.compressionThreshold;
 
-        logger.debug(
+        this.logger.debug(
             `Compression check: actual=${this.lastActualTokenCount}, newInput=${newInputTokens}, total=${estimatedTotal}, trigger=${compressionTrigger}`
         );
 
@@ -356,7 +370,7 @@ export class ContextManager<TMessage = unknown> {
      */
     async getSystemPrompt(context: DynamicContributorContext): Promise<string> {
         const prompt = await this.systemPromptManager.build(context);
-        logger.debug(`[SystemPrompt] Built system prompt:\n${prompt}`);
+        this.logger.debug(`[SystemPrompt] Built system prompt:\n${prompt}`);
         return prompt;
     }
 
@@ -425,7 +439,7 @@ export class ContextManager<TMessage = unknown> {
 
             case 'system':
                 // System messages should ideally be handled via setSystemPrompt
-                logger.warn(
+                this.logger.warn(
                     'ContextManager: Adding system message directly to history. Use setSystemPrompt instead.'
                 );
                 if (typeof message.content !== 'string' || message.content.trim() === '') {
@@ -434,7 +448,7 @@ export class ContextManager<TMessage = unknown> {
                 break;
         }
 
-        logger.debug(
+        this.logger.debug(
             `ContextManager: Adding message to history provider: ${JSON.stringify(message, null, 2)}`
         );
 
@@ -443,7 +457,7 @@ export class ContextManager<TMessage = unknown> {
 
         // Get updated history for logging
         const history = await this.historyProvider.getHistory();
-        logger.debug(`ContextManager: History now contains ${history.length} messages`);
+        this.logger.debug(`ContextManager: History now contains ${history.length} messages`);
 
         // Note: Compression is currently handled lazily in getFormattedMessages
     }
@@ -523,7 +537,7 @@ export class ContextManager<TMessage = unknown> {
         if (messageParts.length === 0) {
             messageParts.push({ type: 'text' as const, text: finalTextContent });
         }
-        logger.debug(
+        this.logger.debug(
             `ContextManager: Adding user message: ${JSON.stringify(messageParts, null, 2)}`
         );
         await this.addMessage({ role: 'user', content: messageParts });
@@ -604,7 +618,7 @@ export class ContextManager<TMessage = unknown> {
                       : `file(${p.mimeType || 'file'})`
             )
             .join(', ');
-        logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
+        this.logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
 
         await this.addMessage({
             role: 'tool',
@@ -662,24 +676,24 @@ export class ContextManager<TMessage = unknown> {
                     llmContext.model
                 );
                 allowedMediaTypes = fileTypesToMimePatterns(supportedFileTypes);
-                logger.debug(
+                this.logger.debug(
                     `Using model capabilities for media filtering: ${allowedMediaTypes.join(', ')}`
                 );
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Could not determine model capabilities, allowing all media types: ${String(error)}`
                 );
                 // If we can't determine capabilities, allow everything
                 allowedMediaTypes = undefined;
             }
         } else {
-            logger.debug(
+            this.logger.debug(
                 `Using user-configured allowedMediaTypes: ${allowedMediaTypes.join(', ')}`
             );
         }
 
         // Resolve blob references using resource manager with filtering
-        logger.debug('Resolving blob references in message history before formatting');
+        this.logger.debug('Resolving blob references in message history before formatting');
         messageHistory = await Promise.all(
             messageHistory.map(async (message) => {
                 const expandedContent = await expandBlobReferences(
@@ -732,11 +746,11 @@ export class ContextManager<TMessage = unknown> {
         ); // Type cast happens here via TMessage generic
 
         // Calculate final token usage
-        const historyTokens = countMessagesTokens(history, this.tokenizer);
+        const historyTokens = countMessagesTokens(history, this.tokenizer, undefined, this.logger);
         const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05);
         const tokensUsed = systemPromptTokens + historyTokens + formattingOverhead;
 
-        logger.debug(
+        this.logger.debug(
             `Final token breakdown - System: ${systemPromptTokens}, History: ${historyTokens}, Overhead: ${formattingOverhead}, Total: ${tokensUsed}`
         );
 
@@ -768,7 +782,9 @@ export class ContextManager<TMessage = unknown> {
     async resetConversation(): Promise<void> {
         // Clear persisted history
         await this.historyProvider.clearHistory();
-        logger.debug(`ContextManager: Conversation history cleared for session ${this.sessionId}`);
+        this.logger.debug(
+            `ContextManager: Conversation history cleared for session ${this.sessionId}`
+        );
     }
 
     /**
@@ -782,23 +798,28 @@ export class ContextManager<TMessage = unknown> {
         history: InternalMessage[],
         systemPromptTokens: number
     ): Promise<InternalMessage[]> {
-        let currentTotalTokens: number = countMessagesTokens(history, this.tokenizer);
+        let currentTotalTokens: number = countMessagesTokens(
+            history,
+            this.tokenizer,
+            undefined,
+            this.logger
+        );
         currentTotalTokens += systemPromptTokens;
 
-        logger.debug(`ContextManager: Checking if history compression is needed.`);
-        logger.debug(
-            `History tokens: ${countMessagesTokens(history, this.tokenizer)}, System prompt tokens: ${systemPromptTokens}, Total: ${currentTotalTokens}`
+        this.logger.debug(`ContextManager: Checking if history compression is needed.`);
+        this.logger.debug(
+            `History tokens: ${countMessagesTokens(history, this.tokenizer, undefined, this.logger)}, System prompt tokens: ${systemPromptTokens}, Total: ${currentTotalTokens}`
         );
 
         // If counting failed or we are within limits, do nothing
         if (currentTotalTokens <= this.maxInputTokens) {
-            logger.debug(
+            this.logger.debug(
                 `ContextManager: History compression not needed. Total token count: ${currentTotalTokens}, Max tokens: ${this.maxInputTokens}`
             );
             return history;
         }
 
-        logger.info(
+        this.logger.info(
             `ContextManager: History exceeds token limit (${currentTotalTokens} > ${this.maxInputTokens}). Applying compression strategies sequentially.`
         );
 
@@ -811,7 +832,7 @@ export class ContextManager<TMessage = unknown> {
         // Iterate through the configured compression strategies sequentially
         for (const strategy of this.compressionStrategies) {
             const strategyName = strategy.constructor.name; // Get the class name for logging
-            logger.debug(`ContextManager: Applying ${strategyName}...`);
+            this.logger.debug(`ContextManager: Applying ${strategyName}...`);
 
             try {
                 // Pass a copy of the history to avoid potential side effects within the strategy
@@ -822,19 +843,27 @@ export class ContextManager<TMessage = unknown> {
                     targetHistoryTokens // Use target tokens that account for system prompt
                 );
             } catch (error) {
-                logger.error(`ContextManager: Error applying ${strategyName}:`, error);
+                this.logger.error(
+                    `ContextManager: Error applying ${strategyName}: ${error instanceof Error ? error.message : String(error)}`,
+                    { error }
+                );
                 // Decide if we should stop or try the next strategy. Let's stop for now.
                 break;
             }
 
             // Recalculate tokens after applying the strategy
-            const historyTokens = countMessagesTokens(workingHistory, this.tokenizer);
+            const historyTokens = countMessagesTokens(
+                workingHistory,
+                this.tokenizer,
+                undefined,
+                this.logger
+            );
             currentTotalTokens = historyTokens + systemPromptTokens;
             const messagesRemoved = initialLength - workingHistory.length;
 
             // If counting failed or we are now within limits, stop applying strategies
             if (currentTotalTokens <= this.maxInputTokens) {
-                logger.debug(
+                this.logger.debug(
                     `ContextManager: Compression successful after ${strategyName}. New total count: ${currentTotalTokens}, messages removed: ${messagesRemoved}`
                 );
                 break;
@@ -857,7 +886,7 @@ export class ContextManager<TMessage = unknown> {
                 try {
                     await this.addMessage(msg);
                 } catch (error) {
-                    logger.error(
+                    this.logger.error(
                         `ContextManager: Failed to process LLM stream response message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
                     );
                     // Continue processing other messages rather than failing completely
@@ -880,7 +909,7 @@ export class ContextManager<TMessage = unknown> {
             try {
                 await this.addMessage(msg);
             } catch (error) {
-                logger.error(
+                this.logger.error(
                     `ContextManager: Failed to process LLM response message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
                 );
                 // Continue processing other messages rather than failing completely
