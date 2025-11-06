@@ -30,7 +30,7 @@ import { SearchService } from '../search/index.js';
 import { dirname, resolve } from 'path';
 import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
@@ -64,11 +64,13 @@ export type AgentServices = {
  * Initializes all agent services from a validated configuration.
  * @param config The validated agent configuration object
  * @param configPath Optional path to the config file (for relative path resolution)
+ * @param logger Logger instance for this agent (dependency injection)
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
     config: ValidatedAgentConfig,
-    configPath?: string
+    configPath: string | undefined,
+    logger: IDextoLogger
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
