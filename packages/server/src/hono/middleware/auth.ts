@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 /**
  * Authentication middleware for API security
@@ -28,7 +28,7 @@ export function createAuthMiddleware(): MiddlewareHandler {
 
     // Log security configuration on startup
     if (isProduction && !apiKey) {
-        logger.warn(
+        noOpLogger.warn(
             `⚠️  SECURITY WARNING: Running in production mode (NODE_ENV=production) without DEXTO_SERVER_API_KEY. Dexto Server API is UNPROTECTED. Set DEXTO_SERVER_API_KEY environment variable to secure your API.`
         );
     }
@@ -66,7 +66,7 @@ export function createAuthMiddleware(): MiddlewareHandler {
         const providedKey = authHeader?.replace(/^Bearer\s+/i, '');
 
         if (!providedKey || providedKey !== apiKey) {
-            logger.warn('Unauthorized API access attempt', {
+            noOpLogger.warn('Unauthorized API access attempt', {
                 path,
                 hasKey: !!providedKey,
                 origin: ctx.req.header('origin'),

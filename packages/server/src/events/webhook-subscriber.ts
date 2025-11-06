@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { setMaxListeners } from 'events';
-import { AgentEventBus, type AgentEventName, type AgentEventMap, logger } from '@dexto/core';
+import { AgentEventBus, type AgentEventName, type AgentEventMap } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 import {
     type WebhookConfig,
@@ -36,7 +37,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
         this.deliveryOptions = { ...DEFAULT_DELIVERY_OPTIONS, ...deliveryOptions };
         // Use native fetch (Node.js 20+) or injected implementation (tests)
         this.fetchFn = fetchFn || fetch;
-        logger.debug('WebhookEventSubscriber initialized');
+        noOpLogger.debug('WebhookEventSubscriber initialized');
     }
 
     /**
@@ -82,7 +83,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
             );
         });
 
-        logger.info(`Webhook subscriber active with ${this.webhooks.size} registered webhooks`);
+        noOpLogger.info(`Webhook subscriber active with ${this.webhooks.size} registered webhooks`);
     }
 
     /**
@@ -90,7 +91,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
      */
     addWebhook(webhook: WebhookConfig): void {
         this.webhooks.set(webhook.id, webhook);
-        logger.info(`Webhook registered: ${webhook.id} -> ${webhook.url}`);
+        noOpLogger.info(`Webhook registered: ${webhook.id} -> ${webhook.url}`);
     }
 
     /**
@@ -99,9 +100,9 @@ export class WebhookEventSubscriber implements EventSubscriber {
     removeWebhook(webhookId: string): boolean {
         const removed = this.webhooks.delete(webhookId);
         if (removed) {
-            logger.info(`Webhook removed: ${webhookId}`);
+            noOpLogger.info(`Webhook removed: ${webhookId}`);
         } else {
-            logger.warn(`Attempted to remove non-existent webhook: ${webhookId}`);
+            noOpLogger.warn(`Attempted to remove non-existent webhook: ${webhookId}`);
         }
         return removed;
     }
@@ -153,7 +154,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
         }
 
         this.webhooks.clear();
-        logger.debug('Webhook event subscriber cleaned up');
+        noOpLogger.debug('Webhook event subscriber cleaned up');
     }
 
     /**
@@ -166,16 +167,16 @@ export class WebhookEventSubscriber implements EventSubscriber {
             try {
                 controller.abort();
             } catch (error) {
-                logger.debug(
+                noOpLogger.debug(
                     `Error aborting controller during unsubscribe: ${
                         error instanceof Error ? error.message : String(error)
                     }`,
-                    JSON.stringify({
+                    {
                         location: 'WebhookEventSubscriber.unsubscribe',
                         ...(error instanceof Error
                             ? { stack: error.stack }
                             : { value: String(error) }),
-                    })
+                    }
                 );
             }
         }
@@ -200,7 +201,9 @@ export class WebhookEventSubscriber implements EventSubscriber {
             apiVersion: '2025-07-03',
         };
 
-        logger.debug(`Delivering webhook event: ${eventType} to ${this.webhooks.size} webhooks`);
+        noOpLogger.debug(
+            `Delivering webhook event: ${eventType} to ${this.webhooks.size} webhooks`
+        );
 
         // Deliver to all webhooks in parallel
         const deliveryPromises = Array.from(this.webhooks.values()).map((webhook) => ({
@@ -213,7 +216,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
                 if (result.status === 'rejected') {
                     const webhook = deliveryPromises[i]?.webhook;
                     if (webhook) {
-                        logger.error(
+                        noOpLogger.error(
                             `Webhook delivery failed for ${webhook.id}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
                         );
                     }
@@ -253,7 +256,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
                 lastStatusCode = result.statusCode;
             } catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
-                logger.warn(
+                noOpLogger.warn(
                     `Webhook delivery attempt ${attempt}/${this.deliveryOptions.maxRetries} failed for ${webhook.id}: ${lastError.message}`
                 );
             }
@@ -279,7 +282,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
             ...(lastStatusCode !== undefined && { statusCode: lastStatusCode }),
         };
 
-        logger.error(
+        noOpLogger.error(
             `Webhook delivery failed after ${this.deliveryOptions.maxRetries} attempts for ${webhook.id}: ${result.error}`
         );
 
@@ -334,7 +337,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
                 result.error = `HTTP ${response.status}: ${response.statusText}`;
             }
 
-            logger.debug(
+            noOpLogger.debug(
                 `Webhook delivery ${success ? 'succeeded' : 'failed'} for ${webhook.id}: ${response.status} in ${responseTime}ms`
             );
 

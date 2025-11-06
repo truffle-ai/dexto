@@ -1,6 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { logger } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
 
@@ -37,7 +36,7 @@ const WebhookBodySchema = z
     .describe('Request body for registering a webhook');
 
 export function createWebhooksRouter(
-    _getAgent: () => DextoAgent,
+    getAgent: () => DextoAgent,
     webhookSubscriber: WebhookEventSubscriber
 ) {
     const app = new OpenAPIHono();
@@ -79,7 +78,7 @@ export function createWebhooksRouter(
         };
 
         webhookSubscriber.addWebhook(webhook);
-        logger.info(`Webhook registered: ${webhookId} -> ${url}`);
+        getAgent().logger.info(`Webhook registered: ${webhookId} -> ${url}`);
 
         return ctx.json(
             {
@@ -200,7 +199,7 @@ export function createWebhooksRouter(
         if (!removed) {
             return ctx.json({ error: 'Webhook not found' }, 404);
         }
-        logger.info(`Webhook removed: ${webhookId}`);
+        getAgent().logger.info(`Webhook removed: ${webhookId}`);
         return ctx.json({ status: 'removed', webhookId });
     });
 
@@ -238,7 +237,7 @@ export function createWebhooksRouter(
             return ctx.json({ error: 'Webhook not found' }, 404);
         }
 
-        logger.info(`Testing webhook: ${webhookId}`);
+        getAgent().logger.info(`Testing webhook: ${webhookId}`);
         const result = await webhookSubscriber.testWebhook(webhookId);
 
         return ctx.json({

@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { DextoApp } from '../types.js';
 import type { DextoAgent } from '@dexto/core';
 import {
-    logger,
+    noOpLogger,
     validateInputForLLM,
     DextoValidationError,
     AgentErrorCode,
@@ -74,13 +74,13 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                             const parsed = body.length > 0 ? JSON.parse(body) : undefined;
                             await options.mcpHandlers!.handlePost(req, res, parsed);
                         } catch (err) {
-                            logger.error(`Failed to process MCP POST body: ${String(err)}`);
+                            noOpLogger.error(`Failed to process MCP POST body: ${String(err)}`);
                             res.statusCode = 400;
                             res.end('Invalid JSON body');
                         }
                     });
                     req.on('error', (err: Error) => {
-                        logger.error(`Error reading MCP POST body: ${String(err)}`);
+                        noOpLogger.error(`Error reading MCP POST body: ${String(err)}`);
                         res.statusCode = 500;
                         res.end('Failed to read request body');
                     });
@@ -93,7 +93,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
             await sendNodeResponse(res, response);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            logger.error(`Unhandled error in Node bridge: ${message}`, { error });
+            noOpLogger.error(`Unhandled error in Node bridge: ${message}`, { error });
             res.statusCode = 500;
             res.end('Internal Server Error');
         }
@@ -106,7 +106,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     // Normalize connection handling so both our subscriber and the per-connection
     // message handler are wired via the same 'connection' event.
     websocketServer.on('connection', (ws) => {
-        logger.info('WebSocket client connected.');
+        noOpLogger.info('WebSocket client connected.');
         handleWebsocketConnection(getAgent, ws);
     });
 
@@ -136,7 +136,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
             const providedKey = authHeader?.replace(/^Bearer\s+/i, '');
 
             if (!providedKey || providedKey !== apiKey) {
-                logger.warn('Unauthorized WebSocket connection attempt', {
+                noOpLogger.warn('Unauthorized WebSocket connection attempt', {
                     host: req.headers.host,
                     origin: req.headers.origin,
                     mode: isProduction ? 'production' : 'development',
@@ -157,7 +157,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     if (typeof options.port === 'number') {
         const hostname = options.hostname ?? '0.0.0.0';
         server.listen(options.port, hostname, () => {
-            logger.info(`Hono Node bridge listening on http://${hostname}:${options.port}`);
+            noOpLogger.info(`Hono Node bridge listening on http://${hostname}:${options.port}`);
         });
     }
 
@@ -181,14 +181,14 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
             try {
                 const parsedMessage = JSON.parse(messageString);
                 const redactedMessage = redactSensitiveData(parsedMessage);
-                logger.debug(`WebSocket received message: ${JSON.stringify(redactedMessage)}`);
+                noOpLogger.debug(`WebSocket received message: ${JSON.stringify(redactedMessage)}`);
             } catch {
                 const redacted = String(redactSensitiveData(messageString));
                 const truncated =
                     redacted.length > 200
                         ? `${redacted.substring(0, 200)}... (${redacted.length} total chars)`
                         : redacted;
-                logger.debug(`WebSocket received message: ${truncated}`);
+                noOpLogger.debug(`WebSocket received message: ${truncated}`);
             }
 
             const data = JSON.parse(messageString);
@@ -202,7 +202,7 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                 // Validate the approval response payload with Zod schema
                 const validationResult = ApprovalResponseSchema.safeParse(data.data);
                 if (!validationResult.success) {
-                    logger.warn(
+                    noOpLogger.warn(
                         `Received invalid approval response payload: ${validationResult.error.message}`
                     );
                     // Do not emit invalid payloads
@@ -229,7 +229,9 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                 const sessionId =
                     typeof data.sessionId === 'string' ? (data.sessionId as string) : undefined;
                 if (!sessionId) {
-                    logger.error('Received WebSocket message without sessionId. Dropping message.');
+                    noOpLogger.error(
+                        'Received WebSocket message without sessionId. Dropping message.'
+                    );
                     return;
                 }
                 const stream = data.stream === true;
@@ -237,7 +239,7 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                 // Check agent availability before processing message
                 // Prevents processing during agent switching, stopping, or startup failures
                 if (!agent.isStarted() || agent.isStopped()) {
-                    logger.error('Agent not available for WebSocket message processing');
+                    noOpLogger.error('Agent not available for WebSocket message processing');
                     sendWebSocketError(
                         ws,
                         new Error('Agent is not available. Please try again.'),
@@ -258,12 +260,13 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                     {
                         provider: llmProvider,
                         model: llmModel,
-                    }
+                    },
+                    agent.logger
                 );
 
                 if (!validation.ok) {
                     const redactedIssues = redactSensitiveData(validation.issues);
-                    logger.error('Invalid input for current LLM configuration', {
+                    noOpLogger.error('Invalid input for current LLM configuration', {
                         provider: llmProvider,
                         model: llmModel,
                         issues: redactedIssues,
@@ -292,13 +295,13 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
 
             if (data.type === 'reset') {
                 const sessionId = data.sessionId as string | undefined;
-                logger.info(
+                noOpLogger.info(
                     `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                 );
 
                 // Check agent availability before processing reset
                 if (!agent.isStarted() || agent.isStopped()) {
-                    logger.error('Agent not available for WebSocket reset');
+                    noOpLogger.error('Agent not available for WebSocket reset');
                     if (sessionId) {
                         sendWebSocketError(
                             ws,
@@ -315,13 +318,13 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
 
             if (data.type === 'cancel') {
                 const sessionId = data.sessionId as string | undefined;
-                logger.info(
+                noOpLogger.info(
                     `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                 );
 
                 // Check agent availability before processing cancel
                 if (!agent.isStarted() || agent.isStopped()) {
-                    logger.error('Agent not available for WebSocket cancel');
+                    noOpLogger.error('Agent not available for WebSocket cancel');
                     if (sessionId) {
                         sendWebSocketError(
                             ws,
@@ -334,21 +337,21 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
 
                 const cancelled = await agent.cancel(sessionId);
                 if (!cancelled) {
-                    logger.debug('No in-flight run to cancel');
+                    noOpLogger.debug('No in-flight run to cancel');
                 }
                 return;
             }
 
-            logger.warn(`Received unknown WebSocket message type: ${data.type}`);
+            noOpLogger.warn(`Received unknown WebSocket message type: ${data.type}`);
             if (typeof data.sessionId === 'string') {
                 sendWebSocketValidationError(ws, 'Unknown message type', data.sessionId, {
                     messageType: data.type,
                 });
             } else {
-                logger.error('Cannot send error for unknown message type without sessionId.');
+                noOpLogger.error('Cannot send error for unknown message type without sessionId.');
             }
         } catch (error) {
-            logger.error(
+            noOpLogger.error(
                 `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
             try {
@@ -356,12 +359,12 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                 if (typeof maybe.sessionId === 'string') {
                     sendWebSocketError(ws, error, maybe.sessionId);
                 } else {
-                    logger.error(
+                    noOpLogger.error(
                         'Cannot send WebSocket error without sessionId. Error will be logged only.'
                     );
                 }
             } catch {
-                logger.error(
+                noOpLogger.error(
                     'Cannot parse incoming message to extract sessionId for error reporting.'
                 );
             }
@@ -369,12 +372,12 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
     });
 
     ws.on('close', () => {
-        logger.info('WebSocket client disconnected.');
+        noOpLogger.info('WebSocket client disconnected.');
     });
 
     ws.on('error', (error: Error) => {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`WebSocket error: ${errorMessage}`);
+        noOpLogger.error(`WebSocket error: ${errorMessage}`);
     });
 }
 
