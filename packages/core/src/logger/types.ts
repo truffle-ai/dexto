@@ -12,20 +12,31 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /**
  * Component identifiers for structured logging
- * Allows filtering logs by component
+ * Mirrors ErrorScope for consistency, with additional execution context components
  */
 export enum DextoLogComponent {
-    AGENT = 'AGENT',
-    LLM = 'LLM',
-    MCP = 'MCP',
-    STORAGE = 'STORAGE',
-    SESSION = 'SESSION',
-    TOOL = 'TOOL',
-    PLUGIN = 'PLUGIN',
-    API = 'API',
-    CLI = 'CLI',
-    FILESYSTEM = 'FILESYSTEM',
-    TELEMETRY = 'TELEMETRY',
+    // Core functional domains (matches ErrorScope)
+    AGENT = 'agent',
+    LLM = 'llm',
+    CONFIG = 'config',
+    CONTEXT = 'context',
+    SESSION = 'session',
+    MCP = 'mcp',
+    TOOLS = 'tools',
+    STORAGE = 'storage',
+    SYSTEM_PROMPT = 'system_prompt',
+    RESOURCE = 'resource',
+    PROMPT = 'prompt',
+    MEMORY = 'memory',
+    PLUGIN = 'plugin',
+    FILESYSTEM = 'filesystem',
+    PROCESS = 'process',
+    APPROVAL = 'approval',
+
+    // Additional execution context components
+    API = 'api',
+    CLI = 'cli',
+    TELEMETRY = 'telemetry',
 }
 
 /**
@@ -44,7 +55,7 @@ export interface LogEntry {
     /** Agent ID for multi-agent isolation */
     agentId: string;
     /** Optional structured context data */
-    context?: Record<string, unknown>;
+    context?: Record<string, unknown> | undefined;
 }
 
 /**
