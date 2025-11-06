@@ -18,6 +18,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
  * Create an instance of one of our in-built LLM services
@@ -28,6 +29,7 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
  * @param sessionEventBus Session-level event bus for emitting LLM events
  * @param sessionId Session ID
  * @param resourceManager Resource manager for blob storage and resource access
+ * @param logger Logger instance for dependency injection
  * @returns ILLMService instance
  */
 function _createInBuiltLLMService(
@@ -37,7 +39,8 @@ function _createInBuiltLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
-    resourceManager: import('../../resources/index.js').ResourceManager
+    resourceManager: import('../../resources/index.js').ResourceManager,
+    logger: IDextoLogger
 ): ILLMService {
     const apiKey = config.apiKey;
 
@@ -53,7 +56,8 @@ function _createInBuiltLLMService(
                 sessionEventBus,
                 config,
                 sessionId,
-                resourceManager
+                resourceManager,
+                logger
             );
         }
         case 'openai-compatible': {
@@ -68,7 +72,8 @@ function _createInBuiltLLMService(
                 sessionEventBus,
                 config,
                 sessionId,
-                resourceManager
+                resourceManager,
+                logger
             );
         }
         case 'anthropic': {
@@ -81,7 +86,8 @@ function _createInBuiltLLMService(
                 sessionEventBus,
                 config,
                 sessionId,
-                resourceManager
+                resourceManager,
+                logger
             );
         }
         default:
@@ -147,7 +153,8 @@ function _createVercelLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
-    resourceManager: import('../../resources/index.js').ResourceManager
+    resourceManager: import('../../resources/index.js').ResourceManager,
+    logger: IDextoLogger
 ): VercelLLMService {
     const model = _createVercelModel(config);
 
@@ -159,7 +166,8 @@ function _createVercelLLMService(
         sessionEventBus,
         config,
         sessionId,
-        resourceManager
+        resourceManager,
+        logger
     );
 }
 
@@ -174,7 +182,8 @@ export function createLLMService(
     historyProvider: IConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
-    resourceManager: import('../../resources/index.js').ResourceManager
+    resourceManager: import('../../resources/index.js').ResourceManager,
+    logger: IDextoLogger
 ): ILLMService {
     if (router === 'vercel') {
         return _createVercelLLMService(
@@ -184,7 +193,8 @@ export function createLLMService(
             historyProvider,
             sessionEventBus,
             sessionId,
-            resourceManager
+            resourceManager,
+            logger
         );
     } else {
         return _createInBuiltLLMService(
@@ -194,7 +204,8 @@ export function createLLMService(
             historyProvider,
             sessionEventBus,
             sessionId,
-            resourceManager
+            resourceManager,
+            logger
         );
     }
 }

@@ -7,8 +7,9 @@
 
 /**
  * Log levels in order of severity
+ * Following Winston convention: error < warn < info < debug < silly
  */
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silly';
 
 /**
  * Component identifiers for structured logging
@@ -69,6 +70,13 @@ export interface IDextoLogger {
      * @param context Optional structured context
      */
     debug(message: string, context?: Record<string, unknown>): void;
+
+    /**
+     * Log silly message (most verbose, for detailed debugging like full JSON dumps)
+     * @param message Log message
+     * @param context Optional structured context
+     */
+    silly(message: string, context?: Record<string, unknown>): void;
 
     /**
      * Log info message

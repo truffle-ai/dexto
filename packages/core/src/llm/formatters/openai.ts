@@ -7,7 +7,8 @@ import {
     filterMessagesByLLMCapabilities,
     toTextForToolMessage,
 } from '@core/context/utils.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 
 /**
  * Message formatter for OpenAI's Chat Completion API.
@@ -18,6 +19,11 @@ import { logger } from '@core/logger/index.js';
  * - Tool results use the 'tool' role with tool_call_id and name
  */
 export class OpenAIMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into OpenAI's Chat Completion API format
      *
@@ -38,7 +44,9 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
         try {
             filteredHistory = filterMessagesByLLMCapabilities([...history], context);
         } catch (error) {
-            logger.warn(`Failed to apply capability filtering, using original history: ${error}`);
+            this.logger.warn(
+                `Failed to apply capability filtering, using original history: ${error}`
+            );
             filteredHistory = [...history];
         }
 

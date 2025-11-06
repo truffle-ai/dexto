@@ -34,11 +34,14 @@ export class DextoLogger implements IDextoLogger {
     private transports: ILoggerTransport[];
 
     // Log level hierarchy for filtering
+    // Following Winston convention: lower number = more severe
+    // If level is 'debug', logs error(0), warn(1), info(2), debug(3) but not silly(4)
     private static readonly LEVELS: Record<LogLevel, number> = {
-        debug: 0,
-        info: 1,
-        warn: 2,
-        error: 3,
+        error: 0,
+        warn: 1,
+        info: 2,
+        debug: 3,
+        silly: 4,
     };
 
     constructor(config: DextoLoggerConfig) {
@@ -51,6 +54,12 @@ export class DextoLogger implements IDextoLogger {
     debug(message: string, context?: Record<string, unknown>): void {
         if (this.shouldLog('debug')) {
             this.log('debug', message, context);
+        }
+    }
+
+    silly(message: string, context?: Record<string, unknown>): void {
+        if (this.shouldLog('silly')) {
+            this.log('silly', message, context);
         }
     }
 
@@ -107,9 +116,11 @@ export class DextoLogger implements IDextoLogger {
 
     /**
      * Check if a log level should be recorded based on configured level
+     * Winston convention: log if level number <= configured level number
+     * So if configured is 'debug' (3), we log error(0), warn(1), info(2), debug(3) but not silly(4)
      */
     private shouldLog(level: LogLevel): boolean {
-        return DextoLogger.LEVELS[level] >= DextoLogger.LEVELS[this.level];
+        return DextoLogger.LEVELS[level] <= DextoLogger.LEVELS[this.level];
     }
 
     /**

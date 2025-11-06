@@ -211,7 +211,11 @@ export class SessionManager {
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
-            const session = new ChatSession({ ...this.services, sessionManager: this }, id);
+            const session = new ChatSession(
+                { ...this.services, sessionManager: this },
+                id,
+                this.logger
+            );
             await session.init();
             this.sessions.set(id, session);
             this.logger.info(`Restored session from storage: ${id}`);
@@ -248,7 +252,7 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            session = new ChatSession({ ...this.services, sessionManager: this }, id);
+            session = new ChatSession({ ...this.services, sessionManager: this }, id, this.logger);
             await session.init();
             this.sessions.set(id, session);
 
@@ -315,7 +319,8 @@ export class SessionManager {
                 // Restore session to memory
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
-                    sessionId
+                    sessionId,
+                    this.logger
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);

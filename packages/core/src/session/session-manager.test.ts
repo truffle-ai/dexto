@@ -157,7 +157,7 @@ describe('SessionManager', () => {
         );
 
         // Mock ChatSession constructor and methods
-        MockChatSession.mockImplementation((services, id) => {
+        MockChatSession.mockImplementation((services, id, logger) => {
             const mockSession = {
                 id,
                 init: vi.fn().mockResolvedValue(undefined),
@@ -268,7 +268,8 @@ describe('SessionManager', () => {
             expect(session.id).toBe('mock-uuid-123');
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
-                'mock-uuid-123'
+                'mock-uuid-123',
+                mockLogger
             );
         });
 
@@ -279,7 +280,8 @@ describe('SessionManager', () => {
             expect(session.id).toBe(customId);
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
-                customId
+                customId,
+                mockLogger
             );
         });
 
@@ -312,7 +314,8 @@ describe('SessionManager', () => {
             expect(session.id).toBe('default');
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
-                'default'
+                'default',
+                mockLogger
             );
         });
     });
@@ -946,7 +949,8 @@ describe('SessionManager', () => {
             expect(restoredSession!.id).toBe(sessionId);
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
-                sessionId
+                sessionId,
+                mockLogger
             );
 
             // Session should now be in memory

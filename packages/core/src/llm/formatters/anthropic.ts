@@ -8,7 +8,8 @@ import type {
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 import {
     getImageData,
     getFileData,
@@ -26,6 +27,11 @@ import {
  * - System prompts are not included in the messages array but sent separately
  */
 export class AnthropicMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into Anthropic's Claude API format
      *
@@ -50,7 +56,9 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         try {
             filteredHistory = filterMessagesByLLMCapabilities([...history], context);
         } catch (error) {
-            logger.warn('Failed to apply capability filtering, using original history:', error);
+            this.logger.warn('Failed to apply capability filtering, using original history:', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             filteredHistory = [...history];
         }
 
@@ -113,7 +121,9 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     pendingToolCalls.delete(msg.toolCallId);
                 } else {
                     // This shouldn't normally happen
-                    logger.warn(`Tool result found without matching tool call: ${msg.toolCallId}`);
+                    this.logger.warn(
+                        `Tool result found without matching tool call: ${msg.toolCallId}`
+                    );
                     const orphanSafe: string = toTextForToolMessage(msg.content);
                     const orphanToolResult: MessageParam = {
                         role: 'user',
@@ -188,7 +198,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         for (const [id, { assistantMsg }] of remainingToolCalls) {
             if (assistantMsg) {
                 formatted.push(assistantMsg);
-                logger.warn(`Tool call ${id} had no matching tool result`);
+                this.logger.warn(`Tool call ${id} had no matching tool result`);
             }
         }
 

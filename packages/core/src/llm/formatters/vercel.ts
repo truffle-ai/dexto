@@ -12,7 +12,8 @@ import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
 import type { GenerateTextResult, StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 
 /**
  * Message formatter for Vercel AI SDK.
@@ -26,6 +27,11 @@ import { logger } from '@core/logger/index.js';
  * particularly in its handling of function calls and responses.
  */
 export class VercelMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into Vercel AI SDK format
      *
@@ -47,9 +53,11 @@ export class VercelMessageFormatter implements IMessageFormatter {
             filteredHistory = filterMessagesByLLMCapabilities([...history], context);
 
             const modelInfo = `${context.provider}/${context.model}`;
-            logger.debug(`Applied Vercel filtering for ${modelInfo}`);
+            this.logger.debug(`Applied Vercel filtering for ${modelInfo}`);
         } catch (error) {
-            logger.warn(`Failed to apply capability filtering, using original history: ${error}`);
+            this.logger.warn(
+                `Failed to apply capability filtering, using original history: ${error}`
+            );
             filteredHistory = [...history];
         }
 
@@ -356,7 +364,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         parsed = JSON.parse(rawArgs);
                     } catch {
                         parsed = {};
-                        logger.warn(
+                        this.logger.warn(
                             `Vercel formatter: invalid tool args JSON for ${toolCall.function.name}`
                         );
                     }

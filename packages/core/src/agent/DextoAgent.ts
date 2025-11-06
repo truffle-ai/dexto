@@ -702,7 +702,8 @@ export class DextoAgent {
                 this.toolManager,
                 this.systemPromptManager,
                 this.resourceManager,
-                userText
+                userText,
+                this.logger
             );
             if (result.error) {
                 this.logger.debug(
