@@ -1,5 +1,5 @@
 import { DextoRuntimeError, DextoValidationError, ErrorType, zodToIssues } from '@dexto/core';
-import { noOpLogger } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { ZodError } from 'zod';
 
 export const mapErrorTypeToStatus = (type: ErrorType): number => {
@@ -61,7 +61,7 @@ export function handleHonoError(ctx: any, err: unknown) {
 
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
-    noOpLogger.error(`Unhandled error in API middleware: ${errorMessage}`, {
+    logger.error(`Unhandled error in API middleware: ${errorMessage}`, {
         stack: errorStack,
         type: typeof err,
     });
