@@ -266,6 +266,31 @@ describe('enrichAgentConfig', () => {
     });
 
     describe('Storage enrichment', () => {
+        it('should provide default storage when not specified in config', () => {
+            const configWithoutStorage: AgentConfig = {
+                llm: {
+                    apiKey: 'test-key',
+                    provider: 'anthropic',
+                    model: 'claude-3-5-sonnet-20241022',
+                },
+                systemPrompt: '',
+            };
+
+            const enriched = enrichAgentConfig(configWithoutStorage, '/path/to/my-agent.yml');
+
+            // Storage should be provided with defaults
+            expect(enriched.storage).toBeDefined();
+            expect(enriched.storage!.cache.type).toBe('in-memory');
+            expect(enriched.storage!.database.type).toBe('sqlite');
+            if (enriched.storage!.database.type === 'sqlite') {
+                expect(enriched.storage!.database.path).toBe('/mock/dexto/database/my-agent.db');
+            }
+            expect(enriched.storage!.blob.type).toBe('local');
+            if (enriched.storage!.blob.type === 'local') {
+                expect(enriched.storage!.blob.storePath).toBe('/mock/dexto/blobs/my-agent');
+            }
+        });
+
         it('should add path to SQLite database config', () => {
             const config: AgentConfig = {
                 ...createMinimalConfig(),

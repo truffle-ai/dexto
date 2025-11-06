@@ -17,6 +17,7 @@ import {
 } from './mcp/mcp_handler.js';
 import { createAgentCard, DextoAgent, loadAgentConfig } from '@dexto/core';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
+import { enrichAgentConfig } from '../config/config-enrichment.js';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';
@@ -299,14 +300,17 @@ export async function initializeApi(
             // 2. Load agent configuration from file path
             const config = await loadAgentConfig(filePath);
 
-            // 3. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
-            newAgent = new DextoAgent(config, filePath);
+            // 3. Enrich config with per-agent paths (logs, storage, etc.)
+            const enrichedConfig = enrichAgentConfig(config, filePath);
 
-            // 4. Derive agent ID from config or filename
+            // 4. Create new agent instance (will initialize fresh telemetry in createAgentServices)
+            newAgent = new DextoAgent(enrichedConfig, filePath);
+
+            // 5. Derive agent ID from config or filename
             const agentId =
                 config.agentCard?.name || path.basename(filePath, path.extname(filePath));
 
-            // 5. Use common switch logic (register subscribers, start agent, stop previous)
+            // 6. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId);
         } catch (error) {
             logger.error(

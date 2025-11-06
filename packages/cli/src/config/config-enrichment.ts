@@ -83,6 +83,7 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
 
     // Enrich storage config with per-agent paths
     if (config.storage) {
+        // User provided storage - enrich with per-agent paths
         enriched.storage = {
             ...config.storage,
             // Enrich database config
@@ -101,6 +102,13 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
                           storePath: blobPath,
                       }
                     : config.storage.blob,
+        };
+    } else {
+        // No storage provided - create default config with per-agent paths
+        enriched.storage = {
+            cache: { type: 'in-memory' },
+            database: { type: 'sqlite', path: dbPath },
+            blob: { type: 'local', storePath: blobPath },
         };
     }
 

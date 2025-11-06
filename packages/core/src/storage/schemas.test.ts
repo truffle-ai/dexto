@@ -12,6 +12,9 @@ import {
     type DatabaseConfig,
 } from './schemas.js';
 
+// Test helper: default blob config for tests
+const testBlobConfig = { type: 'local' as const, storePath: '/tmp/test-blobs' };
+
 describe('StorageSchema', () => {
     describe('Backend Configuration - In-Memory', () => {
         it('should accept minimal in-memory backend config', () => {
@@ -19,6 +22,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse({
                 cache: config,
                 database: config,
+                blob: testBlobConfig,
             });
 
             expect(result.success).toBe(true);
@@ -46,6 +50,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse({
                 cache: cacheConfig,
                 database: dbConfig,
+                blob: testBlobConfig,
             });
             expect(result.success).toBe(true);
         });
@@ -61,6 +66,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: config,
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(result.cache.type).toBe('redis');
             if (result.cache.type === 'redis') {
@@ -80,6 +86,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: config,
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(result.cache.type).toBe('redis');
             if (result.cache.type === 'redis') {
@@ -130,6 +137,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.database.type).toBe('postgres');
             if (result.database.type === 'postgres') {
@@ -146,6 +154,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.database.type).toBe('postgres');
             if (result.database.type === 'postgres') {
@@ -167,6 +176,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.database.type).toBe('postgres');
             if (result.database.type === 'postgres') {
@@ -181,6 +191,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.custom);
@@ -242,6 +253,7 @@ describe('StorageSchema', () => {
             const validResult = StorageSchema.parse({
                 cache: { type: 'in-memory', maxConnections: 10 },
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(validResult.cache.maxConnections).toBe(10);
         });
@@ -269,6 +281,7 @@ describe('StorageSchema', () => {
             const validResult = StorageSchema.parse({
                 cache: { type: 'in-memory', idleTimeoutMillis: 5000 },
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(validResult.cache.idleTimeoutMillis).toBe(5000);
         });
@@ -294,6 +307,7 @@ describe('StorageSchema', () => {
             const configWithExtra = {
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
                 unknownField: 'should fail',
             };
 
@@ -329,6 +343,7 @@ describe('StorageSchema', () => {
                 const result = StorageSchema.parse({
                     cache: cacheConfig,
                     database: { type: 'in-memory' },
+                    blob: testBlobConfig,
                 });
                 expect(result.cache.type).toBe(cacheConfig.type);
             });
@@ -345,6 +360,7 @@ describe('StorageSchema', () => {
                 const result = StorageSchema.parse({
                     cache: { type: 'in-memory' },
                     database: dbConfig,
+                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
                 });
                 expect(result.database.type).toBe(dbConfig.type);
             });
