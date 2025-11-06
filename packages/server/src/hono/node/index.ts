@@ -354,7 +354,8 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                 agent.logger.error('Cannot send error for unknown message type without sessionId.');
             }
         } catch (error) {
-            agent.logger.error(
+            // Use global logger for error handling since agent may not be accessible
+            logger.error(
                 `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
             try {
@@ -362,12 +363,12 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                 if (typeof maybe.sessionId === 'string') {
                     sendWebSocketError(ws, error, maybe.sessionId);
                 } else {
-                    agent.logger.error(
+                    logger.error(
                         'Cannot send WebSocket error without sessionId. Error will be logged only.'
                     );
                 }
             } catch {
-                agent.logger.error(
+                logger.error(
                     'Cannot parse incoming message to extract sessionId for error reporting.'
                 );
             }
