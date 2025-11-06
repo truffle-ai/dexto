@@ -1,6 +1,4 @@
-import { loadAgentConfig, AgentError, DextoAgent } from '@dexto/core';
-import type { IDextoLogger } from '@dexto/core';
-import { noOpLogger } from '@dexto/core';
+import { logger, loadAgentConfig, AgentError, DextoAgent } from '@dexto/core';
 import { getAgentRegistry } from './registry/registry.js';
 import { deriveDisplayName } from './registry/types.js';
 
@@ -213,10 +211,10 @@ export class AgentOrchestrator {
 
         try {
             await agentRegistry.installAgent(agentName, true);
-            noOpLogger.info(`Successfully installed agent: ${agentName}`);
+            logger.info(`Successfully installed agent: ${agentName}`);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            noOpLogger.error(`Failed to install agent ${agentName}: ${errorMessage}`);
+            logger.error(`Failed to install agent ${agentName}: ${errorMessage}`);
             throw AgentError.apiValidationError(
                 `Installation failed for agent '${agentName}'`,
                 error
@@ -267,11 +265,11 @@ export class AgentOrchestrator {
                 metadata,
                 injectPreferences
             );
-            noOpLogger.info(`Successfully installed custom agent: ${agentName}`);
+            logger.info(`Successfully installed custom agent: ${agentName}`);
             return mainConfigPath;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            noOpLogger.error(`Failed to install custom agent ${agentName}: ${errorMessage}`);
+            logger.error(`Failed to install custom agent ${agentName}: ${errorMessage}`);
             throw AgentError.apiValidationError(
                 `Installation failed for custom agent '${agentName}'`,
                 error
@@ -301,10 +299,10 @@ export class AgentOrchestrator {
 
         try {
             await agentRegistry.uninstallAgent(agentName, force);
-            noOpLogger.info(`Successfully uninstalled agent: ${agentName}`);
+            logger.info(`Successfully uninstalled agent: ${agentName}`);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            noOpLogger.error(`Failed to uninstall agent ${agentName}: ${errorMessage}`);
+            logger.error(`Failed to uninstall agent ${agentName}: ${errorMessage}`);
             throw AgentError.apiValidationError(
                 `Uninstallation failed for agent '${agentName}'`,
                 error
@@ -342,13 +340,13 @@ export class AgentOrchestrator {
             const config = await loadAgentConfig(agentPath);
 
             // Create new agent (not started)
-            noOpLogger.info(`Creating agent: ${agentName}`);
+            logger.info(`Creating agent: ${agentName}`);
             const newAgent = new DextoAgent(config, agentPath);
 
-            noOpLogger.info(`Successfully created agent: ${agentName}`);
+            logger.info(`Successfully created agent: ${agentName}`);
             return newAgent;
         } catch (error) {
-            noOpLogger.error(
+            logger.error(
                 `Failed to create agent '${agentName}': ${
                     error instanceof Error ? error.message : String(error)
                 }`

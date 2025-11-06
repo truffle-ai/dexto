@@ -4,8 +4,7 @@ import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { getDextoGlobalPath } from '../utils/path.js';
-import type { IDextoLogger } from '@dexto/core';
-import { noOpLogger } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { DextoValidationError, DextoRuntimeError } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
 import { GlobalPreferencesSchema, type GlobalPreferences } from './schemas.js';
@@ -18,8 +17,7 @@ import { PreferenceError } from './errors.js';
  * @throws DextoRuntimeError if file not found or corrupted
  * @throws DextoValidationError if preferences are invalid
  */
-export async function loadGlobalPreferences(logger?: IDextoLogger): Promise<GlobalPreferences> {
-    const log = logger ?? noOpLogger;
+export async function loadGlobalPreferences(): Promise<GlobalPreferences> {
     const preferencesPath = getDextoGlobalPath(PREFERENCES_FILE);
 
     // Check if preferences file exists
@@ -38,7 +36,7 @@ export async function loadGlobalPreferences(logger?: IDextoLogger): Promise<Glob
             throw PreferenceError.validationFailed(validation.error);
         }
 
-        log.debug(`Loaded global preferences from: ${preferencesPath}`);
+        logger.debug(`Loaded global preferences from: ${preferencesPath}`);
         return validation.data;
     } catch (error) {
         if (error instanceof DextoValidationError || error instanceof DextoRuntimeError) {
@@ -57,11 +55,7 @@ export async function loadGlobalPreferences(logger?: IDextoLogger): Promise<Glob
  * @param preferences Validated preferences object
  * @throws DextoRuntimeError if write fails
  */
-export async function saveGlobalPreferences(
-    preferences: GlobalPreferences,
-    logger?: IDextoLogger
-): Promise<void> {
-    const log = logger ?? noOpLogger;
+export async function saveGlobalPreferences(preferences: GlobalPreferences): Promise<void> {
     const preferencesPath = getDextoGlobalPath(PREFERENCES_FILE);
 
     // Validate preferences against schema before saving
@@ -71,7 +65,7 @@ export async function saveGlobalPreferences(
     }
 
     try {
-        log.info(`Saving global preferences to: ${preferencesPath}`);
+        logger.info(`Saving global preferences to: ${preferencesPath}`);
         // Ensure ~/.dexto directory exists
         const dextoDir = getDextoGlobalPath('');
         await fs.mkdir(dextoDir, { recursive: true });
@@ -86,7 +80,7 @@ export async function saveGlobalPreferences(
         // Write to file
         await fs.writeFile(preferencesPath, yamlContent, 'utf-8');
 
-        log.info(
+        logger.info(
             `✓ Saved global preferences ${JSON.stringify(preferences)} to: ${preferencesPath}`
         );
     } catch (error) {
@@ -160,11 +154,10 @@ export type GlobalPreferencesUpdates = {
  * @throws DextoValidationError if merged preferences are invalid
  */
 export async function updateGlobalPreferences(
-    updates: GlobalPreferencesUpdates,
-    logger?: IDextoLogger
+    updates: GlobalPreferencesUpdates
 ): Promise<GlobalPreferences> {
     // Load existing preferences
-    const existing = await loadGlobalPreferences(logger);
+    const existing = await loadGlobalPreferences();
 
     // Hybrid merge strategy: different sections have different coherence requirements
     const merged = {
@@ -186,7 +179,7 @@ export async function updateGlobalPreferences(
     }
 
     // Save updated preferences
-    await saveGlobalPreferences(validation.data, logger);
+    await saveGlobalPreferences(validation.data);
 
     return validation.data;
 }
