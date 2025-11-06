@@ -136,14 +136,26 @@ export async function createAgentServices(
     await pluginManager.initialize(config.plugins.custom);
     logger.info('Plugin manager initialized');
 
-    // TODO: Consider lazy initialization of ProcessService and FileSystemService
-    // - Only initialize if they will be used by some tools
+    // TODO: Conditional initialization of FileSystemService and ProcessService
+    // These services are only needed when specific internal tools are enabled:
+    // - FileSystemService: Required by read-file, write-file, edit-file, glob-files, grep-content tools
+    // - ProcessService: Required by bash-exec, bash-output, kill-process tools
+    //
+    // Consider lazy initialization pattern:
+    // 1. Check config.internalTools to see which tools are enabled
+    // 2. Only initialize services if their dependent tools are present
+    // 3. This avoids overhead for agents that don't need file/process operations
+    //
+    // Current behavior: Always initialized for backward compatibility
     // 7. Initialize FileSystemService and ProcessService for internal tools
     const fileSystemService = new FileSystemService({
         allowedPaths: ['.'],
         blockedPaths: ['.git', 'node_modules/.bin', '.env'],
         blockedExtensions: ['.exe', '.dll', '.so'],
         workingDirectory: process.cwd(),
+        // Note: enableBackups and backupPath are not configured here
+        // Backups are disabled by default. To enable per-agent backups,
+        // filesystem config would need to be added to AgentConfig schema
     });
     await fileSystemService.initialize();
     logger.debug('FileSystemService initialized');
