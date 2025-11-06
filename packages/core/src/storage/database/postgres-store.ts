@@ -1,6 +1,8 @@
 import { Pool, PoolClient } from 'pg';
 import type { Database } from './types.js';
 import type { PostgresDatabaseConfig } from './schemas.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { StorageError } from '../errors.js';
 
 /**
@@ -11,8 +13,14 @@ import { StorageError } from '../errors.js';
 export class PostgresStore implements Database {
     private pool: Pool | null = null;
     private connected = false;
+    private logger: IDextoLogger;
 
-    constructor(private config: PostgresDatabaseConfig) {}
+    constructor(
+        private config: PostgresDatabaseConfig,
+        logger: IDextoLogger
+    ) {
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
+    }
 
     async connect(): Promise<void> {
         if (this.connected) return;

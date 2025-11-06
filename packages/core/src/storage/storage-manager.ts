@@ -6,7 +6,8 @@ import { createCache } from './cache/factory.js';
 import { createDatabase } from './database/factory.js';
 import { createBlobStore } from './blob/factory.js';
 import { StorageError } from './errors.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 
 const HEALTH_CHECK_KEY = 'storage_manager_health_check';
 
@@ -27,9 +28,11 @@ export class StorageManager {
     private blobStore!: BlobStore;
     private initialized = false;
     private connected = false;
+    private logger: IDextoLogger;
 
-    constructor(config: ValidatedStorageConfig) {
+    constructor(config: ValidatedStorageConfig, logger: IDextoLogger) {
         this.config = config;
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }
 
     /**
@@ -42,14 +45,14 @@ export class StorageManager {
         }
 
         // Create store instances - paths are provided via CLI enrichment
-        this.cache = await createCache(this.config.cache);
-        this.database = await createDatabase(this.config.database);
+        this.cache = await createCache(this.config.cache, this.logger);
+        this.database = await createDatabase(this.config.database, this.logger);
 
         // Blob store required - enrichment provides config with paths
         if (!this.config.blob) {
             throw new Error('Blob storage configuration is required. Provide storage.blob config.');
         }
-        this.blobStore = createBlobStore(this.config.blob);
+        this.blobStore = createBlobStore(this.config.blob, this.logger);
 
         this.initialized = true;
     }
@@ -82,7 +85,7 @@ export class StorageManager {
             this.connected = true;
         } catch (error) {
             // Rollback: disconnect any stores that were successfully connected
-            logger.warn(
+            this.logger.warn(
                 `Storage connection failed, rolling back ${connected.length} connected stores`
             );
             for (const store of connected.reverse()) {
@@ -91,7 +94,7 @@ export class StorageManager {
                     else if (store === 'database') await this.database.disconnect();
                     else if (store === 'blob') await this.blobStore.disconnect();
                 } catch (disconnectError) {
-                    logger.error(
+                    this.logger.error(
                         `Failed to rollback ${store} during connection failure: ${disconnectError}`
                     );
                 }
@@ -118,7 +121,7 @@ export class StorageManager {
             if (result.status === 'rejected') {
                 const storeName = storeNames[index];
                 const error = result.reason;
-                logger.error(`Failed to disconnect ${storeName}: ${error}`);
+                this.logger.error(`Failed to disconnect ${storeName}: ${error}`);
                 errors.push(error instanceof Error ? error : new Error(String(error)));
             }
         });
@@ -226,7 +229,7 @@ export class StorageManager {
                 await this.cache.delete(HEALTH_CHECK_KEY);
             }
         } catch (error) {
-            logger.warn(`Cache health check failed: ${error}`);
+            this.logger.warn(`Cache health check failed: ${error}`);
         }
 
         try {
@@ -237,7 +240,7 @@ export class StorageManager {
                 await this.database.delete(HEALTH_CHECK_KEY);
             }
         } catch (error) {
-            logger.warn(`Database health check failed: ${error}`);
+            this.logger.warn(`Database health check failed: ${error}`);
         }
 
         try {
@@ -246,7 +249,7 @@ export class StorageManager {
                 blobHealthy = this.blobStore.isConnected();
             }
         } catch (error) {
-            logger.warn(`Blob store health check failed: ${error}`);
+            this.logger.warn(`Blob store health check failed: ${error}`);
         }
 
         return {
@@ -265,9 +268,10 @@ export class StorageManager {
  * @param config Storage configuration with explicit paths
  */
 export async function createStorageManager(
-    config: ValidatedStorageConfig
+    config: ValidatedStorageConfig,
+    logger: IDextoLogger
 ): Promise<StorageManager> {
-    const manager = new StorageManager(config);
+    const manager = new StorageManager(config, logger);
     await manager.initialize();
     await manager.connect();
     return manager;

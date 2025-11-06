@@ -1,6 +1,8 @@
 import { Redis } from 'ioredis';
 import type { Cache } from './types.js';
 import type { RedisCacheConfig } from './schemas.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { StorageError } from '../errors.js';
 
 /**
@@ -11,8 +13,14 @@ import { StorageError } from '../errors.js';
 export class RedisStore implements Cache {
     private redis: Redis | null = null;
     private connected = false;
+    private logger: IDextoLogger;
 
-    constructor(private config: RedisCacheConfig) {}
+    constructor(
+        private config: RedisCacheConfig,
+        logger: IDextoLogger
+    ) {
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
+    }
 
     async connect(): Promise<void> {
         if (this.connected) return;

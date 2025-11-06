@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { Readable } from 'stream';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { StorageError } from '../errors.js';
 import type {
     BlobStore,
@@ -36,22 +37,38 @@ export class InMemoryBlobStore implements BlobStore {
     private config: InMemoryBlobStoreConfig;
     private blobs: Map<string, { data: Buffer; metadata: StoredBlobMetadata }> = new Map();
     private connected = false;
+    private logger: IDextoLogger;
 
-    constructor(config: InMemoryBlobStoreConfig) {
+    constructor(config: InMemoryBlobStoreConfig, logger?: IDextoLogger) {
         this.config = config;
+        // Logger is optional for in-memory store, but create child if provided
+        if (logger) {
+            this.logger = logger.createChild(DextoLogComponent.STORAGE);
+        } else {
+            this.logger = {
+                debug: () => {},
+                info: () => {},
+                warn: () => {},
+                error: () => {},
+                silly: () => {},
+                trackException: () => {},
+                createChild: () => this.logger,
+                destroy: async () => {},
+            } as IDextoLogger;
+        }
     }
 
     async connect(): Promise<void> {
         if (this.connected) return;
         this.connected = true;
-        logger.debug('InMemoryBlobStore connected');
+        this.logger.debug('InMemoryBlobStore connected');
     }
 
     async disconnect(): Promise<void> {
         // Clear all blobs on disconnect
         this.blobs.clear();
         this.connected = false;
-        logger.debug('InMemoryBlobStore disconnected');
+        this.logger.debug('InMemoryBlobStore disconnected');
     }
 
     isConnected(): boolean {
@@ -82,7 +99,9 @@ export class InMemoryBlobStore implements BlobStore {
         // Check if blob already exists (deduplication)
         const existing = this.blobs.get(id);
         if (existing) {
-            logger.debug(`Blob ${id} already exists, returning existing reference (deduplication)`);
+            this.logger.debug(
+                `Blob ${id} already exists, returning existing reference (deduplication)`
+            );
             return {
                 id,
                 uri: `blob:${id}`,
@@ -113,7 +132,7 @@ export class InMemoryBlobStore implements BlobStore {
         // Store blob in memory
         this.blobs.set(id, { data: buffer, metadata: storedMetadata });
 
-        logger.debug(`Stored blob ${id} (${buffer.length} bytes, ${storedMetadata.mimeType})`);
+        this.logger.debug(`Stored blob ${id} (${buffer.length} bytes, ${storedMetadata.mimeType})`);
 
         return {
             id,
@@ -207,7 +226,7 @@ export class InMemoryBlobStore implements BlobStore {
         }
 
         this.blobs.delete(id);
-        logger.debug(`Deleted blob: ${id}`);
+        this.logger.debug(`Deleted blob: ${id}`);
     }
 
     async cleanup(olderThan?: Date): Promise<number> {
@@ -223,12 +242,12 @@ export class InMemoryBlobStore implements BlobStore {
             if (metadata.createdAt < cutoffDate) {
                 this.blobs.delete(id);
                 deletedCount++;
-                logger.debug(`Cleaned up old blob: ${id}`);
+                this.logger.debug(`Cleaned up old blob: ${id}`);
             }
         }
 
         if (deletedCount > 0) {
-            logger.info(`Blob cleanup: removed ${deletedCount} old blobs from memory`);
+            this.logger.info(`Blob cleanup: removed ${deletedCount} old blobs from memory`);
         }
 
         return deletedCount;

@@ -1,7 +1,8 @@
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
 import type { Database } from './types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SqliteDatabaseConfig } from './schemas.js';
 import { StorageError } from '../errors.js';
 
@@ -16,15 +17,17 @@ export class SQLiteStore implements Database {
     private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
+    private logger: IDextoLogger;
 
-    constructor(config: SqliteDatabaseConfig) {
+    constructor(config: SqliteDatabaseConfig, logger: IDextoLogger) {
         this.config = config;
         // Path is provided via CLI enrichment
         this.dbPath = '';
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }
 
     private initializeTables(): void {
-        logger.debug('SQLite initializing database schema...');
+        this.logger.debug('SQLite initializing database schema...');
 
         try {
             // Create key-value table
@@ -55,7 +58,7 @@ export class SQLiteStore implements Database {
                 CREATE INDEX IF NOT EXISTS idx_list_store_sequence ON list_store(key, sequence);
             `);
 
-            logger.debug(
+            this.logger.debug(
                 'SQLite database schema initialized: kv_store, list_store tables with indexes'
             );
         } catch (error) {
@@ -85,21 +88,21 @@ export class SQLiteStore implements Database {
         // Initialize database path from config (full path is provided via enrichment)
         this.dbPath = this.config.path;
 
-        logger.info(`SQLite using database file: ${this.dbPath}`);
+        this.logger.info(`SQLite using database file: ${this.dbPath}`);
 
         // Ensure directory exists
         const dir = dirname(this.dbPath);
-        logger.debug(`SQLite ensuring directory exists: ${dir}`);
+        this.logger.debug(`SQLite ensuring directory exists: ${dir}`);
         try {
             mkdirSync(dir, { recursive: true });
         } catch (error) {
             // Directory might already exist, that's fine
-            logger.debug(`Directory creation result: ${error ? 'exists' : 'created'}`);
+            this.logger.debug(`Directory creation result: ${error ? 'exists' : 'created'}`);
         }
 
         // Initialize SQLite database
         const sqliteOptions = this.config.options || {};
-        logger.debug(`SQLite initializing database with config:`, {
+        this.logger.debug(`SQLite initializing database with config:`, {
             readonly: sqliteOptions.readonly || false,
             fileMustExist: sqliteOptions.fileMustExist || false,
             timeout: sqliteOptions.timeout || 5000,
@@ -111,12 +114,15 @@ export class SQLiteStore implements Database {
             timeout: sqliteOptions.timeout || 5000,
             verbose: sqliteOptions.verbose
                 ? (message?: unknown, ...additionalArgs: unknown[]) => {
-                      logger.debug(
-                          typeof message === 'string' ||
-                              (typeof message === 'object' && message !== null)
+                      const messageStr =
+                          typeof message === 'string'
                               ? message
-                              : String(message),
-                          ...additionalArgs
+                              : typeof message === 'object' && message !== null
+                                ? JSON.stringify(message)
+                                : String(message);
+                      this.logger.debug(
+                          messageStr,
+                          additionalArgs.length > 0 ? { args: additionalArgs } : undefined
                       );
                   }
                 : undefined,
@@ -124,12 +130,12 @@ export class SQLiteStore implements Database {
 
         // Enable WAL mode for better concurrency
         this.db.pragma('journal_mode = WAL');
-        logger.debug('SQLite enabled WAL mode for better concurrency');
+        this.logger.debug('SQLite enabled WAL mode for better concurrency');
 
         // Create tables if they don't exist
         this.initializeTables();
 
-        logger.info(`✅ SQLite store successfully connected to: ${this.dbPath}`);
+        this.logger.info(`✅ SQLite store successfully connected to: ${this.dbPath}`);
     }
 
     async disconnect(): Promise<void> {
