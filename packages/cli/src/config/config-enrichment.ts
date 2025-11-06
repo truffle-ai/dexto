@@ -82,33 +82,33 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
     };
 
     // Enrich storage config with per-agent paths
-    if (config.storage) {
-        // User provided storage - enrich with per-agent paths
-        enriched.storage = {
-            ...config.storage,
-            // Enrich database config
-            database:
-                config.storage.database.type === 'sqlite'
-                    ? {
-                          ...config.storage.database,
-                          path: dbPath,
-                      }
-                    : config.storage.database,
-            // Enrich blob config
-            blob:
-                config.storage.blob.type === 'local'
-                    ? {
-                          ...config.storage.blob,
-                          storePath: blobPath,
-                      }
-                    : config.storage.blob,
-        };
-    } else {
-        // No storage provided - create default config with per-agent paths
+    if (!config.storage) {
+        // User didn't specify storage - provide filesystem-based defaults
         enriched.storage = {
             cache: { type: 'in-memory' },
             database: { type: 'sqlite', path: dbPath },
             blob: { type: 'local', storePath: blobPath },
+        };
+    } else {
+        // User specified storage - enrich paths where needed, but don't override explicit choices
+        enriched.storage = {
+            cache: config.storage.cache,
+            // Enrich database config: add path to SQLite if missing
+            database:
+                config.storage.database.type === 'sqlite'
+                    ? {
+                          ...config.storage.database,
+                          path: config.storage.database.path || dbPath,
+                      }
+                    : config.storage.database,
+            // Enrich blob config: add storePath to local if missing
+            blob:
+                config.storage.blob.type === 'local'
+                    ? {
+                          ...config.storage.blob,
+                          storePath: config.storage.blob.storePath || blobPath,
+                      }
+                    : config.storage.blob,
         };
     }
 

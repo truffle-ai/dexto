@@ -114,9 +114,13 @@ export const AgentConfigSchema = z
             transports: [{ type: 'console', colorize: true }],
         }).describe('Logger configuration with multi-transport support (file, console, remote)'),
 
-        // Storage configuration (required - CLI enrichment always provides full config with per-agent paths)
-        storage: StorageSchema.describe(
-            'Storage configuration for cache, database, and blob storage - CLI enrichment provides this automatically'
+        // Storage configuration (defaults to in-memory - CLI enrichment overrides with per-agent paths)
+        storage: StorageSchema.default({
+            cache: { type: 'in-memory' },
+            database: { type: 'in-memory' },
+            blob: { type: 'in-memory' },
+        }).describe(
+            'Storage configuration for cache, database, and blob storage - defaults to in-memory, CLI enrichment provides filesystem paths'
         ),
 
         sessions: SessionConfigSchema.default({}).describe('Session management configuration'),
