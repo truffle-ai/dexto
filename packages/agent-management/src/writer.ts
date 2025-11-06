@@ -5,7 +5,8 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
 import type { LLMProvider, AgentConfig } from '@dexto/core';
 import { type GlobalPreferences } from './preferences/schemas.js';
-import { logger, ConfigError } from '@dexto/core';
+import type { IDextoLogger } from '@dexto/core';
+import { noOpLogger, ConfigError } from '@dexto/core';
 
 export interface LLMOverrides {
     provider?: LLMProvider;
@@ -35,7 +36,7 @@ export async function writeConfigFile(configPath: string, config: AgentConfig): 
         await fs.writeFile(absolutePath, yamlContent, 'utf-8');
 
         // Log a debug message indicating successful file write.
-        logger.debug(`Wrote dexto config to: ${absolutePath}`);
+        noOpLogger.debug(`Wrote dexto config to: ${absolutePath}`);
     } catch (error: unknown) {
         // Catch any errors that occur during YAML stringification or file writing.
         // Throw a specific `ConfigFileWriteError` for better error categorization.
@@ -58,7 +59,7 @@ export async function writeLLMPreferences(
     preferences: GlobalPreferences,
     overrides?: LLMOverrides
 ): Promise<void> {
-    logger.debug(`Writing LLM preferences to: ${configPath}`, {
+    noOpLogger.debug(`Writing LLM preferences to: ${configPath}`, {
         provider: overrides?.provider ?? preferences.llm.provider,
         model: overrides?.model ?? preferences.llm.model,
         hasApiKeyOverride: Boolean(overrides?.apiKey),
@@ -66,13 +67,13 @@ export async function writeLLMPreferences(
     });
 
     // Load raw config with proper error mapping
-    logger.debug(`Reading config file: ${configPath}`);
+    noOpLogger.debug(`Reading config file: ${configPath}`);
     let fileContent: string;
     try {
         fileContent = await fs.readFile(configPath, 'utf-8');
-        logger.debug(`Successfully read config file (${fileContent.length} chars)`);
+        noOpLogger.debug(`Successfully read config file (${fileContent.length} chars)`);
     } catch (error) {
-        logger.error(`Failed to read config file: ${configPath}`, { error });
+        noOpLogger.error(`Failed to read config file: ${configPath}`, { error });
         throw ConfigError.fileReadError(
             configPath,
             error instanceof Error ? error.message : String(error)
@@ -82,13 +83,13 @@ export async function writeLLMPreferences(
     let config: AgentConfig;
     try {
         config = parseYaml(fileContent) as AgentConfig;
-        logger.debug(`Successfully parsed YAML config`, {
+        noOpLogger.debug(`Successfully parsed YAML config`, {
             hasLlmSection: Boolean(config.llm),
             existingProvider: config.llm?.provider,
             existingModel: config.llm?.model,
         });
     } catch (error) {
-        logger.error(`Failed to parse YAML config: ${configPath}`, { error });
+        noOpLogger.error(`Failed to parse YAML config: ${configPath}`, { error });
         throw ConfigError.parseError(
             configPath,
             error instanceof Error ? error.message : String(error)
@@ -100,7 +101,7 @@ export async function writeLLMPreferences(
     const model = overrides?.model ?? preferences.llm.model;
     const apiKey = overrides?.apiKey ?? preferences.llm.apiKey;
 
-    logger.debug(`Applying LLM preferences`, {
+    noOpLogger.debug(`Applying LLM preferences`, {
         finalProvider: provider,
         finalModel: model,
         hasApiKey: Boolean(apiKey),
@@ -121,7 +122,9 @@ export async function writeLLMPreferences(
     // Type assertion is safe: we read a valid config and only modified the LLM section
     await writeConfigFile(configPath, config);
 
-    logger.info(`✓ Applied preferences to: ${path.basename(configPath)} (${provider}/${model})`);
+    noOpLogger.info(
+        `✓ Applied preferences to: ${path.basename(configPath)} (${provider}/${model})`
+    );
 }
 
 /**
@@ -149,9 +152,9 @@ export async function writePreferencesToAgent(
         // Single file agent - write directly
         if (installedPath.endsWith('.yml') || installedPath.endsWith('.yaml')) {
             await writeLLMPreferences(installedPath, preferences, overrides);
-            logger.info(`✓ Applied preferences to: ${path.basename(installedPath)}`, null, 'green');
+            noOpLogger.info(`✓ Applied preferences to: ${path.basename(installedPath)}`);
         } else {
-            logger.warn(`Skipping non-YAML file: ${installedPath}`, null, 'yellow');
+            noOpLogger.warn(`Skipping non-YAML file: ${installedPath}`);
         }
     } else if (stat.isDirectory()) {
         // Directory-based agent - write to all .yml files
@@ -176,7 +179,7 @@ async function writePreferencesToDirectory(
     const configFiles = await findAgentConfigFiles(installedDir);
 
     if (configFiles.length === 0) {
-        logger.warn(`No YAML config files found in: ${installedDir}`);
+        noOpLogger.warn(`No YAML config files found in: ${installedDir}`);
         return;
     }
 
@@ -190,17 +193,17 @@ async function writePreferencesToDirectory(
     for (const configPath of configFiles) {
         try {
             await writeLLMPreferences(configPath, preferences, overrides);
-            logger.debug(`Applied preferences to: ${path.relative(installedDir, configPath)}`);
+            noOpLogger.debug(`Applied preferences to: ${path.relative(installedDir, configPath)}`);
             successCount++;
         } catch (error) {
-            logger.warn(
+            noOpLogger.warn(
                 `Failed to write preferences to ${configPath}: ${error instanceof Error ? error.message : String(error)}`
             );
             // Continue with other files
         }
     }
 
-    logger.info(
+    noOpLogger.info(
         `✓ Applied preferences to ${successCount}/${configFiles.length} config files (${oldProvider}→${newProvider}, ${oldModel}→${newModel})`
     );
 }

@@ -8,7 +8,8 @@ import {
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './utils/execution-context.js';
-import { logger } from '@dexto/core';
+import type { IDextoLogger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 import { loadGlobalPreferences, globalPreferencesExist } from './preferences/loader.js';
 import { ConfigError } from '@dexto/core';
 
@@ -85,7 +86,7 @@ async function resolveDefaultAgentForDextoSource(
     autoInstall: boolean = true,
     injectPreferences: boolean = true
 ): Promise<string> {
-    logger.debug('Resolving default agent for dexto source context');
+    noOpLogger.debug('Resolving default agent for dexto source context');
     const sourceRoot = findDextoSourceRoot();
     if (!sourceRoot) {
         throw ConfigError.bundledNotFound('dexto source directory not found');
@@ -96,7 +97,7 @@ async function resolveDefaultAgentForDextoSource(
     const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
 
     if (isDevMode) {
-        logger.debug('Dev mode: using repository config file');
+        noOpLogger.debug('Dev mode: using repository config file');
         try {
             await fs.access(repoConfigPath);
             return repoConfigPath;
@@ -110,7 +111,7 @@ async function resolveDefaultAgentForDextoSource(
         try {
             const preferences = await loadGlobalPreferences();
             if (preferences.setup.completed) {
-                logger.debug('Using user preferences in dexto-source context');
+                noOpLogger.debug('Using user preferences in dexto-source context');
                 const preferredAgentName = preferences.defaults.defaultAgent;
                 const { getAgentRegistry } = await import('./registry/registry.js');
                 const registry = getAgentRegistry();
@@ -121,12 +122,12 @@ async function resolveDefaultAgentForDextoSource(
                 );
             }
         } catch (error) {
-            logger.warn(`Failed to load preferences, falling back to repo config: ${error}`);
+            noOpLogger.warn(`Failed to load preferences, falling back to repo config: ${error}`);
         }
     }
 
     // Fallback to repo config
-    logger.debug('Using repository config (no preferences or setup incomplete)');
+    noOpLogger.debug('Using repository config (no preferences or setup incomplete)');
     try {
         await fs.access(repoConfigPath);
         return repoConfigPath;
@@ -143,7 +144,7 @@ async function resolveDefaultAgentForDextoProject(
     injectPreferences: boolean = true
 ): Promise<string> {
     // Get the dexto project root directory
-    logger.debug('Resolving default agent for dexto project context');
+    noOpLogger.debug('Resolving default agent for dexto project context');
     const projectRoot = findDextoProjectRoot();
     if (!projectRoot) {
         throw ConfigError.unknownContext('dexto-project: project root not found');
@@ -169,7 +170,7 @@ async function resolveDefaultAgentForDextoProject(
             // continue
         }
     }
-    logger.debug(`No project-local default-agent.yml found in ${projectRoot}`);
+    noOpLogger.debug(`No project-local default-agent.yml found in ${projectRoot}`);
 
     // 2. Use preferences default agent name - REQUIRED if no project default
     if (!globalPreferencesExist()) {
@@ -196,7 +197,7 @@ async function resolveDefaultAgentForGlobalCLI(
     autoInstall: boolean = true,
     injectPreferences: boolean = true
 ): Promise<string> {
-    logger.debug('Resolving default agent for global CLI context');
+    noOpLogger.debug('Resolving default agent for global CLI context');
     if (!globalPreferencesExist()) {
         throw ConfigError.noGlobalPreferences();
     }
@@ -235,5 +236,5 @@ export async function updateDefaultAgentPreference(agentName: string): Promise<v
         defaults: { defaultAgent: agentName },
     });
 
-    logger.info(`Updated default agent preference to: ${agentName}`);
+    noOpLogger.info(`Updated default agent preference to: ${agentName}`);
 }

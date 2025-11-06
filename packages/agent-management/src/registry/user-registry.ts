@@ -10,7 +10,8 @@ import {
     deriveDisplayName,
 } from './types.js';
 import { RegistryError } from './errors.js';
-import { logger } from '@dexto/core';
+import type { IDextoLogger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 const USER_REGISTRY_FILENAME = 'user-agent-registry.json';
 
@@ -25,11 +26,12 @@ export function getUserRegistryPath(): string {
  * Load user registry from ~/.dexto/user-agent-registry.json
  * Returns empty registry if file doesn't exist
  */
-export function loadUserRegistry(): Registry {
+export function loadUserRegistry(logger?: IDextoLogger): Registry {
+    const log = logger ?? noOpLogger;
     const registryPath = getUserRegistryPath();
 
     if (!existsSync(registryPath)) {
-        logger.debug('User registry not found, returning empty registry');
+        log.debug('User registry not found, returning empty registry');
         return { version: '1.0.0', agents: {} };
     }
 
@@ -48,7 +50,8 @@ export function loadUserRegistry(): Registry {
 /**
  * Save user registry atomically using temp file + rename
  */
-export async function saveUserRegistry(registry: Registry): Promise<void> {
+export async function saveUserRegistry(registry: Registry, logger?: IDextoLogger): Promise<void> {
+    const log = logger ?? noOpLogger;
     const registryPath = getUserRegistryPath();
     const tempPath = `${registryPath}.tmp.${Date.now()}`;
     const dextoDir = path.dirname(registryPath);
@@ -66,7 +69,7 @@ export async function saveUserRegistry(registry: Registry): Promise<void> {
         // Atomic rename
         await fs.rename(tempPath, registryPath);
 
-        logger.debug(`Saved user registry to ${registryPath}`);
+        log.debug(`Saved user registry to ${registryPath}`);
     } catch (error) {
         // Clean up temp file on failure
         try {
@@ -102,8 +105,8 @@ export function mergeRegistries(bundled: Registry, user: Registry): Registry {
 /**
  * Check if agent exists in user registry
  */
-export function userRegistryHasAgent(agentId: string): boolean {
-    const userRegistry = loadUserRegistry();
+export function userRegistryHasAgent(agentId: string, logger?: IDextoLogger): boolean {
+    const userRegistry = loadUserRegistry(logger);
     return agentId in userRegistry.agents;
 }
 
@@ -113,9 +116,11 @@ export function userRegistryHasAgent(agentId: string): boolean {
  */
 export async function addAgentToUserRegistry(
     agentId: string,
-    entry: Omit<AgentRegistryEntry, 'type'>
+    entry: Omit<AgentRegistryEntry, 'type'>,
+    logger?: IDextoLogger
 ): Promise<void> {
-    const userRegistry = loadUserRegistry();
+    const log = logger ?? noOpLogger;
+    const userRegistry = loadUserRegistry(logger);
 
     // Check if already exists in user registry
     if (agentId in userRegistry.agents) {
@@ -130,15 +135,19 @@ export async function addAgentToUserRegistry(
         type: 'custom',
     };
 
-    await saveUserRegistry(userRegistry);
-    logger.info(`Added custom agent '${agentId}' to user registry`);
+    await saveUserRegistry(userRegistry, logger);
+    log.info(`Added custom agent '${agentId}' to user registry`);
 }
 
 /**
  * Remove custom agent from user registry
  */
-export async function removeAgentFromUserRegistry(agentId: string): Promise<void> {
-    const userRegistry = loadUserRegistry();
+export async function removeAgentFromUserRegistry(
+    agentId: string,
+    logger?: IDextoLogger
+): Promise<void> {
+    const log = logger ?? noOpLogger;
+    const userRegistry = loadUserRegistry(logger);
 
     if (!(agentId in userRegistry.agents)) {
         throw RegistryError.agentNotFound(agentId, Object.keys(userRegistry.agents));
@@ -146,6 +155,6 @@ export async function removeAgentFromUserRegistry(agentId: string): Promise<void
 
     delete userRegistry.agents[agentId];
 
-    await saveUserRegistry(userRegistry);
-    logger.info(`Removed custom agent '${agentId}' from user registry`);
+    await saveUserRegistry(userRegistry, logger);
+    log.info(`Removed custom agent '${agentId}' from user registry`);
 }

@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'fs';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { logger } from '@dexto/core';
+import type { IDextoLogger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 import { resolveBundledScript, getDextoGlobalPath, copyDirectory } from '../utils/path.js';
 import { loadGlobalPreferences } from '../preferences/loader.js';
 import { writePreferencesToAgent } from '../writer.js';
@@ -122,7 +123,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         const userRegistry = loadUserRegistry();
         const merged = mergeRegistries(bundledRegistry, userRegistry);
 
-        logger.debug(
+        noOpLogger.debug(
             `Loaded registry: ${Object.keys(bundledRegistry.agents).length} bundled, ${Object.keys(userRegistry.agents).length} custom`
         );
 
@@ -228,7 +229,7 @@ export class LocalAgentRegistry implements AgentRegistry {
      * @param injectPreferences Whether to inject global preferences into installed agent (default: true)
      */
     async installAgent(agentId: string, injectPreferences: boolean = true): Promise<string> {
-        logger.info(`Installing agent: ${agentId}`);
+        noOpLogger.info(`Installing agent: ${agentId}`);
         const registry = this.getRegistry();
         const agentData = registry.agents[agentId];
 
@@ -249,7 +250,7 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         // Check if already installed
         if (existsSync(targetDir)) {
-            logger.info(`Agent '${agentId}' already installed`);
+            noOpLogger.info(`Agent '${agentId}' already installed`);
             return this.resolveMainConfig(targetDir, agentId);
         }
 
@@ -283,17 +284,17 @@ export class LocalAgentRegistry implements AgentRegistry {
             // Atomic rename
             await fs.rename(tempDir, targetDir);
 
-            logger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
+            noOpLogger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
 
             // Inject global preferences if requested
             if (injectPreferences) {
                 try {
                     const preferences = await loadGlobalPreferences();
                     await writePreferencesToAgent(targetDir, preferences);
-                    logger.info(`✓ Applied global preferences to installed agent '${agentId}'`);
+                    noOpLogger.info(`✓ Applied global preferences to installed agent '${agentId}'`);
                 } catch (error) {
                     // Log warning but don't fail installation if preference injection fails
-                    logger.warn(
+                    noOpLogger.warn(
                         `Failed to inject preferences to '${agentId}': ${error instanceof Error ? error.message : String(error)}`
                     );
                     console.log(
@@ -301,7 +302,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                     );
                 }
             } else {
-                logger.info(
+                noOpLogger.info(
                     `Skipped preference injection for '${agentId}' (injectPreferences=false)`
                 );
             }
@@ -314,7 +315,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                     await fs.rm(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                logger.error(
+                noOpLogger.error(
                     `Failed to clean up temp directory: ${
                         cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
                     }. Skipping cleanup...`
@@ -348,7 +349,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         },
         injectPreferences: boolean = true
     ): Promise<string> {
-        logger.info(`Installing custom agent '${agentId}' from ${sourcePath}`);
+        noOpLogger.info(`Installing custom agent '${agentId}' from ${sourcePath}`);
 
         // Validate agent ID doesn't conflict with bundled registry
         this.validateCustomAgentId(agentId);
@@ -439,7 +440,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             // Atomic rename
             await fs.rename(tempDir, targetDir);
 
-            logger.info(`✓ Installed custom agent '${agentId}' to ${targetDir}`);
+            noOpLogger.info(`✓ Installed custom agent '${agentId}' to ${targetDir}`);
 
             // Calculate final main config path after rename
             const mainConfigPath =
@@ -450,7 +451,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             // Add to user registry (with rollback on failure)
             try {
                 await addAgentToUserRegistry(agentId, registryEntry);
-                logger.info(`✓ Added '${agentId}' to user registry`);
+                noOpLogger.info(`✓ Added '${agentId}' to user registry`);
 
                 // Clear cached registry to force reload
                 this._registry = null;
@@ -459,10 +460,10 @@ export class LocalAgentRegistry implements AgentRegistry {
                 try {
                     if (existsSync(targetDir)) {
                         await fs.rm(targetDir, { recursive: true, force: true });
-                        logger.info(`Rolled back installation: removed ${targetDir}`);
+                        noOpLogger.info(`Rolled back installation: removed ${targetDir}`);
                     }
                 } catch (rollbackError) {
-                    logger.error(
+                    noOpLogger.error(
                         `Rollback failed for '${agentId}': ${
                             rollbackError instanceof Error
                                 ? rollbackError.message
@@ -479,9 +480,9 @@ export class LocalAgentRegistry implements AgentRegistry {
                 try {
                     const preferences = await loadGlobalPreferences();
                     await writePreferencesToAgent(targetDir, preferences);
-                    logger.info(`✓ Applied global preferences to custom agent '${agentId}'`);
+                    noOpLogger.info(`✓ Applied global preferences to custom agent '${agentId}'`);
                 } catch (error) {
-                    logger.warn(
+                    noOpLogger.warn(
                         `Failed to inject preferences to '${agentId}': ${error instanceof Error ? error.message : String(error)}`
                     );
                     console.log(
@@ -498,7 +499,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                     await fs.rm(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                logger.error(
+                noOpLogger.error(
                     `Failed to clean up temp directory: ${
                         cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
                     }. Skipping cleanup...`
@@ -525,7 +526,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         autoInstall: boolean = true,
         injectPreferences: boolean = true
     ): Promise<string> {
-        logger.debug(`Resolving registry agent: ${agentId}`);
+        noOpLogger.debug(`Resolving registry agent: ${agentId}`);
 
         // 1. Check if installed
         const globalAgentsDir = getDextoGlobalPath('agents');
@@ -537,16 +538,16 @@ export class LocalAgentRegistry implements AgentRegistry {
 
         if (existsSync(installedPath)) {
             const mainConfig = this.resolveMainConfig(installedPath, agentId);
-            logger.debug(`Resolved installed agent '${agentId}' to: ${mainConfig}`);
+            noOpLogger.debug(`Resolved installed agent '${agentId}' to: ${mainConfig}`);
             return mainConfig;
         }
 
-        logger.debug(`Agent '${agentId}' not found in installed path: ${installedPath}`);
+        noOpLogger.debug(`Agent '${agentId}' not found in installed path: ${installedPath}`);
 
         // 2. Check if available in registry
         if (this.hasAgent(agentId)) {
             if (autoInstall) {
-                logger.info(`Installing agent '${agentId}' from registry...`);
+                noOpLogger.info(`Installing agent '${agentId}' from registry...`);
                 return await this.installAgent(agentId, injectPreferences);
             } else {
                 // Agent is available in registry but auto-install is disabled
@@ -582,7 +583,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                     .filter((name) => !name.startsWith('.tmp') && !name.includes('.tmp.'))
             );
         } catch (error) {
-            logger.error(`Failed to read installed agents directory: ${error}`);
+            noOpLogger.error(`Failed to read installed agents directory: ${error}`);
             return [];
         }
     }
@@ -597,7 +598,9 @@ export class LocalAgentRegistry implements AgentRegistry {
             return agentId !== defaultAgent;
         } catch {
             // If preferences can't be loaded, protect 'default-agent' as fallback
-            logger.warn('Could not load preferences, using fallback protection for default-agent');
+            noOpLogger.warn(
+                'Could not load preferences, using fallback protection for default-agent'
+            );
             return agentId !== 'default-agent';
         }
     }
@@ -619,7 +622,7 @@ export class LocalAgentRegistry implements AgentRegistry {
                 'invalid agentId: path traversal detected'
             );
         }
-        logger.info(`Uninstalling agent: ${agentId} from ${agentDir}`);
+        noOpLogger.info(`Uninstalling agent: ${agentId} from ${agentDir}`);
 
         if (!existsSync(agentDir)) {
             throw RegistryError.agentNotInstalled(agentId);
@@ -638,12 +641,12 @@ export class LocalAgentRegistry implements AgentRegistry {
         try {
             // Remove from disk
             await fs.rm(agentDir, { recursive: true, force: true });
-            logger.info(`✓ Removed agent '${agentId}' from ${agentDir}`);
+            noOpLogger.info(`✓ Removed agent '${agentId}' from ${agentDir}`);
 
             // If custom agent, also remove from user registry
             if (isCustomAgent) {
                 await removeAgentFromUserRegistry(agentId);
-                logger.info(`✓ Removed custom agent '${agentId}' from user registry`);
+                noOpLogger.info(`✓ Removed custom agent '${agentId}' from user registry`);
 
                 // Clear cached registry to force reload
                 this._registry = null;
