@@ -6,7 +6,7 @@
  */
 
 import chalk from 'chalk';
-import { noOpLogger, DextoAgent, type SessionMetadata } from '@dexto/core';
+import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { formatSessionInfo, formatHistoryMessage } from './helpers/formatters.js';
 
 /**
@@ -74,8 +74,10 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
                     const metadata = await agent.getSessionMetadata(id);
                     return { id, metadata };
                 } catch (e) {
-                    noOpLogger.error(
-                        `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`
+                    logger.error(
+                        `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`,
+                        null,
+                        'red'
                     );
                     return { id, metadata: undefined as SessionMetadata | undefined };
                 }
@@ -93,8 +95,10 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
         console.log(chalk.dim(`\n  Total: ${displayed} of ${sessionIds.length} sessions`));
         console.log(chalk.dim('  💡 Use `dexto -r <id>` to resume a session\n'));
     } catch (error) {
-        noOpLogger.error(
-            `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`
+        logger.error(
+            `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`,
+            null,
+            'red'
         );
         throw error;
     }
@@ -116,8 +120,10 @@ export async function handleSessionHistoryCommand(
             console.log(chalk.red(`❌ Session not found: ${sessionId || 'current'}`));
             console.log(chalk.dim('   Use `dexto session list` to see available sessions'));
         } else {
-            noOpLogger.error(
-                `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`
+            logger.error(
+                `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`,
+                null,
+                'red'
             );
         }
         throw error;
@@ -144,8 +150,10 @@ export async function handleSessionDeleteCommand(
         await agent.deleteSession(sessionId);
         console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
     } catch (error) {
-        noOpLogger.error(
-            `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`
+        logger.error(
+            `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
+            null,
+            'red'
         );
         throw error;
     }
@@ -244,8 +252,10 @@ export async function handleSessionSearchCommand(
             console.log(chalk.dim('💡 Use --limit to see more results'));
         }
     } catch (error) {
-        noOpLogger.error(
-            `Search failed: ${error instanceof Error ? error.message : String(error)}`
+        logger.error(
+            `Search failed: ${error instanceof Error ? error.message : String(error)}`,
+            null,
+            'red'
         );
         throw error;
     }

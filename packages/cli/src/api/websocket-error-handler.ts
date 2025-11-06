@@ -8,7 +8,7 @@ import {
 } from '@dexto/core';
 import { ZodError } from 'zod';
 import { zodToIssues, toError } from '@dexto/core';
-import { noOpLogger } from '@dexto/core';
+import { logger } from '@dexto/core';
 
 /**
  * Standardized WebSocket error handler that mirrors HTTP error middleware
@@ -31,7 +31,7 @@ export function sendWebSocketError(ws: WebSocket, error: unknown, sessionId: str
         // Log unexpected errors with full context for debugging (mirror HTTP middleware)
         const errorObj = toError(error);
         const errorStack = error instanceof Error ? error.stack : undefined;
-        noOpLogger.error(`Unhandled WebSocket error: ${errorObj.message}`, {
+        logger.error(`Unhandled WebSocket error: ${errorObj.message}`, {
             error: error,
             stack: errorStack,
             type: typeof error,
@@ -60,7 +60,7 @@ export function sendWebSocketError(ws: WebSocket, error: unknown, sessionId: str
         );
     } catch (sendErr) {
         const msg = sendErr instanceof Error ? sendErr.message : String(sendErr);
-        noOpLogger.error(`Failed to send WebSocket error frame: ${msg}`, { errorData });
+        logger.error(`Failed to send WebSocket error frame: ${msg}`, { errorData });
     }
 }
 
@@ -85,7 +85,7 @@ export function sendWebSocketValidationError(
     ]);
 
     const data = dexErr.toJSON();
-    noOpLogger.error(`Sending WebSocket validation error: ${message}`, { data });
+    logger.error(`Sending WebSocket validation error: ${message}`, { data });
 
     try {
         ws.send(
@@ -99,6 +99,6 @@ export function sendWebSocketValidationError(
         );
     } catch (sendErr) {
         const msg = sendErr instanceof Error ? sendErr.message : String(sendErr);
-        noOpLogger.error(`Failed to send WebSocket validation error: ${msg}`, { data });
+        logger.error(`Failed to send WebSocket validation error: ${msg}`, { data });
     }
 }

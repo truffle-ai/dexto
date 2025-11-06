@@ -11,7 +11,7 @@
  */
 
 import chalk from 'chalk';
-import { noOpLogger, type DextoAgent } from '@dexto/core';
+import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 import { displayAllCommands, formatCommandHelp } from './command-parser.js';
 
@@ -97,7 +97,7 @@ export const generalCommands: CommandDefinition[] = [
         category: 'General',
         aliases: ['quit', 'q'],
         handler: async (_args: string[], _agent: DextoAgent) => {
-            noOpLogger.warn('Exiting AI CLI. Goodbye!');
+            logger.warn('Exiting AI CLI. Goodbye!');
             process.exit(0);
         },
     },
@@ -110,9 +110,9 @@ export const generalCommands: CommandDefinition[] = [
         handler: async (_args: string[], agent: DextoAgent) => {
             try {
                 await agent.resetConversation();
-                noOpLogger.info('🔄 Conversation history cleared.');
+                logger.info('🔄 Conversation history cleared.', null, 'green');
             } catch (error) {
-                noOpLogger.error(
+                logger.error(
                     `Failed to clear conversation: ${error instanceof Error ? error.message : String(error)}`
                 );
             }

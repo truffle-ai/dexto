@@ -11,7 +11,7 @@
  */
 
 import chalk from 'chalk';
-import { noOpLogger, type DextoAgent, flattenPromptResult } from '@dexto/core';
+import { logger, flattenPromptResult, type DextoAgent } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
@@ -35,7 +35,7 @@ export const promptCommands: CommandDefinition[] = [
                 console.log(chalk.dim('─'.repeat(80)));
                 console.log();
             } catch (error) {
-                noOpLogger.error(
+                logger.error(
                     `Failed to get system prompt: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -225,7 +225,7 @@ export const promptCommands: CommandDefinition[] = [
                 return true;
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                noOpLogger.error(`Failed to use prompt: ${errorMessage}`);
+                logger.error(`Failed to use prompt: ${errorMessage}`);
 
                 if (errorMessage.includes('not found')) {
                     console.log(
@@ -296,7 +296,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 return true;
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                noOpLogger.error(
+                logger.error(
                     `Failed to execute prompt command '${promptInfo.name}': ${errorMessage}`
                 );
 
@@ -317,7 +317,7 @@ export async function getDynamicPromptCommands(agent: DextoAgent): Promise<Comma
         const prompts = await agent.listPrompts();
         return Object.values(prompts).map(createPromptCommand);
     } catch (error) {
-        noOpLogger.error(
+        logger.error(
             `Failed to get dynamic prompt commands: ${error instanceof Error ? error.message : String(error)}`
         );
         return [];

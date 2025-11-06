@@ -6,7 +6,7 @@ import path from 'node:path';
 import { getPackageManager, getPackageManagerInstallCommand } from '../utils/package-mgmt.js';
 import { executeWithTimeout } from '../utils/execute.js';
 import { createRequire } from 'module';
-import { noOpLogger, type LLMProvider } from '@dexto/core';
+import { type LLMProvider, logger } from '@dexto/core';
 import { updateDextoConfigFile } from '../utils/project-utils.js';
 import { saveProviderApiKey } from '@dexto/core';
 import {
@@ -124,7 +124,7 @@ export async function initDexto(
         const installCommand = getPackageManagerInstallCommand(packageManager);
         spinner.start('Installing Dexto...');
         const label = 'latest';
-        noOpLogger.debug(
+        logger.debug(
             `Installing Dexto using ${packageManager} with install command: ${installCommand} and label: ${label}`
         );
         try {
@@ -177,17 +177,17 @@ export async function initDexto(
         }
 
         // create dexto config file
-        noOpLogger.debug('Creating dexto config file...');
+        logger.debug('Creating dexto config file...');
         const dextoDir = path.join(directory, 'dexto');
         const agentsDir = path.join(dextoDir, 'agents');
 
         let configPath: string;
         try {
             configPath = await createDextoConfigFile(agentsDir);
-            noOpLogger.debug(`Dexto config file created at ${configPath}`);
+            logger.debug(`Dexto config file created at ${configPath}`);
         } catch (configError) {
             spinner.stop(chalk.red('Failed to create agent config file'));
-            noOpLogger.error(`Config creation error: ${configError}`);
+            logger.error(`Config creation error: ${configError}`);
             throw new Error(
                 `Failed to create default-agent.yml: ${configError instanceof Error ? configError.message : String(configError)}`
             );
@@ -195,20 +195,20 @@ export async function initDexto(
 
         // update dexto config file based on llmProvider
         if (llmProvider) {
-            noOpLogger.debug(`Updating dexto config file based on llmProvider: ${llmProvider}`);
+            logger.debug(`Updating dexto config file based on llmProvider: ${llmProvider}`);
             await updateDextoConfigFile(configPath, llmProvider);
-            noOpLogger.debug(`Dexto config file updated with llmProvider: ${llmProvider}`);
+            logger.debug(`Dexto config file updated with llmProvider: ${llmProvider}`);
         }
         // create dexto example file if requested
         if (createExampleFile) {
-            noOpLogger.debug('Creating dexto example file...');
+            logger.debug('Creating dexto example file...');
             await createDextoExampleFile(dextoDir);
-            noOpLogger.debug('Dexto example file created successfully!');
+            logger.debug('Dexto example file created successfully!');
         }
 
         // add/update .env file (only if user provided a key)
         spinner.start('Saving API key to .env file...');
-        noOpLogger.debug(
+        logger.debug(
             `Saving API key: provider=${llmProvider ?? 'none'}, hasApiKey=${Boolean(llmApiKey)}`
         );
         if (llmProvider && llmApiKey) {
@@ -217,7 +217,7 @@ export async function initDexto(
         spinner.stop('Saved .env updates');
     } catch (err) {
         spinner.stop(chalk.inverse(`An error occurred initializing Dexto project - ${err}`));
-        noOpLogger.debug(`Error: ${err}`);
+        logger.debug(`Error: ${err}`);
         process.exit(1);
     }
 }
@@ -268,11 +268,11 @@ export async function createDextoConfigFile(directory: string): Promise<string> 
         // Locate the Dexto package installation directory
         const pkgJsonPath = require.resolve('dexto/package.json');
         const pkgDir = path.dirname(pkgJsonPath);
-        noOpLogger.debug(`Package directory: ${pkgDir}`);
+        logger.debug(`Package directory: ${pkgDir}`);
 
         // Build path to the configuration template for create-app (with auto-approve toolConfirmation)
         const templateConfigSrc = path.join(pkgDir, 'dist', 'agents', 'agent-template.yml');
-        noOpLogger.debug(`Looking for template at: ${templateConfigSrc}`);
+        logger.debug(`Looking for template at: ${templateConfigSrc}`);
 
         // Check if template exists - fail if not found
         const templateExists = await fsExtra.pathExists(templateConfigSrc);
@@ -284,15 +284,15 @@ export async function createDextoConfigFile(directory: string): Promise<string> 
 
         // Path to the destination config file
         const destConfigPath = path.join(directory, 'default-agent.yml');
-        noOpLogger.debug(`Copying template to: ${destConfigPath}`);
+        logger.debug(`Copying template to: ${destConfigPath}`);
 
         // Copy the config file from the Dexto package
         await fsExtra.copy(templateConfigSrc, destConfigPath);
-        noOpLogger.debug(`Successfully created config file at: ${destConfigPath}`);
+        logger.debug(`Successfully created config file at: ${destConfigPath}`);
 
         return destConfigPath;
     } catch (error) {
-        noOpLogger.error(`Failed to create Dexto config file: ${error}`);
+        logger.error(`Failed to create Dexto config file: ${error}`);
         throw error;
     }
 }
@@ -387,9 +387,9 @@ export async function createDextoExampleFile(directory: string): Promise<string>
     const outputPath = path.join(directory, 'dexto-example.ts');
 
     // Log the generated file content and paths for debugging
-    noOpLogger.debug(`Creating example file with config path: ${configPath}`);
-    noOpLogger.debug(`Base directory: ${baseDir}, Output path: ${outputPath}`);
-    noOpLogger.debug(`Generated file content:\n${indexTsContent}`);
+    logger.debug(`Creating example file with config path: ${configPath}`);
+    logger.debug(`Base directory: ${baseDir}, Output path: ${outputPath}`);
+    logger.debug(`Generated file content:\n${indexTsContent}`);
 
     // Ensure the directory exists before writing the file
     await fs.writeFile(outputPath, indexTsContent);

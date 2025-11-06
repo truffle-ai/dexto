@@ -1,4 +1,4 @@
-import { noOpLogger } from '@dexto/core';
+import { logger } from '@dexto/core';
 import boxen from 'boxen';
 import chalk from 'chalk';
 import { EventSubscriber } from '../api/types.js';
@@ -62,11 +62,11 @@ export class CLISubscriber implements EventSubscriber {
             process.stdout.write('\x1b[J');
         }
 
-        noOpLogger.debug('CLI event subscriber cleaned up');
+        logger.debug('CLI event subscriber cleaned up');
     }
 
     onThinking(): void {
-        noOpLogger.info('AI thinking...');
+        logger.info('AI thinking...', null, 'yellow');
     }
 
     onChunk(text: string): void {
@@ -100,7 +100,7 @@ export class CLISubscriber implements EventSubscriber {
     }
 
     onToolCall(toolName: string, args: any): void {
-        noOpLogger.toolCall(toolName, args);
+        logger.toolCall(toolName, args);
     }
 
     onToolResult(
@@ -117,7 +117,7 @@ export class CLISubscriber implements EventSubscriber {
         if (rawResult !== undefined) {
             payload.raw = rawResult;
         }
-        noOpLogger.toolResult(payload);
+        logger.toolResult(payload);
     }
 
     onResponse(text: string): void {
@@ -126,7 +126,7 @@ export class CLISubscriber implements EventSubscriber {
         this.currentLines = 0;
 
         // Use the logger's displayAIResponse for consistent formatting
-        noOpLogger.displayAIResponse({ content: text });
+        logger.displayAIResponse({ content: text });
     }
 
     onError(error: Error): void {
@@ -135,19 +135,23 @@ export class CLISubscriber implements EventSubscriber {
         this.currentLines = 0;
 
         // Show error prominently via displayError method
-        noOpLogger.displayError(error.message, error);
+        logger.displayError(error.message, error);
 
         // Log to file with level-based verbosity
-        if (noOpLogger.getLevel() === 'debug') {
+        if (logger.getLevel() === 'debug') {
             // Debug level: include full error details and stack trace
-            noOpLogger.error(`❌ Error: ${error.message}`, {
-                stack: error.stack,
-                name: error.name,
-                cause: error.cause,
-            });
+            logger.error(
+                `❌ Error: ${error.message}`,
+                {
+                    stack: error.stack,
+                    name: error.name,
+                    cause: error.cause,
+                },
+                'red'
+            );
         } else {
             // Info level and above: only log the error message
-            noOpLogger.error(`❌ Error: ${error.message}`);
+            logger.error(`❌ Error: ${error.message}`, null, 'red');
         }
     }
 
@@ -156,6 +160,6 @@ export class CLISubscriber implements EventSubscriber {
         this.accumulatedResponse = '';
         this.currentLines = 0;
 
-        noOpLogger.info('🔄 Conversation history cleared.');
+        logger.info('🔄 Conversation history cleared.', null, 'blue');
     }
 }

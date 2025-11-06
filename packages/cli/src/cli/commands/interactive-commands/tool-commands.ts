@@ -9,7 +9,7 @@
  */
 
 import chalk from 'chalk';
-import { noOpLogger, type DextoAgent } from '@dexto/core';
+import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 
 /**
@@ -59,7 +59,7 @@ export const toolCommands: CommandDefinition[] = [
                     chalk.dim('\n💡 Tools are provided by connected MCP servers and internal tools')
                 );
             } catch (error) {
-                noOpLogger.error(
+                logger.error(
                     `Failed to list tools: ${error instanceof Error ? error.message : String(error)}`
                 );
             }

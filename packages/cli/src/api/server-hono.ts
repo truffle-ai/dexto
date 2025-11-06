@@ -1,6 +1,6 @@
 import os from 'node:os';
 import type { AgentCard } from '@dexto/core';
-import { noOpLogger, DextoAgent, createAgentCard, AgentError, loadAgentConfig } from '@dexto/core';
+import { createAgentCard, logger, AgentError, loadAgentConfig, DextoAgent } from '@dexto/core';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
@@ -113,13 +113,13 @@ export async function initializeHonoApi(
         bridge: ReturnType<typeof createNodeServer>
     ) {
         // Register event subscribers with new agent before starting
-        noOpLogger.info('Registering event subscribers with new agent...');
+        logger.info('Registering event subscribers with new agent...');
         newAgent.registerSubscriber(bridge.webSubscriber);
         if (bridge.webhookSubscriber) {
             newAgent.registerSubscriber(bridge.webhookSubscriber);
         }
 
-        noOpLogger.info(`Starting new agent: ${agentId}`);
+        logger.info(`Starting new agent: ${agentId}`);
         await newAgent.start();
 
         // Stop previous agent last (only after new one is fully operational)
@@ -138,16 +138,16 @@ export async function initializeHonoApi(
             overrides
         );
 
-        noOpLogger.info(`Successfully switched to agent: ${agentId}`);
+        logger.info(`Successfully switched to agent: ${agentId}`);
 
         // Now safely stop the previous agent
         try {
             if (previousAgent && previousAgent !== newAgent) {
-                noOpLogger.info('Stopping previous agent...');
+                logger.info('Stopping previous agent...');
                 await previousAgent.stop();
             }
         } catch (err) {
-            noOpLogger.warn(`Stopping previous agent failed: ${err}`);
+            logger.warn(`Stopping previous agent failed: ${err}`);
             // Don't throw here as the switch was successful
         }
 
@@ -163,7 +163,7 @@ export async function initializeHonoApi(
         let newAgent: DextoAgent | undefined;
         try {
             // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
-            noOpLogger.info('Shutting down telemetry for agent switch...');
+            logger.info('Shutting down telemetry for agent switch...');
             const { Telemetry } = await import('@dexto/core');
             await Telemetry.shutdownGlobal();
 
@@ -173,7 +173,7 @@ export async function initializeHonoApi(
             // 3. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, bridge);
         } catch (error) {
-            noOpLogger.error(
+            logger.error(
                 `Failed to switch to agent '${agentId}': ${
                     error instanceof Error ? error.message : String(error)
                 }`,
@@ -185,7 +185,7 @@ export async function initializeHonoApi(
                 try {
                     await newAgent.stop();
                 } catch (cleanupErr) {
-                    noOpLogger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
                 }
             }
 
@@ -207,7 +207,7 @@ export async function initializeHonoApi(
         let newAgent: DextoAgent | undefined;
         try {
             // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
-            noOpLogger.info('Shutting down telemetry for agent switch...');
+            logger.info('Shutting down telemetry for agent switch...');
             const { Telemetry } = await import('@dexto/core');
             await Telemetry.shutdownGlobal();
 
@@ -224,7 +224,7 @@ export async function initializeHonoApi(
             // 5. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, bridge);
         } catch (error) {
-            noOpLogger.error(
+            logger.error(
                 `Failed to switch to agent from path '${filePath}': ${
                     error instanceof Error ? error.message : String(error)
                 }`,
@@ -236,7 +236,7 @@ export async function initializeHonoApi(
                 try {
                     await newAgent.stop();
                 } catch (cleanupErr) {
-                    noOpLogger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
                 }
             }
 
@@ -285,7 +285,7 @@ export async function initializeHonoApi(
         mcpTransport = await createServerMcpTransport(transportType);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        noOpLogger.error(`Failed to create MCP transport: ${errorMessage}`);
+        logger.error(`Failed to create MCP transport: ${errorMessage}`);
         mcpTransport = undefined;
     }
 
@@ -296,7 +296,7 @@ export async function initializeHonoApi(
     });
 
     // Register subscribers with initial agent
-    noOpLogger.info('Registering event subscribers with agent...');
+    logger.info('Registering event subscribers with agent...');
     activeAgent.registerSubscriber(bridgeRef.webSubscriber);
     if (bridgeRef.webhookSubscriber) {
         activeAgent.registerSubscriber(bridgeRef.webhookSubscriber);
@@ -315,10 +315,10 @@ export async function initializeHonoApi(
 
     // Ensure the initial agent is started
     if (!activeAgent.isStarted() && !activeAgent.isStopped()) {
-        noOpLogger.info('Starting initial agent...');
+        logger.info('Starting initial agent...');
         await activeAgent.start();
     } else if (activeAgent.isStopped()) {
-        noOpLogger.warn('Initial agent is stopped, this may cause issues');
+        logger.warn('Initial agent is stopped, this may cause issues');
     }
 
     // Initialize MCP server after agent has started
@@ -327,7 +327,7 @@ export async function initializeHonoApi(
             await initializeServerMcpServer(activeAgent, getAgentCard(), mcpTransport);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            noOpLogger.error(`Failed to initialize MCP server: ${errorMessage}`);
+            logger.error(`Failed to initialize MCP server: ${errorMessage}`);
             mcpTransport = undefined;
         }
     }
@@ -378,8 +378,10 @@ export async function startHonoApiServer(
             });
         });
 
-        noOpLogger.info(
-            `Hono server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`
+        logger.info(
+            `Hono server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
+            null,
+            'green'
         );
     });
 

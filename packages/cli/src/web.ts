@@ -1,5 +1,5 @@
 /** File for all web server starting up code */
-import { noOpLogger } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -18,7 +18,7 @@ export async function startNextJsWebServer(
 ): Promise<boolean> {
     // Path discovery logic for the built webui
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-    noOpLogger.debug(`Script directory for web mode: ${scriptDir}`);
+    logger.debug(`Script directory for web mode: ${scriptDir}`);
 
     // Look for embedded webui in CLI's dist folder
     const webuiPath = path.resolve(scriptDir, 'webui');
@@ -31,7 +31,7 @@ export async function startNextJsWebServer(
         return false;
     }
 
-    noOpLogger.debug(`Found embedded webui at: ${webuiPath}`);
+    logger.debug(`Found embedded webui at: ${webuiPath}`);
 
     // Check if we have a built standalone app
     const serverScriptPath = path.join(webuiPath, 'server.js');
@@ -49,12 +49,12 @@ export async function startNextJsWebServer(
     const resolvedStandalone = standaloneCandidates.find((p) => existsSync(p));
 
     if (!resolvedStandalone && !existsSync(serverScriptPath)) {
-        noOpLogger.warn(
+        logger.warn(
             'Built WebUI not found. This may indicate the package was not built correctly.',
             null,
             'yellow'
         );
-        noOpLogger.error(
+        logger.error(
             'Please ensure the package was built with "npm run build" which includes building the WebUI.'
         );
         return false;
@@ -70,7 +70,7 @@ export async function startNextJsWebServer(
             }
         })();
 
-        noOpLogger.info(`Starting Next.js production server on ${frontUrl}`, null, 'cyanBright');
+        logger.info(`Starting Next.js production server on ${frontUrl}`, null, 'cyanBright');
 
         // Use the server.js script if it exists, otherwise use the resolved standalone server directly
         const serverToUse = existsSync(serverScriptPath)
@@ -83,7 +83,7 @@ export async function startNextJsWebServer(
 
         // WebSocket URL uses root path for both Express and Hono
         const defaultWsUrl = `ws://localhost:${apiPort}/`;
-        noOpLogger.info(`Using WS URL: ${defaultWsUrl}`);
+        logger.info(`Using WS URL: ${defaultWsUrl}`);
 
         // TODO: env variables set here are actually not used by client side code in next-js apps
         // because process.env.NEXT_PUBLIC_WS_URL is set at build time for client side components, not at runtime
@@ -106,7 +106,7 @@ export async function startNextJsWebServer(
         });
 
         // Wait for server to start or error out
-        noOpLogger.debug(
+        logger.debug(
             `Waiting for Next.js production server to start at: ${frontUrl}`,
             null,
             'cyan'
@@ -115,15 +115,15 @@ export async function startNextJsWebServer(
         const success = await new Promise<boolean>((resolve) => {
             // Set a reasonable timeout (15 seconds)
             const timer = setTimeout(() => {
-                noOpLogger.info(`Next.js server startup timeout reached, assuming it's running`);
-                noOpLogger.info(`Next.js web UI available at: ${frontUrl}`, null, 'green');
+                logger.info(`Next.js server startup timeout reached, assuming it's running`);
+                logger.info(`Next.js web UI available at: ${frontUrl}`, null, 'green');
                 resolve(true);
             }, 15000);
 
             // Handle error event
             nextProc.once('error', (err) => {
-                noOpLogger.error(`Next.js production server failed to start: ${err}`);
-                noOpLogger.warn('Only API endpoints are available. Web UI could not be started.');
+                logger.error(`Next.js production server failed to start: ${err}`);
+                logger.warn('Only API endpoints are available. Web UI could not be started.');
                 clearTimeout(timer);
                 resolve(false);
             });
@@ -131,16 +131,10 @@ export async function startNextJsWebServer(
             // Handle exit event
             nextProc.once('exit', (code) => {
                 if (code !== 0) {
-                    noOpLogger.error(
-                        `Next.js production server exited with code ${code}`,
-                        null,
-                        'red'
-                    );
-                    noOpLogger.warn(
-                        'Only API endpoints are available. Web UI could not be started.'
-                    );
+                    logger.error(`Next.js production server exited with code ${code}`, null, 'red');
+                    logger.warn('Only API endpoints are available. Web UI could not be started.');
                 } else {
-                    noOpLogger.info(`Next.js production server exited normally`);
+                    logger.info(`Next.js production server exited normally`);
                 }
                 clearTimeout(timer);
                 resolve(false);
@@ -159,8 +153,8 @@ export async function startNextJsWebServer(
                         output.includes('started server') ||
                         output.includes('Local:')
                     ) {
-                        noOpLogger.info(`Next.js production server started successfully`);
-                        noOpLogger.info(`Next.js web UI available at: ${frontUrl}`, null, 'green');
+                        logger.info(`Next.js production server started successfully`);
+                        logger.info(`Next.js web UI available at: ${frontUrl}`, null, 'green');
                         clearTimeout(timer);
                         resolve(true);
                     }
@@ -170,8 +164,8 @@ export async function startNextJsWebServer(
 
         return success;
     } catch (err) {
-        noOpLogger.error(`Failed to spawn Next.js production server: ${err}`);
-        noOpLogger.warn('Only API endpoints are available. Web UI could not be started.');
+        logger.error(`Failed to spawn Next.js production server: ${err}`);
+        logger.warn('Only API endpoints are available. Web UI could not be started.');
         return false;
     }
 }

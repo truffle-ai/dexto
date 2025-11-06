@@ -1,4 +1,4 @@
-import { findPackageRoot, noOpLogger } from '@dexto/core';
+import { findPackageRoot, logger } from '@dexto/core';
 import fsExtra from 'fs-extra';
 import path from 'path';
 import { PackageJson } from 'type-fest';
@@ -86,10 +86,10 @@ export async function addScriptsToPackageJson(scripts: Record<string, string>) {
         ...scripts,
     };
 
-    noOpLogger.debug(`Adding scripts to package.json: ${JSON.stringify(scripts, null, 2)}`);
+    logger.debug(`Adding scripts to package.json: ${JSON.stringify(scripts, null, 2)}`);
 
     try {
-        noOpLogger.debug(
+        logger.debug(
             `Writing to package.json. \n Contents: ${JSON.stringify(packageJson, null, 2)}`
         );
         await fsExtra.writeJSON('package.json', packageJson, { spaces: 4 });
@@ -119,7 +119,7 @@ export async function checkForFileInCurrentDirectory(fileName: string) {
     if (isFilePresent) {
         return;
     }
-    noOpLogger.debug(`${fileName} not found in the current directory.`);
+    logger.debug(`${fileName} not found in the current directory.`);
     throw new FileNotFoundError(`${fileName} not found in the current directory.`);
 }
 

@@ -14,7 +14,7 @@ import { interactiveApiKeySetup } from '../utils/api-key-setup.js';
 import { selectProvider } from '../utils/provider-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import * as p from '@clack/prompts';
-import { noOpLogger } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
 
 // Zod schema for setup command validation
@@ -76,7 +76,7 @@ function validateSetupCommand(options: Partial<CLISetupOptionsInput>): CLISetupO
 export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>): Promise<void> {
     // Validate command with Zod
     const validated = validateSetupCommand(options);
-    noOpLogger.debug(`Validated setup command options: ${JSON.stringify(validated, null, 2)}`);
+    logger.debug(`Validated setup command options: ${JSON.stringify(validated, null, 2)}`);
 
     // Check if setup is already complete and handle accordingly
     const needsSetup = await requiresSetup();
@@ -95,7 +95,7 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
                 process.exit(1);
             }
 
-            noOpLogger.warn('Overwriting existing setup due to --force flag');
+            logger.warn('Overwriting existing setup due to --force flag');
         } else {
             // Interactive mode: ask for confirmation
             p.intro(chalk.yellow('⚠️  Setup Already Complete'));

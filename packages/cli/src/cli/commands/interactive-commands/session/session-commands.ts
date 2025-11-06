@@ -19,7 +19,7 @@
  */
 
 import chalk from 'chalk';
-import { noOpLogger, DextoAgent, type SessionMetadata } from '@dexto/core';
+import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
 import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
 
@@ -97,8 +97,10 @@ export const sessionCommand: CommandDefinition = {
                                 const metadata = await agent.getSessionMetadata(id);
                                 return { id, metadata };
                             } catch (e) {
-                                noOpLogger.error(
-                                    `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`
+                                logger.error(
+                                    `Failed to fetch metadata for session ${id}: ${e instanceof Error ? e.message : String(e)}`,
+                                    null,
+                                    'red'
                                 );
                                 return { id, metadata: undefined as SessionMetadata | undefined };
                             }
@@ -118,7 +120,7 @@ export const sessionCommand: CommandDefinition = {
                     );
                     console.log(chalk.dim('  💡 Use `dexto -r <id>` to resume a session\n'));
                 } catch (error) {
-                    noOpLogger.error(
+                    logger.error(
                         `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
@@ -142,8 +144,10 @@ export const sessionCommand: CommandDefinition = {
                         console.log(chalk.red(`❌ Session not found: ${args[0] || 'current'}`));
                         console.log(chalk.dim('   Use /session list to see available sessions'));
                     } else {
-                        noOpLogger.error(
-                            `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`
+                        logger.error(
+                            `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`,
+                            null,
+                            'red'
                         );
                     }
                 }
@@ -179,8 +183,10 @@ export const sessionCommand: CommandDefinition = {
                     await agent.deleteSession(sessionId);
                     console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
                 } catch (error) {
-                    noOpLogger.error(
-                        `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`
+                    logger.error(
+                        `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
+                        null,
+                        'red'
                     );
                 }
                 return true;
@@ -265,7 +271,7 @@ export const historyCommand: CommandDefinition = {
                 console.log(chalk.red(`❌ Session not found: ${args[0] || 'current'}`));
                 console.log(chalk.dim('   Use /session list to see available sessions'));
             } else {
-                noOpLogger.error(
+                logger.error(
                     `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -397,7 +403,7 @@ export const searchCommand: CommandDefinition = {
                 console.log(chalk.dim('💡 Use --limit to see more results'));
             }
         } catch (error) {
-            noOpLogger.error(
+            logger.error(
                 `Search failed: ${error instanceof Error ? error.message : String(error)}`
             );
             console.log(chalk.red('❌ Search failed. Please try again.'));

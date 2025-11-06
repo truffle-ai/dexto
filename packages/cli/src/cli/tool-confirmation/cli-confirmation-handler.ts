@@ -1,4 +1,4 @@
-import { noOpLogger, ApprovalType, ApprovalStatus } from '@dexto/core';
+import { logger, ApprovalType, ApprovalStatus } from '@dexto/core';
 import * as readline from 'readline';
 import chalk from 'chalk';
 import boxen from 'boxen';
@@ -41,11 +41,11 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             } else if (event.type === ApprovalType.ELICITATION) {
                 await this.handleElicitation(event);
             } else {
-                noOpLogger.debug(`[CLI] Ignoring unsupported approval type: ${event.type}`);
+                logger.debug(`[CLI] Ignoring unsupported approval type: ${event.type}`);
             }
         } catch (error) {
             // Use structured logging to preserve error stack and metadata
-            noOpLogger.error(
+            logger.error(
                 `Error handling approval request: ${error instanceof Error ? error.message : String(error)}`,
                 error instanceof Error ? { error } : undefined
             );
@@ -78,12 +78,12 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             description?: string;
         };
 
-        noOpLogger.info(
+        logger.info(
             `Handling tool confirmation request for ${toolMetadata.toolName}, approvalId: ${event.approvalId}`
         );
 
         // Display tool call using the logger's built-in method
-        noOpLogger.toolCall(toolMetadata.toolName, toolMetadata.args);
+        logger.toolCall(toolMetadata.toolName, toolMetadata.args);
 
         // Collect user input with arrow key navigation
         const approved = await this.collectArrowKeyInput();
@@ -109,7 +109,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
         this.sendApprovalResponse(response);
 
         if (!approved) {
-            noOpLogger.warn(`Tool '${toolMetadata.toolName}' execution denied`);
+            logger.warn(`Tool '${toolMetadata.toolName}' execution denied`);
         }
     }
 
@@ -128,7 +128,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             serverName: string;
         };
 
-        noOpLogger.info(
+        logger.info(
             `Handling elicitation request from MCP server '${elicitationMetadata.serverName}', approvalId: ${event.approvalId}`
         );
 
@@ -165,7 +165,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             }
 
             this.sendApprovalResponse(cancelResponse);
-            noOpLogger.info('Elicitation cancelled by user');
+            logger.info('Elicitation cancelled by user');
         } else {
             // User provided data
             const response: {
@@ -184,7 +184,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
             }
 
             this.sendApprovalResponse(response);
-            noOpLogger.info('Elicitation completed successfully');
+            logger.info('Elicitation completed successfully');
         }
     }
 
@@ -196,7 +196,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
         const formData: Record<string, any> = {};
 
         if (!schema.properties || typeof schema.properties !== 'object') {
-            noOpLogger.warn('Invalid schema: no properties found');
+            logger.warn('Invalid schema: no properties found');
             return null;
         }
 
@@ -470,10 +470,10 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
         data?: Record<string, any>;
     }): void {
         if (!this.agentEventBus) {
-            noOpLogger.error('AgentEventBus not available for sending approval response');
+            logger.error('AgentEventBus not available for sending approval response');
             return;
         }
-        noOpLogger.debug(
+        logger.debug(
             `CLI sending approvalResponse for approvalId ${response.approvalId}, status=${response.status}, sessionId=${response.sessionId ?? 'global'}`
         );
         this.agentEventBus.emit('dexto:approvalResponse', response);

@@ -13,7 +13,7 @@
  */
 
 import chalk from 'chalk';
-import { noOpLogger, DextoAgent, DextoRuntimeError, DextoValidationError } from '@dexto/core';
+import { logger, DextoAgent, DextoRuntimeError, DextoValidationError } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
 
 /**
@@ -58,7 +58,7 @@ export const modelCommands: CommandDefinition = {
                     console.log(chalk.dim('💡 Default models are marked with [DEFAULT]'));
                     console.log(chalk.dim('💡 Token limits show maximum input context size\n'));
                 } catch (error) {
-                    noOpLogger.error(
+                    logger.error(
                         `Failed to list models: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
@@ -89,7 +89,7 @@ export const modelCommands: CommandDefinition = {
                     }
                     console.log();
                 } catch (error) {
-                    noOpLogger.error(
+                    logger.error(
                         `Failed to get model info: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
@@ -143,7 +143,7 @@ export const modelCommands: CommandDefinition = {
                             console.log(chalk.red(`   - ${err.message}`));
                         });
                     } else {
-                        noOpLogger.error(
+                        logger.error(
                             `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`
                         );
                     }

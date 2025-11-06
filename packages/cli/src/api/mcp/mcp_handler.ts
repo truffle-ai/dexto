@@ -5,7 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { AgentCard } from '@dexto/core';
-import { noOpLogger } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { z } from 'zod';
 import express from 'express';
 import { DextoAgent } from '@dexto/core';
@@ -16,7 +16,7 @@ export type McpTransportType = 'stdio' | 'sse' | 'http';
 export async function createMcpTransport(
     transportType: McpTransportType = 'http'
 ): Promise<Transport> {
-    noOpLogger.info(`Creating MCP transport of type: ${transportType}`);
+    logger.info(`Creating MCP transport of type: ${transportType}`);
 
     switch (transportType) {
         case 'stdio':
@@ -65,17 +65,17 @@ export async function initializeMcpServer(
         { message: z.string() }, // Input schema for the tool
         async ({ message }: { message: string }) => {
             const agent = getAgent();
-            noOpLogger.info(
+            logger.info(
                 `MCP tool '${toolName}' received message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
             );
             const text = await agent.run(message);
-            noOpLogger.info(
+            logger.info(
                 `MCP tool '${toolName}' sending response: ${text?.substring(0, 100)}${(text?.length ?? 0) > 100 ? '...' : ''}`
             );
             return { content: [{ type: 'text', text: text ?? '' }] }; // Output structure
         }
     );
-    noOpLogger.info(
+    logger.info(
         `Registered MCP tool: '${toolName}' with description: "${toolDescription.substring(0, 70)}..."`
     );
 
@@ -86,11 +86,11 @@ export async function initializeMcpServer(
     // Connection is handled in initializeMcpServerApiEndpoints.
     if (!(mcpTransport instanceof StreamableHTTPServerTransport)) {
         // For stdio and other persistent transports, connect at startup
-        noOpLogger.info(`Initializing MCP protocol server connection...`);
+        logger.info(`Initializing MCP protocol server connection...`);
         await mcpServer.connect(mcpTransport);
-        noOpLogger.info(`✅ MCP server protocol connected via transport.`);
+        logger.info(`✅ MCP server protocol connected via transport.`);
     } else {
-        noOpLogger.info(`MCP server configured for HTTP transport (sessions created per-request)`);
+        logger.info(`MCP server configured for HTTP transport (sessions created per-request)`);
     }
     return mcpServer;
 }
@@ -109,7 +109,7 @@ export async function initializeAgentCardResource(
     try {
         const readCallback: ReadResourceCallback = async (uri, _extra) => {
             const agentCardData = getAgentCard();
-            noOpLogger.info(`MCP client requesting resource at ${uri.href}`);
+            logger.info(`MCP client requesting resource at ${uri.href}`);
             return {
                 contents: [
                     {
@@ -121,12 +121,12 @@ export async function initializeAgentCardResource(
             };
         };
         mcpServer.resource(agentCardResourceProgrammaticName, agentCardResourceUri, readCallback);
-        noOpLogger.info(
+        logger.info(
             `Registered MCP Resource: '${agentCardResourceProgrammaticName}' at URI '${agentCardResourceUri}'`
         );
     } catch (e: unknown) {
         const err = e instanceof Error ? e : new Error(String(e));
-        noOpLogger.warn(
+        logger.warn(
             `Error attempting to register MCP Resource '${agentCardResourceProgrammaticName}': ${err.message}. Check SDK.`
         );
     }
@@ -157,12 +157,10 @@ export async function initializeMcpServerApiEndpoints(
         // handleRequest() will manage sessions per-request based on Mcp-Session-Id headers
         try {
             await mcpServer.connect(mcpTransport);
-            noOpLogger.info(
-                'MCP server connected to HTTP transport (sessions managed per-request)'
-            );
+            logger.info('MCP server connected to HTTP transport (sessions managed per-request)');
         } catch (error: unknown) {
             const err = error instanceof Error ? error : new Error(String(error));
-            noOpLogger.error(`Failed to connect MCP server to HTTP transport: ${err.message}`, {
+            logger.error(`Failed to connect MCP server to HTTP transport: ${err.message}`, {
                 error: err.stack,
             });
             if (error instanceof Error) {
@@ -173,23 +171,19 @@ export async function initializeMcpServerApiEndpoints(
 
         // Mount /mcp for JSON-RPC and SSE handling
         app.post('/mcp', express.json(), (req, res) => {
-            noOpLogger.info(`MCP POST /mcp received request body: ${JSON.stringify(req.body)}`);
+            logger.info(`MCP POST /mcp received request body: ${JSON.stringify(req.body)}`);
             mcpTransport
                 .handleRequest(req, res, req.body)
-                .catch((err) =>
-                    noOpLogger.error(`MCP POST error: ${JSON.stringify(err, null, 2)}`)
-                );
+                .catch((err) => logger.error(`MCP POST error: ${JSON.stringify(err, null, 2)}`));
         });
         app.get('/mcp', (req, res) => {
-            noOpLogger.info(
-                `MCP GET /mcp received request, attempting to establish SSE connection.`
-            );
+            logger.info(`MCP GET /mcp received request, attempting to establish SSE connection.`);
             mcpTransport
                 .handleRequest(req, res)
-                .catch((err) => noOpLogger.error(`MCP GET error: ${JSON.stringify(err, null, 2)}`));
+                .catch((err) => logger.error(`MCP GET error: ${JSON.stringify(err, null, 2)}`));
         });
-        noOpLogger.info('Mounted MCP routes (/mcp for POST and GET).');
+        logger.info('Mounted MCP routes (/mcp for POST and GET).');
     } else {
-        noOpLogger.info('Non-HTTP transport detected. Skipping HTTP route setup.');
+        logger.info('Non-HTTP transport detected. Skipping HTTP route setup.');
     }
 }

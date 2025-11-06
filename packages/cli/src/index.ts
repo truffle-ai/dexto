@@ -19,7 +19,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 import {
-    noOpLogger,
+    logger,
     getProviderFromModel,
     getAllSupportedModels,
     DextoAgent,
@@ -516,7 +516,7 @@ program
                     console.log(`📄 Loading Dexto config from: ${configPath}`);
                     const config = await loadAgentConfig(configPath);
 
-                    noOpLogger.info(`Validating MCP servers...`);
+                    logger.info(`Validating MCP servers...`);
                     // Validate that MCP servers are configured
                     if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
                         console.error(
@@ -527,17 +527,17 @@ program
 
                     const { ServerConfigsSchema } = await import('@dexto/core');
                     const validatedServers = ServerConfigsSchema.parse(config.mcpServers);
-                    noOpLogger.info(
+                    logger.info(
                         `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
                     );
 
                     // Logs are already redirected to file by default to prevent interference with stdio transport
-                    const currentLogPath = noOpLogger.getLogFilePath();
-                    noOpLogger.info(
+                    const currentLogPath = logger.getLogFilePath();
+                    logger.info(
                         `MCP mode using log file: ${currentLogPath || 'default .dexto location'}`
                     );
 
-                    noOpLogger.info(
+                    logger.info(
                         `Starting MCP tool aggregation server: ${options.name} v${options.version}`
                     );
 
@@ -552,7 +552,7 @@ program
                         options.strict
                     );
 
-                    noOpLogger.info('MCP tool aggregation server started successfully');
+                    logger.info('MCP tool aggregation server started successfully');
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Write to stderr to avoid interfering with MCP protocol
@@ -605,7 +605,7 @@ program
             async (prompt: string[] = []) => {
                 // ——— ENV CHECK (optional) ———
                 if (!existsSync('.env')) {
-                    noOpLogger.debug(
+                    logger.debug(
                         'WARNING: .env file not found; copy .env.example and set your API keys.'
                     );
                 }
@@ -622,14 +622,12 @@ program
                             const preferences = await loadGlobalPreferences();
                             if (preferences.defaults?.defaultMode) {
                                 opts.mode = preferences.defaults.defaultMode;
-                                noOpLogger.debug(
-                                    `Using default mode from preferences: ${opts.mode}`
-                                );
+                                logger.debug(`Using default mode from preferences: ${opts.mode}`);
                             }
                         }
                     } catch (error) {
                         // Silently fall back to hardcoded default if preferences loading fails
-                        noOpLogger.debug(
+                        logger.debug(
                             `Failed to load default mode from preferences: ${error instanceof Error ? error.message : String(error)}`
                         );
                     }
@@ -829,7 +827,7 @@ program
                             try {
                                 // Resume specific session by ID
                                 await agent.loadSessionAsDefault(opts.resume);
-                                noOpLogger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
+                                logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
                             } catch (err) {
                                 console.error(
                                     `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
@@ -848,7 +846,7 @@ program
                                 if (sessionsAfter.length === 0) {
                                     const session = await agent.createSession();
                                     await agent.loadSessionAsDefault(session.id);
-                                    noOpLogger.info(
+                                    logger.info(
                                         `Created new session: ${session.id}`,
                                         null,
                                         'green'
@@ -865,11 +863,7 @@ program
                             try {
                                 const session = await agent.createSession();
                                 await agent.loadSessionAsDefault(session.id);
-                                noOpLogger.info(
-                                    `Created new session: ${session.id}`,
-                                    null,
-                                    'green'
-                                );
+                                logger.info(`Created new session: ${session.id}`, null, 'green');
                             } catch (err) {
                                 console.error(
                                     `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
@@ -888,9 +882,9 @@ program
                             );
                             const cliSubscriber = new CLIToolConfirmationSubscriber();
                             cliSubscriber.subscribe(agent.agentEventBus);
-                            noOpLogger.info('Setting up CLI event subscriptions...');
+                            logger.info('Setting up CLI event subscriptions...');
                         } else {
-                            noOpLogger.info(
+                            logger.info(
                                 `Tool confirmation mode '${toolConfirmationMode}' active – skipping interactive CLI approval prompts.`
                             );
                         }

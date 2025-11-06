@@ -11,7 +11,7 @@
  */
 
 import chalk from 'chalk';
-import { noOpLogger, type DextoAgent } from '@dexto/core';
+import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from '../command-parser.js';
 
 /**
@@ -29,10 +29,8 @@ export const systemCommands: CommandDefinition[] = [
             const level = args[0];
 
             if (!level) {
-                console.log(
-                    chalk.blue(`\nCurrent log level: ${chalk.cyan(noOpLogger.getLevel())}`)
-                );
-                const logFilePath = noOpLogger.getLogFilePath();
+                console.log(chalk.blue(`\nCurrent log level: ${chalk.cyan(logger.getLevel())}`));
+                const logFilePath = logger.getLogFilePath();
                 if (logFilePath) {
                     console.log(chalk.blue(`Log file location: ${chalk.cyan(logFilePath)}`));
                 }
@@ -44,10 +42,10 @@ export const systemCommands: CommandDefinition[] = [
             }
 
             if (validLevels.includes(level)) {
-                noOpLogger.setLevel(level);
-                noOpLogger.info(`Log level set to ${level}`);
+                logger.setLevel(level);
+                logger.info(`Log level set to ${level}`, null, 'green');
             } else {
-                noOpLogger.error(
+                logger.error(
                     `Invalid log level: ${level}. Valid levels are: ${validLevels.join(', ')}`
                 );
             }
@@ -92,7 +90,7 @@ export const systemCommands: CommandDefinition[] = [
 
                 console.log();
             } catch (error) {
-                noOpLogger.error(
+                logger.error(
                     `Failed to get configuration: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -138,7 +136,7 @@ export const systemCommands: CommandDefinition[] = [
 
                 console.log();
             } catch (error) {
-                noOpLogger.error(
+                logger.error(
                     `Failed to get statistics: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
