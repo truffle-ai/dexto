@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dexto Observability</title>
+    <link rel="stylesheet" href="/dashboard.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 32px;
+            border-radius: 16px;
+            margin-bottom: 32px;
+            border: 1px solid #334155;
+        }
+        .header h1 { font-size: 36px; font-weight: 700; margin-bottom: 8px; }
+        .header .subtitle { color: #94a3b8; font-size: 16px; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: #1e293b;
+            padding: 8px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .tab:hover { background: #334155; color: #e2e8f0; }
+        .tab.active { background: #3b82f6; color: white; }
+
+        /* Cards */
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #f1f5f9;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #3b5c82;
+        }
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #60a5fa;
+            margin-bottom: 4px;
+        }
+        .stat-label {
+            font-size: 13px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            text-align: left;
+            padding: 12px;
+            background: #0f172a;
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        td {
+            padding: 12px;
+            border-top: 1px solid #334155;
+            color: #cbd5e1;
+        }
+        tr:hover { background: #334155; cursor: pointer; }
+        tr.selected { background: #1e40af; }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .filter-group label {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        select, input {
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+        select:focus, input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        /* Badges */
+        .badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-ok { background: #10b98130; color: #34d399; }
+        .badge-error { background: #ef444430; color: #f87171; }
+        .badge-warning { background: #f59e0b30; color: #fbbf24; }
+
+        /* Charts */
+        .chart-bar {
+            height: 32px;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            border-radius: 6px;
+            position: relative;
+            margin: 8px 0;
+        }
+        .chart-label {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #64748b;
+        }
+
+        /* Hide class */
+        .hidden { display: none !important; }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .pagination button {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .pagination button:disabled {
+            background: #334155;
+            cursor: not-allowed;
+        }
+
+        /* Session view */
+        .session-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        .session-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-card:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+        }
+        .session-id {
+            font-family: monospace;
+            font-size: 14px;
+            color: #60a5fa;
+            margin-bottom: 12px;
+        }
+        .session-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .session-stat {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        .session-stat strong {
+            color: #e2e8f0;
+            font-size: 16px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Agent Observability</h1>
+            <p class="subtitle">Real-time monitoring and analytics for your Dexto agent</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('overview')">Overview</button>
+            <button class="tab" onclick="switchTab('sessions')">Sessions</button>
+            <button class="tab" onclick="switchTab('traces')">Traces</button>
+            <button class="tab" onclick="switchTab('tools')">Tools</button>
+            <button class="tab" onclick="switchTab('errors')">Errors</button>
+        </div>
+
+        <div id="overview" class="tab-content">
+            <div class="loading">Loading overview...</div>
+        </div>
+
+        <div id="sessions" class="tab-content hidden">
+            <div class="loading">Loading sessions...</div>
+        </div>
+
+        <div id="traces" class="tab-content hidden">
+            <div class="loading">Loading traces...</div>
+        </div>
+
+        <div id="tools" class="tab-content hidden">
+            <div class="loading">Loading tools...</div>
+        </div>
+
+        <div id="errors" class="tab-content hidden">
+            <div class="loading">Loading errors...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+        let currentTab = 'overview';
+        let currentSessionId = null;
+        let tracesPage = 1;
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+            event.target.classList.add('active');
+            document.getElementById(tab).classList.remove('hidden');
+
+            renderCurrentTab();
+        }
+
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(API_URL + endpoint);
+                return await response.json();
+            } catch (error) {
+                console.error('Fetch error:', error);
+                return null;
+            }
+        }
+
+        function formatDuration(ms) {
+            if (ms < 1000) return ms + 'ms';
+            if (ms < 60000) return (ms / 1000).toFixed(2) + 's';
+            return (ms / 60000).toFixed(1) + 'm';
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString() + ' ' + date.toLocaleDateString();
+        }
+
+        function formatTimeAgo(timestamp) {
+            const diff = Date.now() - timestamp;
+            if (diff < 60000) return Math.floor(diff / 1000) + 's ago';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+            return Math.floor(diff / 86400000) + 'd ago';
+        }
+
+        async function renderOverview() {
+            const [health, tracesResp, metrics] = await Promise.all([
+                fetchData('/health'),
+                fetchData('/traces?window=24h&pageSize=10'),
+                fetchData('/metrics?window=24h'),
+            ]);
+
+            const traces = tracesResp?.data?.data || [];
+            const m = metrics?.data;
+
+            document.getElementById('overview').innerHTML = `
+                <!-- KPI Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">${health?.telemetry?.traceCount || 0}</div>
+                        <div class="stat-label">Total Traces</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${m?.latency?.mean || 0}ms</div>
+                        <div class="stat-label">Avg Latency</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${((m?.errorRate || 0) * 100).toFixed(1)}%</div>
+                        <div class="stat-label">Error Rate</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${m?.throughput?.perMinute?.toFixed(1) || 0}</div>
+                        <div class="stat-label">Req/Min</div>
+                    </div>
+                </div>
+
+                <!-- Latency Distribution -->
+                <div class="card">
+                    <h3>Latency Distribution (Last 24h)</h3>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+                        <div>
+                            <div style="color: #94a3b8; font-size: 12px; margin-bottom: 8px;">P50 (Median)</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #60a5fa;">${m?.latency?.p50 || 0}ms</div>
+                        </div>
+                        <div>
+                            <div style="color: #94a3b8; font-size: 12px; margin-bottom: 8px;">P95</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #60a5fa;">${m?.latency?.p95 || 0}ms</div>
+                        </div>
+                        <div>
+                            <div style="color: #94a3b8; font-size: 12px; margin-bottom: 8px;">P99</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #60a5fa;">${m?.latency?.p99 || 0}ms</div>
+                        </div>
+                        <div>
+                            <div style="color: #94a3b8; font-size: 12px; margin-bottom: 8px;">Mean</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #60a5fa;">${m?.latency?.mean || 0}ms</div>
+                        </div>
+                    </div>
+                </div>
+
+                ${m?.tokenUsage ? `
+                    <div class="card">
+                        <h3>Token Usage (Last 24h)</h3>
+                        <div style="font-size: 48px; font-weight: 700; color: #60a5fa; text-align: center; margin: 20px 0;">
+                            ${m.tokenUsage.total?.toLocaleString() || 0}
+                        </div>
+                        <div style="color: #94a3b8; text-align: center; margin-bottom: 20px;">total tokens</div>
+                        ${Object.entries(m.tokenUsage.byProvider || {}).map(([provider, count]) => `
+                            <div class="chart-bar" style="width: ${(count / m.tokenUsage.total * 100)}%">
+                                <span class="chart-label">${provider}: ${count.toLocaleString()}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                ${m?.toolCalls ? `
+                    <div class="card">
+                        <h3>Tool Usage (Last 24h)</h3>
+                        <div style="margin-bottom: 20px;">
+                            <span style="color: #94a3b8;">Total Calls:</span>
+                            <span style="color: #e2e8f0; font-weight: 600; margin-left: 8px;">${m.toolCalls.total}</span>
+                            <span style="color: #94a3b8; margin-left: 20px;">Success Rate:</span>
+                            <span style="color: #34d399; font-weight: 600; margin-left: 8px;">${(m.toolCalls.successRate * 100).toFixed(1)}%</span>
+                        </div>
+                        ${Object.entries(m.toolCalls.byTool).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([tool, count]) => `
+                            <div class="chart-bar" style="width: ${(count / m.toolCalls.total * 100)}%">
+                                <span class="chart-label">${tool}: ${count}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                <div class="card">
+                    <h3>Recent Activity</h3>
+                    ${traces.length === 0 ? '<p style="text-align: center; color: #64748b; padding: 40px;">No traces yet. Send messages to your agent to see activity.</p>' : `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Operation</th>
+                                    <th>Session</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${traces.map(trace => `
+                                    <tr onclick="viewTrace('${trace.id}')">
+                                        <td>${formatTimeAgo(trace.startTime)}</td>
+                                        <td><code style="background: #0f172a; padding: 4px 8px; border-radius: 4px;">${trace.name}</code></td>
+                                        <td>${trace.sessionId ? '<code style="background: #0f172a; padding: 4px 8px; border-radius: 4px; font-size: 11px;">' + trace.sessionId.substring(0, 8) + '</code>' : '-'}</td>
+                                        <td>${formatDuration(trace.duration)}</td>
+                                        <td><span class="badge ${trace.status.code === 0 ? 'badge-ok' : 'badge-error'}">${trace.status.code === 0 ? '✓ OK' : '✗ Error'}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `}
+                </div>
+            `;
+        }
+
+        async function renderSessions() {
+            const tracesResp = await fetchData('/traces?window=7d&pageSize=1000');
+            const traces = tracesResp?.data?.data || [];
+
+            // Group traces by session
+            const sessions = {};
+            traces.forEach(trace => {
+                if (trace.sessionId) {
+                    if (!sessions[trace.sessionId]) {
+                        sessions[trace.sessionId] = {
+                            id: trace.sessionId,
+                            traces: [],
+                            messageCount: 0,
+                            totalDuration: 0,
+                            errors: 0,
+                            toolCalls: 0,
+                            firstSeen: trace.startTime,
+                            lastSeen: trace.endTime,
+                        };
+                    }
+                    sessions[trace.sessionId].traces.push(trace);
+                    sessions[trace.sessionId].messageCount++;
+                    sessions[trace.sessionId].totalDuration += trace.duration;
+                    if (trace.status.code !== 0) sessions[trace.sessionId].errors++;
+                    if (trace.toolName) sessions[trace.sessionId].toolCalls++;
+                    sessions[trace.sessionId].lastSeen = Math.max(sessions[trace.sessionId].lastSeen, trace.endTime);
+                }
+            });
+
+            const sessionList = Object.values(sessions).sort((a, b) => b.lastSeen - a.lastSeen);
+
+            if (currentSessionId && !sessions[currentSessionId]) {
+                currentSessionId = null; // Reset if session no longer exists
+            }
+
+            document.getElementById('sessions').innerHTML = `
+                <div class="card">
+                    <h3>Active Sessions (${sessionList.length})</h3>
+                    ${sessionList.length === 0 ? '<p style="text-align: center; color: #64748b; padding: 40px;">No sessions found.</p>' : `
+                        <div class="session-list">
+                            ${sessionList.map(session => `
+                                <div class="session-card" onclick="viewSession('${session.id}')">
+                                    <div class="session-id">${session.id.substring(0, 12)}...</div>
+                                    <div class="session-stats">
+                                        <div class="session-stat">
+                                            <strong>${session.messageCount}</strong>
+                                            Messages
+                                        </div>
+                                        <div class="session-stat">
+                                            <strong>${formatDuration(session.totalDuration)}</strong>
+                                            Total Time
+                                        </div>
+                                        <div class="session-stat">
+                                            <strong>${session.toolCalls}</strong>
+                                            Tool Calls
+                                        </div>
+                                        <div class="session-stat">
+                                            <strong>${session.errors}</strong>
+                                            Errors
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 12px; font-size: 11px; color: #64748b;">
+                                        Last active: ${formatTimeAgo(session.lastSeen)}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `}
+                </div>
+
+                ${currentSessionId ? `
+                    <div class="card">
+                        <h3>Session Details: ${currentSessionId.substring(0, 16)}...</h3>
+                        <button onclick="currentSessionId = null; renderSessions();" style="padding: 8px 16px; background: #334155; color: white; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 20px;">← Back to Sessions</button>
+
+                        <div class="stats-grid" style="margin-bottom: 24px;">
+                            <div class="stat-card">
+                                <div class="stat-value">${sessions[currentSessionId].messageCount}</div>
+                                <div class="stat-label">Messages</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${formatDuration(sessions[currentSessionId].totalDuration)}</div>
+                                <div class="stat-label">Total Duration</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${sessions[currentSessionId].toolCalls}</div>
+                                <div class="stat-label">Tool Calls</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${sessions[currentSessionId].errors}</div>
+                                <div class="stat-label">Errors</div>
+                            </div>
+                        </div>
+
+                        <h4 style="margin-bottom: 16px; color: #f1f5f9;">Trace Timeline</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Operation</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sessions[currentSessionId].traces.map(trace => `
+                                    <tr onclick="viewTrace('${trace.id}')">
+                                        <td>${formatTime(trace.startTime)}</td>
+                                        <td><code style="background: #0f172a; padding: 4px 8px; border-radius: 4px;">${trace.name}</code></td>
+                                        <td>${formatDuration(trace.duration)}</td>
+                                        <td><span class="badge ${trace.status.code === 0 ? 'badge-ok' : 'badge-error'}">${trace.status.code === 0 ? '✓' : '✗'}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        async function renderTraces() {
+            const timeWindow = document.getElementById('time-filter')?.value || '24h';
+            const sessionFilter = document.getElementById('session-filter')?.value || '';
+            const statusFilter = document.getElementById('status-filter')?.value || '';
+
+            let query = `?window=${timeWindow}&page=${tracesPage}&pageSize=20`;
+            if (sessionFilter) query += `&sessionId=${sessionFilter}`;
+            if (statusFilter) query += `&status=${statusFilter}`;
+
+            const tracesResp = await fetchData('/traces' + query);
+            const traces = tracesResp?.data?.data || [];
+            const pagination = tracesResp?.data?.pagination;
+
+            // Get unique sessions for filter
+            const allTraces = await fetchData('/traces?window=7d&pageSize=1000');
+            const sessionIds = [...new Set((allTraces?.data?.data || []).map(t => t.sessionId).filter(Boolean))];
+
+            document.getElementById('traces').innerHTML = `
+                <div class="card">
+                    <h3>Trace Explorer</h3>
+
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label>Time Range</label>
+                            <select id="time-filter" onchange="tracesPage = 1; renderTraces()">
+                                <option value="1h" ${timeWindow === '1h' ? 'selected' : ''}>Last Hour</option>
+                                <option value="24h" ${timeWindow === '24h' ? 'selected' : ''}>Last 24 Hours</option>
+                                <option value="7d" ${timeWindow === '7d' ? 'selected' : ''}>Last 7 Days</option>
+                                <option value="30d" ${timeWindow === '30d' ? 'selected' : ''}>Last 30 Days</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Session</label>
+                            <select id="session-filter" onchange="tracesPage = 1; renderTraces()">
+                                <option value="">All Sessions</option>
+                                ${sessionIds.map(id => `<option value="${id}" ${sessionFilter === id ? 'selected' : ''}>${id.substring(0, 12)}...</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Status</label>
+                            <select id="status-filter" onchange="tracesPage = 1; renderTraces()">
+                                <option value="">All</option>
+                                <option value="ok" ${statusFilter === 'ok' ? 'selected' : ''}>Success</option>
+                                <option value="error" ${statusFilter === 'error' ? 'selected' : ''}>Errors Only</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    ${traces.length === 0 ? '<p style="text-align: center; color: #64748b; padding: 40px;">No traces found.</p>' : `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Operation</th>
+                                    <th>Session</th>
+                                    <th>Provider</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${traces.map(trace => `
+                                    <tr onclick="viewTrace('${trace.id}')">
+                                        <td style="font-size: 12px;">${formatTime(trace.startTime)}</td>
+                                        <td><code style="background: #0f172a; padding: 4px 8px; border-radius: 4px;">${trace.name}</code></td>
+                                        <td>${trace.sessionId ? '<code style="background: #0f172a; padding: 4px 8px; border-radius: 4px; font-size: 11px;">' + trace.sessionId.substring(0, 8) + '</code>' : '-'}</td>
+                                        <td>${trace.provider ? '<span class="badge badge-warning">' + trace.provider + '</span>' : '-'}</td>
+                                        <td>${formatDuration(trace.duration)}</td>
+                                        <td><span class="badge ${trace.status.code === 0 ? 'badge-ok' : 'badge-error'}">${trace.status.code === 0 ? '✓ OK' : '✗ Error'}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+
+                        ${pagination ? `
+                            <div class="pagination">
+                                <button onclick="tracesPage = Math.max(1, tracesPage - 1); renderTraces();" ${tracesPage === 1 ? 'disabled' : ''}>
+                                    ← Previous
+                                </button>
+                                <span style="color: #94a3b8;">Page ${pagination.page} of ${pagination.totalPages}</span>
+                                <button onclick="tracesPage = Math.min(${pagination.totalPages}, tracesPage + 1); renderTraces();" ${tracesPage >= pagination.totalPages ? 'disabled' : ''}>
+                                    Next →
+                                </button>
+                            </div>
+                        ` : ''}
+                    `}
+                </div>
+            `;
+        }
+
+        async function renderTools() {
+            const metrics = await fetchData('/metrics?window=7d');
+            const toolCalls = metrics?.data?.toolCalls;
+
+            if (!toolCalls) {
+                document.getElementById('tools').innerHTML = '<div class="card"><p style="text-align: center; color: #64748b; padding: 40px;">No tool call data available.</p></div>';
+                return;
+            }
+
+            const toolEntries = Object.entries(toolCalls.byTool).sort((a, b) => b[1] - a[1]);
+
+            document.getElementById('tools').innerHTML = `
+                <div class="card">
+                    <h3>Tool Analytics (Last 7 Days)</h3>
+                    <div class="stats-grid" style="margin-bottom: 24px;">
+                        <div class="stat-card">
+                            <div class="stat-value">${toolCalls.total}</div>
+                            <div class="stat-label">Total Calls</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${(toolCalls.successRate * 100).toFixed(1)}%</div>
+                            <div class="stat-label">Success Rate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${toolEntries.length}</div>
+                            <div class="stat-label">Unique Tools</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${toolEntries[0]?.[0] || 'N/A'}</div>
+                            <div class="stat-label">Most Used</div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin-bottom: 16px; color: #f1f5f9;">Call Frequency</h4>
+                    ${toolEntries.map(([tool, count]) => `
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span style="color: #e2e8f0; font-weight: 500;">${tool}</span>
+                                <span style="color: #94a3b8;">${count} calls (${(count / toolCalls.total * 100).toFixed(1)}%)</span>
+                            </div>
+                            <div class="chart-bar" style="width: ${(count / toolCalls.total * 100)}%"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function renderErrors() {
+            const tracesResp = await fetchData('/traces?window=7d&status=error&pageSize=100');
+            const errors = tracesResp?.data?.data || [];
+
+            document.getElementById('errors').innerHTML = `
+                <div class="card">
+                    <h3>Error Log (Last 7 Days)</h3>
+                    <div style="font-size: 48px; font-weight: 700; color: #f87171; text-align: center; margin: 20px 0;">
+                        ${errors.length}
+                    </div>
+                    <div style="color: #94a3b8; text-align: center; margin-bottom: 20px;">total errors</div>
+
+                    ${errors.length === 0 ? '<p style="text-align: center; color: #64748b; padding: 40px;">No errors found! 🎉</p>' : `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Operation</th>
+                                    <th>Session</th>
+                                    <th>Error Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${errors.map(trace => `
+                                    <tr onclick="viewTrace('${trace.id}')">
+                                        <td style="font-size: 12px;">${formatTime(trace.startTime)}</td>
+                                        <td><code style="background: #0f172a; padding: 4px 8px; border-radius: 4px;">${trace.name}</code></td>
+                                        <td>${trace.sessionId ? '<code style="background: #0f172a; padding: 4px 8px; border-radius: 4px; font-size: 11px;">' + trace.sessionId.substring(0, 8) + '</code>' : '-'}</td>
+                                        <td style="color: #f87171;">${trace.status.message || 'Unknown error'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `}
+                </div>
+            `;
+        }
+
+        async function viewSession(sessionId) {
+            currentSessionId = sessionId;
+            await renderSessions();
+        }
+
+        async function viewTrace(traceId) {
+            const trace = await fetchData('/traces/' + traceId);
+            if (!trace?.data) return;
+
+            const t = trace.data;
+            alert(`Trace Details:\n\nID: ${t.id}\nName: ${t.name}\nDuration: ${formatDuration(t.duration || (t.endTime - t.startTime))}\nStatus: ${t.status.code === 0 ? 'OK' : 'Error'}\n\nAttributes:\n${JSON.stringify(t.attributes, null, 2)}`);
+        }
+
+        async function renderCurrentTab() {
+            switch (currentTab) {
+                case 'overview':
+                    await renderOverview();
+                    break;
+                case 'sessions':
+                    await renderSessions();
+                    break;
+                case 'traces':
+                    await renderTraces();
+                    break;
+                case 'tools':
+                    await renderTools();
+                    break;
+                case 'errors':
+                    await renderErrors();
+                    break;
+            }
+        }
+
+        // Initial render
+        renderCurrentTab();
+
+        // Auto-refresh every 10 seconds
+        setInterval(renderCurrentTab, 10000);
+    </script>
+</body>
+</html>
