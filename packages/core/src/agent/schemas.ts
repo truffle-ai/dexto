@@ -6,7 +6,7 @@
  */
 
 import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { LoggerConfigSchema } from '@core/logger/schemas.js';
+import { LoggerConfigSchema } from '@core/logger/index.js';
 import { ServerConfigsSchema as McpServersConfigSchema } from '@core/mcp/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
