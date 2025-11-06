@@ -6,6 +6,7 @@
  */
 
 import { LLMConfigSchema } from '@core/llm/schemas.js';
+import { LoggerConfigSchema } from '@core/logger/schemas.js';
 import { ServerConfigsSchema as McpServersConfigSchema } from '@core/mcp/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
@@ -106,6 +107,11 @@ export const AgentConfigSchema = z
         internalTools: InternalToolsSchema,
 
         llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
+
+        // Logger configuration (optional - CLI enrichment will provide defaults)
+        logger: LoggerConfigSchema.describe(
+            'Logger configuration with multi-transport support (file, console, remote)'
+        ),
 
         // Storage configuration
         storage: StorageSchema.default({
