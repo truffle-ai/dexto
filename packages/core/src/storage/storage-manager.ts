@@ -27,9 +27,9 @@ export class StorageManager {
     private blobStore!: BlobStore;
     private initialized = false;
     private connected = false;
-    private agentId: string | undefined;
+    private agentId: string;
 
-    constructor(config: ValidatedStorageConfig, agentId?: string) {
+    constructor(config: ValidatedStorageConfig, agentId: string) {
         this.config = config;
         this.agentId = agentId;
     }
@@ -265,11 +265,11 @@ export class StorageManager {
  * This is a convenience helper that combines initialization and connection.
  * This allows multiple agent instances to have independent storage.
  * @param config Storage configuration
- * @param agentId Optional agent identifier for database naming (used for SQLite default filename)
+ * @param agentId Agent identifier for per-agent storage isolation
  */
 export async function createStorageManager(
     config: ValidatedStorageConfig,
-    agentId?: string
+    agentId: string
 ): Promise<StorageManager> {
     const manager = new StorageManager(config, agentId);
     await manager.initialize();

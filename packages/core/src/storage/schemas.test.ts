@@ -105,7 +105,8 @@ describe('StorageSchema', () => {
         it('should accept SQLite backend with path', () => {
             const config: SqliteDatabaseConfig = {
                 type: 'sqlite',
-                path: '/tmp/dexto.db',
+                path: '/tmp/db',
+                database: 'dexto.db',
             };
 
             const result = StorageSchema.parse({
@@ -364,7 +365,7 @@ describe('StorageSchema', () => {
         it('should handle database config type unions correctly', () => {
             const dbConfigs: DatabaseConfig[] = [
                 { type: 'in-memory' },
-                { type: 'sqlite', path: '/tmp/test.db' },
+                { type: 'sqlite', path: '/tmp/db', database: 'test.db' },
                 { type: 'postgres', url: 'postgresql://localhost/test' },
             ];
 
@@ -382,7 +383,7 @@ describe('StorageSchema', () => {
         it('should handle typical development configuration', () => {
             const devConfig: StorageConfig = {
                 cache: { type: 'in-memory' },
-                database: { type: 'sqlite', path: './dev.db' },
+                database: { type: 'sqlite', path: './dev-db', database: 'dev.db' },
                 blob: { type: 'local', storePath: '/tmp/test-blobs' },
             };
 

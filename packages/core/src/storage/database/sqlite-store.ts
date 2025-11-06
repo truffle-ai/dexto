@@ -3,7 +3,6 @@ import { mkdirSync } from 'fs';
 import type { Database } from './types.js';
 import { logger } from '../../logger/index.js';
 import type { SqliteDatabaseConfig } from './schemas.js';
-import { getDextoPath } from '../../utils/path.js';
 import * as path from 'path';
 import { StorageError } from '../errors.js';
 
@@ -18,42 +17,13 @@ export class SQLiteStore implements Database {
     private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
-    private agentId: string | undefined;
+    private agentId: string;
 
-    constructor(config: SqliteDatabaseConfig, agentId?: string) {
+    constructor(config: SqliteDatabaseConfig, agentId: string) {
         this.config = config;
-
-        // Validate agentId for filesystem safety if provided
-        if (agentId) {
-            const trimmed = agentId.trim();
-            if (!trimmed) {
-                throw StorageError.databaseInvalidConfig(
-                    'agentId cannot be empty or whitespace-only'
-                );
-            }
-            if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-                throw StorageError.databaseInvalidConfig(
-                    'agentId must contain only alphanumeric characters, hyphens, and underscores'
-                );
-            }
-            this.agentId = trimmed;
-        } else {
-            this.agentId = agentId;
-        }
-
+        this.agentId = agentId;
         // Path will be resolved in connect() method
         this.dbPath = '';
-    }
-
-    private resolveDefaultPath(dbName: string): string {
-        // Use reliable path resolution
-        const storageDir = getDextoPath('database');
-        const finalPath = path.join(storageDir, dbName);
-
-        logger.info(`SQLite storage directory: ${storageDir}`);
-        logger.debug(`SQLite database file: ${finalPath}`);
-
-        return finalPath;
     }
 
     private initializeTables(): void {
@@ -115,15 +85,11 @@ export class SQLiteStore implements Database {
             }
         }
 
-        // Initialize database path - use custom path if provided, otherwise auto-detect
-        if (this.config.path) {
-            this.dbPath = this.config.path;
-            logger.info(`SQLite using custom path: ${this.dbPath}`);
-        } else {
-            // Use agent-specific database filename or fall back to default
-            const defaultFilename = this.agentId ? `${this.agentId}.db` : 'dexto.db';
-            this.dbPath = this.resolveDefaultPath(this.config.database || defaultFilename);
-        }
+        // Initialize database path from config (path and database are always provided via enrichment)
+        this.dbPath = path.join(this.config.path, this.config.database);
+
+        logger.info(`SQLite using path: ${this.config.path}`);
+        logger.debug(`SQLite database file: ${this.dbPath}`);
 
         // Ensure directory exists
         const dir = dirname(this.dbPath);

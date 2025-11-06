@@ -1,3 +1,4 @@
+import path from 'path';
 import type { Database } from './types.js';
 import type { DatabaseConfig, PostgresDatabaseConfig, SqliteDatabaseConfig } from '../schemas.js';
 import { MemoryDatabaseStore } from './memory-database-store.js';
@@ -5,7 +6,7 @@ import { logger } from '../../logger/index.js';
 
 // Types for database store constructors
 interface SQLiteStoreConstructor {
-    new (config: SqliteDatabaseConfig, agentId?: string): Database;
+    new (config: SqliteDatabaseConfig, agentId: string): Database;
 }
 
 interface PostgresStoreConstructor {
@@ -20,9 +21,9 @@ let PostgresStore: PostgresStoreConstructor | null = null;
  * Create a database store based on configuration.
  * Handles lazy loading of optional dependencies with automatic fallback.
  * @param config Database configuration
- * @param agentId Optional agent identifier for database naming (used for SQLite default filename)
+ * @param agentId Agent identifier for database naming
  */
-export async function createDatabase(config: DatabaseConfig, agentId?: string): Promise<Database> {
+export async function createDatabase(config: DatabaseConfig, agentId: string): Promise<Database> {
     switch (config.type) {
         case 'postgres':
             return createPostgresStore(config);
@@ -54,18 +55,13 @@ async function createPostgresStore(config: PostgresDatabaseConfig): Promise<Data
     }
 }
 
-async function createSQLiteStore(
-    config: SqliteDatabaseConfig,
-    agentId?: string
-): Promise<Database> {
+async function createSQLiteStore(config: SqliteDatabaseConfig, agentId: string): Promise<Database> {
     try {
         if (!SQLiteStore) {
             const module = await import('./sqlite-store.js');
             SQLiteStore = module.SQLiteStore;
         }
-        // Derive the effective path that will be used (matches SQLiteStore logic)
-        const defaultFilename = agentId ? `${agentId}.db` : 'dexto.db';
-        const effectivePath = config.path || defaultFilename;
+        const effectivePath = path.join(config.path, config.database);
         logger.info(`Creating SQLite database store: ${effectivePath}`);
         return new SQLiteStore(config, agentId);
     } catch (error) {

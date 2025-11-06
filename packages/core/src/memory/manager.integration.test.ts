@@ -10,7 +10,7 @@ describe('MemoryManager Integration Tests', () => {
 
     beforeEach(async () => {
         // Use in-memory database for integration tests
-        database = await createDatabase({ type: 'in-memory' });
+        database = await createDatabase({ type: 'in-memory' }, 'test-agent');
         await database.connect();
         memoryManager = new MemoryManager(database);
     });

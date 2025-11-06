@@ -3,7 +3,6 @@ import path from 'path';
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
 import { logger } from '../../logger/index.js';
-import { getDextoPath } from '../../utils/path.js';
 import { StorageError } from '../errors.js';
 import type {
     BlobStore,
@@ -30,32 +29,15 @@ export class LocalBlobStore implements BlobStore {
     private statsCache: { count: number; totalSize: number } | null = null;
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
-    private agentId: string | undefined;
+    private agentId: string;
 
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: LocalBlobStoreConfig, agentId?: string) {
+    constructor(config: LocalBlobStoreConfig, agentId: string) {
         this.config = config;
-
-        // Validate agentId for filesystem safety if provided
-        if (agentId) {
-            const trimmed = agentId.trim();
-            if (!trimmed) {
-                throw StorageError.blobInvalidConfig('agentId cannot be empty or whitespace-only');
-            }
-            if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-                throw StorageError.blobInvalidConfig(
-                    'agentId must contain only alphanumeric characters, hyphens, and underscores'
-                );
-            }
-            this.agentId = trimmed;
-        } else {
-            this.agentId = agentId;
-        }
-
-        // Use agent-specific blob directory if agentId is provided, otherwise use shared 'blobs' directory
-        const blobSubdir = this.agentId ? `blobs-${this.agentId}` : 'blobs';
-        this.storePath = config.storePath || getDextoPath('data', blobSubdir);
+        this.agentId = agentId;
+        // Store path is always provided via enrichment (includes agent-specific paths)
+        this.storePath = config.storePath;
     }
 
     async connect(): Promise<void> {
