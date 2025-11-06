@@ -58,7 +58,7 @@ We want a design where:
 ### Single invariant
 
 > If `toolConfirmation.mode === 'manual'`, an approval handler **must** be provided at runtime.
-> No handler ⇒ startup error. WS or non-WS doesn't matter.
+> No handler ⇒ error during agent startup. WS or non-WS doesn't matter.
 
 We move to a **handler-first** design:
 
@@ -146,15 +146,7 @@ class ApprovalManager {
     private readonly config: ApprovalManagerConfig,
     agentEventBus?: AgentEventBus // Optional, only for backward compat
   ) {
-    // Validate handler requirement at construction time
-    if (config.mode === 'manual' && !this.handler) {
-      throw new Error(
-        'Tool confirmation mode is "manual" but no approval handler is configured.\n' +
-        'Either:\n' +
-        '  • set mode to "auto-approve" or "auto-deny", or\n' +
-        '  • call agent.setApprovalHandler(...) before start().'
-      );
-    }
+    // No validation here; handler may be wired after service construction.
   }
 
   setHandler(handler: ApprovalHandler | null): void {
@@ -232,34 +224,28 @@ This is the **only** runtime API for HIL wiring:
 
 ## 6. Invariants & Validation
 
-### 6.1 Enforce handler requirement at construction
+### 6.1 Enforce handler requirement at startup
 
-**Validation happens in `ApprovalManager` constructor** (not at agent startup):
+Perform validation during `agent.start()` (or a dedicated `validate()` step invoked by startup):
 
 ```ts
-// approval/manager.ts
-constructor(
-  private readonly config: ApprovalManagerConfig,
-  agentEventBus?: AgentEventBus
-) {
-  // Fail fast if manual mode without handler
-  if (config.mode === 'manual' && !this.handler) {
+// agent/DextoAgent.ts
+async start() {
+  // ... existing startup
+  if (this.config.toolConfirmation?.mode === 'manual' && !this.services.approvalManager.hasHandler()) {
     throw new Error(
       'Tool confirmation mode is "manual" but no approval handler is configured.\n' +
       'Either:\n' +
       '  • set mode to "auto-approve" or "auto-deny", or\n' +
-      '  • call agent.setApprovalHandler(...) before start().'
+      '  • call agent.setApprovalHandler(...) before start().' 
     );
   }
 }
 ```
 
-**Benefits:**
-- Fail-fast: Error at construction, not during first tool call
-- Single responsibility: Validation lives where it's enforced
-- Clear error location: ApprovalManager constructor
-
-This removes the possibility of "manual mode with no handler" silently hanging.
+Benefits:
+- Validates at the correct lifecycle moment (after wiring, before first work)
+- Avoids bootstrap order problems while still preventing silent hangs
 
 ### 6.2 Behavior summary per mode
 
@@ -485,10 +471,11 @@ These can be resolved after the first implementation lands; the core handler-fir
 ### Files to Modify
 
 **Core package:**
-- `packages/core/src/approval/manager.ts` - Add handler registration and validation
+- `packages/core/src/approval/manager.ts` - Add handler registration; move validation out of constructor
 - `packages/core/src/approval/types.ts` - Add `ApprovalHandler` type
 - `packages/core/src/agent/DextoAgent.ts` - Add `setApprovalHandler()` API
 - `packages/core/src/tools/schemas.ts` - Rename mode to `manual`
+- `packages/core/src/agent/DextoAgent.ts` - Validate handler presence in `start()` when mode is manual
 
 **Server package:**
 - `packages/server/src/hono/node/index.ts` - Wire approval handler for WS

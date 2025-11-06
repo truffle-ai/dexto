@@ -491,6 +491,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
   }));
 
   // SPA fallback - serve index.html for all non-API routes
+  // Important: exclude API and WebSocket/SSE endpoints from fallback
   app.get('/*', (c) => {
     return c.html(fs.readFileSync(path.join(webuiPath, 'index.html'), 'utf-8'));
   });
@@ -528,6 +529,11 @@ console.log('✓ Copied WebUI to CLI dist');
 // Remove Next.js server spawning
 // Hono server now serves everything
 ```
+
+Additional notes:
+- Ensure all browser requests for `/api/*`, `/openapi.json`, and real-time endpoints (WebSocket path, or future SSE path) bypass SPA fallback.
+- Align WebSocket URLs between dev and prod. Prefer relative paths (e.g., `const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/');`).
+- Replace `process.env.NEXT_PUBLIC_*` with `import.meta.env.VITE_*` consistently, and document the mapping in a short migration checklist.
 
 **Update package.json:**
 

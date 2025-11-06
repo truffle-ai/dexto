@@ -116,11 +116,12 @@ FOUNDATION (Must Be First):
   - `database/{agentId}.db`
   - `data/blobs-{agentId}`
 - Environment-aware defaults (dev vs production)
+- Guardrails: enrichment must never overwrite user-specified values; normalize paths cross‑platform (Unix/Windows) and include tests for both.
 
 **Weeks 3-4: Multi-Transport Logger**
 - Create `IDextoLogger` interface
 - Create `LoggerTransport` base class
-- Implement `FileTransport` (with rotation)
+- Implement `FileTransport` (with rotation; default `maxSize=10MB`, `maxFiles=5`)
 - Implement `ConsoleTransport` (with colors)
 - Implement `UpstashTransport` (optional remote logging)
 - Create `DextoLogger` class with multi-transport support
@@ -240,7 +241,7 @@ Week 14:             Project-Based ████
 - Update `ApprovalManager` to use handler
 - Add `agent.setApprovalHandler()` API
 - Rename `event-based` → `manual` mode
-- Constructor validation (fail-fast if handler missing)
+- Startup validation (fail-fast in `agent.start()` if handler missing)
 
 **Week 9: Handler Implementations**
 - Create `createWebSocketApprovalHandler()`
@@ -259,7 +260,7 @@ Week 14:             Project-Based ████
 
 **Success Criteria:**
 - [ ] `agent.setApprovalHandler()` API works
-- [ ] Manual mode requires handler (fail-fast)
+- [ ] Manual mode requires handler (fail-fast at startup)
 - [ ] WebSocket handler works identically to current behavior
 - [ ] No silent hangs
 

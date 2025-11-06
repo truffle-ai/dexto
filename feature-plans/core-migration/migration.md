@@ -222,6 +222,13 @@ export function enrichAgentConfig(
 }
 ```
 
+Enrichment rules and guardrails:
+- Do not override user-specified values. Enrichment must only fill missing fields; if the user provided `logger.logPath`, `storage.database.path`, `storage.database.database`, or `storage.blob.storePath`, preserve them as-is.
+- Normalize and expand paths cross‑platform. Handle `~` expansion on Unix and `%USERPROFILE%` on Windows; fall back to `process.env.HOME`/`USERPROFILE` as needed. Use `path.resolve` with explicit base directories.
+- Keep defaults per‑agent. All default paths should include the derived `agentId` to guarantee isolation by default.
+- Validate after enrichment. Run schema validation post‑enrichment to surface precise errors (e.g., missing required paths for sqlite/local backends).
+- Tests: include cases that (a) confirm user overrides win over defaults, (b) Windows and Unix path normalization, and (c) per‑agent isolation directories are respected.
+
 #### Phase 3: Remove Core Path Fallbacks
 
 **packages/core/src/logger/logger.ts**
@@ -258,6 +265,10 @@ if (!config.storePath) {
 }
 this.storePath = config.storePath;
 ```
+
+Additional considerations:
+- Make `database.path` required in the schema when `type === 'sqlite'` and `blob.storePath` required when `type === 'local'`; add unit tests for these invariants.
+- Document SQLite concurrency expectations (single‑writer, multiple readers). For multi‑process agents, recommend Postgres or another remote DB in docs.
 
 #### Phase 4: Move Path Utils Out of Core
 
@@ -343,6 +354,8 @@ export async function loadAgentFromConfig(
 - Blob store with explicit storePath
 - Config enrichment with various agent IDs
 - Validation errors when paths are missing
+- Cross‑platform path normalization (Unix + Windows) and tilde expansion
+- Ensure user overrides are not overwritten by enrichment
 
 ### Integration Tests
 - CLI loading agent with enriched config
@@ -408,6 +421,9 @@ storage:
     type: local
     storePath: /custom/blobs
 ```
+
+Notes:
+- When explicit paths are provided, the CLI should not override them during enrichment.
 
 **Option 3: Programmatic (future code-first API)**
 ```typescript

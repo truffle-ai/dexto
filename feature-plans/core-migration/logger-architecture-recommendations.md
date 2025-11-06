@@ -4,6 +4,10 @@
 
 After analyzing Mastra's logging architecture, I've identified several patterns that would significantly improve Dexto's logger design while maintaining our config-first philosophy. The key insight: **Mastra separates logger configuration (framework-level) from logger usage (component-level)** through dependency injection.
 
+Phased implementation to reduce risk and scope:
+- Phase A (foundational): Console + File transports, structured LogEntry shape, per‑agent instances, component metadata, sensible rotation defaults.
+- Phase B (optional/advanced): Remote/Upstash transport and query APIs after Phase A is stable.
+
 ---
 
 ## Key Patterns from Mastra
@@ -77,6 +81,8 @@ logger:
   transports:
     - type: file
       path: ~/.dexto/logs/{agentId}/dexto.log
+      maxSize: 10485760    # default 10MB rotation size
+      maxFiles: 5          # default keep 5 rotated files
     - type: upstash
       url: $UPSTASH_REDIS_REST_URL
       token: $UPSTASH_REDIS_REST_TOKEN
@@ -171,6 +177,20 @@ logger.info('Agent started', {
 
 // Backward compatible
 logger.info('Server running');
+```
+
+Minimal, uniform log entry (applies in Phase A):
+```typescript
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export interface LogEntry {
+  level: LogLevel;
+  message: string;
+  timestamp: string; // ISO
+  component: DextoLogComponent;
+  agentId: string;
+  context?: Record<string, any>;
+}
 ```
 
 ### 5. Component-Based Categorization
@@ -301,8 +321,8 @@ const LoggerTransportSchema = z.discriminatedUnion('type', [
     z.object({
         type: z.literal('file'),
         path: z.string().describe('File path for logs'),
-        maxSize: z.number().optional().describe('Max file size before rotation (bytes)'),
-        maxFiles: z.number().optional().describe('Max number of rotated files to keep')
+        maxSize: z.number().optional().describe('Max file size before rotation (bytes)').default(10 * 1024 * 1024),
+        maxFiles: z.number().optional().describe('Max number of rotated files to keep').default(5),
     }),
     z.object({
         type: z.literal('console'),
@@ -325,6 +345,10 @@ const LoggerConfigSchema = z.object({
     ]).describe('Log output destinations')
 }).optional().describe('Logger configuration');
 ```
+
+Implementation phases recap:
+- Phase A: Implement `ConsoleTransport`, `FileTransport` (with rotation using `maxSize`/`maxFiles`), structured `LogEntry`, per‑agent instances and component tagging. Ship tests and docs. Skip query APIs.
+- Phase B: Add `UpstashTransport` and optional `getLogs` query support if needed.
 
 **YAML Example:**
 ```yaml
