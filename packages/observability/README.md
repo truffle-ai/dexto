@@ -1,6 +1,6 @@
 # @dexto/observability
 
-Modern observability dashboard for Dexto agents with clean architecture and SaaS-like UX.
+Production-ready observability dashboard for Dexto agents with comprehensive telemetry and clean architecture.
 
 ## Quick Start
 
@@ -13,9 +13,9 @@ node dist/bin/dexto-dashboard.js
 
 Dashboard runs on **http://localhost:3002**
 
-### 2. Configure Agent
+### 2. Configure & Start Agent
 
-Add to your `agents/default-agent.yml`:
+Telemetry is already enabled in `agents/default-agent.yml`:
 
 ```yaml
 telemetry:
@@ -26,42 +26,72 @@ telemetry:
     endpoint: http://localhost:4318/v1/traces
 ```
 
+Start your agent:
+```bash
+dexto server
+```
+
 ### 3. View Dashboard
 
-Open **http://localhost:3002** in your browser.
+Open **http://localhost:3002** and use your agent to generate telemetry.
 
 ## Dashboard Features
 
 ### Overview
-- Agent health status and uptime
-- Key metrics (traces, latency, error rate, requests)
-- Storage health (database, cache, blob)
-- Latency distribution (P50, P95, P99, Mean)
-- Token usage by provider
-- Tool call statistics and success rates
+- **Agent activity status** - Shows if agent is actively processing requests
+- **Key metrics** - Requests, avg latency, error rate, token usage (24h)
+- **Latency distribution** - P50, P95, P99, Mean percentiles
+- **LLM usage** - Total tokens and breakdown by provider (Vercel/OpenAI/Anthropic)
+- **Top tools** - Most frequently used MCP tools with call counts
+- **Auto-refresh** - Updates every 10 seconds
 
-### Sessions
-- Session-based activity view
-- Session metrics (messages, duration, errors, tool calls)
-- Drill-down into individual session traces
+### Sessions & Trace Groups
+- **Activity grouping** - Groups spans by sessionId or traceId
+- **Session metrics** - Span count, total/avg duration, error count/rate
+- **Drill-down** - Click any group to see all spans within that session
+- **Group types** - Sessions (has sessionId) vs Trace Groups (related spans)
+- **Auto-refresh** - Updates every 10 seconds
 
 ### Traces
-- Detailed trace inspection with filtering
-- Filter by session, provider, model, tool, time window
-- Full trace details with attributes
-- Status tracking and error messages
+- **Category filters** - All, Agent, LLM, or MCP Tools with live counts
+- **Color-coded** - Blue (agent), Green (LLM), Purple (tools)
+- **Time windows** - Last hour, 24 hours, or 7 days
+- **Full details** - sessionId, provider, model, toolName, attributes
+- **Auto-refresh** - Updates every 10 seconds
 
 ### Tools
-- Tool performance metrics
-- Success rates per tool
-- Average duration tracking
-- Top tools by usage
+- **MCP tool tracking** - Actual user-facing tools (Read, Write, Bash, Grep, etc.)
+- **Performance** - Total calls, success rate, avg duration per tool
+- **Usage ranking** - Tools sorted by frequency
+- **Success rates** - Percentage of successful vs failed executions
 
 ### Errors
-- Error tracking and grouping
-- Error rate monitoring
-- Affected sessions
-- Recent error timeline
+- **Error grouping** - Groups by message for pattern detection
+- **Impact analysis** - Affected sessions and occurrence counts
+- **Recent timeline** - Latest errors with full context
+
+## What's Captured
+
+The dashboard shows **complete context** for all agent operations:
+
+### Session Context
+- ✅ **sessionId** - Propagated from `agent.run()` to all child spans via OpenTelemetry baggage
+- ✅ Groups all activity within a session for debugging
+
+### LLM Metadata
+- ✅ **provider** - Which LLM provider (vercel, openai, anthropic)
+- ✅ **model** - Which model (claude-3-5-sonnet, gpt-4, etc.)
+- ✅ **Token usage** - Input, output, reasoning, total (gen_ai.usage.* conventions)
+
+### MCP Tool Executions
+- ✅ **tool.name** - Actual tool name (Read, Write, Bash, Grep, Glob, etc.)
+- ✅ **tool.server** - MCP server providing the tool
+- ✅ **Arguments & results** - Full execution details (truncated for large data)
+
+### Span Hierarchy
+- ✅ **Parent-child relationships** - Proper traceId and parentSpanId
+- ✅ **Baggage propagation** - Context flows: agent → LLM → tools
+- ✅ **Timing** - Precise start/end timestamps and duration
 
 ## Architecture
 

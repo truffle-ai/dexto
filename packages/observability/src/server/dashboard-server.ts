@@ -142,7 +142,14 @@ export async function startDashboardServer(options: DashboardServerOptions = {})
             },
         });
 
-        return c.json({ ok: true, data: result });
+        // Transform to frontend format: rename 'data' to 'traces'
+        return c.json({
+            ok: true,
+            data: {
+                traces: result.data,
+                pagination: result.pagination,
+            },
+        });
     });
 
     apiApp.get('/traces/:id', async (c) => {
