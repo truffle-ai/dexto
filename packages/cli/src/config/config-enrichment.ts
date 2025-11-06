@@ -65,21 +65,25 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
         ...config,
     };
 
-    // Enrich logger config with file transport
-    enriched.logger = {
-        level: config.logger?.level || 'info',
-        transports: [
-            // Keep existing console transport or add default
-            ...(config.logger?.transports || [{ type: 'console', colorize: true }]),
-            // Add file transport with per-agent log path
-            {
-                type: 'file',
-                path: logPath,
-                maxSize: 10 * 1024 * 1024, // 10MB
-                maxFiles: 5,
-            },
-        ],
-    };
+    // Enrich logger config: only provide if not set
+    if (!config.logger) {
+        // User didn't specify logger - provide default with file transport
+        enriched.logger = {
+            level: 'info',
+            transports: [
+                { type: 'console', colorize: true },
+                {
+                    type: 'file',
+                    path: logPath,
+                    maxSize: 10 * 1024 * 1024, // 10MB
+                    maxFiles: 5,
+                },
+            ],
+        };
+    } else {
+        // User specified logger - keep their config as-is
+        enriched.logger = config.logger;
+    }
 
     // Enrich storage config with per-agent paths
     if (!config.storage) {

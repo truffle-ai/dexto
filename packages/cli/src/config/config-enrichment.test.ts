@@ -17,19 +17,10 @@ vi.mock('@dexto/agent-management', () => ({
     }),
 }));
 
-// Helper to create minimal valid config
+// Helper to create minimal valid config (without logger - will be enriched)
 const createMinimalConfig = (): AgentConfig => ({
     llm: { apiKey: 'test-key', provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
     systemPrompt: '',
-    storage: {
-        cache: { type: 'in-memory' },
-        database: { type: 'in-memory' },
-        blob: { type: 'local', storePath: '/tmp/test' },
-    },
-    logger: {
-        level: 'info',
-        transports: [{ type: 'console', colorize: true }],
-    },
 });
 
 describe('deriveAgentId', () => {
@@ -201,7 +192,7 @@ describe('enrichAgentConfig', () => {
     });
 
     describe('Logger enrichment', () => {
-        it('should add file transport to logger config', () => {
+        it('should add file transport when logger not provided', () => {
             const config = createMinimalConfig();
             const enriched = enrichAgentConfig(config, '/path/to/my-agent.yml');
 
@@ -215,7 +206,7 @@ describe('enrichAgentConfig', () => {
             });
         });
 
-        it('should preserve existing logger level', () => {
+        it('should respect user-provided logger config and NOT add file transport', () => {
             const config: AgentConfig = {
                 ...createMinimalConfig(),
                 logger: {
@@ -226,7 +217,10 @@ describe('enrichAgentConfig', () => {
 
             const enriched = enrichAgentConfig(config);
 
+            // Should keep user's logger config as-is (no file transport added)
             expect(enriched.logger!.level).toBe('debug');
+            expect(enriched.logger!.transports).toHaveLength(1);
+            expect(enriched.logger!.transports![0]).toEqual({ type: 'console', colorize: true });
         });
 
         it('should use default level "info" when logger not provided', () => {
@@ -309,7 +303,14 @@ describe('enrichAgentConfig', () => {
         });
 
         it('should not modify in-memory database config', () => {
-            const config: AgentConfig = createMinimalConfig();
+            const config: AgentConfig = {
+                ...createMinimalConfig(),
+                storage: {
+                    cache: { type: 'in-memory' },
+                    database: { type: 'in-memory' },
+                    blob: { type: 'in-memory' },
+                },
+            };
 
             const enriched = enrichAgentConfig(config);
 
@@ -414,6 +415,10 @@ describe('enrichAgentConfig', () => {
         it('should not modify the original config object', () => {
             const config: AgentConfig = {
                 ...createMinimalConfig(),
+                logger: {
+                    level: 'info',
+                    transports: [{ type: 'console', colorize: true }],
+                },
                 storage: {
                     cache: { type: 'in-memory' },
                     database: { type: 'sqlite', path: '' },
@@ -426,6 +431,7 @@ describe('enrichAgentConfig', () => {
 
             enrichAgentConfig(config);
 
+            // Original config should not be mutated
             expect(config.logger!.transports).toHaveLength(originalTransportsLength);
             expect(config.storage!.database).toEqual(originalDbConfig);
         });
