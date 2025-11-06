@@ -424,9 +424,8 @@ database:
 # SQLite
 database:
   type: sqlite
-  path: string                  # Optional, auto-detected
-  database: string              # Optional
-  maxConnections: number
+  path: string                  # Required: full path to database file
+  maxConnections: number        # Optional
 
 # PostgreSQL
 database:

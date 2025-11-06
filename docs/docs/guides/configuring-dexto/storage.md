@@ -81,7 +81,7 @@ File-based persistence:
 storage:
   database:
     type: sqlite
-    database: my-agent.db
+    path: ./data/my-agent.db
 ```
 
 **Use for:** Single-instance, simple deployments
@@ -161,9 +161,10 @@ storage:
 storage:
   database:
     type: sqlite
-    database: my-agent.db
+    path: ./data/my-agent.db
   blob:
     type: local
+    storePath: ./data/blobs
 ```
 
 ## When to Use
