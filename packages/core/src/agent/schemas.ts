@@ -109,9 +109,10 @@ export const AgentConfigSchema = z
         llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
 
         // Logger configuration (defaults to console - CLI enrichment provides per-agent file paths)
-        logger: LoggerConfigSchema.default({}).describe(
-            'Logger configuration with multi-transport support (file, console, remote)'
-        ),
+        logger: LoggerConfigSchema.default({
+            level: 'info',
+            transports: [{ type: 'console', colorize: true }],
+        }).describe('Logger configuration with multi-transport support (file, console, remote)'),
 
         // Storage configuration (optional - CLI enrichment provides full config with per-agent paths)
         storage: StorageSchema.optional().describe(
