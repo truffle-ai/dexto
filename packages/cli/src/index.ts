@@ -759,9 +759,13 @@ program
                     const rawConfig = await loadAgentConfig(resolvedPath);
                     const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
-                    // Validate with interactive setup if needed (for API key issues)
+                    // Enrich config with per-agent paths BEFORE validation
+                    // Enrichment provides storage paths required by schema
+                    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath);
+
+                    // Validate enriched config with interactive setup if needed (for API key issues)
                     validatedConfig = await validateAgentConfig(
-                        mergedConfig,
+                        enrichedConfig,
                         opts.interactive !== false
                     );
                 } catch (err) {
@@ -790,11 +794,9 @@ program
                         }
                     }
 
-                    // Enrich config with per-agent paths before creating agent
-                    const enrichedConfig = enrichAgentConfig(validatedConfig, resolvedPath);
-
+                    // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    agent = new DextoAgent(enrichedConfig, resolvedPath);
+                    agent = new DextoAgent(validatedConfig, resolvedPath);
 
                     // Start the agent (initialize async services)
                     await agent.start();
