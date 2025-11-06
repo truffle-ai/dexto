@@ -74,7 +74,7 @@ export const LoggerTransportSchema = z.discriminatedUnion('type', [
     UpstashTransportSchema,
 ]);
 
-export type LoggerTransportConfig = z.infer<typeof LoggerTransportSchema>;
+export type LoggerTransportConfig = z.output<typeof LoggerTransportSchema>;
 
 /**
  * Logger configuration schema
@@ -94,4 +94,4 @@ export const LoggerConfigSchema = z
     .strict()
     .describe('Logger configuration with multi-transport support');
 
-export type LoggerConfig = z.infer<typeof LoggerConfigSchema>;
+export type LoggerConfig = z.output<typeof LoggerConfigSchema>;

@@ -1,5 +1,5 @@
 import type { BlobStore } from './types.js';
-import type { BlobStoreConfig, LocalBlobStoreConfig } from '../schemas.js';
+import type { BlobStoreConfig } from './schemas.js';
 import { LocalBlobStore } from './local-blob-store.js';
 import { logger } from '../../logger/index.js';
 

@@ -3,7 +3,6 @@ import { mkdirSync } from 'fs';
 import type { Database } from './types.js';
 import { logger } from '../../logger/index.js';
 import type { SqliteDatabaseConfig } from './schemas.js';
-import * as path from 'path';
 import { StorageError } from '../errors.js';
 
 // Dynamic import for better-sqlite3
