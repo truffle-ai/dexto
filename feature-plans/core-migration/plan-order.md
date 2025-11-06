@@ -6,7 +6,7 @@
 
 ## 📊 Current Progress Status
 
-**Overall:** Phase 1 - 90% complete (Weeks 1-4 done + bonus work, Week 5 pending)
+**Overall:** Phase 1 - 94% complete (Weeks 1-4 done + bonus work, Week 5 ~40% done)
 
 ### ✅ Completed Work (Weeks 1-4 + Bonus)
 - ✅ Week 1: Path removal from all core services
@@ -18,23 +18,33 @@
 - ✅ **Bonus #4: Storage schema defaults (in-memory defaults + CLI override)**
 - ✅ **Bonus #5: Test fixes (17 failures → 0, all 1088 tests passing)**
 
-### 🔄 Current Status (2024-12-06)
-- **Active:** Phase 1, Week 5 preparation (Dependency Injection)
+### 🔄 Current Status (2025-01-06)
+- **Active:** Phase 1, Week 5 - Dependency Injection (~40% complete)
 - **Branch:** `refactors-4`
 - **Recent Commits:**
-  - `15ac2db4` - docs: update migration plan with completed work
-  - `94bdd339` - refactor: standardize AgentConfigSchema field definitions
-  - `2869725b` - feat: implement InMemoryBlobStore and set as schema default
-  - `d5282cb2` - fix: make storage required in schema and always provided by enrichment
-  - `f40cad12` - feat(cli): implement config enrichment layer
-  - `aebf9c1a` - refactor: remove redundant agentId parameters
+  - `9918aea7` - test: add logger parameter to all test files
+  - `7a89150c` - fix: resolve TypeScript errors from logger injection
+  - `b400b183` - wip: inject logger into core services (Phase 2)
+  - `a5884a1f` - feat(core): inject logger into SearchService and MemoryManager
+  - `fa5a087f` - feat(logger): expose createChild and destroy in IDextoLogger interface
+  - `80e4bbff` - refactor: add agentId to config schema, eliminate duplication
+  - `d2257175` - feat(core): pass logger from DextoAgent to service-initializer
+  - `ff04a804` - feat(core): inject logger into DextoAgent via constructor
+  - `dd051190` - feat(core): add logger factory for dependency injection
 
 ### ⏭️ Next Steps
-1. **Start Week 5: Dependency Injection pattern for logger**
-   - Update `createAgentServices()` to accept logger parameter
-   - Inject logger into all services
-   - Remove singleton logger pattern
-2. Remove remaining `getDextoPath()` fallbacks (LocalBlobStore, Logger)
+1. **Continue Week 5: Dependency Injection (~40% done, ~60% remaining)**
+   - ✅ Created logger factory and injected into DextoAgent
+   - ✅ Updated top-level managers (MCPManager, ToolManager, SessionManager, etc.)
+   - ✅ Fixed all TypeScript errors and updated test files
+   - ⏳ **NEXT:** Update remaining ~67 files in layers:
+     - LLM layer (11 files: formatters, services, tokenizer)
+     - Storage layer (9 files: blob/cache/database factories and stores)
+     - Session/Context/Prompts/Resources (~15 files)
+     - Core utilities (~13 files)
+     - CLI/Server/Agent-Management (23 files)
+   - Remove singleton logger pattern from exports
+2. Remove remaining `getDextoPath()` fallbacks (if any)
 3. Then proceed to Phase 2: Vite Migration (weeks 6-7.5)
 
 ---
@@ -234,16 +244,27 @@ FOUNDATION (Must Be First):
   - ✅ Lint passed
   - ✅ Typecheck passed
 
-**Week 5: Dependency Injection** ❌ NOT STARTED (NEXT TASK)
-- [ ] Update `createAgentServices()` to accept logger parameter
-- [ ] Inject logger into all services (storage, MCP, LLM, tools, etc.)
-- [ ] Remove singleton logger pattern from `logger/index.ts`
-- [ ] Update all service constructors to accept logger
-- [ ] Update all service tests to provide logger
-- [ ] Replace global `logger` imports with injected logger
-- [ ] Remove remaining `getDextoPath()` fallbacks from LocalBlobStore and Logger
-- **Estimated Effort:** 12-16 hours
+**Week 5: Dependency Injection** 🔄 IN PROGRESS (~40% complete)
+- [x] Create logger factory (`createLogger()`) that bridges config to DextoLogger
+- [x] Update DextoAgent to create and store logger instance
+- [x] Pass logger from DextoAgent to `service-initializer`
+- [x] Inject logger into top-level managers (~15 files):
+  - MCPManager, ToolManager, SystemPromptManager, SessionManager
+  - PluginManager, MemoryManager, ApprovalManager, SearchService
+  - FilesystemService, ProcessService, ResourceManager, PromptManager
+- [x] Fix all TypeScript compilation errors
+- [x] Update all test files with mockLogger (100+ constructor calls)
+- [ ] **IN PROGRESS:** Replace global `logger` imports with injected logger
+  - [ ] LLM layer (11 files: formatters, services, tokenizer, registry, validation)
+  - [ ] Storage layer (9 files: blob/cache/database factories and stores)
+  - [ ] Session/Context/Prompts/Resources (~15 files)
+  - [ ] Core utilities (~13 files: approval providers, config, filesystem, telemetry, etc.)
+  - [ ] CLI/Server/Agent-Management packages (23 files)
+- [ ] Remove singleton logger pattern from `logger/index.ts` exports
+- [ ] Remove remaining `getDextoPath()` fallbacks (if any)
+- **Estimated Effort:** 12-16 hours (6-8 hours completed, 6-8 hours remaining)
 - **Key Challenge:** Touching many files, requires careful testing
+- **Status:** Top-level services complete, remaining work is updating lower-level utilities
 
 ### Success Criteria
 
