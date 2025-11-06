@@ -13,6 +13,34 @@ vi.mock('@core/logger/index.js', () => ({
     },
 }));
 
+// Mock agent-management to control execution context and env path behavior in tests
+vi.mock('@dexto/agent-management', async () => {
+    const actual =
+        await vi.importActual<typeof import('@dexto/agent-management')>('@dexto/agent-management');
+    return {
+        ...actual,
+        getDextoEnvPath: vi.fn((startPath: string = process.cwd()) => {
+            return path.join(startPath, '.env');
+        }),
+        getExecutionContext: vi.fn((startPath: string = process.cwd()) => {
+            const pkgPath = path.join(startPath, 'package.json');
+            if (fs.existsSync(pkgPath)) {
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+                if (pkg.name === 'dexto-monorepo' || pkg.name === 'dexto') {
+                    return 'dexto-source';
+                }
+                if (pkg.dependencies?.dexto || pkg.devDependencies?.dexto) {
+                    return 'dexto-project';
+                }
+            }
+            return 'global-cli';
+        }),
+        ensureDextoGlobalDirectory: vi.fn(async () => {
+            // No-op in tests to avoid creating real directories
+        }),
+    };
+});
+
 import { loadEnvironmentVariables, applyLayeredEnvironmentLoading } from './env.js';
 import { updateEnvFile } from '@dexto/core';
 
