@@ -37,6 +37,7 @@ const DEFAULT_MAX_SEARCH_RESULTS = 100;
 /**
  * FileSystemService - Handles all file system operations with security checks
  * TODO: Add tests for this class
+ * TODO: instantiate only when internal file tools are enabled to avoid file dependencies which won't work in serverless
  */
 export class FileSystemService {
     private config: FileSystemConfig;
