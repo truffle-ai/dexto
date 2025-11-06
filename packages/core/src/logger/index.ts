@@ -10,5 +10,8 @@ export * from './v2/transport-factory.js';
 export * from './v2/transports/console-transport.js';
 export * from './v2/transports/file-transport.js';
 
-// Legacy logger (to be migrated)
-export * from './logger.js';
+// Legacy logger (to be migrated) - Logger class and types only, singleton removed
+export type { LoggerOptions } from './logger.js';
+export { Logger } from './logger.js';
+// Singleton logger removed - use dependency injection instead
+// export { logger } from './logger.js';
