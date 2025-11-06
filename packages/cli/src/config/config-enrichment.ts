@@ -83,33 +83,33 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
 
     // Enrich storage config with per-agent paths
     if (!config.storage) {
-        // User didn't specify storage - provide filesystem-based defaults
+        // User didn't specify storage at all - provide filesystem-based defaults
         enriched.storage = {
             cache: { type: 'in-memory' },
             database: { type: 'sqlite', path: dbPath },
             blob: { type: 'local', storePath: blobPath },
         };
     } else {
-        // User specified storage - enrich paths where needed, but don't override explicit choices
+        // User specified storage - start with their config, enrich paths where needed
         enriched.storage = {
-            cache: config.storage.cache,
-            // Enrich database config: add path to SQLite if missing
-            database:
-                config.storage.database.type === 'sqlite'
-                    ? {
-                          ...config.storage.database,
-                          path: config.storage.database.path || dbPath,
-                      }
-                    : config.storage.database,
-            // Enrich blob config: add storePath to local if missing
-            blob:
-                config.storage.blob.type === 'local'
-                    ? {
-                          ...config.storage.blob,
-                          storePath: config.storage.blob.storePath || blobPath,
-                      }
-                    : config.storage.blob,
+            ...config.storage,
         };
+
+        // Enrich database path if SQLite with empty/missing path
+        if (config.storage.database?.type === 'sqlite') {
+            enriched.storage.database = {
+                ...config.storage.database,
+                path: config.storage.database.path || dbPath,
+            };
+        }
+
+        // Enrich blob path if local with empty/missing storePath
+        if (config.storage.blob?.type === 'local') {
+            enriched.storage.blob = {
+                ...config.storage.blob,
+                storePath: config.storage.blob.storePath || blobPath,
+            };
+        }
     }
 
     // Note: Filesystem service backup paths are configured separately
