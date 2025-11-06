@@ -197,8 +197,9 @@ export class MetricsService {
      * Calculate tool call metrics
      */
     private calculateToolMetrics(traces: StoredTrace[]): ToolMetrics | undefined {
-        // Filter for tool-related spans (span names starting with "tool.")
-        const toolTraces = traces.filter((t) => t.name.startsWith('tool.'));
+        // Filter for MCP tool spans (span names starting with "mcp.tool.")
+        // This captures actual user-facing tools like Read, Write, Bash
+        const toolTraces = traces.filter((t) => t.name.startsWith('mcp.tool.'));
 
         if (toolTraces.length === 0) {
             return undefined;
@@ -208,8 +209,9 @@ export class MetricsService {
         let successCount = 0;
 
         for (const trace of toolTraces) {
-            // Extract tool name from span name (e.g., "tool.getMcpManager")
-            const toolName = trace.name;
+            // Use toolName from attributes (e.g., "Read", "Write", "Bash")
+            // Fall back to span name if toolName not available
+            const toolName = trace.toolName || trace.name.replace('mcp.tool.', '');
             byTool[toolName] = (byTool[toolName] || 0) + 1;
 
             if (trace.status.code === 0) {

@@ -29,8 +29,8 @@ export function Tools() {
     const metrics = metricsData?.data;
     const traces = tracesData?.data?.traces || [];
 
-    // Filter for tool-related traces
-    const toolTraces = traces.filter((t) => t.toolName);
+    // Filter for MCP tool traces (mcp.tool.* spans)
+    const toolTraces = traces.filter((t) => t.name.startsWith('mcp.tool.') && t.toolName);
 
     // Calculate per-tool metrics
     const toolMetrics = new Map<

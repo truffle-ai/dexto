@@ -89,10 +89,13 @@ export function traceToStoredTrace(trace: Trace): StoredTrace {
 
     return {
         ...trace,
-        sessionId: attrs.sessionId as string | undefined,
-        provider: attrs.provider as string | undefined,
-        model: attrs.model as string | undefined,
-        toolName: attrs.toolName as string | undefined,
+        sessionId: (attrs.sessionId || attrs['baggage.sessionId']) as string | undefined,
+        // Extract provider and model from llm.provider and llm.model attributes
+        // Fall back to provider/model for backward compatibility
+        provider: (attrs['llm.provider'] || attrs.provider) as string | undefined,
+        model: (attrs['llm.model'] || attrs.model) as string | undefined,
+        // Extract tool name from tool.name attribute (for MCP tools) or fall back to toolName
+        toolName: (attrs['tool.name'] || attrs.toolName) as string | undefined,
         errorMessage: trace.status.code !== 0 ? trace.status.message || 'Unknown error' : undefined,
     };
 }
