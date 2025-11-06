@@ -27,7 +27,6 @@ import {
 import { PathValidator } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 import { logger } from '../logger/index.js';
-import { getDextoPath } from '../utils/path.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -60,11 +59,16 @@ export class FileSystemService {
     }
 
     /**
-     * Get backup directory path (context-aware with optional override)
+     * Get backup directory path (requires explicit configuration)
      */
     private getBackupDir(): string {
-        // Use custom path if provided (absolute), otherwise use context-aware default
-        return this.config.backupPath || getDextoPath('backups');
+        if (!this.config.backupPath) {
+            throw FileSystemError.invalidPath(
+                '<backup-path>',
+                'Backup path must be explicitly configured when backups are enabled. CLI enrichment layer provides per-agent paths.'
+            );
+        }
+        return this.config.backupPath;
     }
 
     /**
