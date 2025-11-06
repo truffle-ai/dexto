@@ -2,6 +2,17 @@ import { describe, test, expect } from 'vitest';
 import { PromptManager } from './prompt-manager.js';
 import type { PromptDefinition } from './types.js';
 
+const mockLogger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    silly: () => {},
+    trackException: () => {},
+    createChild: () => mockLogger,
+    destroy: async () => {},
+} as any;
+
 function makeFakeMCPManager(capture: { lastArgs?: any }) {
     const def: PromptDefinition = {
         name: 'analyze-metrics',
@@ -40,7 +51,14 @@ describe('PromptManager MCP args mapping/filtering', () => {
             get: async () => undefined,
         };
 
-        const pm = new PromptManager(fakeMCP, resourceManagerStub, agentConfig, eventBus, dbStub);
+        const pm = new PromptManager(
+            fakeMCP,
+            resourceManagerStub,
+            agentConfig,
+            eventBus,
+            dbStub,
+            mockLogger
+        );
         await pm.initialize();
         await pm.getPrompt('analyze-metrics', {
             _positional: ['users', 'Q4 2024'],

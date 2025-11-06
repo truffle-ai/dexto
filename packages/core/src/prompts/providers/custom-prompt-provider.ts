@@ -8,7 +8,8 @@ import type {
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Database } from '../../storage/database/types.js';
 import type { ResourceManager } from '../../resources/manager.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { expandPlaceholders } from '../utils.js';
 import { PromptError } from '../errors.js';
 
@@ -47,11 +48,15 @@ export class CustomPromptProvider implements PromptProvider {
     private cacheValid = false;
     private promptsCache: PromptInfo[] = [];
     private promptRecords: Map<string, StoredCustomPrompt> = new Map();
+    private logger: IDextoLogger;
 
     constructor(
         private database: Database,
-        private resourceManager: ResourceManager
-    ) {}
+        private resourceManager: ResourceManager,
+        logger: IDextoLogger
+    ) {
+        this.logger = logger.createChild(DextoLogComponent.PROMPT);
+    }
 
     getSource(): string {
         return 'custom';
@@ -124,7 +129,7 @@ export class CustomPromptProvider implements PromptProvider {
                     });
                 }
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Failed to load blob resource for custom prompt ${name}: ${String(error)}`
                 );
             }
@@ -191,7 +196,7 @@ export class CustomPromptProvider implements PromptProvider {
                 }
                 resourceMetadata = Object.keys(meta).length > 0 ? meta : undefined;
             } catch (error) {
-                logger.warn(`Failed to store custom prompt resource: ${String(error)}`);
+                this.logger.warn(`Failed to store custom prompt resource: ${String(error)}`);
             }
         }
 
@@ -235,7 +240,9 @@ export class CustomPromptProvider implements PromptProvider {
                 const blobService = this.resourceManager.getBlobStore();
                 await blobService.delete(record.resourceUri);
             } catch (error) {
-                logger.warn(`Failed to delete blob for custom prompt ${name}: ${String(error)}`);
+                this.logger.warn(
+                    `Failed to delete blob for custom prompt ${name}: ${String(error)}`
+                );
             }
         }
         this.invalidateCache();
@@ -279,13 +286,13 @@ export class CustomPromptProvider implements PromptProvider {
                         metadata,
                     });
                 } catch (error) {
-                    logger.warn(`Failed to load custom prompt from ${key}: ${String(error)}`);
+                    this.logger.warn(`Failed to load custom prompt from ${key}: ${String(error)}`);
                 }
             }
             this.promptsCache = prompts;
             this.cacheValid = true;
         } catch (error) {
-            logger.error(`Failed to build custom prompts cache: ${String(error)}`);
+            this.logger.error(`Failed to build custom prompts cache: ${String(error)}`);
             this.promptsCache = [];
             this.cacheValid = false;
         }

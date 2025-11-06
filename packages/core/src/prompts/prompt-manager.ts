@@ -11,7 +11,8 @@ import {
     type CreateCustomPromptInput,
 } from './providers/custom-prompt-provider.js';
 import { PromptError } from './errors.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { Database } from '../storage/database/types.js';
 import { normalizePromptArgs, flattenPromptResult } from './utils.js';
@@ -28,25 +29,31 @@ export class PromptManager {
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
+    private logger: IDextoLogger;
 
     constructor(
         mcpManager: MCPManager,
         resourceManager: ResourceManager,
         agentConfig: ValidatedAgentConfig,
         private readonly eventBus: AgentEventBus,
-        private readonly database: Database
+        private readonly database: Database,
+        logger: IDextoLogger
     ) {
+        this.logger = logger.createChild(DextoLogComponent.PROMPT);
         this.providers.set('mcp', new MCPPromptProvider(mcpManager));
-        this.providers.set('file', new FilePromptProvider({ resourceManager }));
-        this.providers.set('starter', new StarterPromptProvider(agentConfig));
-        this.providers.set('custom', new CustomPromptProvider(this.database, resourceManager));
+        this.providers.set('file', new FilePromptProvider({ resourceManager }, this.logger));
+        this.providers.set('starter', new StarterPromptProvider(agentConfig, this.logger));
+        this.providers.set(
+            'custom',
+            new CustomPromptProvider(this.database, resourceManager, this.logger)
+        );
 
-        logger.debug(
+        this.logger.debug(
             `PromptManager initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`
         );
 
         const refresh = async (reason: string) => {
-            logger.debug(`PromptManager refreshing due to: ${reason}`);
+            this.logger.debug(`PromptManager refreshing due to: ${reason}`);
             await this.refresh();
         };
 
@@ -65,7 +72,7 @@ export class PromptManager {
         // Listen for MCP notifications for surgical updates
         this.eventBus.on('dexto:mcpPromptsListChanged', async (p) => {
             await this.updatePromptsForServer(p.serverName, p.prompts);
-            logger.debug(
+            this.logger.debug(
                 `🔄 Surgically updated prompts for server '${p.serverName}': [${p.prompts.join(', ')}]`
             );
         });
@@ -73,7 +80,7 @@ export class PromptManager {
 
     async initialize(): Promise<void> {
         await this.ensureCache();
-        logger.debug('PromptManager initialization complete');
+        this.logger.debug('PromptManager initialization complete');
     }
 
     async list(): Promise<PromptSet> {
@@ -258,7 +265,7 @@ export class PromptManager {
             provider.invalidateCache();
         }
         await this.ensureCache();
-        logger.info('PromptManager refreshed');
+        this.logger.info('PromptManager refreshed');
     }
 
     /**
@@ -288,7 +295,9 @@ export class PromptManager {
                     this.insertPrompt(this.promptIndex, this.aliasMap, 'mcp', prompt);
                 }
             } catch (error) {
-                logger.debug(`Failed to get updated prompts for server '${serverName}': ${error}`);
+                this.logger.debug(
+                    `Failed to get updated prompts for server '${serverName}': ${error}`
+                );
             }
         }
     }
@@ -375,7 +384,7 @@ export class PromptManager {
                     this.insertPrompt(index, aliases, providerName, prompt);
                 }
             } catch (error) {
-                logger.error(
+                this.logger.error(
                     `Failed to get prompts from ${providerName} provider: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -386,7 +395,7 @@ export class PromptManager {
 
         if (index.size > 0) {
             const sample = Array.from(index.keys()).slice(0, 5);
-            logger.debug(
+            this.logger.debug(
                 `📋 Prompt discovery: ${index.size} prompts. Sample: ${sample.join(', ')}`
             );
         }

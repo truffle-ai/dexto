@@ -2,7 +2,8 @@ import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } f
 import { expandPlaceholders } from '../utils.js';
 import { assertValidPromptName } from '../name-validation.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { PromptError } from '../errors.js';
 import { readFile, readdir, realpath } from 'fs/promises';
 import { join, extname, resolve, relative, sep } from 'path';
@@ -30,8 +31,10 @@ export class FilePromptProvider implements PromptProvider {
     private cacheValid = false;
     private promptResources: Map<string, string> = new Map();
     private inlineContent: Map<string, string> = new Map();
+    private logger: IDextoLogger;
 
-    constructor(options: FilePromptProviderOptions) {
+    constructor(options: FilePromptProviderOptions, logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.PROMPT);
         // Opinionated resolution only; no external configuration
         // - <repo_or_project_root>/commands
         // - ~/.dexto/commands (global)
@@ -48,7 +51,7 @@ export class FilePromptProvider implements PromptProvider {
         this.promptsCache = [];
         this.promptResources.clear();
         this.inlineContent.clear();
-        logger.debug('FilePromptProvider cache invalidated');
+        this.logger.debug('FilePromptProvider cache invalidated');
     }
 
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
@@ -73,10 +76,10 @@ export class FilePromptProvider implements PromptProvider {
                 } else if (first?.blob && typeof first.blob === 'string') {
                     text = Buffer.from(first.blob, 'base64').toString('utf-8');
                 } else {
-                    logger.warn(`Prompt ${name} resource ${resourceUri} did not contain text`);
+                    this.logger.warn(`Prompt ${name} resource ${resourceUri} did not contain text`);
                 }
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Failed to load prompt resource ${resourceUri}: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -158,14 +161,14 @@ export class FilePromptProvider implements PromptProvider {
                             // Check if resolved file is within the allowed directory
                             const rel = relative(resolvedDir, resolvedFile);
                             if (rel.startsWith('..' + sep) || rel === '..') {
-                                logger.warn(
+                                this.logger.warn(
                                     `Skipping file '${file}' in '${dir}': path traversal attempt detected (resolved outside directory)`
                                 );
                                 continue;
                             }
                         } catch (realpathError) {
                             // If realpath fails (file doesn't exist, permission denied, etc.), skip it
-                            logger.warn(
+                            this.logger.warn(
                                 `Skipping file '${file}' in '${dir}': unable to resolve path (${realpathError instanceof Error ? realpathError.message : String(realpathError)})`
                             );
                             continue;
@@ -174,7 +177,7 @@ export class FilePromptProvider implements PromptProvider {
                         const parsed = await this.parsePromptFile(file, dir);
                         if (seenNames.has(parsed.info.name)) {
                             // Prefer the first occurrence (local overrides global)
-                            logger.debug(
+                            this.logger.debug(
                                 `Skipping duplicate prompt name '${parsed.info.name}' from ${join(
                                     dir,
                                     file
@@ -208,7 +211,7 @@ export class FilePromptProvider implements PromptProvider {
                         cache.push(parsed.info);
                         seenNames.add(parsed.info.name);
                     } catch (error) {
-                        logger.warn(
+                        this.logger.warn(
                             `Failed to process prompt file '${file}' in '${dir}': ${
                                 error instanceof Error ? error.message : String(error)
                             }`
@@ -216,7 +219,7 @@ export class FilePromptProvider implements PromptProvider {
                     }
                 }
             } catch (error) {
-                logger.debug(
+                this.logger.debug(
                     `Commands directory '${dir}' not accessible: ${
                         error instanceof Error ? error.message : String(error)
                     }`
@@ -224,7 +227,7 @@ export class FilePromptProvider implements PromptProvider {
             }
         }
 
-        logger.debug(
+        this.logger.debug(
             `📝 Cached ${cache.length} file prompts from directories: ${scannedDirs.join(', ')}`
         );
 
@@ -382,7 +385,7 @@ export class FilePromptProvider implements PromptProvider {
     ): Promise<{ resourceUri?: string; inlineContent?: string }> {
         const blobService = this.resourceManager.getBlobStore();
         if (!blobService) {
-            logger.warn('BlobService not available; storing prompt content in memory');
+            this.logger.warn('BlobService not available; storing prompt content in memory');
             return { inlineContent: content };
         }
 

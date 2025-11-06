@@ -1,6 +1,17 @@
 import { describe, test, expect } from 'vitest';
 import { StarterPromptProvider } from './starter-prompt-provider.js';
 
+const mockLogger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    silly: () => {},
+    trackException: () => {},
+    createChild: () => mockLogger,
+    destroy: async () => {},
+} as any;
+
 describe('StarterPromptProvider.applyArguments', () => {
     test('appends Context at END when no placeholders', async () => {
         const agentConfig: any = {
@@ -15,7 +26,7 @@ describe('StarterPromptProvider.applyArguments', () => {
                 },
             ],
         };
-        const provider = new StarterPromptProvider(agentConfig);
+        const provider = new StarterPromptProvider(agentConfig, mockLogger);
         const list = await provider.listPrompts();
         expect(list.prompts.length).toBe(1);
 
@@ -37,7 +48,7 @@ describe('StarterPromptProvider.applyArguments', () => {
                 },
             ],
         };
-        const provider = new StarterPromptProvider(agentConfig);
+        const provider = new StarterPromptProvider(agentConfig, mockLogger);
         const res = await provider.getPrompt('starter:s2', { _context: 'CTX' } as any);
         const text = (res.messages?.[0]?.content as any).text as string;
         // Starter provider does not expand $1, but detects placeholder usage and thus does not append context
