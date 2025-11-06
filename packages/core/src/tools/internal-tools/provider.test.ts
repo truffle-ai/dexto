@@ -217,7 +217,7 @@ describe('InternalToolsProvider', () => {
         let provider: InternalToolsProvider;
 
         beforeEach(async () => {
-            provider = new InternalToolsProvider(mockServices, approvalManager, config);
+            provider = new InternalToolsProvider(mockServices, approvalManager, config, mockLogger);
             await provider.initialize();
         });
 

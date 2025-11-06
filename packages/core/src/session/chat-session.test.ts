@@ -217,8 +217,12 @@ describe('ChatSession', () => {
         test('should initialize with unified storage system', async () => {
             await chatSession.init();
 
-            // Verify createDatabaseHistoryProvider is called with the database backend and sessionId
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(mockDatabase, sessionId);
+            // Verify createDatabaseHistoryProvider is called with the database backend, sessionId, and logger
+            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
+                mockDatabase,
+                sessionId,
+                expect.any(Object) // Logger object
+            );
         });
 
         test('should properly dispose resources to prevent memory leaks', () => {
@@ -450,7 +454,11 @@ describe('ChatSession', () => {
             );
 
             // Verify session-specific history provider creation
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(mockDatabase, sessionId);
+            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
+                mockDatabase,
+                sessionId,
+                expect.any(Object) // Logger object
+            );
         });
     });
 });
