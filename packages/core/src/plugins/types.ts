@@ -1,5 +1,5 @@
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
-import type { Logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 import type { SessionManager } from '../session/index.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
@@ -65,7 +65,7 @@ export interface PluginExecutionContext {
     llmConfig: ValidatedLLMConfig;
 
     /** Logger scoped to this plugin execution */
-    logger: Logger;
+    logger: IDextoLogger;
 
     /** Abort signal for cancellation */
     abortSignal?: AbortSignal | undefined;

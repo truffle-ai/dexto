@@ -65,7 +65,7 @@ export const ToolConfirmationConfigSchema = z
             .describe(
                 'Storage type for remembered tool approvals: memory (session-only) or storage (persistent)'
             ),
-        toolPolicies: ToolPoliciesSchema.optional().describe(
+        toolPolicies: ToolPoliciesSchema.describe(
             'Static tool policies for fine-grained allow/deny control. Deny list takes precedence over allow list.'
         ),
     })

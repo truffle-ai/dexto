@@ -438,15 +438,13 @@ export class MCPManager {
             `🔧 MCP tools from cache: ${Object.keys(allTools).length} total tools, ${this.toolConflicts.size} conflicts, connected servers: ${serverNames.join(', ')}`
         );
 
-        if (this.logger.getLevel() === 'debug') {
-            Object.keys(allTools).forEach((toolName) => {
-                if (toolName.includes(MCPManager.SERVER_DELIMITER)) {
-                    this.logger.debug(`  - ${toolName} (qualified)`);
-                } else {
-                    this.logger.debug(`  - ${toolName}`);
-                }
-            });
-        }
+        Object.keys(allTools).forEach((toolName) => {
+            if (toolName.includes(MCPManager.SERVER_DELIMITER)) {
+                this.logger.debug(`  - ${toolName} (qualified)`);
+            } else {
+                this.logger.debug(`  - ${toolName}`);
+            }
+        });
 
         this.logger.debug(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
         return allTools;

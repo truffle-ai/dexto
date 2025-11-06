@@ -214,7 +214,7 @@ export class SessionManager {
             const session = new ChatSession({ ...this.services, sessionManager: this }, id);
             await session.init();
             this.sessions.set(id, session);
-            this.logger.info(`Restored session from storage: ${id}`, null, 'cyan');
+            this.logger.info(`Restored session from storage: ${id}`);
             return session;
         }
 
@@ -238,7 +238,9 @@ export class SessionManager {
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
         } catch (error) {
             // If storage fails, another concurrent creation might have succeeded
-            this.logger.error(`Failed to store session metadata for ${id}:`, error);
+            this.logger.error(`Failed to store session metadata for ${id}:`, {
+                error: error instanceof Error ? error.message : String(error),
+            });
             // Re-throw the original error to maintain test compatibility
             throw error;
         }
@@ -255,7 +257,7 @@ export class SessionManager {
                 .getCache()
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
 
-            this.logger.info(`Created new session: ${id}`, null, 'green');
+            this.logger.info(`Created new session: ${id}`);
             return session;
         } catch (error) {
             // If session creation fails after we've claimed the slot, clean up the metadata

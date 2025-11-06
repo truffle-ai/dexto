@@ -16,14 +16,14 @@ import { SystemPromptError } from './errors.js';
 export class SystemPromptManager {
     private contributors: SystemPromptContributor[];
     private configDir: string;
-    private memoryManager?: MemoryManager | undefined;
+    private memoryManager: MemoryManager;
     private logger: IDextoLogger;
 
     // TODO: move config dir logic somewhere else
     constructor(
         config: ValidatedSystemPromptConfig,
-        configDir: string = process.cwd(),
-        memoryManager?: MemoryManager | undefined,
+        configDir: string,
+        memoryManager: MemoryManager,
         logger: IDextoLogger
     ) {
         this.configDir = configDir;

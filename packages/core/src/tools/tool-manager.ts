@@ -88,8 +88,8 @@ export class ToolManager {
         allowedToolsProvider: IAllowedToolsProvider,
         approvalMode: 'event-based' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
-        toolPolicies?: ToolPolicies,
-        options?: InternalToolsOptions,
+        toolPolicies: ToolPolicies,
+        options: InternalToolsOptions,
         logger: IDextoLogger
     ) {
         this.mcpManager = mcpManager;
@@ -98,7 +98,7 @@ export class ToolManager {
         this.approvalMode = approvalMode;
         this.agentEventBus = agentEventBus;
         this.toolPolicies = toolPolicies;
-        this.logger = logger.createChild(DextoLogComponent.TOOL);
+        this.logger = logger.createChild(DextoLogComponent.TOOLS);
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
