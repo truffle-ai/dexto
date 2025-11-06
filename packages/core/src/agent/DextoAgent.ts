@@ -38,7 +38,6 @@ import type { IMCPClient } from '../mcp/types.js';
 import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
-import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { loadAgentConfig } from '../config/loader.js';
 import { promises as fs } from 'fs';
@@ -242,10 +241,6 @@ export class DextoAgent {
             for (const subscriber of this.eventSubscribers) {
                 subscriber.subscribe(this.agentEventBus);
             }
-
-            // Show log location for SDK users
-            const logPath = getDextoPath('logs', 'dexto.log');
-            console.log(`📋 Logs available at: ${logPath}`);
         } catch (error) {
             logger.error('Failed to start DextoAgent', error);
             throw error;
