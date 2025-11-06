@@ -31,7 +31,9 @@ export function createTransport(config: LoggerTransportConfig): ILoggerTransport
 
         case 'upstash':
             // TODO: Implement UpstashTransport in Phase B (optional)
-            throw new Error('Upstash transport not yet implemented. Available transports: console, file');
+            throw new Error(
+                'Upstash transport not yet implemented. Available transports: console, file'
+            );
 
         default:
             throw new Error(`Unknown transport type: ${(config as any).type}`);

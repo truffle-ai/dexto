@@ -48,10 +48,7 @@ const UpstashTransportSchema = z
         type: z.literal('upstash'),
         url: z.string().url().describe('Upstash Redis REST URL'),
         token: z.string().describe('Upstash Redis REST token'),
-        listName: z
-            .string()
-            .default('dexto-logs')
-            .describe('Redis list name for log entries'),
+        listName: z.string().default('dexto-logs').describe('Redis list name for log entries'),
         maxListLength: z
             .number()
             .int()
