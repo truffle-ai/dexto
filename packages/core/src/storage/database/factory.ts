@@ -5,7 +5,7 @@ import { logger } from '../../logger/index.js';
 
 // Types for database store constructors
 interface SQLiteStoreConstructor {
-    new (config: SqliteDatabaseConfig, agentId: string): Database;
+    new (config: SqliteDatabaseConfig): Database;
 }
 
 interface PostgresStoreConstructor {
@@ -19,16 +19,16 @@ let PostgresStore: PostgresStoreConstructor | null = null;
 /**
  * Create a database store based on configuration.
  * Handles lazy loading of optional dependencies with automatic fallback.
- * @param config Database configuration
- * @param agentId Agent identifier for database naming
+ * Database paths are provided via CLI enrichment layer.
+ * @param config Database configuration with explicit paths
  */
-export async function createDatabase(config: DatabaseConfig, agentId: string): Promise<Database> {
+export async function createDatabase(config: DatabaseConfig): Promise<Database> {
     switch (config.type) {
         case 'postgres':
             return createPostgresStore(config);
 
         case 'sqlite':
-            return createSQLiteStore(config, agentId);
+            return createSQLiteStore(config);
 
         case 'in-memory':
         default:
@@ -54,14 +54,14 @@ async function createPostgresStore(config: PostgresDatabaseConfig): Promise<Data
     }
 }
 
-async function createSQLiteStore(config: SqliteDatabaseConfig, agentId: string): Promise<Database> {
+async function createSQLiteStore(config: SqliteDatabaseConfig): Promise<Database> {
     try {
         if (!SQLiteStore) {
             const module = await import('./sqlite-store.js');
             SQLiteStore = module.SQLiteStore;
         }
         logger.info(`Creating SQLite database store: ${config.path}`);
-        return new SQLiteStore(config, agentId);
+        return new SQLiteStore(config);
     } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
         logger.error(`SQLite store failed to load: ${err.message}`, err);

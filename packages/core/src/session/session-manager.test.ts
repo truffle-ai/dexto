@@ -1038,7 +1038,7 @@ describe('SessionManager', () => {
                 blob: { type: 'local', storePath: '/tmp/test-blobs' },
             });
 
-            realStorageBackends = await createStorageManager(storageConfig, 'test-agent');
+            realStorageBackends = await createStorageManager(storageConfig);
 
             // Create SessionManager with real storage and short TTL for faster testing
             realSessionManager = new SessionManager(

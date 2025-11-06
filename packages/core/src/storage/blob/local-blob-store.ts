@@ -29,14 +29,12 @@ export class LocalBlobStore implements BlobStore {
     private statsCache: { count: number; totalSize: number } | null = null;
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
-    private agentId: string;
 
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: LocalBlobStoreConfig, agentId: string) {
+    constructor(config: LocalBlobStoreConfig) {
         this.config = config;
-        this.agentId = agentId;
-        // Store path is always provided via enrichment (includes agent-specific paths)
+        // Store path is provided via CLI enrichment
         this.storePath = config.storePath;
     }
 

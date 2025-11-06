@@ -16,12 +16,10 @@ export class SQLiteStore implements Database {
     private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
-    private agentId: string;
 
-    constructor(config: SqliteDatabaseConfig, agentId: string) {
+    constructor(config: SqliteDatabaseConfig) {
         this.config = config;
-        this.agentId = agentId;
-        // Path will be resolved in connect() method
+        // Path is provided via CLI enrichment
         this.dbPath = '';
     }
 

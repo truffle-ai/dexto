@@ -6,14 +6,14 @@ import { logger } from '../../logger/index.js';
 /**
  * Create a blob store based on configuration.
  * Note: In-memory blob store not yet implemented.
- * @param config Blob store configuration
- * @param agentId Agent identifier for per-agent blob isolation
+ * Blob paths are provided via CLI enrichment layer.
+ * @param config Blob store configuration with explicit paths
  */
-export function createBlobStore(config: BlobStoreConfig, agentId: string): BlobStore {
+export function createBlobStore(config: BlobStoreConfig): BlobStore {
     switch (config.type) {
         case 'local':
             logger.info('Using local file-based blob store');
-            return new LocalBlobStore(config, agentId);
+            return new LocalBlobStore(config);
 
         case 'in-memory':
             throw new Error(

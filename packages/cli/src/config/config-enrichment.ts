@@ -59,7 +59,6 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
     const logPath = getDextoPath('logs', `${agentId}.log`);
     const dbPath = getDextoPath('database', `${agentId}.db`);
     const blobPath = getDextoPath('blobs', agentId);
-    const backupPath = getDextoPath('backups', agentId);
 
     // Create enriched config (shallow copy with deep updates)
     const enriched: AgentConfig = {
@@ -105,21 +104,9 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
         };
     }
 
-    // Enrich filesystem config with per-agent backup path (if backups are enabled)
-    if (config.internalResources && Array.isArray(config.internalResources)) {
-        enriched.internalResources = config.internalResources.map((resource: any) => {
-            if (resource.type === 'filesystem' && resource.config?.enableBackups) {
-                return {
-                    ...resource,
-                    config: {
-                        ...resource.config,
-                        backupPath,
-                    },
-                };
-            }
-            return resource;
-        });
-    }
+    // Note: Filesystem service backup paths are configured separately
+    // and not part of agent config. If backup config is added to agent schema
+    // in the future, per-agent backup paths can be generated here.
 
     return enriched;
 }
