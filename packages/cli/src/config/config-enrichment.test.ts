@@ -257,6 +257,31 @@ describe('enrichAgentConfig', () => {
                 expect(fileTransport.path).toBe('/mock/dexto/logs/custom-agent-name.log');
             }
         });
+
+        it('should use file-only transport for interactive CLI mode', () => {
+            const config = createMinimalConfig();
+            const enriched = enrichAgentConfig(config, '/path/to/cli-agent.yml', true);
+
+            // Interactive CLI should only have file transport (no console)
+            expect(enriched.logger!.transports).toHaveLength(1);
+            expect(enriched.logger!.transports![0]).toMatchObject({
+                type: 'file',
+                path: '/mock/dexto/logs/cli-agent.log',
+            });
+        });
+
+        it('should use console + file transports for non-interactive mode (default)', () => {
+            const config = createMinimalConfig();
+            const enriched = enrichAgentConfig(config, '/path/to/server-agent.yml');
+
+            // Non-interactive (or default) should have both console + file
+            expect(enriched.logger!.transports).toHaveLength(2);
+            expect(enriched.logger!.transports![0]).toEqual({ type: 'console', colorize: true });
+            expect(enriched.logger!.transports![1]).toMatchObject({
+                type: 'file',
+                path: '/mock/dexto/logs/server-agent.log',
+            });
+        });
     });
 
     describe('Storage enrichment', () => {

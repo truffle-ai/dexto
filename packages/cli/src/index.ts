@@ -761,7 +761,13 @@ program
 
                     // Enrich config with per-agent paths BEFORE validation
                     // Enrichment provides storage paths required by schema
-                    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath);
+                    // Interactive CLI mode: only log to file (console would interfere with chat UI)
+                    const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
+                    const enrichedConfig = enrichAgentConfig(
+                        mergedConfig,
+                        resolvedPath,
+                        isInteractiveCli
+                    );
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
                     validatedConfig = await validateAgentConfig(

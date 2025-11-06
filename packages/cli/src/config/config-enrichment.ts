@@ -50,9 +50,14 @@ export function deriveAgentId(config: AgentConfig, configPath?: string): string 
  *
  * @param config Agent configuration from YAML file + CLI overrides
  * @param configPath Path to the agent config file (used for agent ID derivation)
+ * @param isInteractiveCli Whether this is interactive CLI mode (affects logger defaults) - defaults to false
  * @returns Enriched configuration with explicit per-agent paths
  */
-export function enrichAgentConfig(config: AgentConfig, configPath?: string): AgentConfig {
+export function enrichAgentConfig(
+    config: AgentConfig,
+    configPath?: string,
+    isInteractiveCli: boolean = false
+): AgentConfig {
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths
@@ -67,18 +72,31 @@ export function enrichAgentConfig(config: AgentConfig, configPath?: string): Age
 
     // Enrich logger config: only provide if not set
     if (!config.logger) {
-        // User didn't specify logger - provide default with file transport
+        // User didn't specify logger - provide defaults based on mode
+        // Interactive CLI: only file (console would interfere with chat UI)
+        // Other modes: console + file
+        const transports = isInteractiveCli
+            ? [
+                  {
+                      type: 'file' as const,
+                      path: logPath,
+                      maxSize: 10 * 1024 * 1024, // 10MB
+                      maxFiles: 5,
+                  },
+              ]
+            : [
+                  { type: 'console' as const, colorize: true },
+                  {
+                      type: 'file' as const,
+                      path: logPath,
+                      maxSize: 10 * 1024 * 1024, // 10MB
+                      maxFiles: 5,
+                  },
+              ];
+
         enriched.logger = {
             level: 'info',
-            transports: [
-                { type: 'console', colorize: true },
-                {
-                    type: 'file',
-                    path: logPath,
-                    maxSize: 10 * 1024 * 1024, // 10MB
-                    maxFiles: 5,
-                },
-            ],
+            transports,
         };
     } else {
         // User specified logger - keep their config as-is
