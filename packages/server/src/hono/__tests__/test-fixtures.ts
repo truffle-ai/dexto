@@ -24,6 +24,7 @@ export function createTestAgentConfig(): AgentConfig {
         storage: {
             cache: { type: 'in-memory' },
             database: { type: 'in-memory' },
+            blob: { type: 'local', storePath: '/tmp/test-blobs' },
         },
         sessions: {
             maxSessions: 10,
