@@ -6,25 +6,36 @@
 
 ## 📊 Current Progress Status
 
-**Overall:** Phase 1 - 80% complete (Weeks 1-4 done, Week 5 pending)
+**Overall:** Phase 1 - 90% complete (Weeks 1-4 done + bonus work, Week 5 pending)
 
-### ✅ Completed Work (Weeks 1-4)
+### ✅ Completed Work (Weeks 1-4 + Bonus)
 - ✅ Week 1: Path removal from all core services
 - ✅ Week 2: CLI config enrichment layer
 - ✅ Weeks 3-4: Multi-transport logger architecture
-- ✅ Bonus: Dead code cleanup (removed agentId parameters)
+- ✅ Bonus #1: Dead code cleanup (removed agentId parameters)
+- ✅ **Bonus #2: InMemoryBlobStore implementation (~400 LOC)**
+- ✅ **Bonus #3: Schema standardization (fixed internalTools, unified patterns)**
+- ✅ **Bonus #4: Storage schema defaults (in-memory defaults + CLI override)**
+- ✅ **Bonus #5: Test fixes (17 failures → 0, all 1088 tests passing)**
 
-### 🔄 Current Status
+### 🔄 Current Status (2024-12-06)
 - **Active:** Phase 1, Week 5 preparation (Dependency Injection)
 - **Branch:** `refactors-4`
-- **Last Commits:**
-  - `0e708ce4` - docs: add TODO for conditional service initialization
-  - `aebf9c1a` - refactor: remove redundant agentId parameters
+- **Recent Commits:**
+  - `15ac2db4` - docs: update migration plan with completed work
+  - `94bdd339` - refactor: standardize AgentConfigSchema field definitions
+  - `2869725b` - feat: implement InMemoryBlobStore and set as schema default
+  - `d5282cb2` - fix: make storage required in schema and always provided by enrichment
   - `f40cad12` - feat(cli): implement config enrichment layer
+  - `aebf9c1a` - refactor: remove redundant agentId parameters
 
 ### ⏭️ Next Steps
-1. Start Week 5: Dependency Injection pattern for logger
-2. Then proceed to Phase 2: Vite Migration (weeks 6-7.5)
+1. **Start Week 5: Dependency Injection pattern for logger**
+   - Update `createAgentServices()` to accept logger parameter
+   - Inject logger into all services
+   - Remove singleton logger pattern
+2. Remove remaining `getDextoPath()` fallbacks (LocalBlobStore, Logger)
+3. Then proceed to Phase 2: Vite Migration (weeks 6-7.5)
 
 ---
 
@@ -140,15 +151,30 @@ FOUNDATION (Must Be First):
 **Week 2: Config Enrichment Layer** ✅ COMPLETED
 - [x] Create `packages/cli/src/config/config-enrichment.ts`
 - [x] Design `enrichAgentConfig(config, configPath)` API
-- [x] Implement `deriveAgentId(config, configPath)` with priority logic
+- [x] Implement `deriveAgentId(config, configPath)` with priority logic:
+  1. `agentCard.name` (sanitized for filesystem)
+  2. Filename (without extension, skips generic names like 'agent', 'config')
+  3. `'default-agent'` fallback
 - [x] Per-agent path generation:
   - [x] `logs/{agentId}.log`
   - [x] `database/{agentId}.db`
   - [x] `blobs/{agentId}`
 - [x] Environment-aware defaults via `getDextoPath()` from @dexto/agent-management
-- [x] Comprehensive unit tests (40+ test cases)
+- [x] Enrichment strategy:
+  - **No storage in YAML** → CLI provides filesystem-based storage
+  - **Partial storage** → Enriches empty paths only (SQLite path, local blob storePath)
+  - **Explicit configs** → Respects user choices (doesn't override)
+- [x] Comprehensive unit tests (14 test cases):
+  - Agent ID derivation with all priority levels
+  - Storage enrichment scenarios (missing, partial, full)
+  - Logger enrichment (file transport addition)
+  - Path generation with getDextoPath integration
+  - Config immutability guarantees
 - **Key Files:** `cli/src/config/config-enrichment.ts`, `config-enrichment.test.ts`
-- **Commits:** `f40cad12`
+- **Commits:**
+  - `f40cad12` - feat(cli): implement config enrichment layer
+  - `d5282cb2` - fix: make storage required in schema and always provided by enrichment
+  - `1e8fde5e` - fix: handle undefined storage fields safely in enrichment
 - **Note:** Guardrails implemented - enrichment preserves user-specified values
 
 **Weeks 3-4: Multi-Transport Logger** ✅ COMPLETED (95%)
@@ -165,6 +191,49 @@ FOUNDATION (Must Be First):
 - **Key Files:** `logger/v2/dexto-logger.ts`, `transports/*.ts`, `schemas.ts`
 - **Commits:** `acb6ca80`, `e8df8a9e`, `12e8e093`
 
+**Bonus Work (2024-12-06): InMemoryBlobStore + Schema Fixes** ✅ COMPLETED
+- [x] **InMemoryBlobStore implementation** (~400 LOC)
+  - Content-based deduplication using SHA-256 hashing
+  - Configurable size limits (10MB per blob, 100MB total by default)
+  - Multi-format retrieval: base64, buffer, stream, data URIs
+  - MIME type detection via magic numbers and file extensions
+  - Automatic cleanup of old blobs
+  - No filesystem coupling (perfect for dev/test environments)
+- [x] **Storage schema defaults**
+  - Storage now defaults to full in-memory configuration
+  - Clean separation: in-memory for dev, filesystem for prod
+  - CLI enrichment provides production-ready storage
+- [x] **Schema standardization**
+  - Fixed `internalTools` to have `.default([])` (was missing modifier)
+  - Unified method chaining: `.describe().optional()` or `.describe().default()`
+  - Organized fields into semantic categories (required, optional, defaults)
+  - Self-documenting code structure
+- [x] **Test fixes**
+  - Fixed 17 failing storage schema tests (added blob config)
+  - Fixed env tests (mocked @dexto/agent-management)
+  - Updated agent schema tests
+  - All 1088 unit tests passing
+- **Key Files:**
+  - `core/src/storage/blob/memory-blob-store.ts`
+  - `core/src/storage/blob/factory.ts`
+  - `core/src/agent/schemas.ts`
+  - `cli/src/config/config-enrichment.ts`
+- **Commits:**
+  - `2869725b` - feat: implement InMemoryBlobStore and set as schema default
+  - `94bdd339` - refactor: standardize AgentConfigSchema field definitions
+  - `b35e2408` - fix: add storage to validAgentConfig test helper
+  - `6e395fa0` - fix: mock @dexto/agent-management in env tests
+- **Memory Usage Analysis:**
+  - Typical file prompts: ~50 KB
+  - With custom prompt attachments: ~2.5 MB
+  - With moderate image use: ~22 MB
+  - Limit approached at ~85 MB (40+ large images)
+- **Quality Checks:** All passing ✅
+  - ✅ Build passed
+  - ✅ Tests passed (1088/1088)
+  - ✅ Lint passed
+  - ✅ Typecheck passed
+
 **Week 5: Dependency Injection** ❌ NOT STARTED (NEXT TASK)
 - [ ] Update `createAgentServices()` to accept logger parameter
 - [ ] Inject logger into all services (storage, MCP, LLM, tools, etc.)
@@ -172,6 +241,7 @@ FOUNDATION (Must Be First):
 - [ ] Update all service constructors to accept logger
 - [ ] Update all service tests to provide logger
 - [ ] Replace global `logger` imports with injected logger
+- [ ] Remove remaining `getDextoPath()` fallbacks from LocalBlobStore and Logger
 - **Estimated Effort:** 12-16 hours
 - **Key Challenge:** Touching many files, requires careful testing
 
