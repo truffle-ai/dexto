@@ -44,9 +44,9 @@ export const StorageSchema = z
     .object({
         cache: CacheConfigSchema.describe('Cache configuration (fast, ephemeral)'),
         database: DatabaseConfigSchema.describe('Database configuration (persistent, reliable)'),
-        blob: BlobStoreConfigSchema.optional()
-            .default({ type: 'local' })
-            .describe('Blob store configuration (for large, unstructured data)'),
+        blob: BlobStoreConfigSchema.describe(
+            'Blob store configuration (for large, unstructured data) - required for ResourceManager'
+        ),
     })
     .strict()
     .describe('Storage configuration with cache, database, and blob store')

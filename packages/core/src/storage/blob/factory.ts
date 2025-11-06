@@ -16,18 +16,11 @@ export function createBlobStore(config: BlobStoreConfig, agentId?: string): Blob
             return new LocalBlobStore(config, agentId);
 
         case 'in-memory':
-        default: {
-            logger.info(
-                'In-memory blob store not implemented, defaulting to local file-based storage'
+            throw new Error(
+                'In-memory blob store not yet implemented. Use local blob storage with explicit storePath.'
             );
-            // Convert in-memory config to local config
-            const localConfig: LocalBlobStoreConfig = {
-                type: 'local',
-                maxBlobSize: config.maxBlobSize,
-                maxTotalSize: config.maxTotalSize,
-                cleanupAfterDays: 30, // Default for in-memory fallback
-            };
-            return new LocalBlobStore(localConfig, agentId);
-        }
+
+        default:
+            throw new Error(`Unknown blob store type: ${(config as any).type}`);
     }
 }

@@ -93,6 +93,11 @@ export async function createAgentServices(
         'default-agent';
 
     // 3. Initialize storage manager with agent ID
+    if (!config.storage) {
+        throw new Error(
+            'Storage configuration is required. Ensure CLI enrichment or manual config provides storage settings.'
+        );
+    }
     logger.debug('Initializing storage manager', { agentId: effectiveAgentId });
     const storageManager = await createStorageManager(config.storage, effectiveAgentId);
 

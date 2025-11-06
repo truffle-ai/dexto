@@ -121,6 +121,7 @@ describe('StorageSchema', () => {
         it('should accept SQLite backend with database filename', () => {
             const config: SqliteDatabaseConfig = {
                 type: 'sqlite',
+                path: '/tmp/db',
                 database: 'dexto.db',
             };
 
@@ -131,6 +132,7 @@ describe('StorageSchema', () => {
             expect(result.database.type).toBe('sqlite');
             if (result.database.type === 'sqlite') {
                 expect(result.database.database).toBe('dexto.db');
+                expect(result.database.path).toBe('/tmp/db');
             }
         });
 

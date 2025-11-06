@@ -46,6 +46,11 @@ export class StorageManager {
         // Create store instances with agent-specific isolation where applicable
         this.cache = await createCache(this.config.cache);
         this.database = await createDatabase(this.config.database, this.agentId);
+
+        // Blob store required - enrichment provides config with paths
+        if (!this.config.blob) {
+            throw new Error('Blob storage configuration is required. Provide storage.blob config.');
+        }
         this.blobStore = createBlobStore(this.config.blob, this.agentId);
 
         this.initialized = true;
