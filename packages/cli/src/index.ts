@@ -43,6 +43,7 @@ import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
+import { enrichAgentConfig } from './config/config-enrichment.js';
 import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
@@ -330,7 +331,8 @@ async function bootstrapAgentFromGlobalOpts() {
     );
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-    const agent = new DextoAgent(mergedConfig, resolvedPath);
+    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath);
+    const agent = new DextoAgent(enrichedConfig, resolvedPath);
     await agent.start();
 
     // Register graceful shutdown
@@ -788,8 +790,11 @@ program
                         }
                     }
 
+                    // Enrich config with per-agent paths before creating agent
+                    const enrichedConfig = enrichAgentConfig(validatedConfig, resolvedPath);
+
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    agent = new DextoAgent(validatedConfig, resolvedPath);
+                    agent = new DextoAgent(enrichedConfig, resolvedPath);
 
                     // Start the agent (initialize async services)
                     await agent.start();
