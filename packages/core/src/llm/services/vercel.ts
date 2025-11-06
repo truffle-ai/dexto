@@ -280,6 +280,13 @@ export class VercelLLMService implements ILLMService {
         fileData?: FileData,
         stream?: boolean
     ): Promise<string> {
+        // Set provider and model attributes at the start of the span
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', this.config.provider);
+            activeSpan.setAttribute('llm.model', this.getModelId());
+        }
+
         // Add user message, with optional image and file data
         logger.debug(
             `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
@@ -349,6 +356,13 @@ export class VercelLLMService implements ILLMService {
         maxSteps: number = 50,
         signal?: AbortSignal
     ): Promise<string> {
+        // Set provider and model attributes at the start of the span
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', this.config.provider);
+            activeSpan.setAttribute('llm.model', this.getModelId());
+        }
+
         let stepIteration = 0;
 
         const estimatedTokens = Math.ceil(JSON.stringify(messages, null, 2).length / 4);
@@ -419,6 +433,7 @@ export class VercelLLMService implements ILLMService {
             });
 
             // Add token usage to active span (if telemetry is enabled)
+            // Note: llm.provider and llm.model are already set at the start of the method
             const activeSpan = trace.getActiveSpan();
             if (activeSpan) {
                 const attributes: Record<string, number> = {};
@@ -521,6 +536,13 @@ export class VercelLLMService implements ILLMService {
         maxSteps: number = 10,
         signal?: AbortSignal
     ): Promise<string> {
+        // Set provider and model attributes at the start of the span
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', this.config.provider);
+            activeSpan.setAttribute('llm.model', this.getModelId());
+        }
+
         let stepIteration = 0;
 
         const temperature = this.config.temperature;
@@ -630,8 +652,9 @@ export class VercelLLMService implements ILLMService {
         });
 
         // Add token usage to active span (if telemetry is enabled)
-        const activeSpan = trace.getActiveSpan();
-        if (activeSpan) {
+        // Note: llm.provider and llm.model are already set at the start of the method
+        const activeSpan2 = trace.getActiveSpan();
+        if (activeSpan2) {
             const attributes: Record<string, number> = {};
             if (usage.inputTokens !== undefined) {
                 attributes['gen_ai.usage.input_tokens'] = usage.inputTokens;
@@ -645,7 +668,7 @@ export class VercelLLMService implements ILLMService {
             if (usage.reasoningTokens !== undefined) {
                 attributes['gen_ai.usage.reasoning_tokens'] = usage.reasoningTokens;
             }
-            activeSpan.setAttributes(attributes);
+            activeSpan2.setAttributes(attributes);
         }
 
         // Update ContextManager with actual token count

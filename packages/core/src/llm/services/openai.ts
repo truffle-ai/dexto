@@ -86,6 +86,13 @@ export class OpenAIService implements ILLMService {
         fileData?: FileData,
         stream?: boolean
     ): Promise<string> {
+        // Set provider and model attributes at the start of the span
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', this.config.provider);
+            activeSpan.setAttribute('llm.model', this.config.model);
+        }
+
         // Add user message with optional image and file data
         await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
@@ -162,6 +169,7 @@ export class OpenAIService implements ILLMService {
                     });
 
                     // Add token usage to active span (if telemetry is enabled)
+                    // Note: llm.provider and llm.model are already set at the start of completeTask
                     const activeSpan = trace.getActiveSpan();
                     if (activeSpan && totalTokens > 0) {
                         const attributes: Record<string, number> = {
@@ -339,6 +347,7 @@ export class OpenAIService implements ILLMService {
             });
 
             // Add token usage to active span (if telemetry is enabled)
+            // Note: llm.provider and llm.model are already set at the start of completeTask
             const activeSpan = trace.getActiveSpan();
             if (activeSpan && totalTokens > 0) {
                 const attributes: Record<string, number> = {

@@ -30,6 +30,9 @@ import {
     PromptListChangedNotificationSchema,
     ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
+import { hasActiveTelemetry, addBaggageAttributesToSpan } from '../telemetry/utils.js';
+import { safeStringify } from '../utils/safe-stringify.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
 /**
@@ -298,7 +301,26 @@ export class MCPClient extends EventEmitter implements IMCPClient {
      */
     async callTool(name: string, args: any): Promise<any> {
         this.ensureConnected();
+
+        // Only create telemetry span if telemetry is active
+        const shouldTrace = hasActiveTelemetry();
+        const tracer = shouldTrace ? trace.getTracer('dexto') : null;
+        const span = tracer?.startSpan(`mcp.tool.${name}`, {
+            kind: SpanKind.CLIENT,
+        });
+
         try {
+            // Add telemetry attributes
+            if (span) {
+                const ctx = trace.setSpan(context.active(), span);
+                addBaggageAttributesToSpan(span, ctx);
+                span.setAttribute('tool.name', name);
+                span.setAttribute('tool.server', this.serverAlias || 'unknown');
+                span.setAttribute('tool.timeout', this.timeout);
+                // Sanitize and truncate arguments for telemetry
+                span.setAttribute('tool.arguments', safeStringify(args, 4096));
+            }
+
             logger.debug(`Calling tool '${name}' with args: ${JSON.stringify(args, null, 2)}`);
 
             // Parse args if it's a string (handle JSON strings)
@@ -334,6 +356,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             );
             logger.debug(`Tool '${name}' result: ${logResult}`);
 
+            // Add result to telemetry span (sanitized and truncated)
+            if (span) {
+                span.setAttribute('tool.result', safeStringify(result, 4096));
+                span.setStatus({ code: SpanStatusCode.OK });
+            }
+
             // Check for null or undefined result
             if (result === null || result === undefined) {
                 return 'Tool executed successfully with no result data.';
@@ -341,7 +369,20 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             return result;
         } catch (error) {
             logger.error(`Tool call '${name}' failed: ${JSON.stringify(error, null, 2)}`);
+
+            // Record error in telemetry span
+            if (span) {
+                span.recordException(error as Error);
+                span.setStatus({
+                    code: SpanStatusCode.ERROR,
+                    message: error instanceof Error ? error.message : String(error),
+                });
+            }
+
             return `Error executing tool '${name}': ${error instanceof Error ? error.message : String(error)}`;
+        } finally {
+            // End telemetry span
+            span?.end();
         }
     }
 

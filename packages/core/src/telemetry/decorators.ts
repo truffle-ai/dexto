@@ -63,7 +63,11 @@ export function withSpan(options: {
                 span.setAttribute(`${spanName}.argument.${index}`, safeStringify(arg, 8192));
             });
 
-            const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx);
+            // Extract baggage values from the current context (may include values set by parent spans)
+            const { requestId, componentName, runId, threadId, resourceId, sessionId } =
+                getBaggageValues(ctx);
+
+            // Add all baggage values to span attributes
             if (requestId) {
                 span.setAttribute('http.request_id', requestId);
             }
@@ -74,6 +78,10 @@ export function withSpan(options: {
 
             if (resourceId) {
                 span.setAttribute('resourceId', resourceId);
+            }
+
+            if (sessionId) {
+                span.setAttribute('sessionId', sessionId);
             }
 
             if (componentName) {
@@ -96,13 +104,13 @@ export function withSpan(options: {
                     span.setAttribute('runId', contextObj.runId);
                 }
 
+                // Merge with existing baggage to preserve parent context values
+                const existingBaggage = propagation.getBaggage(ctx);
                 const baggageEntries: Record<string, { value: string }> = {};
 
-                if (inferredName !== undefined) {
-                    baggageEntries.componentName = { value: String(inferredName) };
-                }
-                if (contextObj.runId !== undefined) {
-                    baggageEntries.runId = { value: String(contextObj.runId) };
+                // Preserve existing baggage values
+                if (sessionId !== undefined) {
+                    baggageEntries.sessionId = { value: String(sessionId) };
                 }
                 if (requestId !== undefined) {
                     baggageEntries['http.request_id'] = { value: String(requestId) };
@@ -112,6 +120,14 @@ export function withSpan(options: {
                 }
                 if (resourceId !== undefined) {
                     baggageEntries.resourceId = { value: String(resourceId) };
+                }
+
+                // Add new component-specific baggage values
+                if (inferredName !== undefined) {
+                    baggageEntries.componentName = { value: String(inferredName) };
+                }
+                if (contextObj.runId !== undefined) {
+                    baggageEntries.runId = { value: String(contextObj.runId) };
                 }
 
                 if (Object.keys(baggageEntries).length > 0) {

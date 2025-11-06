@@ -14,6 +14,9 @@ import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
+import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
+import { hasActiveTelemetry } from '../telemetry/utils.js';
+import { safeStringify } from '../utils/safe-stringify.js';
 
 /**
  * Options for internal tools configuration in ToolManager
