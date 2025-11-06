@@ -36,10 +36,7 @@ const SqliteDatabaseSchema = BaseDatabaseSchema.extend({
     type: z.literal('sqlite'),
     path: z
         .string()
-        .describe(
-            'SQLite database directory path (required - CLI enrichment provides per-agent default)'
-        ),
-    database: z.string().describe('Database filename (required - CLI enrichment provides default)'),
+        .describe('SQLite database file path (required - CLI enrichment provides per-agent path)'),
 }).strict();
 
 export type SqliteDatabaseConfig = z.output<typeof SqliteDatabaseSchema>;

@@ -85,11 +85,10 @@ export class SQLiteStore implements Database {
             }
         }
 
-        // Initialize database path from config (path and database are always provided via enrichment)
-        this.dbPath = path.join(this.config.path, this.config.database);
+        // Initialize database path from config (full path is provided via enrichment)
+        this.dbPath = this.config.path;
 
-        logger.info(`SQLite using path: ${this.config.path}`);
-        logger.debug(`SQLite database file: ${this.dbPath}`);
+        logger.info(`SQLite using database file: ${this.dbPath}`);
 
         // Ensure directory exists
         const dir = dirname(this.dbPath);

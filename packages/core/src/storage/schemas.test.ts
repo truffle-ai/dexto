@@ -105,46 +105,18 @@ describe('StorageSchema', () => {
         it('should accept SQLite backend with path', () => {
             const config: SqliteDatabaseConfig = {
                 type: 'sqlite',
-                path: '/tmp/db',
-                database: 'dexto.db',
+                path: '/tmp/db/dexto.db',
             };
 
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             });
             expect(result.database.type).toBe('sqlite');
             if (result.database.type === 'sqlite') {
-                expect(result.database.path).toBe('/tmp/dexto.db');
+                expect(result.database.path).toBe('/tmp/db/dexto.db');
             }
-        });
-
-        it('should accept SQLite backend with database filename', () => {
-            const config: SqliteDatabaseConfig = {
-                type: 'sqlite',
-                path: '/tmp/db',
-                database: 'dexto.db',
-            };
-
-            const result = StorageSchema.parse({
-                cache: { type: 'in-memory' },
-                database: config,
-            });
-            expect(result.database.type).toBe('sqlite');
-            if (result.database.type === 'sqlite') {
-                expect(result.database.database).toBe('dexto.db');
-                expect(result.database.path).toBe('/tmp/db');
-            }
-        });
-
-        it('should accept SQLite backend with minimal config', () => {
-            const config = { type: 'sqlite' as const };
-
-            const result = StorageSchema.parse({
-                cache: { type: 'in-memory' },
-                database: config,
-            });
-            expect(result.database.type).toBe('sqlite');
         });
     });
 
@@ -365,7 +337,7 @@ describe('StorageSchema', () => {
         it('should handle database config type unions correctly', () => {
             const dbConfigs: DatabaseConfig[] = [
                 { type: 'in-memory' },
-                { type: 'sqlite', path: '/tmp/db', database: 'test.db' },
+                { type: 'sqlite', path: '/tmp/db/test.db' },
                 { type: 'postgres', url: 'postgresql://localhost/test' },
             ];
 
@@ -383,7 +355,7 @@ describe('StorageSchema', () => {
         it('should handle typical development configuration', () => {
             const devConfig: StorageConfig = {
                 cache: { type: 'in-memory' },
-                database: { type: 'sqlite', path: './dev-db', database: 'dev.db' },
+                database: { type: 'sqlite', path: './dev-db/dev.db' },
                 blob: { type: 'local', storePath: '/tmp/test-blobs' },
             };
 

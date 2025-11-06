@@ -1,4 +1,3 @@
-import path from 'path';
 import type { Database } from './types.js';
 import type { DatabaseConfig, PostgresDatabaseConfig, SqliteDatabaseConfig } from '../schemas.js';
 import { MemoryDatabaseStore } from './memory-database-store.js';
@@ -61,8 +60,7 @@ async function createSQLiteStore(config: SqliteDatabaseConfig, agentId: string):
             const module = await import('./sqlite-store.js');
             SQLiteStore = module.SQLiteStore;
         }
-        const effectivePath = path.join(config.path, config.database);
-        logger.info(`Creating SQLite database store: ${effectivePath}`);
+        logger.info(`Creating SQLite database store: ${config.path}`);
         return new SQLiteStore(config, agentId);
     } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
