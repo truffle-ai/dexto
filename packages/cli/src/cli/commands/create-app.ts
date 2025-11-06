@@ -8,7 +8,7 @@ import {
     getPackageManagerInstallCommand,
     addScriptsToPackageJson,
 } from '../utils/package-mgmt.js';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 /**
  * Creates basic scaffolding for a Dexto project
@@ -122,19 +122,19 @@ export async function createDextoProject(name?: string): Promise<string> {
  * @param directory - The directory of the project
  */
 export async function addDextoScriptsToPackageJson(directory: string, projectPath: string) {
-    logger.debug(`Adding dexto scripts to package.json in ${projectPath}`);
+    noOpLogger.debug(`Adding dexto scripts to package.json in ${projectPath}`);
     await addScriptsToPackageJson({
         build: 'tsc',
         start: `node dist/${path.join('dexto', 'dexto-example.js')}`,
         dev: `node --loader ts-node/esm ${path.join(directory, 'dexto', 'dexto-example.ts')}`,
     });
-    logger.debug(`Successfully added dexto scripts to package.json in ${projectPath}`);
+    noOpLogger.debug(`Successfully added dexto scripts to package.json in ${projectPath}`);
 }
 
 /** Creates a tsconfig.json file in the project directory */
 export async function createTsconfigJson(projectPath: string, directory: string) {
     // setup tsconfig.json
-    logger.debug(`Creating tsconfig.json in ${projectPath}`);
+    noOpLogger.debug(`Creating tsconfig.json in ${projectPath}`);
     const tsconfig = {
         compilerOptions: {
             target: 'ES2022',
@@ -151,7 +151,7 @@ export async function createTsconfigJson(projectPath: string, directory: string)
         exclude: ['node_modules', 'dist', '.dexto'],
     };
     await fs.writeJSON(path.join(projectPath, 'tsconfig.json'), tsconfig, { spaces: 4 });
-    logger.debug(`Successfully created tsconfig.json in ${projectPath}`);
+    noOpLogger.debug(`Successfully created tsconfig.json in ${projectPath}`);
 }
 
 /** Adds notes for users to get started with their new initialized Dexto project */

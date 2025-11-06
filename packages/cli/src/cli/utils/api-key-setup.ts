@@ -3,7 +3,7 @@
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import type { LLMProvider } from '@dexto/core';
-import { logger, getPrimaryApiKeyEnvVar, getExecutionContext } from '@dexto/core';
+import { noOpLogger, getPrimaryApiKeyEnvVar, getExecutionContext } from '@dexto/core';
 import { saveProviderApiKey } from '@dexto/core';
 import { applyLayeredEnvironmentLoading } from '../../utils/env.js';
 import {
@@ -106,7 +106,7 @@ export async function interactiveApiKeySetup(provider: LLMProvider): Promise<voi
             await applyLayeredEnvironmentLoading();
         } catch (error) {
             spinner.stop('Failed to save API key');
-            logger.error(`Failed to update .env file: ${error}`);
+            noOpLogger.error(`Failed to update .env file: ${error}`);
 
             // Provide context-aware manual setup instructions
             let instructions: string;

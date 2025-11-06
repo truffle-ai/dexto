@@ -1,6 +1,6 @@
 import * as readline from 'node:readline';
 import chalk from 'chalk';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 import { CLISubscriber } from './cli-subscriber.js';
 import { DextoAgent } from '@dexto/core';
 import { parseInput } from './commands/interactive-commands/command-parser.js';
@@ -21,7 +21,7 @@ export async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
 
         if (sessionIds.length === 0) {
             // No sessions exist, let agent create default
-            logger.debug('No existing sessions found, will use default session');
+            noOpLogger.debug('No existing sessions found, will use default session');
             return;
         }
 
@@ -41,11 +41,11 @@ export async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
         const currentSessionId = agent.getCurrentSessionId();
         if (mostRecentSession !== currentSessionId) {
             await agent.loadSessionAsDefault(mostRecentSession);
-            logger.info(`Loaded session: ${mostRecentSession}`, null, 'cyan');
+            noOpLogger.info(`Loaded session: ${mostRecentSession}`);
         }
     } catch (error) {
         // If anything fails, just continue with current session
-        logger.debug(
+        noOpLogger.debug(
             `Failed to load most recent session: ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -69,13 +69,13 @@ async function _initCli(agent: DextoAgent): Promise<void> {
     try {
         toolStats = await agent.toolManager.getToolStats();
     } catch (error) {
-        logger.error(
+        noOpLogger.error(
             `Failed to load tools: ${error instanceof Error ? error.message : String(error)}`
         );
     }
 
     // Display all startup information at once using the logger's dedicated method
-    const startupInfo: Parameters<typeof logger.displayStartupInfo>[0] = {
+    const startupInfo: Parameters<typeof noOpLogger.displayStartupInfo>[0] = {
         model: llmConfig.model,
         provider: llmConfig.provider,
         connectedServers: {
@@ -83,7 +83,7 @@ async function _initCli(agent: DextoAgent): Promise<void> {
             names: Array.from(connectedServers.keys()),
         },
         sessionId: currentSessionId,
-        logLevel: logger.getLevel(),
+        logLevel: noOpLogger.getLevel(),
     };
 
     if (Object.keys(failedConnections).length > 0) {
@@ -94,31 +94,31 @@ async function _initCli(agent: DextoAgent): Promise<void> {
         startupInfo.toolStats = toolStats;
     }
 
-    const logFile = logger.getLogFilePath();
+    const logFile = noOpLogger.getLogFilePath();
     if (logFile) {
         startupInfo.logFile = logFile;
     }
 
     // Display startup info to console
-    logger.displayStartupInfo(startupInfo);
+    noOpLogger.displayStartupInfo(startupInfo);
 
     // Log complete startup info to file for debugging
-    logger.debug(`Startup configuration: ${JSON.stringify(startupInfo, null, 2)}`);
+    noOpLogger.debug(`Startup configuration: ${JSON.stringify(startupInfo, null, 2)}`);
 
     // Set up event management
-    logger.info('Setting up CLI event subscriptions...');
+    noOpLogger.info('Setting up CLI event subscriptions...');
     const cliSubscriber = new CLISubscriber();
     cliSubscriber.subscribe(agent.agentEventBus);
 
     // Load available tools
-    logger.info('Loading available tools...');
+    noOpLogger.info('Loading available tools...');
     if (toolStats) {
-        logger.info(
+        noOpLogger.info(
             `Loaded ${toolStats.total} total tools: ${toolStats.mcp} MCP, ${toolStats.internal} internal`
         );
     }
 
-    logger.info(`CLI initialized successfully. Ready for input.`, null, 'green');
+    noOpLogger.info(`CLI initialized successfully. Ready for input.`);
 
     // Show welcome message with slash command instructions
     console.log(chalk.bold.cyan('\n🚀 Welcome to Dexto CLI!'));
@@ -155,7 +155,7 @@ export async function startAiCli(agent: DextoAgent) {
             return new Promise<string>((resolve) => {
                 // Check if stdin is still connected/readable
                 if (!process.stdin.isTTY) {
-                    logger.warn('Input stream closed. Exiting CLI.');
+                    noOpLogger.warn('Input stream closed. Exiting CLI.');
                     resolve('exit'); // Simulate exit command
                     return;
                 }
@@ -237,7 +237,7 @@ export async function startAiCli(agent: DextoAgent) {
                         (err as any).aborted === true ||
                         /abort/i.test(err.message || '');
                     if (!aborted) {
-                        logger.error(`Error in processing input: ${err.message}`);
+                        noOpLogger.error(`Error in processing input: ${err.message}`);
                     }
                 }
             }
@@ -247,7 +247,7 @@ export async function startAiCli(agent: DextoAgent) {
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error during CLI initialization: ${errorMessage}`);
+        noOpLogger.error(`Error during CLI initialization: ${errorMessage}`);
         safeExit('main', 1); // Exit with error code if CLI setup fails
     }
 }
@@ -284,16 +284,16 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
         }
     } catch (error: unknown) {
         if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
-            logger.error(`LLM error: ${error.message}`, null, 'red');
+            noOpLogger.error(`LLM error: ${error.message}`);
         } else if (error instanceof DextoValidationError) {
-            logger.error(`Validation failed:`, null, 'red');
+            noOpLogger.error(`Validation failed:`);
             error.errors.forEach((err) => {
-                logger.error(`  - ${err.message}`, null, 'red');
+                noOpLogger.error(`  - ${err.message}`);
             });
         } else if (error instanceof DextoRuntimeError && error.scope === ErrorScope.CONFIG) {
-            logger.error(`Configuration error: ${error.message}`, null, 'red');
+            noOpLogger.error(`Configuration error: ${error.message}`);
         } else {
-            logger.error(
+            noOpLogger.error(
                 `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
             );
         }

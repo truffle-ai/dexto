@@ -9,7 +9,7 @@
  */
 
 import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
+import { noOpLogger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 
 /**
@@ -40,7 +40,7 @@ export const documentationCommands: CommandDefinition[] = [
                 spawn(command, [docsUrl], { detached: true, stdio: 'ignore' });
                 console.log(chalk.green('✅ Documentation opened in browser'));
             } catch (error) {
-                logger.error(
+                noOpLogger.error(
                     `Failed to open documentation: ${error instanceof Error ? error.message : String(error)}`
                 );
                 console.log(chalk.yellow(`💡 You can manually visit: ${docsUrl}`));

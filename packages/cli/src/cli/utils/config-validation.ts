@@ -4,7 +4,7 @@ import { AgentConfigSchema, type AgentConfig } from '@dexto/core';
 import { interactiveApiKeySetup } from './api-key-setup.js';
 import { LLMErrorCode } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 /**
  * Validates agent config with optional interactive fixes for user experience.
@@ -20,11 +20,11 @@ export async function validateAgentConfig(
 
     if (!parseResult.success) {
         // Check for API key validation errors using raw Zod error (preserves params)
-        logger.error(`Agent config validation error: ${JSON.stringify(parseResult.error)}`);
+        noOpLogger.error(`Agent config validation error: ${JSON.stringify(parseResult.error)}`);
         const apiKeyError = findApiKeyError(parseResult.error, config);
 
         if (apiKeyError && interactive) {
-            logger.debug(
+            noOpLogger.debug(
                 `API key error found for ${apiKeyError.provider} provider, retriggering interactive setup`
             );
             console.log(

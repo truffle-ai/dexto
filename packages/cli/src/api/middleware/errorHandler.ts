@@ -1,7 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
-import { DextoRuntimeError, DextoValidationError, ErrorType, type Issue } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    DextoValidationError,
+    ErrorType,
+    type Issue,
+    zodToIssues,
+} from '@dexto/core';
 import { ZodError } from 'zod';
-import { zodToIssues, logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 /**
  * Single mapping from ErrorType to HTTP status code
@@ -69,7 +75,7 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     // Log unexpected errors with full context for debugging
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
-    logger.error(`Unhandled error in API middleware: ${errorMessage}`, {
+    noOpLogger.error(`Unhandled error in API middleware: ${errorMessage}`, {
         stack: errorStack,
         type: typeof err,
     });

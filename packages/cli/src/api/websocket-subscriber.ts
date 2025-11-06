@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { setMaxListeners } from 'events';
 import { AgentEventBus } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 
 /**
@@ -14,17 +14,20 @@ export class WebSocketEventSubscriber implements EventSubscriber {
     constructor(private wss: WebSocketServer) {
         // Track new connections
         this.wss.on('connection', (ws: WebSocket) => {
-            logger.debug('New WebSocket client connected');
+            noOpLogger.debug('New WebSocket client connected');
             this.connections.add(ws);
 
             // Add error handling for individual connections
             ws.on('error', (error) => {
-                logger.error('WebSocket client error:', error);
+                noOpLogger.error(
+                    `WebSocket client error: ${error instanceof Error ? error.message : String(error)}`,
+                    { error: error instanceof Error ? error.message : String(error) }
+                );
                 this.connections.delete(ws);
             });
 
             ws.on('close', () => {
-                logger.debug('WebSocket client disconnected');
+                noOpLogger.debug('WebSocket client disconnected');
                 this.connections.delete(ws);
             });
         });
@@ -95,7 +98,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:toolResult',
             (payload) => {
-                logger.debug(
+                noOpLogger.debug(
                     `[websocket-subscriber]: llmservice:toolResult: ${JSON.stringify({
                         toolName: payload.toolName,
                         callId: payload.callId,
@@ -124,7 +127,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         eventBus.on(
             'llmservice:response',
             (payload) => {
-                logger.debug(
+                noOpLogger.debug(
                     `[websocket-subscriber]: llmservice:response: ${JSON.stringify(payload)}`
                 );
                 this.broadcast({
@@ -303,7 +306,7 @@ export class WebSocketEventSubscriber implements EventSubscriber {
         }
         this.connections.clear();
 
-        logger.debug('WebSocket event subscriber cleaned up');
+        noOpLogger.debug('WebSocket event subscriber cleaned up');
     }
 
     /**
@@ -317,7 +320,10 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             try {
                 controller.abort();
             } catch (error) {
-                logger.debug('Error aborting controller during unsubscribe:', error);
+                noOpLogger.debug(
+                    `Error aborting controller during unsubscribe: ${error instanceof Error ? error.message : String(error)}`,
+                    { error: error instanceof Error ? error.message : String(error) }
+                );
             }
         }
     }

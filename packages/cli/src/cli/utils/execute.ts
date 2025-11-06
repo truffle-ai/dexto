@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 // Default timeout for spawned processes (in milliseconds)
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -24,7 +24,7 @@ export function executeWithTimeout(
 
         // Kill process if it takes too long
         const timer = setTimeout(() => {
-            logger.error(`Process timed out after ${timeout}ms, killing process`);
+            noOpLogger.error(`Process timed out after ${timeout}ms, killing process`);
             child.kill();
             reject(new Error(`Process timed out after ${timeout}ms`));
         }, timeout);
@@ -32,29 +32,29 @@ export function executeWithTimeout(
         child.stdout.on('data', (data: Buffer) => {
             const text = data.toString();
             stdout += text;
-            logger.debug(text);
+            noOpLogger.debug(text);
         });
 
         child.stderr.on('data', (data: Buffer) => {
             const text = data.toString();
             stderr += text;
             // Not logging to avoid spamming the console with installation warnings
-            // logger.error(text);
+            // noOpLogger.error(text);
         });
 
         child.on('error', (error: Error) => {
             clearTimeout(timer);
-            logger.error(`Error spawning process: ${error.message}`);
+            noOpLogger.error(`Error spawning process: ${error.message}`);
             reject(error);
         });
 
         child.on('close', (code: number) => {
             clearTimeout(timer);
             if (code !== 0) {
-                logger.error(`Process exited with code ${code}\n${stderr}`);
+                noOpLogger.error(`Process exited with code ${code}\n${stderr}`);
                 reject(new Error(`Process exited with code ${code}`));
             } else {
-                logger.debug(`${command} ${args.join(' ')} stdout: ${stdout}`);
+                noOpLogger.debug(`${command} ${args.join(' ')} stdout: ${stdout}`);
                 resolve();
             }
         });

@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { AgentCard } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 /**
  * Sets up the A2A Agent Card endpoint.
@@ -13,5 +13,5 @@ export function setupA2ARoutes(app: Express, getAgentCard: () => AgentCard): voi
         res.setHeader('Content-Type', 'application/json');
         res.status(200).send(JSON.stringify(agentCardData, null, 2));
     });
-    logger.info(`A2A Agent Card available at /.well-known/agent.json`);
+    noOpLogger.info(`A2A Agent Card available at /.well-known/agent.json`);
 }

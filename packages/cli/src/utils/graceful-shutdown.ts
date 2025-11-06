@@ -1,5 +1,5 @@
 import type { DextoAgent } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { noOpLogger } from '@dexto/core';
 
 export function registerGracefulShutdown(getCurrentAgent: () => DextoAgent): void {
     const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGUSR2'];
@@ -11,13 +11,13 @@ export function registerGracefulShutdown(getCurrentAgent: () => DextoAgent): voi
             if (isShuttingDown) return; // Prevent multiple shutdowns
             isShuttingDown = true;
 
-            logger.info(`Received ${signal}, shutting down gracefully...`);
+            noOpLogger.info(`Received ${signal}, shutting down gracefully...`);
             try {
                 const agent = getCurrentAgent();
                 await agent.stop(); // Use existing comprehensive shutdown
                 process.exit(0);
             } catch (error) {
-                logger.error(
+                noOpLogger.error(
                     `Shutdown error: ${error instanceof Error ? error.message : String(error)}`,
                     { error }
                 );
@@ -28,7 +28,7 @@ export function registerGracefulShutdown(getCurrentAgent: () => DextoAgent): voi
 
     // Handle uncaught exceptions
     process.on('uncaughtException', async (error) => {
-        logger.error(
+        noOpLogger.error(
             `Uncaught exception: ${error instanceof Error ? error.message : String(error)}`,
             { error },
             'red'
@@ -39,7 +39,7 @@ export function registerGracefulShutdown(getCurrentAgent: () => DextoAgent): voi
                 const agent = getCurrentAgent();
                 await agent.stop();
             } catch (innerError) {
-                logger.error(
+                noOpLogger.error(
                     `Error during shutdown initiated by uncaughtException: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
                     { error: innerError }
                 );
@@ -49,14 +49,14 @@ export function registerGracefulShutdown(getCurrentAgent: () => DextoAgent): voi
     });
 
     process.on('unhandledRejection', async (reason) => {
-        logger.error(`Unhandled rejection: ${reason}`, { reason }, 'red');
+        noOpLogger.error(`Unhandled rejection: ${reason}`, { reason }, 'red');
         if (!isShuttingDown) {
             isShuttingDown = true;
             try {
                 const agent = getCurrentAgent();
                 await agent.stop();
             } catch (innerError) {
-                logger.error(
+                noOpLogger.error(
                     `Error during shutdown initiated by unhandledRejection: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
                     { error: innerError }
                 );

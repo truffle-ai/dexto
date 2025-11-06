@@ -6,7 +6,7 @@ import type { WebSocket } from 'ws';
 import { WebSocketEventSubscriber } from './websocket-subscriber.js';
 import { WebhookEventSubscriber } from './webhook-subscriber.js';
 import type { WebhookConfig } from './webhook-types.js';
-import { logger, redactSensitiveData, type AgentCard } from '@dexto/core';
+import { noOpLogger, AgentCard, redactSensitiveData } from '@dexto/core';
 import { setupA2ARoutes } from './a2a.js';
 import { setupMemoryRoutes } from './memory/memory-handler.js';
 import {
@@ -151,23 +151,23 @@ export async function initializeApi(
     const server = http.createServer(app);
     const wss = new WebSocketServer({ server });
 
-    logger.info(`Initializing API server with agent: ${activeAgentId}`);
+    noOpLogger.info(`Initializing API server with agent: ${activeAgentId}`);
 
     // Initialize event subscribers
     const webSubscriber = new WebSocketEventSubscriber(wss);
     const webhookSubscriber = new WebhookEventSubscriber();
 
     // Register subscribers before starting agent
-    logger.info('Registering event subscribers with agent...');
+    noOpLogger.info('Registering event subscribers with agent...');
     activeAgent.registerSubscriber(webSubscriber);
     activeAgent.registerSubscriber(webhookSubscriber);
 
     // Ensure the initial agent is started
     if (!activeAgent.isStarted() && !activeAgent.isStopped()) {
-        logger.info('Starting initial agent...');
+        noOpLogger.info('Starting initial agent...');
         await activeAgent.start();
     } else if (activeAgent.isStopped()) {
-        logger.warn('Initial agent is stopped, this may cause issues');
+        noOpLogger.warn('Initial agent is stopped, this may cause issues');
     }
 
     // Tool confirmation responses are handled by the main WebSocket handler below
@@ -202,11 +202,11 @@ export async function initializeApi(
      */
     async function performAgentSwitch(newAgent: DextoAgent, agentId: string) {
         // Register event subscribers with new agent before starting
-        logger.info('Registering event subscribers with new agent...');
+        noOpLogger.info('Registering event subscribers with new agent...');
         newAgent.registerSubscriber(webSubscriber);
         newAgent.registerSubscriber(webhookSubscriber);
 
-        logger.info(`Starting new agent: ${agentId}`);
+        noOpLogger.info(`Starting new agent: ${agentId}`);
         await newAgent.start();
 
         // Stop previous agent last (only after new one is fully operational)
@@ -225,16 +225,16 @@ export async function initializeApi(
             overrides
         );
 
-        logger.info(`Successfully switched to agent: ${agentId}`);
+        noOpLogger.info(`Successfully switched to agent: ${agentId}`);
 
         // Now safely stop the previous agent
         try {
             if (previousAgent && previousAgent !== newAgent) {
-                logger.info('Stopping previous agent...');
+                noOpLogger.info('Stopping previous agent...');
                 await previousAgent.stop();
             }
         } catch (err) {
-            logger.warn(`Stopping previous agent failed: ${err}`);
+            noOpLogger.warn(`Stopping previous agent failed: ${err}`);
             // Don't throw here as the switch was successful
         }
 
@@ -251,7 +251,7 @@ export async function initializeApi(
         try {
             // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
             // This allows new agent to have different telemetry config (endpoint, protocol, etc.)
-            logger.info('Shutting down telemetry for agent switch...');
+            noOpLogger.info('Shutting down telemetry for agent switch...');
             const { Telemetry } = await import('@dexto/core');
             await Telemetry.shutdownGlobal();
 
@@ -261,7 +261,7 @@ export async function initializeApi(
             // 3. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId);
         } catch (error) {
-            logger.error(
+            noOpLogger.error(
                 `Failed to switch to agent '${agentId}': ${
                     error instanceof Error ? error.message : String(error)
                 }`,
@@ -273,7 +273,7 @@ export async function initializeApi(
                 try {
                     await newAgent.stop();
                 } catch (cleanupErr) {
-                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                    noOpLogger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
                 }
             }
 
@@ -293,7 +293,7 @@ export async function initializeApi(
         try {
             // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
             // This allows new agent to have different telemetry config (endpoint, protocol, etc.)
-            logger.info('Shutting down telemetry for agent switch...');
+            noOpLogger.info('Shutting down telemetry for agent switch...');
             const { Telemetry } = await import('@dexto/core');
             await Telemetry.shutdownGlobal();
 
@@ -313,7 +313,7 @@ export async function initializeApi(
             // 6. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId);
         } catch (error) {
-            logger.error(
+            noOpLogger.error(
                 `Failed to switch to agent from path '${filePath}': ${
                     error instanceof Error ? error.message : String(error)
                 }`,
@@ -325,7 +325,7 @@ export async function initializeApi(
                 try {
                     await newAgent.stop();
                 } catch (cleanupErr) {
-                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                    noOpLogger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
                 }
             }
 
@@ -603,7 +603,7 @@ export async function initializeApi(
         '/api/message',
         express.json({ limit: process.env.MESSAGE_JSON_LIMIT || '10mb' }),
         async (req, res, next) => {
-            logger.info('Received message via POST /api/message');
+            noOpLogger.info('Received message via POST /api/message');
             try {
                 ensureAgentAvailable();
                 const { message, sessionId, stream, imageData, fileData } = parseBody(
@@ -624,9 +624,9 @@ export async function initializeApi(
                       }
                     : undefined;
 
-                if (imageDataInput) logger.info('Image data included in message.');
-                if (fileDataInput) logger.info('File data included in message.');
-                if (sessionId) logger.info(`Message for session: ${sessionId}`);
+                if (imageDataInput) noOpLogger.info('Image data included in message.');
+                if (fileDataInput) noOpLogger.info('File data included in message.');
+                if (sessionId) noOpLogger.info(`Message for session: ${sessionId}`);
 
                 const response = await activeAgent.run(
                     message || '',
@@ -652,7 +652,7 @@ export async function initializeApi(
             const { sessionId } = parseQuery(CancelRequestSchema, req.params);
             const cancelled = await activeAgent.cancel(sessionId);
             if (!cancelled) {
-                logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+                noOpLogger.debug(`No in-flight run to cancel for session: ${sessionId}`);
             }
             return res.status(200).json({ cancelled, sessionId });
         } catch (error) {
@@ -666,7 +666,7 @@ export async function initializeApi(
         '/api/message-sync',
         express.json({ limit: process.env.MESSAGE_JSON_LIMIT || '10mb' }),
         async (req, res, next) => {
-            logger.info('Received message via POST /api/message-sync');
+            noOpLogger.info('Received message via POST /api/message-sync');
             try {
                 ensureAgentAvailable();
                 const { message, sessionId, imageData, fileData } = parseBody(
@@ -687,9 +687,9 @@ export async function initializeApi(
                           ...(fileData.filename && { filename: fileData.filename }),
                       }
                     : undefined;
-                if (imageDataInput) logger.info('Image data included in message.');
-                if (fileDataInput) logger.info('File data included in message.');
-                if (sessionId) logger.info(`Message for session: ${sessionId}`);
+                if (imageDataInput) noOpLogger.info('Image data included in message.');
+                if (fileDataInput) noOpLogger.info('File data included in message.');
+                if (sessionId) noOpLogger.info(`Message for session: ${sessionId}`);
 
                 const response = await activeAgent.run(
                     message || '',
@@ -709,7 +709,7 @@ export async function initializeApi(
         sessionId: z.string().optional(),
     });
     app.post('/api/reset', express.json(), async (req, res, next) => {
-        logger.info('Received request via POST /api/reset');
+        noOpLogger.info('Received request via POST /api/reset');
         try {
             ensureAgentAvailable();
             const { sessionId } = parseBody(ResetRequestSchema, req.body);
@@ -735,7 +735,7 @@ export async function initializeApi(
 
             // Connect the server
             await activeAgent.connectMcpServer(name, config);
-            logger.info(`Successfully connected to new server '${name}' via API request.`);
+            noOpLogger.info(`Successfully connected to new server '${name}' via API request.`);
 
             // If persistToAgent is true, save to agent config file
             if (persistToAgent === true) {
@@ -752,9 +752,15 @@ export async function initializeApi(
                     };
 
                     await activeAgent.updateAndSaveConfig(updates);
-                    logger.info(`Saved server '${name}' to agent configuration file`);
+                    noOpLogger.info(`Saved server '${name}' to agent configuration file`);
                 } catch (saveError) {
-                    logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
+                    noOpLogger.warn(
+                        `Failed to save server '${name}' to agent config: ${saveError instanceof Error ? saveError.message : String(saveError)}`,
+                        {
+                            error:
+                                saveError instanceof Error ? saveError.message : String(saveError),
+                        }
+                    );
                     // Don't fail the request if saving fails - server is still connected
                 }
             }
@@ -817,14 +823,14 @@ export async function initializeApi(
         try {
             ensureAgentAvailable();
             const { serverId } = parseQuery(DeleteMcpServerParamsSchema, req.params);
-            logger.info(`Received request to DELETE /api/mcp/servers/${serverId}`);
+            noOpLogger.info(`Received request to DELETE /api/mcp/servers/${serverId}`);
 
             // Check if server exists before attempting to disconnect
             const clientExists =
                 activeAgent.getMcpClients().has(serverId) ||
                 activeAgent.getMcpFailedConnections()[serverId];
             if (!clientExists) {
-                logger.warn(`Attempted to delete non-existent server: ${serverId}`);
+                noOpLogger.warn(`Attempted to delete non-existent server: ${serverId}`);
                 return res.status(404).json({ error: `Server '${serverId}' not found.` });
             }
 
@@ -843,12 +849,12 @@ export async function initializeApi(
         try {
             ensureAgentAvailable();
             const { serverId } = parseQuery(RestartMcpServerParamsSchema, req.params);
-            logger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
+            noOpLogger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
 
             // Check if server exists before attempting to restart
             const clientExists = activeAgent.getMcpClients().has(serverId);
             if (!clientExists) {
-                logger.warn(`Attempted to restart non-existent server: ${serverId}`);
+                noOpLogger.warn(`Attempted to restart non-existent server: ${serverId}`);
                 return res.status(404).json({ error: `Server '${serverId}' not found.` });
             }
 
@@ -975,14 +981,14 @@ export async function initializeApi(
     // WebSocket handling
     // handle inbound client messages over WebSocket
     wss.on('connection', (ws: WebSocket) => {
-        logger.info('WebSocket client connected.');
+        noOpLogger.info('WebSocket client connected.');
 
         ws.on('message', async (messageBuffer) => {
             const messageString = messageBuffer.toString();
             try {
                 const parsedMessage = JSON.parse(messageString);
                 const redactedMessage = redactSensitiveData(parsedMessage);
-                logger.debug(`WebSocket received message: ${JSON.stringify(redactedMessage)}`);
+                noOpLogger.debug(`WebSocket received message: ${JSON.stringify(redactedMessage)}`);
             } catch {
                 // If JSON parsing fails, redact then log first 200 chars to avoid huge logs
                 const redacted = String(redactSensitiveData(messageString));
@@ -990,7 +996,7 @@ export async function initializeApi(
                     redacted.length > 200
                         ? `${redacted.substring(0, 200)}... (${redacted.length} total chars)`
                         : redacted;
-                logger.debug(`WebSocket received message: ${truncated}`);
+                noOpLogger.debug(`WebSocket received message: ${truncated}`);
             }
             try {
                 const data = JSON.parse(messageString);
@@ -998,7 +1004,7 @@ export async function initializeApi(
                     // Validate the approval response payload with Zod schema
                     const validationResult = ApprovalResponseSchema.safeParse(data.data);
                     if (!validationResult.success) {
-                        logger.warn(
+                        noOpLogger.warn(
                             `Received invalid approval response payload: ${validationResult.error.message}`
                         );
                         // Do not emit invalid payloads
@@ -1011,7 +1017,7 @@ export async function initializeApi(
                     data.type === 'message' &&
                     (data.content || data.imageData || data.fileData)
                 ) {
-                    logger.info(
+                    noOpLogger.info(
                         `Processing message from WebSocket: ${data.content ? data.content.substring(0, 50) + '...' : '[image/file only]'}`
                     );
                     const imageDataInput = data.imageData
@@ -1030,22 +1036,22 @@ export async function initializeApi(
                     const sessionId =
                         typeof data.sessionId === 'string' ? (data.sessionId as string) : undefined;
                     if (!sessionId) {
-                        logger.error(
+                        noOpLogger.error(
                             'Received WebSocket message without sessionId. Dropping message and not sending error (sessionId is mandatory).'
                         );
                         return;
                     }
                     const stream = data.stream === true; // Extract stream preference, default to false
-                    if (imageDataInput) logger.info('Image data included in message.');
-                    if (fileDataInput) logger.info('File data included in message.');
-                    if (sessionId) logger.info(`Message for session: ${sessionId}`);
+                    if (imageDataInput) noOpLogger.info('Image data included in message.');
+                    if (fileDataInput) noOpLogger.info('File data included in message.');
+                    if (sessionId) noOpLogger.info(`Message for session: ${sessionId}`);
 
                     // Check if agent is available before processing
                     try {
                         ensureAgentAvailable();
-                        logger.debug('Agent availability check passed');
+                        noOpLogger.debug('Agent availability check passed');
                     } catch (error) {
-                        logger.error(`Agent not available for WebSocket message: ${error}`);
+                        noOpLogger.error(`Agent not available for WebSocket message: ${error}`);
                         sendWebSocketError(
                             ws,
                             error instanceof Error ? error.message : 'Agent not available',
@@ -1055,9 +1061,9 @@ export async function initializeApi(
                     }
 
                     // Comprehensive input validation
-                    logger.debug('Getting effective config for validation');
+                    noOpLogger.debug('Getting effective config for validation');
                     const currentConfig = activeAgent.getEffectiveConfig(sessionId);
-                    logger.debug('Validating input for LLM');
+                    noOpLogger.debug('Validating input for LLM');
                     const validation = validateInputForLLM(
                         {
                             text: data.content,
@@ -1067,12 +1073,13 @@ export async function initializeApi(
                         {
                             provider: currentConfig.llm.provider,
                             model: currentConfig.llm.model,
-                        }
+                        },
+                        activeAgent.logger
                     );
 
                     if (!validation.ok) {
                         const redactedIssues = redactSensitiveData(validation.issues);
-                        logger.error(`Invalid input for current LLM configuration`, {
+                        noOpLogger.error(`Invalid input for current LLM configuration`, {
                             provider: currentConfig.llm.provider,
                             model: currentConfig.llm.model,
                             issues: redactedIssues,
@@ -1098,7 +1105,7 @@ export async function initializeApi(
                         return;
                     }
 
-                    logger.debug('Validation passed, calling activeAgent.run()');
+                    noOpLogger.debug('Validation passed, calling activeAgent.run()');
                     await activeAgent.run(
                         data.content,
                         imageDataInput,
@@ -1106,10 +1113,10 @@ export async function initializeApi(
                         sessionId,
                         stream
                     );
-                    logger.debug('activeAgent.run() completed');
+                    noOpLogger.debug('activeAgent.run() completed');
                 } else if (data.type === 'reset') {
                     const sessionId = data.sessionId as string | undefined;
-                    logger.info(
+                    noOpLogger.info(
                         `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
 
@@ -1117,7 +1124,7 @@ export async function initializeApi(
                     try {
                         ensureAgentAvailable();
                     } catch (error) {
-                        logger.error(`Agent not available for WebSocket reset: ${error}`);
+                        noOpLogger.error(`Agent not available for WebSocket reset: ${error}`);
                         sendWebSocketError(
                             ws,
                             error instanceof Error ? error.message : 'Agent not available',
@@ -1129,7 +1136,7 @@ export async function initializeApi(
                     await activeAgent.resetConversation(sessionId);
                 } else if (data.type === 'cancel') {
                     const sessionId = data.sessionId as string | undefined;
-                    logger.info(
+                    noOpLogger.info(
                         `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
                     );
 
@@ -1137,7 +1144,7 @@ export async function initializeApi(
                     try {
                         ensureAgentAvailable();
                     } catch (error) {
-                        logger.error(`Agent not available for WebSocket cancel: ${error}`);
+                        noOpLogger.error(`Agent not available for WebSocket cancel: ${error}`);
                         sendWebSocketError(
                             ws,
                             error instanceof Error ? error.message : 'Agent not available',
@@ -1148,23 +1155,23 @@ export async function initializeApi(
 
                     const cancelled = await activeAgent.cancel(sessionId);
                     if (!cancelled) {
-                        logger.debug('No in-flight run to cancel');
+                        noOpLogger.debug('No in-flight run to cancel');
                     }
                 } else {
-                    logger.warn(`Received unknown WebSocket message type: ${data.type}`);
+                    noOpLogger.warn(`Received unknown WebSocket message type: ${data.type}`);
                     if (typeof data.sessionId === 'string') {
                         sendWebSocketValidationError(ws, 'Unknown message type', data.sessionId, {
                             messageType: data.type,
                         });
                     } else {
                         // No session id; log only.
-                        logger.error(
+                        noOpLogger.error(
                             'Cannot send error for unknown message type without sessionId.'
                         );
                     }
                 }
             } catch (error) {
-                logger.error(
+                noOpLogger.error(
                     `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
                 // Try to parse sessionId; if absent, do not send an error (cannot route it reliably)
@@ -1173,23 +1180,23 @@ export async function initializeApi(
                     if (typeof maybe.sessionId === 'string') {
                         sendWebSocketError(ws, error, maybe.sessionId);
                     } else {
-                        logger.error(
+                        noOpLogger.error(
                             'Cannot send WebSocket error without sessionId. Error will be logged only.'
                         );
                     }
                 } catch {
-                    logger.error(
+                    noOpLogger.error(
                         'Cannot parse incoming message to extract sessionId for error reporting.'
                     );
                 }
             }
         });
         ws.on('close', () => {
-            logger.info('WebSocket client disconnected.');
+            noOpLogger.info('WebSocket client disconnected.');
         });
         ws.on('error', (error) => {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(`WebSocket error: ${errorMessage}`);
+            noOpLogger.error(`WebSocket error: ${errorMessage}`);
         });
     });
 
@@ -1233,7 +1240,7 @@ export async function initializeApi(
         );
         await initializeMcpServerApiEndpoints(app, mcpTransport, mcpServer);
     } catch (error: any) {
-        logger.error(`Failed to initialize MCP server: ${error.message}`);
+        noOpLogger.error(`Failed to initialize MCP server: ${error.message}`);
         // Add error middleware to handle the failure gracefully
         app.use((req, res) => {
             res.status(500).json({ error: 'MCP server initialization failed' });
@@ -1493,7 +1500,7 @@ export async function initializeApi(
                 // Raw API key provided - store securely and get env var reference
                 const meta = await saveProviderApiKey(provider, config.llm.apiKey, process.cwd());
                 const apiKeyRef = `$${meta.envVar}`;
-                logger.info(
+                noOpLogger.info(
                     `Stored API key securely for ${provider}, using env var: ${meta.envVar}`
                 );
                 // Update config with env var reference
@@ -1516,7 +1523,7 @@ export async function initializeApi(
             }
 
             const yamlContent = yamlStringify(agentConfig);
-            logger.info(`Creating agent config for ${id}:`, { agentConfig, yamlContent });
+            noOpLogger.info(`Creating agent config for ${id}:`, { agentConfig, yamlContent });
 
             // Create temporary file
             const tmpDir = os.tmpdir();
@@ -1740,12 +1747,12 @@ export async function initializeApi(
 
                 // If any changes require restart, automatically restart the agent
                 if (reloadResult.restartRequired.length > 0) {
-                    logger.info(
+                    noOpLogger.info(
                         `Auto-restarting agent to apply changes: ${reloadResult.restartRequired.join(', ')}`
                     );
 
                     await activeAgent.restart();
-                    logger.info(
+                    noOpLogger.info(
                         'Agent restarted successfully with all event subscribers reconnected'
                     );
                 }
@@ -1755,7 +1762,7 @@ export async function initializeApi(
                     // Ignore errors if backup file doesn't exist
                 });
 
-                logger.info(`Agent configuration saved and applied: ${agentPath}`);
+                noOpLogger.info(`Agent configuration saved and applied: ${agentPath}`);
 
                 res.json({
                     ok: true,
@@ -2290,7 +2297,7 @@ export async function initializeApi(
 
             webhookSubscriber.addWebhook(webhook);
 
-            logger.info(`Webhook registered: ${webhookId} -> ${url}`);
+            noOpLogger.info(`Webhook registered: ${webhookId} -> ${url}`);
 
             return sendJsonResponse(
                 res,
@@ -2364,7 +2371,7 @@ export async function initializeApi(
                 return res.status(404).json({ error: 'Webhook not found' });
             }
 
-            logger.info(`Webhook removed: ${webhookId}`);
+            noOpLogger.info(`Webhook removed: ${webhookId}`);
             return res.json({ status: 'removed', webhookId });
         } catch (error) {
             return next(error);
@@ -2384,7 +2391,7 @@ export async function initializeApi(
                 return res.status(404).json({ error: 'Webhook not found' });
             }
 
-            logger.info(`Testing webhook: ${webhookId}`);
+            noOpLogger.info(`Testing webhook: ${webhookId}`);
             const result = await webhookSubscriber.testWebhook(webhookId);
 
             return sendJsonResponse(res, {
@@ -2433,10 +2440,8 @@ export async function startApiServer(
                 });
             });
 
-            logger.info(
-                `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
-                null,
-                'green'
+            noOpLogger.info(
+                `API server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`
             );
         });
 

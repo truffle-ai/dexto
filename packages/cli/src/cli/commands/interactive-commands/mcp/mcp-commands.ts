@@ -6,7 +6,7 @@
  */
 
 import chalk from 'chalk';
-import { logger, DextoAgent } from '@dexto/core';
+import { noOpLogger, DextoAgent } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
 import {
     parseStdioArgs,
@@ -43,7 +43,7 @@ async function handleMcpAddStdio(args: string[], agent: DextoAgent): Promise<boo
         console.log(chalk.dim(`   Command: ${config.command} ${config.args?.join(' ') ?? ''}`));
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        noOpLogger.error(
             `Failed to add STDIO MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -80,7 +80,7 @@ async function handleMcpAddHttp(args: string[], agent: DextoAgent): Promise<bool
         }
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        noOpLogger.error(
             `Failed to add HTTP MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -117,7 +117,7 @@ async function handleMcpAddSse(args: string[], agent: DextoAgent): Promise<boole
         }
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        noOpLogger.error(
             `Failed to add SSE MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -172,7 +172,7 @@ export const mcpCommands: CommandDefinition = {
                     console.log(chalk.dim('💡 Use /mcp help for detailed command descriptions.'));
                     return true;
                 } catch (error) {
-                    logger.error(
+                    noOpLogger.error(
                         `Failed to list MCP servers: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
@@ -240,7 +240,7 @@ export const mcpCommands: CommandDefinition = {
                     await agent.removeMcpServer(name);
                     console.log(chalk.green(`✅ MCP server '${name}' removed successfully`));
                 } catch (error) {
-                    logger.error(
+                    noOpLogger.error(
                         `Failed to remove MCP server '${name}': ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
