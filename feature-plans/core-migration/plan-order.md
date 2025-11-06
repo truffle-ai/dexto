@@ -2,7 +2,33 @@
 
 **Purpose:** Defines the correct sequence for implementing all feature plans in this folder, based on dependencies, overlaps, and risk management.
 
-**Last Updated:** 2025-01-05
+**Last Updated:** 2025-01-06
+
+## 📊 Current Progress Status
+
+**Overall:** Phase 1 - 80% complete (Weeks 1-4 done, Week 5 pending)
+
+### ✅ Completed Work (Weeks 1-4)
+- ✅ Week 1: Path removal from all core services
+- ✅ Week 2: CLI config enrichment layer
+- ✅ Weeks 3-4: Multi-transport logger architecture
+- ✅ Bonus: Dead code cleanup (removed agentId parameters)
+
+### 🔄 Current Status
+- **Active:** Phase 1, Week 5 preparation (Dependency Injection)
+- **Branch:** `refactors-4`
+- **Last Commits:**
+  - `0e708ce4` - docs: add TODO for conditional service initialization
+  - `aebf9c1a` - refactor: remove redundant agentId parameters
+  - `f40cad12` - feat(cli): implement config enrichment layer
+
+### ⏭️ Next Steps
+1. Start Week 5: Dependency Injection pattern for logger
+2. Then proceed to Phase 2: Vite Migration (weeks 6-7.5)
+
+---
+
+**Last Updated (original):** 2025-01-05
 
 ---
 
@@ -101,54 +127,82 @@ FOUNDATION (Must Be First):
 
 ### What Gets Built
 
-**Week 1: Path Removal**
-- Remove `getDextoPath()` from all services except logger
-- Make `storage.database.path` required for SQLite
-- Make `storage.blob.storePath` required for local storage
-- Add validation errors for missing paths
-- Update all service tests
+**Week 1: Path Removal** ✅ COMPLETED
+- [x] Remove `getDextoPath()` from all services except logger
+- [x] Make `storage.database.path` required for SQLite
+- [x] Make `storage.blob.storePath` required for local storage
+- [x] Add validation errors for missing paths
+- [x] Update all service tests
+- [x] **BONUS:** Remove agentId dead code (storage-manager, factories, stores)
+- **Key Files:** `storage-manager.ts`, `database/factory.ts`, `sqlite-store.ts`, `blob/factory.ts`, `local-blob-store.ts`
+- **Commits:** `aebf9c1a`, `f29a819e`, `946d9a93`
 
-**Week 2: Config Enrichment Layer**
-- Create `packages/cli/src/config/enrichment.ts`
-- Design `enrichAgentConfig(agentId, userConfig)` API
-- Per-agent path generation:
-  - `logs/{agentId}/dexto.log`
-  - `database/{agentId}.db`
-  - `data/blobs-{agentId}`
-- Environment-aware defaults (dev vs production)
-- Guardrails: enrichment must never overwrite user-specified values; normalize paths cross‑platform (Unix/Windows) and include tests for both.
+**Week 2: Config Enrichment Layer** ✅ COMPLETED
+- [x] Create `packages/cli/src/config/config-enrichment.ts`
+- [x] Design `enrichAgentConfig(config, configPath)` API
+- [x] Implement `deriveAgentId(config, configPath)` with priority logic
+- [x] Per-agent path generation:
+  - [x] `logs/{agentId}.log`
+  - [x] `database/{agentId}.db`
+  - [x] `blobs/{agentId}`
+- [x] Environment-aware defaults via `getDextoPath()` from @dexto/agent-management
+- [x] Comprehensive unit tests (40+ test cases)
+- **Key Files:** `cli/src/config/config-enrichment.ts`, `config-enrichment.test.ts`
+- **Commits:** `f40cad12`
+- **Note:** Guardrails implemented - enrichment preserves user-specified values
 
-**Weeks 3-4: Multi-Transport Logger**
-- Create `IDextoLogger` interface
-- Create `LoggerTransport` base class
-- Implement `FileTransport` (with rotation; default `maxSize=10MB`, `maxFiles=5`)
-- Implement `ConsoleTransport` (with colors)
-- Implement `UpstashTransport` (optional remote logging)
-- Create `DextoLogger` class with multi-transport support
-- Add structured logging (context objects)
-- Add `DextoLogComponent` enum
+**Weeks 3-4: Multi-Transport Logger** ✅ COMPLETED (95%)
+- [x] Create logger transport interfaces (`LoggerTransport` type)
+- [x] Create `BaseTransport` abstract class
+- [x] Implement `FileTransport` (with rotation; default `maxSize=10MB`, `maxFiles=5`)
+- [x] Implement `ConsoleTransport` (with colors via chalk)
+- [ ] Implement `UpstashTransport` (OPTIONAL - deferred, not needed yet)
+- [x] Create `DextoLogger` class with multi-transport support
+- [x] Add structured logging (context objects, metadata)
+- [x] Add `DextoLogComponent` enum for component-based filtering
+- [x] Integrate logger config into `AgentConfigSchema`
+- [x] CLI enrichment adds file transport automatically
+- **Key Files:** `logger/v2/dexto-logger.ts`, `transports/*.ts`, `schemas.ts`
+- **Commits:** `acb6ca80`, `e8df8a9e`, `12e8e093`
 
-**Week 5: Dependency Injection**
-- Update `createAgentServices()` to accept logger
-- Inject logger into all services (storage, MCP, LLM, etc.)
-- Remove singleton logger pattern
-- Update all service tests to provide logger
+**Week 5: Dependency Injection** ❌ NOT STARTED (NEXT TASK)
+- [ ] Update `createAgentServices()` to accept logger parameter
+- [ ] Inject logger into all services (storage, MCP, LLM, tools, etc.)
+- [ ] Remove singleton logger pattern from `logger/index.ts`
+- [ ] Update all service constructors to accept logger
+- [ ] Update all service tests to provide logger
+- [ ] Replace global `logger` imports with injected logger
+- **Estimated Effort:** 12-16 hours
+- **Key Challenge:** Touching many files, requires careful testing
 
 ### Success Criteria
 
-- [ ] No `getDextoPath()` imports in `@dexto/core`
-- [ ] All services accept explicit paths via config
-- [ ] Logger fully configurable with transports
-- [ ] CLI enriches config with per-agent defaults
-- [ ] DI pattern established throughout codebase
+- [x] No `getDextoPath()` imports in `@dexto/core` (only in utils/path.ts definition)
+- [x] All services accept explicit paths via config
+- [x] Logger fully configurable with transports
+- [x] CLI enriches config with per-agent defaults
+- [ ] DI pattern established throughout codebase (Week 5 - PENDING)
 
 ### Deliverables
 
-✅ Serverless-compatible core
-✅ Per-agent isolation for all file-based resources
-✅ Multi-transport logging (file, console, remote)
-✅ Dependency injection pattern established
-✅ Config enrichment API (reusable by project-based)
+- [x] **Serverless-compatible core** - Core no longer assumes filesystem access
+- [x] **Per-agent isolation** - All file-based resources isolated by agentId
+- [x] **Multi-transport logging** - File, console (remote deferred)
+- [ ] **Dependency injection pattern** - Week 5 pending
+- [x] **Config enrichment API** - Ready for project-based architecture reuse
+
+### Additional Notes
+
+**Conditional Service Initialization (Added):**
+- Added TODO in `service-initializer.ts` for lazy initialization of FileSystemService and ProcessService
+- These services should only initialize when their dependent tools are enabled
+- Current behavior: Always initialized for backward compatibility
+- Future optimization: Check `config.internalTools` and conditionally initialize
+
+**Backup Path Configuration:**
+- FileSystemService backup paths remain unconfigured (separate from AgentConfig)
+- Backups disabled by default (no `backupPath` provided)
+- To enable: Would need filesystem config in AgentConfig schema + CLI enrichment
 
 ---
 
