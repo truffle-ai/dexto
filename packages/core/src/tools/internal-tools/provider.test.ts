@@ -35,8 +35,21 @@ describe('InternalToolsProvider', () => {
     let mockServices: InternalToolsServices;
     let approvalManager: ApprovalManager;
     let config: InternalToolsConfig;
+    let mockLogger: any;
 
     beforeEach(() => {
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
+
         // Mock SearchService
         mockServices = {
             searchService: {
@@ -58,10 +71,14 @@ describe('InternalToolsProvider', () => {
             removeAllListeners: vi.fn(),
         } as any;
 
-        approvalManager = new ApprovalManager(mockAgentEventBus, {
-            mode: 'auto-approve',
-            timeout: 120000,
-        });
+        approvalManager = new ApprovalManager(
+            mockAgentEventBus,
+            {
+                mode: 'auto-approve',
+                timeout: 120000,
+            },
+            mockLogger
+        );
 
         config = ['search_history'];
 

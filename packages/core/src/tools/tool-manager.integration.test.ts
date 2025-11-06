@@ -30,10 +30,23 @@ describe('ToolManager Integration Tests', () => {
     let internalToolsServices: InternalToolsServices;
     let internalToolsConfig: InternalToolsConfig;
     let mockAgentEventBus: AgentEventBus;
+    let mockLogger: any;
 
     beforeEach(() => {
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
+
         // Create real MCPManager
-        mcpManager = new MCPManager();
+        mcpManager = new MCPManager(mockLogger);
 
         // Create mock AgentEventBus
         mockAgentEventBus = {
@@ -45,10 +58,14 @@ describe('ToolManager Integration Tests', () => {
         } as any;
 
         // Create ApprovalManager in auto-approve mode for integration tests
-        approvalManager = new ApprovalManager(mockAgentEventBus, {
-            mode: 'auto-approve',
-            timeout: 120000,
-        });
+        approvalManager = new ApprovalManager(
+            mockAgentEventBus,
+            {
+                mode: 'auto-approve',
+                timeout: 120000,
+            },
+            mockLogger
+        );
 
         // Create mock AllowedToolsProvider
         allowedToolsProvider = {
@@ -100,7 +117,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsServices: {},
+                    internalToolsConfig: [],
+                },
+                mockLogger
             );
             await toolManager.initialize();
 
@@ -119,11 +141,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined,
+                { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices,
                     internalToolsConfig,
-                }
+                },
+                mockLogger
             );
 
             await toolManager.initialize();
@@ -169,11 +192,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined,
+                { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices,
                     internalToolsConfig,
-                }
+                },
+                mockLogger
             );
 
             await toolManager.initialize();
@@ -200,10 +224,14 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Confirmation Flow Integration', () => {
         it('should work with auto-approve mode', async () => {
-            const autoApproveManager = new ApprovalManager(mockAgentEventBus, {
-                mode: 'auto-approve',
-                timeout: 120000,
-            });
+            const testAutoApproveManager = new ApprovalManager(
+                mockAgentEventBus,
+                {
+                    mode: 'auto-approve',
+                    timeout: 120000,
+                },
+                mockLogger
+            );
             const mockClient: IMCPClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
@@ -217,16 +245,22 @@ describe('ToolManager Integration Tests', () => {
                 listResources: vi.fn().mockResolvedValue([]),
             } as any;
 
-            const mcpMgr = new MCPManager();
+            const mcpMgr = new MCPManager(mockLogger);
             mcpMgr.registerClient('test-server', mockClient);
             await (mcpMgr as any).updateClientCache('test-server', mockClient);
 
             const toolManager = new ToolManager(
                 mcpMgr,
-                autoApproveManager,
+                testAutoApproveManager,
                 allowedToolsProvider,
                 'auto-approve',
-                mockAgentEventBus
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsServices: {},
+                    internalToolsConfig: [],
+                },
+                mockLogger
             );
             const result = await toolManager.executeTool('mcp--test_tool', {});
 
@@ -234,10 +268,14 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('should work with auto-deny mode', async () => {
-            const autoDenyManager = new ApprovalManager(mockAgentEventBus, {
-                mode: 'auto-deny',
-                timeout: 120000,
-            });
+            const autoDenyManager = new ApprovalManager(
+                mockAgentEventBus,
+                {
+                    mode: 'auto-deny',
+                    timeout: 120000,
+                },
+                mockLogger
+            );
             const mockClient: IMCPClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
@@ -251,7 +289,7 @@ describe('ToolManager Integration Tests', () => {
                 listResources: vi.fn().mockResolvedValue([]),
             } as any;
 
-            const mcpMgr = new MCPManager();
+            const mcpMgr = new MCPManager(mockLogger);
             mcpMgr.registerClient('test-server', mockClient);
             await (mcpMgr as any).updateClientCache('test-server', mockClient);
 
@@ -260,7 +298,13 @@ describe('ToolManager Integration Tests', () => {
                 autoDenyManager,
                 allowedToolsProvider,
                 'auto-deny',
-                mockAgentEventBus
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsServices: {},
+                    internalToolsConfig: [],
+                },
+                mockLogger
             );
 
             const error = (await toolManager
@@ -292,11 +336,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined,
+                { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices,
                     internalToolsConfig,
-                }
+                },
+                mockLogger
             );
 
             await toolManager.initialize();
@@ -321,11 +366,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined,
+                { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices: failingServices,
                     internalToolsConfig,
-                }
+                },
+                mockLogger
             );
 
             await toolManager.initialize();
@@ -360,7 +406,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsServices: {},
+                    internalToolsConfig: [],
+                },
+                mockLogger
             );
 
             await expect(toolManager.executeTool('mcp--failing_tool', {})).rejects.toThrow(Error);
@@ -383,11 +434,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined,
+                { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices: failingServices,
                     internalToolsConfig,
-                }
+                },
+                mockLogger
             );
 
             await toolManager.initialize();
@@ -429,11 +481,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined,
+                { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices,
                     internalToolsConfig,
-                }
+                },
+                mockLogger
             );
 
             await toolManager.initialize();
@@ -473,7 +526,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsServices: {},
+                    internalToolsConfig: [],
+                },
+                mockLogger
             );
 
             // First call uses MCPManager's cache (no client call)
@@ -517,11 +575,12 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined,
+                { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices,
                     internalToolsConfig,
-                }
+                },
+                mockLogger
             );
 
             await toolManager.initialize();

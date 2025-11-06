@@ -28,6 +28,7 @@ describe('SessionManager', () => {
     let mockServices: any;
     let mockStorageManager: any;
     let mockLLMConfig: ValidatedLLMConfig;
+    let mockLogger: any;
 
     const mockSessionData = {
         id: 'test-session',
@@ -38,6 +39,18 @@ describe('SessionManager', () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
+
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
 
         // Mock storage manager with proper getter structure
         const mockCache = {
@@ -134,10 +147,14 @@ describe('SessionManager', () => {
         });
 
         // Create SessionManager instance
-        sessionManager = new SessionManager(mockServices, {
-            maxSessions: 10,
-            sessionTTL: 1800000, // 30 minutes
-        });
+        sessionManager = new SessionManager(
+            mockServices,
+            {
+                maxSessions: 10,
+                sessionTTL: 1800000, // 30 minutes
+            },
+            mockLogger
+        );
 
         // Mock ChatSession constructor and methods
         MockChatSession.mockImplementation((services, id) => {
@@ -173,11 +190,15 @@ describe('SessionManager', () => {
 
     describe('Session Lifecycle Management', () => {
         test('should support flexible initialization options', () => {
-            const defaultManager = new SessionManager(mockServices);
-            const customManager = new SessionManager(mockServices, {
-                maxSessions: 50,
-                sessionTTL: 7200000, // 2 hours
-            });
+            const defaultManager = new SessionManager(mockServices, {}, mockLogger);
+            const customManager = new SessionManager(
+                mockServices,
+                {
+                    maxSessions: 50,
+                    sessionTTL: 7200000, // 2 hours
+                },
+                mockLogger
+            );
 
             expect(defaultManager).toBeDefined();
             expect(customManager).toBeDefined();
@@ -299,7 +320,7 @@ describe('SessionManager', () => {
     describe('Session Limits and Resource Management', () => {
         test('should enforce maximum session limits', async () => {
             const maxSessions = 2;
-            const limitedManager = new SessionManager(mockServices, { maxSessions });
+            const limitedManager = new SessionManager(mockServices, { maxSessions }, mockLogger);
             await limitedManager.init();
 
             // Mock that we already have max sessions
@@ -704,10 +725,14 @@ describe('SessionManager', () => {
 
         test('should prevent race conditions when creating multiple different sessions concurrently', async () => {
             // Set a low session limit to test the race condition prevention
-            const limitedSessionManager = new SessionManager(mockServices, {
-                maxSessions: 2,
-                sessionTTL: 1800000, // 30 minutes
-            });
+            const limitedSessionManager = new SessionManager(
+                mockServices,
+                {
+                    maxSessions: 2,
+                    sessionTTL: 1800000, // 30 minutes
+                },
+                mockLogger
+            );
             await limitedSessionManager.init();
 
             // Create 2 sessions sequentially first to reach the limit
@@ -845,9 +870,13 @@ describe('SessionManager', () => {
 
         test('should use correct cleanup interval based on session TTL', async () => {
             // Create SessionManager with different TTL
-            const shortTTLSessionManager = new SessionManager(mockServices, {
-                sessionTTL: 60000, // 1 minute
-            });
+            const shortTTLSessionManager = new SessionManager(
+                mockServices,
+                {
+                    sessionTTL: 60000, // 1 minute
+                },
+                mockLogger
+            );
 
             const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
@@ -1049,7 +1078,8 @@ describe('SessionManager', () => {
                 {
                     maxSessions: 10,
                     sessionTTL: 100, // 100ms for fast testing
-                }
+                },
+                mockLogger
             );
 
             await realSessionManager.init();

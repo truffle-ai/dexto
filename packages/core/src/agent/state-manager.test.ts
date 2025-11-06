@@ -11,9 +11,21 @@ describe('AgentStateManager Events', () => {
     let eventBus: AgentEventBus;
     let mockConfig: AgentConfig;
     let validatedConfig: ValidatedAgentConfig;
+    let mockLogger: any;
 
     beforeEach(() => {
         eventBus = new AgentEventBus();
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
         mockConfig = {
             systemPrompt: 'You are a helpful assistant',
             mcpServers: {
@@ -51,7 +63,7 @@ describe('AgentStateManager Events', () => {
         };
         // Parse through schema to validate and apply defaults, converting input to ValidatedAgentConfig
         validatedConfig = AgentConfigSchema.parse(mockConfig);
-        stateManager = new AgentStateManager(validatedConfig, eventBus);
+        stateManager = new AgentStateManager(validatedConfig, eventBus, mockLogger);
     });
 
     it('emits dexto:stateChanged when LLM config is updated', () => {

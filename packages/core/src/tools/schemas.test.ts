@@ -120,6 +120,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'event-based',
                 timeout: 120000,
                 allowedToolsStorage: 'storage',
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             });
         });
 
@@ -129,6 +133,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'auto-approve',
                 timeout: 120000,
                 allowedToolsStorage: 'storage',
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             });
 
             const result2 = ToolConfirmationConfigSchema.parse({ timeout: 15000 });
@@ -136,6 +144,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'event-based',
                 timeout: 15000,
                 allowedToolsStorage: 'storage',
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             });
 
             const result3 = ToolConfirmationConfigSchema.parse({ allowedToolsStorage: 'memory' });
@@ -143,6 +155,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'event-based',
                 timeout: 120000,
                 allowedToolsStorage: 'memory',
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             });
         });
 
@@ -151,6 +167,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'auto-deny' as const,
                 timeout: 60000,
                 allowedToolsStorage: 'memory' as const,
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             };
 
             const result = ToolConfirmationConfigSchema.parse(config);
@@ -244,6 +264,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'event-based' as const,
                 timeout: 30000,
                 allowedToolsStorage: 'storage' as const,
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             };
 
             const result = ToolConfirmationConfigSchema.parse(interactiveConfig);
@@ -255,6 +279,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'auto-approve' as const,
                 timeout: 1000, // Lower timeout since no user interaction
                 allowedToolsStorage: 'memory' as const, // Memory for development
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             };
 
             const result = ToolConfirmationConfigSchema.parse(autoApproveConfig);
@@ -266,6 +294,10 @@ describe('ToolConfirmationConfigSchema', () => {
                 mode: 'auto-deny' as const,
                 timeout: 5000, // Short timeout
                 allowedToolsStorage: 'memory' as const, // No persistent approvals
+                toolPolicies: {
+                    alwaysAllow: [],
+                    alwaysDeny: [],
+                },
             };
 
             const result = ToolConfirmationConfigSchema.parse(strictConfig);

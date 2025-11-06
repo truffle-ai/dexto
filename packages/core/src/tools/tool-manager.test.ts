@@ -24,6 +24,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     let mockApprovalManager: ApprovalManager;
     let mockAllowedToolsProvider: IAllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
+    let mockLogger: any;
 
     beforeEach(() => {
         mockMcpManager = {
@@ -58,6 +59,16 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             removeAllListeners: vi.fn(),
         } as any;
 
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(() => mockLogger),
+            destroy: vi.fn(),
+        } as any;
+
         vi.clearAllMocks();
     });
 
@@ -69,7 +80,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             expect(toolManager.getToolSource('mcp--file_read')).toBe('mcp');
@@ -83,7 +96,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             expect(toolManager.getToolSource('internal--search_history')).toBe('internal');
@@ -97,7 +112,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             expect(toolManager.getToolSource('invalid_tool')).toBe('unknown');
@@ -112,7 +129,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
@@ -150,7 +169,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const error = (await toolManager
@@ -169,7 +190,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const mcpError = (await toolManager
@@ -199,7 +222,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             await expect(toolManager.executeTool('internal--search_history', {})).rejects.toThrow(
@@ -218,7 +243,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
@@ -239,7 +266,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -262,7 +291,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const error = (await toolManager
@@ -285,7 +316,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -308,7 +341,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -330,7 +365,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
@@ -347,7 +384,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-deny',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const error = (await toolManager
@@ -374,7 +413,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             // First call
@@ -397,7 +438,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             // First call
@@ -428,7 +471,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const stats = await toolManager.getToolStats();
@@ -449,7 +494,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const stats = await toolManager.getToolStats();
@@ -470,7 +517,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const stats = await toolManager.getToolStats();
@@ -493,7 +542,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const exists = await toolManager.hasTool('mcp--file_read');
@@ -511,7 +562,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const exists = await toolManager.hasTool('mcp--nonexistent');
@@ -526,7 +579,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             const exists = await toolManager.hasTool('invalid_tool');
@@ -546,7 +601,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             await expect(
@@ -564,7 +621,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'event-based',
                 mockAgentEventBus,
-                undefined
+                { alwaysAllow: [], alwaysDeny: [] },
+                { internalToolsConfig: [], internalToolsServices: {} as any },
+                mockLogger
             );
 
             await expect(
@@ -593,7 +652,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 await expect(
@@ -617,7 +678,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 await expect(
@@ -639,7 +702,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--filesystem--read_file', {
@@ -671,7 +736,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--filesystem--read_file', {
@@ -704,7 +771,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--filesystem--read_file', {
@@ -729,7 +798,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'auto-approve',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 await expect(
@@ -751,7 +822,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'auto-approve',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--filesystem--read_file', {
@@ -776,7 +849,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'auto-deny',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--filesystem--read_file', {
@@ -799,7 +874,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'auto-deny',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 await expect(
@@ -824,7 +901,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    undefined // No policies
+                    { alwaysAllow: [], alwaysDeny: [] }, // No policies
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--filesystem--read_file', {
@@ -853,7 +932,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--filesystem--read_file', {
@@ -882,7 +963,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     {
                         internalToolsServices: {},
                         internalToolsConfig: ['ask_user'],
-                    }
+                    },
+                    mockLogger
                 );
 
                 // Should not throw since internal tools provider will be initialized
@@ -909,7 +991,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 const result = await toolManager.executeTool('mcp--read_file', { path: '/test' });
@@ -930,7 +1014,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 // Tool with server prefix should match simple policy
@@ -961,7 +1047,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 await expect(
@@ -983,7 +1071,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 // Tool with server prefix should match simple policy
@@ -1012,7 +1102,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 // This should NOT match because it doesn't end with --read_file
@@ -1042,7 +1134,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 // MCP tool with suffix should match (suffix matching works)
@@ -1077,7 +1171,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'event-based',
                     mockAgentEventBus,
-                    toolPolicies
+                    toolPolicies,
+                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    mockLogger
                 );
 
                 // Test various matching scenarios
