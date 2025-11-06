@@ -36,6 +36,7 @@ describe('AgentStateManager Events', () => {
             storage: {
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             },
             internalTools: [],
             sessions: {

@@ -273,8 +273,8 @@ describe('AgentConfigSchema', () => {
             // Should apply defaults from composed schemas
             expect(result.mcpServers).toEqual({});
             expect(result.internalTools).toEqual([]);
-            expect(result.storage.cache.type).toBe('in-memory');
-            expect(result.storage.database.type).toBe('in-memory');
+            expect(result.storage?.cache.type).toBe('in-memory');
+            expect(result.storage?.database.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation).toBeDefined();
         });
@@ -314,6 +314,7 @@ describe('AgentConfigSchema', () => {
                 storage: {
                     cache: { type: 'redis', url: 'redis://localhost:6379' },
                     database: { type: 'postgres', url: 'postgresql://localhost:5432/test' },
+                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
                 },
                 sessions: {
                     maxSessions: 5,
@@ -333,7 +334,7 @@ describe('AgentConfigSchema', () => {
             expect(result.internalTools).toEqual(['search_history']);
             expect(result.llm.provider).toBe('anthropic');
             expect(result.llm.router).toBe('in-built');
-            expect(result.storage.cache.type).toBe('redis');
+            expect(result.storage?.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(5);
             expect(result.toolConfirmation.mode).toBe('auto-approve');
         });
@@ -401,7 +402,7 @@ describe('AgentConfigSchema', () => {
             // Defaults from different schemas should all be applied
             expect(result.llm.maxIterations).toBe(50); // LLM schema default
             expect(result.llm.router).toBe('vercel'); // LLM schema default
-            expect(result.storage.cache.type).toBe('in-memory'); // Storage schema default
+            expect(result.storage?.cache.type).toBe('in-memory'); // Storage schema default
             expect(result.sessions.maxSessions).toBe(100); // Session schema default
             expect(result.toolConfirmation.mode).toBe('event-based'); // Tool schema default
         });
@@ -444,7 +445,7 @@ describe('AgentConfigSchema', () => {
             // TypeScript should infer correct nested types
             expect(typeof config.llm.provider).toBe('string');
             expect(typeof config.llm.model).toBe('string');
-            expect(typeof config.storage.cache.type).toBe('string');
+            expect(typeof config.storage?.cache.type).toBe('string');
             expect(Array.isArray(config.internalTools)).toBe(true);
             expect(typeof config.sessions.maxSessions).toBe('number');
         });
@@ -511,6 +512,7 @@ describe('AgentConfigSchema', () => {
                         type: 'postgres',
                         url: 'postgresql://db.company.com:5432/agent_db',
                     },
+                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
                 },
                 sessions: {
                     maxSessions: 100,
@@ -530,7 +532,7 @@ describe('AgentConfigSchema', () => {
             expect(Object.keys(result.mcpServers)).toHaveLength(2);
             expect(result.internalTools).toEqual(['search_history']);
             expect(result.llm.temperature).toBe(0.3);
-            expect(result.storage.cache.type).toBe('redis');
+            expect(result.storage?.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(100);
             expect(result.toolConfirmation.timeout).toBe(45000);
         });
@@ -550,8 +552,8 @@ describe('AgentConfigSchema', () => {
             // Should have all defaults applied
             expect(result.mcpServers).toEqual({});
             expect(result.internalTools).toEqual([]);
-            expect(result.storage.cache.type).toBe('in-memory');
-            expect(result.storage.database.type).toBe('in-memory');
+            expect(result.storage?.cache.type).toBe('in-memory');
+            expect(result.storage?.database.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation.mode).toBe('event-based');
             expect(result.llm.maxIterations).toBe(50);

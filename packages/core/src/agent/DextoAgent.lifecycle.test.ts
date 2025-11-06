@@ -37,6 +37,7 @@ describe('DextoAgent Lifecycle Management', () => {
             storage: {
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             },
             sessions: {
                 maxSessions: 10,

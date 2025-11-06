@@ -335,6 +335,7 @@ describe('StorageSchema', () => {
             const config: StorageConfig = {
                 cache: { type: 'redis', url: 'redis://localhost:6379' },
                 database: { type: 'postgres', url: 'postgresql://localhost/dexto' },
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             };
 
             const result = StorageSchema.safeParse(config);
@@ -382,19 +383,13 @@ describe('StorageSchema', () => {
             const devConfig: StorageConfig = {
                 cache: { type: 'in-memory' },
                 database: { type: 'sqlite', path: './dev.db' },
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             };
 
             const result = StorageSchema.safeParse(devConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                // Blob config is added with default value
                 expect(result.data).toMatchObject(devConfig);
-                expect(result.data.blob).toEqual({
-                    type: 'local',
-                    maxBlobSize: 50 * 1024 * 1024,
-                    maxTotalSize: 1024 * 1024 * 1024,
-                    cleanupAfterDays: 30,
-                });
             }
         });
 
@@ -412,19 +407,13 @@ describe('StorageSchema', () => {
                     maxConnections: 20,
                     connectionTimeoutMillis: 5000,
                 },
+                blob: { type: 'local', storePath: '/var/dexto/blobs' },
             };
 
             const result = StorageSchema.safeParse(prodConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                // Blob config is added with default value
                 expect(result.data).toMatchObject(prodConfig);
-                expect(result.data.blob).toEqual({
-                    type: 'local',
-                    maxBlobSize: 50 * 1024 * 1024,
-                    maxTotalSize: 1024 * 1024 * 1024,
-                    cleanupAfterDays: 30,
-                });
             }
         });
 
@@ -445,19 +434,13 @@ describe('StorageSchema', () => {
                     password: 'db-secret',
                     maxConnections: 50,
                 },
+                blob: { type: 'local', storePath: '/var/dexto/blobs' },
             };
 
             const result = StorageSchema.safeParse(haConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                // Blob config is added with default value
                 expect(result.data).toMatchObject(haConfig);
-                expect(result.data.blob).toEqual({
-                    type: 'local',
-                    maxBlobSize: 50 * 1024 * 1024,
-                    maxTotalSize: 1024 * 1024 * 1024,
-                    cleanupAfterDays: 30,
-                });
             }
         });
     });

@@ -21,6 +21,7 @@ describe('Session Integration: Chat History Preservation', () => {
         storage: {
             cache: { type: 'in-memory' },
             database: { type: 'in-memory' },
+            blob: { type: 'local', storePath: '/tmp/test-blobs' },
         },
         sessions: {
             maxSessions: 10,
