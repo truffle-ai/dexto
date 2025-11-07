@@ -76,53 +76,7 @@
     }
   ],
   "components": {
-    "schemas": {
-      "SessionScopes": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
-          },
-          "parentSessionId": {
-            "type": "string",
-            "description": "Parent session ID for hierarchical sessions"
-          },
-          "depth": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Depth in session hierarchy"
-          },
-          "lifecycle": {
-            "type": "string",
-            "enum": [
-              "ephemeral",
-              "persistent",
-              "archived"
-            ],
-            "description": "Lifecycle policy for the session"
-          },
-          "visibility": {
-            "type": "string",
-            "enum": [
-              "private",
-              "shared",
-              "public"
-            ],
-            "description": "Visibility/access control level"
-          },
-          "agentIdentifier": {
-            "type": "string",
-            "description": "Agent identifier for custom agent sessions"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "additionalProperties": false,
-        "description": "Session scopes for filtering and organization"
-      }
-    },
+    "schemas": {},
     "parameters": {}
   },
   "paths": {
@@ -1412,7 +1366,49 @@
                             "description": "Optional session title"
                           },
                           "scopes": {
-                            "$ref": "#/components/schemas/SessionScopes"
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                              },
+                              "parentSessionId": {
+                                "type": "string",
+                                "description": "Parent session ID for hierarchical sessions"
+                              },
+                              "depth": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Depth in session hierarchy"
+                              },
+                              "lifecycle": {
+                                "type": "string",
+                                "enum": [
+                                  "ephemeral",
+                                  "persistent",
+                                  "archived"
+                                ],
+                                "description": "Lifecycle policy for the session"
+                              },
+                              "visibility": {
+                                "type": "string",
+                                "enum": [
+                                  "private",
+                                  "shared",
+                                  "public"
+                                ],
+                                "description": "Visibility/access control level"
+                              },
+                              "agentIdentifier": {
+                                "type": "string",
+                                "description": "Agent identifier for custom agent sessions"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Session scopes for filtering and organization"
                           }
                         },
                         "required": [
@@ -1500,7 +1496,49 @@
                           "description": "Optional session title"
                         },
                         "scopes": {
-                          "$ref": "#/components/schemas/SessionScopes"
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                            },
+                            "parentSessionId": {
+                              "type": "string",
+                              "description": "Parent session ID for hierarchical sessions"
+                            },
+                            "depth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Depth in session hierarchy"
+                            },
+                            "lifecycle": {
+                              "type": "string",
+                              "enum": [
+                                "ephemeral",
+                                "persistent",
+                                "archived"
+                              ],
+                              "description": "Lifecycle policy for the session"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": [
+                                "private",
+                                "shared",
+                                "public"
+                              ],
+                              "description": "Visibility/access control level"
+                            },
+                            "agentIdentifier": {
+                              "type": "string",
+                              "description": "Agent identifier for custom agent sessions"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Session scopes for filtering and organization"
                         }
                       },
                       "required": [
@@ -1616,7 +1654,49 @@
                           "description": "Optional session title"
                         },
                         "scopes": {
-                          "$ref": "#/components/schemas/SessionScopes"
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                            },
+                            "parentSessionId": {
+                              "type": "string",
+                              "description": "Parent session ID for hierarchical sessions"
+                            },
+                            "depth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Depth in session hierarchy"
+                            },
+                            "lifecycle": {
+                              "type": "string",
+                              "enum": [
+                                "ephemeral",
+                                "persistent",
+                                "archived"
+                              ],
+                              "description": "Lifecycle policy for the session"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": [
+                                "private",
+                                "shared",
+                                "public"
+                              ],
+                              "description": "Visibility/access control level"
+                            },
+                            "agentIdentifier": {
+                              "type": "string",
+                              "description": "Agent identifier for custom agent sessions"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Session scopes for filtering and organization"
                         },
                         "history": {
                           "type": "integer",
@@ -1773,7 +1853,49 @@
                           "description": "Optional session title"
                         },
                         "scopes": {
-                          "$ref": "#/components/schemas/SessionScopes"
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                            },
+                            "parentSessionId": {
+                              "type": "string",
+                              "description": "Parent session ID for hierarchical sessions"
+                            },
+                            "depth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Depth in session hierarchy"
+                            },
+                            "lifecycle": {
+                              "type": "string",
+                              "enum": [
+                                "ephemeral",
+                                "persistent",
+                                "archived"
+                              ],
+                              "description": "Lifecycle policy for the session"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": [
+                                "private",
+                                "shared",
+                                "public"
+                              ],
+                              "description": "Visibility/access control level"
+                            },
+                            "agentIdentifier": {
+                              "type": "string",
+                              "description": "Agent identifier for custom agent sessions"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Session scopes for filtering and organization"
                         }
                       },
                       "required": [

@@ -2137,6 +2137,7 @@ export async function initializeApi(
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
+                    scopes: metadata?.scopes,
                     history: history.length,
                 },
             });
@@ -2241,6 +2242,7 @@ export async function initializeApi(
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || title,
+                    scopes: metadata?.scopes,
                 },
             });
         } catch (error) {
