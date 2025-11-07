@@ -589,6 +589,19 @@ export class DextoAgent {
         }
     ): Promise<ChatSession> {
         this.ensureStarted();
+
+        // Validate agentConfig at DextoAgent boundary (per CLAUDE.md architecture guidelines)
+        if (options?.agentConfig) {
+            try {
+                AgentConfigSchema.parse(options.agentConfig);
+            } catch (error) {
+                if (error instanceof Error) {
+                    throw new Error(`Invalid agent config: ${error.message}`);
+                }
+                throw new Error('Invalid agent config: Unknown validation error');
+            }
+        }
+
         return await this.sessionManager.createSession(sessionId, options);
     }
 

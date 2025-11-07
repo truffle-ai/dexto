@@ -476,6 +476,8 @@ describe('SessionManager', () => {
             expect(config).toEqual({
                 maxSessions: 10,
                 sessionTTL: 1800000,
+                maxSubAgentDepth: 1,
+                subAgentLifecycle: 'ephemeral',
             });
         });
 
@@ -770,10 +772,17 @@ describe('SessionManager', () => {
         test('should handle legacy session metadata without TTL fields', async () => {
             const sessionId = 'legacy-session';
             const legacyMetadata = {
+                id: sessionId,
                 createdAt: new Date().getTime(),
                 lastActivity: new Date().getTime(),
                 messageCount: 0,
-                // Missing maxSessions and sessionTTL
+                scopes: {
+                    type: 'primary',
+                    depth: 0,
+                    lifecycle: 'persistent',
+                    visibility: 'private',
+                },
+                // Missing maxSessions and sessionTTL (legacy fields)
             };
 
             mockStorageManager.database.get.mockResolvedValue(legacyMetadata);
@@ -899,6 +908,12 @@ describe('SessionManager', () => {
                 createdAt: Date.now() - 7200000, // 2 hours ago
                 lastActivity: Date.now() - 7200000, // 2 hours ago (expired)
                 messageCount: 5,
+                scopes: {
+                    type: 'primary',
+                    depth: 0,
+                    lifecycle: 'persistent',
+                    visibility: 'private',
+                },
             };
             mockStorageManager.database.get.mockResolvedValue(expiredSessionData);
 
@@ -924,6 +939,12 @@ describe('SessionManager', () => {
                 createdAt: Date.now() - 3600000, // 1 hour ago
                 lastActivity: Date.now() - 1800000, // 30 minutes ago
                 messageCount: 10,
+                scopes: {
+                    type: 'primary',
+                    depth: 0,
+                    lifecycle: 'persistent',
+                    visibility: 'private',
+                },
             };
             mockStorageManager.database.get.mockResolvedValue(storedSessionData);
 
@@ -934,7 +955,10 @@ describe('SessionManager', () => {
             expect(restoredSession!.id).toBe(sessionId);
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
-                sessionId
+                sessionId,
+                undefined, // agentConfig
+                undefined, // parentSessionId (from scopes)
+                undefined // agentIdentifier (from scopes)
             );
 
             // Session should now be in memory
@@ -969,6 +993,12 @@ describe('SessionManager', () => {
                 createdAt: Date.now() - 7200000,
                 lastActivity: Date.now() - 7200000, // Expired
                 messageCount: 15,
+                scopes: {
+                    type: 'primary',
+                    depth: 0,
+                    lifecycle: 'persistent',
+                    visibility: 'private',
+                },
             };
             mockStorageManager.database.get.mockResolvedValue(expiredSessionData);
 

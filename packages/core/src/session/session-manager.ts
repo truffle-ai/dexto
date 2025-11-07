@@ -72,6 +72,7 @@ export interface SessionManagerConfig {
     maxSessions?: number;
     sessionTTL?: number;
     maxSubAgentDepth?: number; // Maximum nesting depth for sub-agents (default: 1 - allows one level: parent → child)
+    subAgentLifecycle?: 'ephemeral' | 'persistent'; // Lifecycle policy for sub-agents (default: ephemeral)
 }
 
 /**
@@ -114,6 +115,7 @@ export class SessionManager {
     private readonly maxSessions: number;
     private readonly sessionTTL: number;
     private readonly maxSubAgentDepth: number;
+    private readonly subAgentLifecycle: 'ephemeral' | 'persistent';
     private initialized = false;
     private cleanupInterval?: NodeJS.Timeout;
     private initializationPromise!: Promise<void>;
@@ -136,6 +138,7 @@ export class SessionManager {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
         this.maxSubAgentDepth = config.maxSubAgentDepth ?? 1; // Default: allows one level (parent 0 → child 1)
+        this.subAgentLifecycle = config.subAgentLifecycle ?? 'ephemeral'; // Default: ephemeral for sub-agents
     }
 
     /**
@@ -335,7 +338,8 @@ export class SessionManager {
                 { ...this.services, sessionManager: this },
                 id,
                 undefined, // agentConfig - not restored
-                existingMetadata.scopes.parentSessionId // parentSessionId - restore for event forwarding
+                existingMetadata.scopes.parentSessionId, // parentSessionId - restore for event forwarding
+                existingMetadata.scopes.agentIdentifier // agentIdentifier - restore for sub-agent metadata
             );
             await session.init();
             this.sessions.set(id, session);
@@ -444,10 +448,13 @@ export class SessionManager {
                 .getDatabase()
                 .get<SessionData>(sessionKey);
             if (sessionData) {
-                // Restore session to memory
+                // Restore session to memory with parent/agent scopes
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
-                    sessionId
+                    sessionId,
+                    undefined, // agentConfig - not restored
+                    sessionData.scopes.parentSessionId, // parentSessionId - restore for event forwarding
+                    sessionData.scopes.agentIdentifier // agentIdentifier - restore for sub-agent metadata
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);
@@ -641,6 +648,8 @@ export class SessionManager {
         return {
             maxSessions: this.maxSessions,
             sessionTTL: this.sessionTTL,
+            maxSubAgentDepth: this.maxSubAgentDepth,
+            subAgentLifecycle: this.subAgentLifecycle,
         };
     }
 

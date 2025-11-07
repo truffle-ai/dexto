@@ -76,6 +76,7 @@ describe('SessionConfigSchema', () => {
             expect(result).toEqual({
                 maxSessions: 100,
                 sessionTTL: 3600000,
+                subAgentLifecycle: 'ephemeral',
             });
         });
 
@@ -84,12 +85,14 @@ describe('SessionConfigSchema', () => {
             expect(result1).toEqual({
                 maxSessions: 50,
                 sessionTTL: 3600000,
+                subAgentLifecycle: 'ephemeral',
             });
 
             const result2 = SessionConfigSchema.parse({ sessionTTL: 1800000 });
             expect(result2).toEqual({
                 maxSessions: 100,
                 sessionTTL: 1800000,
+                subAgentLifecycle: 'ephemeral',
             });
         });
 
@@ -97,6 +100,7 @@ describe('SessionConfigSchema', () => {
             const config = {
                 maxSessions: 200,
                 sessionTTL: 7200000,
+                subAgentLifecycle: 'ephemeral' as const,
             };
 
             const result = SessionConfigSchema.parse(config);
@@ -185,6 +189,7 @@ describe('SessionConfigSchema', () => {
             const prodConfig = {
                 maxSessions: 1000,
                 sessionTTL: 7200000, // 2 hours
+                subAgentLifecycle: 'ephemeral' as const,
             };
 
             const result = SessionConfigSchema.parse(prodConfig);
@@ -195,6 +200,7 @@ describe('SessionConfigSchema', () => {
             const devConfig = {
                 maxSessions: 10,
                 sessionTTL: 300000, // 5 minutes
+                subAgentLifecycle: 'ephemeral' as const,
             };
 
             const result = SessionConfigSchema.parse(devConfig);

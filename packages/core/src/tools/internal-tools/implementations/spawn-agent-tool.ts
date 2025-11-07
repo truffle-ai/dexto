@@ -127,13 +127,17 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     `Spawning sub-agent [${agentIdentifier}] for task: ${validatedInput.description || 'unnamed task'}`
                 );
 
+                // Get lifecycle config from session manager
+                const sessionManagerConfig = sessionManager.getConfig();
+                const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'ephemeral';
+
                 // Create sub-agent session with scopes
                 const session = await sessionManager.createSession(undefined, {
                     scopes: {
                         type: 'sub-agent',
                         parentSessionId,
                         depth: parentDepth + 1,
-                        lifecycle: 'persistent', // Keep sub-agent sessions for review
+                        lifecycle, // Use configured lifecycle (ephemeral or persistent)
                         visibility: 'private',
                         agentIdentifier,
                     },
@@ -178,16 +182,28 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     agent: 'failed-to-resolve',
                 };
             } finally {
-                // End sub-agent session (remove from memory, preserve history for review)
+                // Cleanup sub-agent session based on lifecycle policy
                 if (subAgentSessionId) {
                     try {
-                        await sessionManager.endSession(subAgentSessionId);
-                        logger.debug(
-                            `Ended sub-agent session: ${subAgentSessionId} (history preserved)`
-                        );
+                        const sessionManagerConfig = sessionManager.getConfig();
+                        const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'ephemeral';
+
+                        if (lifecycle === 'ephemeral') {
+                            // Ephemeral: Delete session and history
+                            await sessionManager.deleteSession(subAgentSessionId);
+                            logger.debug(
+                                `Deleted ephemeral sub-agent session: ${subAgentSessionId} (no history preserved)`
+                            );
+                        } else {
+                            // Persistent: Remove from memory, preserve history for review
+                            await sessionManager.endSession(subAgentSessionId);
+                            logger.debug(
+                                `Ended persistent sub-agent session: ${subAgentSessionId} (history preserved)`
+                            );
+                        }
                     } catch (cleanupError) {
                         logger.error(
-                            `Failed to end sub-agent session ${subAgentSessionId}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+                            `Failed to cleanup sub-agent session ${subAgentSessionId}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
                         );
                     }
                 }
