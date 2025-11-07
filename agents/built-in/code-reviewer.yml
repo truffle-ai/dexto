@@ -123,4 +123,5 @@ storage:
     type: sqlite
 
 toolConfirmation:
-  mode: auto-approve  # Sub-agents work autonomously
+  mode: event-based  # Approval requests forwarded to parent
+  timeout: 120000

@@ -70,6 +70,7 @@ storage:
   database:
     type: sqlite
 
-# Minimal tool confirmation - sub-agents work autonomously
+# Tool confirmation - sub-agents request approval via parent session
 toolConfirmation:
-  mode: auto-approve  # Sub-agents don't prompt user
+  mode: event-based  # Approval requests forwarded to parent
+  timeout: 120000

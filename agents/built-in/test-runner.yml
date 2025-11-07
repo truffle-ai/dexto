@@ -130,6 +130,7 @@ storage:
     type: sqlite
 
 toolConfirmation:
-  mode: auto-approve  # Sub-agents work autonomously
-  # Tests are generally safe to run
+  mode: event-based  # Approval requests forwarded to parent
+  timeout: 120000
+  # Tests require approval to ensure user controls execution
   # Note: dangerous bash commands (rm -rf, sudo, etc.) are caught by the approval system
