@@ -32,14 +32,12 @@ describe('TodoService', () => {
             set: vi.fn().mockResolvedValue(undefined),
             delete: vi.fn().mockResolvedValue(true),
             list: vi.fn().mockResolvedValue([]),
-            clear: vi.fn().mockResolvedValue(undefined),
             append: vi.fn().mockResolvedValue(undefined),
             getRange: vi.fn().mockResolvedValue([]),
-            getLength: vi.fn().mockResolvedValue(0),
             connect: vi.fn().mockResolvedValue(undefined),
             disconnect: vi.fn().mockResolvedValue(undefined),
             isConnected: vi.fn().mockReturnValue(true),
-            getBackendType: vi.fn().mockReturnValue('memory'),
+            getStoreType: vi.fn().mockReturnValue('memory'),
         };
 
         // Mock event bus
