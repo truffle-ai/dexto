@@ -74,7 +74,7 @@ function validateExpandedPath(original: string, expanded: string, agentDir: stri
  * Note: Path resolution should be done before calling this function using resolveConfigPath().
  *
  * @param configPath - Path to the configuration file (absolute or relative)
- * @param logger - Optional logger instance for logging
+ * @param logger - logger instance for logging
  * @returns A Promise that resolves to the parsed `AgentConfig` object with template variables expanded
  * @throws {ConfigError} with FILE_NOT_FOUND if the configuration file does not exist
  * @throws {ConfigError} with FILE_READ_ERROR if file read fails (e.g., permissions issues)

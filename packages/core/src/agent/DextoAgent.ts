@@ -460,7 +460,7 @@ export class DextoAgent {
             );
 
             // Validate input and throw if invalid
-            ensureOk(validation);
+            ensureOk(validation, this.logger);
 
             // Resolve the concrete ChatSession for the target session id
             const existingSession = await this.sessionManager.getSession(targetSessionId);
@@ -963,7 +963,7 @@ export class DextoAgent {
         const parseResult = LLMUpdatesSchema.safeParse(llmUpdates);
         if (!parseResult.success) {
             const validation = fail(zodToIssues(parseResult.error, 'error'));
-            ensureOk(validation); // This will throw DextoValidationError
+            ensureOk(validation, this.logger); // This will throw DextoValidationError
             throw new Error('Unreachable'); // For TypeScript
         }
         const validatedUpdates = parseResult.data;
@@ -974,8 +974,8 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig().llm;
 
         // Build and validate the new configuration using Result pattern internally
-        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates);
-        const validatedConfig = ensureOk(result);
+        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates, this.logger);
+        const validatedConfig = ensureOk(result, this.logger);
 
         // Perform the actual LLM switch with validated config
         await this.performLLMSwitch(validatedConfig, sessionId);
@@ -1148,7 +1148,7 @@ export class DextoAgent {
         // Validate the server configuration
         const existingServerNames = Object.keys(this.stateManager.getRuntimeConfig().mcpServers);
         const validation = resolveAndValidateMcpServerConfig(name, config, existingServerNames);
-        const validatedConfig = ensureOk(validation);
+        const validatedConfig = ensureOk(validation, this.logger);
 
         // Add to runtime state (no validation needed - already validated)
         this.stateManager.addMcpServer(name, validatedConfig);

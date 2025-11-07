@@ -24,12 +24,12 @@ import type { IDextoLogger } from '../logger/v2/types.js';
  * const validatedConfig = ensureOk(configResult);
  * ```
  */
-export function ensureOk<T, C>(result: Result<T, C>, logger?: IDextoLogger): T {
+export function ensureOk<T, C>(result: Result<T, C>, logger: IDextoLogger): T {
     if (result.ok) {
         return result.data;
     }
 
-    logger?.error(
+    logger.error(
         `ensureOk: found validation errors, throwing DextoValidationError: ${result.issues}`
     );
     // Result pattern is used for validation - throw validation error

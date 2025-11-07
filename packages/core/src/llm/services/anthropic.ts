@@ -361,7 +361,8 @@ export class AnthropicService implements ILLMService {
         const configuredMaxInputTokens = this.contextManager.getMaxInputTokens();
         const modelMaxInputTokens = getMaxInputTokensForModel(
             this.config.provider,
-            this.config.model
+            this.config.model,
+            this.logger
         );
 
         return {

@@ -407,7 +407,8 @@ export class OpenAIService implements ILLMService {
         try {
             modelMaxInputTokens = getMaxInputTokensForModel(
                 this.config.provider,
-                this.config.model
+                this.config.model,
+                this.logger
             );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens

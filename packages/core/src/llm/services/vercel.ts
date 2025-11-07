@@ -680,7 +680,8 @@ export class VercelLLMService implements ILLMService {
         try {
             modelMaxInputTokens = getMaxInputTokensForModel(
                 this.config.provider, // Use our internal provider name
-                this.getModelId()
+                this.getModelId(),
+                this.logger
             );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens
