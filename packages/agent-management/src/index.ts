@@ -60,6 +60,8 @@ export {
     updateAgentConfigFile,
     reloadAgentConfigFromFile,
     loadAgentConfig,
+    enrichAgentConfig,
+    deriveAgentId,
     ConfigError,
     ConfigErrorCode,
 } from './config/index.js';

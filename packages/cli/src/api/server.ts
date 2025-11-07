@@ -22,7 +22,7 @@ import {
     reloadAgentConfigFromFile,
 } from '@dexto/agent-management';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
-import { enrichAgentConfig } from '../config/config-enrichment.js';
+import { enrichAgentConfig } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import { promises as fs } from 'fs';

@@ -1,14 +1,14 @@
 /**
- * CLI Config Enrichment Layer
+ * Config Enrichment Layer
  *
  * Provides per-agent path defaults for file-based resources (logs, database, blobs, backups).
- * This layer runs in the CLI before agent initialization and injects explicit paths
+ * This layer runs before agent initialization and injects explicit paths
  * into the configuration, eliminating the need for core services to resolve paths themselves.
  *
  * Core services now require explicit paths - this enrichment layer provides them.
  */
 
-import { getDextoPath } from '@dexto/agent-management';
+import { getDextoPath } from '../utils/path.js';
 import type { AgentConfig } from '@dexto/core';
 import * as path from 'path';
 
@@ -41,7 +41,7 @@ export function deriveAgentId(config: AgentConfig, configPath?: string): string 
 
 /**
  * Enriches agent configuration with per-agent file paths.
- * This function is called by the CLI before creating the DextoAgent instance.
+ * This function is called before creating the DextoAgent instance.
  *
  * Enrichment adds:
  * - File transport to logger config (per-agent log file)
@@ -125,7 +125,6 @@ export function enrichAgentConfig(
                 path: config.storage.database.path || dbPath,
             };
         }
-
         // Enrich blob path if local with empty/missing storePath
         if (config.storage.blob?.type === 'local') {
             enriched.storage.blob = {
