@@ -591,18 +591,22 @@ export class DextoAgent {
         this.ensureStarted();
 
         // Validate agentConfig at DextoAgent boundary (per CLAUDE.md architecture guidelines)
+        let normalizedOptions = options;
+
         if (options?.agentConfig) {
-            try {
-                AgentConfigSchema.parse(options.agentConfig);
-            } catch (error) {
-                if (error instanceof Error) {
-                    throw new Error(`Invalid agent config: ${error.message}`);
-                }
-                throw new Error('Invalid agent config: Unknown validation error');
+            const parsed = AgentConfigSchema.safeParse(options.agentConfig);
+            if (!parsed.success) {
+                const result = fail(zodToIssues(parsed.error, 'error'));
+                throw new DextoValidationError(result.issues);
             }
+
+            normalizedOptions = {
+                ...options,
+                agentConfig: parsed.data,
+            };
         }
 
-        return await this.sessionManager.createSession(sessionId, options);
+        return await this.sessionManager.createSession(sessionId, normalizedOptions);
     }
 
     /**
@@ -1034,11 +1038,6 @@ export class DextoAgent {
         if (sessionScope === '*') {
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
-            // Verify session exists before switching LLM
-            const session = await this.sessionManager.getSession(sessionScope);
-            if (!session) {
-                throw SessionError.notFound(sessionScope);
-            }
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             await this.sessionManager.switchLLMForDefaultSession(validatedConfig);

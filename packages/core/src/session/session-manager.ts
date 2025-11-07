@@ -254,7 +254,9 @@ export class SessionManager {
                 parentSessionId: options.scopes.parentSessionId,
             }),
             depth: options?.scopes?.depth ?? 0,
-            lifecycle: options?.scopes?.lifecycle ?? 'persistent',
+            lifecycle:
+                options?.scopes?.lifecycle ??
+                (options?.scopes?.parentSessionId ? this.subAgentLifecycle : 'persistent'),
         };
 
         // Validate scope values
@@ -278,12 +280,25 @@ export class SessionManager {
             if (!parentExists) {
                 throw SessionError.parentNotFound(scopes.parentSessionId);
             }
+
+            // Auto-calculate depth from parent if not explicitly provided
+            if (options?.scopes?.depth === undefined) {
+                const parentMetadata = await this.getSessionMetadata(scopes.parentSessionId);
+                if (parentMetadata) {
+                    scopes.depth = (parentMetadata.scopes.depth ?? 0) + 1;
+                } else {
+                    // Parent not found, use default sub-agent depth of 1
+                    scopes.depth = 1;
+                }
+            }
         }
 
         // 4. Validate depth limit for sub-agent sessions
-        if (scopes.parentSessionId && scopes.depth !== undefined) {
-            if (scopes.depth > this.maxSubAgentDepth) {
-                throw SessionError.maxDepthExceeded(scopes.depth, this.maxSubAgentDepth);
+        if (scopes.parentSessionId) {
+            // depth is guaranteed to be set by line 256 or line 288/291
+            const depth = scopes.depth!;
+            if (depth > this.maxSubAgentDepth) {
+                throw SessionError.maxDepthExceeded(depth, this.maxSubAgentDepth);
             }
         }
 

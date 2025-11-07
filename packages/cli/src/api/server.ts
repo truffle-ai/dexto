@@ -2037,9 +2037,50 @@ export async function initializeApi(
     // Session Management APIs
 
     // List all active sessions
-    app.get('/api/sessions', async (_req, res, next) => {
+    const ListSessionsQuerySchema = z.object({
+        type: z.string().optional(),
+        parentSessionId: z.string().optional(),
+        depth: z.coerce.number().int().nonnegative().optional(),
+        lifecycle: z.enum(['ephemeral', 'persistent']).optional(),
+    });
+
+    app.get('/api/sessions', async (req, res, next) => {
         try {
-            const sessionIds = await activeAgent.listSessions();
+            // Validate and parse query parameters
+            const queryValidation = ListSessionsQuerySchema.safeParse(req.query);
+            if (!queryValidation.success) {
+                return res.status(400).json({
+                    ok: false,
+                    error: {
+                        code: 'VALIDATION_ERROR',
+                        message: 'Invalid query parameters',
+                        issues: queryValidation.error.errors.map((e) => ({
+                            path: e.path.join('.'),
+                            message: e.message,
+                        })),
+                    },
+                });
+            }
+
+            // Build filters object, excluding undefined values for exactOptionalPropertyTypes
+            const filters: {
+                type?: string;
+                parentSessionId?: string;
+                depth?: number;
+                lifecycle?: 'ephemeral' | 'persistent';
+            } = {};
+            if (queryValidation.data.type !== undefined) filters.type = queryValidation.data.type;
+            if (queryValidation.data.parentSessionId !== undefined)
+                filters.parentSessionId = queryValidation.data.parentSessionId;
+            if (queryValidation.data.depth !== undefined)
+                filters.depth = queryValidation.data.depth;
+            if (queryValidation.data.lifecycle !== undefined)
+                filters.lifecycle = queryValidation.data.lifecycle;
+
+            // Pass filters to listSessions
+            const sessionIds = await activeAgent.listSessions(
+                Object.keys(filters).length > 0 ? filters : undefined
+            );
             const sessions = await Promise.all(
                 sessionIds.map(async (id) => {
                     try {
