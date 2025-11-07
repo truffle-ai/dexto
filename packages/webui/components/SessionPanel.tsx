@@ -21,12 +21,22 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 
+interface SessionScopes {
+    type: string;
+    parentSessionId?: string;
+    depth?: number;
+    lifecycle?: 'ephemeral' | 'persistent' | 'archived';
+    visibility?: 'private' | 'shared' | 'public';
+    agentIdentifier?: string;
+}
+
 interface Session {
     id: string;
     createdAt: string | null;
     lastActivity: string | null;
     messageCount: number;
     title?: string | null;
+    scopes: SessionScopes;
 }
 
 interface SessionPanelProps {
@@ -55,6 +65,8 @@ async function fetchSessions(): Promise<Session[]> {
     return sortSessions(data.sessions || []);
 }
 
+type SessionFilter = 'all' | 'primary' | 'sub-agent';
+
 export default function SessionPanel({
     isOpen,
     onClose,
@@ -70,6 +82,7 @@ export default function SessionPanel({
     const [newSessionId, setNewSessionId] = useState('');
     const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
     const [selectedSessionForAction, setSelectedSessionForAction] = useState<string | null>(null);
+    const [sessionFilter, setSessionFilter] = useState<SessionFilter>('primary');
 
     const {
         data: sessions = [],
@@ -149,6 +162,12 @@ export default function SessionPanel({
                             lastActivity: new Date().toISOString(),
                             messageCount: 1,
                             title: null,
+                            scopes: {
+                                type: 'primary',
+                                depth: 0,
+                                lifecycle: 'persistent',
+                                visibility: 'private',
+                            },
                         };
                         return sortSessions([newSession, ...old]);
                     }
@@ -234,6 +253,16 @@ export default function SessionPanel({
         return `${days}d ago`;
     };
 
+    // Filter sessions based on selected filter
+    const filteredSessions = sessions.filter((session) => {
+        if (sessionFilter === 'all') return true;
+        return session.scopes.type === sessionFilter;
+    });
+
+    // Count sessions by type
+    const primaryCount = sessions.filter((s) => s.scopes.type === 'primary').length;
+    const subAgentCount = sessions.filter((s) => s.scopes.type === 'sub-agent').length;
+
     const content = (
         <div className="flex flex-col h-full">
             {/* Header */}
@@ -277,6 +306,67 @@ export default function SessionPanel({
                 </div>
             </div>
 
+            {/* Filter Tabs */}
+            <div className="flex border-b border-border/50 px-3">
+                <button
+                    onClick={() => setSessionFilter('primary')}
+                    className={cn(
+                        'px-3 py-2 text-sm font-medium transition-colors relative',
+                        sessionFilter === 'primary'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                    )}
+                >
+                    Chats
+                    {primaryCount > 0 && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                            ({primaryCount})
+                        </span>
+                    )}
+                    {sessionFilter === 'primary' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                </button>
+                <button
+                    onClick={() => setSessionFilter('sub-agent')}
+                    className={cn(
+                        'px-3 py-2 text-sm font-medium transition-colors relative',
+                        sessionFilter === 'sub-agent'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                    )}
+                >
+                    Sub-agents
+                    {subAgentCount > 0 && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                            ({subAgentCount})
+                        </span>
+                    )}
+                    {sessionFilter === 'sub-agent' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                </button>
+                <button
+                    onClick={() => setSessionFilter('all')}
+                    className={cn(
+                        'px-3 py-2 text-sm font-medium transition-colors relative',
+                        sessionFilter === 'all'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                    )}
+                >
+                    All
+                    {sessions.length > 0 && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                            ({sessions.length})
+                        </span>
+                    )}
+                    {sessionFilter === 'all' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                </button>
+            </div>
+
             {/* Error Display */}
             {error && (
                 <div className="p-4">
@@ -293,16 +383,30 @@ export default function SessionPanel({
                     <div className="flex items-center justify-center py-8">
                         <RefreshCw className="h-6 w-6 animate-spin" />
                     </div>
-                ) : sessions.length === 0 ? (
+                ) : filteredSessions.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground px-4">
                         <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p>No chat history</p>
-                        <p className="text-sm">Start a conversation to see it here</p>
+                        <p>
+                            No{' '}
+                            {sessionFilter === 'all'
+                                ? ''
+                                : sessionFilter === 'primary'
+                                  ? 'chat '
+                                  : 'sub-agent '}
+                            sessions
+                        </p>
+                        <p className="text-sm">
+                            {sessionFilter === 'primary'
+                                ? 'Start a conversation to see it here'
+                                : sessionFilter === 'sub-agent'
+                                  ? 'Sub-agents will appear here when spawned'
+                                  : 'Start a conversation to see it here'}
+                        </p>
                     </div>
                 ) : (
                     <div className="px-3 py-2 space-y-0.5">
                         <TooltipProvider>
-                            {sessions.map((session) => {
+                            {filteredSessions.map((session) => {
                                 const title =
                                     session.title && session.title.trim().length > 0
                                         ? session.title
@@ -329,7 +433,7 @@ export default function SessionPanel({
                                                 }}
                                             >
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
                                                         <h3
                                                             className={
                                                                 isActive
@@ -339,6 +443,17 @@ export default function SessionPanel({
                                                         >
                                                             {title}
                                                         </h3>
+                                                        {session.scopes.type !== 'primary' && (
+                                                            <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                                                {session.scopes.type === 'sub-agent'
+                                                                    ? 'Sub'
+                                                                    : session.scopes.type}
+                                                                {session.scopes.depth !==
+                                                                    undefined &&
+                                                                    session.scopes.depth > 0 &&
+                                                                    ` L${session.scopes.depth}`}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-2 flex-shrink-0">
                                                         <span className="text-xs text-muted-foreground">
@@ -387,6 +502,16 @@ export default function SessionPanel({
                                                 <div className="text-muted-foreground">
                                                     {session.messageCount} messages
                                                 </div>
+                                                <div className="text-muted-foreground">
+                                                    Type: {session.scopes.type}
+                                                    {session.scopes.depth !== undefined &&
+                                                        ` (depth: ${session.scopes.depth})`}
+                                                </div>
+                                                {session.scopes.agentIdentifier && (
+                                                    <div className="text-muted-foreground text-[10px]">
+                                                        Agent: {session.scopes.agentIdentifier}
+                                                    </div>
+                                                )}
                                             </div>
                                         </TooltipContent>
                                     </Tooltip>
