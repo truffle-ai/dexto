@@ -45,11 +45,6 @@ describe('AgentStateManager Events', () => {
                 router: 'in-built',
                 maxIterations: 50,
             },
-            storage: {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            },
             internalTools: [],
             sessions: {
                 maxSessions: 100,

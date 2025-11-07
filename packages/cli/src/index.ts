@@ -760,7 +760,7 @@ program
                     const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
                     // Enrich config with per-agent paths BEFORE validation
-                    // Enrichment provides storage paths required by schema
+                    // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
                     const enrichedConfig = enrichAgentConfig(

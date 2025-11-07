@@ -36,7 +36,9 @@ const LocalBlobStoreSchema = z
         type: z.literal('local').describe('Blob store type identifier'),
         storePath: z
             .string()
-            .describe('Blob storage directory path (required - CLI enrichment provides per-agent default)'),
+            .describe(
+                'Blob storage directory path (required for local storage - CLI enrichment provides per-agent default)'
+            ),
         maxBlobSize: z
             .number()
             .int()

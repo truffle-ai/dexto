@@ -44,14 +44,9 @@ export class StorageManager {
             return;
         }
 
-        // Create store instances - paths are provided via CLI enrichment
+        // Create store instances (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
         this.cache = await createCache(this.config.cache, this.logger);
         this.database = await createDatabase(this.config.database, this.logger);
-
-        // Blob store required - enrichment provides config with paths
-        if (!this.config.blob) {
-            throw new Error('Blob storage configuration is required. Provide storage.blob config.');
-        }
         this.blobStore = createBlobStore(this.config.blob, this.logger);
 
         this.initialized = true;

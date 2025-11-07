@@ -84,12 +84,7 @@ export async function createAgentServices(
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 2. Initialize storage manager (paths provided via CLI enrichment)
-    if (!config.storage) {
-        throw new Error(
-            'Storage configuration is required. Ensure CLI enrichment or manual config provides storage settings.'
-        );
-    }
+    // 2. Initialize storage manager (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
     logger.debug('Initializing storage manager');
     const storageManager = await createStorageManager(config.storage, logger);
 

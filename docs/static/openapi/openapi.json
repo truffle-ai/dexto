@@ -6760,7 +6760,7 @@
                                   },
                                   "path": {
                                     "type": "string",
-                                    "description": "SQLite database file path (required - CLI enrichment provides per-agent path)"
+                                    "description": "SQLite database file path (required for SQLite - CLI enrichment provides per-agent path)"
                                   }
                                 },
                                 "required": [
@@ -6882,7 +6882,7 @@
                                   },
                                   "storePath": {
                                     "type": "string",
-                                    "description": "Blob storage directory path (required - CLI enrichment provides per-agent default)"
+                                    "description": "Blob storage directory path (required for local storage - CLI enrichment provides per-agent default)"
                                   },
                                   "maxBlobSize": {
                                     "type": "integer",
@@ -6913,7 +6913,7 @@
                                 "additionalProperties": false
                               }
                             ],
-                            "description": "Blob store configuration (for large, unstructured data) - required for ResourceManager"
+                            "description": "Blob store configuration (for large, unstructured data)"
                           }
                         },
                         "default": {

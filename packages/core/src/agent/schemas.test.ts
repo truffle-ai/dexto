@@ -255,16 +255,11 @@ describe('AgentConfigSchema', () => {
             model: 'gpt-5',
             apiKey: 'test-key',
         },
-        storage: {
-            cache: { type: 'in-memory' },
-            database: { type: 'in-memory' },
-            blob: { type: 'local', storePath: '/tmp/test-blobs' },
-        },
     };
 
     describe('Basic Structure Validation', () => {
         it('should accept valid minimal config', () => {
-            const result = AgentConfigSchema.parse(validAgentConfig);
+            const result: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
 
             expect(result.systemPrompt.contributors).toHaveLength(1);
             expect(result.llm.provider).toBe('openai');
@@ -273,22 +268,14 @@ describe('AgentConfigSchema', () => {
         });
 
         it('should apply default values', () => {
-            // Add storage to validAgentConfig since it's now required
-            const configWithStorage: AgentConfig = {
-                ...validAgentConfig,
-                storage: {
-                    cache: { type: 'in-memory' },
-                    database: { type: 'in-memory' },
-                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
-                },
-            };
-            const result = AgentConfigSchema.parse(configWithStorage);
+            const result: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
 
             // Should apply defaults from composed schemas
             expect(result.mcpServers).toEqual({});
             expect(result.internalTools).toEqual([]);
-            // Storage is required - should be present
             expect(result.storage).toBeDefined();
+            expect(result.storage.cache.type).toBe('in-memory');
+            expect(result.storage.database.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation).toBeDefined();
         });
@@ -340,7 +327,7 @@ describe('AgentConfigSchema', () => {
                 },
             };
 
-            const result = AgentConfigSchema.parse(config);
+            const result: ValidatedAgentConfig = AgentConfigSchema.parse(config);
 
             expect(result.agentCard?.name).toBe('TestAgent');
             expect(result.systemPrompt.contributors[0]!.id).toBe('custom');
@@ -401,7 +388,7 @@ describe('AgentConfigSchema', () => {
                 systemPrompt: 'Simple string prompt',
             };
 
-            const result = AgentConfigSchema.parse(config);
+            const result: ValidatedAgentConfig = AgentConfigSchema.parse(config);
 
             expect(result.systemPrompt.contributors).toHaveLength(1);
             expect(result.systemPrompt.contributors[0]!.type).toBe('static');
@@ -411,23 +398,13 @@ describe('AgentConfigSchema', () => {
         });
 
         it('should apply defaults from all composed schemas', () => {
-            // Add storage since it's now required
-            const configWithStorage: AgentConfig = {
-                ...validAgentConfig,
-                storage: {
-                    cache: { type: 'in-memory' },
-                    database: { type: 'in-memory' },
-                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
-                },
-            };
-            const result = AgentConfigSchema.parse(configWithStorage);
+            const result: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
 
             // Defaults from different schemas should all be applied
             expect(result.llm.maxIterations).toBe(50); // LLM schema default
             expect(result.llm.router).toBe('vercel'); // LLM schema default
-            // Storage is required - should be present
             expect(result.storage).toBeDefined();
-            expect(result.storage.cache.type).toBe('in-memory');
+            expect(result.storage.cache.type).toBe('in-memory'); // Storage schema default
             expect(result.sessions.maxSessions).toBe(100); // Session schema default
             expect(result.toolConfirmation.mode).toBe('event-based'); // Tool schema default
         });
@@ -461,7 +438,6 @@ describe('AgentConfigSchema', () => {
             // Should have applied defaults from all composed schemas
             expect(result.mcpServers).toBeDefined();
             expect(result.internalTools).toBeDefined();
-            // Storage is required - should be present
             expect(result.storage).toBeDefined();
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation).toBeDefined();
@@ -473,15 +449,7 @@ describe('AgentConfigSchema', () => {
         });
 
         it('should maintain proper types for nested objects', () => {
-            const configWithStorage: AgentConfig = {
-                ...validAgentConfig,
-                storage: {
-                    cache: { type: 'in-memory' },
-                    database: { type: 'in-memory' },
-                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
-                },
-            };
-            const config = AgentConfigSchema.parse(configWithStorage);
+            const config: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
 
             // TypeScript should infer correct nested types
             expect(typeof config.llm.provider).toBe('string');
@@ -566,7 +534,7 @@ describe('AgentConfigSchema', () => {
                 },
             };
 
-            const result = AgentConfigSchema.parse(prodConfig);
+            const result: ValidatedAgentConfig = AgentConfigSchema.parse(prodConfig);
 
             expect(result.agentCard?.name).toBe('Production Agent');
             expect(result.systemPrompt.contributors).toHaveLength(2);
@@ -586,20 +554,17 @@ describe('AgentConfigSchema', () => {
                     model: 'gpt-5-mini',
                     apiKey: 'sk-test',
                 },
-                storage: {
-                    cache: { type: 'in-memory' },
-                    database: { type: 'in-memory' },
-                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
-                },
             };
 
-            const result = AgentConfigSchema.parse(minimalConfig);
+            const result: ValidatedAgentConfig = AgentConfigSchema.parse(minimalConfig);
 
             // Should have all defaults applied
             expect(result.mcpServers).toEqual({});
             expect(result.internalTools).toEqual([]);
+            expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory');
-            expect(result.storage?.database.type).toBe('in-memory');
+            expect(result.storage.database.type).toBe('in-memory');
+            expect(result.storage.blob.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation.mode).toBe('event-based');
             expect(result.llm.maxIterations).toBe(50);

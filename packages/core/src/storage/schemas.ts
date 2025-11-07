@@ -45,7 +45,7 @@ export const StorageSchema = z
         cache: CacheConfigSchema.describe('Cache configuration (fast, ephemeral)'),
         database: DatabaseConfigSchema.describe('Database configuration (persistent, reliable)'),
         blob: BlobStoreConfigSchema.describe(
-            'Blob store configuration (for large, unstructured data) - required for ResourceManager'
+            'Blob store configuration (for large, unstructured data)'
         ),
     })
     .strict()
