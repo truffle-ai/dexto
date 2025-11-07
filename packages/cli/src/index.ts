@@ -23,7 +23,6 @@ import {
     getProviderFromModel,
     getAllSupportedModels,
     DextoAgent,
-    loadAgentConfig,
     type LLMProvider,
     isPath,
     resolveApiKeyForProvider,
@@ -32,6 +31,7 @@ import {
 import {
     resolveAgentPath,
     getAgentRegistry,
+    loadAgentConfig,
     globalPreferencesExist,
     loadGlobalPreferences,
 } from '@dexto/agent-management';

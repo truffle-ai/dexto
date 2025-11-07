@@ -3,7 +3,8 @@ import { promises as fs, mkdtempSync } from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
 import { resolveAgentPath, updateDefaultAgentPreference } from './resolver.js';
-import { ErrorScope, ErrorType, ConfigErrorCode } from '@dexto/core';
+import { ErrorScope, ErrorType } from '@dexto/core';
+import { ConfigErrorCode } from './config/index.js';
 
 // Mock dependencies - use vi.fn() in factory to avoid hoisting issues
 vi.mock('./utils/execution-context.js', () => ({

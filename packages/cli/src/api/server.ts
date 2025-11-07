@@ -15,7 +15,12 @@ import {
     initializeMcpServerApiEndpoints,
     type McpTransportType,
 } from './mcp/mcp_handler.js';
-import { createAgentCard, DextoAgent, loadAgentConfig } from '@dexto/core';
+import { createAgentCard, DextoAgent } from '@dexto/core';
+import {
+    loadAgentConfig,
+    updateAgentConfigFile,
+    reloadAgentConfigFromFile,
+} from '@dexto/agent-management';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { enrichAgentConfig } from '../config/config-enrichment.js';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
@@ -755,7 +760,19 @@ export async function initializeApi(
                         },
                     };
 
-                    await activeAgent.updateAndSaveConfig(updates);
+                    // Write to file (agent-management's job)
+                    const newConfig = await updateAgentConfigFile(
+                        activeAgent.getAgentFilePath(),
+                        updates
+                    );
+
+                    // Reload into agent (core's job - handles restart automatically)
+                    const reloadResult = await activeAgent.reload(newConfig);
+                    if (reloadResult.restarted) {
+                        logger.info(
+                            `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
+                        );
+                    }
                     logger.info(`Saved server '${name}' to agent configuration file`);
                 } catch (saveError) {
                     logger.warn(`Failed to save server '${name}' to agent config:`, saveError);
@@ -1740,19 +1757,18 @@ export async function initializeApi(
                 // Write new config
                 await fs.writeFile(agentPath, yaml, 'utf-8');
 
-                // Reload configuration to detect what changed
-                const reloadResult = await activeAgent.reloadConfig();
+                // Load from file (agent-management's job)
+                const newConfig = await reloadAgentConfigFromFile(agentPath);
 
-                // If any changes require restart, automatically restart the agent
-                if (reloadResult.restartRequired.length > 0) {
-                    logger.info(
-                        `Auto-restarting agent to apply changes: ${reloadResult.restartRequired.join(', ')}`
-                    );
+                // Reload into agent (core's job - handles restart automatically)
+                const reloadResult = await activeAgent.reload(newConfig);
 
-                    await activeAgent.restart();
+                if (reloadResult.restarted) {
                     logger.info(
-                        'Agent restarted successfully with all event subscribers reconnected'
+                        `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
                     );
+                } else if (reloadResult.changesApplied.length === 0) {
+                    logger.info('Configuration saved (no changes detected)');
                 }
 
                 // Clean up backup file after successful save
@@ -1766,12 +1782,11 @@ export async function initializeApi(
                     ok: true,
                     path: agentPath,
                     reloaded: true,
-                    restarted: reloadResult.restartRequired.length > 0,
-                    changesApplied: reloadResult.restartRequired,
-                    message:
-                        reloadResult.restartRequired.length > 0
-                            ? 'Configuration saved and applied successfully (agent restarted)'
-                            : 'Configuration saved successfully (no changes detected)',
+                    restarted: reloadResult.restarted,
+                    changesApplied: reloadResult.changesApplied,
+                    message: reloadResult.restarted
+                        ? 'Configuration saved and applied successfully (agent restarted)'
+                        : 'Configuration saved successfully (no changes detected)',
                 });
             } catch (writeError) {
                 // Restore backup on error

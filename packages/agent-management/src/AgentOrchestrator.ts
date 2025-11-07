@@ -1,4 +1,5 @@
-import { logger, loadAgentConfig, AgentError, DextoAgent } from '@dexto/core';
+import { logger, AgentError, DextoAgent } from '@dexto/core';
+import { loadAgentConfig } from './config/index.js';
 import { getAgentRegistry } from './registry/registry.js';
 import { deriveDisplayName } from './registry/types.js';
 

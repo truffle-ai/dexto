@@ -55,6 +55,15 @@ export {
 export { walkUpDirectories } from './utils/fs-walk.js';
 export { updateEnvFile } from './utils/env-file.js';
 
+// Config management utilities
+export {
+    updateAgentConfigFile,
+    reloadAgentConfigFromFile,
+    loadAgentConfig,
+    ConfigError,
+    ConfigErrorCode,
+} from './config/index.js';
+
 // API Key utilities
 export {
     saveProviderApiKey,

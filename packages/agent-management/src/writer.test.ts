@@ -8,7 +8,8 @@ import {
     writePreferencesToAgent,
     type LLMOverrides,
 } from './writer.js';
-import { type AgentConfig, ConfigErrorCode, ErrorScope, ErrorType } from '@dexto/core';
+import { type AgentConfig, ErrorScope, ErrorType } from '@dexto/core';
+import { ConfigErrorCode } from './config/index.js';
 import { type GlobalPreferences } from './preferences/schemas.js';
 
 describe('Config Writer', () => {

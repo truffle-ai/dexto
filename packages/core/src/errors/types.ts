@@ -1,5 +1,6 @@
 import type { AgentErrorCode } from '@core/agent/error-codes.js';
-import type { ConfigErrorCode } from '@core/config/error-codes.js';
+// ConfigErrorCode has been moved to @dexto/agent-management
+// Import from there if needed for error type unions
 import type { ContextErrorCode } from '@core/context/error-codes.js';
 import type { LLMErrorCode } from '@core/llm/error-codes.js';
 import type { MCPErrorCode } from '@core/mcp/error-codes.js';
@@ -56,11 +57,11 @@ export enum ErrorType {
 /**
  * Union type for all error codes across domains
  * Provides type safety for error handling
+ * Note: ConfigErrorCode has been moved to @dexto/agent-management
  */
 export type DextoErrorCode =
     | LLMErrorCode
     | AgentErrorCode
-    | ConfigErrorCode
     | ContextErrorCode
     | SessionErrorCode
     | MCPErrorCode

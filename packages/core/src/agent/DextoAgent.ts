@@ -41,9 +41,6 @@ import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
-import { loadAgentConfig } from '../config/loader.js';
-import { promises as fs } from 'fs';
-import { parseDocument } from 'yaml';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
@@ -1512,122 +1509,59 @@ export class DextoAgent {
     }
 
     /**
-     * Reloads the agent configuration from disk.
-     * This will re-read the config file, validate it, and detect what changed.
-     * Most configuration changes require a full agent restart to take effect.
+     * Reloads the agent configuration with a new config object.
+     * Validates the new config, detects what changed, and automatically
+     * restarts the agent if necessary to apply the changes.
      *
-     * To apply changes: stop the agent and start it again with the new config.
-     *
-     * @returns Object containing list of changes that require restart
-     * @throws Error if config file cannot be read or is invalid
+     * @param newConfig The new agent configuration to apply
+     * @returns Object containing whether agent was restarted and list of changes applied
+     * @throws Error if config is invalid or restart fails
      *
      * TODO: improve hot reload capabilites so that we don't always require a restart
      */
-    public async reloadConfig(): Promise<{
-        restartRequired: string[];
+    public async reload(newConfig: AgentConfig): Promise<{
+        restarted: boolean;
+        changesApplied: string[];
     }> {
-        if (!this.configPath) {
-            throw AgentError.noConfigPath();
-        }
-
-        this.logger.info(`Reloading agent configuration from: ${this.configPath}`);
+        this.logger.info('Reloading agent configuration');
 
         const oldConfig = this.config;
-        const newConfig = await loadAgentConfig(this.configPath);
         const validated = AgentConfigSchema.parse(newConfig);
 
         // Detect what changed
-        const restartRequired = this.detectRestartRequiredChanges(oldConfig, validated);
+        const changesApplied = this.detectConfigChanges(oldConfig, validated);
 
-        // Update the config reference (but services won't pick up changes until restart)
+        // Update the config reference
         this.config = validated;
 
-        if (restartRequired.length > 0) {
-            this.logger.warn(
-                `Configuration updated. Restart required to apply: ${restartRequired.join(', ')}`
+        let restarted = false;
+        if (changesApplied.length > 0) {
+            this.logger.info(
+                `Configuration changed. Restarting agent to apply: ${changesApplied.join(', ')}`
             );
+            await this.restart();
+            restarted = true;
+            this.logger.info('Agent restarted successfully with new configuration');
         } else {
             this.logger.info('Agent configuration reloaded successfully (no changes detected)');
         }
 
         return {
-            restartRequired,
+            restarted,
+            changesApplied,
         };
     }
 
     /**
-     * Updates and saves the agent configuration to disk.
-     * This merges the updates with the raw config from disk, validates, and writes to file.
-     * IMPORTANT: This preserves environment variable placeholders (e.g., $OPENAI_API_KEY)
-     * to avoid leaking secrets into the config file.
-     * @param updates Partial configuration updates to apply
-     * @param targetPath Optional path to save to (defaults to current config path)
-     * @returns Object containing list of changes that require restart
-     * @throws Error if validation fails or file cannot be written
-     */
-    public async updateAndSaveConfig(
-        updates: Partial<AgentConfig>,
-        targetPath?: string
-    ): Promise<{
-        restartRequired: string[];
-    }> {
-        const path = targetPath || this.configPath;
-
-        if (!path) {
-            throw AgentError.noConfigPath();
-        }
-
-        this.logger.info(`Updating and saving agent configuration to: ${path}`);
-
-        // Read raw YAML from disk (without env var expansion)
-        const rawYaml = await fs.readFile(path, 'utf-8');
-
-        // Use YAML Document API to preserve comments/anchors/formatting
-        const doc = parseDocument(rawYaml);
-        const rawConfig = doc.toJSON() as Record<string, unknown>;
-
-        // Shallow merge top-level updates
-        const updatedRawConfig = { ...rawConfig, ...updates };
-
-        // Validate merged config using Result helpers
-        const parsed = AgentConfigSchema.safeParse(updatedRawConfig);
-        if (!parsed.success) {
-            // Convert Zod errors to DextoValidationError using Result helpers
-            const result = fail(zodToIssues(parsed.error, 'error'));
-            throw new DextoValidationError(result.issues);
-        }
-
-        // Apply updates to the YAML document (preserves formatting/comments)
-        for (const [key, value] of Object.entries(updates)) {
-            doc.set(key, value);
-        }
-
-        // Serialize the Document back to YAML
-        const yamlContent = String(doc);
-
-        // Atomic write: write to temp file then rename
-        const tmpPath = `${path}.tmp`;
-        await fs.writeFile(tmpPath, yamlContent, 'utf-8');
-        await fs.rename(tmpPath, path);
-
-        // Reload config with env var expansion for runtime use (this applies hot reload)
-        const reloadResult = await this.reloadConfig();
-
-        this.logger.info(`Agent configuration saved to: ${path}`);
-
-        return reloadResult;
-    }
-
-    /**
      * Detects configuration changes that require a full agent restart.
+     * Pure comparison logic - no file I/O.
      * Returns an array of change descriptions.
      *
      * @param oldConfig Previous validated configuration
      * @param newConfig New validated configuration
      * @returns Array of restart-required change descriptions
-     * @private
      */
-    private detectRestartRequiredChanges(
+    public detectConfigChanges(
         oldConfig: ValidatedAgentConfig,
         newConfig: ValidatedAgentConfig
     ): string[] {
