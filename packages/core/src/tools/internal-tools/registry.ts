@@ -3,7 +3,7 @@ import { SearchService } from '../../search/index.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { FileSystemService } from '../../filesystem/index.js';
 import { ProcessService } from '../../process/index.js';
-import { OrchestrationService } from '../../orchestration/orchestration-service.js';
+import { TodoService } from '../../todo/todo-service.js';
 import type { SessionManager } from '../../session/index.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
@@ -28,7 +28,7 @@ export interface InternalToolsServices {
     approvalManager?: ApprovalManager;
     fileSystemService?: FileSystemService;
     processService?: ProcessService;
-    orchestrationService?: OrchestrationService;
+    todoService?: TodoService;
     sessionManager?: SessionManager;
     // Future services can be added here:
     // storageManager?: StorageManager;
@@ -100,9 +100,8 @@ export const INTERNAL_TOOL_REGISTRY: Record<
         requiredServices: ['processService'] as const,
     },
     todo_write: {
-        factory: (services: InternalToolsServices) =>
-            createTodoWriteTool(services.orchestrationService!),
-        requiredServices: ['orchestrationService'] as const,
+        factory: (services: InternalToolsServices) => createTodoWriteTool(services.todoService!),
+        requiredServices: ['todoService'] as const,
     },
     spawn_agent: {
         factory: (services: InternalToolsServices) =>

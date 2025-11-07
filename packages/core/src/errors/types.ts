@@ -14,7 +14,7 @@ import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 import type { PluginErrorCode } from '@core/plugins/error-codes.js';
 import type { FileSystemErrorCode } from '@core/filesystem/error-codes.js';
 import type { ProcessErrorCode } from '@core/process/error-codes.js';
-import type { OrchestrationErrorCode } from '@core/orchestration/error-codes.js';
+import type { TodoErrorCode } from '@core/todo/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -36,7 +36,7 @@ export enum ErrorScope {
     PLUGIN = 'plugin', // Plugin loading, validation, and execution
     FILESYSTEM = 'filesystem', // File system operations and path validation
     PROCESS = 'process', // Process execution and command validation
-    ORCHESTRATION = 'orchestration', // Task orchestration, todos, and spawned tasks
+    TODO = 'todo', // Todo list management and task tracking
 }
 
 /**
@@ -76,7 +76,7 @@ export type DextoErrorCode =
     | PluginErrorCode
     | FileSystemErrorCode
     | ProcessErrorCode
-    | OrchestrationErrorCode;
+    | TodoErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

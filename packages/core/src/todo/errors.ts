@@ -1,17 +1,17 @@
 /**
- * Orchestration Service Errors
+ * Todo Service Errors
  *
  * Error factory for todo list management operations
  */
 
 import { DextoRuntimeError } from '../errors/index.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
-import { OrchestrationErrorCode } from './error-codes.js';
+import { TodoErrorCode } from './error-codes.js';
 
 /**
- * Factory class for creating Orchestration-related errors
+ * Factory class for creating Todo-related errors
  */
-export class OrchestrationError {
+export class TodoError {
     private constructor() {
         // Private constructor prevents instantiation
     }
@@ -21,12 +21,12 @@ export class OrchestrationError {
      */
     static notInitialized(): DextoRuntimeError {
         return new DextoRuntimeError(
-            OrchestrationErrorCode.SERVICE_NOT_INITIALIZED,
-            ErrorScope.ORCHESTRATION,
+            TodoErrorCode.SERVICE_NOT_INITIALIZED,
+            ErrorScope.TODO,
             ErrorType.SYSTEM,
-            'OrchestrationService has not been initialized',
+            'TodoService has not been initialized',
             {},
-            'Initialize the OrchestrationService before using it'
+            'Initialize the TodoService before using it'
         );
     }
 
@@ -35,8 +35,8 @@ export class OrchestrationError {
      */
     static todoLimitExceeded(current: number, max: number): DextoRuntimeError {
         return new DextoRuntimeError(
-            OrchestrationErrorCode.TODO_LIMIT_EXCEEDED,
-            ErrorScope.ORCHESTRATION,
+            TodoErrorCode.TODO_LIMIT_EXCEEDED,
+            ErrorScope.TODO,
             ErrorType.USER,
             `Todo limit exceeded: ${current} todos. Maximum allowed: ${max}`,
             { current, max },
@@ -49,8 +49,8 @@ export class OrchestrationError {
      */
     static invalidStatus(status: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            OrchestrationErrorCode.INVALID_TODO_STATUS,
-            ErrorScope.ORCHESTRATION,
+            TodoErrorCode.INVALID_TODO_STATUS,
+            ErrorScope.TODO,
             ErrorType.USER,
             `Invalid todo status: ${status}. Must be 'pending', 'in_progress', or 'completed'`,
             { status }
@@ -62,8 +62,8 @@ export class OrchestrationError {
      */
     static databaseError(operation: string, cause: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            OrchestrationErrorCode.DATABASE_ERROR,
-            ErrorScope.ORCHESTRATION,
+            TodoErrorCode.DATABASE_ERROR,
+            ErrorScope.TODO,
             ErrorType.SYSTEM,
             `Database error during ${operation}: ${cause}`,
             { operation, cause }

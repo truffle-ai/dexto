@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import type { InternalTool, ToolExecutionContext } from '../../types.js';
-import type { OrchestrationService } from '../../../orchestration/index.js';
+import type { TodoService } from '../../../todo/index.js';
 
 /**
  * Zod schema for todo item input
@@ -51,7 +51,7 @@ const TodoWriteInputSchema = z
 /**
  * Create todo_write internal tool
  */
-export function createTodoWriteTool(orchestrationService: OrchestrationService): InternalTool {
+export function createTodoWriteTool(todoService: TodoService): InternalTool {
     return {
         id: 'todo_write',
         description:
@@ -65,8 +65,8 @@ export function createTodoWriteTool(orchestrationService: OrchestrationService):
             // Use explicit session_id from input if provided, otherwise use context, otherwise default
             const sessionId = validatedInput.session_id || context?.sessionId || 'default';
 
-            // Update todos in orchestration service
-            const result = await orchestrationService.updateTodos(sessionId, validatedInput.todos);
+            // Update todos in todo service
+            const result = await todoService.updateTodos(sessionId, validatedInput.todos);
 
             return {
                 todos: result.todos,

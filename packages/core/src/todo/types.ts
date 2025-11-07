@@ -1,5 +1,5 @@
 /**
- * Orchestration Service Types
+ * Todo Service Types
  *
  * Types for todo list management and workflow tracking
  */
@@ -44,9 +44,9 @@ export interface TodoUpdateResult {
 }
 
 /**
- * Configuration for OrchestrationService
+ * Configuration for TodoService
  */
-export interface OrchestrationConfig {
+export interface TodoConfig {
     /** Maximum todos per session */
     maxTodosPerSession?: number;
     /** Enable real-time events */

@@ -1,5 +1,5 @@
 /**
- * Orchestration Service
+ * Todo Service
  *
  * Manages todo lists for tracking agent workflow and task progress
  */
@@ -8,29 +8,23 @@ import { nanoid } from 'nanoid';
 import type { Database } from '../storage/database/types.js';
 import type { AgentEventBus } from '../events/index.js';
 import { logger } from '../logger/index.js';
-import { OrchestrationError } from './errors.js';
+import { TodoError } from './errors.js';
 import { DextoRuntimeError } from '../errors/index.js';
-import type {
-    Todo,
-    TodoInput,
-    TodoUpdateResult,
-    OrchestrationConfig,
-    TodoStatus,
-} from './types.js';
+import type { Todo, TodoInput, TodoUpdateResult, TodoConfig, TodoStatus } from './types.js';
 
 const DEFAULT_MAX_TODOS = 100;
 const TODOS_KEY_PREFIX = 'todos:';
 
 /**
- * OrchestrationService - Manages todo lists for agent workflow tracking
+ * TodoService - Manages todo lists for agent workflow tracking
  */
-export class OrchestrationService {
+export class TodoService {
     private database: Database;
     private eventBus: AgentEventBus;
-    private config: Required<OrchestrationConfig>;
+    private config: Required<TodoConfig>;
     private initialized: boolean = false;
 
-    constructor(database: Database, eventBus: AgentEventBus, config: OrchestrationConfig = {}) {
+    constructor(database: Database, eventBus: AgentEventBus, config: TodoConfig = {}) {
         this.database = database;
         this.eventBus = eventBus;
         this.config = {
@@ -44,12 +38,12 @@ export class OrchestrationService {
      */
     async initialize(): Promise<void> {
         if (this.initialized) {
-            logger.debug('OrchestrationService already initialized');
+            logger.debug('TodoService already initialized');
             return;
         }
 
         this.initialized = true;
-        logger.info('OrchestrationService initialized successfully');
+        logger.info('TodoService initialized successfully');
     }
 
     /**
@@ -57,15 +51,12 @@ export class OrchestrationService {
      */
     async updateTodos(sessionId: string, todoInputs: TodoInput[]): Promise<TodoUpdateResult> {
         if (!this.initialized) {
-            throw OrchestrationError.notInitialized();
+            throw TodoError.notInitialized();
         }
 
         // Validate todo count
         if (todoInputs.length > this.config.maxTodosPerSession) {
-            throw OrchestrationError.todoLimitExceeded(
-                todoInputs.length,
-                this.config.maxTodosPerSession
-            );
+            throw TodoError.todoLimitExceeded(todoInputs.length, this.config.maxTodosPerSession);
         }
 
         try {
@@ -143,7 +134,7 @@ export class OrchestrationService {
             if (error instanceof DextoRuntimeError) {
                 throw error;
             }
-            throw OrchestrationError.databaseError(
+            throw TodoError.databaseError(
                 'updateTodos',
                 error instanceof Error ? error.message : String(error)
             );
@@ -155,7 +146,7 @@ export class OrchestrationService {
      */
     async getTodos(sessionId: string): Promise<Todo[]> {
         if (!this.initialized) {
-            throw OrchestrationError.notInitialized();
+            throw TodoError.notInitialized();
         }
 
         try {
@@ -166,7 +157,7 @@ export class OrchestrationService {
             if (error instanceof DextoRuntimeError) {
                 throw error;
             }
-            throw OrchestrationError.databaseError(
+            throw TodoError.databaseError(
                 'getTodos',
                 error instanceof Error ? error.message : String(error)
             );
@@ -200,7 +191,7 @@ export class OrchestrationService {
     private validateTodoStatus(status: TodoStatus): void {
         const validStatuses: TodoStatus[] = ['pending', 'in_progress', 'completed'];
         if (!validStatuses.includes(status)) {
-            throw OrchestrationError.invalidStatus(status);
+            throw TodoError.invalidStatus(status);
         }
     }
 }
