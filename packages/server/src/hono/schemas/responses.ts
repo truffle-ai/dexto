@@ -72,6 +72,32 @@ const BinaryDataSchema = z.custom<string | unknown>(
 
 // --- Session Schemas ---
 
+export const SessionScopesSchema = z
+    .object({
+        type: z.string().describe('Session type (primary, sub-agent, scheduled, task, or custom)'),
+        parentSessionId: z
+            .string()
+            .optional()
+            .describe('Parent session ID for hierarchical sessions'),
+        depth: z.number().int().nonnegative().optional().describe('Depth in session hierarchy'),
+        lifecycle: z
+            .enum(['ephemeral', 'persistent', 'archived'])
+            .optional()
+            .describe('Lifecycle policy for the session'),
+        visibility: z
+            .enum(['private', 'shared', 'public'])
+            .optional()
+            .describe('Visibility/access control level'),
+        agentIdentifier: z
+            .string()
+            .optional()
+            .describe('Agent identifier for custom agent sessions'),
+    })
+    .strict()
+    .describe('Session scopes for filtering and organization');
+
+export type SessionScopes = z.output<typeof SessionScopesSchema>;
+
 export const SessionMetadataSchema = z
     .object({
         id: z.string().describe('Unique session identifier'),
@@ -93,6 +119,7 @@ export const SessionMetadataSchema = z
             .nonnegative()
             .describe('Total number of messages in session'),
         title: z.string().optional().nullable().describe('Optional session title'),
+        scopes: SessionScopesSchema.describe('Session scopes for filtering and organization'),
     })
     .strict()
     .describe('Session metadata');

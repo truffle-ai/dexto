@@ -1246,13 +1246,87 @@
     "/api/sessions": {
       "get": {
         "summary": "List Sessions",
-        "description": "Retrieves a list of all active sessions",
+        "description": "Retrieves a list of active sessions, optionally filtered by scope criteria",
         "tags": [
           "sessions"
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by session type"
+            },
+            "required": false,
+            "description": "Filter by session type",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by parent session ID"
+            },
+            "required": false,
+            "description": "Filter by parent session ID",
+            "name": "parentSessionId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "description": "Filter by depth"
+            },
+            "required": false,
+            "description": "Filter by depth",
+            "name": "depth",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ephemeral",
+                "persistent",
+                "archived"
+              ],
+              "description": "Filter by lifecycle policy"
+            },
+            "required": false,
+            "description": "Filter by lifecycle policy",
+            "name": "lifecycle",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "private",
+                "shared",
+                "public"
+              ],
+              "description": "Filter by visibility"
+            },
+            "required": false,
+            "description": "Filter by visibility",
+            "name": "visibility",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by agent identifier"
+            },
+            "required": false,
+            "description": "Filter by agent identifier",
+            "name": "agentIdentifier",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "List of all active sessions",
+            "description": "List of sessions matching filters",
             "content": {
               "application/json": {
                 "schema": {
@@ -1290,13 +1364,59 @@
                             "type": "string",
                             "nullable": true,
                             "description": "Optional session title"
+                          },
+                          "scopes": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                              },
+                              "parentSessionId": {
+                                "type": "string",
+                                "description": "Parent session ID for hierarchical sessions"
+                              },
+                              "depth": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Depth in session hierarchy"
+                              },
+                              "lifecycle": {
+                                "type": "string",
+                                "enum": [
+                                  "ephemeral",
+                                  "persistent",
+                                  "archived"
+                                ],
+                                "description": "Lifecycle policy for the session"
+                              },
+                              "visibility": {
+                                "type": "string",
+                                "enum": [
+                                  "private",
+                                  "shared",
+                                  "public"
+                                ],
+                                "description": "Visibility/access control level"
+                              },
+                              "agentIdentifier": {
+                                "type": "string",
+                                "description": "Agent identifier for custom agent sessions"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Session scopes for filtering and organization"
                           }
                         },
                         "required": [
                           "id",
                           "createdAt",
                           "lastActivity",
-                          "messageCount"
+                          "messageCount",
+                          "scopes"
                         ],
                         "additionalProperties": false,
                         "description": "Session metadata"
@@ -1374,13 +1494,59 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "scopes": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                            },
+                            "parentSessionId": {
+                              "type": "string",
+                              "description": "Parent session ID for hierarchical sessions"
+                            },
+                            "depth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Depth in session hierarchy"
+                            },
+                            "lifecycle": {
+                              "type": "string",
+                              "enum": [
+                                "ephemeral",
+                                "persistent",
+                                "archived"
+                              ],
+                              "description": "Lifecycle policy for the session"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": [
+                                "private",
+                                "shared",
+                                "public"
+                              ],
+                              "description": "Visibility/access control level"
+                            },
+                            "agentIdentifier": {
+                              "type": "string",
+                              "description": "Agent identifier for custom agent sessions"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Session scopes for filtering and organization"
                         }
                       },
                       "required": [
                         "id",
                         "createdAt",
                         "lastActivity",
-                        "messageCount"
+                        "messageCount",
+                        "scopes"
                       ],
                       "additionalProperties": false,
                       "description": "Newly created session metadata"
@@ -1487,6 +1653,51 @@
                           "nullable": true,
                           "description": "Optional session title"
                         },
+                        "scopes": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                            },
+                            "parentSessionId": {
+                              "type": "string",
+                              "description": "Parent session ID for hierarchical sessions"
+                            },
+                            "depth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Depth in session hierarchy"
+                            },
+                            "lifecycle": {
+                              "type": "string",
+                              "enum": [
+                                "ephemeral",
+                                "persistent",
+                                "archived"
+                              ],
+                              "description": "Lifecycle policy for the session"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": [
+                                "private",
+                                "shared",
+                                "public"
+                              ],
+                              "description": "Visibility/access control level"
+                            },
+                            "agentIdentifier": {
+                              "type": "string",
+                              "description": "Agent identifier for custom agent sessions"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Session scopes for filtering and organization"
+                        },
                         "history": {
                           "type": "integer",
                           "minimum": 0,
@@ -1498,6 +1709,7 @@
                         "createdAt",
                         "lastActivity",
                         "messageCount",
+                        "scopes",
                         "history"
                       ],
                       "additionalProperties": false,
@@ -1639,13 +1851,59 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "scopes": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                            },
+                            "parentSessionId": {
+                              "type": "string",
+                              "description": "Parent session ID for hierarchical sessions"
+                            },
+                            "depth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Depth in session hierarchy"
+                            },
+                            "lifecycle": {
+                              "type": "string",
+                              "enum": [
+                                "ephemeral",
+                                "persistent",
+                                "archived"
+                              ],
+                              "description": "Lifecycle policy for the session"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": [
+                                "private",
+                                "shared",
+                                "public"
+                              ],
+                              "description": "Visibility/access control level"
+                            },
+                            "agentIdentifier": {
+                              "type": "string",
+                              "description": "Agent identifier for custom agent sessions"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Session scopes for filtering and organization"
                         }
                       },
                       "required": [
                         "id",
                         "createdAt",
                         "lastActivity",
-                        "messageCount"
+                        "messageCount",
+                        "scopes"
                       ],
                       "additionalProperties": false,
                       "description": "Updated session metadata"
@@ -6265,12 +6523,14 @@
                             "edit_file",
                             "bash_exec",
                             "bash_output",
-                            "kill_process"
+                            "kill_process",
+                            "todo_write",
+                            "spawn_agent"
                           ],
                           "description": "Available internal tool names"
                         },
                         "default": [],
-                        "description": "Array of internal tool names to enable. Empty array = disabled. Available tools: search_history, ask_user, read_file, glob_files, grep_content, write_file, edit_file, bash_exec, bash_output, kill_process"
+                        "description": "Array of internal tool names to enable. Empty array = disabled. Available tools: search_history, ask_user, read_file, glob_files, grep_content, write_file, edit_file, bash_exec, bash_output, kill_process, todo_write, spawn_agent"
                       },
                       "llm": {
                         "type": "object",

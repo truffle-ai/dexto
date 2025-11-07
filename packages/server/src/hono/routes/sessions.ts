@@ -12,15 +12,35 @@ const CreateSessionSchema = z
 export function createSessionsRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
+    const SessionsQuerySchema = z
+        .object({
+            type: z.string().optional().describe('Filter by session type'),
+            parentSessionId: z.string().optional().describe('Filter by parent session ID'),
+            depth: z.coerce.number().int().nonnegative().optional().describe('Filter by depth'),
+            lifecycle: z
+                .enum(['ephemeral', 'persistent', 'archived'])
+                .optional()
+                .describe('Filter by lifecycle policy'),
+            visibility: z
+                .enum(['private', 'shared', 'public'])
+                .optional()
+                .describe('Filter by visibility'),
+            agentIdentifier: z.string().optional().describe('Filter by agent identifier'),
+        })
+        .describe('Query parameters for filtering sessions by scope criteria');
+
     const listRoute = createRoute({
         method: 'get',
         path: '/sessions',
         summary: 'List Sessions',
-        description: 'Retrieves a list of all active sessions',
+        description: 'Retrieves a list of active sessions, optionally filtered by scope criteria',
         tags: ['sessions'],
+        request: {
+            query: SessionsQuerySchema,
+        },
         responses: {
             200: {
-                description: 'List of all active sessions',
+                description: 'List of sessions matching filters',
                 content: {
                     'application/json': {
                         schema: z
@@ -37,7 +57,22 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(listRoute, async (ctx) => {
         const agent = getAgent();
-        const sessionIds = await agent.listSessions();
+        const query = ctx.req.query();
+
+        // Build filters from query params, only include defined values
+        const filters: any = {};
+        if (query.type) filters.type = query.type;
+        if (query.parentSessionId) filters.parentSessionId = query.parentSessionId;
+        if (query.depth !== undefined) filters.depth = Number(query.depth);
+        if (query.lifecycle) filters.lifecycle = query.lifecycle;
+        if (query.visibility) filters.visibility = query.visibility;
+        if (query.agentIdentifier) filters.agentIdentifier = query.agentIdentifier;
+
+        // Pass filters to listSessions
+        const sessionIds = await agent.listSessions(
+            Object.keys(filters).length > 0 ? filters : undefined
+        );
+
         const sessions = await Promise.all(
             sessionIds.map(async (id) => {
                 try {
@@ -48,6 +83,12 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lastActivity: metadata?.lastActivity || null,
                         messageCount: metadata?.messageCount || 0,
                         title: metadata?.title || null,
+                        scopes: metadata?.scopes || {
+                            type: 'primary' as const,
+                            depth: 0,
+                            lifecycle: 'persistent' as const,
+                            visibility: 'private' as const,
+                        },
                     };
                 } catch {
                     // Skip sessions that no longer exist
@@ -57,6 +98,12 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lastActivity: null,
                         messageCount: 0,
                         title: null,
+                        scopes: {
+                            type: 'primary' as const,
+                            depth: 0,
+                            lifecycle: 'persistent' as const,
+                            visibility: 'private' as const,
+                        },
                     };
                 }
             })
@@ -101,6 +148,12 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     lastActivity: metadata?.lastActivity || Date.now(),
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
+                    scopes: metadata?.scopes || {
+                        type: 'primary' as const,
+                        depth: 0,
+                        lifecycle: 'persistent' as const,
+                        visibility: 'private' as const,
+                    },
                 },
             },
             201
@@ -179,6 +232,12 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 lastActivity: metadata?.lastActivity || null,
                 messageCount: metadata?.messageCount || 0,
                 title: metadata?.title || null,
+                scopes: metadata?.scopes || {
+                    type: 'primary' as const,
+                    depth: 0,
+                    lifecycle: 'persistent' as const,
+                    visibility: 'private' as const,
+                },
                 history: history.length,
             },
         });
@@ -384,6 +443,12 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 lastActivity: metadata?.lastActivity || null,
                 messageCount: metadata?.messageCount || 0,
                 title: metadata?.title || title,
+                scopes: metadata?.scopes || {
+                    type: 'primary' as const,
+                    depth: 0,
+                    lifecycle: 'persistent' as const,
+                    visibility: 'private' as const,
+                },
             },
         });
     });
