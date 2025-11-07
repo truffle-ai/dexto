@@ -37,7 +37,11 @@ import {
     isRouterSupportedForModel,
 } from '@dexto/core';
 import type { ProviderInfo, LLMProvider } from '@dexto/core';
-import { getProviderKeyStatus, saveProviderApiKey, getPrimaryApiKeyEnvVar } from '@dexto/core';
+import {
+    getProviderKeyStatus,
+    saveProviderApiKey,
+    getPrimaryApiKeyEnvVar,
+} from '@dexto/agent-management';
 import { errorHandler } from './middleware/errorHandler.js';
 import { McpServerConfigSchema, type McpServerConfig } from '@dexto/core';
 import { sendWebSocketError, sendWebSocketValidationError } from './websocket-error-handler.js';
