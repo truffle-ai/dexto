@@ -944,32 +944,328 @@ plugins:
 - ✅ Global edge deployment (low latency worldwide)
 - ✅ WebSocket support for real-time agent communication
 - ✅ Cost-effective at scale
+- ✅ No egress fees (unlike AWS)
 
 **Challenges:**
 - ⚠️ Bundle size limits (10 MB paid) - may need to externalize plugins to R2
-- ⚠️ Memory limits (128 MB) - need to stream large responses
+- ⚠️ Memory limits (128 MB per DO) - need to stream large responses
 - ⚠️ CPU time limits (5 min max) - long agent runs may need chunking
+- ⚠️ Storage limit (10 GB per DO) - need to archive old sessions to R2
 
-**Architecture for Dexto:**
+#### Durable Objects Architecture
+
+**What are Durable Objects?**
+- Hybrid compute + storage model: "special kind of Cloudflare Worker" with persistent state
+- **Globally unique ID**: Only ONE instance of a given DO ID exists worldwide
+- **Strong consistency**: SQLite storage with transactional guarantees (not eventually consistent)
+- **Zero-latency storage**: SQLite runs in same thread as compute (queries complete in microseconds)
+- **Geographic placement**: Auto-provisioned near first request location
+- **Single-threaded**: No race conditions, simplified coordination logic
+- **Scales horizontally**: Create millions of instances on-demand
+
+**How Durable Objects Fit into Dexto:**
+
+1. **Session Management** (One DO per agent session):
+   ```typescript
+   // Each Dexto session gets its own Durable Object
+   export class DextoSessionDO {
+     private agent: DextoAgent;
+     private sql: SqlStorage; // SQLite with 10GB limit
+
+     constructor(state: DurableObjectState, env: Env) {
+       this.sql = state.storage.sql;
+       // Initialize DextoAgent with session-specific state
+       this.agent = await createDextoAgent({
+         sessionId: state.id.toString(),
+         storageProvider: new DurableObjectStorageProvider(this.sql),
+         resourceLoader: new R2ResourceLoader(env.R2_BUCKET)
+       });
+     }
+
+     async fetch(request: Request) {
+       // Handle WebSocket connections
+       if (request.headers.get('Upgrade') === 'websocket') {
+         const { websocket, response } = new WebSocketPair();
+         this.state.acceptWebSocket(websocket);
+         return response;
+       }
+
+       // Handle HTTP requests to agent
+       return this.agent.handleRequest(request);
+     }
+
+     async webSocketMessage(ws: WebSocket, message: string) {
+       // Stream agent responses via WebSocket
+       const userMessage = JSON.parse(message);
+       await this.agent.run(userMessage.content, {
+         onChunk: (chunk) => ws.send(JSON.stringify({ type: 'chunk', data: chunk })),
+         onToolCall: (tool) => ws.send(JSON.stringify({ type: 'tool', data: tool }))
+       });
+     }
+   }
+   ```
+
+2. **Conversation Storage** (SQLite in DO):
+   ```typescript
+   // Store messages in DO's SQLite database
+   async saveMessage(sessionId: string, message: Message) {
+     await this.sql.exec(
+       `INSERT INTO messages (id, session_id, role, content, created_at)
+        VALUES (?, ?, ?, ?, ?)`,
+       [message.id, sessionId, message.role, message.content, Date.now()]
+     );
+   }
+
+   async getMessages(sessionId: string, limit = 50) {
+     return this.sql.exec(
+       `SELECT * FROM messages WHERE session_id = ?
+        ORDER BY created_at DESC LIMIT ?`,
+       [sessionId, limit]
+     ).toArray();
+   }
+   ```
+
+3. **WebSocket Hibernation** (Cost optimization):
+   ```typescript
+   // Reduce duration charges with WebSocket Hibernation API
+   this.state.setWebSocketAutoResponse(
+     new WebSocketRequestResponsePair(
+       JSON.stringify({ type: 'ping' }),
+       JSON.stringify({ type: 'pong' })
+     )
+   );
+   // Auto-responses incur NO duration charges!
+   ```
+
+4. **Multi-Tier Storage Strategy**:
+   ```
+   Active Session (< 1 hour old):
+   └─ Durable Object SQLite (last 100 messages, fast access)
+
+   Recent Session (< 7 days old):
+   └─ Durable Object SQLite (full history, up to 10GB)
+
+   Archived Session (> 7 days old):
+   ├─ Summary in DO SQLite (metadata, last 10 messages)
+   └─ Full history in R2 (compressed JSON, cheap storage)
+   ```
+
+5. **Coordination Patterns**:
+   ```typescript
+   // Multi-agent conversations: All agents connect to same DO
+   export class ConversationDO {
+     private agents: Map<string, DextoAgent> = new Map();
+     private connections: Set<WebSocket> = new Set();
+
+     async addAgent(agentId: string, config: AgentConfig) {
+       const agent = await createDextoAgent(config);
+       this.agents.set(agentId, agent);
+
+       // Broadcast to all connected clients
+       this.broadcast({ type: 'agent_joined', agentId });
+     }
+
+     async handleMessage(agentId: string, message: string) {
+       const agent = this.agents.get(agentId);
+       const response = await agent.run(message);
+
+       // Store in shared SQLite DB (strong consistency)
+       await this.sql.exec(
+         `INSERT INTO conversation_log (agent_id, message, timestamp)
+          VALUES (?, ?, ?)`,
+         [agentId, message, Date.now()]
+       );
+
+       // Broadcast to all connected clients in real-time
+       this.broadcast({ type: 'message', agentId, response });
+     }
+   }
+   ```
+
+**Architecture Diagram:**
 ```
-CloudFlare Worker (Hono server)
-  ↓ routes to
-Durable Object per Agent Session
-  - DextoAgent instance
-  - Conversation state in SQLite
-  - WebSocket connections
-  ↓ loads from
-R2 Storage
-  - Agent configs (YAML)
-  - Prompt files
-  - Plugin code
-  - User uploads
+┌─────────────────────────────────────────────────────────────┐
+│                    CloudFlare Edge Network                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  CloudFlare Worker (Hono API Server)                        │
+│    ├─ Routes HTTP requests                                  │
+│    ├─ Authenticates users                                   │
+│    └─ Creates/routes to Durable Objects                     │
+│                      ↓                                       │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │  Durable Object: Session ID abc123                 │    │
+│  │  ┌──────────────────────────────────────────────┐  │    │
+│  │  │  DextoAgent Instance                         │  │    │
+│  │  │  - Current conversation state                │  │    │
+│  │  │  - LLM streaming                             │  │    │
+│  │  │  - WebSocket connections (up to 1000s)       │  │    │
+│  │  └──────────────────────────────────────────────┘  │    │
+│  │  ┌──────────────────────────────────────────────┐  │    │
+│  │  │  SQLite Storage (up to 10 GB)                │  │    │
+│  │  │  - messages table (last N messages)          │  │    │
+│  │  │  - session_metadata                          │  │    │
+│  │  │  - tool_call_history                         │  │    │
+│  │  └──────────────────────────────────────────────┘  │    │
+│  └────────────────────────────────────────────────────┘    │
+│                      ↓                                       │
+│  R2 Object Storage (S3-compatible)                          │
+│    ├─ agent.yml configs                                     │
+│    ├─ Prompt files (.md)                                    │
+│    ├─ Plugin code (.js bundles)                             │
+│    ├─ User uploads (files, images)                          │
+│    └─ Archived sessions (> 7 days old, compressed)          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Pricing:**
-- Workers Paid: $5/mo includes 10M requests, 30M CPU-ms
-- Durable Objects: $0.15/million requests + duration charges
-- R2 Storage: ~$0.015/GB-month (no egress fees!)
+#### Comprehensive Pricing Analysis
+
+**Workers Paid Plan: $5/month base includes:**
+- 10 million Worker requests/month
+- 30 million CPU-ms/month
+- Unlimited domains
+- No egress fees (!!!)
+
+**Durable Objects Pricing:**
+
+**Free Plan (Developer tier):**
+```
+Requests: 100,000/day
+Duration: 13,000 GB-seconds/day
+Storage: SQLite only (storage billing not yet enabled)
+```
+
+**Paid Plan (Workers Paid $5/mo):**
+```
+Included:
+├─ 1 million DO requests/month
+├─ 400,000 GB-seconds/month
+└─ Then pay-as-you-go:
+   ├─ $0.15 per million requests
+   └─ $12.50 per million GB-seconds
+
+Duration billing notes:
+- Charged for 128 MB allocated (not actual usage)
+- WebSocket Hibernation dramatically reduces duration costs
+- Auto-response messages = 0 duration charges
+
+Storage (SQLite-backed - billing not yet active):
+When enabled, will match D1 pricing:
+├─ Rows read: 5 million/day free, then $0.001/million rows
+├─ Rows written: 100,000/day free, then $1.00/million rows
+└─ Stored data: 5 GB free, then $0.20/GB-month
+
+Storage (Key-Value backed - available now):
+├─ Included: 1 GB storage + 1M read/write/delete units
+├─ Storage: $0.20/GB-month
+├─ Read units: $0.20/million (1 unit = 4 KB)
+├─ Write units: $1.00/million (1 unit = 4 KB)
+└─ Delete units: $1.00/million
+```
+
+**R2 Object Storage:**
+```
+Free tier:
+├─ 10 GB storage/month
+├─ 1 million Class A operations (list, write)
+└─ 10 million Class B operations (read)
+
+Paid:
+├─ Storage: $0.015/GB-month (50% cheaper than S3)
+├─ Class A: $4.50/million operations
+├─ Class B: $0.36/million operations
+└─ NO egress fees! (Huge savings vs AWS S3)
+```
+
+**WebSocket Message Billing:**
+- Incoming messages: 20:1 ratio (20 messages = 1 request)
+- Outgoing messages: Count toward duration (unless auto-response)
+- Example: 1 million incoming WS messages = 50,000 billable requests = $0.0075
+
+#### Cost Examples for Dexto Deployment
+
+**Scenario 1: Low-Traffic Agent (Personal use)**
+```yaml
+Usage:
+  - 1 active session
+  - 100 messages/day (3K/month)
+  - 10 min conversation/day
+  - 1 GB agent config + prompts in R2
+
+Costs:
+├─ Workers Paid base: $5.00/month
+├─ DO requests: 3K msgs × 20:1 = 150 requests (within free tier)
+├─ DO duration: ~300 min/mo × 60s × 128MB = 2.3M GB-s (within free tier)
+├─ R2 storage: 1 GB = $0.015
+└─ Total: ~$5.02/month
+```
+
+**Scenario 2: Medium-Traffic SaaS (10 agents, moderate use)**
+```yaml
+Usage:
+  - 10 concurrent sessions
+  - 1,000 messages/day per agent (300K/month total)
+  - Average 5 min conversation per message
+  - 50 GB storage (configs + archived sessions)
+
+Costs:
+├─ Workers Paid base: $5.00/month
+├─ DO requests: 300K msgs × 20:1 = 15K requests (within 1M free)
+├─ DO duration:
+│   ├─ 300K msgs × 5 min × 60s × 128MB = 11.52M GB-s
+│   ├─ Minus 400K free = 11.12M GB-s
+│   └─ 11.12 × $12.50 = $139.00
+├─ R2 storage: 50 GB × $0.015 = $0.75
+├─ R2 operations: ~1M reads/month (within free tier)
+└─ Total: ~$145/month
+```
+
+**Scenario 3: High-Traffic SaaS (100 agents, heavy use)**
+```yaml
+Usage:
+  - 100 concurrent sessions
+  - 10,000 messages/day total (3M/month)
+  - Average 3 min per message (WebSocket Hibernation enabled)
+  - 200 GB storage in R2
+
+Costs:
+├─ Workers Paid base: $5.00/month
+├─ DO requests:
+│   ├─ 3M msgs × 20:1 = 150K requests
+│   ├─ Minus 1M free = 0 (within free tier)
+│   └─ $0.00
+├─ DO duration (with Hibernation optimization):
+│   ├─ 3M msgs × 3 min × 60s × 128MB = 69.12M GB-s
+│   ├─ Minus 400K free = 68.72M GB-s
+│   └─ 68.72 × $12.50 = $859.00
+├─ R2 storage: 200 GB × $0.015 = $3.00
+├─ R2 operations: 10M reads × $0.36 = $3.60
+└─ Total: ~$871/month
+```
+
+**Cost Optimization Strategies:**
+
+1. **WebSocket Hibernation**: Reduces duration by 10-50x for long-lived connections
+2. **Archive old sessions**: Move sessions > 7 days to R2 (10x cheaper storage)
+3. **Batch operations**: Combine multiple SQLite queries into transactions
+4. **Smart routing**: Keep active sessions in DOs, archived in R2
+5. **Auto-scaling**: DOs scale to zero when inactive (no cost!)
+
+**Cost Comparison (100 active agents):**
+
+| Platform | Monthly Cost | Notes |
+|----------|--------------|-------|
+| **CloudFlare DO** | ~$871 | With Hibernation optimization |
+| **Railway** | ~$215 | 2GB container, always-on |
+| **AWS Lambda + RDS** | ~$1,200 | Lambda + RDS t3.medium + egress fees |
+| **Vercel** | Not viable | No WebSocket support |
+
+**Recommendation for Dexto:**
+- **Development**: CloudFlare Free tier (100K req/day is generous)
+- **Small SaaS**: CloudFlare Paid ($5-150/mo for 10-50 agents)
+- **Large SaaS**: CloudFlare Paid + aggressive archiving ($500-1000/mo for 100s of agents)
+- **Alternative**: Railway for simpler deployment if cost < $200/mo and prefer traditional architecture
 
 ### Railway (Good Alternative)
 
