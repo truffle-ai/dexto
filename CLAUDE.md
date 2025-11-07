@@ -185,6 +185,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 - **Consistent return patterns** - All API endpoints return responses consistently
 - **Avoid `any` types** - Use specific types unless absolutely necessary
   - **In tests**: For invalid input testing, prefer `@ts-expect-error` over `as any` to be explicit about intentional type violations
+  - **Avoid optional arguments unless needed**: Otherwise this creates spaghetti if(defined) slop. if introducing an optional, think twice.
 
 ### Git and PR Standards
 - **NEVER use `git add .` or `git add -A`** - Always specify exact files: `git add file1.ts file2.ts` or `src` folders. This is to avoid untracked files
