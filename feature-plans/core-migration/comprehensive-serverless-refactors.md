@@ -1936,6 +1936,247 @@ For Vercel deployment, see [WebSocket to SSE Migration Plan](./websocket-to-sse-
 
 **Best use:** When already in AWS ecosystem
 
+## Real-World Deployment Costs: Large-Scale Multi-Tenant SaaS
+
+### Scenario: 1000 Users × 10 Agents Each = 10,000 Total Agents
+
+This section analyzes real-world costs for deploying Dexto at scale with per-user or per-agent isolation.
+
+#### Architecture Options
+
+**Option 1: One Container Per User (1000 containers)**
+```
+User 1 Container (512 MB):
+├─ Agent 1 (DextoAgent instance)
+├─ Agent 2 (DextoAgent instance)
+├─ ...
+└─ Agent 10 (DextoAgent instance)
+
+User 2 Container:
+├─ Agent 1-10 (DextoAgent instances)
+
+... (1000 total containers)
+```
+
+**Option 2: One Container Per Agent (10,000 containers)**
+```
+User 1:
+├─ Agent 1 Container (512 MB)
+├─ Agent 2 Container (512 MB)
+├─ ...
+└─ Agent 10 Container (512 MB)
+
+... (10,000 total containers)
+```
+
+#### Cost Analysis: Current Architecture (WebSocket)
+
+**Critical Issue**: WebSocket connections prevent scale-to-zero on Railway/Fly.io/Heroku even without explicit ping/pong heartbeats due to:
+- Client-side connection management (browser keepalive)
+- TCP-level keepalive packets
+- Load balancer/proxy behavior
+
+**Result**: Containers stay awake 24/7, paying for idle time.
+
+**Option 1: 1000 Containers (One Per User)**
+```yaml
+Railway Pricing (Always-On):
+├─ Base subscription: $5/month (per account)
+├─ Container size: 512 MB per user
+├─ Compute: 1000 × 512 MB × 730 hours × 60 min = 21,900,000 GB-minutes
+├─ Cost: 21,900,000 × $0.000231 = $5,058.90/month
+└─ Total: ~$5,064/month for 1000 users (10,000 agents)
+
+Per-user cost: $5.06/month
+Per-agent cost: $0.51/month
+```
+
+**Option 2: 10,000 Containers (One Per Agent)**
+```yaml
+Railway Pricing (Always-On):
+├─ Base subscription: $5/month
+├─ Container size: 512 MB per agent
+├─ Compute: 10,000 × 512 MB × 730 hours × 60 min = 219,000,000 GB-minutes
+├─ Cost: 219,000,000 × $0.000231 = $50,589/month
+└─ Total: ~$50,594/month for 10,000 agents
+
+Per-agent cost: $5.06/month
+
+Note: Option 1 is 10x cheaper due to resource sharing
+```
+
+#### Cost Analysis: Proposed Architecture (REST + SSE)
+
+**Key Change**: Remove persistent WebSocket connections, use REST API + Server-Sent Events (SSE) for streaming.
+
+**Benefits**:
+- Connection closes after each request completes
+- No outbound packets when idle → container sleeps after 10 minutes
+- Zero compute charges when sleeping (Railway/Heroku/Fly.io)
+
+**Assumptions**:
+- Average user: 10 messages/month across all agents
+- Average message: 3 minutes processing time (including LLM streaming)
+
+**Option 1: 1000 Containers with Scale-to-Zero (Recommended)**
+```yaml
+Railway Pricing (Scale-to-Zero):
+├─ Base subscription: $5/month
+├─ Active time per user: 10 msgs × 3 min = 30 min/month
+├─ Compute per user: 30 min × 0.5 GB = 15 GB-minutes
+├─ Compute cost per user: 15 × $0.000231 = $0.00347/month
+├─ Total compute: 1000 × $0.00347 = $3.47/month
+├─ Storage: 1000 × 0.1 GB × $0.25 = $25/month
+└─ Total: ~$33/month for 1000 users (10,000 agents)
+
+Per-user cost: $0.033/month (~$0.40/year)
+Per-agent cost: $0.0033/month (~$0.04/year)
+
+Savings vs WebSocket: 99.3% ($5,064 → $33)
+```
+
+**Option 2: 10,000 Containers with Scale-to-Zero**
+```yaml
+Railway Pricing (Scale-to-Zero):
+├─ Base subscription: $5/month
+├─ Active time per agent: 1 msg × 3 min = 3 min/month (avg)
+├─ Compute per agent: 3 min × 0.5 GB = 1.5 GB-minutes
+├─ Compute cost per agent: 1.5 × $0.000231 = $0.000347/month
+├─ Total compute: 10,000 × $0.000347 = $3.47/month
+├─ Storage: 10,000 × 0.05 GB × $0.25 = $125/month
+└─ Total: ~$133/month for 10,000 agents
+
+Per-agent cost: $0.0133/month (~$0.16/year)
+
+Note: Still 4x more expensive than Option 1 (higher storage costs)
+```
+
+#### CloudFlare Durable Objects: Why It's More Expensive at Scale
+
+**The Duration Charge Problem**:
+
+CloudFlare charges for **active processing time per Durable Object**, which adds up quickly with many concurrent sessions:
+
+```yaml
+CloudFlare DO Pricing (100 concurrent sessions, high activity):
+├─ 3M messages/month × 3 min per message = 9M minutes total
+├─ At 128 MB per DO: 9M min × 0.128 GB = 1.152M GB-minutes
+├─ Duration cost: (1.152M - 400K free) × $12.50/1M GB-sec × 60 = ~$859/month
+├─ Plus Workers base: $5/month
+└─ Total: ~$864/month for 100 users
+
+Scaling to 1000 users: ~$8,640/month (10x)
+```
+
+**Why CloudFlare is expensive here**:
+- Each user session gets isolated DO (not shared containers)
+- All processing time across all sessions is summed
+- LLM streaming time counts as "active" even when waiting for response
+- Railway shared container: 87,600 GB-min/month (flat rate)
+- CloudFlare: 1.152M GB-min/month (per-use, adds up)
+
+**When CloudFlare is actually cheaper**:
+- Low traffic: Within 400K GB-sec free tier (~$5/mo vs Railway $28/mo)
+- Burst traffic: Only pay for active spikes (scale-to-zero between bursts)
+- Global edge: Low latency worldwide requirements
+- Unpredictable patterns: Handles 10-100x traffic spikes automatically
+
+**CloudFlare is NOT cost-effective for**:
+- Sustained moderate-to-high activity (Railway/Heroku cheaper)
+- Predictable workloads (flat rate beats pay-per-use)
+- High message volume across many users
+
+#### Comprehensive Cost Comparison: 1000 Users × 10 Agents
+
+| Platform & Strategy | Monthly Cost | Per-User | Per-Agent | Notes |
+|---------------------|--------------|----------|-----------|-------|
+| **Railway (1 container/user, WebSocket)** | $5,064 | $5.06 | $0.51 | Always-on, can't sleep |
+| **Railway (1 container/user, REST+SSE)** | **$33** | **$0.033** | **$0.0033** | 🏆 Best cost, scale-to-zero |
+| **Railway (1 container/agent, WebSocket)** | $50,594 | $50.59 | $5.06 | 10x worse than shared |
+| **Railway (1 container/agent, REST+SSE)** | $133 | $0.13 | $0.0133 | 4x worse (storage) |
+| **Heroku Eco (1 container/user)** | $14 | $0.014 | $0.0014 | If fits in 1000 hrs/mo |
+| **Fly.io (1 container/user, REST+SSE)** | $62 | $0.062 | $0.0062 | +$29 support fee hurts |
+| **CloudFlare DO (per-session DOs)** | $8,640 | $8.64 | $0.86 | Too expensive at scale |
+
+#### Deployment Architecture: Recommended Approach
+
+**One Container Per User + REST/SSE + Scale-to-Zero**
+
+**Modified Dockerfile**:
+```dockerfile
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy built packages (same as current)
+COPY --from=builder /app/packages/cli/dist ./packages/cli/dist
+COPY --from=builder /app/packages/core/dist ./packages/core/dist
+
+# Environment - overridden per container deployment
+ENV NODE_ENV=production \
+    PORT=3001 \
+    USER_ID=${USER_ID} \
+    AGENT_CONFIG_SOURCE=s3://dexto-agents/${USER_ID}/agents/ \
+    DATABASE_URL=postgresql://...
+
+EXPOSE 3001
+
+# Server mode: REST API + SSE (no persistent WebSocket)
+CMD ["sh", "-c", "node packages/cli/dist/index.js --mode server --user $USER_ID"]
+```
+
+**Railway Deployment Pattern**:
+```bash
+# Deploy 1000 containers, one per user
+for user_id in $(cat user_ids.txt); do
+  railway service create "agent-${user_id}"
+  railway up \
+    --service "agent-${user_id}" \
+    --env USER_ID=${user_id} \
+    --env AGENT_CONFIG_SOURCE=s3://dexto-agents/${user_id}/agents/ \
+    --env DATABASE_URL=${DATABASE_URL}
+done
+```
+
+**Container Behavior**:
+- User sends message → Container wakes (cold start ~1s)
+- Agent processes message → SSE streams response chunks
+- Response complete → SSE connection closes
+- 10 minutes no requests → Container sleeps
+- No compute charges while sleeping → $0 idle cost
+
+**Benefits**:
+- ✅ **$33/month total** for 1000 users (10,000 agents)
+- ✅ **$0.033/user/month** = ~$0.40/year per user
+- ✅ **99.3% cost savings** vs WebSocket always-on
+- ✅ **User isolation** (security, stability, independent scaling)
+- ✅ **True scale-to-zero** (only pay when active)
+- ✅ **Linear scaling** (add users without infrastructure redesign)
+
+**Tradeoffs**:
+- ⚠️ Need to migrate from WebSocket to REST + SSE (documented separately)
+- ⚠️ Cold start delay (~1s) when user returns after inactivity
+- ⚠️ Managing 1000 Railway services (can automate with IaC)
+- ⚠️ No bidirectional real-time features (SSE is server → client only)
+
+**Migration Path**:
+See [WebSocket to SSE Migration Plan](./websocket-to-sse-migration.md) for detailed architecture changes, implementation steps, and client-side modifications.
+
+#### Key Insights Summary
+
+1. **WebSocket prevents scale-to-zero** on all platforms (Railway, Heroku, Fly.io) due to persistent connections keeping containers awake 24/7.
+
+2. **One container per user is 10x cheaper** than one container per agent due to resource sharing ($5,064 vs $50,594 with WebSocket, $33 vs $133 with REST+SSE).
+
+3. **REST + SSE enables 99.3% cost savings** by allowing true scale-to-zero ($5,064 → $33 for 1000 users).
+
+4. **CloudFlare DO is expensive at sustained scale** ($8,640/mo for 1000 users) but excellent for low-traffic or burst workloads.
+
+5. **Railway is the clear winner** for multi-tenant SaaS with per-user isolation when using REST + SSE architecture.
+
+6. **Heroku Eco is unbeatable** for low-traffic shared container workloads ($14/mo including database) but can't support 1000 separate containers.
+
 // TODO/WIP: Code-configurable storage providers (like plugins) - still evaluating this approach
 
 ### Storage Layer Integration (Work in Progress)
