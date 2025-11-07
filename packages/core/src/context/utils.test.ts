@@ -23,10 +23,23 @@ import {
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
 import * as registry from '../llm/registry.js';
+import { IDextoLogger } from '../logger/v2/types.js';
 
 // Mock the registry module
 vi.mock('../llm/registry.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
+
+// Create a mock logger for tests
+const mockLogger: IDextoLogger = {
+    debug: vi.fn(),
+    silly: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    trackException: vi.fn(),
+    createChild: vi.fn(),
+    destroy: vi.fn(),
+};
 
 class FakeBlobStore implements BlobStore {
     private counter = 0;
@@ -152,7 +165,7 @@ describe('tool result normalization pipeline', () => {
         const payload = Buffer.alloc(2048, 1);
         const dataUri = `data:image/png;base64,${payload.toString('base64')}`;
 
-        const normalized = await normalizeToolResult(dataUri);
+        const normalized = await normalizeToolResult(dataUri, mockLogger);
 
         expect(normalized.parts).toHaveLength(1);
         const part = normalized.parts[0];
@@ -172,14 +185,18 @@ describe('tool result normalization pipeline', () => {
         const payload = Buffer.alloc(4096, 7);
         const dataUri = `data:image/jpeg;base64,${payload.toString('base64')}`;
 
-        const normalized = await normalizeToolResult(dataUri);
+        const normalized = await normalizeToolResult(dataUri, mockLogger);
         const store = new FakeBlobStore();
 
-        const persisted = await persistToolMedia(normalized, {
-            blobStore: store,
-            toolName: 'image_tool',
-            toolCallId: 'call-123',
-        });
+        const persisted = await persistToolMedia(
+            normalized,
+            {
+                blobStore: store,
+                toolName: 'image_tool',
+                toolCallId: 'call-123',
+            },
+            mockLogger
+        );
 
         expect(persisted.parts).toHaveLength(1);
         const part = persisted.parts[0];
@@ -202,7 +219,7 @@ describe('tool result normalization pipeline', () => {
             },
         ];
 
-        const normalized = await normalizeToolResult(raw);
+        const normalized = await normalizeToolResult(raw, mockLogger);
         const hint = normalized.inlineMedia[0];
         if (!hint) {
             throw new Error('expected inline media hint for video payload');
@@ -211,11 +228,15 @@ describe('tool result normalization pipeline', () => {
         expect(hint.mimeType).toBe('video/mp4');
 
         const store = new FakeBlobStore();
-        const persisted = await persistToolMedia(normalized, {
-            blobStore: store,
-            toolName: 'video_tool',
-            toolCallId: 'call-456',
-        });
+        const persisted = await persistToolMedia(
+            normalized,
+            {
+                blobStore: store,
+                toolName: 'video_tool',
+                toolCallId: 'call-456',
+            },
+            mockLogger
+        );
 
         const filePart = persisted.parts[0];
         if (!filePart || filePart.type !== 'file') {
@@ -245,7 +266,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         expect(result).toEqual(messages);
     });
@@ -274,7 +295,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-3.5-turbo' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         expect(result[0]!.content).toEqual([{ type: 'text', text: 'Analyze this document' }]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
@@ -308,7 +329,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         expect(result[0]!.content).toEqual([
             { type: 'text', text: 'Analyze this document' },
@@ -345,13 +366,13 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         // Test with regular gpt-5 (should filter out audio)
         const config1: LLMContext = { provider: 'openai', model: 'gpt-5' };
-        const result1 = filterMessagesByLLMCapabilities(messages, config1);
+        const result1 = filterMessagesByLLMCapabilities(messages, config1, mockLogger);
 
         expect(result1[0]!.content).toEqual([{ type: 'text', text: 'Transcribe this audio' }]);
 
         // Test with gpt-4o-audio-preview (should keep audio)
         const config2: LLMContext = { provider: 'openai', model: 'gpt-4o-audio-preview' };
-        const result2 = filterMessagesByLLMCapabilities(messages, config2);
+        const result2 = filterMessagesByLLMCapabilities(messages, config2, mockLogger);
 
         expect(result2[0]!.content).toEqual([
             { type: 'text', text: 'Transcribe this audio' },
@@ -382,7 +403,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-3.5-turbo' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         expect(result[0]!.content).toEqual([
             { type: 'text', text: '[File attachment removed - not supported by gpt-3.5-turbo]' },
@@ -422,7 +443,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-3.5-turbo' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         // Only the user message with array content should be modified
         expect(result[0]).toEqual(messages[0]); // system unchanged
@@ -444,7 +465,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         expect(result).toEqual(messages);
     });
@@ -462,7 +483,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         // Should keep the malformed file part since it doesn't have mimeType to validate
         expect(result).toEqual(messages);
@@ -478,7 +499,7 @@ describe('filterMessagesByLLMCapabilities', () => {
 
         const config: LLMContext = { provider: 'openai', model: 'gpt-5' };
 
-        const result = filterMessagesByLLMCapabilities(messages, config);
+        const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
         // Should add placeholder text for empty content
         expect(result[0]!.content).toEqual([
@@ -738,23 +759,23 @@ describe('matchesAnyMimePattern', () => {
 
 describe('fileTypesToMimePatterns', () => {
     test('should convert image file type', () => {
-        expect(fileTypesToMimePatterns(['image'])).toEqual(['image/*']);
+        expect(fileTypesToMimePatterns(['image'], mockLogger)).toEqual(['image/*']);
     });
 
     test('should convert pdf file type', () => {
-        expect(fileTypesToMimePatterns(['pdf'])).toEqual(['application/pdf']);
+        expect(fileTypesToMimePatterns(['pdf'], mockLogger)).toEqual(['application/pdf']);
     });
 
     test('should convert audio file type', () => {
-        expect(fileTypesToMimePatterns(['audio'])).toEqual(['audio/*']);
+        expect(fileTypesToMimePatterns(['audio'], mockLogger)).toEqual(['audio/*']);
     });
 
     test('should convert video file type', () => {
-        expect(fileTypesToMimePatterns(['video'])).toEqual(['video/*']);
+        expect(fileTypesToMimePatterns(['video'], mockLogger)).toEqual(['video/*']);
     });
 
     test('should convert multiple file types', () => {
-        expect(fileTypesToMimePatterns(['image', 'pdf', 'audio'])).toEqual([
+        expect(fileTypesToMimePatterns(['image', 'pdf', 'audio'], mockLogger)).toEqual([
             'image/*',
             'application/pdf',
             'audio/*',
@@ -762,12 +783,12 @@ describe('fileTypesToMimePatterns', () => {
     });
 
     test('should handle empty array', () => {
-        expect(fileTypesToMimePatterns([])).toEqual([]);
+        expect(fileTypesToMimePatterns([], mockLogger)).toEqual([]);
     });
 
     test('should skip unknown file types', () => {
         // Unknown types are logged as warnings but not added to patterns
-        expect(fileTypesToMimePatterns(['image', 'unknown', 'pdf'])).toEqual([
+        expect(fileTypesToMimePatterns(['image', 'unknown', 'pdf'], mockLogger)).toEqual([
             'image/*',
             'application/pdf',
         ]);
