@@ -35,7 +35,6 @@ describe('SessionManager', () => {
             type: 'primary',
             depth: 0,
             lifecycle: 'persistent',
-            visibility: 'private',
         },
         createdAt: new Date('2024-01-01T00:00:00Z').getTime(),
         lastActivity: new Date('2024-01-01T01:00:00Z').getTime(),
@@ -780,7 +779,6 @@ describe('SessionManager', () => {
                     type: 'primary',
                     depth: 0,
                     lifecycle: 'persistent',
-                    visibility: 'private',
                 },
                 // Missing maxSessions and sessionTTL (legacy fields)
             };
@@ -912,7 +910,6 @@ describe('SessionManager', () => {
                     type: 'primary',
                     depth: 0,
                     lifecycle: 'persistent',
-                    visibility: 'private',
                 },
             };
             mockStorageManager.database.get.mockResolvedValue(expiredSessionData);
@@ -943,7 +940,6 @@ describe('SessionManager', () => {
                     type: 'primary',
                     depth: 0,
                     lifecycle: 'persistent',
-                    visibility: 'private',
                 },
             };
             mockStorageManager.database.get.mockResolvedValue(storedSessionData);
@@ -958,7 +954,7 @@ describe('SessionManager', () => {
                 sessionId,
                 undefined, // agentConfig
                 undefined, // parentSessionId (from scopes)
-                undefined // agentIdentifier (from scopes)
+                undefined // agentIdentifier (from metadata)
             );
 
             // Session should now be in memory
@@ -997,7 +993,6 @@ describe('SessionManager', () => {
                     type: 'primary',
                     depth: 0,
                     lifecycle: 'persistent',
-                    visibility: 'private',
                 },
             };
             mockStorageManager.database.get.mockResolvedValue(expiredSessionData);

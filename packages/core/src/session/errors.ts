@@ -62,6 +62,34 @@ export class SessionError {
     }
 
     /**
+     * Invalid scope value
+     */
+    static invalidScope(field: string, value: any, reason: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_INVALID_SCOPE,
+            ErrorScope.SESSION,
+            ErrorType.USER,
+            `Invalid scope value for '${field}': ${reason}`,
+            { field, value, reason },
+            'Provide a valid scope value'
+        );
+    }
+
+    /**
+     * Parent session not found
+     */
+    static parentNotFound(parentSessionId: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_PARENT_NOT_FOUND,
+            ErrorScope.SESSION,
+            ErrorType.USER,
+            `Parent session '${parentSessionId}' not found`,
+            { parentSessionId },
+            'Create the parent session first or remove parentSessionId from scopes'
+        );
+    }
+
+    /**
      * Session storage failed
      */
     static storageFailed(sessionId: string, operation: string, reason: string) {

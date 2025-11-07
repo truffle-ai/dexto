@@ -1288,39 +1288,13 @@
               "type": "string",
               "enum": [
                 "ephemeral",
-                "persistent",
-                "archived"
+                "persistent"
               ],
               "description": "Filter by lifecycle policy"
             },
             "required": false,
             "description": "Filter by lifecycle policy",
             "name": "lifecycle",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "private",
-                "shared",
-                "public"
-              ],
-              "description": "Filter by visibility"
-            },
-            "required": false,
-            "description": "Filter by visibility",
-            "name": "visibility",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "description": "Filter by agent identifier"
-            },
-            "required": false,
-            "description": "Filter by agent identifier",
-            "name": "agentIdentifier",
             "in": "query"
           }
         ],
@@ -1385,23 +1359,9 @@
                                 "type": "string",
                                 "enum": [
                                   "ephemeral",
-                                  "persistent",
-                                  "archived"
+                                  "persistent"
                                 ],
                                 "description": "Lifecycle policy for the session"
-                              },
-                              "visibility": {
-                                "type": "string",
-                                "enum": [
-                                  "private",
-                                  "shared",
-                                  "public"
-                                ],
-                                "description": "Visibility/access control level"
-                              },
-                              "agentIdentifier": {
-                                "type": "string",
-                                "description": "Agent identifier for custom agent sessions"
                               }
                             },
                             "required": [
@@ -1409,6 +1369,13 @@
                             ],
                             "additionalProperties": false,
                             "description": "Session scopes for filtering and organization"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Type-specific flexible metadata (not indexed)"
                           }
                         },
                         "required": [
@@ -1515,23 +1482,9 @@
                               "type": "string",
                               "enum": [
                                 "ephemeral",
-                                "persistent",
-                                "archived"
+                                "persistent"
                               ],
                               "description": "Lifecycle policy for the session"
-                            },
-                            "visibility": {
-                              "type": "string",
-                              "enum": [
-                                "private",
-                                "shared",
-                                "public"
-                              ],
-                              "description": "Visibility/access control level"
-                            },
-                            "agentIdentifier": {
-                              "type": "string",
-                              "description": "Agent identifier for custom agent sessions"
                             }
                           },
                           "required": [
@@ -1539,6 +1492,13 @@
                           ],
                           "additionalProperties": false,
                           "description": "Session scopes for filtering and organization"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Type-specific flexible metadata (not indexed)"
                         }
                       },
                       "required": [
@@ -1673,23 +1633,9 @@
                               "type": "string",
                               "enum": [
                                 "ephemeral",
-                                "persistent",
-                                "archived"
+                                "persistent"
                               ],
                               "description": "Lifecycle policy for the session"
-                            },
-                            "visibility": {
-                              "type": "string",
-                              "enum": [
-                                "private",
-                                "shared",
-                                "public"
-                              ],
-                              "description": "Visibility/access control level"
-                            },
-                            "agentIdentifier": {
-                              "type": "string",
-                              "description": "Agent identifier for custom agent sessions"
                             }
                           },
                           "required": [
@@ -1697,6 +1643,13 @@
                           ],
                           "additionalProperties": false,
                           "description": "Session scopes for filtering and organization"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Type-specific flexible metadata (not indexed)"
                         },
                         "history": {
                           "type": "integer",
@@ -1872,23 +1825,9 @@
                               "type": "string",
                               "enum": [
                                 "ephemeral",
-                                "persistent",
-                                "archived"
+                                "persistent"
                               ],
                               "description": "Lifecycle policy for the session"
-                            },
-                            "visibility": {
-                              "type": "string",
-                              "enum": [
-                                "private",
-                                "shared",
-                                "public"
-                              ],
-                              "description": "Visibility/access control level"
-                            },
-                            "agentIdentifier": {
-                              "type": "string",
-                              "description": "Agent identifier for custom agent sessions"
                             }
                           },
                           "required": [
@@ -1896,6 +1835,13 @@
                           ],
                           "additionalProperties": false,
                           "description": "Session scopes for filtering and organization"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Type-specific flexible metadata (not indexed)"
                         }
                       },
                       "required": [

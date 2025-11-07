@@ -41,23 +41,8 @@ export interface SessionScopes {
      * Lifecycle policy - how long should this session persist
      * - ephemeral: Auto-deleted after completion (e.g., sub-agents)
      * - persistent: Kept until manually deleted (e.g., user chats)
-     * - archived: Moved to archive storage (future use)
      */
-    lifecycle?: 'ephemeral' | 'persistent' | 'archived';
-
-    /**
-     * Visibility/access control (limited utility without multi-user support)
-     * - private: Default, single-user access
-     * - shared: Can be extended for multi-user sharing later
-     * - public: Can be extended for public access later
-     */
-    visibility?: 'private' | 'shared' | 'public';
-
-    /**
-     * Agent identifier for sessions with custom agent configs
-     * Examples: 'built-in:code-reviewer', 'file:./custom-agent.yml', 'inline'
-     */
-    agentIdentifier?: string;
+    lifecycle?: 'ephemeral' | 'persistent';
 }
 
 export interface SessionMetadata {
@@ -66,6 +51,7 @@ export interface SessionMetadata {
     messageCount: number;
     title?: string;
     scopes: SessionScopes;
+    metadata?: Record<string, any>;
 }
 
 export interface SessionManagerConfig {
@@ -84,6 +70,8 @@ export interface SessionData {
 
     // Scope-based architecture
     scopes: SessionScopes;
+
+    userId?: string;
 
     // Type-specific flexible metadata (not indexed, not used for filtering)
     metadata?: Record<string, any>;
@@ -252,6 +240,7 @@ export class SessionManager {
             scopes?: Partial<SessionScopes>;
             metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
+            agentIdentifier?: string; // For sub-agent event metadata (not stored in scopes)
         }
     ): Promise<ChatSession> {
         await this.ensureInitialized();
@@ -266,13 +255,32 @@ export class SessionManager {
             }),
             depth: options?.scopes?.depth ?? 0,
             lifecycle: options?.scopes?.lifecycle ?? 'persistent',
-            ...(options?.scopes?.visibility && { visibility: options.scopes.visibility }),
-            ...(options?.scopes?.agentIdentifier && {
-                agentIdentifier: options.scopes.agentIdentifier,
-            }),
         };
 
-        // Validate depth limit for sub-agent sessions
+        // Validate scope values
+        // 1. Type must be non-empty string
+        if (!scopes.type || scopes.type.trim() === '') {
+            throw SessionError.invalidScope('type', scopes.type, 'type cannot be empty');
+        }
+
+        // 2. Lifecycle must be valid enum value
+        if (scopes.lifecycle && !['ephemeral', 'persistent'].includes(scopes.lifecycle)) {
+            throw SessionError.invalidScope(
+                'lifecycle',
+                scopes.lifecycle,
+                "must be 'ephemeral' or 'persistent'"
+            );
+        }
+
+        // 3. Parent session must exist if specified
+        if (scopes.parentSessionId) {
+            const parentExists = await this.getSession(scopes.parentSessionId);
+            if (!parentExists) {
+                throw SessionError.parentNotFound(scopes.parentSessionId);
+            }
+        }
+
+        // 4. Validate depth limit for sub-agent sessions
         if (scopes.parentSessionId && scopes.depth !== undefined) {
             if (scopes.depth > this.maxSubAgentDepth) {
                 throw SessionError.maxDepthExceeded(scopes.depth, this.maxSubAgentDepth);
@@ -297,6 +305,7 @@ export class SessionManager {
             scopes,
             ...(options?.metadata && { metadata: options.metadata }),
             ...(options?.agentConfig && { agentConfig: options.agentConfig }),
+            ...(options?.agentIdentifier && { agentIdentifier: options.agentIdentifier }),
         });
         this.pendingCreations.set(id, creationPromise);
 
@@ -319,6 +328,7 @@ export class SessionManager {
             scopes: SessionScopes;
             metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
+            agentIdentifier?: string;
         }
     ): Promise<ChatSession> {
         // Clean up expired sessions first
@@ -339,7 +349,7 @@ export class SessionManager {
                 id,
                 undefined, // agentConfig - not restored
                 existingMetadata.scopes.parentSessionId, // parentSessionId - restore for event forwarding
-                existingMetadata.scopes.agentIdentifier // agentIdentifier - restore for sub-agent metadata
+                existingMetadata.metadata?.agentIdentifier // agentIdentifier - restore from metadata
             );
             await session.init();
             this.sessions.set(id, session);
@@ -355,10 +365,15 @@ export class SessionManager {
         }
 
         // Create new session metadata
+        // Store agentIdentifier in metadata if provided
+        const metadata = {
+            ...options.metadata,
+            ...(options.agentIdentifier && { agentIdentifier: options.agentIdentifier }),
+        };
         const sessionData: SessionData = {
             id,
             scopes: options.scopes,
-            ...(options.metadata && { metadata: options.metadata }),
+            ...(Object.keys(metadata).length > 0 && { metadata }),
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
@@ -383,7 +398,7 @@ export class SessionManager {
                 id,
                 options.agentConfig,
                 options.scopes.parentSessionId,
-                options.scopes.agentIdentifier
+                options.agentIdentifier // Pass from options, not scopes
             );
             await session.init();
             this.sessions.set(id, session);
@@ -454,7 +469,7 @@ export class SessionManager {
                     sessionId,
                     undefined, // agentConfig - not restored
                     sessionData.scopes.parentSessionId, // parentSessionId - restore for event forwarding
-                    sessionData.scopes.agentIdentifier // agentIdentifier - restore for sub-agent metadata
+                    sessionData.metadata?.agentIdentifier // agentIdentifier - restore from metadata
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);
@@ -574,9 +589,7 @@ export class SessionManager {
         type?: string;
         parentSessionId?: string;
         depth?: number;
-        lifecycle?: 'ephemeral' | 'persistent' | 'archived';
-        visibility?: 'private' | 'shared' | 'public';
-        agentIdentifier?: string;
+        lifecycle?: 'ephemeral' | 'persistent';
     }): Promise<string[]> {
         await this.ensureInitialized();
 
@@ -604,9 +617,6 @@ export class SessionManager {
                 continue;
             if (filters.depth !== undefined && scopes.depth !== filters.depth) continue;
             if (filters.lifecycle && scopes.lifecycle !== filters.lifecycle) continue;
-            if (filters.visibility && scopes.visibility !== filters.visibility) continue;
-            if (filters.agentIdentifier && scopes.agentIdentifier !== filters.agentIdentifier)
-                continue;
 
             // All filters passed
             matchingSessions.push(sessionData.id);
@@ -638,6 +648,7 @@ export class SessionManager {
             messageCount: sessionData.messageCount,
             title: sessionData.metadata?.title,
             scopes: sessionData.scopes,
+            metadata: sessionData.metadata,
         };
     }
 

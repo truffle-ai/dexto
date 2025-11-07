@@ -18,14 +18,9 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             parentSessionId: z.string().optional().describe('Filter by parent session ID'),
             depth: z.coerce.number().int().nonnegative().optional().describe('Filter by depth'),
             lifecycle: z
-                .enum(['ephemeral', 'persistent', 'archived'])
+                .enum(['ephemeral', 'persistent'])
                 .optional()
                 .describe('Filter by lifecycle policy'),
-            visibility: z
-                .enum(['private', 'shared', 'public'])
-                .optional()
-                .describe('Filter by visibility'),
-            agentIdentifier: z.string().optional().describe('Filter by agent identifier'),
         })
         .describe('Query parameters for filtering sessions by scope criteria');
 
@@ -65,8 +60,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         if (query.parentSessionId) filters.parentSessionId = query.parentSessionId;
         if (query.depth !== undefined) filters.depth = Number(query.depth);
         if (query.lifecycle) filters.lifecycle = query.lifecycle;
-        if (query.visibility) filters.visibility = query.visibility;
-        if (query.agentIdentifier) filters.agentIdentifier = query.agentIdentifier;
 
         // Pass filters to listSessions
         const sessionIds = await agent.listSessions(
@@ -87,7 +80,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                             type: 'primary' as const,
                             depth: 0,
                             lifecycle: 'persistent' as const,
-                            visibility: 'private' as const,
                         },
                     };
                 } catch {
@@ -102,7 +94,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                             type: 'primary' as const,
                             depth: 0,
                             lifecycle: 'persistent' as const,
-                            visibility: 'private' as const,
                         },
                     };
                 }

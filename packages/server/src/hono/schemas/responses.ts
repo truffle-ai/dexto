@@ -81,17 +81,9 @@ export const SessionScopesSchema = z
             .describe('Parent session ID for hierarchical sessions'),
         depth: z.number().int().nonnegative().optional().describe('Depth in session hierarchy'),
         lifecycle: z
-            .enum(['ephemeral', 'persistent', 'archived'])
+            .enum(['ephemeral', 'persistent'])
             .optional()
             .describe('Lifecycle policy for the session'),
-        visibility: z
-            .enum(['private', 'shared', 'public'])
-            .optional()
-            .describe('Visibility/access control level'),
-        agentIdentifier: z
-            .string()
-            .optional()
-            .describe('Agent identifier for custom agent sessions'),
     })
     .strict()
     .describe('Session scopes for filtering and organization');
@@ -120,6 +112,10 @@ export const SessionMetadataSchema = z
             .describe('Total number of messages in session'),
         title: z.string().optional().nullable().describe('Optional session title'),
         scopes: SessionScopesSchema.describe('Session scopes for filtering and organization'),
+        metadata: z
+            .record(z.unknown())
+            .optional()
+            .describe('Type-specific flexible metadata (not indexed)'),
     })
     .strict()
     .describe('Session metadata');

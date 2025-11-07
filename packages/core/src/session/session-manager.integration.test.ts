@@ -220,7 +220,6 @@ describe('Session Integration: Chat History Preservation', () => {
                     type: 'custom-type',
                     depth: 0,
                     lifecycle: 'persistent',
-                    visibility: 'private',
                 },
             });
 
