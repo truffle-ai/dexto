@@ -122,6 +122,10 @@ export function ToolConfirmationHandler({
                             timestamp,
                             sessionId: message.data.sessionId,
                             metadata: metadata,
+                            // Extract sub-agent metadata if present
+                            fromSubAgent: message.data.fromSubAgent === true,
+                            subAgentSessionId: message.data.subAgentSessionId,
+                            subAgentType: message.data.subAgentType,
                         };
                     } else {
                         // Elicitation request
@@ -131,6 +135,10 @@ export function ToolConfirmationHandler({
                             timestamp,
                             sessionId: message.data.sessionId,
                             metadata: message.data.metadata || {},
+                            // Extract sub-agent metadata if present
+                            fromSubAgent: message.data.fromSubAgent === true,
+                            subAgentSessionId: message.data.subAgentSessionId,
+                            subAgentType: message.data.subAgentType,
                         };
                     }
 
@@ -182,13 +190,15 @@ export function ToolConfirmationHandler({
                     sessionId: pendingConfirmation.sessionId,
                     ...(responseData ? { data: responseData } : {}),
                     // Add reason and message when denied
-                ...(!approved ? {
-                    reason: 'user_denied' as const,
-                    message: isElicitation
-                        ? `User denied the elicitation request`
-                        : `User denied the tool execution`
-                } : {}),
-            },
+                    ...(!approved
+                        ? {
+                              reason: 'user_denied' as const,
+                              message: isElicitation
+                                  ? `User denied the elicitation request`
+                                  : `User denied the tool execution`,
+                          }
+                        : {}),
+                },
             };
 
             console.debug(`[WebUI] Sending approvalResponse: ${JSON.stringify(response)}`);

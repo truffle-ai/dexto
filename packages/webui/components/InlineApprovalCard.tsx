@@ -210,9 +210,16 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             {/* Header */}
             <div className="flex items-center gap-2 text-muted-foreground">
                 <AlertTriangle className="h-4 w-4" />
-                <span className="font-medium text-sm">
-                    {isElicitation ? 'Information Request' : 'Approval Required'}
-                </span>
+                <div className="flex flex-col gap-1">
+                    <span className="font-medium text-sm">
+                        {isElicitation ? 'Information Request' : 'Approval Required'}
+                    </span>
+                    {approval.fromSubAgent && approval.subAgentType && (
+                        <span className="text-xs text-blue-600 dark:text-blue-400">
+                            From sub-agent: {approval.subAgentType}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Content */}

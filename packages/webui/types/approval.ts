@@ -18,6 +18,10 @@ type ApprovalEventBase = {
     timestamp: string; // ISO 8601 format from WebSocket
     sessionId?: string;
     metadata: Record<string, unknown>;
+    // Sub-agent metadata (if approval comes from a spawned sub-agent)
+    fromSubAgent?: boolean;
+    subAgentSessionId?: string;
+    subAgentType?: string;
 };
 
 /**
