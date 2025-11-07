@@ -102,6 +102,50 @@ export class ContextManager<TMessage = unknown> {
     private logger: IDextoLogger;
 
     /**
+     * Creates a new ContextManager instance
+     * @param llmConfig The validated LLM configuration.
+     * @param formatter Formatter implementation for the target LLM provider
+     * @param systemPromptManager SystemPromptManager instance for the conversation
+     * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
+     * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
+     * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
+     * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
+     * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
+     * @param resourceManager Optional ResourceManager for resolving blob references in messages
+     * @param logger Logger instance for logging
+     */
+    constructor(
+        llmConfig: ValidatedLLMConfig,
+        formatter: IMessageFormatter,
+        systemPromptManager: SystemPromptManager,
+        maxInputTokens: number,
+        tokenizer: ITokenizer,
+        historyProvider: IConversationHistoryProvider,
+        sessionId: string,
+        resourceManager: import('../resources/index.js').ResourceManager,
+        logger: IDextoLogger,
+        compressionStrategies: ICompressionStrategy[] = [
+            new MiddleRemovalStrategy(),
+            new OldestRemovalStrategy(),
+        ]
+    ) {
+        this.llmConfig = llmConfig;
+        this.formatter = formatter;
+        this.systemPromptManager = systemPromptManager;
+        this.maxInputTokens = maxInputTokens;
+        this.tokenizer = tokenizer;
+        this.historyProvider = historyProvider;
+        this.sessionId = sessionId;
+        this.compressionStrategies = compressionStrategies;
+        this.resourceManager = resourceManager;
+        this.logger = logger.createChild(DextoLogComponent.CONTEXT);
+
+        this.logger.debug(
+            `ContextManager: Initialized for session ${sessionId} - history will be managed by ${historyProvider.constructor.name}`
+        );
+    }
+
+    /**
      * Get the ResourceManager instance
      */
     public getResourceManager(): import('../resources/index.js').ResourceManager {
@@ -194,50 +238,6 @@ export class ContextManager<TMessage = unknown> {
         }
 
         return data;
-    }
-
-    /**
-     * Creates a new ContextManager instance
-     * @param llmConfig The validated LLM configuration.
-     * @param formatter Formatter implementation for the target LLM provider
-     * @param systemPromptManager SystemPromptManager instance for the conversation
-     * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
-     * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
-     * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
-     * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
-     * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
-     * @param resourceManager Optional ResourceManager for resolving blob references in messages
-     * @param logger Logger instance for logging
-     */
-    constructor(
-        llmConfig: ValidatedLLMConfig,
-        formatter: IMessageFormatter,
-        systemPromptManager: SystemPromptManager,
-        maxInputTokens: number,
-        tokenizer: ITokenizer,
-        historyProvider: IConversationHistoryProvider,
-        sessionId: string,
-        resourceManager: import('../resources/index.js').ResourceManager,
-        logger: IDextoLogger,
-        compressionStrategies: ICompressionStrategy[] = [
-            new MiddleRemovalStrategy(),
-            new OldestRemovalStrategy(),
-        ]
-    ) {
-        this.llmConfig = llmConfig;
-        this.formatter = formatter;
-        this.systemPromptManager = systemPromptManager;
-        this.maxInputTokens = maxInputTokens;
-        this.tokenizer = tokenizer;
-        this.historyProvider = historyProvider;
-        this.sessionId = sessionId;
-        this.compressionStrategies = compressionStrategies;
-        this.resourceManager = resourceManager;
-        this.logger = logger.createChild(DextoLogComponent.CONTEXT);
-
-        this.logger.debug(
-            `ContextManager: Initialized for session ${sessionId} - history will be managed by ${historyProvider.constructor.name}`
-        );
     }
 
     /**
