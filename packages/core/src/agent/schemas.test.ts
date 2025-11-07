@@ -334,7 +334,7 @@ describe('AgentConfigSchema', () => {
             expect(result.internalTools).toEqual(['search_history']);
             expect(result.llm.provider).toBe('anthropic');
             expect(result.llm.router).toBe('in-built');
-            expect(result.storage?.cache.type).toBe('redis');
+            expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(5);
             expect(result.toolConfirmation.mode).toBe('auto-approve');
         });
@@ -540,7 +540,7 @@ describe('AgentConfigSchema', () => {
             expect(Object.keys(result.mcpServers)).toHaveLength(2);
             expect(result.internalTools).toEqual(['search_history']);
             expect(result.llm.temperature).toBe(0.3);
-            expect(result.storage?.cache.type).toBe('redis');
+            expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(100);
             expect(result.toolConfirmation.timeout).toBe(45000);
         });
