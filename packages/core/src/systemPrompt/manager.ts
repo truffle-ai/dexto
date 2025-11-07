@@ -60,7 +60,8 @@ export class SystemPromptManager {
                     config.id,
                     config.priority,
                     config.files,
-                    config.options
+                    config.options,
+                    this.logger
                 );
             }
 
@@ -77,7 +78,8 @@ export class SystemPromptManager {
                     config.id,
                     config.priority,
                     this.memoryManager,
-                    config.options
+                    config.options,
+                    this.logger
                 );
             }
 

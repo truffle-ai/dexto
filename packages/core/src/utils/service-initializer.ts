@@ -179,10 +179,13 @@ export async function createAgentServices(
 
     // 8. Initialize tool manager with internal tools options
     // 8.1 - Create allowed tools provider based on configuration
-    const allowedToolsProvider = createAllowedToolsProvider({
-        type: config.toolConfirmation.allowedToolsStorage,
-        storageManager,
-    });
+    const allowedToolsProvider = createAllowedToolsProvider(
+        {
+            type: config.toolConfirmation.allowedToolsStorage,
+            storageManager,
+        },
+        logger
+    );
 
     // 8.2 - Initialize tool manager with direct ApprovalManager integration
     const toolManager = new ToolManager(

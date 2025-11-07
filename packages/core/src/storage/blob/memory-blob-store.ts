@@ -39,23 +39,9 @@ export class InMemoryBlobStore implements BlobStore {
     private connected = false;
     private logger: IDextoLogger;
 
-    constructor(config: InMemoryBlobStoreConfig, logger?: IDextoLogger) {
+    constructor(config: InMemoryBlobStoreConfig, logger: IDextoLogger) {
         this.config = config;
-        // Logger is optional for in-memory store, but create child if provided
-        if (logger) {
-            this.logger = logger.createChild(DextoLogComponent.STORAGE);
-        } else {
-            this.logger = {
-                debug: () => {},
-                info: () => {},
-                warn: () => {},
-                error: () => {},
-                silly: () => {},
-                trackException: () => {},
-                createChild: () => this.logger,
-                destroy: async () => {},
-            } as IDextoLogger;
-        }
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }
 
     async connect(): Promise<void> {

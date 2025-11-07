@@ -11,11 +11,11 @@ import type { IDextoLogger } from '@core/logger/v2/types.js';
  * Using the database backend for persistence.
  */
 export class StorageAllowedToolsProvider implements IAllowedToolsProvider {
-    private logger: IDextoLogger | undefined;
+    private logger: IDextoLogger;
 
     constructor(
         private storageManager: StorageManager,
-        logger?: IDextoLogger
+        logger: IDextoLogger
     ) {
         this.logger = logger;
     }
@@ -26,7 +26,7 @@ export class StorageAllowedToolsProvider implements IAllowedToolsProvider {
 
     async allowTool(toolName: string, sessionId?: string): Promise<void> {
         const key = this.buildKey(sessionId);
-        this.logger?.debug(`Adding allowed tool '${toolName}' for key '${key}'`);
+        this.logger.debug(`Adding allowed tool '${toolName}' for key '${key}'`);
 
         // Persist as a plain string array to avoid JSON <-> Set issues across backends
         const existingRaw = await this.storageManager.getDatabase().get<string[]>(key);
@@ -35,12 +35,12 @@ export class StorageAllowedToolsProvider implements IAllowedToolsProvider {
 
         // Store a fresh array copy – never the live Set instance
         await this.storageManager.getDatabase().set(key, Array.from(newSet));
-        this.logger?.debug(`Added allowed tool '${toolName}' for key '${key}'`);
+        this.logger.debug(`Added allowed tool '${toolName}' for key '${key}'`);
     }
 
     async disallowTool(toolName: string, sessionId?: string): Promise<void> {
         const key = this.buildKey(sessionId);
-        this.logger?.debug(`Removing allowed tool '${toolName}' for key '${key}'`);
+        this.logger.debug(`Removing allowed tool '${toolName}' for key '${key}'`);
 
         const existingRaw = await this.storageManager.getDatabase().get<string[]>(key);
         if (!Array.isArray(existingRaw)) return;
@@ -61,7 +61,7 @@ export class StorageAllowedToolsProvider implements IAllowedToolsProvider {
             .getDatabase()
             .get<string[]>(this.buildKey(undefined));
         const allowed = Array.isArray(globalArr) ? globalArr.includes(toolName) : false;
-        this.logger?.debug(
+        this.logger.debug(
             `Checked allowed tool '${toolName}' in session '${sessionId ?? 'global'}' – allowed=${allowed}`
         );
         return allowed;

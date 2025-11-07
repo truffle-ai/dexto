@@ -66,8 +66,8 @@ export class ProcessService {
             workingDirectory: config.workingDirectory,
         };
 
-        this.commandValidator = new CommandValidator(this.config);
         this.logger = logger.createChild(DextoLogComponent.PROCESS);
+        this.commandValidator = new CommandValidator(this.config, this.logger);
     }
 
     /**

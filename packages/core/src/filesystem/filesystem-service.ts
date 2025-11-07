@@ -58,8 +58,8 @@ export class FileSystemService {
             workingDirectory: config.workingDirectory,
         };
 
-        this.pathValidator = new PathValidator(this.config);
         this.logger = logger.createChild(DextoLogComponent.FILESYSTEM);
+        this.pathValidator = new PathValidator(this.config, this.logger);
     }
 
     /**

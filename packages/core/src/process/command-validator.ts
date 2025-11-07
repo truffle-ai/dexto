@@ -278,12 +278,12 @@ const WRITE_PATTERNS = [
  */
 export class CommandValidator {
     private config: ProcessConfig;
-    private logger: IDextoLogger | undefined;
+    private logger: IDextoLogger;
 
-    constructor(config: ProcessConfig, logger?: IDextoLogger) {
+    constructor(config: ProcessConfig, logger: IDextoLogger) {
         this.config = config;
         this.logger = logger;
-        this.logger?.debug(
+        this.logger.debug(
             `CommandValidator initialized with security level: ${config.securityLevel}`
         );
     }

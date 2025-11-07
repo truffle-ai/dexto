@@ -42,19 +42,17 @@ export interface FileContributorOptions {
 export class FileContributor implements SystemPromptContributor {
     // Basic in-memory cache to avoid reading files on every prompt build
     private cache: Map<string, string> = new Map();
-    private logger: IDextoLogger | undefined;
+    private logger: IDextoLogger;
 
     constructor(
         public id: string,
         public priority: number,
         private files: string[],
         private options: FileContributorOptions = {},
-        logger?: IDextoLogger
+        logger: IDextoLogger
     ) {
         this.logger = logger;
-        this.logger?.debug(
-            `[FileContributor] Created "${id}" with files: ${JSON.stringify(files)}`
-        );
+        this.logger.debug(`[FileContributor] Created "${id}" with files: ${JSON.stringify(files)}`);
     }
 
     async getContent(_context: DynamicContributorContext): Promise<string> {
@@ -72,7 +70,7 @@ export class FileContributor implements SystemPromptContributor {
             const cacheKey = JSON.stringify({ files: this.files, options: this.options });
             const cached = this.cache.get(cacheKey);
             if (cached) {
-                this.logger?.debug(`[FileContributor] Using cached content for "${this.id}"`);
+                this.logger.debug(`[FileContributor] Using cached content for "${this.id}"`);
                 return cached;
             }
         }
@@ -82,7 +80,7 @@ export class FileContributor implements SystemPromptContributor {
         for (const filePath of this.files) {
             try {
                 const resolvedPath = resolve(filePath);
-                this.logger?.debug(
+                this.logger.debug(
                     `[FileContributor] Resolving path: ${filePath} → ${resolvedPath}`
                 );
 
@@ -145,7 +143,7 @@ export class FileContributor implements SystemPromptContributor {
         if (cache) {
             const cacheKey = JSON.stringify({ files: this.files, options: this.options });
             this.cache.set(cacheKey, result);
-            this.logger?.debug(`[FileContributor] Cached content for "${this.id}"`);
+            this.logger.debug(`[FileContributor] Cached content for "${this.id}"`);
         }
 
         return result;
@@ -170,17 +168,17 @@ export interface MemoryContributorOptions {
  * This enables memories to be automatically available in every conversation.
  */
 export class MemoryContributor implements SystemPromptContributor {
-    private logger: IDextoLogger | undefined;
+    private logger: IDextoLogger;
 
     constructor(
         public id: string,
         public priority: number,
         private memoryManager: MemoryManager,
         private options: MemoryContributorOptions = {},
-        logger?: IDextoLogger
+        logger: IDextoLogger
     ) {
         this.logger = logger;
-        this.logger?.debug(
+        this.logger.debug(
             `[MemoryContributor] Created "${id}" with options: ${JSON.stringify(options)}`
         );
     }
@@ -224,12 +222,12 @@ export class MemoryContributor implements SystemPromptContributor {
             const memoryList = formattedMemories.join('\n');
             const result = `${header}\n${memoryList}`;
 
-            this.logger?.debug(
+            this.logger.debug(
                 `[MemoryContributor] Loaded ${memories.length} memories into system prompt`
             );
             return result;
         } catch (error) {
-            this.logger?.error(
+            this.logger.error(
                 `[MemoryContributor] Failed to load memories: ${error instanceof Error ? error.message : String(error)}`
             );
             // Return empty string on error to not break system prompt generation

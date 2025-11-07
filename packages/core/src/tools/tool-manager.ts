@@ -105,7 +105,8 @@ export class ToolManager {
             this.internalToolsProvider = new InternalToolsProvider(
                 options.internalToolsServices || {},
                 approvalManager,
-                options.internalToolsConfig
+                options.internalToolsConfig,
+                this.logger
             );
         }
 

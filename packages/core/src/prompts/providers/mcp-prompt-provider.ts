@@ -12,9 +12,9 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
  */
 export class MCPPromptProvider implements PromptProvider {
     private mcpManager: MCPManager;
-    private logger: IDextoLogger | undefined;
+    private logger: IDextoLogger;
 
-    constructor(mcpManager: MCPManager, logger?: IDextoLogger) {
+    constructor(mcpManager: MCPManager, logger: IDextoLogger) {
         this.mcpManager = mcpManager;
         this.logger = logger;
     }
@@ -31,7 +31,7 @@ export class MCPPromptProvider implements PromptProvider {
      */
     invalidateCache(): void {
         // MCPManager handles cache invalidation through event notifications
-        this.logger?.debug('MCPPromptProvider cache invalidation (handled by MCPManager)');
+        this.logger.debug('MCPPromptProvider cache invalidation (handled by MCPManager)');
     }
 
     /**
@@ -59,7 +59,7 @@ export class MCPPromptProvider implements PromptProvider {
             }
         );
 
-        this.logger?.debug(`📝 Listed ${prompts.length} MCP prompts from cache`);
+        this.logger.debug(`📝 Listed ${prompts.length} MCP prompts from cache`);
 
         return {
             prompts,
@@ -70,7 +70,7 @@ export class MCPPromptProvider implements PromptProvider {
      * Get a specific prompt by name
      */
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
-        this.logger?.debug(`📝 Reading MCP prompt: ${name}`);
+        this.logger.debug(`📝 Reading MCP prompt: ${name}`);
         return await this.mcpManager.getPrompt(name, args);
     }
 
@@ -91,7 +91,7 @@ export class MCPPromptProvider implements PromptProvider {
                 ...(definition.arguments && { arguments: definition.arguments }),
             };
         } catch (error) {
-            this.logger?.debug(
+            this.logger.debug(
                 `Failed to get prompt definition for '${name}': ${error instanceof Error ? error.message : String(error)}`
             );
             return null;

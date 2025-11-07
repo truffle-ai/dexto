@@ -40,7 +40,7 @@ export class PromptManager {
         logger: IDextoLogger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
-        this.providers.set('mcp', new MCPPromptProvider(mcpManager));
+        this.providers.set('mcp', new MCPPromptProvider(mcpManager, this.logger));
         this.providers.set('file', new FilePromptProvider({ resourceManager }, this.logger));
         this.providers.set('starter', new StarterPromptProvider(agentConfig, this.logger));
         this.providers.set(

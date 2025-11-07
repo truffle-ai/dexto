@@ -25,9 +25,9 @@ export class PathValidator {
     private normalizedAllowedPaths: string[];
     private normalizedBlockedPaths: string[];
     private normalizedBlockedExtensions: string[];
-    private logger: IDextoLogger | undefined;
+    private logger: IDextoLogger;
 
-    constructor(config: FileSystemConfig, logger?: IDextoLogger) {
+    constructor(config: FileSystemConfig, logger: IDextoLogger) {
         this.config = config;
         this.logger = logger;
 
@@ -44,7 +44,7 @@ export class PathValidator {
             return e.toLowerCase();
         });
 
-        this.logger?.debug(
+        this.logger.debug(
             `PathValidator initialized with ${this.normalizedAllowedPaths.length} allowed paths`
         );
     }

@@ -23,40 +23,40 @@ export class InternalToolsProvider {
     private tools: Map<string, InternalTool> = new Map(); // ← Store original InternalTool
     private approvalManager: ApprovalManager;
     private config: InternalToolsConfig;
-    private logger: IDextoLogger | undefined;
+    private logger: IDextoLogger;
 
     constructor(
         services: InternalToolsServices,
         approvalManager: ApprovalManager,
         config: InternalToolsConfig = [],
-        logger?: IDextoLogger
+        logger: IDextoLogger
     ) {
         this.services = services;
         this.approvalManager = approvalManager;
         this.config = config;
         this.logger = logger;
-        this.logger?.debug('InternalToolsProvider initialized with config:', { config });
+        this.logger.debug('InternalToolsProvider initialized with config:', { config });
     }
 
     /**
      * Initialize the internal tools provider by registering all available internal tools
      */
     async initialize(): Promise<void> {
-        this.logger?.info('Initializing InternalToolsProvider...');
+        this.logger.info('Initializing InternalToolsProvider...');
 
         try {
             // Check if any internal tools are enabled
             if (this.config.length === 0) {
-                this.logger?.info('No internal tools enabled by configuration');
+                this.logger.info('No internal tools enabled by configuration');
                 return;
             }
 
             this.registerInternalTools();
 
             const toolCount = this.tools.size;
-            this.logger?.info(`InternalToolsProvider initialized with ${toolCount} internal tools`);
+            this.logger.info(`InternalToolsProvider initialized with ${toolCount} internal tools`);
         } catch (error) {
-            this.logger?.error(
+            this.logger.error(
                 `Failed to initialize InternalToolsProvider: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -82,7 +82,7 @@ export class InternalToolsProvider {
             );
 
             if (missingServices.length > 0) {
-                this.logger?.debug(
+                this.logger.debug(
                     `Skipping ${toolName} internal tool - missing services: ${missingServices.join(', ')}`
                 );
                 continue;
@@ -92,9 +92,9 @@ export class InternalToolsProvider {
                 // Create the tool using its factory and store directly
                 const tool = toolInfo.factory(servicesWithApproval);
                 this.tools.set(toolName, tool); // ← Store original InternalTool directly
-                this.logger?.debug(`Registered ${toolName} internal tool`);
+                this.logger.debug(`Registered ${toolName} internal tool`);
             } catch (error) {
-                this.logger?.error(
+                this.logger.error(
                     `Failed to register ${toolName} internal tool: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -118,8 +118,8 @@ export class InternalToolsProvider {
     ): Promise<unknown> {
         const tool = this.tools.get(toolName);
         if (!tool) {
-            this.logger?.error(`❌ No internal tool found: ${toolName}`);
-            this.logger?.debug(
+            this.logger.error(`❌ No internal tool found: ${toolName}`);
+            this.logger.debug(
                 `Available internal tools: ${Array.from(this.tools.keys()).join(', ')}`
             );
             throw ToolError.notFound(toolName);
@@ -128,7 +128,7 @@ export class InternalToolsProvider {
         // Validate input against tool's Zod schema
         const validationResult = tool.inputSchema.safeParse(args);
         if (!validationResult.success) {
-            this.logger?.error(
+            this.logger.error(
                 `❌ Invalid arguments for tool ${toolName}: ${validationResult.error.message}`
             );
             throw ToolError.invalidName(
@@ -142,7 +142,7 @@ export class InternalToolsProvider {
             const result = await tool.execute(validationResult.data, context);
             return result;
         } catch (error) {
-            this.logger?.error(`❌ Internal tool execution failed: ${toolName}`, {
+            this.logger.error(`❌ Internal tool execution failed: ${toolName}`, {
                 error: error instanceof Error ? error.message : String(error),
             });
             throw error;

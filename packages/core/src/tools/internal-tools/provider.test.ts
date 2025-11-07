@@ -159,7 +159,7 @@ describe('InternalToolsProvider', () => {
         let provider: InternalToolsProvider;
 
         beforeEach(async () => {
-            provider = new InternalToolsProvider(mockServices, approvalManager, config);
+            provider = new InternalToolsProvider(mockServices, approvalManager, config, mockLogger);
             await provider.initialize();
         });
 
@@ -353,7 +353,8 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 partialServices,
                 approvalManager,
-                ['search_history'] // This tool requires searchService
+                ['search_history'], // This tool requires searchService
+                mockLogger
             );
             await provider.initialize();
 
@@ -366,7 +367,8 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 emptyServices,
                 approvalManager,
-                ['search_history'] // This tool requires searchService
+                ['search_history'], // This tool requires searchService
+                mockLogger
             );
             await provider.initialize();
 
@@ -396,7 +398,8 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 mockServices,
                 approvalManager,
-                ['search_history'] // Add more tools here as they're implemented
+                ['search_history'], // Add more tools here as they're implemented
+                mockLogger
             );
             await provider.initialize();
 
@@ -408,7 +411,8 @@ describe('InternalToolsProvider', () => {
             const provider = new InternalToolsProvider(
                 mockServices,
                 approvalManager,
-                ['search_history'] // Only use known tools for now
+                ['search_history'], // Only use known tools for now
+                mockLogger
             );
 
             // This should not throw during initialization
@@ -423,7 +427,12 @@ describe('InternalToolsProvider', () => {
         it('should handle initialization failures gracefully', async () => {
             // Test with empty services to ensure error handling works
             const emptyServices: InternalToolsServices = {};
-            const provider = new InternalToolsProvider(emptyServices, approvalManager, config);
+            const provider = new InternalToolsProvider(
+                emptyServices,
+                approvalManager,
+                config,
+                mockLogger
+            );
 
             // Should not throw, but should skip tools due to missing services
             await provider.initialize();
@@ -433,7 +442,12 @@ describe('InternalToolsProvider', () => {
         });
 
         it('should handle tool execution context properly', async () => {
-            const provider = new InternalToolsProvider(mockServices, approvalManager, config);
+            const provider = new InternalToolsProvider(
+                mockServices,
+                approvalManager,
+                config,
+                mockLogger
+            );
             await provider.initialize();
 
             // Execute without sessionId
