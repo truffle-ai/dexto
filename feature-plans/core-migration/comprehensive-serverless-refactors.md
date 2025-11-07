@@ -618,8 +618,11 @@ export class ResourceError extends DextoRuntimeError {
 
 2. **Implement prompt refactor**
    - Remove FilePromptProvider filesystem scanning
+   - Consolidate starter prompts and file prompts
    - Migrate to ConfigPromptProvider (per prompt-refactor.md)
+   - Update all yml files in repo to match this new format
 
+// TODO: it might be better to let the core handle this based on env with dynamic imports rather than so much injection?
 3. **Move FileContributor to use function injection**
    - Accept file reader function instead of reading directly
    - Agent-management provides the reader function
@@ -959,6 +962,7 @@ R2 Storage
 - Railway-managed Postgres for state
 - Can use existing Hono server as-is
 
+// TODO: how would railway price if one user created 10 agents? need to know this to decide how to price our platform? would this depend on traffic also? how would pricing vary based on traffic
 **Pricing (November 2025):**
 - **Base**: $5/month subscription
 - **Compute**: $0.000231 per GB-minute
@@ -1003,6 +1007,7 @@ R2 Storage
 
 **Best use:** When already in AWS ecosystem
 
+// TODO: expand more how neon/convex/supabase might fit into our existing storage layer - (suppose we made storage configurable via code (like we were thinking of plugins in the ../research/instance-vs-config-grounded-analysis.md file). analyze thoroughly)
 ### Neon DB (Database Layer)
 
 **Role:** Serverless Postgres to pair with compute platform
@@ -1113,6 +1118,8 @@ dexto deploy production-cloudflare  # Uploads to R2, deploys Worker
 dexto deploy production-railway      # Pushes Docker image to Railway
 ```
 
+
+// TODO: for iac i actually meant more like vercels model (code in github, link repo, auto handles deploys - for ultimate UX, unlike terraform or github actions) IAC might be useful for spawning things when we are deploying to platform though
 ### Infrastructure-as-Code Integration
 
 **GitHub Actions (OIDC):**
