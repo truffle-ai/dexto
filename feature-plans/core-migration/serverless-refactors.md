@@ -5,6 +5,7 @@ Remove all filesystem dependencies from the core runtime to enable serverless de
 
 ## Current State
 
+// TODO: refer to the prompt-migration plan as well here somewhere in the doc for completeness
 ### Filesystem Dependencies in Core
 1. **configPath propagation** - Passed through service initializer to multiple services
 2. **SystemPromptManager** - Receives configDir but FileContributor doesn't actually use it (bug)
@@ -65,6 +66,7 @@ systemPrompt:
 
 ## Proposed Architecture
 
+// TODO: Add more examples here using diffeent URIs than just file for completeness
 ### Overview
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -113,6 +115,8 @@ systemPrompt:
    // Output: "file:///opt/agents/prompts/base.md"
    ```
    - Templates only for file-based configs (makes no sense for S3/HTTP configs)
+   - Template variable agent dir mainly is primarily a CLI feature which will be local
+   - This is currently the only template variable. We can see how to handle other template variables differently if they make sense in the cloud
    - After expansion, everything is a URI (file://, s3://, https://)
 
 2. **All Paths Must Be Absolute**
@@ -121,6 +125,7 @@ systemPrompt:
    - HTTP resources: `https://cdn.example.com/path`
    - No relative paths allowed anywhere in core
 
+// TODO: be more explicit about how this handles credentials. i think avoiding envprefix and specifying exact creds needed per source is better
 3. **DataSources for Credentials**
    ```yaml
    dataSources:
@@ -178,6 +183,7 @@ systemPrompt:
 ```typescript
 // packages/core/src/agent/schemas.ts
 
+// TODO: may not always be available!
 const LocalDataSourceSchema = z.object({
     type: z.literal('local'),
     description: z.string().optional(),
@@ -223,6 +229,7 @@ export const AgentConfigSchema = z.object({
 
 ### Validation Rules
 
+// TODO: be more explicit here how we will enforce this for every schema we have (including plugins, file prompt contributor, etc.)
 1. **All resource URIs must be absolute**
    ```typescript
    // Example for FilePromptSchema (from prompt refactor plan)
@@ -254,6 +261,7 @@ export const AgentConfigSchema = z.object({
    });
    ```
 
+// TODO: this creates dependencies between schemas so we need to explain how we will handle that
 2. **DataSource must exist for remote URIs**
    ```typescript
    // Cross-field validation in AgentConfigSchema
@@ -364,6 +372,7 @@ export class ResourceError extends DextoRuntimeError {
 }
 ```
 
+// TODO: we should do the easiest stuff first that aligns with our previous plan (the config dir stuff, file prompt migration, before we do all the new features)
 ## Implementation Plan
 
 ### Phase 1: Foundation
@@ -431,6 +440,8 @@ export class ResourceError extends DextoRuntimeError {
    - All use `dataSource: local`
 
 ### Phase 5: DextoAgent Updates
+
+// TODO: we should be more explicit about 'config source' that is more generic than config path and describes where the config is stored. we can drop 'agentfilepath' nomenclature, call it getAgentSourceFile instead?
 
 1. **Update constructor**
    - Keep `configPath` for `reload()` and `getAgentFilePath()`
@@ -567,12 +578,12 @@ plugins:
 ### For Advanced Users (S3/HTTP)
 - New feature, opt-in
 - Document in examples
-- Provide migration guide
+- We don't need backward compatibility, few users
 
 ## Risks & Mitigation
 
 **Risk**: Credential management complexity
-**Mitigation**: Use standard credential chains (AWS SDK, env vars). Document clearly.
+**Mitigation**: Use standard credential chains (AWS SDK, env vars). Document clearly. Needs more research
 
 **Risk**: URI validation bugs
 **Mitigation**: Comprehensive schema validation with clear error messages.
@@ -610,3 +621,10 @@ Once this is complete:
 4. **Template expansion tests**
    - Verify `file://` prefix added
    - Security: path traversal still blocked
+
+
+// TODO: added by human
+### open questions
+1. How do things like Convex DB, Neon DB, Supabase, and potentially CloudFlare Durable Objects factor into this? I am considering using CloudFlare for our cloud deployment on our proprietary platform, so I want to kind of understand more about those things.
+2. How does this impact our entire bundling logic that we have in ../project-based-architecture.md? The idea here is to allow users to define their configs locally and based on where they want to deploy. Maybe they could provide a deployment config or something. We could even convert local files into remote files, upload them somewhere, and push them as part of bundling. But we will need to figure out how we would handle custom code-based stuff as well like plugins and other places that provide custom code.
+
