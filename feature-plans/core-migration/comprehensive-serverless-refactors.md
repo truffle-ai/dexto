@@ -1271,11 +1271,18 @@ Costs:
 
 **Why Good for Dexto:**
 - ✅ Traditional persistent filesystem (no refactoring needed)
-- ✅ Always-on services (not cold starts)
+- ✅ Scale to Zero support (no compute charges when sleeping)
 - ✅ Native database support (Postgres, Redis, MySQL)
 - ✅ Docker deployment (full control)
 - ✅ WebSocket support
 - ✅ Simple pricing model
+- ✅ $5/month base per ACCOUNT (not per service!)
+
+**Challenges:**
+- ⚠️ Scale to Zero requires no outbound packets for 10+ minutes
+- ⚠️ WebSocket heartbeats prevent sleep (agents stay awake 24/7)
+- ⚠️ Requires architecture change (REST API only) to utilize Scale to Zero
+- ⚠️ Cold starts when waking from sleep
 
 **Architecture:**
 - Deploy as standard Node.js container
@@ -1283,56 +1290,505 @@ Costs:
 - Railway-managed Postgres for state
 - Can use existing Hono server as-is
 
-// TODO/RESOLVED: Railway pricing analysis for multi-agent scenarios
+#### Scale to Zero Feature
+
+**How it works:**
+- Service sleeps after **10 minutes** of no outbound packets
+- **Wakes automatically** on incoming request (cold start)
+- **Zero compute charges** while sleeping (only storage)
+- Inactivity detection includes: network requests, DB connections, framework telemetry, NTP requests
+
+**Critical Issue for Dexto:**
+```
+Persistent WebSocket connections send periodic heartbeats (ping/pong)
+→ Services NEVER scale to zero (always sending outbound packets)
+→ Pay for 24/7 uptime even when agents are idle
+```
+
+**Solutions:**
+1. **Shared container**: All agents in one always-on service (most cost-effective)
+2. **REST API only**: Remove WebSocket, use REST + SSE (enables Scale to Zero)
+3. **Accept 24/7 costs**: Keep WebSocket, pay for always-on containers
+
+#### Comprehensive Pricing Analysis
 
 **Pricing (November 2025):**
-- **Base**: $5/month subscription
+- **Base**: $5/month subscription (per account, NOT per service!)
 - **Compute**: $0.000231 per GB-minute
-  - Example: 1 GB RAM continuously = ~$10/month
-  - Example: 2 GB RAM continuously = ~$20/month
+  - Example: 1 GB RAM continuously = 730 hours × 60 min = 43,800 GB-min = $10.12/month
+  - Example: 2 GB RAM continuously = 87,600 GB-min = $20.24/month
+  - Example: 0.5 GB RAM continuously = 21,900 GB-min = $5.06/month
+- **Storage**: $0.25/GB-month (persistent volumes)
 - **Egress**: First 100 GB free, then $0.10/GB
-- **Free tier**: $5 credit (500GB-minutes) + 100GB egress
+- **Free tier**: $5 credit (included in subscription)
 
-**Cost Predictability:**
-- Flat pricing (no surprise charges)
-- Simple formula: Base + (RAM × uptime × rate) + egress
-- Example: Small agent (512MB): $5 + ~$5/mo = $10/mo total
+**Minimum Container Size:**
+- 0.5 GB RAM / 1 vCPU per service (smallest allocation)
+- Can create unlimited services per account (pay for resources used)
 
-**Comparison:**
-- Railway: Always-on, traditional deployment, persistent storage
-- CloudFlare: Serverless, edge deployment, scale-to-zero, global
-- Railway is **easier** (less refactoring), CloudFlare is **cheaper at scale**
+#### Multi-Agent Pricing Scenarios
 
-**Multi-Agent Pricing Scenarios:**
+**Scenario 1: Shared container (all agents in one service) - RECOMMENDED**
+```yaml
+100 users, shared 2GB container:
+├─ Base subscription: $5/month
+├─ Compute (24/7 always-on):
+│   ├─ 2 GB × 730 hours × 60 min = 87,600 GB-minutes
+│   └─ 87,600 × $0.000231 = $20.24/month
+├─ Storage: 10 GB × $0.25 = $2.50/month
+└─ Total: ~$28/month for 100 users
 
-**Scenario 1: 10 agents in shared container**
-```
-1 Railway Service:
-├─ 2 GB RAM container (handles all 10 agents)
-└─ Cost: $5 (base) + $10 (RAM) = $15/month
-
-Traffic impact:
-- Low (1K req/day): $15/mo total
-- High (100K req/day): $15 (RAM) + $3 (CPU) + $20 (egress) = $38/mo
-```
-
-**Scenario 2: 10 agents as separate services**
-```
-10 Railway Services:
-├─ 10 × 512MB containers = 5 GB total RAM
-└─ Cost: $5 (base) + $25 (RAM) = $30/month
-
-Traffic impact:
-- Scales similarly but with more overhead
+Architecture:
+- One Node.js process with Hono server
+- Multiple DextoAgent instances (one per user)
+- Shared Postgres database for all sessions
+- WebSocket connections maintained in single process
 ```
 
-**Recommended Dexto Cloud pricing strategy:**
-- **Free tier**: 1 agent, shared infrastructure
-- **Starter ($10/mo)**: Up to 3 agents, 10K requests/mo
-- **Pro ($30/mo)**: Up to 10 agents, 100K requests/mo
-- **Enterprise ($100+/mo)**: Unlimited agents, isolated infrastructure
+**Scenario 2: Separate containers with WebSocket (can't scale to zero)**
+```yaml
+100 users, separate 0.5GB containers:
+├─ Base subscription: $5/month
+├─ Compute (24/7, WebSocket keeps containers awake):
+│   ├─ 100 services × 0.5 GB × 730 hours × 60 min = 2,190,000 GB-minutes
+│   └─ 2,190,000 × $0.000231 = $506/month
+├─ Storage: 100 × 0.1 GB = $2.50/month
+└─ Total: ~$513/month for 100 users
+
+Why expensive:
+- WebSocket heartbeats prevent Scale to Zero
+- Pay for idle RAM consumption 24/7
+- Even lightweight agents (50-100MB active) charged for full 512MB allocation
+```
+
+**Scenario 3: Separate containers with Scale to Zero (REST API only)**
+```yaml
+100 users, separate 0.5GB containers, Scale to Zero enabled:
+├─ Base subscription: $5/month
+├─ Compute (only when active):
+│   ├─ Average user: 30 messages/month, 3 min per message = 90 min/month active
+│   ├─ 100 users × 90 min × 0.5 GB = 4,500 GB-minutes
+│   └─ 4,500 × $0.000231 = $1.04/month
+├─ Storage: 100 × 0.1 GB = $2.50/month
+└─ Total: ~$8.54/month for 100 users (incredibly cheap!)
+
+Requirements:
+- Migrate from WebSocket to REST API + SSE
+- Accept cold start delays (first request wakes service)
+- Users close connections between conversations
+```
+
+**Scenario 4: Hybrid approach**
+```yaml
+10 shared containers (10 users each):
+├─ Base subscription: $5/month
+├─ Compute:
+│   ├─ 10 services × 0.5 GB × 730 hours × 60 min = 219,000 GB-minutes
+│   └─ 219,000 × $0.000231 = $50.59/month
+├─ Storage: $2.50/month
+└─ Total: ~$58/month for 100 users
+
+Benefits:
+- Better isolation than single shared container
+- Cheaper than 100 separate containers
+- Can isolate by tier (free users together, paid users separate)
+```
+
+#### Cost Comparison (100 active agents/users)
+
+| Deployment Strategy | Monthly Cost | Architecture | Pros/Cons |
+|---------------------|--------------|--------------|-----------|
+| **Railway (shared container)** | ~$28 | All agents in 2GB service | ✅ Cheapest, ✅ Simple, ❌ No isolation |
+| **Railway (Scale to Zero)** | ~$9 | 100 × 0.5GB, REST only | ✅ Ultra cheap, ❌ Cold starts, ❌ No WebSocket |
+| **Railway (separate + WS)** | ~$513 | 100 × 0.5GB, always-on | ❌ Expensive, ✅ Full isolation, ✅ WebSocket |
+| **Railway (hybrid)** | ~$58 | 10 × 0.5GB shared | ✅ Balanced, ✅ Some isolation |
+| **CloudFlare DO** | ~$871 | One DO per session | ✅ True serverless, ✅ WebSocket Hibernation |
+
+#### Recommendation for Railway Deployment
+
+**For cost-conscious SaaS (< 100 users):**
+- ✅ **Shared container** (~$28/mo) - Best balance of cost and simplicity
+- Use multi-tenancy in single Node.js process
+- Implement usage limits per user to prevent abuse
+
+**For enterprise/isolation requirements:**
+- ✅ **Hybrid approach** (~$58/mo) - Group users by tier/organization
+- Free tier users: Shared containers
+- Paid users: Dedicated or semi-dedicated containers
+
+**For maximum cost optimization:**
+- ✅ **Migrate to REST + SSE** (~$9/mo) - Remove WebSocket dependency
+- Enable Scale to Zero for all services
+- Accept cold start tradeoffs (typically < 1 second)
+
+**Comparison to CloudFlare:**
+- Railway: Cheaper for sustained moderate traffic, traditional architecture
+- CloudFlare: Better for high-burst workloads, global edge, true pay-per-use
 
 **Key insight**: Railway RAM cost is fixed (always-on), CPU and egress scale with traffic. For multi-tenant SaaS, use shared infrastructure per user or pricing tier to optimize costs.
+
+### Render
+
+**Why Good for Dexto:**
+- ✅ Traditional persistent filesystem (no refactoring needed)
+- ✅ Docker deployment with full control
+- ✅ WebSocket support with sticky sessions
+- ✅ Managed Postgres, Redis databases
+- ✅ Generous free tier for testing
+- ✅ Simple, predictable pricing
+
+**Challenges:**
+- ⚠️ **NO Scale to Zero for paid services** (critical limitation!)
+- ⚠️ Free tier services stop after 15 minutes inactivity (not viable for production)
+- ⚠️ Free tier databases deleted after 90 days
+- ⚠️ Always-on paid services = paying for idle time
+- ⚠️ More expensive than Railway for always-on workloads
+
+**Architecture:**
+- Deploy as standard Node.js container
+- Persistent disk storage ($0.25/GB-month)
+- Render-managed Postgres
+- Can use existing Hono server as-is
+
+#### Pricing Analysis (November 2025)
+
+**Container Tiers:**
+```yaml
+Free:
+├─ RAM: 512 MB
+├─ CPU: 0.1 shared
+├─ Cost: $0/month
+├─ Limits: Stops after 15 min inactivity
+└─ Bandwidth: 100 GB included
+
+Starter:
+├─ RAM: 512 MB
+├─ CPU: 0.5 shared
+├─ Cost: $9/month (always-on, no scale-to-zero!)
+└─ Bandwidth: 100 GB included
+
+Standard:
+├─ RAM: 2 GB
+├─ CPU: 1 dedicated
+├─ Cost: $25/month (always-on)
+└─ Bandwidth: 100 GB included
+
+Pro:
+├─ RAM: 4 GB
+├─ CPU: 2 dedicated
+├─ Cost: $85/month (always-on)
+└─ Bandwidth: 500 GB included
+
+Pro Plus:
+├─ RAM: 8 GB
+├─ CPU: 4 dedicated
+├─ Cost: $175/month (always-on)
+└─ Bandwidth: 500 GB included
+```
+
+**Additional Costs:**
+- Persistent disk: $0.25/GB-month
+- Bandwidth overage: Varies by plan tier
+- Build minutes: Prorated by second
+
+#### Multi-Agent Cost Scenarios
+
+**Scenario 1: Shared container (100 users)**
+```yaml
+1 Standard instance (2GB):
+├─ Base cost: $25/month (always-on, no scale-to-zero)
+├─ Storage: 10 GB × $0.25 = $2.50/month
+└─ Total: ~$27.50/month for 100 users
+
+Note: Similar cost to Railway but NO scale-to-zero option
+```
+
+**Scenario 2: Separate containers (100 users)**
+```yaml
+100 Starter instances (512MB each):
+├─ Base cost: 100 × $9 = $900/month (always-on!)
+├─ Storage: 100 × $0.25 = $2.50/month
+└─ Total: ~$902.50/month for 100 users
+
+Why expensive:
+- No scale-to-zero for paid services
+- Even idle agents cost $9/month each
+- Cheapest paid tier is $9 (vs Railway's usage-based)
+```
+
+#### Critical Limitation: No Scale-to-Zero for Paid Services
+
+```
+Free tier: Scale-to-zero (stops after 15 min) ← Not viable for production
+Paid tiers: ALWAYS-ON (no scale-to-zero option) ← Pay for idle time
+
+This is a fundamental limitation compared to Railway, Fly.io, and Heroku Eco.
+```
+
+#### Cost Comparison
+
+| Deployment | Render | Railway | Notes |
+|-----------|--------|---------|-------|
+| **Single 2GB container** | $25/mo | $28/mo | Render slightly cheaper but no flexibility |
+| **100 × 512MB separate** | $900/mo | $513/mo (always-on) or $9/mo (scale-to-zero) | Render 75% more expensive |
+| **Scale-to-zero support** | ❌ NO (paid tiers) | ✅ YES | Critical difference |
+
+**Recommendation:**
+- ❌ **Not recommended** for multi-tenant SaaS requiring per-user isolation
+- ✅ **Good for**: Single shared container with always-on workload
+- ✅ **Good for**: Prototyping on free tier (15 min timeout acceptable)
+
+### Fly.io
+
+**Why Good for Dexto:**
+- ✅ True pay-as-you-go pricing (per second billing)
+- ✅ **Scale to Zero supported** (`auto_stop_machines = true`)
+- ✅ Global edge deployment (similar to CloudFlare)
+- ✅ WebSocket support with auto-scaling
+- ✅ Persistent volumes
+- ✅ Smallest machine size: 256MB (vs Railway's 512MB)
+- ✅ No base subscription fee (pure usage-based)
+
+**Challenges:**
+- ⚠️ Complex pricing (many variables, can be unpredictable)
+- ⚠️ Egress costs vary by region ($0.02-$0.12/GB)
+- ⚠️ Minimum stopped machine cost: $0.15/GB-month (root filesystem storage)
+- ⚠️ Paid support required ($29/mo) for production use
+- ⚠️ Cold start delays when waking from scale-to-zero
+
+**Architecture:**
+- Deploy as micro VMs
+- Persistent volumes ($0.15/GB-month)
+- Can run Postgres as Fly machines
+- Supports multi-region deployment
+
+#### Pricing Analysis (November 2025)
+
+**Machine Types:**
+```yaml
+Shared CPU (shared-cpu-1x):
+├─ 256 MB RAM: $0.0028/hour = $2.02/month (if always-on)
+├─ 512 MB RAM: ~$4/month
+├─ 1 GB RAM: ~$7/month
+├─ 2 GB RAM: ~$12/month
+└─ Scale-to-zero: $0.15/GB-month (stopped machine storage)
+
+Performance CPU (performance-1x):
+├─ 2 GB RAM: $0.0447/hour = $32.19/month (if always-on)
+├─ 4 GB RAM: ~$64/month
+└─ Dedicated CPU resources (consistent performance)
+```
+
+**Additional Costs:**
+- **Storage**: $0.15/GB-month (volumes and stopped machines)
+- **Egress**:
+  - North America/Europe: $0.02/GB
+  - Asia Pacific: $0.04/GB
+  - Africa/India: $0.12/GB
+- **IPv4**: $2/month (per IP)
+- **Support**: $29/month (Standard) for production use
+
+**Machine Reservations (40% discount):**
+- Prepay annually for committed compute
+- Shared: $36/year = $3/month effective
+- Performance: $144/year = $12/month effective
+
+#### Multi-Agent Cost Scenarios
+
+**Scenario 1: Shared container (100 users, always-on)**
+```yaml
+1 shared-cpu-1x with 2GB:
+├─ Compute: $12/month (always-on)
+├─ Storage: 10 GB × $0.15 = $1.50/month
+├─ Egress: 100 GB × $0.02 = $2.00/month
+├─ Support: $29/month (required for production)
+└─ Total: ~$44.50/month for 100 users
+
+Note: More expensive than Railway ($28) due to $29 support fee
+```
+
+**Scenario 2: Separate machines with scale-to-zero (100 users)**
+```yaml
+100 shared-cpu-1x with 256MB each:
+├─ Compute (only when active):
+│   ├─ Average: 30 msgs/month, 3 min per msg = 90 min/month active
+│   ├─ 100 users × 90 min × (1/60) hours × $0.0028 = $0.42/month
+├─ Stopped machine storage:
+│   ├─ 100 × 0.256 GB × $0.15 = $3.84/month
+├─ Egress: 100 GB × $0.02 = $2.00/month
+├─ Support: $29/month
+└─ Total: ~$35.26/month for 100 users
+
+Why cheaper than Railway Scale-to-Zero:
+- Smaller minimum size (256MB vs 512MB)
+- Per-second billing
+- But: $29 support fee adds significant base cost
+```
+
+**Scenario 3: Always-on separate machines (100 users, no scale-to-zero)**
+```yaml
+100 shared-cpu-1x with 256MB each:
+├─ Compute: 100 × $2.02 = $202/month (always-on)
+├─ Storage: $3.84/month
+├─ Egress: $2.00/month
+├─ Support: $29/month
+└─ Total: ~$236.84/month for 100 users
+
+Note: Cheaper than Railway always-on ($513) but more expensive than Railway scale-to-zero ($9)
+```
+
+#### Cost Comparison
+
+| Deployment Strategy | Fly.io | Railway | Winner |
+|---------------------|--------|---------|--------|
+| **Shared container (always-on)** | $44.50 | $28 | Railway (no support fee) |
+| **Scale-to-zero (100 × 256MB)** | $35.26 | $9 | Railway (no stopped machine storage) |
+| **Always-on (100 × 256MB)** | $237 | $513 | Fly.io (smaller machines) |
+
+**Key Insight:**
+- Fly.io's **$29/month support fee** makes it uncompetitive for small deployments
+- Fly.io's **stopped machine storage** ($0.15/GB-month) adds cost to scale-to-zero
+- Railway's **true zero cost** when scaled to zero beats Fly.io for sporadic usage
+- Fly.io wins for **always-on separate containers** due to smaller machine sizes (256MB)
+
+**Recommendation:**
+- ❌ **Not recommended** for cost-conscious SaaS (< 100 users)
+- ✅ **Good for**: Global edge deployment with multi-region requirements
+- ✅ **Good for**: Workloads needing 256MB machines (smaller than Railway's 512MB)
+- ✅ **Good for**: Apps with committed usage (use 40% discount reservations)
+
+### Heroku
+
+**Why Good for Dexto:**
+- ✅ Most mature PaaS (industry standard)
+- ✅ **Eco dynos with scale-to-zero** ($5/mo for 1000 hours)
+- ✅ Simple, predictable pricing
+- ✅ WebSocket support (Router 2.0)
+- ✅ Massive add-on ecosystem (Redis, Postgres, monitoring, etc.)
+- ✅ Zero-config CI/CD from Git
+
+**Challenges:**
+- ⚠️ Most expensive option for production workloads
+- ⚠️ Eco dynos: Only 2 concurrent dynos max (1 web + 1 worker)
+- ⚠️ Basic dynos: No horizontal scaling (1 dyno per process type)
+- ⚠️ Eco/Basic: Shared CPU (inconsistent performance)
+- ⚠️ Production-grade Standard dynos: $25/month minimum
+
+**Architecture:**
+- Deploy via Git push or GitHub integration
+- Heroku-managed Postgres ($9/mo mini tier)
+- Process-based scaling (web, worker, etc.)
+- Add-ons for Redis, monitoring, logging
+
+#### Pricing Analysis (November 2025)
+
+**Dyno Tiers:**
+```yaml
+Eco Dynos:
+├─ RAM: 512 MB
+├─ CPU: Shared (burstable)
+├─ Cost: $5/month for 1000 hours (shared across all Eco dynos)
+├─ Scale-to-zero: Yes (sleeps after 30 min inactivity)
+├─ Limits: Max 2 concurrent dynos (e.g., 1 web + 1 worker)
+└─ Hours consumed: Only when awake
+
+Basic Dynos:
+├─ RAM: 512 MB
+├─ CPU: Shared (burstable)
+├─ Cost: $7/month per dyno (always-on, no scale-to-zero)
+├─ Limits: 1 dyno per process type, no horizontal scaling
+└─ WebSocket: Supported (Router 2.0)
+
+Standard-1X (Production):
+├─ RAM: 512 MB
+├─ CPU: Dedicated 1X
+├─ Cost: $25/month per dyno (always-on)
+├─ Scaling: Unlimited horizontal scaling
+└─ Performance: Consistent, not shared
+```
+
+**Database:**
+- Mini Postgres: $9/month (10K rows, 1GB storage)
+- Basic Postgres: $50/month (10M rows, 64GB storage)
+
+#### Multi-Agent Cost Scenarios
+
+**Scenario 1: Shared Eco dyno (100 users)**
+```yaml
+1 Eco dyno (scale-to-zero enabled):
+├─ Dyno: $5/month for 1000 hours
+├─ Actual usage: ~200 hours/month (mostly sleeping)
+├─ Postgres Mini: $9/month
+└─ Total: ~$14/month for 100 users
+
+Extremely cost-effective for low-traffic shared workload!
+```
+
+**Scenario 2: Multiple Eco dynos (can't exceed 2 concurrent)**
+```yaml
+2 Eco dynos (1 web + 1 worker):
+├─ Dyno: $5/month for 1000 hours (shared pool)
+├─ Actual usage: ~400 hours/month total
+├─ Postgres Mini: $9/month
+└─ Total: ~$14/month
+
+Note: Can't deploy 100 separate Eco dynos (max 2 concurrent)
+```
+
+**Scenario 3: Separate Basic dynos (always-on, 100 users)**
+```yaml
+100 Basic dynos (512MB each):
+├─ Dynos: 100 × $7 = $700/month (always-on)
+├─ Postgres: $50/month (need larger DB)
+└─ Total: ~$750/month for 100 users
+
+Note: No horizontal scaling within Basic tier (1 dyno per process type)
+This architecture is not supported - Basic dynos can't scale horizontally
+```
+
+**Scenario 4: Production with Standard dynos (shared container)**
+```yaml
+1 Standard-1X dyno (2GB needed):
+├─ Dyno: $50/month (2× Standard-1X for 1GB each stacked)
+├─ Postgres Mini: $9/month
+└─ Total: ~$59/month for 100 users
+
+Note: Need to stack multiple Standard-1X to get 2GB
+```
+
+#### Critical Limitation: Eco Dyno Constraints
+
+```
+Eco dynos are designed for low-traffic apps:
+├─ Max 2 concurrent dynos per account
+├─ Sleep after 30 min inactivity
+├─ Shared 1000 hours/month pool
+└─ Can't deploy 100 separate user agents on Eco tier
+
+Viable strategies:
+1. Shared Eco dyno (all users in one process) ← Only realistic option
+2. Upgrade to Basic ($700/mo for 100 always-on) ← Too expensive
+3. Upgrade to Standard ($2,500+/mo for 100 scaled) ← Way too expensive
+```
+
+#### Cost Comparison
+
+| Deployment Strategy | Heroku | Railway | Render | Fly.io |
+|---------------------|--------|---------|--------|--------|
+| **Shared container** | $14 (Eco) | $28 | $27.50 | $44.50 |
+| **100 separate (scale-to-zero)** | ❌ Not possible (Eco limit) | $9 | ❌ Not supported | $35.26 |
+| **100 separate (always-on)** | ❌ $750 (Basic) | $513 | $900 | $237 |
+
+**Key Insights:**
+- **Heroku Eco = Best for shared container** ($14/mo including DB!)
+- **Heroku fails for multi-tenant isolation** (Eco limit: 2 dynos max)
+- **Heroku Basic/Standard = Most expensive** for production multi-tenant
+
+**Recommendation:**
+- ✅ **BEST for**: Single shared container, low-traffic SaaS ($14/mo unbeatable)
+- ❌ **Not viable**: Per-user isolated containers (Eco limit blocks this)
+- ❌ **Not recommended**: Production multi-tenant (too expensive at scale)
+- ✅ **Good for**: Prototyping, MVPs, developer experience
 
 // TODO/RESOLVED: Vercel requires WebSocket → SSE migration (see ./websocket-to-sse-migration.md)
 
@@ -1354,6 +1810,120 @@ For Vercel deployment, see [WebSocket to SSE Migration Plan](./websocket-to-sse-
 - Hobby: Free (10s function timeout)
 - Pro: $20/month per user (60s timeout)
 - Enterprise: Custom (900s timeout)
+
+## Comprehensive Platform Comparison
+
+### Cost Summary (100 Users, Multiple Deployment Strategies)
+
+| Platform | Shared Container | 100 Separate (Scale-to-Zero) | 100 Separate (Always-On) | Winner For |
+|----------|------------------|------------------------------|---------------------------|------------|
+| **Heroku Eco** | **$14/mo** (incl. DB) | ❌ Not possible (2 dyno limit) | $750/mo (Basic) | 🏆 **Best: Shared low-traffic** |
+| **Railway** | $28/mo | **$9/mo** | $513/mo | 🏆 **Best: Multi-tenant scale-to-zero** |
+| **Render** | $27.50/mo | ❌ Not supported (no scale-to-zero) | $900/mo | ⚠️ Limited use cases |
+| **Fly.io** | $44.50/mo (incl. $29 support) | $35.26/mo | **$237/mo** | 🏆 **Best: Always-on isolation** |
+| **CloudFlare DO** | $28/mo (1 DO, minimal activity) | N/A (pay-per-use model) | **$871/mo** (high activity) | 🏆 **Best: Global edge, burst traffic** |
+
+### Feature Comparison Matrix
+
+| Feature | Railway | Render | Fly.io | Heroku | CloudFlare DO |
+|---------|---------|--------|--------|--------|---------------|
+| **Scale to Zero** | ✅ Yes (true $0) | ❌ No (paid tiers) | ✅ Yes ($0.15/GB storage) | ✅ Yes (Eco only) | ✅ Yes (true $0) |
+| **WebSocket Support** | ✅ Yes | ✅ Yes (sticky sessions) | ✅ Yes | ✅ Yes (Router 2.0) | ✅ Yes (Hibernation) |
+| **Minimum Container** | 512 MB | 512 MB | **256 MB** | 512 MB | 128 MB (DO) |
+| **Base Subscription** | $5/mo (account) | None | None | $5/mo (1000 hrs) | $5/mo (Workers Paid) |
+| **Support Fee** | None | None | **$29/mo** (production) | None | None |
+| **Persistent Filesystem** | ✅ Yes | ✅ Yes | ✅ Yes (volumes) | ✅ Yes (ephemeral) | ❌ No (R2 only) |
+| **Global Edge** | ❌ No (single region) | ❌ No (multi-region manual) | ✅ Yes | ❌ No | ✅ Yes (automatic) |
+| **Billing Model** | Usage-based | Fixed tiers | Pay-as-you-go | Fixed tiers + hours | Pay-per-use |
+| **Max Concurrent (Free/Low Tier)** | Unlimited | Unlimited | Unlimited | **2 dynos (Eco)** | Unlimited |
+| **Cold Start Time** | ~1s | N/A (always-on) | ~1s | ~10s (Eco) | < 1s |
+
+### Technical Capabilities
+
+| Capability | Railway | Render | Fly.io | Heroku | CloudFlare DO |
+|------------|---------|--------|--------|--------|---------------|
+| **Multi-Region Deployment** | ❌ Manual only | ❌ Manual only | ✅ Automatic | ❌ Single region | ✅ Automatic (edge) |
+| **Horizontal Scaling** | ✅ Yes | ✅ Yes (Pro+) | ✅ Yes | ✅ Yes (Standard+) | ✅ Yes (millions of DOs) |
+| **Custom Domains** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Database Managed** | ✅ Postgres, Redis, MySQL | ✅ Postgres, Redis | ✅ Postgres | ✅ Postgres (add-on) | ❌ DIY (D1 or external) |
+| **Docker Support** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes (via Dockerfile) | ⚠️ Limited (Workers runtime) |
+| **CI/CD Integration** | ✅ GitHub, GitLab | ✅ GitHub, GitLab | ✅ GitHub Actions | ✅ Git push, GitHub | ✅ GitHub Actions, Wrangler |
+
+### Pricing Transparency & Predictability
+
+| Platform | Predictability | Hidden Costs | Notes |
+|----------|----------------|--------------|-------|
+| **Heroku** | ⭐⭐⭐⭐⭐ Excellent | Minimal | Fixed pricing, clear tiers |
+| **Railway** | ⭐⭐⭐⭐ Very Good | Minimal | Simple formula: base + (GB-min × rate) |
+| **Render** | ⭐⭐⭐⭐ Very Good | Minimal | Fixed tiers, straightforward |
+| **Fly.io** | ⭐⭐⭐ Good | **$29/mo support fee** | Multiple variables, complex egress |
+| **CloudFlare DO** | ⭐⭐⭐ Good | Duration charges can surprise | Pay-per-use = unpredictable for high activity |
+
+### Developer Experience
+
+| Platform | Ease of Deployment | Learning Curve | Documentation | Maturity |
+|----------|-------------------|----------------|---------------|----------|
+| **Heroku** | ⭐⭐⭐⭐⭐ | Very Low | Excellent | Industry standard (20+ years) |
+| **Railway** | ⭐⭐⭐⭐⭐ | Very Low | Good | Newer (5 years) |
+| **Render** | ⭐⭐⭐⭐ | Low | Good | Established (7 years) |
+| **Fly.io** | ⭐⭐⭐ | Moderate | Excellent | Growing (6 years) |
+| **CloudFlare DO** | ⭐⭐ | High | Good | Newer (4 years GA) |
+
+### Final Recommendations by Use Case
+
+#### 1. **Shared Container (All Users in One Service)**
+```
+🥇 Heroku Eco: $14/mo (includes Postgres!)
+🥈 Railway: $28/mo
+🥉 Render: $27.50/mo
+❌ Avoid: Fly.io ($44.50 with support fee), CloudFlare ($871 if high activity)
+```
+
+#### 2. **Multi-Tenant with Scale-to-Zero (Per-User Isolation)**
+```
+🥇 Railway: $9/mo (true $0 when sleeping)
+🥈 Fly.io: $35.26/mo (stopped machine storage adds cost)
+❌ Not Possible: Heroku (Eco 2-dyno limit), Render (no scale-to-zero)
+❌ Not Applicable: CloudFlare (different model)
+```
+
+#### 3. **Always-On Multi-Tenant (Per-User Containers)**
+```
+🥇 Fly.io: $237/mo (smallest machines: 256MB)
+🥈 Railway: $513/mo (minimum: 512MB)
+🥉 Heroku Basic: $750/mo
+❌ Avoid: Render ($900/mo), CloudFlare ($871/mo duration charges)
+```
+
+#### 4. **Global Edge Deployment (Low Latency Worldwide)**
+```
+🥇 CloudFlare DO: Best edge network, WebSocket Hibernation
+🥈 Fly.io: Multi-region, but manual configuration
+❌ Not Supported: Railway, Render, Heroku (single/manual regions)
+```
+
+#### 5. **High-Burst, Low-Average Traffic (Sporadic Usage)**
+```
+🥇 CloudFlare DO: True pay-per-use (only pay for active processing)
+🥈 Railway: Scale-to-zero with true $0 cost
+🥉 Fly.io: Scale-to-zero but stopped machine storage
+❌ Avoid: Render (always-on), Heroku Eco (2-dyno limit)
+```
+
+#### 6. **Cost-Conscious Prototype/MVP (<$20/month)**
+```
+🥇 Heroku Eco: $14/mo (shared container + DB, unbeatable)
+🥈 Railway: $9/mo (scale-to-zero multi-tenant)
+🥉 Render Free: $0/mo (15 min timeout, testing only)
+```
+
+#### 7. **Traditional Architecture (Persistent Filesystem Required)**
+```
+🥇 Railway: Best DX, scale-to-zero, flexible pricing
+🥈 Render: Solid, but no scale-to-zero for paid
+🥉 Heroku: Great DX, but expensive beyond Eco tier
+❌ Not Supported: CloudFlare DO (requires R2 for storage)
+```
 
 ### AWS Lambda
 
