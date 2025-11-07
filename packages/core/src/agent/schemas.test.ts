@@ -6,7 +6,6 @@ import {
     type AgentCard,
     type ValidatedAgentCard,
     type AgentConfig,
-    type ValidatedAgentConfig,
 } from './schemas.js';
 
 describe('AgentCardSchema', () => {
@@ -259,7 +258,7 @@ describe('AgentConfigSchema', () => {
 
     describe('Basic Structure Validation', () => {
         it('should accept valid minimal config', () => {
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
+            const result = AgentConfigSchema.parse(validAgentConfig);
 
             expect(result.systemPrompt.contributors).toHaveLength(1);
             expect(result.llm.provider).toBe('openai');
@@ -268,7 +267,7 @@ describe('AgentConfigSchema', () => {
         });
 
         it('should apply default values', () => {
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
+            const result = AgentConfigSchema.parse(validAgentConfig);
 
             // Should apply defaults from composed schemas
             expect(result.mcpServers).toEqual({});
@@ -327,7 +326,7 @@ describe('AgentConfigSchema', () => {
                 },
             };
 
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(config);
+            const result = AgentConfigSchema.parse(config);
 
             expect(result.agentCard?.name).toBe('TestAgent');
             expect(result.systemPrompt.contributors[0]!.id).toBe('custom');
@@ -388,7 +387,7 @@ describe('AgentConfigSchema', () => {
                 systemPrompt: 'Simple string prompt',
             };
 
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(config);
+            const result = AgentConfigSchema.parse(config);
 
             expect(result.systemPrompt.contributors).toHaveLength(1);
             expect(result.systemPrompt.contributors[0]!.type).toBe('static');
@@ -398,7 +397,7 @@ describe('AgentConfigSchema', () => {
         });
 
         it('should apply defaults from all composed schemas', () => {
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
+            const result = AgentConfigSchema.parse(validAgentConfig);
 
             // Defaults from different schemas should all be applied
             expect(result.llm.maxIterations).toBe(50); // LLM schema default
@@ -433,7 +432,7 @@ describe('AgentConfigSchema', () => {
                     blob: { type: 'local', storePath: '/tmp/test-blobs' },
                 },
             };
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(input);
+            const result = AgentConfigSchema.parse(input);
 
             // Should have applied defaults from all composed schemas
             expect(result.mcpServers).toBeDefined();
@@ -449,7 +448,7 @@ describe('AgentConfigSchema', () => {
         });
 
         it('should maintain proper types for nested objects', () => {
-            const config: ValidatedAgentConfig = AgentConfigSchema.parse(validAgentConfig);
+            const config = AgentConfigSchema.parse(validAgentConfig);
 
             // TypeScript should infer correct nested types
             expect(typeof config.llm.provider).toBe('string');
@@ -534,7 +533,7 @@ describe('AgentConfigSchema', () => {
                 },
             };
 
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(prodConfig);
+            const result = AgentConfigSchema.parse(prodConfig);
 
             expect(result.agentCard?.name).toBe('Production Agent');
             expect(result.systemPrompt.contributors).toHaveLength(2);
@@ -556,7 +555,7 @@ describe('AgentConfigSchema', () => {
                 },
             };
 
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(minimalConfig);
+            const result = AgentConfigSchema.parse(minimalConfig);
 
             // Should have all defaults applied
             expect(result.mcpServers).toEqual({});
