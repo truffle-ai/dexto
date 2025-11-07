@@ -563,12 +563,33 @@ export class DextoAgent {
 
     /**
      * Creates a new chat session or returns an existing one.
+     *
      * @param sessionId Optional session ID. If not provided, a UUID will be generated.
+     * @param options Optional session creation options including scopes and metadata
      * @returns The created or existing ChatSession
+     *
+     * @example
+     * // Create a primary session
+     * await agent.createSession(undefined, {
+     *   scopes: { type: 'primary', lifecycle: 'persistent' }
+     * });
+     *
+     * // Create a custom session type
+     * await agent.createSession('scheduled-task', {
+     *   scopes: { type: 'scheduled', lifecycle: 'persistent' },
+     *   metadata: { cronExpression: '0 9 * * *' }
+     * });
      */
-    public async createSession(sessionId?: string): Promise<ChatSession> {
+    public async createSession(
+        sessionId?: string,
+        options?: {
+            scopes?: Partial<import('../session/session-manager.js').SessionScopes>;
+            metadata?: Record<string, any>;
+            agentConfig?: import('../agent/schemas.js').AgentConfig;
+        }
+    ): Promise<ChatSession> {
         this.ensureStarted();
-        return await this.sessionManager.createSession(sessionId);
+        return await this.sessionManager.createSession(sessionId, options);
     }
 
     /**
@@ -582,12 +603,28 @@ export class DextoAgent {
     }
 
     /**
-     * Lists all active session IDs.
-     * @returns Array of session IDs
+     * Lists active session IDs, optionally filtered by scope criteria.
+     *
+     * @param filters Optional scope-based filters
+     * @returns Array of session IDs matching the filters
+     *
+     * @example
+     * // Get all primary sessions
+     * await agent.listSessions({ type: 'primary' });
+     *
+     * // Get all sub-agents
+     * await agent.listSessions({ type: 'sub-agent' });
      */
-    public async listSessions(): Promise<string[]> {
+    public async listSessions(filters?: {
+        type?: string;
+        parentSessionId?: string;
+        depth?: number;
+        lifecycle?: 'ephemeral' | 'persistent' | 'archived';
+        visibility?: 'private' | 'shared' | 'public';
+        agentIdentifier?: string;
+    }): Promise<string[]> {
         this.ensureStarted();
-        return await this.sessionManager.listSessions();
+        return await this.sessionManager.listSessions(filters);
     }
 
     /**

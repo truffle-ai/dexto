@@ -10,16 +10,62 @@ import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
 
+/**
+ * Session scopes define indexed, queryable dimensions for filtering and organizing sessions.
+ * These fields are optimized for efficient querying and are the primary way to filter sessions.
+ *
+ * Design principles:
+ * - Well-known fields for common use cases (type, hierarchy, lifecycle)
+ * - Extensible string types (not enums) to support custom session types
+ * - Multi-user fields (userId, tenantId) can be added later without breaking changes
+ */
+export interface SessionScopes {
+    /**
+     * Session type - well-known types + extensible for custom use cases
+     * Common types: 'primary', 'sub-agent', 'scheduled', 'task'
+     * Can be any string to support custom session types from plugins/extensions
+     */
+    type: string;
+
+    /**
+     * Parent session ID for hierarchical sessions (e.g., sub-agents)
+     */
+    parentSessionId?: string;
+
+    /**
+     * Depth in session hierarchy (0 = root/primary, 1+ = nested)
+     */
+    depth?: number;
+
+    /**
+     * Lifecycle policy - how long should this session persist
+     * - ephemeral: Auto-deleted after completion (e.g., sub-agents)
+     * - persistent: Kept until manually deleted (e.g., user chats)
+     * - archived: Moved to archive storage (future use)
+     */
+    lifecycle?: 'ephemeral' | 'persistent' | 'archived';
+
+    /**
+     * Visibility/access control (limited utility without multi-user support)
+     * - private: Default, single-user access
+     * - shared: Can be extended for multi-user sharing later
+     * - public: Can be extended for public access later
+     */
+    visibility?: 'private' | 'shared' | 'public';
+
+    /**
+     * Agent identifier for sessions with custom agent configs
+     * Examples: 'built-in:code-reviewer', 'file:./custom-agent.yml', 'inline'
+     */
+    agentIdentifier?: string;
+}
+
 export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
     messageCount: number;
     title?: string;
-    parentSessionId?: string; // ID of parent session if this is a sub-agent
-    depth: number; // 0 for primary sessions, 1+ for sub-agents
-    sessionType: 'primary' | 'sub-agent'; // Session type for filtering/management
-    agentIdentifier?: string; // Built-in agent name or custom config indicator
-    // Additional metadata for session management
+    scopes: SessionScopes;
 }
 
 export interface SessionManagerConfig {
@@ -28,16 +74,37 @@ export interface SessionManagerConfig {
     maxSubAgentDepth?: number; // Maximum nesting depth for sub-agents (default: 1, no nesting)
 }
 
+/**
+ * Internal session data structure stored in database.
+ * Includes scopes for filtering + metadata for type-specific flexible data.
+ *
+ * Migration: Old fields (sessionType, parentSessionId, depth) are maintained for
+ * backwards compatibility and will be removed in a future version.
+ */
 export interface SessionData {
     id: string;
-    userId?: string;
+
+    // New scope-based architecture
+    scopes: SessionScopes;
+
+    // Type-specific flexible metadata (not indexed, not used for filtering)
+    metadata?: Record<string, any>;
+
+    // Standard tracking fields
     createdAt: number;
     lastActivity: number;
     messageCount: number;
-    parentSessionId?: string; // ID of parent session if this is a sub-agent
-    depth: number; // 0 for primary sessions, 1+ for sub-agents
-    sessionType: 'primary' | 'sub-agent'; // Session type for filtering/management
-    metadata?: Record<string, any>;
+
+    // DEPRECATED: Maintained for backwards compatibility only
+    // These will be removed in a future version - use scopes instead
+    /** @deprecated Use scopes.type instead */
+    sessionType?: 'primary' | 'sub-agent';
+    /** @deprecated Use scopes.parentSessionId instead */
+    parentSessionId?: string;
+    /** @deprecated Use scopes.depth instead */
+    depth?: number;
+    /** @deprecated Legacy field, will be removed */
+    userId?: string;
 }
 
 /**
@@ -169,16 +236,36 @@ export class SessionManager {
      * Creates a new chat session or returns an existing one.
      *
      * @param sessionId Optional session ID. If not provided, a UUID will be generated.
-     * @param parentContext Optional parent session context for sub-agent sessions
+     * @param options Optional session creation options including scopes, agent config, and metadata
      * @returns The created or existing ChatSession
      * @throws Error if maximum sessions limit is reached or depth limit exceeded
+     *
+     * @example
+     * // Create a primary session
+     * await createSession(undefined, {
+     *   scopes: { type: 'primary', lifecycle: 'persistent' }
+     * });
+     *
+     * // Create a sub-agent session
+     * await createSession(undefined, {
+     *   scopes: {
+     *     type: 'sub-agent',
+     *     parentSessionId: parentId,
+     *     depth: 1,
+     *     lifecycle: 'ephemeral'
+     *   },
+     *   agentConfig: customAgent
+     * });
      */
     public async createSession(
         sessionId?: string,
-        parentContext?: {
-            parentSessionId: string;
-            depth: number;
+        options?: {
+            scopes?: Partial<SessionScopes>;
+            metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
+            // Legacy support for old API
+            parentSessionId?: string;
+            depth?: number;
             agentType?: string;
         }
     ): Promise<ChatSession> {
@@ -186,11 +273,26 @@ export class SessionManager {
 
         const id = sessionId ?? randomUUID();
 
+        // Build scopes from options (new API) or legacy fields
+        const scopes: SessionScopes = {
+            type: options?.scopes?.type ?? 'primary',
+            ...(options?.scopes?.parentSessionId && {
+                parentSessionId: options.scopes.parentSessionId,
+            }),
+            ...(options?.parentSessionId && { parentSessionId: options.parentSessionId }),
+            depth: options?.scopes?.depth ?? options?.depth ?? 0,
+            lifecycle: options?.scopes?.lifecycle ?? 'persistent',
+            ...(options?.scopes?.visibility && { visibility: options.scopes.visibility }),
+            ...(options?.scopes?.agentIdentifier && {
+                agentIdentifier: options.scopes.agentIdentifier,
+            }),
+            ...(options?.agentType && { agentIdentifier: options.agentType }),
+        };
+
         // Validate depth limit for sub-agent sessions
-        if (parentContext) {
-            const newDepth = parentContext.depth + 1;
-            if (newDepth > this.maxSubAgentDepth) {
-                throw SessionError.maxDepthExceeded(newDepth, this.maxSubAgentDepth);
+        if (scopes.parentSessionId && scopes.depth !== undefined) {
+            if (scopes.depth > this.maxSubAgentDepth) {
+                throw SessionError.maxDepthExceeded(scopes.depth, this.maxSubAgentDepth);
             }
         }
 
@@ -208,7 +310,11 @@ export class SessionManager {
         }
 
         // Create a promise for the session creation and track it to prevent concurrent operations
-        const creationPromise = this.createSessionInternal(id, parentContext);
+        const creationPromise = this.createSessionInternal(id, {
+            scopes,
+            ...(options?.metadata && { metadata: options.metadata }),
+            ...(options?.agentConfig && { agentConfig: options.agentConfig }),
+        });
         this.pendingCreations.set(id, creationPromise);
 
         try {
@@ -226,11 +332,10 @@ export class SessionManager {
      */
     private async createSessionInternal(
         id: string,
-        parentContext?: {
-            parentSessionId: string;
-            depth: number;
+        options: {
+            scopes: SessionScopes;
+            metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
-            agentType?: string;
         }
     ): Promise<ChatSession> {
         // Clean up expired sessions first
@@ -250,7 +355,7 @@ export class SessionManager {
                 { ...this.services, sessionManager: this },
                 id,
                 undefined, // agentConfig - not restored
-                existingMetadata.parentSessionId // parentSessionId - restore for event forwarding
+                existingMetadata.scopes?.parentSessionId ?? existingMetadata.parentSessionId // parentSessionId - restore for event forwarding
             );
             await session.init();
             this.sessions.set(id, session);
@@ -268,12 +373,19 @@ export class SessionManager {
         // Create new session metadata first to "reserve" the session slot
         const sessionData: SessionData = {
             id,
+            scopes: options.scopes,
+            ...(options.metadata && { metadata: options.metadata }),
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
-            depth: parentContext ? parentContext.depth + 1 : 0,
-            sessionType: parentContext ? 'sub-agent' : 'primary',
-            ...(parentContext && { parentSessionId: parentContext.parentSessionId }),
+
+            // DEPRECATED: Write to old fields for backwards compatibility
+            // These will be removed in a future version
+            sessionType: options.scopes.type === 'sub-agent' ? 'sub-agent' : 'primary',
+            ...(options.scopes.parentSessionId && {
+                parentSessionId: options.scopes.parentSessionId,
+            }),
+            depth: options.scopes.depth ?? 0,
         };
 
         // Store session metadata in persistent storage immediately to claim the session
@@ -289,13 +401,13 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            // Pass agentConfig, parentSessionId, and agentType from parentContext if provided
+            // Pass agentConfig, parentSessionId, and agentIdentifier to ChatSession
             session = new ChatSession(
                 { ...this.services, sessionManager: this },
                 id,
-                parentContext?.agentConfig,
-                parentContext?.parentSessionId,
-                parentContext?.agentType
+                options.agentConfig,
+                options.scopes.parentSessionId,
+                options.scopes.agentIdentifier
             );
             await session.init();
             this.sessions.set(id, session);
@@ -305,7 +417,7 @@ export class SessionManager {
                 .getCache()
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
 
-            logger.info(`Created new session: ${id}`, null, 'green');
+            logger.info(`Created new session: ${id} [${options.scopes.type}]`, null, 'green');
             return session;
         } catch (error) {
             // If session creation fails after we've claimed the slot, clean up the metadata
@@ -464,14 +576,71 @@ export class SessionManager {
     }
 
     /**
-     * Lists all active session IDs.
+     * Lists active session IDs, optionally filtered by scope criteria.
      *
-     * @returns Array of active session IDs
+     * @param filters Optional scope-based filters to narrow results
+     * @returns Array of session IDs matching the filters
+     *
+     * @example
+     * // Get all primary sessions
+     * await listSessions({ type: 'primary' });
+     *
+     * // Get all sub-agents of a parent
+     * await listSessions({ parentSessionId: 'abc-123' });
+     *
+     * // Get ephemeral sessions
+     * await listSessions({ lifecycle: 'ephemeral' });
      */
-    public async listSessions(): Promise<string[]> {
+    public async listSessions(filters?: {
+        type?: string;
+        parentSessionId?: string;
+        depth?: number;
+        lifecycle?: 'ephemeral' | 'persistent' | 'archived';
+        visibility?: 'private' | 'shared' | 'public';
+        agentIdentifier?: string;
+    }): Promise<string[]> {
         await this.ensureInitialized();
+
+        // Get all sessions
         const sessionKeys = await this.services.storageManager.getDatabase().list('session:');
-        return sessionKeys.map((key) => key.replace('session:', ''));
+
+        // If no filters, return all
+        if (!filters) {
+            return sessionKeys.map((key) => key.replace('session:', ''));
+        }
+
+        // Filter sessions by scope criteria
+        const matchingSessions: string[] = [];
+        for (const key of sessionKeys) {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(key);
+            if (!sessionData) continue;
+
+            // Build scopes from sessionData (handles backwards compatibility)
+            const scopes: SessionScopes = sessionData.scopes ?? {
+                type: sessionData.sessionType ?? 'primary',
+                parentSessionId: sessionData.parentSessionId,
+                depth: sessionData.depth ?? 0,
+                lifecycle: 'persistent',
+                visibility: 'private',
+            };
+
+            // Apply filters
+            if (filters.type && scopes.type !== filters.type) continue;
+            if (filters.parentSessionId && scopes.parentSessionId !== filters.parentSessionId)
+                continue;
+            if (filters.depth !== undefined && scopes.depth !== filters.depth) continue;
+            if (filters.lifecycle && scopes.lifecycle !== filters.lifecycle) continue;
+            if (filters.visibility && scopes.visibility !== filters.visibility) continue;
+            if (filters.agentIdentifier && scopes.agentIdentifier !== filters.agentIdentifier)
+                continue;
+
+            // All filters passed
+            matchingSessions.push(sessionData.id);
+        }
+
+        return matchingSessions;
     }
 
     /**
@@ -486,19 +655,27 @@ export class SessionManager {
         const sessionData = await this.services.storageManager
             .getDatabase()
             .get<SessionData>(sessionKey);
-        return sessionData
-            ? {
-                  createdAt: sessionData.createdAt,
-                  lastActivity: sessionData.lastActivity,
-                  messageCount: sessionData.messageCount,
-                  title: sessionData.metadata?.title,
-                  depth: sessionData.depth,
-                  sessionType: sessionData.sessionType,
-                  ...(sessionData.parentSessionId && {
-                      parentSessionId: sessionData.parentSessionId,
-                  }),
-              }
-            : undefined;
+
+        if (!sessionData) {
+            return undefined;
+        }
+
+        // Backwards compatibility: Build scopes from old fields if scopes don't exist
+        const scopes: SessionScopes = sessionData.scopes ?? {
+            type: sessionData.sessionType ?? 'primary',
+            parentSessionId: sessionData.parentSessionId,
+            depth: sessionData.depth ?? 0,
+            lifecycle: 'persistent', // Default for existing sessions
+            visibility: 'private', // Default for existing sessions
+        };
+
+        return {
+            createdAt: sessionData.createdAt,
+            lastActivity: sessionData.lastActivity,
+            messageCount: sessionData.messageCount,
+            title: sessionData.metadata?.title,
+            scopes,
+        };
     }
 
     /**
@@ -752,21 +929,8 @@ export class SessionManager {
      * @returns Array of session IDs that are children of the parent
      */
     public async getChildSessions(parentSessionId: string): Promise<string[]> {
-        await this.ensureInitialized();
-
-        const allSessionKeys = await this.services.storageManager.getDatabase().list('session:');
-        const childSessionIds: string[] = [];
-
-        for (const sessionKey of allSessionKeys) {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
-            if (sessionData && sessionData.parentSessionId === parentSessionId) {
-                childSessionIds.push(sessionData.id);
-            }
-        }
-
-        return childSessionIds;
+        // Use the filtered listSessions method for consistency
+        return await this.listSessions({ parentSessionId });
     }
 
     /**

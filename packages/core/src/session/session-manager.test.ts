@@ -454,11 +454,13 @@ describe('SessionManager', () => {
 
             const metadata = await sessionManager.getSessionMetadata(sessionId);
 
-            expect(metadata).toEqual({
+            expect(metadata).toMatchObject({
                 createdAt: mockSessionData.createdAt,
                 lastActivity: mockSessionData.lastActivity,
                 messageCount: mockSessionData.messageCount,
             });
+            expect(metadata?.scopes).toBeDefined();
+            expect(metadata?.scopes.type).toBe('primary');
             expect(mockStorageManager.database.get).toHaveBeenCalledWith(`session:${sessionId}`);
         });
 

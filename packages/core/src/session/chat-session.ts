@@ -101,6 +101,12 @@ export class ChatSession {
     private forwarders: Map<SessionEventName, (payload?: any) => void> = new Map();
 
     /**
+     * Map of parent event forwarder functions for cleanup (sub-agent → parent forwarding).
+     * These are stored separately because they attach to different event buses.
+     */
+    private parentForwarders: Map<SessionEventName | string, (payload?: any) => void> = new Map();
+
+    /**
      * AbortController for the currently running turn, if any.
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
@@ -286,8 +292,10 @@ export class ChatSession {
                     parentSession.eventBus.emit(eventName as any, augmentedPayload);
                 };
 
+                // Store parent forwarder for cleanup
+                this.parentForwarders.set(`session:${eventName}`, parentForwarder);
+
                 // Attach the forwarder to this session's event bus
-                // Note: We don't store these in the forwarders map since they're session-specific
                 this.eventBus.on(eventName, parentForwarder);
             });
 
@@ -328,6 +336,9 @@ export class ChatSession {
                     // (bypassing parent's SessionEventBus since agent events aren't session events)
                     this.services.agentEventBus.emit(eventName as any, augmentedPayload);
                 };
+
+                // Store agent forwarder for cleanup
+                this.parentForwarders.set(`agent:${eventName}`, agentEventForwarder);
 
                 // Subscribe to agent events on the global event bus (where approval events are emitted)
                 this.services.agentEventBus.on(eventName as any, agentEventForwarder);
@@ -862,13 +873,33 @@ export class ChatSession {
     public dispose(): void {
         logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
 
-        // Remove all event forwarders from the session event bus
+        // Remove all event forwarders from the session event bus (session → agent forwarding)
         this.forwarders.forEach((forwarder, eventName) => {
             this.eventBus.off(eventName, forwarder);
         });
 
         // Clear the forwarders map
         this.forwarders.clear();
+
+        // Remove parent event forwarders (sub-agent → parent forwarding)
+        if (this.parentSessionId && this.parentForwarders.size > 0) {
+            this.parentForwarders.forEach((forwarder, key) => {
+                if (key.startsWith('session:')) {
+                    // Session event forwarder - remove from this session's event bus
+                    const eventName = key.replace('session:', '') as SessionEventName;
+                    this.eventBus.off(eventName, forwarder);
+                } else if (key.startsWith('agent:')) {
+                    // Agent event forwarder - remove from global agent event bus
+                    const eventName = key.replace('agent:', '');
+                    this.services.agentEventBus.off(eventName as any, forwarder);
+                }
+            });
+
+            this.parentForwarders.clear();
+            logger.debug(
+                `Cleaned up parent event forwarders for sub-agent session ${this.id} → ${this.parentSessionId}`
+            );
+        }
 
         logger.debug(`Session ${this.id} disposed successfully`);
     }
