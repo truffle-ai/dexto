@@ -97,7 +97,7 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     const parentSession = await sessionManager.getSession(parentSessionId);
                     if (parentSession) {
                         const metadata = await sessionManager.getSessionMetadata(parentSessionId);
-                        parentDepth = metadata?.depth || 0;
+                        parentDepth = metadata?.scopes.depth ?? 0;
                     }
                 }
 
@@ -124,12 +124,17 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     `Spawning sub-agent [${agentIdentifier}] for task: ${validatedInput.description || 'unnamed task'}`
                 );
 
-                // Create sub-agent session with parent context, agent config, and agent type
+                // Create sub-agent session with scopes
                 const session = await sessionManager.createSession(undefined, {
-                    parentSessionId,
-                    depth: parentDepth,
+                    scopes: {
+                        type: 'sub-agent',
+                        parentSessionId,
+                        depth: parentDepth + 1,
+                        lifecycle: 'persistent', // Keep sub-agent sessions for review
+                        visibility: 'private',
+                        agentIdentifier,
+                    },
                     agentConfig: resolved.config,
-                    agentType: agentIdentifier,
                 });
                 subAgentSessionId = session.id;
 
@@ -170,14 +175,16 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     agent: 'failed-to-resolve',
                 };
             } finally {
-                // ALWAYS cleanup sub-agent session, even on error
+                // End sub-agent session (remove from memory, preserve history for review)
                 if (subAgentSessionId) {
                     try {
-                        await sessionManager.deleteSession(subAgentSessionId);
-                        logger.debug(`Cleaned up sub-agent session: ${subAgentSessionId}`);
+                        await sessionManager.endSession(subAgentSessionId);
+                        logger.debug(
+                            `Ended sub-agent session: ${subAgentSessionId} (history preserved)`
+                        );
                     } catch (cleanupError) {
                         logger.error(
-                            `Failed to cleanup sub-agent session ${subAgentSessionId}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+                            `Failed to end sub-agent session ${subAgentSessionId}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
                         );
                     }
                 }
