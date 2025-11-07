@@ -248,7 +248,9 @@ describe('SessionManager', () => {
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 'mock-uuid-123',
-                undefined // agentConfig parameter (optional)
+                undefined, // agentConfig
+                undefined, // parentSessionId
+                undefined // agentType
             );
         });
 
@@ -260,7 +262,9 @@ describe('SessionManager', () => {
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 customId,
-                undefined // agentConfig parameter (optional)
+                undefined, // agentConfig
+                undefined, // parentSessionId
+                undefined // agentType
             );
         });
 
@@ -294,7 +298,9 @@ describe('SessionManager', () => {
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 'default',
-                undefined // agentConfig parameter (optional)
+                undefined, // agentConfig
+                undefined, // parentSessionId
+                undefined // agentType
             );
         });
     });
