@@ -124,11 +124,12 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     `Spawning sub-agent [${agentIdentifier}] for task: ${validatedInput.description || 'unnamed task'}`
                 );
 
-                // Create sub-agent session with parent context and agent config
+                // Create sub-agent session with parent context, agent config, and agent type
                 const session = await sessionManager.createSession(undefined, {
                     parentSessionId,
                     depth: parentDepth,
                     agentConfig: resolved.config,
+                    agentType: agentIdentifier,
                 });
                 subAgentSessionId = session.id;
 

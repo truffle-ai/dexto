@@ -179,6 +179,7 @@ export class SessionManager {
             parentSessionId: string;
             depth: number;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
+            agentType?: string;
         }
     ): Promise<ChatSession> {
         await this.ensureInitialized();
@@ -229,6 +230,7 @@ export class SessionManager {
             parentSessionId: string;
             depth: number;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
+            agentType?: string;
         }
     ): Promise<ChatSession> {
         // Clean up expired sessions first
@@ -244,7 +246,12 @@ export class SessionManager {
             await this.updateSessionActivity(id);
             // Note: Restored sessions use parent agent config, not custom sub-agent configs
             // This is intentional as agentConfig is session-creation-time only
-            const session = new ChatSession({ ...this.services, sessionManager: this }, id);
+            const session = new ChatSession(
+                { ...this.services, sessionManager: this },
+                id,
+                undefined, // agentConfig - not restored
+                existingMetadata.parentSessionId // parentSessionId - restore for event forwarding
+            );
             await session.init();
             this.sessions.set(id, session);
             logger.info(`Restored session from storage: ${id}`, null, 'cyan');
@@ -282,11 +289,13 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            // Pass agentConfig from parentContext if provided
+            // Pass agentConfig, parentSessionId, and agentType from parentContext if provided
             session = new ChatSession(
                 { ...this.services, sessionManager: this },
                 id,
-                parentContext?.agentConfig
+                parentContext?.agentConfig,
+                parentContext?.parentSessionId,
+                parentContext?.agentType
             );
             await session.init();
             this.sessions.set(id, session);
