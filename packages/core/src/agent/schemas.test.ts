@@ -424,14 +424,8 @@ describe('AgentConfigSchema', () => {
 
     describe('Type Safety', () => {
         it('should handle input and output types correctly', () => {
-            const input: AgentConfig = {
-                ...validAgentConfig,
-                storage: {
-                    cache: { type: 'in-memory' },
-                    database: { type: 'in-memory' },
-                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
-                },
-            };
+            const input: AgentConfig = validAgentConfig;
+
             const result = AgentConfigSchema.parse(input);
 
             // Should have applied defaults from all composed schemas
