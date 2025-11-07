@@ -642,14 +642,19 @@ export class SessionManager {
             return undefined;
         }
 
-        return {
+        const result: SessionMetadata = {
             createdAt: sessionData.createdAt,
             lastActivity: sessionData.lastActivity,
             messageCount: sessionData.messageCount,
             title: sessionData.metadata?.title,
             scopes: sessionData.scopes,
-            metadata: sessionData.metadata,
         };
+
+        if (sessionData.metadata) {
+            result.metadata = sessionData.metadata;
+        }
+
+        return result;
     }
 
     /**

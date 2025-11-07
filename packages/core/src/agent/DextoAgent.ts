@@ -632,9 +632,7 @@ export class DextoAgent {
         type?: string;
         parentSessionId?: string;
         depth?: number;
-        lifecycle?: 'ephemeral' | 'persistent' | 'archived';
-        visibility?: 'private' | 'shared' | 'public';
-        agentIdentifier?: string;
+        lifecycle?: 'ephemeral' | 'persistent';
     }): Promise<string[]> {
         this.ensureStarted();
         return await this.sessionManager.listSessions(filters);

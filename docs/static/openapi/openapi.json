@@ -6939,6 +6939,15 @@
                             "exclusiveMinimum": true,
                             "default": 3600000,
                             "description": "Session time-to-live in milliseconds, defaults to 3600000ms (1 hour)"
+                          },
+                          "subAgentLifecycle": {
+                            "type": "string",
+                            "enum": [
+                              "ephemeral",
+                              "persistent"
+                            ],
+                            "default": "ephemeral",
+                            "description": "Lifecycle policy for spawned sub-agents. ephemeral: auto-deleted after completion (saves storage). persistent: kept for review/observability (uses storage)."
                           }
                         },
                         "default": {},

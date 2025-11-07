@@ -138,10 +138,11 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                         parentSessionId,
                         depth: parentDepth + 1,
                         lifecycle, // Use configured lifecycle (ephemeral or persistent)
-                        visibility: 'private',
-                        agentIdentifier,
                     },
                     agentConfig: resolved.config,
+                    metadata: {
+                        agentIdentifier,
+                    },
                 });
                 subAgentSessionId = session.id;
 
