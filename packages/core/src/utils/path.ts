@@ -133,68 +133,9 @@ export function findPackageRoot(startPath: string = process.cwd()): string | nul
     });
 }
 
-/**
- * Resolve bundled script paths for MCP servers
- * @param scriptPath Relative script path
- * @returns Absolute path to bundled script
- */
-export function resolveBundledScript(scriptPath: string): string {
-    // Build list of candidate relative paths to try, favoring packaged (dist) first
-    const candidates = scriptPath.startsWith('dist/')
-        ? [scriptPath, scriptPath.replace(/^dist\//, '')]
-        : [`dist/${scriptPath}`, scriptPath];
-
-    // Keep a list of absolute paths we attempted for better diagnostics
-    const triedAbs: string[] = [];
-
-    const tryRoots = (roots: Array<string | null | undefined>): string | null => {
-        for (const root of roots) {
-            if (!root) continue;
-            for (const rel of candidates) {
-                const abs = path.resolve(root, rel);
-                if (existsSync(abs)) return abs;
-                triedAbs.push(abs);
-            }
-        }
-        return null;
-    };
-
-    // 0) Explicit env override (useful for exotic/linked setups)
-    const envRoot = process?.env?.DEXTO_PACKAGE_ROOT;
-    const fromEnv = tryRoots([envRoot]);
-    if (fromEnv) return fromEnv;
-
-    // 1) Try to resolve from installed CLI package root (global/local install)
-    try {
-        const require = createRequire(import.meta.url);
-        const pkgJson = require.resolve('dexto/package.json');
-        const pkgRoot = path.dirname(pkgJson);
-        const fromPkg = tryRoots([pkgRoot]);
-        if (fromPkg) return fromPkg;
-    } catch {
-        // ignore, fall through to dev/project resolution
-    }
-
-    // 2) Development fallback anchored to this module's location (monorepo source)
-    try {
-        const thisModuleDir = path.dirname(fileURLToPath(import.meta.url));
-        const sourceRoot = findDextoSourceRoot(thisModuleDir);
-        const fromSource = tryRoots([sourceRoot ?? undefined]);
-        if (fromSource) return fromSource;
-    } catch {
-        // ignore and continue to legacy fallback
-    }
-
-    // 3) Legacy fallback: repo/project root derived from CWD
-    const repoRoot = findPackageRoot();
-    const fromCwd = tryRoots([repoRoot ?? undefined]);
-    if (fromCwd) return fromCwd;
-
-    // Not found anywhere: throw with helpful message and absolute paths attempted
-    throw new Error(
-        `Bundled script not found: ${scriptPath} (tried absolute: ${triedAbs.join(', ')})`
-    );
-}
+// resolveBundledScript has been moved to @dexto/agent-management
+// Core no longer needs to resolve bundled script paths - users should use
+// ${{dexto.agent_dir}} template variables in their configs instead
 
 /**
  * Ensure ~/.dexto directory exists for global storage

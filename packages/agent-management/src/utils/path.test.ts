@@ -1,7 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir, homedir } from 'os';
-import { getDextoPath, getDextoGlobalPath, getDextoEnvPath, findPackageRoot } from './path.js';
+import {
+    getDextoPath,
+    getDextoGlobalPath,
+    getDextoEnvPath,
+    findPackageRoot,
+    resolveBundledScript,
+} from './path.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 function createTempDir() {
@@ -213,7 +219,17 @@ describe('findPackageRoot', () => {
     });
 });
 
-// resolveBundledScript tests have been moved to @dexto/agent-management
+describe('resolveBundledScript', () => {
+    it('resolves a known agent registry path', () => {
+        const result = resolveBundledScript('agents/agent-registry.json');
+        expect(path.isAbsolute(result)).toBe(true);
+        expect(result.endsWith('agents/agent-registry.json')).toBe(true);
+    });
+
+    it('throws error when script cannot be resolved', () => {
+        expect(() => resolveBundledScript('nonexistent/script.js')).toThrow();
+    });
+});
 
 describe('getDextoEnvPath', () => {
     describe('in dexto project', () => {
