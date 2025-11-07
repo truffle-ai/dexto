@@ -132,6 +132,14 @@ export class ChatSession {
     private agentType: string | undefined;
 
     /**
+     * Session-owned services (may be overridden by agentConfig).
+     * These are set once in initializeServices() and used throughout the session lifecycle.
+     */
+    private toolManager!: ToolManager;
+    private systemPromptManager!: SystemPromptManager;
+    private llmConfig!: ValidatedLLMConfig;
+
+    /**
      * Creates a new ChatSession instance.
      *
      * Each session creates its own isolated services:
@@ -360,21 +368,21 @@ export class ChatSession {
      * Applies agent config overrides if provided.
      */
     private async initializeServices(): Promise<void> {
-        // Get current effective configuration for this session from state manager
-        let llmConfig = this.services.stateManager.getLLMConfig(this.id);
-        let toolManager = this.services.toolManager;
-        let systemPromptManager = this.services.systemPromptManager;
+        // Get base configuration from state manager and shared services
+        this.llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        this.toolManager = this.services.toolManager;
+        this.systemPromptManager = this.services.systemPromptManager;
 
         // Apply agent config overrides if provided
         if (this.agentConfig) {
             const overrides = await this.applyAgentConfigOverrides(
-                llmConfig,
+                this.llmConfig,
                 this.services.toolManager,
-                systemPromptManager
+                this.systemPromptManager
             );
-            llmConfig = overrides.llmConfig;
-            toolManager = overrides.toolManager;
-            systemPromptManager = overrides.systemPromptManager;
+            this.llmConfig = overrides.llmConfig;
+            this.toolManager = overrides.toolManager;
+            this.systemPromptManager = overrides.systemPromptManager;
         }
 
         // Create session-specific history provider directly with database backend
@@ -387,14 +395,14 @@ export class ChatSession {
         // Create session-specific LLM service
         // The service will create its own properly-typed ContextManager internally
         this.llmService = createLLMService(
-            llmConfig,
-            llmConfig.router,
-            toolManager, // May be custom instance if agentConfig provided
-            systemPromptManager, // May be overridden if agentConfig provided
-            this.historyProvider, // Pass history provider for service to use
-            this.eventBus, // Use session event bus
+            this.llmConfig,
+            this.llmConfig.router,
+            this.toolManager,
+            this.systemPromptManager,
+            this.historyProvider,
+            this.eventBus,
             this.id,
-            this.services.resourceManager // Pass ResourceManager for blob storage
+            this.services.resourceManager
         );
 
         const configInfo = this.agentConfig ? ' with custom agent config applied' : '';
@@ -548,12 +556,11 @@ export class ChatSession {
         // Emit response event so UI updates immediately on blocked interactions
         // This ensures listeners relying on llmservice:response know a response was added
         // Note: sessionId is automatically added by event forwarding layer
-        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
         this.eventBus.emit('llmservice:response', {
             content: errorContent,
-            provider: llmConfig.provider,
-            model: llmConfig.model,
-            router: llmConfig.router,
+            provider: this.llmConfig.provider,
+            model: this.llmConfig.model,
+            router: this.llmConfig.router,
         });
     }
 
@@ -610,7 +617,7 @@ export class ChatSession {
                 {
                     sessionManager: this.services.sessionManager,
                     mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
+                    toolManager: this.toolManager,
                     stateManager: this.services.stateManager,
                     sessionId: this.id,
                     abortSignal: signal,
@@ -631,12 +638,11 @@ export class ChatSession {
             );
 
             // Execute beforeResponse plugins
-            const llmConfig = this.services.stateManager.getLLMConfig(this.id);
             const beforeResponsePayload: BeforeResponsePayload = {
                 content: response,
-                provider: llmConfig.provider,
-                model: llmConfig.model,
-                router: llmConfig.router,
+                provider: this.llmConfig.provider,
+                model: this.llmConfig.model,
+                router: this.llmConfig.router,
                 sessionId: this.id,
             };
 
@@ -646,7 +652,7 @@ export class ChatSession {
                 {
                     sessionManager: this.services.sessionManager,
                     mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
+                    toolManager: this.toolManager,
                     stateManager: this.services.stateManager,
                     sessionId: this.id,
                     abortSignal: signal,
@@ -806,22 +812,22 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
-            // Create new LLM service with new config but SAME history provider
-            // The service will create its own new ContextManager internally
+            // Create new LLM service with new config but SAME history provider and session services
             const router = newLLMConfig.router;
             const newLLMService = createLLMService(
                 newLLMConfig,
                 router,
-                this.services.toolManager,
-                this.services.systemPromptManager,
+                this.toolManager,
+                this.systemPromptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
-                this.eventBus, // Use session event bus
+                this.eventBus,
                 this.id,
                 this.services.resourceManager
             );
 
-            // Replace the LLM service
+            // Replace the LLM service and update session config
             this.llmService = newLLMService;
+            this.llmConfig = newLLMConfig;
 
             logger.info(
                 `ChatSession ${this.id}: LLM switched to ${newLLMConfig.provider}/${newLLMConfig.model}`

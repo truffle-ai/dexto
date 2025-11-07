@@ -31,6 +31,12 @@ describe('SessionManager', () => {
 
     const mockSessionData = {
         id: 'test-session',
+        scopes: {
+            type: 'primary',
+            depth: 0,
+            lifecycle: 'persistent',
+            visibility: 'private',
+        },
         createdAt: new Date('2024-01-01T00:00:00Z').getTime(),
         lastActivity: new Date('2024-01-01T01:00:00Z').getTime(),
         messageCount: 5,

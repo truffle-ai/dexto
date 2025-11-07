@@ -71,20 +71,17 @@ export interface SessionMetadata {
 export interface SessionManagerConfig {
     maxSessions?: number;
     sessionTTL?: number;
-    maxSubAgentDepth?: number; // Maximum nesting depth for sub-agents (default: 1, no nesting)
+    maxSubAgentDepth?: number; // Maximum nesting depth for sub-agents (default: 1 - allows one level: parent → child)
 }
 
 /**
  * Internal session data structure stored in database.
  * Includes scopes for filtering + metadata for type-specific flexible data.
- *
- * Migration: Old fields (sessionType, parentSessionId, depth) are maintained for
- * backwards compatibility and will be removed in a future version.
  */
 export interface SessionData {
     id: string;
 
-    // New scope-based architecture
+    // Scope-based architecture
     scopes: SessionScopes;
 
     // Type-specific flexible metadata (not indexed, not used for filtering)
@@ -94,17 +91,6 @@ export interface SessionData {
     createdAt: number;
     lastActivity: number;
     messageCount: number;
-
-    // DEPRECATED: Maintained for backwards compatibility only
-    // These will be removed in a future version - use scopes instead
-    /** @deprecated Use scopes.type instead */
-    sessionType?: 'primary' | 'sub-agent';
-    /** @deprecated Use scopes.parentSessionId instead */
-    parentSessionId?: string;
-    /** @deprecated Use scopes.depth instead */
-    depth?: number;
-    /** @deprecated Legacy field, will be removed */
-    userId?: string;
 }
 
 /**
@@ -149,7 +135,7 @@ export class SessionManager {
     ) {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
-        this.maxSubAgentDepth = config.maxSubAgentDepth ?? 1; // Default: no nesting
+        this.maxSubAgentDepth = config.maxSubAgentDepth ?? 1; // Default: allows one level (parent 0 → child 1)
     }
 
     /**
@@ -252,7 +238,7 @@ export class SessionManager {
      *     type: 'sub-agent',
      *     parentSessionId: parentId,
      *     depth: 1,
-     *     lifecycle: 'ephemeral'
+     *     lifecycle: 'persistent'
      *   },
      *   agentConfig: customAgent
      * });
@@ -263,30 +249,24 @@ export class SessionManager {
             scopes?: Partial<SessionScopes>;
             metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
-            // Legacy support for old API
-            parentSessionId?: string;
-            depth?: number;
-            agentType?: string;
         }
     ): Promise<ChatSession> {
         await this.ensureInitialized();
 
         const id = sessionId ?? randomUUID();
 
-        // Build scopes from options (new API) or legacy fields
+        // Build scopes with defaults
         const scopes: SessionScopes = {
             type: options?.scopes?.type ?? 'primary',
             ...(options?.scopes?.parentSessionId && {
                 parentSessionId: options.scopes.parentSessionId,
             }),
-            ...(options?.parentSessionId && { parentSessionId: options.parentSessionId }),
-            depth: options?.scopes?.depth ?? options?.depth ?? 0,
+            depth: options?.scopes?.depth ?? 0,
             lifecycle: options?.scopes?.lifecycle ?? 'persistent',
             ...(options?.scopes?.visibility && { visibility: options.scopes.visibility }),
             ...(options?.scopes?.agentIdentifier && {
                 agentIdentifier: options.scopes.agentIdentifier,
             }),
-            ...(options?.agentType && { agentIdentifier: options.agentType }),
         };
 
         // Validate depth limit for sub-agent sessions
@@ -355,7 +335,7 @@ export class SessionManager {
                 { ...this.services, sessionManager: this },
                 id,
                 undefined, // agentConfig - not restored
-                existingMetadata.scopes?.parentSessionId ?? existingMetadata.parentSessionId // parentSessionId - restore for event forwarding
+                existingMetadata.scopes.parentSessionId // parentSessionId - restore for event forwarding
             );
             await session.init();
             this.sessions.set(id, session);
@@ -370,7 +350,7 @@ export class SessionManager {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
 
-        // Create new session metadata first to "reserve" the session slot
+        // Create new session metadata
         const sessionData: SessionData = {
             id,
             scopes: options.scopes,
@@ -378,14 +358,6 @@ export class SessionManager {
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
-
-            // DEPRECATED: Write to old fields for backwards compatibility
-            // These will be removed in a future version
-            sessionType: options.scopes.type === 'sub-agent' ? 'sub-agent' : 'primary',
-            ...(options.scopes.parentSessionId && {
-                parentSessionId: options.scopes.parentSessionId,
-            }),
-            depth: options.scopes.depth ?? 0,
         };
 
         // Store session metadata in persistent storage immediately to claim the session
@@ -617,14 +589,7 @@ export class SessionManager {
                 .get<SessionData>(key);
             if (!sessionData) continue;
 
-            // Build scopes from sessionData (handles backwards compatibility)
-            const scopes: SessionScopes = sessionData.scopes ?? {
-                type: sessionData.sessionType ?? 'primary',
-                parentSessionId: sessionData.parentSessionId,
-                depth: sessionData.depth ?? 0,
-                lifecycle: 'persistent',
-                visibility: 'private',
-            };
+            const scopes = sessionData.scopes;
 
             // Apply filters
             if (filters.type && scopes.type !== filters.type) continue;
@@ -660,21 +625,12 @@ export class SessionManager {
             return undefined;
         }
 
-        // Backwards compatibility: Build scopes from old fields if scopes don't exist
-        const scopes: SessionScopes = sessionData.scopes ?? {
-            type: sessionData.sessionType ?? 'primary',
-            parentSessionId: sessionData.parentSessionId,
-            depth: sessionData.depth ?? 0,
-            lifecycle: 'persistent', // Default for existing sessions
-            visibility: 'private', // Default for existing sessions
-        };
-
         return {
             createdAt: sessionData.createdAt,
             lastActivity: sessionData.lastActivity,
             messageCount: sessionData.messageCount,
             title: sessionData.metadata?.title,
-            scopes,
+            scopes: sessionData.scopes,
         };
     }
 
