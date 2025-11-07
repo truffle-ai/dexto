@@ -54,7 +54,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
         } catch (error) {
             this.logger.warn('Failed to apply capability filtering, using original history:', {
                 error: error instanceof Error ? error.message : String(error),
@@ -271,7 +271,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     return { type: 'text', text: part.text } as TextBlockParam;
                 }
                 if (part.type === 'image') {
-                    const raw = getImageData(part);
+                    const raw = getImageData(part, this.logger);
                     let source: any;
                     if (raw.startsWith('http://') || raw.startsWith('https://')) {
                         source = { type: 'url', url: raw };
@@ -292,7 +292,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                 }
                 if (part.type === 'file') {
                     // Anthropic doesn't support file uploads directly, so we convert files to text
-                    const raw = getFileData(part);
+                    const raw = getFileData(part, this.logger);
                     const fileName = (part as any).filename || 'file';
 
                     // If it's a text-based file, try to decode it

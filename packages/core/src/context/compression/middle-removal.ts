@@ -3,6 +3,8 @@ import { InternalMessage } from '@core/context/types.js';
 import { ICompressionStrategy } from './types.js';
 import { countMessagesTokens } from '@core/context/utils.js';
 import { ContextError } from '../errors.js';
+import { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 
 /**
  * Configuration options for the MiddleRemovalStrategy.
@@ -29,16 +31,17 @@ export interface MiddleRemovalStrategyOptions {
 export class MiddleRemovalStrategy implements ICompressionStrategy {
     private readonly preserveStart: number;
     private readonly preserveEnd: number;
+    private readonly logger: IDextoLogger;
 
     /**
      * Creates an instance of MiddleRemovalStrategy.
      *
      * @param options Configuration options for preserving messages.
      */
-    constructor(options: MiddleRemovalStrategyOptions = {}) {
+    constructor(options: MiddleRemovalStrategyOptions = {}, logger: IDextoLogger) {
         this.preserveStart = options.preserveStart ?? 4;
         this.preserveEnd = options.preserveEnd ?? 5;
-
+        this.logger = logger.createChild(DextoLogComponent.CONTEXT);
         if (this.preserveStart < 0 || this.preserveEnd < 0) {
             throw ContextError.preserveValuesNegative();
         }
@@ -58,7 +61,7 @@ export class MiddleRemovalStrategy implements ICompressionStrategy {
         tokenizer: ITokenizer,
         maxHistoryTokens: number
     ): InternalMessage[] {
-        const initialTokenCount = countMessagesTokens(history, tokenizer);
+        const initialTokenCount = countMessagesTokens(history, tokenizer, undefined, this.logger);
 
         if (initialTokenCount <= maxHistoryTokens) {
             return history; // No compression needed
@@ -75,13 +78,8 @@ export class MiddleRemovalStrategy implements ICompressionStrategy {
             }
         } else {
             // Not enough messages to perform middle removal based on preserve counts
-            console.warn(
-                'MiddleRemovalStrategy: Not enough messages to apply middle removal based on preserve counts. History length:',
-                totalMessages,
-                'PreserveStart:',
-                this.preserveStart,
-                'PreserveEnd:',
-                this.preserveEnd
+            this.logger.warn(
+                `MiddleRemovalStrategy: Not enough messages to apply middle removal based on preserve counts. History length: ${totalMessages}, PreserveStart: ${this.preserveStart}, PreserveEnd: ${this.preserveEnd}`
             );
             return history; // Cannot compress further with this strategy under these constraints
         }
@@ -98,12 +96,14 @@ export class MiddleRemovalStrategy implements ICompressionStrategy {
             // Use the utility function again to recount tokens for the filtered history
             currentTokenCount = countMessagesTokens(
                 currentHistory.filter((_, i) => !removedIndices.has(i)), // Calculate tokens based on remaining messages
-                tokenizer
+                tokenizer,
+                undefined,
+                this.logger
             );
         }
 
         if (currentTokenCount > maxHistoryTokens) {
-            console.warn(
+            this.logger.warn(
                 `MiddleRemovalStrategy: Unable to compress below max tokens (${maxHistoryTokens}). Final token count: ${currentTokenCount}`
             );
         }

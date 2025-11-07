@@ -42,7 +42,7 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
         } catch (error) {
             this.logger.warn(
                 `Failed to apply capability filtering, using original history: ${error}`
@@ -182,7 +182,7 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     return { type: 'text', text: part.text };
                 }
                 if (part.type === 'image') {
-                    const raw = getImageData(part);
+                    const raw = getImageData(part, this.logger);
                     const url =
                         raw.startsWith('http://') ||
                         raw.startsWith('https://') ||

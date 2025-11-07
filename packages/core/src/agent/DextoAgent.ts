@@ -760,14 +760,16 @@ export class DextoAgent {
         return await Promise.all(
             history.map(async (message) => ({
                 ...message,
-                content: await expandBlobReferences(message.content, this.resourceManager).catch(
-                    (error) => {
-                        this.logger.warn(
-                            `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
-                        );
-                        return message.content; // Return original content on error
-                    }
-                ),
+                content: await expandBlobReferences(
+                    message.content,
+                    this.resourceManager,
+                    this.logger
+                ).catch((error) => {
+                    this.logger.warn(
+                        `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    return message.content; // Return original content on error
+                }),
             }))
         );
     }

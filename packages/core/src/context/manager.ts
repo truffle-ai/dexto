@@ -125,8 +125,8 @@ export class ContextManager<TMessage = unknown> {
         resourceManager: import('../resources/index.js').ResourceManager,
         logger: IDextoLogger,
         compressionStrategies: ICompressionStrategy[] = [
-            new MiddleRemovalStrategy(),
-            new OldestRemovalStrategy(),
+            new MiddleRemovalStrategy({}, logger),
+            new OldestRemovalStrategy({}, logger),
         ]
     ) {
         this.llmConfig = llmConfig;
@@ -607,7 +607,7 @@ export class ContextManager<TMessage = unknown> {
             sanitizeOptions.success = options.success;
         }
 
-        const sanitized = await sanitizeToolResult(result, sanitizeOptions);
+        const sanitized = await sanitizeToolResult(result, sanitizeOptions, this.logger);
 
         const summary = sanitized.content
             .map((p) =>
@@ -675,7 +675,7 @@ export class ContextManager<TMessage = unknown> {
                     llmContext.provider,
                     llmContext.model
                 );
-                allowedMediaTypes = fileTypesToMimePatterns(supportedFileTypes);
+                allowedMediaTypes = fileTypesToMimePatterns(supportedFileTypes, this.logger);
                 this.logger.debug(
                     `Using model capabilities for media filtering: ${allowedMediaTypes.join(', ')}`
                 );
@@ -699,6 +699,7 @@ export class ContextManager<TMessage = unknown> {
                 const expandedContent = await expandBlobReferences(
                     message.content,
                     this.resourceManager,
+                    this.logger,
                     allowedMediaTypes
                 );
                 return { ...message, content: expandedContent };

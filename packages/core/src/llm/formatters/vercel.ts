@@ -50,7 +50,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
 
             const modelInfo = `${context.provider}/${context.model}`;
             this.logger.debug(`Applied Vercel filtering for ${modelInfo}`);
@@ -414,7 +414,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
                 const imagePart = msg.content[0];
-                const imageDataBase64 = getImageData(imagePart);
+                const imageDataBase64 = getImageData(imagePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
@@ -432,7 +432,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 };
             } else if (msg.content[0]?.type === 'file') {
                 const filePart = msg.content[0];
-                const fileDataBase64 = getFileData(filePart);
+                const fileDataBase64 = getFileData(filePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
