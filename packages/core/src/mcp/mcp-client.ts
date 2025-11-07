@@ -17,7 +17,6 @@ import type {
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
 import { IMCPClient, MCPResourceSummary } from './types.js';
-import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
 import type {
     GetPromptResult,
@@ -100,28 +99,6 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         this.resolvedArgs = [...this.originalArgs];
         this.serverEnv = env || null;
         this.serverAlias = serverAlias || null;
-
-        // --- Resolve path for bundled node scripts ---
-        // TODO: Improve this logic to be less hacky
-        if (
-            command === 'node' &&
-            this.resolvedArgs &&
-            this.resolvedArgs.length > 0 &&
-            this.resolvedArgs[0]?.startsWith('dist/')
-        ) {
-            try {
-                const scriptRelativePath = this.resolvedArgs[0]!;
-                this.resolvedArgs[0] = resolveBundledScript(scriptRelativePath);
-                this.logger.debug(
-                    `Resolved bundled script path: ${scriptRelativePath} -> ${this.resolvedArgs[0]}`
-                );
-            } catch (e) {
-                this.logger.warn(
-                    `Failed to resolve path for bundled script ${this.resolvedArgs[0]}: ${JSON.stringify(e, null, 2)}`
-                );
-            }
-        }
-        // --- End path resolution ---
 
         this.logger.info('=======================================');
         this.logger.info(`MCP SERVER: ${command} ${this.resolvedArgs.join(' ')}`);
