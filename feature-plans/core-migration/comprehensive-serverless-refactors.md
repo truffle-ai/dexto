@@ -622,10 +622,35 @@ export class ResourceError extends DextoRuntimeError {
    - Migrate to ConfigPromptProvider (per prompt-refactor.md)
    - Update all yml files in repo to match this new format
 
-// TODO: it might be better to let the core handle this based on env with dynamic imports rather than so much injection?
+// TODO/RESOLVED: Injection pattern is better than dynamic imports for architecture purity and testability
+
 3. **Move FileContributor to use function injection**
    - Accept file reader function instead of reading directly
    - Agent-management provides the reader function
+
+   **Why injection over dynamic imports:**
+   - **Separation of concerns**: Core defines contracts, agent-management provides implementations
+   - **Testability**: Easy to inject mocks for testing
+   - **Bundle size control**: Core bundle doesn't include fs/AWS SDK/fetch implementations
+   - **True serverless compatibility**: Core literally has zero env-specific code
+   - **Flexibility**: Different environments can provide optimized implementations without core changes
+
+   **Optional convenience factory** (can be added later):
+   ```typescript
+   // packages/core/src/resources/default-loader.ts
+   export async function createDefaultResourceLoader(): Promise<ResourceLoader> {
+     if (typeof process !== 'undefined' && process.versions?.node) {
+       const { NodeResourceLoader } = await import('@dexto/agent-management');
+       return new NodeResourceLoader();
+     } else if (typeof Deno !== 'undefined') {
+       const { DenoResourceLoader } = await import('@dexto/agent-management');
+       return new DenoResourceLoader();
+     } else {
+       const { FetchResourceLoader } = await import('@dexto/agent-management');
+       return new FetchResourceLoader();
+     }
+   }
+   ```
 
 4. **Consolidate path validation**
    - Move plugin path validation from service code to schema
@@ -962,7 +987,8 @@ R2 Storage
 - Railway-managed Postgres for state
 - Can use existing Hono server as-is
 
-// TODO: how would railway price if one user created 10 agents? need to know this to decide how to price our platform? would this depend on traffic also? how would pricing vary based on traffic
+// TODO/RESOLVED: Railway pricing analysis for multi-agent scenarios
+
 **Pricing (November 2025):**
 - **Base**: $5/month subscription
 - **Compute**: $0.000231 per GB-minute
@@ -981,13 +1007,50 @@ R2 Storage
 - CloudFlare: Serverless, edge deployment, scale-to-zero, global
 - Railway is **easier** (less refactoring), CloudFlare is **cheaper at scale**
 
+**Multi-Agent Pricing Scenarios:**
+
+**Scenario 1: 10 agents in shared container**
+```
+1 Railway Service:
+├─ 2 GB RAM container (handles all 10 agents)
+└─ Cost: $5 (base) + $10 (RAM) = $15/month
+
+Traffic impact:
+- Low (1K req/day): $15/mo total
+- High (100K req/day): $15 (RAM) + $3 (CPU) + $20 (egress) = $38/mo
+```
+
+**Scenario 2: 10 agents as separate services**
+```
+10 Railway Services:
+├─ 10 × 512MB containers = 5 GB total RAM
+└─ Cost: $5 (base) + $25 (RAM) = $30/month
+
+Traffic impact:
+- Scales similarly but with more overhead
+```
+
+**Recommended Dexto Cloud pricing strategy:**
+- **Free tier**: 1 agent, shared infrastructure
+- **Starter ($10/mo)**: Up to 3 agents, 10K requests/mo
+- **Pro ($30/mo)**: Up to 10 agents, 100K requests/mo
+- **Enterprise ($100+/mo)**: Unlimited agents, isolated infrastructure
+
+**Key insight**: Railway RAM cost is fixed (always-on), CPU and egress scale with traffic. For multi-tenant SaaS, use shared infrastructure per user or pricing tier to optimize costs.
+
+// TODO/RESOLVED: Vercel requires WebSocket → SSE migration (see ./websocket-to-sse-migration.md)
+
 ### Vercel
 
 **Limited fit for Dexto backend:**
 - ⚠️ Optimized for Next.js frontends, not standalone backends
 - ⚠️ Function timeout limits (10s Hobby, 60s Pro, 900s Enterprise)
+- ⚠️ **No WebSocket support** - requires migration to REST + SSE architecture
 - ⚠️ No persistent filesystem
 - ✅ Could host WebUI while backend runs elsewhere
+
+**WebSocket Migration Required:**
+For Vercel deployment, see [WebSocket to SSE Migration Plan](./websocket-to-sse-migration.md) for detailed architecture changes needed to replace WebSocket with Server-Sent Events (SSE) for real-time communication.
 
 **Best use:** Deploy WebUI on Vercel, backend on CloudFlare/Railway
 
@@ -1007,29 +1070,149 @@ R2 Storage
 
 **Best use:** When already in AWS ecosystem
 
-// TODO: expand more how neon/convex/supabase might fit into our existing storage layer - (suppose we made storage configurable via code (like we were thinking of plugins in the ../research/instance-vs-config-grounded-analysis.md file). analyze thoroughly)
-### Neon DB (Database Layer)
+// TODO/WIP: Code-configurable storage providers (like plugins) - still evaluating this approach
 
-**Role:** Serverless Postgres to pair with compute platform
-- ✅ Scale-to-zero (cost savings)
-- ✅ Instant database branches (dev/preview environments)
-- ✅ Works with any compute (CloudFlare, Railway, Lambda, etc.)
+### Storage Layer Integration (Work in Progress)
 
-**Use for:**
-- Multi-tenant SaaS (database per tenant via branching)
-- Conversation history storage
-- User data
+**Vision:** Make storage providers code-configurable like plugins, enabling custom integrations with Neon, Convex, Supabase, etc.
 
-### Convex & Supabase
+**Current Status:** Evaluating feasibility and design. The approach below is proposed but not finalized.
 
-**Limited fit for Dexto:**
-- Convex: Would require major architectural changes (Query/Mutation/Action model)
-- Supabase: Edge Functions have tight CPU limits, better as data layer
+#### Proposed: Code-Configurable Storage Providers
 
-**Could use as:**
-- Database layer (Supabase Postgres)
-- Auth provider (both offer auth)
-- Storage layer (Supabase Storage)
+**Config example:**
+```yaml
+storage:
+  provider: custom
+  module: "file://./storage/neon-adapter.ts"  # or s3://bucket/adapters/convex.js
+  dataSource: fs
+  config:
+    connectionString: ${DATABASE_URL}
+```
+
+**Storage Provider Interface:**
+```typescript
+export interface StorageProvider {
+  // Session management
+  saveSession(session: Session): Promise<void>;
+  getSession(sessionId: string): Promise<Session | null>;
+  listSessions(): Promise<SessionMetadata[]>;
+  deleteSession(sessionId: string): Promise<void>;
+
+  // Message history
+  saveMessages(sessionId: string, messages: Message[]): Promise<void>;
+  getMessages(sessionId: string, options?: PaginationOptions): Promise<Message[]>;
+
+  // Search
+  searchMessages(query: SearchQuery): Promise<SearchResult[]>;
+  searchSessions(query: SearchQuery): Promise<SearchResult[]>;
+
+  // Initialization & cleanup
+  initialize(config: Record<string, any>): Promise<void>;
+  close(): Promise<void>;
+}
+```
+
+#### Example Adapters
+
+**Neon DB Adapter:**
+```typescript
+export class NeonStorageProvider implements StorageProvider {
+  private sql: ReturnType<typeof neon>;
+
+  async initialize(config: { connectionString: string }) {
+    this.sql = neon(config.connectionString);
+    // Create tables, indexes, etc.
+  }
+
+  async saveSession(session: Session): Promise<void> {
+    await this.sql`
+      INSERT INTO sessions (id, created_at, last_activity, ...)
+      VALUES (${session.id}, ${session.createdAt}, ...)
+      ON CONFLICT (id) DO UPDATE SET ...
+    `;
+  }
+  // ... other methods
+}
+```
+
+**Convex Adapter:**
+```typescript
+export class ConvexStorageProvider implements StorageProvider {
+  private client: ConvexClient;
+
+  async initialize(config: { deploymentUrl: string }) {
+    this.client = new ConvexClient(config.deploymentUrl);
+  }
+
+  async saveSession(session: Session): Promise<void> {
+    await this.client.mutation('sessions:upsert', session);
+  }
+  // ... other methods
+}
+```
+
+**Supabase Adapter:**
+```typescript
+export class SupabaseStorageProvider implements StorageProvider {
+  private client: SupabaseClient;
+
+  async initialize(config: { url: string; anonKey: string }) {
+    this.client = createClient(config.url, config.anonKey);
+  }
+
+  async saveSession(session: Session): Promise<void> {
+    await this.client.from('sessions').upsert(session);
+  }
+  // ... other methods
+}
+```
+
+#### Benefits of Code-Configurable Storage
+
+**✅ Flexibility:**
+- Users can integrate any database without modifying core
+- Platform-specific optimizations (Neon branches, Convex real-time, Supabase RLS)
+
+**✅ Multi-tenancy patterns:**
+- Per-tenant databases (Neon branching)
+- Shared database with row-level security (Supabase RLS)
+- Real-time collaboration (Convex subscriptions)
+
+**✅ Serverless-compatible:**
+- Adapters loaded from S3/HTTP like plugins
+- No filesystem dependency
+
+**⚠️ Open Questions:**
+- Should storage be code-configurable or keep config-only?
+- How to ensure adapter quality/security?
+- Should we provide official adapters as separate packages?
+- Migration path for existing storage configurations?
+
+**Next Steps:**
+- Validate approach with prototype
+- Define StorageProvider interface thoroughly
+- Create reference implementations
+- Document adapter development guide
+
+---
+
+### Platform-Specific Storage Notes
+
+**Neon DB:**
+- **Role:** Serverless Postgres for any compute platform
+- **Best for:** Multi-tenant SaaS (instant database branches per tenant)
+- **Integration:** Direct SQL or via custom adapter
+
+**Convex:**
+- **Role:** Full backend platform with built-in storage
+- **Best for:** Real-time collaborative features
+- **Integration:** Requires custom adapter wrapping Convex client
+
+**Supabase:**
+- **Role:** Backend-as-a-Service with Postgres + storage
+- **Best for:** Full-stack apps needing auth + database
+- **Integration:** Custom adapter using Supabase client, leverage RLS for multi-tenancy
 
 ## Deployment Integration with Project-Based Architecture
 
@@ -1119,10 +1302,77 @@ dexto deploy production-railway      # Pushes Docker image to Railway
 ```
 
 
-// TODO: for iac i actually meant more like vercels model (code in github, link repo, auto handles deploys - for ultimate UX, unlike terraform or github actions) IAC might be useful for spawning things when we are deploying to platform though
-### Infrastructure-as-Code Integration
+// TODO/RESOLVED: Added Vercel-style GitHub integration deployment UX
 
-**GitHub Actions (OIDC):**
+### Deployment UX Approaches
+
+#### Approach 1: Vercel-Style GitHub Integration (Recommended for Dexto Cloud)
+
+**Vision:** Ultimate developer experience - link GitHub repo, automatic deployments on every push.
+
+**User Flow:**
+1. User pushes Dexto project to GitHub
+2. User links repo in Dexto Cloud dashboard (OAuth)
+3. Dexto Cloud automatically:
+   - Detects `dexto.config.ts`
+   - Runs `dexto build --target cloudflare` (or configured target)
+   - Uploads resources to R2/storage
+   - Deploys to CloudFlare Workers / Railway / Lambda
+   - Provides live URL: `https://my-agent.dexto.app`
+4. Every push triggers new deployment
+5. Branch deployments create preview URLs
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────────┐
+│ User's GitHub Repo                              │
+│  ├── dexto.config.ts                            │
+│  ├── agents/                                    │
+│  ├── plugins/                                   │
+│  └── prompts/                                   │
+└──────────────────┬──────────────────────────────┘
+                   ↓ (GitHub webhook on push)
+┌─────────────────────────────────────────────────┐
+│ Dexto Cloud Build Service                       │
+│  1. Clone repo from GitHub                      │
+│  2. Detect dexto.config.ts                      │
+│  3. Run `dexto build --target [platform]`       │
+│  4. Upload assets to R2/S3                      │
+│  5. Deploy to target platform                   │
+│  6. Update DNS/routing                          │
+│  7. Send deployment notification                │
+└──────────────────┬──────────────────────────────┘
+                   ↓
+┌─────────────────────────────────────────────────┐
+│ Live Deployment                                 │
+│  https://my-agent-abc123.dexto.app              │
+│  ├── CloudFlare Worker (Hono server)            │
+│  ├── Durable Objects (agent sessions)           │
+│  └── R2 Storage (configs, prompts, plugins)     │
+└─────────────────────────────────────────────────┘
+```
+
+**Implementation Requirements:**
+1. **GitHub App** - OAuth integration for repo access
+2. **Webhook Listener** - Receive push/PR events from GitHub
+3. **Build Queue** - Process deployments with retries/logs
+4. **Platform APIs** - CloudFlare API for Workers/R2, Railway API, etc.
+5. **DNS Management** - Custom domains and automatic SSL
+6. **Preview Deployments** - Unique URLs per branch/PR
+7. **Deployment Dashboard** - View logs, rollback, environment variables
+
+**User Benefits:**
+- Zero configuration deploys (just link repo)
+- Automatic branch previews for testing
+- One-click rollbacks
+- Built-in CI/CD
+- No YAML files, no workflows to manage
+
+---
+
+#### Approach 2: GitHub Actions (OIDC)
+
+**For users who want more control:**
 ```yaml
 name: Deploy to CloudFlare
 
@@ -1142,9 +1392,14 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 ```
 
-**Terraform/Pulumi:**
+---
+
+#### Approach 3: Infrastructure-as-Code (Terraform/Pulumi)
+
+**For enterprise users needing infrastructure management:**
+
 ```typescript
-// infrastructure/cloudflare.ts
+// infrastructure/cloudflare.ts (using Pulumi)
 import * as cloudflare from "@pulumi/cloudflare";
 
 const configBucket = new cloudflare.R2Bucket("dexto-configs", {
@@ -1162,6 +1417,15 @@ const worker = new cloudflare.WorkerScript("dexto-agent", {
   }],
 });
 ```
+
+**Use cases for IaC:**
+- Managing multiple environments (dev/staging/prod)
+- Complex infrastructure with networking, security policies
+- Audit trails and compliance requirements
+- Spinning up isolated infrastructure per deployment
+- Team-wide infrastructure versioning
+
+**Note:** For Dexto Cloud platform, this would be used internally to provision infrastructure when deploying user projects, not exposed to end users.
 
 ## Benefits
 
