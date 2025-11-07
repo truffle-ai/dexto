@@ -212,4 +212,95 @@ describe('Session Integration: Chat History Preservation', () => {
 
     // Note: Activity-based expiry prevention test removed due to timing complexities
     // The core functionality (chat history preservation) is thoroughly tested above
+
+    describe('Scope-based session management', () => {
+        test('should create session with explicit scopes', async () => {
+            const session = await agent.createSession('scope-test', {
+                scopes: {
+                    type: 'custom-type',
+                    depth: 0,
+                    lifecycle: 'persistent',
+                    visibility: 'private',
+                },
+            });
+
+            expect(session).toBeDefined();
+            expect(session.id).toBe('scope-test');
+
+            // Verify scopes were stored
+            const metadata = await agent.getSessionMetadata('scope-test');
+            expect(metadata).toBeDefined();
+            expect(metadata?.scopes.type).toBe('custom-type');
+            expect(metadata?.scopes.lifecycle).toBe('persistent');
+        });
+
+        test('should filter sessions by scope type', async () => {
+            // Create sessions with different types
+            await agent.createSession('primary-1', {
+                scopes: { type: 'primary', depth: 0, lifecycle: 'persistent' },
+            });
+            await agent.createSession('sub-agent-1', {
+                scopes: { type: 'sub-agent', depth: 1, lifecycle: 'ephemeral' },
+            });
+            await agent.createSession('primary-2', {
+                scopes: { type: 'primary', depth: 0, lifecycle: 'persistent' },
+            });
+
+            // Filter by type
+            const primarySessions = await agent.listSessions({ type: 'primary' });
+            const subAgentSessions = await agent.listSessions({ type: 'sub-agent' });
+
+            expect(primarySessions).toHaveLength(2);
+            expect(primarySessions).toContain('primary-1');
+            expect(primarySessions).toContain('primary-2');
+
+            expect(subAgentSessions).toHaveLength(1);
+            expect(subAgentSessions).toContain('sub-agent-1');
+        });
+
+        test('should maintain backward compatibility with old API', async () => {
+            // Create session using old API (without scopes)
+            const _session = await agent.createSession('backward-compat');
+
+            // Verify default scopes were applied
+            const metadata = await agent.getSessionMetadata('backward-compat');
+            expect(metadata).toBeDefined();
+            expect(metadata?.scopes.type).toBe('primary');
+            expect(metadata?.scopes.depth).toBe(0);
+            expect(metadata?.scopes.lifecycle).toBe('persistent');
+        });
+
+        test('should filter sessions by lifecycle', async () => {
+            await agent.createSession('persistent-1', {
+                scopes: { type: 'primary', lifecycle: 'persistent' },
+            });
+            await agent.createSession('ephemeral-1', {
+                scopes: { type: 'sub-agent', lifecycle: 'ephemeral' },
+            });
+
+            const persistentSessions = await agent.listSessions({ lifecycle: 'persistent' });
+            const ephemeralSessions = await agent.listSessions({ lifecycle: 'ephemeral' });
+
+            expect(persistentSessions).toContain('persistent-1');
+            expect(ephemeralSessions).toContain('ephemeral-1');
+        });
+
+        test('should support custom session types', async () => {
+            // Create sessions with custom types
+            await agent.createSession('scheduled-1', {
+                scopes: { type: 'scheduled', lifecycle: 'persistent' },
+                metadata: { cronExpression: '0 9 * * *' },
+            });
+            await agent.createSession('task-1', {
+                scopes: { type: 'task', lifecycle: 'persistent' },
+                metadata: { taskName: 'daily-report' },
+            });
+
+            const scheduledSessions = await agent.listSessions({ type: 'scheduled' });
+            const taskSessions = await agent.listSessions({ type: 'task' });
+
+            expect(scheduledSessions).toContain('scheduled-1');
+            expect(taskSessions).toContain('task-1');
+        });
+    });
 });
