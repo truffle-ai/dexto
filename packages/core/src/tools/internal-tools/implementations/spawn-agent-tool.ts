@@ -101,8 +101,11 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     }
                 }
 
-                // Resolve agent reference to full config
-                logger.info(`Resolving agent reference: ${JSON.stringify(agentReference)}`);
+                // Resolve agent reference to full config (avoid leaking inline config secrets)
+                logger.debug(`Resolving agent reference`, {
+                    refType: typeof agentReference === 'string' ? 'string' : 'inline-config',
+                    parentSessionId,
+                });
                 const resolutionContext: AgentResolutionContext = {
                     workingDir: process.cwd(),
                     parentSessionId,
