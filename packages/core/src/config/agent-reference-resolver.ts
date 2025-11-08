@@ -119,7 +119,7 @@ class AgentConfigCache {
         }
 
         logger.debug(`Cache hit for agent config: ${key}`);
-        return entry.config;
+        return structuredClone(entry.config);
     }
 
     /**
@@ -136,7 +136,7 @@ class AgentConfigCache {
         mtime?: number
     ): void {
         const entry: CacheEntry = {
-            config,
+            config: structuredClone(config),
             timestamp: Date.now(),
             source,
             ...(mtime !== undefined && { mtime }),
@@ -235,7 +235,7 @@ async function resolveBuiltInAgent(name: BuiltInAgentName): Promise<ResolvedAgen
         configCache.set(cacheKey, config, source);
 
         logger.info(`Loaded built-in agent: ${name}`);
-        return { config, source };
+        return { config: structuredClone(config), source };
     } catch (error) {
         throw ConfigError.builtInAgentLoadFailed(
             name,
@@ -311,7 +311,7 @@ async function resolveFilePath(
         configCache.set(cacheKey, config, source, fileStats.mtimeMs);
 
         logger.info(`Loaded agent config from file: ${filePath}`);
-        return { config, source };
+        return { config: structuredClone(config), source };
     } catch (error) {
         throw ConfigError.loadFailed(
             absolutePath,
@@ -363,7 +363,7 @@ async function resolveInlineConfig(partial: Partial<AgentConfig>): Promise<Resol
 
         logger.info('Created inline agent config');
         return {
-            config: validated,
+            config: structuredClone(validated),
             source: { type: 'inline', identifier: 'inline' },
         };
     } catch (error) {

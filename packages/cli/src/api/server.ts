@@ -2046,36 +2046,19 @@ export async function initializeApi(
 
     app.get('/api/sessions', async (req, res, next) => {
         try {
-            // Validate and parse query parameters
-            const queryValidation = ListSessionsQuerySchema.safeParse(req.query);
-            if (!queryValidation.success) {
-                return res.status(400).json({
-                    ok: false,
-                    error: {
-                        code: 'VALIDATION_ERROR',
-                        message: 'Invalid query parameters',
-                        issues: queryValidation.error.errors.map((e) => ({
-                            path: e.path.join('.'),
-                            message: e.message,
-                        })),
-                    },
-                });
-            }
+            const query = parseQuery(ListSessionsQuerySchema, req.query);
 
-            // Build filters object, excluding undefined values for exactOptionalPropertyTypes
             const filters: {
                 type?: string;
                 parentSessionId?: string;
                 depth?: number;
                 lifecycle?: 'ephemeral' | 'persistent';
             } = {};
-            if (queryValidation.data.type !== undefined) filters.type = queryValidation.data.type;
-            if (queryValidation.data.parentSessionId !== undefined)
-                filters.parentSessionId = queryValidation.data.parentSessionId;
-            if (queryValidation.data.depth !== undefined)
-                filters.depth = queryValidation.data.depth;
-            if (queryValidation.data.lifecycle !== undefined)
-                filters.lifecycle = queryValidation.data.lifecycle;
+            if (query.type !== undefined) filters.type = query.type;
+            if (query.parentSessionId !== undefined)
+                filters.parentSessionId = query.parentSessionId;
+            if (query.depth !== undefined) filters.depth = query.depth;
+            if (query.lifecycle !== undefined) filters.lifecycle = query.lifecycle;
 
             // Pass filters to listSessions
             const sessionIds = await activeAgent.listSessions(
@@ -2095,7 +2078,6 @@ export async function initializeApi(
                                 type: 'primary',
                                 depth: 0,
                                 lifecycle: 'persistent',
-                                visibility: 'private',
                             },
                             metadata: metadata?.metadata,
                         };
@@ -2111,7 +2093,6 @@ export async function initializeApi(
                                 type: 'primary',
                                 depth: 0,
                                 lifecycle: 'persistent',
-                                visibility: 'private',
                             },
                         };
                     }
@@ -2143,7 +2124,6 @@ export async function initializeApi(
                         type: 'primary',
                         depth: 0,
                         lifecycle: 'persistent',
-                        visibility: 'private',
                     },
                     metadata: metadata?.metadata,
                 },

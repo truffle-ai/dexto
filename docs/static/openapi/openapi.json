@@ -76,7 +76,39 @@
     }
   ],
   "components": {
-    "schemas": {},
+    "schemas": {
+      "SessionScopes": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+          },
+          "parentSessionId": {
+            "type": "string",
+            "description": "Parent session ID for hierarchical sessions"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Depth in session hierarchy"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "ephemeral",
+              "persistent"
+            ],
+            "description": "Lifecycle policy for the session"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false,
+        "description": "Session scopes for filtering and organization"
+      }
+    },
     "parameters": {}
   },
   "paths": {
@@ -1340,35 +1372,7 @@
                             "description": "Optional session title"
                           },
                           "scopes": {
-                            "type": "object",
-                            "properties": {
-                              "type": {
-                                "type": "string",
-                                "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
-                              },
-                              "parentSessionId": {
-                                "type": "string",
-                                "description": "Parent session ID for hierarchical sessions"
-                              },
-                              "depth": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "description": "Depth in session hierarchy"
-                              },
-                              "lifecycle": {
-                                "type": "string",
-                                "enum": [
-                                  "ephemeral",
-                                  "persistent"
-                                ],
-                                "description": "Lifecycle policy for the session"
-                              }
-                            },
-                            "required": [
-                              "type"
-                            ],
-                            "additionalProperties": false,
-                            "description": "Session scopes for filtering and organization"
+                            "$ref": "#/components/schemas/SessionScopes"
                           },
                           "metadata": {
                             "type": "object",
@@ -1463,35 +1467,7 @@
                           "description": "Optional session title"
                         },
                         "scopes": {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
-                            },
-                            "parentSessionId": {
-                              "type": "string",
-                              "description": "Parent session ID for hierarchical sessions"
-                            },
-                            "depth": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "description": "Depth in session hierarchy"
-                            },
-                            "lifecycle": {
-                              "type": "string",
-                              "enum": [
-                                "ephemeral",
-                                "persistent"
-                              ],
-                              "description": "Lifecycle policy for the session"
-                            }
-                          },
-                          "required": [
-                            "type"
-                          ],
-                          "additionalProperties": false,
-                          "description": "Session scopes for filtering and organization"
+                          "$ref": "#/components/schemas/SessionScopes"
                         },
                         "metadata": {
                           "type": "object",
@@ -1614,35 +1590,7 @@
                           "description": "Optional session title"
                         },
                         "scopes": {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
-                            },
-                            "parentSessionId": {
-                              "type": "string",
-                              "description": "Parent session ID for hierarchical sessions"
-                            },
-                            "depth": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "description": "Depth in session hierarchy"
-                            },
-                            "lifecycle": {
-                              "type": "string",
-                              "enum": [
-                                "ephemeral",
-                                "persistent"
-                              ],
-                              "description": "Lifecycle policy for the session"
-                            }
-                          },
-                          "required": [
-                            "type"
-                          ],
-                          "additionalProperties": false,
-                          "description": "Session scopes for filtering and organization"
+                          "$ref": "#/components/schemas/SessionScopes"
                         },
                         "metadata": {
                           "type": "object",
@@ -1806,35 +1754,7 @@
                           "description": "Optional session title"
                         },
                         "scopes": {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
-                            },
-                            "parentSessionId": {
-                              "type": "string",
-                              "description": "Parent session ID for hierarchical sessions"
-                            },
-                            "depth": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "description": "Depth in session hierarchy"
-                            },
-                            "lifecycle": {
-                              "type": "string",
-                              "enum": [
-                                "ephemeral",
-                                "persistent"
-                              ],
-                              "description": "Lifecycle policy for the session"
-                            }
-                          },
-                          "required": [
-                            "type"
-                          ],
-                          "additionalProperties": false,
-                          "description": "Session scopes for filtering and organization"
+                          "$ref": "#/components/schemas/SessionScopes"
                         },
                         "metadata": {
                           "type": "object",
@@ -6940,6 +6860,13 @@
                             "default": 3600000,
                             "description": "Session time-to-live in milliseconds, defaults to 3600000ms (1 hour)"
                           },
+                          "maxSubAgentDepth": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "default": 1,
+                            "description": "Maximum nesting depth for spawned sub-agents. 1 allows parent → child; increase for deeper hierarchies."
+                          },
                           "subAgentLifecycle": {
                             "type": "string",
                             "enum": [
@@ -6947,7 +6874,7 @@
                               "persistent"
                             ],
                             "default": "persistent",
-                            "description": "Lifecycle policy for spawned sub-agents. persistent keeps transcripts for review; set to ephemeral to auto-delete."
+                            "description": "Lifecycle policy for spawned sub-agents. ephemeral: auto-deleted after completion (saves storage). persistent: kept for review/observability (uses storage)."
                           }
                         },
                         "default": {},

@@ -23,6 +23,12 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 .describe('Filter by lifecycle policy'),
         })
         .describe('Query parameters for filtering sessions by scope criteria');
+    type SessionQueryFilters = {
+        type?: string;
+        parentSessionId?: string;
+        depth?: number;
+        lifecycle?: 'ephemeral' | 'persistent';
+    };
 
     const listRoute = createRoute({
         method: 'get',
@@ -52,13 +58,13 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(listRoute, async (ctx) => {
         const agent = getAgent();
-        const query = ctx.req.query();
+        const query = ctx.req.valid('query');
 
         // Build filters from query params, only include defined values
-        const filters: any = {};
+        const filters: SessionQueryFilters = {};
         if (query.type) filters.type = query.type;
         if (query.parentSessionId) filters.parentSessionId = query.parentSessionId;
-        if (query.depth !== undefined) filters.depth = Number(query.depth);
+        if (query.depth !== undefined) filters.depth = query.depth;
         if (query.lifecycle) filters.lifecycle = query.lifecycle;
 
         // Pass filters to listSessions
@@ -144,7 +150,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         type: 'primary' as const,
                         depth: 0,
                         lifecycle: 'persistent' as const,
-                        visibility: 'private' as const,
                     },
                     metadata: metadata?.metadata,
                 },
@@ -229,7 +234,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     type: 'primary' as const,
                     depth: 0,
                     lifecycle: 'persistent' as const,
-                    visibility: 'private' as const,
                 },
                 metadata: metadata?.metadata,
                 history: history.length,
@@ -441,7 +445,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     type: 'primary' as const,
                     depth: 0,
                     lifecycle: 'persistent' as const,
-                    visibility: 'private' as const,
                 },
                 metadata: metadata?.metadata,
             },

@@ -20,14 +20,9 @@ import { Trash2, AlertTriangle, RefreshCw, History, Search, X } from 'lucide-rea
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
+import type { SessionScopes as CoreSessionScopes } from '@dexto/core';
 
-interface SessionScopes {
-    type: string;
-    parentSessionId?: string;
-    depth?: number;
-    lifecycle?: 'ephemeral' | 'persistent' | 'archived';
-    visibility?: 'private' | 'shared' | 'public';
-}
+type SessionScopes = CoreSessionScopes;
 
 interface Session {
     id: string;
@@ -166,7 +161,6 @@ export default function SessionPanel({
                                 type: 'primary',
                                 depth: 0,
                                 lifecycle: 'persistent',
-                                visibility: 'private',
                             },
                             metadata: null,
                         };

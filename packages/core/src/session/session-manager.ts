@@ -293,14 +293,30 @@ export class SessionManager {
                 throw SessionError.parentNotFound(scopes.parentSessionId);
             }
 
+            const parentMetadata = await this.getSessionMetadata(scopes.parentSessionId);
+
             // Auto-calculate depth from parent if not explicitly provided
             if (options?.scopes?.depth === undefined) {
-                const parentMetadata = await this.getSessionMetadata(scopes.parentSessionId);
                 if (parentMetadata) {
                     scopes.depth = (parentMetadata.scopes.depth ?? 0) + 1;
                 } else {
-                    // Parent not found, use default sub-agent depth of 1
+                    // Parent metadata missing despite session existing – inconsistent storage state
+                    logger.warn(
+                        `Parent session metadata missing for ${scopes.parentSessionId} while creating child ${id}. Falling back to depth=1.`
+                    );
                     scopes.depth = 1;
+                }
+            }
+
+            // Validate explicit depth is consistent with parent hierarchy
+            if (options?.scopes?.depth !== undefined && parentMetadata) {
+                const parentDepth = parentMetadata.scopes.depth ?? 0;
+                if ((scopes.depth ?? 0) <= parentDepth) {
+                    throw SessionError.invalidScope(
+                        'depth',
+                        scopes.depth,
+                        `Sub-agent depth (${scopes.depth}) must be greater than parent depth (${parentDepth})`
+                    );
                 }
             }
         }
@@ -419,7 +435,9 @@ export class SessionManager {
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
         } catch (error) {
             // If storage fails, another concurrent creation might have succeeded
-            logger.error(`Failed to store session metadata for ${id}:`, error);
+            logger.error(
+                `Failed to store session metadata for ${id}: ${error instanceof Error ? error.message : String(error)}`
+            );
             // Re-throw the original error to maintain test compatibility
             throw error;
         }
