@@ -14,9 +14,17 @@ export const SessionConfigSchema = z
             .positive()
             .default(3600000)
             .describe('Session time-to-live in milliseconds, defaults to 3600000ms (1 hour)'),
+        maxSubAgentDepth: z
+            .number()
+            .int()
+            .positive()
+            .default(1)
+            .describe(
+                'Maximum nesting depth for spawned sub-agents. 1 allows parent → child; increase for deeper hierarchies.'
+            ),
         subAgentLifecycle: z
             .enum(['ephemeral', 'persistent'])
-            .default('ephemeral')
+            .default('persistent')
             .describe(
                 'Lifecycle policy for spawned sub-agents. ephemeral: auto-deleted after completion (saves storage). persistent: kept for review/observability (uses storage).'
             ),

@@ -11,7 +11,7 @@
 import path from 'path';
 import { promises as fs } from 'fs';
 import type { Stats } from 'fs';
-import { AgentConfig } from '@core/agent/schemas.js';
+import { AgentConfig, AgentConfigSchema } from '@core/agent/schemas.js';
 import { loadAgentConfig } from './loader.js';
 import { ConfigError } from './errors.js';
 import { DextoRuntimeError } from '../errors/index.js';
@@ -359,9 +359,11 @@ async function resolveInlineConfig(partial: Partial<AgentConfig>): Promise<Resol
                 : baseConfig.toolConfirmation,
         };
 
+        const validated = AgentConfigSchema.parse(merged);
+
         logger.info('Created inline agent config');
         return {
-            config: merged,
+            config: validated,
             source: { type: 'inline', identifier: 'inline' },
         };
     } catch (error) {

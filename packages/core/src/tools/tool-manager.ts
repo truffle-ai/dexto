@@ -71,6 +71,7 @@ export class ToolManager {
     private pluginManager?: PluginManager;
     private sessionManager?: SessionManager;
     private stateManager?: AgentStateManager;
+    private notificationHandlers: Array<{ event: string; handler: (...args: any[]) => void }> = [];
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -157,18 +158,40 @@ export class ToolManager {
      * Set up listeners for MCP notifications to invalidate cache on changes
      */
     private setupNotificationListeners(): void {
-        // Listen for MCP server connection changes that affect tools
-        this.agentEventBus.on('dexto:mcpServerConnected', async (payload) => {
+        const onServerConnected = async (payload: any) => {
             if (payload.success) {
                 logger.debug(`🔄 MCP server connected, invalidating tool cache: ${payload.name}`);
                 this.invalidateCache();
             }
-        });
-
-        this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
+        };
+        const onServerRemoved = async (payload: any) => {
             logger.debug(`🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`);
             this.invalidateCache();
+        };
+
+        this.agentEventBus.on('dexto:mcpServerConnected', onServerConnected);
+        this.agentEventBus.on('dexto:mcpServerRemoved', onServerRemoved);
+
+        this.notificationHandlers.push(
+            { event: 'dexto:mcpServerConnected', handler: onServerConnected },
+            { event: 'dexto:mcpServerRemoved', handler: onServerRemoved }
+        );
+    }
+
+    /**
+     * Clean up event listeners and child providers.
+     */
+    dispose(): void {
+        this.notificationHandlers.forEach(({ event, handler }) => {
+            this.agentEventBus.off(event as any, handler);
         });
+        this.notificationHandlers = [];
+
+        if (this.internalToolsProvider && 'dispose' in this.internalToolsProvider) {
+            (this.internalToolsProvider as any).dispose?.();
+        }
+
+        logger.debug('ToolManager disposed and event listeners removed');
     }
 
     /**

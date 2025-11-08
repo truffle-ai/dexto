@@ -476,7 +476,7 @@ describe('SessionManager', () => {
                 maxSessions: 10,
                 sessionTTL: 1800000,
                 maxSubAgentDepth: 1,
-                subAgentLifecycle: 'ephemeral',
+                subAgentLifecycle: 'persistent',
             });
         });
 

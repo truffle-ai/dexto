@@ -138,6 +138,7 @@ export class ChatSession {
     private toolManager!: ToolManager;
     private systemPromptManager!: SystemPromptManager;
     private llmConfig!: ValidatedLLMConfig;
+    private customToolManager: ToolManager | null = null;
 
     /**
      * Creates a new ChatSession instance.
@@ -383,6 +384,9 @@ export class ChatSession {
             this.llmConfig = overrides.llmConfig;
             this.toolManager = overrides.toolManager;
             this.systemPromptManager = overrides.systemPromptManager;
+            if (this.toolManager !== this.services.toolManager) {
+                this.customToolManager = this.toolManager;
+            }
         }
 
         // Create session-specific history provider directly with database backend
@@ -857,6 +861,11 @@ export class ChatSession {
             // Only dispose of event listeners and in-memory resources
             // Do NOT reset conversation - that would delete chat history!
             this.dispose();
+
+            if (this.customToolManager) {
+                this.customToolManager.dispose();
+                this.customToolManager = null;
+            }
 
             logger.debug(
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`

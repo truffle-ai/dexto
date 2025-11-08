@@ -199,4 +199,9 @@ export class InternalToolsProvider {
     getServices(): InternalToolsServices {
         return this.services;
     }
+
+    dispose(): void {
+        this.tools.clear();
+        logger.debug('InternalToolsProvider disposed');
+    }
 }

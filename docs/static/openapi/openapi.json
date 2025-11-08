@@ -6946,8 +6946,8 @@
                               "ephemeral",
                               "persistent"
                             ],
-                            "default": "ephemeral",
-                            "description": "Lifecycle policy for spawned sub-agents. ephemeral: auto-deleted after completion (saves storage). persistent: kept for review/observability (uses storage)."
+                            "default": "persistent",
+                            "description": "Lifecycle policy for spawned sub-agents. persistent keeps transcripts for review; set to ephemeral to auto-delete."
                           }
                         },
                         "default": {},

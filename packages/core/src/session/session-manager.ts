@@ -58,7 +58,7 @@ export interface SessionManagerConfig {
     maxSessions?: number;
     sessionTTL?: number;
     maxSubAgentDepth?: number; // Maximum nesting depth for sub-agents (default: 1 - allows one level: parent → child)
-    subAgentLifecycle?: 'ephemeral' | 'persistent'; // Lifecycle policy for sub-agents (default: ephemeral)
+    subAgentLifecycle?: 'ephemeral' | 'persistent'; // Lifecycle policy for sub-agents (default: persistent)
 }
 
 /**
@@ -109,6 +109,11 @@ export class SessionManager {
     private initializationPromise!: Promise<void>;
     // Add a Map to track ongoing session creation operations to prevent race conditions
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
+    private static readonly defaultScopes: SessionScopes = {
+        type: 'primary',
+        depth: 0,
+        lifecycle: 'persistent',
+    };
 
     constructor(
         private services: {
@@ -126,7 +131,7 @@ export class SessionManager {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
         this.maxSubAgentDepth = config.maxSubAgentDepth ?? 1; // Default: allows one level (parent 0 → child 1)
-        this.subAgentLifecycle = config.subAgentLifecycle ?? 'ephemeral'; // Default: ephemeral for sub-agents
+        this.subAgentLifecycle = config.subAgentLifecycle ?? 'persistent'; // Default: persistent for sub-agents
     }
 
     /**
@@ -207,6 +212,13 @@ export class SessionManager {
             }
             await this.initializationPromise;
         }
+    }
+
+    /**
+     * Provide default scopes for legacy session entries that predate scope storage.
+     */
+    private normalizeScopes(scopes?: SessionScopes): SessionScopes {
+        return scopes ?? SessionManager.defaultScopes;
     }
 
     /**
@@ -355,6 +367,14 @@ export class SessionManager {
             .getDatabase()
             .get<SessionData>(sessionKey);
         if (existingMetadata) {
+            const existingScopes = this.normalizeScopes(existingMetadata.scopes);
+
+            // Backfill legacy records that lacked scopes
+            if (!existingMetadata.scopes) {
+                existingMetadata.scopes = existingScopes;
+                await this.services.storageManager.getDatabase().set(sessionKey, existingMetadata);
+            }
+
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
             // Note: Restored sessions use parent agent config, not custom sub-agent configs
@@ -363,7 +383,7 @@ export class SessionManager {
                 { ...this.services, sessionManager: this },
                 id,
                 undefined, // agentConfig - not restored
-                existingMetadata.scopes.parentSessionId, // parentSessionId - restore for event forwarding
+                existingScopes.parentSessionId, // parentSessionId - restore for event forwarding
                 existingMetadata.metadata?.agentIdentifier // agentIdentifier - restore from metadata
             );
             await session.init();
@@ -478,12 +498,18 @@ export class SessionManager {
                 .getDatabase()
                 .get<SessionData>(sessionKey);
             if (sessionData) {
+                const scopes = this.normalizeScopes(sessionData.scopes);
+                if (!sessionData.scopes) {
+                    sessionData.scopes = scopes;
+                    await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+                }
+
                 // Restore session to memory with parent/agent scopes
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
                     sessionId,
                     undefined, // agentConfig - not restored
-                    sessionData.scopes.parentSessionId, // parentSessionId - restore for event forwarding
+                    scopes.parentSessionId, // parentSessionId - restore for event forwarding
                     sessionData.metadata?.agentIdentifier // agentIdentifier - restore from metadata
                 );
                 await session.init();
@@ -624,7 +650,7 @@ export class SessionManager {
                 .get<SessionData>(key);
             if (!sessionData) continue;
 
-            const scopes = sessionData.scopes;
+            const scopes = this.normalizeScopes(sessionData.scopes);
 
             // Apply filters
             if (filters.type && scopes.type !== filters.type) continue;
@@ -657,12 +683,14 @@ export class SessionManager {
             return undefined;
         }
 
+        const scopes = this.normalizeScopes(sessionData.scopes);
+
         const result: SessionMetadata = {
             createdAt: sessionData.createdAt,
             lastActivity: sessionData.lastActivity,
             messageCount: sessionData.messageCount,
             title: sessionData.metadata?.title,
-            scopes: sessionData.scopes,
+            scopes,
         };
 
         if (sessionData.metadata) {

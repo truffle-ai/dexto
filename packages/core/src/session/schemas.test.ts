@@ -76,7 +76,8 @@ describe('SessionConfigSchema', () => {
             expect(result).toEqual({
                 maxSessions: 100,
                 sessionTTL: 3600000,
-                subAgentLifecycle: 'ephemeral',
+                maxSubAgentDepth: 1,
+                subAgentLifecycle: 'persistent',
             });
         });
 
@@ -85,14 +86,16 @@ describe('SessionConfigSchema', () => {
             expect(result1).toEqual({
                 maxSessions: 50,
                 sessionTTL: 3600000,
-                subAgentLifecycle: 'ephemeral',
+                maxSubAgentDepth: 1,
+                subAgentLifecycle: 'persistent',
             });
 
             const result2 = SessionConfigSchema.parse({ sessionTTL: 1800000 });
             expect(result2).toEqual({
                 maxSessions: 100,
                 sessionTTL: 1800000,
-                subAgentLifecycle: 'ephemeral',
+                maxSubAgentDepth: 1,
+                subAgentLifecycle: 'persistent',
             });
         });
 
@@ -100,7 +103,8 @@ describe('SessionConfigSchema', () => {
             const config = {
                 maxSessions: 200,
                 sessionTTL: 7200000,
-                subAgentLifecycle: 'ephemeral' as const,
+                maxSubAgentDepth: 2,
+                subAgentLifecycle: 'persistent' as const,
             };
 
             const result = SessionConfigSchema.parse(config);
@@ -114,17 +118,21 @@ describe('SessionConfigSchema', () => {
             const small = SessionConfigSchema.parse({
                 maxSessions: 1,
                 sessionTTL: 1,
+                maxSubAgentDepth: 1,
             });
             expect(small.maxSessions).toBe(1);
             expect(small.sessionTTL).toBe(1);
+            expect(small.maxSubAgentDepth).toBe(1);
 
             // Large values
             const large = SessionConfigSchema.parse({
                 maxSessions: 10000,
                 sessionTTL: 86400000, // 24 hours
+                maxSubAgentDepth: 5,
             });
             expect(large.maxSessions).toBe(10000);
             expect(large.sessionTTL).toBe(86400000);
+            expect(large.maxSubAgentDepth).toBe(5);
         });
 
         it('should reject non-numeric types', () => {
@@ -165,7 +173,11 @@ describe('SessionConfigSchema', () => {
             // Input type allows optional fields (due to defaults)
             const input: SessionConfig = {};
             const inputPartial: SessionConfig = { maxSessions: 50 };
-            const inputFull: SessionConfig = { maxSessions: 100, sessionTTL: 3600000 };
+            const inputFull: SessionConfig = {
+                maxSessions: 100,
+                sessionTTL: 3600000,
+                maxSubAgentDepth: 1,
+            };
 
             // All should be valid inputs
             expect(() => SessionConfigSchema.parse(input)).not.toThrow();
@@ -189,7 +201,8 @@ describe('SessionConfigSchema', () => {
             const prodConfig = {
                 maxSessions: 1000,
                 sessionTTL: 7200000, // 2 hours
-                subAgentLifecycle: 'ephemeral' as const,
+                maxSubAgentDepth: 2,
+                subAgentLifecycle: 'persistent' as const,
             };
 
             const result = SessionConfigSchema.parse(prodConfig);
@@ -200,7 +213,8 @@ describe('SessionConfigSchema', () => {
             const devConfig = {
                 maxSessions: 10,
                 sessionTTL: 300000, // 5 minutes
-                subAgentLifecycle: 'ephemeral' as const,
+                maxSubAgentDepth: 1,
+                subAgentLifecycle: 'persistent' as const,
             };
 
             const result = SessionConfigSchema.parse(devConfig);

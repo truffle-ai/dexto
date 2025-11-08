@@ -129,7 +129,7 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
 
                 // Get lifecycle config from session manager
                 const sessionManagerConfig = sessionManager.getConfig();
-                const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'ephemeral';
+                const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'persistent';
 
                 // Create sub-agent session with scopes
                 const session = await sessionManager.createSession(undefined, {
@@ -140,6 +140,7 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                         lifecycle, // Use configured lifecycle (ephemeral or persistent)
                     },
                     agentConfig: resolved.config,
+                    agentIdentifier,
                     metadata: {
                         agentIdentifier,
                     },
@@ -187,7 +188,7 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                 if (subAgentSessionId) {
                     try {
                         const sessionManagerConfig = sessionManager.getConfig();
-                        const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'ephemeral';
+                        const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'persistent';
 
                         if (lifecycle === 'ephemeral') {
                             // Ephemeral: Delete session and history

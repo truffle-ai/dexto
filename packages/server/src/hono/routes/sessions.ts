@@ -81,6 +81,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                             depth: 0,
                             lifecycle: 'persistent' as const,
                         },
+                        metadata: metadata?.metadata,
                     };
                 } catch {
                     // Skip sessions that no longer exist
@@ -145,6 +146,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lifecycle: 'persistent' as const,
                         visibility: 'private' as const,
                     },
+                    metadata: metadata?.metadata,
                 },
             },
             201
@@ -229,6 +231,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     lifecycle: 'persistent' as const,
                     visibility: 'private' as const,
                 },
+                metadata: metadata?.metadata,
                 history: history.length,
             },
         });
@@ -440,6 +443,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     lifecycle: 'persistent' as const,
                     visibility: 'private' as const,
                 },
+                metadata: metadata?.metadata,
             },
         });
     });

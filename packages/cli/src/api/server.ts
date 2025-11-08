@@ -2097,6 +2097,7 @@ export async function initializeApi(
                                 lifecycle: 'persistent',
                                 visibility: 'private',
                             },
+                            metadata: metadata?.metadata,
                         };
                     } catch (_error) {
                         // Skip sessions that no longer exist
@@ -2144,6 +2145,7 @@ export async function initializeApi(
                         lifecycle: 'persistent',
                         visibility: 'private',
                     },
+                    metadata: metadata?.metadata,
                 },
             });
         } catch (error) {
@@ -2179,6 +2181,7 @@ export async function initializeApi(
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
                     scopes: metadata?.scopes,
+                    metadata: metadata?.metadata,
                     history: history.length,
                 },
             });
@@ -2284,6 +2287,7 @@ export async function initializeApi(
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || title,
                     scopes: metadata?.scopes,
+                    metadata: metadata?.metadata,
                 },
             });
         } catch (error) {

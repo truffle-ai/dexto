@@ -27,7 +27,6 @@ interface SessionScopes {
     depth?: number;
     lifecycle?: 'ephemeral' | 'persistent' | 'archived';
     visibility?: 'private' | 'shared' | 'public';
-    agentIdentifier?: string;
 }
 
 interface Session {
@@ -37,6 +36,7 @@ interface Session {
     messageCount: number;
     title?: string | null;
     scopes: SessionScopes;
+    metadata?: Record<string, unknown> | null;
 }
 
 interface SessionPanelProps {
@@ -168,6 +168,7 @@ export default function SessionPanel({
                                 lifecycle: 'persistent',
                                 visibility: 'private',
                             },
+                            metadata: null,
                         };
                         return sortSessions([newSession, ...old]);
                     }
@@ -412,6 +413,9 @@ export default function SessionPanel({
                                         ? session.title
                                         : session.id;
                                 const isActive = currentSessionId === session.id;
+                                const agentIdentifier = session.metadata?.agentIdentifier as
+                                    | string
+                                    | undefined;
                                 return (
                                     <Tooltip key={session.id} delayDuration={150}>
                                         <TooltipTrigger asChild>
@@ -507,9 +511,9 @@ export default function SessionPanel({
                                                     {session.scopes.depth !== undefined &&
                                                         ` (depth: ${session.scopes.depth})`}
                                                 </div>
-                                                {session.scopes.agentIdentifier && (
+                                                {agentIdentifier && (
                                                     <div className="text-muted-foreground text-[10px]">
-                                                        Agent: {session.scopes.agentIdentifier}
+                                                        Agent: {agentIdentifier}
                                                     </div>
                                                 )}
                                             </div>
