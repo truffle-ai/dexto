@@ -86,47 +86,6 @@ spawn_agent({
 
 ---
 
-### 3. Test Runner (`test-runner.yml`)
-
-**Use Case**: Execute tests and analyze failures
-
-**Capabilities**:
-- Run test commands (npm test, pytest, etc.)
-- Monitor test execution
-- Parse test output and failures
-- Analyze error messages and stack traces
-- Suggest fixes for failing tests
-- Kill hanging test processes
-
-**Tool Access**:
-- `read_file` - Read test files
-- `glob_files` - Find test files
-- `grep_content` - Search patterns
-- `bash_exec` - Execute test commands
-- `bash_output` - Monitor progress
-- `kill_process` - Kill hanging tests
-
-**Model**: Claude Haiku 4.5 (efficient with flexibility)
-
-**When to Use**:
-```typescript
-// Run test suite
-spawn_agent({
-  agent: 'test-runner',
-  prompt: 'Run the unit tests and analyze any failures',
-  description: 'Unit test run'
-})
-
-// Debug failing tests
-spawn_agent({
-  agent: 'test-runner',
-  prompt: 'Run integration tests and debug the authentication test failures',
-  description: 'Auth test debug'
-})
-```
-
----
-
 ## Using Built-In Agents
 
 ### Basic Usage
@@ -180,7 +139,7 @@ curl -X POST http://localhost:3000/api/message \
 Each built-in agent is designed for a specific category of tasks with appropriate tool access.
 
 ### 2. **Read-Only by Default**
-Most agents have read-only access (except test-runner which needs execution). This prevents accidental modifications.
+All agents have read-only access. This prevents accidental modifications.
 
 ### 3. **No Recursion**
 Built-in agents cannot spawn additional sub-agents, preventing infinite recursion.
@@ -200,6 +159,8 @@ Agents use appropriate LLMs for their tasks:
 While built-in agents cover common cases, you can create custom specialists:
 
 ### Example: Security Auditor
+
+Create a custom agent config file:
 
 ```yaml
 # agents/security-auditor.yml
@@ -221,7 +182,8 @@ llm:
   temperature: 0.1
 ```
 
-Usage:
+Then spawn it by file path:
+
 ```typescript
 spawn_agent({
   agent: './agents/security-auditor.yml',
@@ -232,16 +194,17 @@ spawn_agent({
 
 ---
 
-## Comparison: Built-In vs Custom vs External
+## Comparison: Built-In vs Custom
 
-| Aspect | Built-In Agents | Custom Agents | External Agents (HTTP MCP) |
-|--------|----------------|---------------|----------------------------|
-| **Definition** | Pre-configured YML | User YML files | Separate processes |
-| **Lifecycle** | Parent session | Parent session | Independent |
-| **Execution** | Synchronous | Synchronous | Can be async |
-| **Resource Sharing** | Shared process | Shared process | Network boundary |
-| **Use Case** | Common delegation | Specialized tasks | Long-running services |
-| **Cleanup** | Automatic | Automatic | Manual management |
+| Aspect | Built-In Agents | Custom Agents |
+|--------|----------------|---------------|
+| **Definition** | Pre-configured YML in `agents/built-in/` | User YML files |
+| **Reference** | By name: `"general-purpose"` | By path: `"./my-agent.yml"` |
+| **Lifecycle** | Parent session | Parent session |
+| **Execution** | Synchronous | Synchronous |
+| **Resource Sharing** | Shared process | Shared process |
+| **Use Case** | Common delegation | Specialized tasks |
+| **Cleanup** | Automatic | Automatic |
 
 ---
 
@@ -251,7 +214,6 @@ spawn_agent({
 |-------|-----------|------------|--------------|-----------|------------|-------------|
 | **general-purpose** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **code-reviewer** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **test-runner** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 
 All agents have access to `search_history` for context.
 
@@ -268,16 +230,7 @@ Built-in agents cannot spawn additional sub-agents, preventing:
 ### 2. **Tool Scoping Enforcement**
 Each agent's tool access is strictly limited by its `internalTools` configuration.
 
-### 3. **Command Execution Safety**
-Test-runner includes explicit denylists for dangerous operations:
-```yaml
-toolPolicies:
-  alwaysDeny:
-    - internal--bash_exec--rm -rf*
-    - internal--bash_exec--sudo*
-```
-
-### 4. **Session Isolation**
+### 3. **Session Isolation**
 Sub-agent sessions are isolated from parent:
 - Separate tool execution context
 - Independent system prompts
@@ -310,7 +263,7 @@ Sub-agent sessions are isolated from parent:
 ```
 Error: Built-in agent 'code-reviwer' not found
 ```
-**Solution**: Check spelling. Available built-ins: `general-purpose`, `code-reviewer`, `test-runner`
+**Solution**: Check spelling. Available built-ins: `general-purpose`, `code-reviewer`
 
 ### Tool Not Allowed
 ```
@@ -324,12 +277,6 @@ Error: Maximum sub-agent depth (1) exceeded
 ```
 **Solution**: Built-in agents cannot spawn additional sub-agents. Restructure your delegation.
 
-### Test Timeout
-```
-Error: Test execution timed out after 120s
-```
-**Solution**: Tests are taking too long. Consider running subset of tests or increasing timeout.
-
 ---
 
 ## Best Practices
@@ -337,7 +284,6 @@ Error: Test execution timed out after 120s
 ### 1. **Choose the Right Agent**
 - **Analysis**: Use `general-purpose`
 - **Code review**: Use `code-reviewer`
-- **Test execution**: Use `test-runner`
 
 ### 2. **Provide Clear Prompts**
 ```typescript
@@ -375,14 +321,14 @@ for (const module of modules) {
 ```typescript
 try {
   const result = await spawn_agent({
-    agent: 'test-runner',
-    prompt: 'Run tests',
-    description: 'Test execution'
+    agent: 'code-reviewer',
+    prompt: 'Review auth module',
+    description: 'Auth review'
   });
   // Process result...
 } catch (error) {
   // Sub-agent failures return errors, not throw exceptions
-  console.error('Tests failed:', error);
+  console.error('Review failed:', error);
 }
 ```
 

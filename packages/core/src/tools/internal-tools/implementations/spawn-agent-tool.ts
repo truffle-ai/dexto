@@ -2,12 +2,10 @@
  * Spawn Agent Tool
  *
  * Spawns sub-agent tasks with config-driven capabilities.
- * Replaces the hardcoded spawn_task tool with flexible agent config loading.
  *
- * Supports three types of agent references:
- * 1. Built-in agents: 'general-purpose', 'code-reviewer', 'test-runner'
+ * Supports two types of agent references:
+ * 1. Built-in agents: 'general-purpose', 'code-reviewer'
  * 2. File paths: './my-agent.yml' or '/absolute/path/agent.yml'
- * 3. Inline configs: Partial AgentConfig objects
  */
 
 import { z } from 'zod';
@@ -27,12 +25,9 @@ import {
 const SpawnAgentInputSchema = z
     .object({
         agent: z
-            .union([
-                z.string(), // Built-in name or file path
-                z.record(z.unknown()), // Inline config
-            ])
+            .string()
             .describe(
-                'Agent to spawn: built-in name ("general-purpose", "code-reviewer", "test-runner"), file path ("./agent.yml"), or inline config object'
+                'Agent to spawn: built-in name ("general-purpose", "code-reviewer") or file path ("./agent.yml")'
             ),
         prompt: z.string().min(1).describe('Detailed task instructions for the spawned sub-agent'),
         description: z
@@ -63,9 +58,8 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
             'Spawn a sub-agent to handle complex analysis, research, or specialized tasks. ' +
             'Sub-agents can have custom system prompts, tool access, and LLM configurations.\n\n' +
             '**Agent Types:**\n' +
-            '- Built-in: "general-purpose" (analysis), "code-reviewer" (code review), "test-runner" (testing)\n' +
-            '- Custom: "./path/to/agent.yml" (file path to custom agent config)\n' +
-            '- Inline: { systemPrompt: "...", internalTools: [...], llm: {...} } (inline config)\n\n' +
+            '- Built-in: "general-purpose" (analysis), "code-reviewer" (code review)\n' +
+            '- Custom: "./path/to/agent.yml" (file path to custom agent config)\n\n' +
             '**Usage:**\n' +
             '```typescript\n' +
             'spawn_agent({\n' +

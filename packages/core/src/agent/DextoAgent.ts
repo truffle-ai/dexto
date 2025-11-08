@@ -575,9 +575,9 @@ export class DextoAgent {
      * });
      *
      * // Create a custom session type
-     * await agent.createSession('scheduled-task', {
-     *   scopes: { type: 'scheduled', lifecycle: 'persistent' },
-     *   metadata: { cronExpression: '0 9 * * *' }
+     * await agent.createSession('analysis-task', {
+     *   scopes: { type: 'background-task', lifecycle: 'ephemeral' },
+     *   metadata: { priority: 'high', category: 'analysis' }
      * });
      */
     public async createSession(
@@ -590,7 +590,7 @@ export class DextoAgent {
     ): Promise<ChatSession> {
         this.ensureStarted();
 
-        // Validate agentConfig at DextoAgent boundary (per CLAUDE.md architecture guidelines)
+        // Validate agentConfig at DextoAgent boundary per CLAUDE.md architecture guidelines
         let normalizedOptions = options;
 
         if (options?.agentConfig) {

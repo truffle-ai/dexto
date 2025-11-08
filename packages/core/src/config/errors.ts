@@ -126,7 +126,7 @@ export class ConfigError {
         const message = searchPath
             ? `Built-in agent '${agentName}' not found at: ${searchPath}`
             : `Built-in agent '${agentName}' not found`;
-        const availableAgents = ['general-purpose', 'code-reviewer', 'test-runner'].join(', ');
+        const availableAgents = ['general-purpose', 'code-reviewer'].join(', ');
 
         return new DextoRuntimeError(
             ConfigErrorCode.FILE_NOT_FOUND,
@@ -157,17 +157,6 @@ export class ConfigError {
             `Failed to load agent config from '${configPath}': ${cause}`,
             { configPath, cause },
             'Check file permissions and ensure the file contains valid YAML'
-        );
-    }
-
-    static inlineConfigMergeFailed(cause: string) {
-        return new DextoRuntimeError(
-            ConfigErrorCode.PARSE_ERROR,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
-            `Failed to merge inline agent config: ${cause}`,
-            { cause },
-            'Ensure the inline config object is valid and compatible with AgentConfig schema'
         );
     }
 }

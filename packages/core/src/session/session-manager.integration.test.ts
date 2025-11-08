@@ -286,19 +286,19 @@ describe('Session Integration: Chat History Preservation', () => {
 
         test('should support custom session types', async () => {
             // Create sessions with custom types
-            await agent.createSession('scheduled-1', {
-                scopes: { type: 'scheduled', lifecycle: 'persistent' },
-                metadata: { cronExpression: '0 9 * * *' },
+            await agent.createSession('analysis-1', {
+                scopes: { type: 'background-task', lifecycle: 'persistent' },
+                metadata: { priority: 'high' },
             });
             await agent.createSession('task-1', {
                 scopes: { type: 'task', lifecycle: 'persistent' },
                 metadata: { taskName: 'daily-report' },
             });
 
-            const scheduledSessions = await agent.listSessions({ type: 'scheduled' });
+            const backgroundSessions = await agent.listSessions({ type: 'background-task' });
             const taskSessions = await agent.listSessions({ type: 'task' });
 
-            expect(scheduledSessions).toContain('scheduled-1');
+            expect(backgroundSessions).toContain('analysis-1');
             expect(taskSessions).toContain('task-1');
         });
     });

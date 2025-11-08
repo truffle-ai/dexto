@@ -2,10 +2,9 @@
  * Agent Reference Resolver
  *
  * Resolves agent references for spawn_agent tool to agent configurations.
- * Supports three types of references:
- * 1. Built-in agent names ('general-purpose', 'code-reviewer', 'test-runner')
+ * Supports two types of references:
+ * 1. Built-in agent names ('general-purpose', 'code-reviewer')
  * 2. File paths (relative: './agent.yml', absolute: '/path/to/agent.yml')
- * 3. Inline configs (partial AgentConfig objects merged with defaults)
  */
 
 import path from 'path';
@@ -21,13 +20,20 @@ import { getDextoPath } from '@core/utils/path.js';
 
 /**
  * Agent reference types for spawn_agent
+ * Currently supports: built-in names and file paths
+ *
+ * TODO: Add inline config support - allow passing Partial<AgentConfig> objects
+ * This would enable spawning sub-agents with inline configuration without requiring
+ * separate agent files, useful for quick one-off delegations with custom settings.
+ * Implementation requires: merging inline config with defaults, validation, and
+ * updating the spawn_agent tool schema to accept union of string | Partial<AgentConfig>
  */
-export type AgentReference = string | Partial<AgentConfig>;
+export type AgentReference = string;
 
 /**
  * Known built-in agent names
  */
-export const BUILT_IN_AGENTS = ['general-purpose', 'code-reviewer', 'test-runner'] as const;
+export const BUILT_IN_AGENTS = ['general-purpose', 'code-reviewer'] as const;
 
 export type BuiltInAgentName = (typeof BUILT_IN_AGENTS)[number];
 
@@ -56,8 +62,8 @@ export interface ResolvedAgentConfig {
     config: AgentConfig;
     /** Source of the config (for logging/debugging) */
     source: {
-        type: 'built-in' | 'file' | 'inline';
-        identifier: string; // Agent name, file path, or 'inline'
+        type: 'built-in' | 'file';
+        identifier: string; // Agent name or file path
     };
 }
 
@@ -182,13 +188,8 @@ export async function resolveAgentConfig(
 ): Promise<ResolvedAgentConfig> {
     logger.debug(`Resolving agent reference in context: ${context.workingDir}`);
 
-    // Handle string references
-    if (typeof reference === 'string') {
-        return await resolveStringReference(reference, context);
-    }
-
-    // Handle inline config objects
-    return await resolveInlineConfig(reference);
+    // Resolve string reference (built-in name or file path)
+    return await resolveStringReference(reference, context);
 }
 
 /**
@@ -321,105 +322,6 @@ async function resolveFilePath(
 }
 
 /**
- * Resolve inline config by merging with defaults
- */
-async function resolveInlineConfig(partial: Partial<AgentConfig>): Promise<ResolvedAgentConfig> {
-    logger.debug('Resolving inline agent config');
-
-    try {
-        // Load default built-in agent as base
-        const defaultAgent = await resolveBuiltInAgent('general-purpose');
-        const baseConfig = defaultAgent.config;
-
-        // Merge inline config with defaults
-        // Strategy: Deep merge for system prompts, override for tools and LLM
-        const merged: AgentConfig = {
-            ...baseConfig,
-            ...partial,
-
-            // Handle system prompt merging
-            systemPrompt: partial.systemPrompt
-                ? mergeSystemPrompts(baseConfig.systemPrompt, partial.systemPrompt)
-                : baseConfig.systemPrompt,
-
-            // Tools: override (don't merge arrays)
-            internalTools: partial.internalTools || baseConfig.internalTools,
-
-            // LLM: override completely if specified
-            llm: partial.llm || baseConfig.llm,
-
-            // Storage: merge
-            storage: partial.storage
-                ? { ...baseConfig.storage, ...partial.storage }
-                : baseConfig.storage,
-
-            // Tool confirmation: merge
-            toolConfirmation: partial.toolConfirmation
-                ? { ...baseConfig.toolConfirmation, ...partial.toolConfirmation }
-                : baseConfig.toolConfirmation,
-        };
-
-        const validated = AgentConfigSchema.parse(merged);
-
-        logger.info('Created inline agent config');
-        return {
-            config: structuredClone(validated),
-            source: { type: 'inline', identifier: 'inline' },
-        };
-    } catch (error) {
-        if (error instanceof DextoRuntimeError) {
-            throw error;
-        }
-        throw ConfigError.inlineConfigMergeFailed(String(error));
-    }
-}
-
-/**
- * Merge system prompt configurations
- * Strategy: Append contributors from inline config to base config
- */
-function mergeSystemPrompts(
-    base: AgentConfig['systemPrompt'],
-    override: Partial<AgentConfig['systemPrompt']>
-): AgentConfig['systemPrompt'] {
-    // If override is a string, replace entirely
-    if (typeof override === 'string') {
-        return override;
-    }
-
-    // If base is a string, convert to object
-    const baseObj =
-        typeof base === 'string'
-            ? {
-                  contributors: [
-                      { id: 'base', type: 'static' as const, priority: 0, content: base },
-                  ],
-              }
-            : base;
-
-    // If override has contributors, append them
-    if (override.contributors) {
-        // Copy base contributors (or start with empty array if none)
-        const mergedContributors = baseObj.contributors ? Array.from(baseObj.contributors) : [];
-
-        // Add override contributors
-        const overrideArray = Array.isArray(override.contributors)
-            ? override.contributors
-            : [override.contributors];
-        overrideArray.forEach((contrib) => {
-            if (contrib) {
-                mergedContributors.push(contrib);
-            }
-        });
-        return {
-            contributors: mergedContributors,
-        };
-    }
-
-    return baseObj;
-}
-
-/**
  * Validate that an agent config is suitable for sub-agent spawning
  * Enforces security constraints
  */
@@ -431,10 +333,12 @@ export function validateSubAgentConfig(config: AgentConfig): void {
         );
     }
 
-    // Ensure ask_user is not enabled (sub-agents shouldn't prompt user)
+    // Ensure ask_user is not enabled (sub-agents should work autonomously)
+    // TODO: Add elicitation support to propagate ask_user requests from sub-agents to parent agent,
+    // allowing sub-agents to request clarification from the user through the parent agent
     if (config.internalTools?.includes('ask_user')) {
-        logger.warn(
-            'Sub-agent has ask_user tool enabled - this may cause issues as sub-agents should work autonomously'
+        throw ConfigError.invalidSubAgent(
+            'Sub-agents cannot have ask_user tool enabled - sub-agents must work autonomously without user interaction'
         );
     }
 

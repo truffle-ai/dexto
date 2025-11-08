@@ -17,7 +17,6 @@ import { SessionError } from './errors.js';
  * Design principles:
  * - Well-known fields for common use cases (type, hierarchy, lifecycle)
  * - Extensible string types (not enums) to support custom session types
- * - Multi-user fields (userId, tenantId) can be added later without breaking changes
  */
 export interface SessionScopes {
     /**
