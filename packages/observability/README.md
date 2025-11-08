@@ -143,7 +143,7 @@ pnpm build:dashboard    # Build frontend only
 node dist/bin/dexto-dashboard.js
 
 # Terminal 2: Frontend dev server (optional)
-cd dashboard && pnpm dev
+cd ../observability-dashboard && pnpm dev
 ```
 
 ## API Endpoints
