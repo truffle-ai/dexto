@@ -10,10 +10,9 @@
 import path from 'path';
 import { promises as fs } from 'fs';
 import type { Stats } from 'fs';
-import { AgentConfig, AgentConfigSchema } from '@core/agent/schemas.js';
+import type { AgentConfig } from '@core/agent/schemas.js';
 import { loadAgentConfig } from './loader.js';
 import { ConfigError } from './errors.js';
-import { DextoRuntimeError } from '../errors/index.js';
 import { logger } from '../logger/index.js';
 import { findDextoSourceRoot } from '@core/utils/execution-context.js';
 import { getDextoPath } from '@core/utils/path.js';
