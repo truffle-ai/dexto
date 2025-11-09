@@ -174,14 +174,6 @@ starterPrompts:
     category: tools
     priority: 3
 
-
-telemetry:
-  enabled: true
-  export:
-    type: otlp
-    protocol: http
-    endpoint: http://localhost:4318/v1/traces
-
 # Telemetry configuration (optional) - OpenTelemetry for distributed tracing
 # telemetry:
 #   serviceName: dexto-default-agent
