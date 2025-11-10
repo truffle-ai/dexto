@@ -11,9 +11,10 @@
  */
 
 import chalk from 'chalk';
-import { logger, flattenPromptResult, type DextoAgent } from '@dexto/core';
+import { logger, type DextoAgent } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
+import { formatForInkCli } from './utils/format-output.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
 /**
@@ -25,21 +26,24 @@ export const promptCommands: CommandDefinition[] = [
         description: 'Display the current system prompt',
         usage: '/sysprompt',
         category: 'Prompt Management',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean> => {
+        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
                 const systemPrompt = await agent.getSystemPrompt();
+
+                const output = `\n📋 Current System Prompt:\n${'─'.repeat(80)}\n${systemPrompt}\n${'─'.repeat(80)}\n`;
 
                 console.log(chalk.bold.green('\n📋 Current System Prompt:\n'));
                 console.log(chalk.dim('─'.repeat(80)));
                 console.log(systemPrompt);
                 console.log(chalk.dim('─'.repeat(80)));
                 console.log();
+
+                return formatForInkCli(output);
             } catch (error) {
-                logger.error(
-                    `Failed to get system prompt: ${error instanceof Error ? error.message : String(error)}`
-                );
+                const errorMsg = `Failed to get system prompt: ${error instanceof Error ? error.message : String(error)}`;
+                logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
             }
-            return true;
         },
     },
     {
@@ -47,17 +51,19 @@ export const promptCommands: CommandDefinition[] = [
         description: 'List all available prompts (MCP + internal)',
         usage: '/prompts',
         category: 'Prompt Management',
-        handler: async (_args: string[], agent: DextoAgent): Promise<boolean> => {
+        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
                 const prompts = await agent.listPrompts();
                 const promptNames = Object.keys(prompts || {});
 
                 if (promptNames.length === 0) {
-                    console.log(chalk.yellow('\n⚠️  No prompts available'));
-                    return true;
+                    const output = '\n⚠️  No prompts available';
+                    console.log(chalk.yellow(output));
+                    return formatForInkCli(output);
                 }
 
-                console.log(chalk.bold.green('\n📝 Available Prompts:\n'));
+                // Build output string
+                const outputLines: string[] = ['\n📝 Available Prompts:\n'];
 
                 // Group by source
                 const mcpPrompts: string[] = [];
@@ -78,11 +84,77 @@ export const promptCommands: CommandDefinition[] = [
                 }
 
                 if (mcpPrompts.length > 0) {
+                    outputLines.push('🔗 MCP Prompts:');
+                    mcpPrompts.forEach((name) => {
+                        const info = prompts[name];
+                        if (info) {
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
+                            const desc = info.description ? ` - ${info.description}` : '';
+                            const args =
+                                info.arguments && info.arguments.length > 0
+                                    ? ` [args: ${info.arguments
+                                          .map((a) => `${a.name}${a.required ? '*' : ''}`)
+                                          .join(', ')}]`
+                                    : '';
+                            outputLines.push(`  ${name}${title}${desc}${args}`);
+                        }
+                    });
+                    outputLines.push('');
+                }
+
+                if (filePrompts.length > 0) {
+                    outputLines.push('📁 File Prompts:');
+                    filePrompts.forEach((name) => {
+                        const info = prompts[name];
+                        if (info) {
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
+                            const desc = info.description ? ` - ${info.description}` : '';
+                            outputLines.push(`  ${name}${title}${desc}`);
+                        }
+                    });
+                    outputLines.push('');
+                }
+
+                if (starterPrompts.length > 0) {
+                    outputLines.push('⭐ Starter Prompts:');
+                    starterPrompts.forEach((name) => {
+                        const info = prompts[name];
+                        if (info) {
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
+                            const desc = info.description ? ` - ${info.description}` : '';
+                            outputLines.push(`  ${name}${title}${desc}`);
+                        }
+                    });
+                    outputLines.push('');
+                }
+
+                if (customPrompts.length > 0) {
+                    outputLines.push('✨ Custom Prompts:');
+                    customPrompts.forEach((name) => {
+                        const info = prompts[name];
+                        if (info) {
+                            const title =
+                                info.title && info.title !== name ? ` (${info.title})` : '';
+                            const desc = info.description ? ` - ${info.description}` : '';
+                            outputLines.push(`  ${name}${title}${desc}`);
+                        }
+                    });
+                    outputLines.push('');
+                }
+
+                outputLines.push(`Total: ${promptNames.length} prompts`);
+                const output = outputLines.join('\n');
+
+                // Log for regular CLI (with chalk formatting)
+                console.log(chalk.bold.green('\n📝 Available Prompts:\n'));
+                if (mcpPrompts.length > 0) {
                     console.log(chalk.cyan('🔗 MCP Prompts:'));
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            // Only show title if it's different from name
                             const title =
                                 info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
@@ -99,13 +171,11 @@ export const promptCommands: CommandDefinition[] = [
                     });
                     console.log();
                 }
-
                 if (filePrompts.length > 0) {
                     console.log(chalk.magenta('📁 File Prompts:'));
                     filePrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            // Only show title if it's different from name
                             const title =
                                 info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
@@ -116,13 +186,11 @@ export const promptCommands: CommandDefinition[] = [
                     });
                     console.log();
                 }
-
                 if (starterPrompts.length > 0) {
                     console.log(chalk.green('⭐ Starter Prompts:'));
                     starterPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            // Only show title if it's different from name
                             const title =
                                 info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
@@ -133,13 +201,11 @@ export const promptCommands: CommandDefinition[] = [
                     });
                     console.log();
                 }
-
                 if (customPrompts.length > 0) {
                     console.log(chalk.greenBright('✨ Custom Prompts:'));
                     customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
-                            // Only show title if it's different from name
                             const title =
                                 info.title && info.title !== name ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
@@ -150,16 +216,13 @@ export const promptCommands: CommandDefinition[] = [
                     });
                     console.log();
                 }
-
                 console.log(chalk.dim(`Total: ${promptNames.length} prompts`));
-                return true;
+
+                return formatForInkCli(output);
             } catch (error) {
-                console.error(
-                    chalk.red(
-                        `Error listing prompts: ${error instanceof Error ? error.message : String(error)}`
-                    )
-                );
-                return false;
+                const errorMsg = `Error listing prompts: ${error instanceof Error ? error.message : String(error)}`;
+                console.error(chalk.red(`❌ ${errorMsg}`));
+                return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
     },
@@ -170,9 +233,11 @@ export const promptCommands: CommandDefinition[] = [
         description: 'Use a specific prompt with optional arguments',
         usage: '/<prompt-name> [args]',
         category: 'Prompt Management',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean> => {
+        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
                 if (args.length === 0) {
+                    const errorMsg =
+                        '❌ Please specify a prompt name\nUsage: /<prompt-name> [args]\nExample: /code-review language=javascript code="console.log(\'hello\')"';
                     console.log(chalk.red('❌ Please specify a prompt name'));
                     console.log(chalk.dim('Usage: /<prompt-name> [args]'));
                     console.log(
@@ -180,7 +245,7 @@ export const promptCommands: CommandDefinition[] = [
                             'Example: /code-review language=javascript code="console.log(\'hello\')"'
                         )
                     );
-                    return true;
+                    return formatForInkCli(errorMsg);
                 }
 
                 const promptName = args[0];
@@ -188,9 +253,10 @@ export const promptCommands: CommandDefinition[] = [
 
                 // Check if prompt exists
                 if (!promptName || !(await agent.hasPrompt(promptName))) {
+                    const errorMsg = `❌ Prompt '${promptName}' not found\nUse /prompts to see available prompts`;
                     console.log(chalk.red(`❌ Prompt '${promptName}' not found`));
                     console.log(chalk.dim('Use /prompts to see available prompts'));
-                    return true;
+                    return formatForInkCli(errorMsg);
                 }
 
                 const { argMap, context } = splitPromptArguments(promptArgs);
@@ -203,40 +269,51 @@ export const promptCommands: CommandDefinition[] = [
                     console.log(chalk.dim(`Context: ${context}`));
                 }
 
-                const result = await agent.getPrompt(promptName!, argMap);
-
-                const flattened = flattenPromptResult(result);
-                if (flattened.resourceUris.length > 0) {
-                    console.log(
-                        chalk.dim(
-                            `Resources: ${flattened.resourceUris.map((uri) => `@<${uri}>`).join(', ')}`
-                        )
-                    );
+                // Use resolvePrompt instead of getPrompt + flattenPromptResult (matches WebUI approach)
+                const resolveOptions: {
+                    args?: Record<string, unknown>;
+                    context?: string;
+                } = {};
+                if (Object.keys(argMap).length > 0) {
+                    resolveOptions.args = argMap;
                 }
+                if (context) {
+                    resolveOptions.context = context;
+                }
+                const result = await agent.resolvePrompt(promptName!, resolveOptions);
 
-                const finalText = appendContext(flattened.text, context);
+                // Convert resource URIs to @resource mentions so agent.run() can expand them
+                let finalText = result.text;
+                if (result.resources.length > 0) {
+                    // Append resource references as @<uri> format
+                    const resourceRefs = result.resources.map((uri) => `@<${uri}>`).join(' ');
+                    finalText = finalText ? `${finalText}\n\n${resourceRefs}` : resourceRefs;
+                }
 
                 if (finalText.trim()) {
+                    // agent.run() will expand @resource mentions automatically
+                    // This will trigger the normal message flow in ink-cli
                     await agent.run(finalText.trim());
+                    // Return empty string to indicate command handled (ink-cli will show the message)
+                    return '';
                 } else {
-                    console.log(chalk.yellow(`⚠️  Prompt '${promptName}' returned no content`));
+                    const warningMsg = `⚠️  Prompt '${promptName}' returned no content`;
+                    console.log(chalk.yellow(warningMsg));
+                    return formatForInkCli(warningMsg);
                 }
-
-                return true;
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 logger.error(`Failed to use prompt: ${errorMessage}`);
 
                 if (errorMessage.includes('not found')) {
-                    console.log(
-                        chalk.red(
-                            `❌ Prompt not found. Try running /prompts to see available prompts.`
-                        )
-                    );
+                    const errorMsg = `❌ Prompt not found. Try running /prompts to see available prompts.`;
+                    console.log(chalk.red(errorMsg));
+                    return formatForInkCli(errorMsg);
                 } else {
-                    console.log(chalk.red(`❌ Error: ${errorMessage}`));
+                    const errorMsg = `❌ Error: ${errorMessage}`;
+                    console.log(chalk.red(errorMsg));
+                    return formatForInkCli(errorMsg);
                 }
-                return true;
             }
         },
     },
@@ -251,7 +328,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
         description: promptInfo.description || `Execute ${promptInfo.name} prompt`,
         usage: `/${promptInfo.name} [context]`,
         category: 'Dynamic Prompts',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean> => {
+        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
 
@@ -272,38 +349,47 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     );
                 }
 
-                const result = await agent.getPrompt(promptInfo.name, argMap);
-
-                const flattened = flattenPromptResult(result);
-                if (flattened.resourceUris.length > 0) {
-                    console.log(
-                        chalk.dim(
-                            `Resources: ${flattened.resourceUris.map((uri) => `@<${uri}>`).join(', ')}`
-                        )
-                    );
+                // Use resolvePrompt instead of getPrompt + flattenPromptResult (matches WebUI approach)
+                const resolveOptions: {
+                    args?: Record<string, unknown>;
+                    context?: string;
+                } = {};
+                if (Object.keys(argMap).length > 0) {
+                    resolveOptions.args = argMap;
                 }
+                if (contextString) {
+                    resolveOptions.context = contextString;
+                }
+                const result = await agent.resolvePrompt(promptInfo.name, resolveOptions);
 
-                const finalText = appendContext(flattened.text, contextString);
+                // Convert resource URIs to @resource mentions so agent.run() can expand them
+                let finalText = result.text;
+                if (result.resources.length > 0) {
+                    // Append resource references as @<uri> format
+                    const resourceRefs = result.resources.map((uri) => `@<${uri}>`).join(' ');
+                    finalText = finalText ? `${finalText}\n\n${resourceRefs}` : resourceRefs;
+                }
 
                 if (finalText.trim()) {
+                    // agent.run() will expand @resource mentions automatically
+                    // This will trigger the normal message flow in ink-cli
                     await agent.run(finalText.trim());
+                    // Return empty string to indicate command handled (ink-cli will show the message)
+                    return '';
                 } else {
-                    console.log(
-                        chalk.yellow(`⚠️  Prompt '${promptInfo.name}' returned no content`)
-                    );
+                    const warningMsg = `⚠️  Prompt '${promptInfo.name}' returned no content`;
+                    console.log(chalk.yellow(warningMsg));
+                    return formatForInkCli(warningMsg);
                 }
-
-                return true;
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 logger.error(
                     `Failed to execute prompt command '${promptInfo.name}': ${errorMessage}`
                 );
 
-                console.log(
-                    chalk.red(`❌ Error executing prompt '${promptInfo.name}': ${errorMessage}`)
-                );
-                return true;
+                const errorMsg = `❌ Error executing prompt '${promptInfo.name}': ${errorMessage}`;
+                console.log(chalk.red(errorMsg));
+                return formatForInkCli(errorMsg);
             }
         },
     };

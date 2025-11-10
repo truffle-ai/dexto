@@ -829,36 +829,15 @@ program
                             try {
                                 // Continue from most recent session
                                 await loadMostRecentSession(agent);
-                                // If no sessions existed, create a new one to honor default-new invariant
-                                const sessionsAfter = await agent.listSessions();
-                                if (sessionsAfter.length === 0) {
-                                    const session = await agent.createSession();
-                                    await agent.loadSessionAsDefault(session.id);
-                                    logger.info(
-                                        `Created new session: ${session.id}`,
-                                        null,
-                                        'green'
-                                    );
-                                }
+                                // Note: Session will be created automatically when first message is sent
                             } catch (err) {
                                 console.error(
                                     `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
                                 );
                                 safeExit('main', 1, 'continue-failed');
                             }
-                        } else {
-                            // Default behavior: create new session for CLI mode
-                            try {
-                                const session = await agent.createSession();
-                                await agent.loadSessionAsDefault(session.id);
-                                logger.info(`Created new session: ${session.id}`, null, 'green');
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                safeExit('main', 1, 'create-session-failed');
-                            }
                         }
+                        // Note: No default session creation - session will be created when first message is sent
 
                         const toolConfirmationMode =
                             agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
@@ -905,34 +884,15 @@ program
                         } else if (opts.continue) {
                             try {
                                 await loadMostRecentSession(agent);
-                                const sessionsAfter = await agent.listSessions();
-                                if (sessionsAfter.length === 0) {
-                                    const session = await agent.createSession();
-                                    await agent.loadSessionAsDefault(session.id);
-                                    logger.info(
-                                        `Created new session: ${session.id}`,
-                                        null,
-                                        'green'
-                                    );
-                                }
+                                // Note: Session will be created automatically when first message is sent
                             } catch (err) {
                                 console.error(
                                     `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
                                 );
                                 safeExit('main', 1, 'continue-failed');
                             }
-                        } else {
-                            try {
-                                const session = await agent.createSession();
-                                await agent.loadSessionAsDefault(session.id);
-                                logger.info(`Created new session: ${session.id}`, null, 'green');
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                safeExit('main', 1, 'create-session-failed');
-                            }
                         }
+                        // Note: No default session creation - session will be created when first message is sent
 
                         // Note: ink-cli handles approvals directly via React components
                         // No need to set up CLIToolConfirmationSubscriber here

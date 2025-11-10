@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { render, Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
@@ -11,6 +11,8 @@ import SlashCommandAutocomplete from './ink-cli/components/SlashCommandAutocompl
 import ResourceAutocomplete from './ink-cli/components/ResourceAutocomplete.js';
 import CustomInput from './ink-cli/components/CustomInput.js';
 import { ApprovalPrompt, type ApprovalRequest } from './ink-cli/components/ApprovalPrompt.js';
+import ModelSelector from './ink-cli/components/ModelSelector.js';
+import SessionSelector from './ink-cli/components/SessionSelector.js';
 
 interface Message {
     id: string;
@@ -38,15 +40,51 @@ export function InkCLI({ agent }: InkCLIProps) {
     const streamingIdRef = useRef<string | null>(null);
     const [showSlashAutocomplete, setShowSlashAutocomplete] = useState(false);
     const [showResourceAutocomplete, setShowResourceAutocomplete] = useState(false);
+    const [showModelSelector, setShowModelSelector] = useState(false);
+    const [showSessionSelector, setShowSessionSelector] = useState(false);
     const [inputHistory, setInputHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState<number>(-1);
     const historyIndexRef = useRef<number>(-1);
     const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
+    const [hasActiveSession, setHasActiveSession] = useState<boolean>(false);
+    const [inputKey, setInputKey] = useState(0); // Key to force TextInput remount for cursor positioning
+    const handleSubmitRef = useRef<((value: string) => Promise<void>) | null>(null);
+    const isSubmittingRef = useRef(false); // Prevent double submission
 
     // Keep refs in sync with state
     useEffect(() => {
         streamingIdRef.current = currentStreamingId;
     }, [currentStreamingId]);
+
+    // Check if current session exists on mount and when session might change
+    useEffect(() => {
+        const checkSession = async () => {
+            try {
+                const sessionId = agent.getCurrentSessionId();
+                const session = await agent.getSession(sessionId);
+                setHasActiveSession(session !== undefined);
+            } catch {
+                setHasActiveSession(false);
+            }
+        };
+        void checkSession();
+    }, [agent]); // Check on mount and when agent changes
+
+    // Also check when messages change (session might be created)
+    useEffect(() => {
+        if (messages.length > 0) {
+            const checkSession = async () => {
+                try {
+                    const sessionId = agent.getCurrentSessionId();
+                    const session = await agent.getSession(sessionId);
+                    setHasActiveSession(session !== undefined);
+                } catch {
+                    setHasActiveSession(false);
+                }
+            };
+            void checkSession();
+        }
+    }, [agent, messages.length]);
 
     useEffect(() => {
         historyIndexRef.current = historyIndex;
@@ -88,6 +126,7 @@ export function InkCLI({ agent }: InkCLIProps) {
             });
             setCurrentStreamingContent('');
             setCurrentStreamingId(null);
+            isSubmittingRef.current = false; // Reset flag when response completes
         };
 
         const handleError = (payload: { error: Error }) => {
@@ -108,6 +147,7 @@ export function InkCLI({ agent }: InkCLIProps) {
                     },
                 ];
             });
+            isSubmittingRef.current = false; // Reset flag on error
         };
 
         const handleToolCall = (payload: { toolName: string; args: any }) => {
@@ -182,13 +222,27 @@ export function InkCLI({ agent }: InkCLIProps) {
 
     const handleSubmit = useCallback(
         async (value: string) => {
-            if (!value.trim() || isProcessing) return;
+            // Prevent double submission
+            if (isSubmittingRef.current) {
+                return;
+            }
+            if (!value.trim() || isProcessing) {
+                return;
+            }
 
-            // Close autocomplete when submitting
+            // Set flag immediately to prevent double submission
+            isSubmittingRef.current = true;
+
+            // Clear input immediately (before any async operations)
+            const trimmed = value.trim();
+            setInput('');
+            setInputKey((prev) => prev + 1);
+
+            // Close autocomplete and selectors when submitting
             setShowSlashAutocomplete(false);
             setShowResourceAutocomplete(false);
-
-            const trimmed = value.trim();
+            setShowModelSelector(false);
+            setShowSessionSelector(false);
 
             // Add to history (avoid duplicates and empty strings)
             setInputHistory((prev) => {
@@ -199,7 +253,6 @@ export function InkCLI({ agent }: InkCLIProps) {
             });
             setHistoryIndex(-1); // Reset history index
 
-            setInput('');
             setIsProcessing(true);
 
             // Add user message
@@ -227,20 +280,89 @@ export function InkCLI({ agent }: InkCLIProps) {
                         },
                     ]);
                     setIsProcessing(false);
+                    // Input already cleared above, but ensure it stays cleared and force remount
+                    setInput('');
+                    setInputKey((prev) => prev + 1);
+                    isSubmittingRef.current = false; // Reset flag before returning
+                    return;
+                }
+
+                // Handle interactive commands
+                if (parsed.command === 'model' && (!parsed.args || parsed.args.length === 0)) {
+                    // Show interactive model selector
+                    setShowModelSelector(true);
+                    setIsProcessing(false);
+                    // Input already cleared above, but ensure it stays cleared and force remount
+                    setInput('');
+                    setInputKey((prev) => prev + 1);
+                    isSubmittingRef.current = false; // Reset flag before returning
+                    return;
+                }
+
+                if (
+                    parsed.command === 'resume' ||
+                    parsed.command === 'switch' ||
+                    (parsed.command === 'session' && parsed.args && parsed.args[0] === 'switch')
+                ) {
+                    // Show interactive session selector
+                    setShowSessionSelector(true);
+                    setIsProcessing(false);
+                    // Input already cleared above, but ensure it stays cleared and force remount
+                    setInput('');
+                    setInputKey((prev) => prev + 1);
+                    isSubmittingRef.current = false; // Reset flag before returning
                     return;
                 }
 
                 try {
-                    const shouldContinue = await executeCommand(
-                        parsed.command,
-                        parsed.args || [],
-                        agent
-                    );
-                    setIsProcessing(false);
-                    if (!shouldContinue) {
-                        // Command handled, don't add assistant message
+                    const result = await executeCommand(parsed.command, parsed.args || [], agent);
+
+                    // If result is empty string, it means a prompt was executed via agent.run()
+                    // The user message is already added, and agent.run() will handle the rest via event bus
+                    // Input was already cleared above, just let the normal flow continue (don't set isProcessing to false yet)
+                    if (typeof result === 'string' && result === '') {
+                        // Don't set isProcessing to false - let agent.run() handle it via event bus
+                        // The event bus listeners will handle streaming and completion
+                        // Input was already cleared and remounted at the start of handleSubmit
+                        isSubmittingRef.current = false; // Reset flag before returning
                         return;
                     }
+
+                    setIsProcessing(false);
+
+                    // If result is a non-empty string, display it as a system message (ink-cli output)
+                    if (typeof result === 'string' && result.length > 0) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: `command-${Date.now()}`,
+                                role: 'system',
+                                content: result,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        // Ensure input is cleared after command execution and force remount
+                        setInput('');
+                        setInputKey((prev) => prev + 1);
+                        isSubmittingRef.current = false; // Reset flag before returning
+                        return;
+                    }
+
+                    // If result is boolean false, command handled, don't add assistant message
+                    if (result === false) {
+                        // Ensure input is cleared after command execution and force remount
+                        setInput('');
+                        setInputKey((prev) => prev + 1);
+                        isSubmittingRef.current = false; // Reset flag before returning
+                        return;
+                    }
+
+                    // If result is boolean true, continue (but this shouldn't happen for commands)
+                    // Commands should either return false (handled) or a string (output)
+                    // Ensure input is cleared and force remount
+                    setInput('');
+                    setInputKey((prev) => prev + 1);
+                    isSubmittingRef.current = false; // Reset flag
                 } catch (error) {
                     setIsProcessing(false);
                     setMessages((prev) => [
@@ -252,6 +374,9 @@ export function InkCLI({ agent }: InkCLIProps) {
                             timestamp: new Date(),
                         },
                     ]);
+                    // Ensure input is cleared even on error and force remount
+                    setInput('');
+                    setInputKey((prev) => prev + 1);
                     return;
                 }
             } else {
@@ -280,6 +405,9 @@ export function InkCLI({ agent }: InkCLIProps) {
 
                 try {
                     await agent.run(trimmed);
+                    // After running, session should exist - update state
+                    setHasActiveSession(true);
+                    // Flag will be reset by handleResponse event handler when response completes
                 } catch (error) {
                     setIsProcessing(false);
                     setCurrentStreamingId(null);
@@ -296,11 +424,17 @@ export function InkCLI({ agent }: InkCLIProps) {
                             timestamp: new Date(),
                         },
                     ]);
+                    isSubmittingRef.current = false; // Reset flag on error
                 }
             }
         },
         [agent, isProcessing]
     );
+
+    // Keep handleSubmit ref in sync
+    useEffect(() => {
+        handleSubmitRef.current = handleSubmit;
+    }, [handleSubmit]);
 
     // Find active @ mention position (at start or after space)
     const findActiveAtIndex = useCallback((value: string, caret: number) => {
@@ -331,27 +465,133 @@ export function InkCLI({ agent }: InkCLIProps) {
         const caret = input.length; // Approximate caret position (end of input for now)
 
         if (input.startsWith('/')) {
+            // Parse the command to check if it's an interactive command
+            const parsed = parseInput(input);
+
+            // Check if it's an interactive command (model, resume, switch)
+            if (parsed.type === 'command') {
+                const command = parsed.command || '';
+                const hasArgs = parsed.args && parsed.args.length > 0;
+                // Also check if there's a space after the command (user might be typing args)
+                const hasSpaceAfterCommand =
+                    input.includes(' ') && input.trim().length > command.length + 1;
+
+                // Interactive commands: show selector instead of autocomplete (only if no args)
+                if (command === 'model' && !hasArgs && !hasSpaceAfterCommand) {
+                    setShowModelSelector(true);
+                    setShowSlashAutocomplete(false);
+                    setShowResourceAutocomplete(false);
+                    setShowSessionSelector(false);
+                    return;
+                }
+
+                if (
+                    (command === 'resume' || command === 'switch') &&
+                    !hasArgs &&
+                    !hasSpaceAfterCommand
+                ) {
+                    setShowSessionSelector(true);
+                    setShowSlashAutocomplete(false);
+                    setShowResourceAutocomplete(false);
+                    setShowModelSelector(false);
+                    return;
+                }
+
+                if (
+                    command === 'session' &&
+                    parsed.args &&
+                    parsed.args[0] === 'switch' &&
+                    parsed.args.length === 1 &&
+                    !hasSpaceAfterCommand
+                ) {
+                    setShowSessionSelector(true);
+                    setShowSlashAutocomplete(false);
+                    setShowResourceAutocomplete(false);
+                    setShowModelSelector(false);
+                    return;
+                }
+            }
+
+            // For other slash commands or when args are present, show prompt autocomplete
             setShowSlashAutocomplete(true);
             setShowResourceAutocomplete(false);
+            setShowModelSelector(false);
+            setShowSessionSelector(false);
         } else {
             const atIndex = findActiveAtIndex(input, caret);
             if (atIndex >= 0) {
                 setShowSlashAutocomplete(false);
                 setShowResourceAutocomplete(true);
+                setShowModelSelector(false);
+                setShowSessionSelector(false);
             } else {
                 setShowSlashAutocomplete(false);
                 setShowResourceAutocomplete(false);
+                setShowModelSelector(false);
+                setShowSessionSelector(false);
             }
         }
     }, [input, findActiveAtIndex]);
 
-    // Handle prompt selection from autocomplete
+    // Handle prompt selection from autocomplete (Enter key) - execute immediately
     const handlePromptSelect = useCallback((prompt: PromptInfo) => {
-        setInput(`/${prompt.name} `);
+        const commandText = `/${prompt.name}`;
+        // Clear input immediately and execute
+        setInput('');
+        setInputKey((prev) => prev + 1);
         setShowSlashAutocomplete(false);
+        // Execute the command immediately
+        setTimeout(() => {
+            if (handleSubmitRef.current) {
+                void handleSubmitRef.current(commandText);
+            }
+        }, 0);
     }, []);
 
-    // Handle resource selection from autocomplete
+    // Handle system command selection from autocomplete (Enter key) - execute immediately
+    const handleSystemCommandSelect = useCallback((command: string) => {
+        // For interactive commands, show the selector instead of executing
+        if (command === 'model') {
+            setShowModelSelector(true);
+            setShowSlashAutocomplete(false);
+            return;
+        }
+        if (command === 'resume' || command === 'switch') {
+            setShowSessionSelector(true);
+            setShowSlashAutocomplete(false);
+            return;
+        }
+        // For other commands, execute immediately
+        const commandText = `/${command}`;
+        // Clear input immediately and execute
+        setInput('');
+        setInputKey((prev) => prev + 1);
+        setShowSlashAutocomplete(false);
+        // Execute the command immediately
+        setTimeout(() => {
+            if (handleSubmitRef.current) {
+                void handleSubmitRef.current(commandText);
+            }
+        }, 0);
+    }, []);
+
+    // Handle loading command into input (Tab key) - for editing before execution
+    const handleLoadIntoInput = useCallback((command: string) => {
+        setInput(command);
+        setShowSlashAutocomplete(false);
+        // Force TextInput remount to ensure cursor is at end
+        setInputKey((prev) => prev + 1);
+    }, []);
+
+    // Handle loading resource into input (Tab key) - for editing before selection
+    const handleLoadResourceIntoInput = useCallback((text: string) => {
+        setInput(text);
+        setShowResourceAutocomplete(false);
+        // Force TextInput remount to ensure cursor is at end
+        setInputKey((prev) => prev + 1);
+    }, []);
+
+    // Handle resource selection from autocomplete (Enter key)
     const handleResourceSelect = useCallback(
         (resource: ResourceMetadata) => {
             // Find the @ position and replace everything after it with the resource reference
@@ -369,6 +609,8 @@ export function InkCLI({ agent }: InkCLIProps) {
                 setInput(`${input}@${reference} `);
             }
             setShowResourceAutocomplete(false);
+            // Force TextInput remount to ensure cursor is at end
+            setInputKey((prev) => prev + 1);
         },
         [input, findActiveAtIndex]
     );
@@ -455,9 +697,10 @@ export function InkCLI({ agent }: InkCLIProps) {
                 return; // Let autocomplete handle it
             }
 
-            // Don't intercept Enter/Return keys - TextInput handles them
+            // Don't intercept Enter/Return - let CustomInput's onSubmit handle it
+            // This prevents conflicts between useInput and handleSubmit
             if (key.return) {
-                return;
+                return; // Let CustomInput handle Enter
             }
 
             // Handle input history navigation (only when not in autocomplete)
@@ -507,11 +750,31 @@ export function InkCLI({ agent }: InkCLIProps) {
                     exit();
                 }
             }
-            if (key.escape && isProcessing) {
-                void agent.cancel().catch(() => {});
-                setIsProcessing(false);
-                setCurrentStreamingId(null);
-                setCurrentStreamingContent('');
+            if (key.escape) {
+                if (isProcessing) {
+                    void agent.cancel().catch(() => {});
+                    setIsProcessing(false);
+                    setCurrentStreamingId(null);
+                    setCurrentStreamingContent('');
+                } else {
+                    // Close any open selectors/autocompletes
+                    if (showModelSelector) {
+                        setShowModelSelector(false);
+                        return;
+                    }
+                    if (showSessionSelector) {
+                        setShowSessionSelector(false);
+                        return;
+                    }
+                    if (showSlashAutocomplete) {
+                        setShowSlashAutocomplete(false);
+                        return;
+                    }
+                    if (showResourceAutocomplete) {
+                        setShowResourceAutocomplete(false);
+                        return;
+                    }
+                }
             }
         },
         {
@@ -571,8 +834,146 @@ export function InkCLI({ agent }: InkCLIProps) {
         setPendingApproval(null);
     }, [pendingApproval, eventBus]);
 
-    // Calculate visible messages (last 50 for performance)
-    const visibleMessages = messages.slice(-50);
+    // Handle model selection
+    const handleModelSelect = useCallback(
+        async (provider: string, model: string) => {
+            setShowModelSelector(false);
+            setInput(''); // Clear input
+
+            try {
+                setMessages((prev: Message[]) => [
+                    ...prev,
+                    {
+                        id: `system-${Date.now()}`,
+                        role: 'system',
+                        content: `🔄 Switching to ${model} (${provider})...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                await agent.switchLLM({ provider: provider as any, model });
+
+                setMessages((prev: Message[]) => [
+                    ...prev,
+                    {
+                        id: `system-${Date.now()}`,
+                        role: 'system',
+                        content: `✅ Successfully switched to ${model} (${provider})`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            } catch (error) {
+                setMessages((prev: Message[]) => [
+                    ...prev,
+                    {
+                        id: `error-${Date.now()}`,
+                        role: 'system',
+                        content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            }
+        },
+        [agent]
+    );
+
+    // Handle session selection
+    const handleSessionSelect = useCallback(
+        async (sessionId: string) => {
+            setShowSessionSelector(false);
+            setInput(''); // Clear input
+
+            try {
+                const currentId = agent.getCurrentSessionId();
+                if (sessionId === currentId) {
+                    setMessages((prev: Message[]) => [
+                        ...prev,
+                        {
+                            id: `system-${Date.now()}`,
+                            role: 'system',
+                            content: `ℹ️  Already using session ${sessionId.slice(0, 8)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    return;
+                }
+
+                setMessages((prev: Message[]) => [
+                    ...prev,
+                    {
+                        id: `system-${Date.now()}`,
+                        role: 'system',
+                        content: `🔄 Switching to session ${sessionId.slice(0, 8)}...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                await agent.loadSessionAsDefault(sessionId);
+                setHasActiveSession(true);
+
+                setMessages((prev: Message[]) => [
+                    ...prev,
+                    {
+                        id: `system-${Date.now()}`,
+                        role: 'system',
+                        content: `✅ Switched to session ${sessionId.slice(0, 8)}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            } catch (error) {
+                setMessages((prev: Message[]) => [
+                    ...prev,
+                    {
+                        id: `error-${Date.now()}`,
+                        role: 'system',
+                        content: `❌ Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            }
+        },
+        [agent]
+    );
+
+    // Memoize visible messages to prevent re-rendering on every keystroke
+    const visibleMessages = useMemo(() => messages.slice(-50), [messages]);
+
+    // Memoized message component to prevent unnecessary re-renders
+    const MessageItem = memo(({ msg }: { msg: Message }) => (
+        <Box marginBottom={1} flexDirection="column">
+            <Box>
+                <Text
+                    color={
+                        msg.role === 'user'
+                            ? 'green'
+                            : msg.role === 'assistant'
+                              ? 'cyan'
+                              : msg.role === 'tool'
+                                ? 'yellow'
+                                : 'gray'
+                    }
+                    bold
+                >
+                    {msg.role === 'user'
+                        ? 'You:'
+                        : msg.role === 'assistant'
+                          ? 'AI:'
+                          : msg.role === 'tool'
+                            ? 'Tool:'
+                            : 'System:'}
+                </Text>
+            </Box>
+            <Box marginLeft={2}>
+                <Text wrap="wrap">{msg.content || '...'}</Text>
+                {msg.isStreaming && (
+                    <Text color="gray">
+                        {' '}
+                        <Spinner type="dots" />
+                    </Text>
+                )}
+            </Box>
+        </Box>
+    ));
 
     return (
         <Box flexDirection="column" height="100%" width="100%">
@@ -580,28 +981,12 @@ export function InkCLI({ agent }: InkCLIProps) {
             <Box borderStyle="single" borderColor="gray" paddingX={1} flexDirection="column">
                 <Box marginTop={1}>
                     <Text color="greenBright">
-                        ██████╗ ███████╗██╗ ██╗████████╗ ██████╗ ██████╗██╗ ██╗
-                    </Text>
-                </Box>
-                <Box>
-                    <Text color="greenBright">
-                        ██╔══██╗██╔════╝╚██╗██╔╝╚══██╔══╝██╔═══██╗ ██╔════╝██║ ██║
-                    </Text>
-                </Box>
-                <Box>
-                    <Text color="greenBright">██║ ██║█████╗ ╚███╔╝ ██║ ██║ ██║ ██║ ██║ ██║</Text>
-                </Box>
-                <Box>
-                    <Text color="greenBright">██║ ██║██╔══╝ ██╔██╗ ██║ ██║ ██║ ██║ ██║ ██║</Text>
-                </Box>
-                <Box>
-                    <Text color="greenBright">
-                        ██████╔╝███████╗██╔╝ ██╗ ██║ ╚██████╔╝ ╚██████╗███████╗██║
-                    </Text>
-                </Box>
-                <Box>
-                    <Text color="greenBright">
-                        ╚═════╝ ╚══════╝╚═╝ ╚═╝ ╚═╝ ╚═════╝ ╚═════╝╚══════╝╚═╝
+                        {`██████╗ ███████╗██╗  ██╗████████╗ ██████╗ 
+██╔══██╗██╔════╝╚██╗██╔╝╚══██╔══╝██╔═══██╗
+██║  ██║█████╗   ╚███╔╝    ██║   ██║   ██║
+██║  ██║██╔══╝   ██╔██╗    ██║   ██║   ██║
+██████╔╝███████╗██╔╝ ██╗   ██║   ╚██████╔╝
+╚═════╝ ╚══════╝╚═╝  ╚═╝   ╚═╝    ╚═════╝`}
                     </Text>
                 </Box>
                 <Box marginTop={1} flexDirection="row">
@@ -609,11 +994,15 @@ export function InkCLI({ agent }: InkCLIProps) {
                         Model:{' '}
                     </Text>
                     <Text color="white">{agent.getCurrentLLMConfig().model}</Text>
-                    <Text color="gray" dimColor>
-                        {' '}
-                        • Session:{' '}
-                    </Text>
-                    <Text color="white">{agent.getCurrentSessionId().slice(0, 8)}</Text>
+                    {hasActiveSession && (
+                        <>
+                            <Text color="gray" dimColor>
+                                {' '}
+                                • Session:{' '}
+                            </Text>
+                            <Text color="white">{agent.getCurrentSessionId().slice(0, 8)}</Text>
+                        </>
+                    )}
                 </Box>
                 <Box marginBottom={1}>
                     <Text> </Text>
@@ -630,39 +1019,7 @@ export function InkCLI({ agent }: InkCLIProps) {
                     </Box>
                 )}
                 {visibleMessages.map((msg) => (
-                    <Box key={msg.id} marginBottom={1} flexDirection="column">
-                        <Box>
-                            <Text
-                                color={
-                                    msg.role === 'user'
-                                        ? 'green'
-                                        : msg.role === 'assistant'
-                                          ? 'cyan'
-                                          : msg.role === 'tool'
-                                            ? 'yellow'
-                                            : 'gray'
-                                }
-                                bold
-                            >
-                                {msg.role === 'user'
-                                    ? 'You:'
-                                    : msg.role === 'assistant'
-                                      ? 'AI:'
-                                      : msg.role === 'tool'
-                                        ? 'Tool:'
-                                        : 'System:'}
-                            </Text>
-                        </Box>
-                        <Box marginLeft={2}>
-                            <Text wrap="wrap">{msg.content || '...'}</Text>
-                            {msg.isStreaming && (
-                                <Text color="gray">
-                                    {' '}
-                                    <Spinner type="dots" />
-                                </Text>
-                            )}
-                        </Box>
-                    </Box>
+                    <MessageItem key={msg.id} msg={msg} />
                 ))}
             </Box>
 
@@ -683,6 +1040,7 @@ export function InkCLI({ agent }: InkCLIProps) {
                 </Text>
                 <Box flexGrow={1}>
                     <CustomInput
+                        key={inputKey}
                         value={input}
                         onChange={setInput}
                         onSubmit={handleSubmit}
@@ -714,6 +1072,8 @@ export function InkCLI({ agent }: InkCLIProps) {
                         isVisible={showSlashAutocomplete}
                         searchQuery={input}
                         onSelectPrompt={handlePromptSelect}
+                        onSelectSystemCommand={handleSystemCommandSelect}
+                        onLoadIntoInput={handleLoadIntoInput}
                         onClose={() => setShowSlashAutocomplete(false)}
                         agent={agent}
                     />
@@ -727,7 +1087,32 @@ export function InkCLI({ agent }: InkCLIProps) {
                         isVisible={showResourceAutocomplete}
                         searchQuery={input}
                         onSelectResource={handleResourceSelect}
+                        onLoadIntoInput={handleLoadResourceIntoInput}
                         onClose={() => setShowResourceAutocomplete(false)}
+                        agent={agent}
+                    />
+                </Box>
+            )}
+
+            {/* Model selector - below input */}
+            {showModelSelector && (
+                <Box marginTop={1}>
+                    <ModelSelector
+                        isVisible={showModelSelector}
+                        onSelectModel={handleModelSelect}
+                        onClose={() => setShowModelSelector(false)}
+                        agent={agent}
+                    />
+                </Box>
+            )}
+
+            {/* Session selector - below input */}
+            {showSessionSelector && (
+                <Box marginTop={1}>
+                    <SessionSelector
+                        isVisible={showSessionSelector}
+                        onSelectSession={handleSessionSelect}
+                        onClose={() => setShowSessionSelector(false)}
                         agent={agent}
                     />
                 </Box>
@@ -748,6 +1133,17 @@ export async function startInkCli(agent: DextoAgent): Promise<void> {
     // Minimal initialization for ink-cli (no console spam, UI handles display)
     const { registerGracefulShutdown } = await import('../utils/graceful-shutdown.js');
     registerGracefulShutdown(() => agent);
+
+    // Suppress console.log/console.error in ink-cli mode to prevent output above Ink UI
+    // Command handlers return formatted strings that are displayed in the UI instead
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+
+    // Override console methods to suppress output (command handlers return strings for UI)
+    console.log = () => {}; // Suppress - output is shown in UI via returned strings
+    console.error = () => {}; // Suppress - errors are shown in UI via returned strings
+    console.warn = () => {}; // Suppress - warnings are shown in UI via returned strings
 
     // Render the Ink CLI interface
     render(<InkCLI agent={agent} />);

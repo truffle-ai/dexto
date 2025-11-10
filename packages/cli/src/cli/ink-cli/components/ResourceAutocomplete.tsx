@@ -7,61 +7,82 @@ interface ResourceAutocompleteProps {
     isVisible: boolean;
     searchQuery: string;
     onSelectResource: (resource: ResourceMetadata) => void;
+    onLoadIntoInput?: (text: string) => void; // New prop for Tab key
     onClose: () => void;
     agent: DextoAgent;
 }
 
 /**
- * Simple fuzzy match - checks if query matches resource name, URI, or description
+ * Get match score for resource: 0 = no match, 1 = description/URI match, 2 = name includes, 3 = name starts with
+ * Prioritizes name matches over description/URI matches
  */
-function matchesQuery(resource: ResourceMetadata, query: string): boolean {
-    if (!query) return true;
+function getResourceMatchScore(resource: ResourceMetadata, query: string): number {
+    if (!query) return 3; // Show all when no query
     const lowerQuery = query.toLowerCase();
     const name = (resource.name || '').toLowerCase();
     const uri = resource.uri.toLowerCase();
+    const uriFilename = uri.split('/').pop()?.toLowerCase() || '';
     const description = (resource.description || '').toLowerCase();
 
-    return (
-        name.includes(lowerQuery) ||
-        uri.includes(lowerQuery) ||
-        description.includes(lowerQuery) ||
-        name.startsWith(lowerQuery) || // Prioritize prefix matches
-        (uri.split('/').pop()?.toLowerCase().startsWith(lowerQuery) ?? false) // Match filename
-    );
+    // Highest priority: name starts with query
+    if (name.startsWith(lowerQuery)) {
+        return 4;
+    }
+
+    // Second priority: name includes query
+    if (name.includes(lowerQuery)) {
+        return 3;
+    }
+
+    // Third priority: URI filename starts with query
+    if (uriFilename.startsWith(lowerQuery)) {
+        return 2;
+    }
+
+    // Fourth priority: URI filename includes query
+    if (uriFilename.includes(lowerQuery)) {
+        return 2;
+    }
+
+    // Fifth priority: URI includes query
+    if (uri.includes(lowerQuery)) {
+        return 1;
+    }
+
+    // Lowest priority: description includes query
+    if (description.includes(lowerQuery)) {
+        return 1;
+    }
+
+    return 0; // No match
 }
 
 /**
- * Sort resources: exact matches first, then prefix matches, then substring matches
+ * Check if resource matches query (for filtering)
+ */
+function matchesQuery(resource: ResourceMetadata, query: string): boolean {
+    return getResourceMatchScore(resource, query) > 0;
+}
+
+/**
+ * Sort resources by match score (highest first), then alphabetically
  */
 function sortResources(resources: ResourceMetadata[], query: string): ResourceMetadata[] {
     if (!query) return resources;
 
     const lowerQuery = query.toLowerCase();
     return resources.sort((a, b) => {
+        const scoreA = getResourceMatchScore(a, lowerQuery);
+        const scoreB = getResourceMatchScore(b, lowerQuery);
+
+        // Sort by score first (higher score first)
+        if (scoreA !== scoreB) {
+            return scoreB - scoreA;
+        }
+
+        // If scores are equal, sort alphabetically by name
         const aName = (a.name || '').toLowerCase();
         const bName = (b.name || '').toLowerCase();
-        const aUri = a.uri.toLowerCase();
-        const bUri = b.uri.toLowerCase();
-
-        // Exact match
-        const aExact = aName === lowerQuery || aUri === lowerQuery;
-        const bExact = bName === lowerQuery || bUri === lowerQuery;
-        if (aExact && !bExact) return -1;
-        if (!aExact && bExact) return 1;
-
-        // Prefix match
-        const aPrefix = aName.startsWith(lowerQuery) || aUri.startsWith(lowerQuery);
-        const bPrefix = bName.startsWith(lowerQuery) || bUri.startsWith(lowerQuery);
-        if (aPrefix && !bPrefix) return -1;
-        if (!aPrefix && bPrefix) return 1;
-
-        // Substring match
-        const aSubstring = aName.includes(lowerQuery) || aUri.includes(lowerQuery);
-        const bSubstring = bName.includes(lowerQuery) || bUri.includes(lowerQuery);
-        if (aSubstring && !bSubstring) return -1;
-        if (!aSubstring && bSubstring) return 1;
-
-        // Alphabetical by name
         return aName.localeCompare(bName);
     });
 }
@@ -70,6 +91,7 @@ export default function ResourceAutocomplete({
     isVisible,
     searchQuery,
     onSelectResource,
+    onLoadIntoInput,
     onClose,
     agent,
 }: ResourceAutocompleteProps) {
@@ -184,8 +206,31 @@ export default function ResourceAutocomplete({
                     break;
             }
 
-            // Tab or Enter to select
-            if ((key.tab || key.return) && itemsLength > 0) {
+            // Tab to load into input (for editing before selection)
+            if (key.tab && itemsLength > 0) {
+                const resource = filteredResources[selectedIndexRef.current];
+                if (!resource) return;
+
+                // Get the @ position and construct the text to load
+                const atIndex = searchQuery.lastIndexOf('@');
+                if (atIndex >= 0) {
+                    const before = searchQuery.slice(0, atIndex + 1);
+                    const uriParts = resource.uri.split('/');
+                    const reference =
+                        resource.name || uriParts[uriParts.length - 1] || resource.uri;
+                    onLoadIntoInput?.(`${before}${reference}`);
+                } else {
+                    // Fallback: just append @resource
+                    const uriParts = resource.uri.split('/');
+                    const reference =
+                        resource.name || uriParts[uriParts.length - 1] || resource.uri;
+                    onLoadIntoInput?.(`${searchQuery}@${reference}`);
+                }
+                return;
+            }
+
+            // Enter to select
+            if (key.return && itemsLength > 0) {
                 const resource = filteredResources[selectedIndexRef.current];
                 if (resource) {
                     onSelectResource(resource);
@@ -230,8 +275,8 @@ export default function ResourceAutocomplete({
         >
             <Box paddingX={1} paddingY={0}>
                 <Text dimColor>
-                    Resources ({selectedIndex + 1}/{totalItems}) - ↑↓ to navigate, Tab/Enter to
-                    select, Esc to close
+                    Resources ({selectedIndex + 1}/{totalItems}) - ↑↓ to navigate, Tab to load,
+                    Enter to select, Esc to close
                 </Text>
             </Box>
             {hasMoreAbove && (

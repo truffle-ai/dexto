@@ -13,15 +13,15 @@ import { safeExit } from '../analytics/wrapper.js';
 
 /**
  * Find and load the most recent session based on lastActivity.
- * This provides better UX than always loading the "default" session.
+ * This provides better UX by resuming the user's most recent conversation.
  */
 export async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
     try {
         const sessionIds = await agent.listSessions();
 
         if (sessionIds.length === 0) {
-            // No sessions exist, let agent create default
-            logger.debug('No existing sessions found, will use default session');
+            // No sessions exist - session will be created when first message is sent
+            logger.debug('No existing sessions found, session will be created on first message');
             return;
         }
 
@@ -41,10 +41,10 @@ export async function loadMostRecentSession(agent: DextoAgent): Promise<void> {
         const currentSessionId = agent.getCurrentSessionId();
         if (mostRecentSession !== currentSessionId) {
             await agent.loadSessionAsDefault(mostRecentSession);
-            logger.info(`Loaded session: ${mostRecentSession}`, null, 'cyan');
+            logger.info(`Resumed session: ${mostRecentSession}`, null, 'cyan');
         }
     } catch (error) {
-        // If anything fails, just continue with current session
+        // If anything fails, just continue - session will be created on first message
         logger.debug(
             `Failed to load most recent session: ${error instanceof Error ? error.message : String(error)}`
         );
@@ -179,7 +179,9 @@ export async function startAiCli(agent: DextoAgent) {
                     return true;
                 }
 
-                return await executeCommand(parsed.command, parsed.args || [], agent);
+                const result = await executeCommand(parsed.command, parsed.args || [], agent);
+                // In regular CLI mode, string returns are already logged, so treat as handled
+                return typeof result === 'string' ? true : result;
             } else {
                 // Handle regular prompt - pass to AI
                 const llm = agent.getCurrentLLMConfig();
@@ -273,7 +275,11 @@ export async function startHeadlessCli(agent: DextoAgent, prompt: string): Promi
                 return;
             }
 
-            await executeCommand(parsed.command, parsed.args || [], agent);
+            const result = await executeCommand(parsed.command, parsed.args || [], agent);
+            // In headless mode, string returns are already logged, so we can ignore them
+            if (typeof result === 'string') {
+                // Already logged, continue
+            }
         } else {
             // Execute the task as a regular AI prompt
             // uncomment if we need to reset conversation for headless mode

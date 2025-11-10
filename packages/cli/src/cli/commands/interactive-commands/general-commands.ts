@@ -14,6 +14,7 @@ import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 import { displayAllCommands, formatCommandHelp } from './command-parser.js';
+import { formatForInkCli } from './utils/format-output.js';
 
 /**
  * Creates the help command with access to all commands for display
@@ -25,19 +26,82 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
         usage: '/help [command]',
         category: 'General',
         aliases: ['h', '?'],
-        handler: async (args: string[], _agent: DextoAgent) => {
+        handler: async (args: string[], _agent: DextoAgent): Promise<boolean | string> => {
             const allCommands = getAllCommands();
 
             if (args.length === 0) {
-                // Show all commands using the original displayAllCommands function
+                // Build output string for ink-cli
+                const outputLines: string[] = ['\n📋 Available Commands:\n'];
+
+                // Define category order for consistent display
+                const categoryOrder = [
+                    'General',
+                    'Session Management',
+                    'Model Management',
+                    'MCP Management',
+                    'Tool Management',
+                    'Prompt Management',
+                    'System',
+                ];
+
+                const categories: { [key: string]: CommandDefinition[] } = {};
+
+                // Initialize categories
+                for (const category of categoryOrder) {
+                    categories[category] = [];
+                }
+
+                // Categorize commands using metadata
+                for (const cmd of allCommands) {
+                    const category = cmd.category || 'General';
+                    if (!categories[category]) {
+                        categories[category] = [];
+                    }
+                    categories[category]!.push(cmd);
+                }
+
+                // Build output by category in order
+                for (const category of categoryOrder) {
+                    const cmds = categories[category];
+                    if (cmds && cmds.length > 0) {
+                        outputLines.push(`${category}:`);
+                        for (const cmd of cmds) {
+                            const help = formatCommandHelp(cmd, false);
+                            outputLines.push('  ' + formatForInkCli(help));
+                        }
+                        outputLines.push('');
+                    }
+                }
+
+                // Display any uncategorized commands (fallback)
+                for (const [category, cmds] of Object.entries(categories)) {
+                    if (!categoryOrder.includes(category) && cmds.length > 0) {
+                        outputLines.push(`${category}:`);
+                        for (const cmd of cmds) {
+                            const help = formatCommandHelp(cmd, false);
+                            outputLines.push('  ' + formatForInkCli(help));
+                        }
+                        outputLines.push('');
+                    }
+                }
+
+                outputLines.push('💡 Tip: Use /help <command> for detailed help on any command');
+                outputLines.push(
+                    '💡 Tip: Type your message normally (without /) to chat with the AI\n'
+                );
+                const output = outputLines.join('\n');
+
+                // Log for regular CLI (with chalk formatting)
                 displayAllCommands(allCommands);
-                return true;
+
+                return formatForInkCli(output);
             }
 
             const commandName = args[0];
             if (!commandName) {
-                console.log(chalk.red('❌ No command specified'));
-                return true;
+                const output = '❌ No command specified';
+                console.log(chalk.red(output));
+                return formatForInkCli(output);
             }
 
             // Find the specific command to show detailed help
@@ -46,41 +110,50 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
             );
 
             if (cmd) {
-                console.log(formatCommandHelp(cmd, true));
-                return true;
+                const helpText = formatCommandHelp(cmd, true);
+                console.log(helpText);
+                return formatForInkCli(helpText);
             }
 
             // Redirect to contextual help for commands that have their own help subcommands
+            let output: string;
             if (commandName === 'session') {
+                output =
+                    '💡 For detailed session help, use:\n   /session help\n\n   This shows all session subcommands with examples and tips.';
                 console.log(chalk.blue('💡 For detailed session help, use:'));
                 console.log(`   ${chalk.cyan('/session help')}`);
                 console.log(
                     chalk.dim('\n   This shows all session subcommands with examples and tips.')
                 );
-                return true;
+                return formatForInkCli(output);
             }
 
             if (commandName === 'model' || commandName === 'm') {
+                output =
+                    '💡 For detailed model help, use:\n   /model help\n\n   This shows all model subcommands with examples and usage.';
                 console.log(chalk.blue('💡 For detailed model help, use:'));
                 console.log(`   ${chalk.cyan('/model help')}`);
                 console.log(
                     chalk.dim('\n   This shows all model subcommands with examples and usage.')
                 );
-                return true;
+                return formatForInkCli(output);
             }
 
             if (commandName === 'mcp') {
+                output =
+                    '💡 For detailed MCP help, use:\n   /mcp help\n\n   This shows all MCP subcommands with examples and usage.';
                 console.log(chalk.blue('💡 For detailed MCP help, use:'));
                 console.log(`   ${chalk.cyan('/mcp help')}`);
                 console.log(
                     chalk.dim('\n   This shows all MCP subcommands with examples and usage.')
                 );
-                return true;
+                return formatForInkCli(output);
             }
 
+            output = `❓ No help available for: ${commandName}\nUse /help to see all available commands`;
             console.log(chalk.yellow(`❓ No help available for: ${commandName}`));
             console.log(chalk.dim('Use /help to see all available commands'));
-            return true;
+            return formatForInkCli(output);
         },
     };
 }

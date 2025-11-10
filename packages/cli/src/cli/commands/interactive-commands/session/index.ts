@@ -12,9 +12,19 @@
  * - Formatter utilities from helpers (re-exported for convenience)
  */
 
-export { sessionCommand, historyCommand, searchCommand } from './session-commands.js';
+export {
+    sessionCommand,
+    historyCommand,
+    searchCommand,
+    resumeCommand,
+} from './session-commands.js';
 export { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
 
 // Export all session commands as a convenient array
-import { sessionCommand, historyCommand, searchCommand } from './session-commands.js';
-export const sessionCommands = [sessionCommand, historyCommand, searchCommand];
+import {
+    sessionCommand,
+    historyCommand,
+    searchCommand,
+    resumeCommand,
+} from './session-commands.js';
+export const sessionCommands = [sessionCommand, historyCommand, searchCommand, resumeCommand];

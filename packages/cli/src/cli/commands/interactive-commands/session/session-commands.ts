@@ -281,6 +281,57 @@ export const historyCommand: CommandDefinition = {
 };
 
 /**
+ * Standalone resume command for quick access to session switching
+ */
+export const resumeCommand: CommandDefinition = {
+    name: 'resume',
+    description: 'Resume/switch to a different session',
+    usage: '/resume [sessionId]',
+    category: 'Session Management',
+    aliases: ['switch'],
+    handler: async (args: string[], agent: DextoAgent) => {
+        // If session ID provided, switch directly
+        if (args.length > 0 && args[0]) {
+            try {
+                const sessionId = args[0]!;
+                const currentId = agent.getCurrentSessionId();
+
+                if (sessionId === currentId) {
+                    console.log(chalk.yellow(`ℹ️  Already using session ${sessionId.slice(0, 8)}`));
+                    return true;
+                }
+
+                console.log(chalk.yellow(`🔄 Switching to session ${sessionId.slice(0, 8)}...`));
+                await agent.loadSessionAsDefault(sessionId);
+                console.log(chalk.green(`✅ Switched to session ${sessionId.slice(0, 8)}`));
+            } catch (error) {
+                logger.error(
+                    `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
+                    null,
+                    'red'
+                );
+            }
+            return true;
+        }
+
+        // No args - show help (interactive mode will handle this in ink-cli)
+        console.log(chalk.bold.blue('\n📋 Resume Session:\n'));
+        console.log(chalk.cyan('Usage:'));
+        console.log(
+            `  ${chalk.yellow('/resume')} ${chalk.blue('<sessionId>')} - Switch to a specific session`
+        );
+        console.log(
+            `  ${chalk.yellow('/resume')} - Show interactive session selector (ink-cli mode)`
+        );
+        console.log(chalk.dim('\n💡 Use /session list to see available sessions'));
+        console.log(
+            chalk.dim('💡 In ink-cli mode, /resume without args shows interactive selector\n')
+        );
+        return true;
+    },
+};
+
+/**
  * Standalone search command for quick access
  */
 export const searchCommand: CommandDefinition = {

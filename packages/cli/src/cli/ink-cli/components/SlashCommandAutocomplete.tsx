@@ -2,83 +2,180 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { PromptInfo } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
+import { getAllCommands } from '../../commands/interactive-commands/commands.js';
+import type { CommandDefinition } from '../../commands/interactive-commands/command-parser.js';
 
 interface SlashCommandAutocompleteProps {
     isVisible: boolean;
     searchQuery: string;
     onSelectPrompt: (prompt: PromptInfo) => void;
+    onSelectSystemCommand?: (command: string) => void;
+    onLoadIntoInput?: (command: string) => void; // For Tab - loads command into input
     onClose: () => void;
     onCreatePrompt?: () => void;
     agent: DextoAgent;
 }
 
 interface PromptItem extends PromptInfo {
-    // Extended for UI purposes
+    kind: 'prompt';
+}
+
+interface SystemCommandItem {
+    kind: 'system';
+    name: string;
+    description: string;
+    category?: string;
+    aliases?: string[];
 }
 
 /**
- * Simple fuzzy match - checks if query matches prompt name or description
+ * Get match score for prompt: 0 = no match, 1 = description/title match, 2 = name includes, 3 = name starts with
  */
-function matchesQuery(prompt: PromptInfo, query: string): boolean {
-    if (!query) return true;
+function getPromptMatchScore(prompt: PromptInfo, query: string): number {
+    if (!query) return 3; // Show all when no query
     const lowerQuery = query.toLowerCase();
     const name = prompt.name.toLowerCase();
     const description = (prompt.description || '').toLowerCase();
     const title = (prompt.title || '').toLowerCase();
 
-    return (
-        name.includes(lowerQuery) ||
-        description.includes(lowerQuery) ||
-        title.includes(lowerQuery) ||
-        name.startsWith(lowerQuery) // Prioritize prefix matches
-    );
+    // Highest priority: name starts with query
+    if (name.startsWith(lowerQuery)) {
+        return 3;
+    }
+
+    // Second priority: name includes query
+    if (name.includes(lowerQuery)) {
+        return 2;
+    }
+
+    // Lowest priority: description or title includes query
+    if (description.includes(lowerQuery) || title.includes(lowerQuery)) {
+        return 1;
+    }
+
+    return 0; // No match
+}
+
+/**
+ * Check if prompt matches query (for filtering)
+ */
+function matchesPromptQuery(prompt: PromptInfo, query: string): boolean {
+    return getPromptMatchScore(prompt, query) > 0;
+}
+
+/**
+ * Simple fuzzy match - checks if query matches system command name or description
+ * Returns a score: 0 = no match, 1 = description match, 2 = alias match, 3 = name includes, 4 = name starts with
+ */
+function getSystemCommandMatchScore(cmd: CommandDefinition, query: string): number {
+    if (!query) return 4; // Show all when no query
+    const lowerQuery = query.toLowerCase();
+    const name = cmd.name.toLowerCase();
+    const description = (cmd.description || '').toLowerCase();
+
+    // Highest priority: name starts with query
+    if (name.startsWith(lowerQuery)) {
+        return 4;
+    }
+
+    // Second priority: name includes query
+    if (name.includes(lowerQuery)) {
+        return 3;
+    }
+
+    // Third priority: aliases match
+    if (cmd.aliases) {
+        for (const alias of cmd.aliases) {
+            const lowerAlias = alias.toLowerCase();
+            if (lowerAlias.startsWith(lowerQuery)) {
+                return 2;
+            }
+            if (lowerAlias.includes(lowerQuery)) {
+                return 2;
+            }
+        }
+    }
+
+    // Lowest priority: description includes query
+    if (description.includes(lowerQuery)) {
+        return 1;
+    }
+
+    return 0; // No match
+}
+
+/**
+ * Check if command matches query (for filtering)
+ */
+function matchesSystemCommandQuery(cmd: CommandDefinition, query: string): boolean {
+    return getSystemCommandMatchScore(cmd, query) > 0;
 }
 
 export default function SlashCommandAutocomplete({
     isVisible,
     searchQuery,
     onSelectPrompt,
+    onSelectSystemCommand,
+    onLoadIntoInput,
     onClose,
     onCreatePrompt,
     agent,
 }: SlashCommandAutocompleteProps) {
     const [prompts, setPrompts] = useState<PromptItem[]>([]);
+    const [systemCommands, setSystemCommands] = useState<SystemCommandItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [scrollOffset, setScrollOffset] = useState(0);
     const selectedIndexRef = useRef(0);
-    const MAX_VISIBLE_ITEMS = 8; // Number of items visible at once
+    const MAX_VISIBLE_ITEMS = 10; // Increased to show more items
 
     // Keep ref in sync
     useEffect(() => {
         selectedIndexRef.current = selectedIndex;
     }, [selectedIndex]);
 
-    // Fetch prompts from agent
+    // Fetch prompts and system commands from agent
     useEffect(() => {
         if (!isVisible) return;
 
         let cancelled = false;
         setIsLoading(true);
 
-        const fetchPrompts = async () => {
+        const fetchCommands = async () => {
             try {
+                // Fetch prompts
                 const promptSet = await agent.listPrompts();
-                const promptList: PromptItem[] = Object.values(promptSet);
+                const promptList: PromptItem[] = Object.values(promptSet).map((p) => ({
+                    ...p,
+                    kind: 'prompt' as const,
+                }));
+
+                // Fetch system commands
+                const allCommands = getAllCommands();
+                const commandList: SystemCommandItem[] = allCommands.map((cmd) => ({
+                    kind: 'system' as const,
+                    name: cmd.name,
+                    description: cmd.description,
+                    ...(cmd.category && { category: cmd.category }),
+                    ...(cmd.aliases && { aliases: cmd.aliases }),
+                }));
+
                 if (!cancelled) {
                     setPrompts(promptList);
+                    setSystemCommands(commandList);
                     setIsLoading(false);
                 }
             } catch (error) {
                 if (!cancelled) {
-                    console.error('Failed to fetch prompts:', error);
+                    console.error('Failed to fetch commands:', error);
                     setPrompts([]);
+                    setSystemCommands([]);
                     setIsLoading(false);
                 }
             }
         };
 
-        void fetchPrompts();
+        void fetchCommands();
 
         return () => {
             cancelled = true;
@@ -91,30 +188,68 @@ export default function SlashCommandAutocomplete({
         return searchQuery.slice(1).trim();
     }, [searchQuery]);
 
-    // Filter prompts based on query (no limit - scrolling handles it)
+    // Filter prompts and system commands based on query
     const filteredPrompts = useMemo(() => {
         if (!commandQuery) {
-            // Show all prompts when just "/" is typed
             return prompts;
         }
-        return prompts.filter((p) => matchesQuery(p, commandQuery));
+        // Filter and sort by match score (highest first)
+        return prompts
+            .filter((p) => matchesPromptQuery(p, commandQuery))
+            .sort((a, b) => {
+                const scoreA = getPromptMatchScore(a, commandQuery);
+                const scoreB = getPromptMatchScore(b, commandQuery);
+                return scoreB - scoreA; // Higher score first
+            });
     }, [prompts, commandQuery]);
 
-    // Show create option if query doesn't match any prompts
-    const showCreateOption = useMemo(() => {
-        if (!commandQuery) return true; // Show when just "/"
-        return filteredPrompts.length === 0 && commandQuery.length > 0;
-    }, [commandQuery, filteredPrompts.length]);
+    const filteredSystemCommands = useMemo(() => {
+        if (!commandQuery) {
+            return systemCommands;
+        }
+        // Filter and sort by match score (highest first)
+        return systemCommands
+            .filter((cmd) => matchesSystemCommandQuery(cmd as any, commandQuery))
+            .sort((a, b) => {
+                const scoreA = getSystemCommandMatchScore(a as any, commandQuery);
+                const scoreB = getSystemCommandMatchScore(b as any, commandQuery);
+                return scoreB - scoreA; // Higher score first
+            });
+    }, [systemCommands, commandQuery]);
 
-    // Combine items (create option + prompts)
+    // Show create option only if query doesn't match any commands and is a valid prompt name
+    const showCreateOption = useMemo(() => {
+        if (!commandQuery) return false; // Don't show create when just "/"
+        // Only show create if no matches and query looks like a prompt name (no spaces, valid chars)
+        return (
+            filteredPrompts.length === 0 &&
+            filteredSystemCommands.length === 0 &&
+            commandQuery.length > 0 &&
+            !commandQuery.includes(' ')
+        );
+    }, [commandQuery, filteredPrompts.length, filteredSystemCommands.length]);
+
+    // Combine items: system commands first, then prompts, then create option
     const combinedItems = useMemo(() => {
-        const items: Array<{ kind: 'create' } | { kind: 'prompt'; prompt: PromptItem }> = [];
+        const items: Array<
+            | { kind: 'system'; command: SystemCommandItem }
+            | { kind: 'prompt'; prompt: PromptItem }
+            | { kind: 'create' }
+        > = [];
+
+        // System commands first (they're more commonly used)
+        filteredSystemCommands.forEach((cmd) => items.push({ kind: 'system', command: cmd }));
+
+        // Then prompts
+        filteredPrompts.forEach((prompt) => items.push({ kind: 'prompt', prompt }));
+
+        // Create option last
         if (showCreateOption) {
             items.push({ kind: 'create' });
         }
-        filteredPrompts.forEach((prompt) => items.push({ kind: 'prompt', prompt }));
+
         return items;
-    }, [showCreateOption, filteredPrompts]);
+    }, [showCreateOption, filteredPrompts, filteredSystemCommands]);
 
     // Reset selected index and scroll when items change
     useEffect(() => {
@@ -164,13 +299,38 @@ export default function SlashCommandAutocomplete({
                     break;
             }
 
-            // Tab or Enter to select (but only if no arguments typed)
-            const hasArguments = commandQuery.includes(' ');
-            if ((key.tab || (key.return && !hasArguments)) && itemsLength > 0) {
+            // Tab: Load command into input (for editing before execution)
+            if (key.tab && itemsLength > 0) {
+                const item = combinedItems[selectedIndexRef.current];
+                if (!item) return;
+                if (item.kind === 'create') {
+                    // For create, load the command name into input
+                    onLoadIntoInput?.(`/${commandQuery || 'name'}`);
+                } else if (item.kind === 'system') {
+                    // Load system command into input
+                    onLoadIntoInput?.(`/${item.command.name}`);
+                } else {
+                    // Load prompt command into input
+                    const argsString =
+                        item.prompt.arguments && item.prompt.arguments.length > 0
+                            ? ' ' +
+                              item.prompt.arguments
+                                  .map((arg) => `<${arg.name}${arg.required ? '' : '?'}>`)
+                                  .join(' ')
+                            : '';
+                    onLoadIntoInput?.(`/${item.prompt.name}${argsString}`);
+                }
+                return;
+            }
+
+            // Enter: Always execute the highlighted command/prompt
+            if (key.return && itemsLength > 0) {
                 const item = combinedItems[selectedIndexRef.current];
                 if (!item) return;
                 if (item.kind === 'create') {
                     onCreatePrompt?.();
+                } else if (item.kind === 'system') {
+                    onSelectSystemCommand?.(item.command.name);
                 } else {
                     onSelectPrompt(item.prompt);
                 }
@@ -206,12 +366,12 @@ export default function SlashCommandAutocomplete({
             borderStyle="single"
             borderColor="cyan"
             flexDirection="column"
-            height={MAX_VISIBLE_ITEMS + 3}
+            height={Math.min(MAX_VISIBLE_ITEMS + 3, totalItems + 3)}
         >
             <Box paddingX={1} paddingY={0}>
                 <Text dimColor>
-                    Commands ({selectedIndex + 1}/{totalItems}) - ↑↓ to navigate, Tab/Enter to
-                    select, Esc to close
+                    Commands ({selectedIndex + 1}/{totalItems}) - ↑↓ to navigate, Tab to load, Enter
+                    to execute, Esc to close
                 </Text>
             </Box>
             {hasMoreAbove && (
@@ -238,6 +398,36 @@ export default function SlashCommandAutocomplete({
                     );
                 }
 
+                if (item.kind === 'system') {
+                    const cmd = item.command;
+                    return (
+                        <Box
+                            key={`system-${cmd.name}`}
+                            paddingX={1}
+                            paddingY={0}
+                            backgroundColor={isSelected ? 'cyan' : undefined}
+                            flexDirection="row"
+                        >
+                            <Text color={isSelected ? 'black' : 'yellow'} bold>
+                                /{cmd.name}
+                            </Text>
+                            {cmd.description && (
+                                <Text color={isSelected ? 'black' : 'gray'} dimColor={!isSelected}>
+                                    {'    '}
+                                    {cmd.description}
+                                </Text>
+                            )}
+                            {cmd.category && (
+                                <Text color={isSelected ? 'black' : 'gray'} dimColor={!isSelected}>
+                                    {' '}
+                                    ({cmd.category})
+                                </Text>
+                            )}
+                        </Box>
+                    );
+                }
+
+                // Prompt command
                 const prompt = item.prompt;
                 const description = prompt.title || prompt.description || '';
                 const argsString =
@@ -249,7 +439,7 @@ export default function SlashCommandAutocomplete({
 
                 return (
                     <Box
-                        key={prompt.name}
+                        key={`prompt-${prompt.name}`}
                         paddingX={1}
                         paddingY={0}
                         backgroundColor={isSelected ? 'cyan' : undefined}

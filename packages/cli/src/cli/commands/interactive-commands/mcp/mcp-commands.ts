@@ -8,6 +8,7 @@
 import chalk from 'chalk';
 import { logger, DextoAgent } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
+import { formatForInkCli } from '../utils/format-output.js';
 import {
     parseStdioArgs,
     parseHttpArgs,
@@ -136,23 +137,47 @@ export const mcpCommands: CommandDefinition = {
             name: 'list',
             description: 'List all available MCP servers',
             usage: '/mcp list',
-            handler: async (_args: string[], agent: DextoAgent) => {
+            handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     const clients = agent.getMcpClients();
                     const failedConnections = agent.getMcpFailedConnections();
 
                     if (clients.size === 0 && Object.keys(failedConnections).length === 0) {
-                        console.log(chalk.yellow('📋 No MCP servers configured or connected.'));
-                        return true;
+                        const output = '📋 No MCP servers configured or connected.';
+                        console.log(chalk.yellow(output));
+                        return formatForInkCli(output);
                     }
 
+                    // Build output string
+                    const outputLines: string[] = ['\n🔌 MCP Servers:\n'];
+                    for (const [name] of clients) {
+                        outputLines.push(`✅ ${name}:`);
+                        outputLines.push(`  Connected: Yes`);
+                        outputLines.push('');
+                    }
+
+                    if (Object.keys(failedConnections).length > 0) {
+                        outputLines.push('\n❌ Failed Connections:\n');
+                        for (const [name, error] of Object.entries(failedConnections)) {
+                            outputLines.push(`❌ ${name}:`);
+                            outputLines.push(`  Error: ${error}`);
+                        }
+                    }
+
+                    outputLines.push(
+                        '💡 Use /mcp add <name> <config_json_string> to connect a new MCP server.'
+                    );
+                    outputLines.push('💡 Use /mcp remove <name> to disconnect an MCP server.');
+                    outputLines.push('💡 Use /mcp help for detailed command descriptions.');
+                    const output = outputLines.join('\n');
+
+                    // Log for regular CLI (with chalk formatting)
                     console.log(chalk.bold.blue('\n🔌 MCP Servers:\n'));
                     for (const [name] of clients) {
                         console.log(chalk.green(`✅ ${name}:`));
                         console.log(chalk.dim(`  Connected: Yes`));
                         console.log();
                     }
-
                     if (Object.keys(failedConnections).length > 0) {
                         console.log(chalk.bold.red('\n❌ Failed Connections:\n'));
                         for (const [name, error] of Object.entries(failedConnections)) {
@@ -160,7 +185,6 @@ export const mcpCommands: CommandDefinition = {
                             console.log(chalk.dim(`  Error: ${error}`));
                         }
                     }
-
                     console.log(
                         chalk.dim(
                             '💡 Use /mcp add <name> <config_json_string> to connect a new MCP server.'
@@ -170,13 +194,13 @@ export const mcpCommands: CommandDefinition = {
                         chalk.dim('💡 Use /mcp remove <name> to disconnect an MCP server.')
                     );
                     console.log(chalk.dim('💡 Use /mcp help for detailed command descriptions.'));
-                    return true;
+
+                    return formatForInkCli(output);
                 } catch (error) {
-                    logger.error(
-                        `Failed to list MCP servers: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    const errorMsg = `Failed to list MCP servers: ${error instanceof Error ? error.message : String(error)}`;
+                    logger.error(errorMsg);
+                    return formatForInkCli(`❌ ${errorMsg}`);
                 }
-                return true;
             },
         },
         {
