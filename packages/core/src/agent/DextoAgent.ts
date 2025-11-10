@@ -12,7 +12,7 @@ import { AgentServices } from '../utils/service-initializer.js';
 import { logger } from '../logger/index.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
-import { trace, context, propagation } from '@opentelemetry/api';
+import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
 import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -436,12 +436,12 @@ export class DextoAgent {
 
         // Preserve existing baggage entries and add sessionId
         const existingBaggage = propagation.getBaggage(activeContext);
-        const baggageEntries: Record<string, { value: string }> = {};
+        const baggageEntries: Record<string, BaggageEntry> = {};
 
-        // Copy existing baggage entries to preserve them
+        // Copy existing baggage entries to preserve them (including metadata)
         if (existingBaggage) {
             existingBaggage.getAllEntries().forEach(([key, entry]) => {
-                baggageEntries[key] = { value: entry.value };
+                baggageEntries[key] = { ...entry };
             });
         }
 

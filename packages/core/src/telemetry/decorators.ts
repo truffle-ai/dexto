@@ -5,6 +5,7 @@ import {
     SpanKind,
     propagation,
     SpanOptions,
+    type BaggageEntry,
 } from '@opentelemetry/api';
 import { logger } from '../logger/index.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
@@ -113,7 +114,14 @@ export function withSpan(options: {
 
                 // Merge with existing baggage to preserve parent context values
                 const existingBaggage = propagation.getBaggage(ctx);
-                const baggageEntries: Record<string, { value: string }> = {};
+                const baggageEntries: Record<string, BaggageEntry> = {};
+
+                // Copy all existing baggage entries to preserve custom baggage
+                if (existingBaggage) {
+                    existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                        baggageEntries[key] = entry;
+                    });
+                }
 
                 // Preserve existing baggage values
                 if (sessionId !== undefined) {
