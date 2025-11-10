@@ -2,6 +2,12 @@ import type { AgentCard } from './schemas.js';
 import { AgentCardSchema } from '@core/agent/schemas.js';
 
 /**
+ * Default agent description used when not provided
+ */
+const DEFAULT_AGENT_DESCRIPTION =
+    'Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols.';
+
+/**
  * Minimal runtime context needed to establish defaults
  * if not provided in AgentCardOverride or by AgentCardSchema.
  */
@@ -29,6 +35,7 @@ export function createAgentCard(
     effectiveInput.name = overrides?.name ?? defaultName;
     effectiveInput.version = overrides?.version ?? defaultVersion;
     effectiveInput.url = overrides?.url ?? `${defaultBaseUrl}/mcp`;
+    effectiveInput.description = overrides?.description ?? DEFAULT_AGENT_DESCRIPTION;
 
     // Handle context-dependent capabilities.pushNotifications.
     const capsFromInput = effectiveInput.capabilities;

@@ -12,6 +12,7 @@ import {
 describe('AgentCardSchema', () => {
     const validAgentCard: AgentCard = {
         name: 'TestAgent',
+        description: 'A test agent for validation',
         url: 'https://agent.example.com',
         version: '1.0.0',
     };
@@ -28,12 +29,11 @@ describe('AgentCardSchema', () => {
         it('should apply default values', () => {
             const result = AgentCardSchema.parse(validAgentCard);
 
-            expect(result.description).toBe(
-                'Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols.'
-            );
+            expect(result.protocolVersion).toBe('0.3.0');
+            expect(result.preferredTransport).toBe('JSONRPC');
+            expect(result.description).toBe('A test agent for validation');
             expect(result.capabilities.streaming).toBe(true);
             expect(result.capabilities.stateTransitionHistory).toBe(false);
-            expect(result.authentication.schemes).toEqual([]);
             expect(result.defaultInputModes).toEqual(['application/json', 'text/plain']);
             expect(result.defaultOutputModes).toEqual([
                 'application/json',
@@ -53,9 +53,13 @@ describe('AgentCardSchema', () => {
                     pushNotifications: true,
                     stateTransitionHistory: true,
                 },
-                authentication: {
-                    schemes: ['bearer', 'api-key'],
-                    credentials: 'optional-creds',
+                metadata: {
+                    dexto: {
+                        authentication: {
+                            schemes: ['bearer', 'api-key'],
+                            credentials: 'optional-creds',
+                        },
+                    },
                 },
                 defaultInputModes: ['text/plain'],
                 defaultOutputModes: ['application/json'],
@@ -77,8 +81,8 @@ describe('AgentCardSchema', () => {
             expect(result.capabilities.streaming).toBe(false);
             expect(result.capabilities.pushNotifications).toBe(true);
             expect(result.capabilities.stateTransitionHistory).toBe(true);
-            expect(result.authentication.schemes).toEqual(['bearer', 'api-key']);
-            expect(result.authentication.credentials).toBe('optional-creds');
+            expect(result.metadata?.dexto?.authentication?.schemes).toEqual(['bearer', 'api-key']);
+            expect(result.metadata?.dexto?.authentication?.credentials).toBe('optional-creds');
             expect(result.defaultInputModes).toEqual(['text/plain']);
             expect(result.defaultOutputModes).toEqual(['application/json']);
             expect(result.skills).toHaveLength(1);
@@ -237,12 +241,234 @@ describe('AgentCardSchema', () => {
             // Should have applied defaults
             expect(result.description).toBeTruthy();
             expect(result.capabilities).toBeDefined();
-            expect(result.authentication).toBeDefined();
 
             // Should preserve input values
             expect(result.name).toBe(input.name);
             expect(result.url).toBe(input.url);
             expect(result.version).toBe(input.version);
+        });
+    });
+
+    describe('Security Schemes Validation', () => {
+        it('should validate apiKey security scheme', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                securitySchemes: {
+                    apiKey: {
+                        type: 'apiKey',
+                        name: 'X-API-Key',
+                        in: 'header',
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.securitySchemes?.apiKey).toBeDefined();
+            if (result.securitySchemes?.apiKey) {
+                expect(result.securitySchemes.apiKey.type).toBe('apiKey');
+            }
+        });
+
+        it('should require name and in for apiKey type', () => {
+            const config: any = {
+                ...validAgentCard,
+                securitySchemes: {
+                    apiKey: {
+                        type: 'apiKey',
+                        // Missing name and in
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.safeParse(config);
+            expect(result.success).toBe(false);
+        });
+
+        it('should validate http security scheme', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                securitySchemes: {
+                    bearer: {
+                        type: 'http',
+                        scheme: 'bearer',
+                        bearerFormat: 'JWT',
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.securitySchemes?.bearer).toBeDefined();
+            if (result.securitySchemes?.bearer) {
+                expect(result.securitySchemes.bearer.type).toBe('http');
+            }
+        });
+
+        it('should require scheme for http type', () => {
+            const config: any = {
+                ...validAgentCard,
+                securitySchemes: {
+                    http: {
+                        type: 'http',
+                        // Missing scheme
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.safeParse(config);
+            expect(result.success).toBe(false);
+        });
+
+        it('should validate oauth2 security scheme', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                securitySchemes: {
+                    oauth: {
+                        type: 'oauth2',
+                        flows: {
+                            authorizationCode: {
+                                authorizationUrl: 'https://auth.example.com/oauth/authorize',
+                                tokenUrl: 'https://auth.example.com/oauth/token',
+                                scopes: {
+                                    read: 'Read access',
+                                    write: 'Write access',
+                                },
+                            },
+                        },
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.securitySchemes?.oauth).toBeDefined();
+            if (result.securitySchemes?.oauth) {
+                expect(result.securitySchemes.oauth.type).toBe('oauth2');
+            }
+        });
+
+        it('should validate openIdConnect security scheme', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                securitySchemes: {
+                    oidc: {
+                        type: 'openIdConnect',
+                        openIdConnectUrl:
+                            'https://accounts.google.com/.well-known/openid-configuration',
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.securitySchemes?.oidc).toBeDefined();
+            if (result.securitySchemes?.oidc) {
+                expect(result.securitySchemes.oidc.type).toBe('openIdConnect');
+            }
+        });
+
+        it('should require openIdConnectUrl for openIdConnect type', () => {
+            const config: any = {
+                ...validAgentCard,
+                securitySchemes: {
+                    oidc: {
+                        type: 'openIdConnect',
+                        // Missing openIdConnectUrl
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.safeParse(config);
+            expect(result.success).toBe(false);
+        });
+
+        it('should validate mutualTLS security scheme', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                securitySchemes: {
+                    mtls: {
+                        type: 'mutualTLS',
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.securitySchemes?.mtls).toBeDefined();
+            if (result.securitySchemes?.mtls) {
+                expect(result.securitySchemes.mtls.type).toBe('mutualTLS');
+            }
+        });
+    });
+
+    describe('Metadata and Extensions', () => {
+        it('should support dexto metadata extensions', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                metadata: {
+                    dexto: {
+                        delegation: {
+                            protocol: 'a2a-jsonrpc',
+                            endpoint: '/delegate',
+                            supportsSession: true,
+                            supportsStreaming: true,
+                        },
+                        owner: {
+                            userId: 'user123',
+                            username: 'testuser',
+                            email: 'test@example.com',
+                        },
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.metadata?.dexto?.delegation?.protocol).toBe('a2a-jsonrpc');
+            expect(result.metadata?.dexto?.owner?.userId).toBe('user123');
+        });
+
+        it('should support custom metadata namespaces', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                metadata: {
+                    dexto: {},
+                    customExtension: {
+                        foo: 'bar',
+                        nested: { key: 'value' },
+                    },
+                },
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.metadata?.customExtension).toBeDefined();
+        });
+
+        it('should validate signatures field', () => {
+            const config: AgentCard = {
+                ...validAgentCard,
+                signatures: [
+                    {
+                        protected: 'eyJhbGciOiJSUzI1NiJ9',
+                        signature:
+                            'cC4hiUPoj9Eetdgtv3hF80EGrhuB__dzERat0XF9g2VtQgr9PJbu3XOiZj5RZmh7',
+                    },
+                ],
+            };
+
+            const result = AgentCardSchema.parse(config);
+            expect(result.signatures).toHaveLength(1);
+            expect(result.signatures![0]!.protected).toBe('eyJhbGciOiJSUzI1NiJ9');
+        });
+    });
+
+    describe('Required Description Field', () => {
+        it('should require description field', () => {
+            const config = {
+                name: 'TestAgent',
+                url: 'https://agent.example.com',
+                version: '1.0.0',
+                // Missing description
+            };
+
+            const result = AgentCardSchema.safeParse(config);
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.path).toEqual(['description']);
         });
     });
 });
@@ -283,6 +509,7 @@ describe('AgentConfigSchema', () => {
             const config: AgentConfig = {
                 agentCard: {
                     name: 'TestAgent',
+                    description: 'Test agent for validation',
                     url: 'https://agent.example.com',
                     version: '1.0.0',
                 },
