@@ -23,53 +23,97 @@ import { OtelConfigurationSchema } from '@core/telemetry/schemas.js';
 
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
+/**
+ * Security Scheme Schema (A2A Protocol)
+ * Defines authentication mechanisms for the agent
+ */
+export const SecuritySchemeSchema = z
+    .object({
+        type: z
+            .enum(['apiKey', 'http', 'oauth2', 'openIdConnect', 'mutualTLS'])
+            .describe('Type of security scheme'),
+        name: z.string().optional().describe('Name of the header/query parameter for apiKey'),
+        in: z
+            .enum(['query', 'header', 'cookie'])
+            .optional()
+            .describe('Location of API key (for apiKey type)'),
+        scheme: z.string().optional().describe('HTTP authentication scheme (for http type)'),
+        bearerFormat: z.string().optional().describe('Hint for bearer token format'),
+        flows: z.record(z.unknown()).optional().describe('OAuth2 flow configuration'),
+        openIdConnectUrl: z
+            .string()
+            .url()
+            .optional()
+            .describe('OpenID Connect discovery URL (for openIdConnect type)'),
+    })
+    .passthrough();
+
+/**
+ * Agent Card Schema (A2A Protocol v0.3.0 Compliant)
+ * Extended with Dexto-specific fields for backward compatibility
+ */
 export const AgentCardSchema = z
     .object({
-        name: z.string(), // No default, must be provided by context
+        // ────────────────────────────────────────────────────────
+        // A2A Protocol Required Fields
+        // ────────────────────────────────────────────────────────
+        protocolVersion: z
+            .string()
+            .default('0.3.0')
+            .describe('A2A protocol version (e.g., "0.3.0")'),
+
+        name: z.string().describe('Human-readable agent name'),
+
         description: z
             .string()
             .default(
                 'Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols.'
-            ),
-        url: z.string().url(), // No default, must be provided by context
-        provider: z
-            .object({
-                organization: z.string(),
-                url: z.string().url(),
-            })
-            .optional(), // Remains optional, undefined if not provided
-        version: z.string(), // No default, must be provided by context
-        documentationUrl: z.string().url().optional(), // Remains optional, undefined if not provided
-        capabilities: z
-            .object({
-                streaming: z.boolean().optional().default(true),
-                pushNotifications: z.boolean().optional(), // Default is context-dependent (webSubscriber)
-                stateTransitionHistory: z.boolean().optional().default(false),
-            })
-            .strict()
-            .default({}), // Add default for the capabilities object itself
-        authentication: z
-            .object({
-                schemes: z.array(z.string()).default([]),
-                credentials: z.string().optional(), // Remains optional
-            })
-            .strict()
-            .default({}), // Add default for the authentication object itself
-        defaultInputModes: z.array(z.string()).default(['application/json', 'text/plain']),
+            )
+            .describe('Detailed description of agent purpose and capabilities'),
+
+        url: z.string().url().describe('Primary endpoint URL for the agent'),
+
+        version: z.string().describe('Agent version (semantic versioning recommended)'),
+
+        preferredTransport: z
+            .enum(['JSONRPC', 'GRPC', 'HTTP+JSON'])
+            .default('JSONRPC')
+            .describe('Primary transport protocol for communication'),
+
+        defaultInputModes: z
+            .array(z.string())
+            .default(['application/json', 'text/plain'])
+            .describe('Supported input MIME types'),
+
         defaultOutputModes: z
             .array(z.string())
-            .default(['application/json', 'text/event-stream', 'text/plain']),
+            .default(['application/json', 'text/event-stream', 'text/plain'])
+            .describe('Supported output MIME types'),
+
         skills: z
             .array(
-                z.object({
-                    id: z.string(),
-                    name: z.string(),
-                    description: z.string(),
-                    tags: z.array(z.string()),
-                    examples: z.array(z.string()).optional(),
-                    inputModes: z.array(z.string()).optional().default(['text/plain']),
-                    outputModes: z.array(z.string()).optional().default(['text/plain']),
-                })
+                z
+                    .object({
+                        id: z.string().describe('Unique skill identifier'),
+                        name: z.string().describe('Human-readable skill name'),
+                        description: z.string().describe('Detailed skill description'),
+                        tags: z.array(z.string()).describe('Searchable tags for discovery'),
+                        examples: z
+                            .array(z.string())
+                            .optional()
+                            .describe('Example use cases or queries'),
+                        inputModes: z
+                            .array(z.string())
+                            .optional()
+                            .default(['text/plain'])
+                            .describe('Skill-specific input MIME types'),
+                        outputModes: z
+                            .array(z.string())
+                            .optional()
+                            .default(['text/plain'])
+                            .describe('Skill-specific output MIME types'),
+                    })
+                    .strict()
             )
             .default([
                 {
@@ -81,9 +125,115 @@ export const AgentCardSchema = z
                         `Send a JSON-RPC request to /mcp with method: "chat_with_agent" and params: {"message":"Your query..."}`,
                         'Alternatively, use a compatible MCP client library.',
                     ],
-                    // inputModes and outputModes will use their own defaults if not specified here
                 },
-            ]),
+            ])
+            .describe('Agent capabilities/skills'),
+
+        // ────────────────────────────────────────────────────────
+        // A2A Protocol Optional Fields
+        // ────────────────────────────────────────────────────────
+        provider: z
+            .object({
+                organization: z.string().describe('Provider organization name'),
+                url: z.string().url().describe('Provider organization URL'),
+            })
+            .strict()
+            .optional()
+            .describe('Agent provider information'),
+
+        iconUrl: z.string().url().optional().describe('URL to agent icon/logo (for UI display)'),
+
+        documentationUrl: z.string().url().optional().describe('URL to agent documentation'),
+
+        additionalInterfaces: z
+            .array(
+                z
+                    .object({
+                        url: z.string().url().describe('Endpoint URL'),
+                        transport: z
+                            .enum(['JSONRPC', 'GRPC', 'HTTP+JSON'])
+                            .describe('Transport protocol'),
+                    })
+                    .strict()
+            )
+            .optional()
+            .describe('Additional interfaces/transports supported by the agent'),
+
+        capabilities: z
+            .object({
+                streaming: z
+                    .boolean()
+                    .optional()
+                    .default(true)
+                    .describe('Supports streaming responses'),
+                pushNotifications: z.boolean().optional().describe('Supports push notifications'),
+                stateTransitionHistory: z
+                    .boolean()
+                    .optional()
+                    .default(false)
+                    .describe('Provides state transition history'),
+            })
+            .strict()
+            .default({})
+            .describe('Agent capabilities and features'),
+
+        securitySchemes: z
+            .record(SecuritySchemeSchema)
+            .optional()
+            .describe('Map of security scheme definitions (A2A format)'),
+
+        security: z
+            .array(z.record(z.array(z.string())))
+            .optional()
+            .describe(
+                'Security requirements (array of security scheme references with required scopes)'
+            ),
+
+        supportsAuthenticatedExtendedCard: z
+            .boolean()
+            .optional()
+            .describe('Whether extended card is available with authentication'),
+
+        // ────────────────────────────────────────────────────────
+        // Extension Fields (Dexto-specific)
+        // ────────────────────────────────────────────────────────
+        authentication: z
+            .object({
+                schemes: z
+                    .array(z.string())
+                    .default([])
+                    .describe('Additional authentication schemes (use securitySchemes for A2A)'),
+                credentials: z.string().optional().describe('Credentials information'),
+            })
+            .strict()
+            .default({})
+            .describe('Additional authentication configuration'),
+
+        delegation: z
+            .object({
+                protocol: z
+                    .enum(['dexto-v1', 'http-simple', 'a2a-jsonrpc', 'mcp-http'])
+                    .describe('Delegation protocol version'),
+                endpoint: z.string().describe('Delegation endpoint (relative path or full URL)'),
+                supportsSession: z.boolean().describe('Whether agent supports stateful sessions'),
+                supportsStreaming: z
+                    .boolean()
+                    .optional()
+                    .describe('Whether agent supports streaming responses'),
+            })
+            .strict()
+            .optional()
+            .describe('Delegation protocol information for agent-to-agent communication'),
+
+        owner: z
+            .object({
+                userId: z.string().describe('Unique user identifier from auth system'),
+                username: z.string().describe('Display name'),
+                email: z.string().email().optional().describe('Optional user email'),
+            })
+            .strict()
+            .optional()
+            .describe('Agent owner information (for multi-tenant deployments)'),
     })
     .strict();
 // Input type for user-facing API (pre-parsing)

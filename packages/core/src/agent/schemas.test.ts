@@ -28,6 +28,8 @@ describe('AgentCardSchema', () => {
         it('should apply default values', () => {
             const result = AgentCardSchema.parse(validAgentCard);
 
+            expect(result.protocolVersion).toBe('0.3.0');
+            expect(result.preferredTransport).toBe('JSONRPC');
             expect(result.description).toBe(
                 'Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols.'
             );
