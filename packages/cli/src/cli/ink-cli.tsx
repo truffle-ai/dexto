@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { render, Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { DextoAgent } from '@dexto/core';
+import { DextoAgent, ApprovalStatus, DenialReason, ApprovalType } from '@dexto/core';
 import { parseInput } from './commands/interactive-commands/command-parser.js';
 import { executeCommand } from './commands/interactive-commands/commands.js';
 import { capture } from '../analytics/index.js';
@@ -10,6 +10,7 @@ import type { AgentEventBus, PromptInfo, ResourceMetadata } from '@dexto/core';
 import SlashCommandAutocomplete from './ink-cli/components/SlashCommandAutocomplete.js';
 import ResourceAutocomplete from './ink-cli/components/ResourceAutocomplete.js';
 import CustomInput from './ink-cli/components/CustomInput.js';
+import { ApprovalPrompt, type ApprovalRequest } from './ink-cli/components/ApprovalPrompt.js';
 
 interface Message {
     id: string;
@@ -40,6 +41,7 @@ export function InkCLI({ agent }: InkCLIProps) {
     const [inputHistory, setInputHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState<number>(-1);
     const historyIndexRef = useRef<number>(-1);
+    const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
 
     // Keep refs in sync with state
     useEffect(() => {
@@ -120,16 +122,48 @@ export function InkCLI({ agent }: InkCLIProps) {
             ]);
         };
 
+        const handleApprovalRequest = (event: {
+            approvalId: string;
+            type: string;
+            sessionId?: string;
+            timeout?: number;
+            timestamp: Date;
+            metadata: Record<string, any>;
+        }) => {
+            // Only handle tool confirmation approvals in ink-cli
+            // Elicitation can be handled separately if needed
+            if (event.type === ApprovalType.TOOL_CONFIRMATION) {
+                const approval: ApprovalRequest = {
+                    approvalId: event.approvalId,
+                    type: event.type,
+                    timestamp: event.timestamp,
+                    metadata: event.metadata,
+                };
+
+                // Only include optional properties if they're defined
+                if (event.sessionId !== undefined) {
+                    approval.sessionId = event.sessionId;
+                }
+                if (event.timeout !== undefined) {
+                    approval.timeout = event.timeout;
+                }
+
+                setPendingApproval(approval);
+            }
+        };
+
         bus.on('llmservice:chunk', handleChunk);
         bus.on('llmservice:response', handleResponse);
         bus.on('llmservice:error', handleError);
         bus.on('llmservice:toolCall', handleToolCall);
+        bus.on('dexto:approvalRequest', handleApprovalRequest);
 
         return () => {
             bus.off('llmservice:chunk', handleChunk);
             bus.off('llmservice:response', handleResponse);
             bus.off('llmservice:error', handleError);
             bus.off('llmservice:toolCall', handleToolCall);
+            bus.off('dexto:approvalRequest', handleApprovalRequest);
         };
     }, [agent]);
 
@@ -408,6 +442,11 @@ export function InkCLI({ agent }: InkCLIProps) {
     // IMPORTANT: We need to be careful not to interfere with CustomInput's input handling
     useInput(
         (inputChar, key) => {
+            // Don't intercept if approval prompt is active
+            if (pendingApproval) {
+                return; // Let ApprovalPrompt handle input
+            }
+
             // Don't intercept if autocomplete is handling input
             if (
                 (showSlashAutocomplete || showResourceAutocomplete) &&
@@ -476,11 +515,61 @@ export function InkCLI({ agent }: InkCLIProps) {
             }
         },
         {
-            // Only active when NOT processing (CustomInput handles input when active)
+            // Only active when NOT processing and NOT showing approval (CustomInput handles input when active)
             // This ensures CustomInput's useInput hook has priority
-            isActive: !isProcessing,
+            isActive: !isProcessing && !pendingApproval,
         }
     );
+
+    // Handle approval responses
+    const handleApprove = useCallback(
+        (rememberChoice: boolean) => {
+            if (!pendingApproval || !eventBus) return;
+
+            const response = {
+                approvalId: pendingApproval.approvalId,
+                status: ApprovalStatus.APPROVED,
+                sessionId: pendingApproval.sessionId,
+                data: {
+                    rememberChoice,
+                },
+            };
+
+            eventBus.emit('dexto:approvalResponse', response);
+            setPendingApproval(null);
+        },
+        [pendingApproval, eventBus]
+    );
+
+    const handleDeny = useCallback(() => {
+        if (!pendingApproval || !eventBus) return;
+
+        const response = {
+            approvalId: pendingApproval.approvalId,
+            status: ApprovalStatus.DENIED,
+            sessionId: pendingApproval.sessionId,
+            reason: DenialReason.USER_DENIED,
+            message: 'User denied the tool execution',
+        };
+
+        eventBus.emit('dexto:approvalResponse', response);
+        setPendingApproval(null);
+    }, [pendingApproval, eventBus]);
+
+    const handleCancel = useCallback(() => {
+        if (!pendingApproval || !eventBus) return;
+
+        const response = {
+            approvalId: pendingApproval.approvalId,
+            status: ApprovalStatus.CANCELLED,
+            sessionId: pendingApproval.sessionId,
+            reason: DenialReason.USER_CANCELLED,
+            message: 'User cancelled the approval request',
+        };
+
+        eventBus.emit('dexto:approvalResponse', response);
+        setPendingApproval(null);
+    }, [pendingApproval, eventBus]);
 
     // Calculate visible messages (last 50 for performance)
     const visibleMessages = messages.slice(-50);
@@ -577,6 +666,16 @@ export function InkCLI({ agent }: InkCLIProps) {
                 ))}
             </Box>
 
+            {/* Approval prompt - above input area */}
+            {pendingApproval && (
+                <ApprovalPrompt
+                    approval={pendingApproval}
+                    onApprove={handleApprove}
+                    onDeny={handleDeny}
+                    onCancel={handleCancel}
+                />
+            )}
+
             {/* Input area */}
             <Box borderStyle="single" borderColor="green" paddingX={1} flexDirection="row">
                 <Text color="green" bold>
@@ -588,11 +687,13 @@ export function InkCLI({ agent }: InkCLIProps) {
                         onChange={setInput}
                         onSubmit={handleSubmit}
                         placeholder={
-                            isProcessing
-                                ? 'Processing... (Press Esc to cancel)'
-                                : 'Type your message or /help for commands'
+                            pendingApproval
+                                ? 'Approval required above...'
+                                : isProcessing
+                                  ? 'Processing... (Press Esc to cancel)'
+                                  : 'Type your message or /help for commands'
                         }
-                        isProcessing={isProcessing}
+                        isProcessing={isProcessing || !!pendingApproval}
                         onWordDelete={() => setInput((prev) => deleteWordBackward(prev))}
                         onLineDelete={() => setInput((prev) => deleteLine(prev))}
                     />

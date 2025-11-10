@@ -934,21 +934,9 @@ program
                             }
                         }
 
-                        const toolConfirmationMode =
-                            agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
-
-                        if (toolConfirmationMode === 'event-based') {
-                            const { CLIToolConfirmationSubscriber } = await import(
-                                './cli/tool-confirmation/cli-confirmation-handler.js'
-                            );
-                            const cliSubscriber = new CLIToolConfirmationSubscriber();
-                            cliSubscriber.subscribe(agent.agentEventBus);
-                            logger.info('Setting up CLI event subscriptions...');
-                        } else {
-                            logger.info(
-                                `Tool confirmation mode '${toolConfirmationMode}' active – skipping interactive CLI approval prompts.`
-                            );
-                        }
+                        // Note: ink-cli handles approvals directly via React components
+                        // No need to set up CLIToolConfirmationSubscriber here
+                        // The ink-cli component listens to 'dexto:approvalRequest' events directly
 
                         if (headlessInput) {
                             // For ink-cli, headless mode falls back to regular CLI
