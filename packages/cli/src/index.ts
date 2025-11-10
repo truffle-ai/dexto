@@ -104,7 +104,7 @@ program
     .option('-r, --resume <sessionId>', 'Resume session by ID')
     .option(
         '--mode <mode>',
-        'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
+        'The application in which dexto should talk to you - web | cli | ink-cli | server | discord | telegram | mcp',
         'web'
     )
     .option('--web-port <port>', 'port for the web UI (default: 3000)', '3000')
@@ -577,7 +577,8 @@ program
             '  dexto -p "query"         Run one-shot query, then exit\n' +
             '  cat file | dexto -p "query"  Process piped content\n\n' +
             'CLI Mode:\n' +
-            '  dexto --mode cli         Start interactive CLI REPL\n\n' +
+            '  dexto --mode cli         Start interactive CLI REPL\n' +
+            '  dexto --mode ink-cli     Start modern Ink-based CLI (recommended)\n\n' +
             'Session Management:\n' +
             '  dexto -c                 Continue most recent conversation\n' +
             '  dexto -c -p "query"      Continue with one-shot query, then exit\n' +
@@ -882,6 +883,80 @@ program
                             safeExit('main', 0);
                         } else {
                             await startAiCli(agent); // Interactive CLI
+                        }
+                        break;
+                    }
+
+                    case 'ink-cli': {
+                        // Handle session options - same as CLI mode
+                        if (opts.resume) {
+                            try {
+                                await agent.loadSessionAsDefault(opts.resume);
+                                logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                console.error(
+                                    '💡 Use `dexto session list` to see available sessions'
+                                );
+                                safeExit('main', 1, 'resume-failed');
+                            }
+                        } else if (opts.continue) {
+                            try {
+                                await loadMostRecentSession(agent);
+                                const sessionsAfter = await agent.listSessions();
+                                if (sessionsAfter.length === 0) {
+                                    const session = await agent.createSession();
+                                    await agent.loadSessionAsDefault(session.id);
+                                    logger.info(
+                                        `Created new session: ${session.id}`,
+                                        null,
+                                        'green'
+                                    );
+                                }
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                safeExit('main', 1, 'continue-failed');
+                            }
+                        } else {
+                            try {
+                                const session = await agent.createSession();
+                                await agent.loadSessionAsDefault(session.id);
+                                logger.info(`Created new session: ${session.id}`, null, 'green');
+                            } catch (err) {
+                                console.error(
+                                    `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
+                                );
+                                safeExit('main', 1, 'create-session-failed');
+                            }
+                        }
+
+                        const toolConfirmationMode =
+                            agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
+
+                        if (toolConfirmationMode === 'event-based') {
+                            const { CLIToolConfirmationSubscriber } = await import(
+                                './cli/tool-confirmation/cli-confirmation-handler.js'
+                            );
+                            const cliSubscriber = new CLIToolConfirmationSubscriber();
+                            cliSubscriber.subscribe(agent.agentEventBus);
+                            logger.info('Setting up CLI event subscriptions...');
+                        } else {
+                            logger.info(
+                                `Tool confirmation mode '${toolConfirmationMode}' active – skipping interactive CLI approval prompts.`
+                            );
+                        }
+
+                        if (headlessInput) {
+                            // For ink-cli, headless mode falls back to regular CLI
+                            await startHeadlessCli(agent, headlessInput);
+                            safeExit('main', 0);
+                        } else {
+                            const { startInkCli } = await import('./cli/ink-cli.js');
+                            await startInkCli(agent);
                         }
                         break;
                     }

@@ -74,11 +74,16 @@ dexto
 
 # 3. Start interactive CLI mode instead of web UI
 dexto --mode cli
+
+# 4. Start modern Ink-based CLI (recommended for terminal users)
+dexto --mode ink-cli
 ```
 
 In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. 
 
-The interactive CLI (3) allows you to interact with agents in the terminal.
+The interactive CLI (3) allows you to interact with agents in the terminal with a traditional REPL interface.
+
+The modern Ink CLI (4) provides a clean, chat-optimized interface with message history, streaming responses, and a frictionless user experience.
 
 See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
 

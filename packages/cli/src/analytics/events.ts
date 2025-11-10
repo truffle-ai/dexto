@@ -64,7 +64,7 @@ export type CliCommandEvent = CliCommandStartEvent | CliCommandEndEvent | CliCom
 export interface SessionStartEvent {}
 
 export interface PromptEvent {
-    mode: 'cli' | 'headless';
+    mode: 'cli' | 'ink-cli' | 'headless';
     provider: string;
     model: string;
 }
