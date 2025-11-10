@@ -24,33 +24,136 @@ import { OtelConfigurationSchema } from '@core/telemetry/schemas.js';
 // (agent card overrides are now represented as Partial<AgentCard> and processed via AgentCardSchema)
 
 /**
- * Security Scheme Schema (A2A Protocol)
- * Defines authentication mechanisms for the agent
+ * Security Scheme Schemas (A2A Protocol, based on OpenAPI 3.0 Security Scheme Object)
+ * Defines authentication mechanisms for the agent as a discriminated union
  */
-export const SecuritySchemeSchema = z
+
+const ApiKeySecurityScheme = z
     .object({
-        type: z
-            .enum(['apiKey', 'http', 'oauth2', 'openIdConnect', 'mutualTLS'])
-            .describe('Type of security scheme'),
-        name: z.string().optional().describe('Name of the header/query parameter for apiKey'),
-        in: z
-            .enum(['query', 'header', 'cookie'])
-            .optional()
-            .describe('Location of API key (for apiKey type)'),
-        scheme: z.string().optional().describe('HTTP authentication scheme (for http type)'),
-        bearerFormat: z.string().optional().describe('Hint for bearer token format'),
-        flows: z.record(z.unknown()).optional().describe('OAuth2 flow configuration'),
-        openIdConnectUrl: z
-            .string()
-            .url()
-            .optional()
-            .describe('OpenID Connect discovery URL (for openIdConnect type)'),
+        type: z.literal('apiKey').describe('Security scheme type'),
+        name: z.string().describe('Name of the header/query/cookie parameter'),
+        in: z.enum(['query', 'header', 'cookie']).describe('Location of API key'),
+        description: z.string().optional().describe('Description of the security scheme'),
     })
-    .passthrough();
+    .strict();
+
+const HttpSecurityScheme = z
+    .object({
+        type: z.literal('http').describe('Security scheme type'),
+        scheme: z.string().describe('HTTP authorization scheme (e.g., basic, bearer)'),
+        bearerFormat: z.string().optional().describe('Hint for bearer token format'),
+        description: z.string().optional().describe('Description of the security scheme'),
+    })
+    .strict();
+
+const OAuth2FlowSchema = z
+    .object({
+        authorizationUrl: z.string().url().optional().describe('Authorization URL for the flow'),
+        tokenUrl: z.string().url().optional().describe('Token URL for the flow'),
+        refreshUrl: z.string().url().optional().describe('Refresh URL for the flow'),
+        scopes: z.record(z.string()).describe('Available scopes for the OAuth2 flow'),
+    })
+    .strict();
+
+const OAuth2SecurityScheme = z
+    .object({
+        type: z.literal('oauth2').describe('Security scheme type'),
+        flows: z
+            .object({
+                implicit: OAuth2FlowSchema.optional(),
+                password: OAuth2FlowSchema.optional(),
+                clientCredentials: OAuth2FlowSchema.optional(),
+                authorizationCode: OAuth2FlowSchema.optional(),
+            })
+            .strict()
+            .describe('OAuth2 flow configurations'),
+        description: z.string().optional().describe('Description of the security scheme'),
+    })
+    .strict();
+
+const OpenIdConnectSecurityScheme = z
+    .object({
+        type: z.literal('openIdConnect').describe('Security scheme type'),
+        openIdConnectUrl: z.string().url().describe('OpenID Connect discovery URL'),
+        description: z.string().optional().describe('Description of the security scheme'),
+    })
+    .strict();
+
+const MutualTLSSecurityScheme = z
+    .object({
+        type: z.literal('mutualTLS').describe('Security scheme type'),
+        description: z.string().optional().describe('Description of the security scheme'),
+    })
+    .strict();
+
+export const SecuritySchemeSchema = z.discriminatedUnion('type', [
+    ApiKeySecurityScheme,
+    HttpSecurityScheme,
+    OAuth2SecurityScheme,
+    OpenIdConnectSecurityScheme,
+    MutualTLSSecurityScheme,
+]);
+
+/**
+ * Agent Card Signature Schema (A2A Protocol v0.3.0)
+ * JSON Web Signature for verifying AgentCard integrity
+ */
+const AgentCardSignatureSchema = z
+    .object({
+        protected: z.string().describe('Base64url-encoded JWS Protected Header'),
+        signature: z.string().describe('Base64url-encoded JWS Signature'),
+    })
+    .strict();
+
+/**
+ * Dexto Extension Metadata Schema
+ * Namespace for Dexto-specific extension fields
+ */
+const DextoMetadataSchema = z
+    .object({
+        authentication: z
+            .object({
+                schemes: z
+                    .array(z.string())
+                    .default([])
+                    .describe('Legacy authentication schemes (deprecated: use securitySchemes)'),
+                credentials: z.string().optional().describe('Credentials information'),
+            })
+            .strict()
+            .optional()
+            .describe('Legacy authentication configuration'),
+
+        delegation: z
+            .object({
+                protocol: z
+                    .enum(['dexto-v1', 'http-simple', 'a2a-jsonrpc', 'mcp-http'])
+                    .describe('Delegation protocol version'),
+                endpoint: z.string().describe('Delegation endpoint (relative path or full URL)'),
+                supportsSession: z.boolean().describe('Whether agent supports stateful sessions'),
+                supportsStreaming: z
+                    .boolean()
+                    .optional()
+                    .describe('Whether agent supports streaming responses'),
+            })
+            .strict()
+            .optional()
+            .describe('Delegation protocol information for agent-to-agent communication'),
+
+        owner: z
+            .object({
+                userId: z.string().describe('Unique user identifier from auth system'),
+                username: z.string().describe('Display name'),
+                email: z.string().email().optional().describe('Optional user email'),
+            })
+            .strict()
+            .optional()
+            .describe('Agent owner information (for multi-tenant deployments)'),
+    })
+    .strict();
 
 /**
  * Agent Card Schema (A2A Protocol v0.3.0 Compliant)
- * Extended with Dexto-specific fields for backward compatibility
+ * Follows the A2A specification with extensions in the metadata field
  */
 export const AgentCardSchema = z
     .object({
@@ -64,12 +167,7 @@ export const AgentCardSchema = z
 
         name: z.string().describe('Human-readable agent name'),
 
-        description: z
-            .string()
-            .default(
-                'Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols.'
-            )
-            .describe('Detailed description of agent purpose and capabilities'),
+        description: z.string().describe('Detailed description of agent purpose and capabilities'),
 
         url: z.string().url().describe('Primary endpoint URL for the agent'),
 
@@ -194,46 +292,18 @@ export const AgentCardSchema = z
             .optional()
             .describe('Whether extended card is available with authentication'),
 
-        // ────────────────────────────────────────────────────────
-        // Extension Fields (Dexto-specific)
-        // ────────────────────────────────────────────────────────
-        authentication: z
-            .object({
-                schemes: z
-                    .array(z.string())
-                    .default([])
-                    .describe('Additional authentication schemes (use securitySchemes for A2A)'),
-                credentials: z.string().optional().describe('Credentials information'),
-            })
-            .strict()
-            .default({})
-            .describe('Additional authentication configuration'),
-
-        delegation: z
-            .object({
-                protocol: z
-                    .enum(['dexto-v1', 'http-simple', 'a2a-jsonrpc', 'mcp-http'])
-                    .describe('Delegation protocol version'),
-                endpoint: z.string().describe('Delegation endpoint (relative path or full URL)'),
-                supportsSession: z.boolean().describe('Whether agent supports stateful sessions'),
-                supportsStreaming: z
-                    .boolean()
-                    .optional()
-                    .describe('Whether agent supports streaming responses'),
-            })
-            .strict()
+        signatures: z
+            .array(AgentCardSignatureSchema)
             .optional()
-            .describe('Delegation protocol information for agent-to-agent communication'),
+            .describe('JSON Web Signatures for verifying AgentCard integrity'),
 
-        owner: z
+        metadata: z
             .object({
-                userId: z.string().describe('Unique user identifier from auth system'),
-                username: z.string().describe('Display name'),
-                email: z.string().email().optional().describe('Optional user email'),
+                dexto: DextoMetadataSchema.optional().describe('Dexto-specific extension metadata'),
             })
-            .strict()
+            .passthrough()
             .optional()
-            .describe('Agent owner information (for multi-tenant deployments)'),
+            .describe('Extension-specific metadata (namespaced by extension name)'),
     })
     .strict();
 // Input type for user-facing API (pre-parsing)

@@ -29,6 +29,9 @@ export function createAgentCard(
     effectiveInput.name = overrides?.name ?? defaultName;
     effectiveInput.version = overrides?.version ?? defaultVersion;
     effectiveInput.url = overrides?.url ?? `${defaultBaseUrl}/mcp`;
+    effectiveInput.description =
+        overrides?.description ??
+        'Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols.';
 
     // Handle context-dependent capabilities.pushNotifications.
     const capsFromInput = effectiveInput.capabilities;
