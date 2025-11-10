@@ -90,13 +90,14 @@ export function withSpan(options: {
                 span.setAttribute('baggage.resourceId', resourceId);
             }
 
+            if (runId !== undefined) {
+                span.setAttribute('runId', String(runId));
+                span.setAttribute('baggage.runId', String(runId));
+            }
+
             if (componentName) {
                 span.setAttribute('componentName', componentName);
                 span.setAttribute('baggage.componentName', componentName);
-                if (runId !== undefined) {
-                    span.setAttribute('runId', String(runId));
-                    span.setAttribute('baggage.runId', String(runId));
-                }
             } else if (this && typeof this === 'object') {
                 const contextObj = this as {
                     name?: string;
@@ -110,6 +111,7 @@ export function withSpan(options: {
                 }
                 if (contextObj.runId) {
                     span.setAttribute('runId', contextObj.runId);
+                    span.setAttribute('baggage.runId', contextObj.runId);
                 }
 
                 // Merge with existing baggage to preserve parent context values
@@ -123,26 +125,44 @@ export function withSpan(options: {
                     });
                 }
 
-                // Preserve existing baggage values
+                // Preserve existing baggage values and metadata
                 if (sessionId !== undefined) {
-                    baggageEntries.sessionId = { value: String(sessionId) };
+                    baggageEntries.sessionId = {
+                        ...baggageEntries.sessionId,
+                        value: String(sessionId),
+                    };
                 }
                 if (requestId !== undefined) {
-                    baggageEntries['http.request_id'] = { value: String(requestId) };
+                    baggageEntries['http.request_id'] = {
+                        ...baggageEntries['http.request_id'],
+                        value: String(requestId),
+                    };
                 }
                 if (threadId !== undefined) {
-                    baggageEntries.threadId = { value: String(threadId) };
+                    baggageEntries.threadId = {
+                        ...baggageEntries.threadId,
+                        value: String(threadId),
+                    };
                 }
                 if (resourceId !== undefined) {
-                    baggageEntries.resourceId = { value: String(resourceId) };
+                    baggageEntries.resourceId = {
+                        ...baggageEntries.resourceId,
+                        value: String(resourceId),
+                    };
                 }
 
                 // Add new component-specific baggage values
                 if (inferredName !== undefined) {
-                    baggageEntries.componentName = { value: String(inferredName) };
+                    baggageEntries.componentName = {
+                        ...baggageEntries.componentName,
+                        value: String(inferredName),
+                    };
                 }
                 if (contextObj.runId !== undefined) {
-                    baggageEntries.runId = { value: String(contextObj.runId) };
+                    baggageEntries.runId = {
+                        ...baggageEntries.runId,
+                        value: String(contextObj.runId),
+                    };
                 }
 
                 if (Object.keys(baggageEntries).length > 0) {

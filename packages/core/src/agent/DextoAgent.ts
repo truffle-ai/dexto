@@ -445,8 +445,8 @@ export class DextoAgent {
             });
         }
 
-        // Add or update sessionId
-        baggageEntries.sessionId = { value: targetSessionId };
+        // Add or update sessionId while preserving any existing metadata
+        baggageEntries.sessionId = { ...baggageEntries.sessionId, value: targetSessionId };
 
         // Create updated context with merged baggage
         const updatedContext = propagation.setBaggage(
