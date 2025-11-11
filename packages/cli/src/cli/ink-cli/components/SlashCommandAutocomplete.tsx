@@ -184,10 +184,13 @@ export default function SlashCommandAutocomplete({
         };
     }, [isVisible, agent]);
 
-    // Extract command name from search query (everything after /)
+    // Extract command name from search query (only the first word after /)
     const commandQuery = useMemo(() => {
         if (!searchQuery.startsWith('/')) return '';
-        return searchQuery.slice(1).trim();
+        const afterSlash = searchQuery.slice(1).trim();
+        // Only take the first word (command name), not the arguments
+        const spaceIndex = afterSlash.indexOf(' ');
+        return spaceIndex > 0 ? afterSlash.slice(0, spaceIndex) : afterSlash;
     }, [searchQuery]);
 
     // Filter prompts and system commands based on query
@@ -219,20 +222,32 @@ export default function SlashCommandAutocomplete({
             });
     }, [systemCommands, commandQuery]);
 
+    // Check if user has started typing arguments (hide autocomplete if so)
+    const hasArguments = useMemo(() => {
+        if (!searchQuery.startsWith('/')) return false;
+        const afterSlash = searchQuery.slice(1).trim();
+        return afterSlash.includes(' ');
+    }, [searchQuery]);
+
     // Show create option only if query doesn't match any commands and is a valid prompt name
     const showCreateOption = useMemo(() => {
         if (!commandQuery) return false; // Don't show create when just "/"
+        if (hasArguments) return false; // Don't show create when typing arguments
         // Only show create if no matches and query looks like a prompt name (no spaces, valid chars)
         return (
             filteredPrompts.length === 0 &&
             filteredSystemCommands.length === 0 &&
-            commandQuery.length > 0 &&
-            !commandQuery.includes(' ')
+            commandQuery.length > 0
         );
-    }, [commandQuery, filteredPrompts.length, filteredSystemCommands.length]);
+    }, [commandQuery, hasArguments, filteredPrompts.length, filteredSystemCommands.length]);
 
     // Combine items: system commands first, then prompts, then create option
+    // Hide autocomplete if user has started typing arguments
     const combinedItems = useMemo(() => {
+        if (hasArguments) {
+            return []; // Hide autocomplete when typing arguments
+        }
+
         const items: Array<
             | { kind: 'system'; command: SystemCommandItem }
             | { kind: 'prompt'; prompt: PromptItem }
@@ -251,7 +266,7 @@ export default function SlashCommandAutocomplete({
         }
 
         return items;
-    }, [showCreateOption, filteredPrompts, filteredSystemCommands]);
+    }, [hasArguments, showCreateOption, filteredPrompts, filteredSystemCommands]);
 
     // Reset selected index and scroll when items change
     useEffect(() => {
@@ -342,6 +357,9 @@ export default function SlashCommandAutocomplete({
     );
 
     if (!isVisible) return null;
+
+    // Hide autocomplete when user is typing arguments
+    if (hasArguments) return null;
 
     if (isLoading) {
         return (

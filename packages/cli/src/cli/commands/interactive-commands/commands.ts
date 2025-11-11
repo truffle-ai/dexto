@@ -24,7 +24,7 @@ import type { CommandDefinition } from './command-parser.js';
 
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
-import { sessionCommands } from './session/index.js';
+import { searchCommand, resumeCommand } from './session/index.js';
 import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
 import { systemCommands } from './system/index.js';
@@ -50,15 +50,18 @@ import { documentationCommands } from './documentation-commands.js';
 export const CLI_COMMANDS: CommandDefinition[] = [];
 
 // Build the commands array with proper help command that can access all commands
+// Note: Interactive CLI uses simplified commands (interactive selectors instead of subcommands)
+// Regular CLI (headless) has full subcommand access via `dexto session list`, etc.
 const baseCommands: CommandDefinition[] = [
     // General commands (without help)
     ...generalCommands,
 
-    // Session management commands
-    ...sessionCommands,
+    // Session management - simplified for interactive CLI
+    searchCommand, // /search - search across sessions
+    resumeCommand, // /resume - show interactive selector (no /session subcommands)
 
-    // Model management commands
-    modelCommands,
+    // Model management - simplified for interactive CLI
+    modelCommands, // /model - show interactive selector (subcommands available but not emphasized)
 
     // MCP server management commands
     mcpCommands,

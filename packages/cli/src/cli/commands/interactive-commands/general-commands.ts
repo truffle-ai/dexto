@@ -36,12 +36,11 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
                 // Define category order for consistent display
                 const categoryOrder = [
                     'General',
-                    'Session Management',
-                    'Model Management',
                     'MCP Management',
                     'Tool Management',
                     'Prompt Management',
                     'System',
+                    'Documentation',
                 ];
 
                 const categories: { [key: string]: CommandDefinition[] } = {};
@@ -85,10 +84,12 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
                     }
                 }
 
-                outputLines.push('💡 Tip: Use /help <command> for detailed help on any command');
-                outputLines.push(
-                    '💡 Tip: Type your message normally (without /) to chat with the AI\n'
-                );
+                outputLines.push('💡 Tips:');
+                outputLines.push('   • Type your message normally (without /) to chat with the AI');
+                outputLines.push('   • Use /<prompt-name> to execute any listed prompt directly');
+                outputLines.push('   • Use /clear to start a new session (preserves old)');
+                outputLines.push('   • Press Ctrl+M to switch models, Ctrl+R to switch sessions');
+                outputLines.push('   • Use /search <query> to search across all sessions\n');
                 const output = outputLines.join('\n');
 
                 // Log for regular CLI (with chalk formatting)
@@ -176,18 +177,24 @@ export const generalCommands: CommandDefinition[] = [
     },
     {
         name: 'clear',
-        description: 'Clear conversation history',
+        description: 'Start a new session (clears viewable history without deleting)',
         usage: '/clear',
         category: 'General',
-        aliases: ['reset'],
+        aliases: ['new'],
         handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
-                await agent.resetConversation();
-                const output = '🔄 Conversation history cleared.';
+                // Create a new session instead of deleting history
+                // This clears the viewable conversation without deleting the old session
+                const newSession = await agent.createSession();
+
+                // Switch to the new session (ink-cli will handle UI updates via SESSION_SET dispatch)
+                await agent.loadSessionAsDefault(newSession.id);
+
+                const output = `🔄 Started new session: ${newSession.id.slice(0, 8)}\n💡 Previous session preserved. Use /resume to switch back.`;
                 console.log(chalk.green(output));
                 return formatForInkCli(output);
             } catch (error) {
-                const errorMsg = `Failed to clear conversation: ${error instanceof Error ? error.message : String(error)}`;
+                const errorMsg = `Failed to start new session: ${error instanceof Error ? error.message : String(error)}`;
                 logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }

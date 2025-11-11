@@ -48,7 +48,7 @@ export const promptCommands: CommandDefinition[] = [
     },
     {
         name: 'prompts',
-        description: 'List all available prompts (MCP + internal)',
+        description: 'List all available prompts (use /<prompt-name> to execute)',
         usage: '/prompts',
         category: 'Prompt Management',
         handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
@@ -217,6 +217,7 @@ export const promptCommands: CommandDefinition[] = [
                     console.log();
                 }
                 console.log(chalk.dim(`Total: ${promptNames.length} prompts`));
+                console.log(chalk.dim('💡 Use /<prompt-name> to execute a prompt directly\n'));
 
                 return formatForInkCli(output);
             } catch (error) {
@@ -226,96 +227,8 @@ export const promptCommands: CommandDefinition[] = [
             }
         },
     },
-    {
-        // TODO: (355) USER TO CHECK: Nit: rename to 'use prompt'?
-        // https://github.com/truffle-ai/dexto/pull/355#discussion_r2412938399
-        name: 'use',
-        description: 'Use a specific prompt with optional arguments',
-        usage: '/<prompt-name> [args]',
-        category: 'Prompt Management',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
-            try {
-                if (args.length === 0) {
-                    const errorMsg =
-                        '❌ Please specify a prompt name\nUsage: /<prompt-name> [args]\nExample: /code-review language=javascript code="console.log(\'hello\')"';
-                    console.log(chalk.red('❌ Please specify a prompt name'));
-                    console.log(chalk.dim('Usage: /<prompt-name> [args]'));
-                    console.log(
-                        chalk.dim(
-                            'Example: /code-review language=javascript code="console.log(\'hello\')"'
-                        )
-                    );
-                    return formatForInkCli(errorMsg);
-                }
-
-                const promptName = args[0];
-                const promptArgs = args.slice(1);
-
-                // Check if prompt exists
-                if (!promptName || !(await agent.hasPrompt(promptName))) {
-                    const errorMsg = `❌ Prompt '${promptName}' not found\nUse /prompts to see available prompts`;
-                    console.log(chalk.red(`❌ Prompt '${promptName}' not found`));
-                    console.log(chalk.dim('Use /prompts to see available prompts'));
-                    return formatForInkCli(errorMsg);
-                }
-
-                const { argMap, context } = splitPromptArguments(promptArgs);
-
-                console.log(chalk.cyan(`🤖 Using prompt: ${promptName}`));
-                if (Object.keys(argMap).length > 0) {
-                    console.log(chalk.dim(`Arguments: ${JSON.stringify(argMap)}`));
-                }
-                if (context) {
-                    console.log(chalk.dim(`Context: ${context}`));
-                }
-
-                // Use resolvePrompt instead of getPrompt + flattenPromptResult (matches WebUI approach)
-                const resolveOptions: {
-                    args?: Record<string, unknown>;
-                    context?: string;
-                } = {};
-                if (Object.keys(argMap).length > 0) {
-                    resolveOptions.args = argMap;
-                }
-                if (context) {
-                    resolveOptions.context = context;
-                }
-                const result = await agent.resolvePrompt(promptName!, resolveOptions);
-
-                // Convert resource URIs to @resource mentions so agent.run() can expand them
-                let finalText = result.text;
-                if (result.resources.length > 0) {
-                    // Append resource references as @<uri> format
-                    const resourceRefs = result.resources.map((uri) => `@<${uri}>`).join(' ');
-                    finalText = finalText ? `${finalText}\n\n${resourceRefs}` : resourceRefs;
-                }
-
-                if (finalText.trim()) {
-                    // Use sessionId from agent context (set by executeCommand)
-                    const sessionId = agent.getCurrentSessionId();
-                    await agent.run(finalText.trim(), undefined, undefined, sessionId);
-                    return '';
-                } else {
-                    const warningMsg = `⚠️  Prompt '${promptName}' returned no content`;
-                    console.log(chalk.yellow(warningMsg));
-                    return formatForInkCli(warningMsg);
-                }
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error(`Failed to use prompt: ${errorMessage}`);
-
-                if (errorMessage.includes('not found')) {
-                    const errorMsg = `❌ Prompt not found. Try running /prompts to see available prompts.`;
-                    console.log(chalk.red(errorMsg));
-                    return formatForInkCli(errorMsg);
-                } else {
-                    const errorMsg = `❌ Error: ${errorMessage}`;
-                    console.log(chalk.red(errorMsg));
-                    return formatForInkCli(errorMsg);
-                }
-            }
-        },
-    },
+    // Note: /use command removed - use /<prompt-name> directly instead
+    // Prompts are automatically registered as slash commands (see getDynamicPromptCommands)
 ];
 
 /**

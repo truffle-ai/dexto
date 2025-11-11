@@ -9,8 +9,9 @@
  */
 
 import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
+import { CommandOutputHelper } from './utils/command-output.js';
 
 /**
  * Documentation commands
@@ -23,7 +24,7 @@ export const documentationCommands: CommandDefinition[] = [
         category: 'Documentation',
         aliases: ['doc'],
         handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
-            const docsUrl = 'https://docs.dexto.ai/category/getting-started/';
+            const docsUrl = 'https://docs.dexto.ai/docs/category/getting-started';
             try {
                 const { spawn } = await import('child_process');
 
@@ -38,14 +39,11 @@ export const documentationCommands: CommandDefinition[] = [
                           : 'xdg-open';
 
                 spawn(command, [docsUrl], { detached: true, stdio: 'ignore' });
-                console.log(chalk.green('✅ Documentation opened in browser'));
+                return CommandOutputHelper.success('✅ Documentation opened in browser');
             } catch (error) {
-                logger.error(
-                    `Failed to open documentation: ${error instanceof Error ? error.message : String(error)}`
-                );
                 console.log(chalk.yellow(`💡 You can manually visit: ${docsUrl}`));
+                return CommandOutputHelper.error(error, 'Failed to open documentation');
             }
-            return true;
         },
     },
 ];

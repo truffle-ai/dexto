@@ -21,6 +21,12 @@ export type InteractiveSelectorType = 'none' | 'model' | 'session';
  */
 export function detectAutocompleteType(input: string): AutocompleteType {
     if (input.startsWith('/')) {
+        // Only show slash autocomplete if user hasn't started typing arguments
+        // Once there's a space after the command, hide autocomplete
+        const afterSlash = input.slice(1).trim();
+        if (afterSlash.includes(' ')) {
+            return 'none'; // User is typing arguments, hide autocomplete
+        }
         return 'slash';
     }
 

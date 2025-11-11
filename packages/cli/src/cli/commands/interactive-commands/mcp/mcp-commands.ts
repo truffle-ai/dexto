@@ -255,20 +255,23 @@ export const mcpCommands: CommandDefinition = {
             usage: '/mcp remove <name>',
             handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 if (args.length === 0) {
-                    console.log(chalk.red('❌ Usage: /mcp remove <name>'));
-                    return true;
+                    const errorMsg = '❌ Usage: /mcp remove <name>';
+                    console.log(chalk.red(errorMsg));
+                    return errorMsg;
                 }
 
                 const name = args[0]!;
                 try {
                     await agent.removeMcpServer(name);
-                    console.log(chalk.green(`✅ MCP server '${name}' removed successfully`));
+                    const successMsg = `✅ MCP server '${name}' removed successfully`;
+                    console.log(chalk.green(successMsg));
+                    return successMsg;
                 } catch (error) {
-                    logger.error(
-                        `Failed to remove MCP server '${name}': ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    const errorMsg = `❌ Failed to remove MCP server '${name}': ${error instanceof Error ? error.message : String(error)}`;
+                    logger.error(errorMsg);
+                    console.log(chalk.red(errorMsg));
+                    return errorMsg;
                 }
-                return true;
             },
         },
         {
@@ -276,6 +279,40 @@ export const mcpCommands: CommandDefinition = {
             description: 'Show detailed help for MCP commands',
             usage: '/mcp help',
             handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+                const helpText = [
+                    '\n🔌 MCP Management Commands:\n',
+                    'Available subcommands:',
+                    '  /mcp list - List all configured MCP servers',
+                    '  /mcp add <type> <name> <config...> - Add a new MCP server',
+                    '  /mcp remove <name> - Remove an MCP server',
+                    '  /mcp help - Show this help message',
+                    '\n📦 Add MCP Servers:\n',
+                    '▶️ STDIO Servers (most common):',
+                    '  /mcp add stdio <name> <command> [args...] [options]',
+                    '  Examples:',
+                    '    /mcp add stdio music uvx truffle-ai-music-creator-mcp',
+                    '    /mcp add stdio filesystem npx -y @modelcontextprotocol/server-filesystem .',
+                    '    /mcp add stdio sqlite npx -y @executeautomation/database-server example.db',
+                    '\n🌐 HTTP Servers:',
+                    '  /mcp add http <name> <url> [options]',
+                    '  Examples:',
+                    '    /mcp add http remote http://localhost:8080',
+                    '    /mcp add http notion https://api.notion.com --header-Authorization="Bearer token"',
+                    '\n📡 SSE Servers:',
+                    '  /mcp add sse <name> <url> [options]',
+                    '  Examples:',
+                    '    /mcp add sse events http://localhost:9000/events',
+                    '\n⚙️ Options:',
+                    '  --timeout=<ms>         Connection timeout (default: 30000)',
+                    '  --mode=<strict|lenient> Connection mode (default: lenient)',
+                    '  --env-<key>=<value>    Environment variables (stdio only)',
+                    '  --header-<key>=<value> HTTP/SSE headers',
+                    '\n🧹 Remove MCP Server:',
+                    '  /mcp remove <server-name>',
+                    '\n💡 MCP servers let you connect to external tools and services.',
+                    '💡 Use /mcp add --help for detailed examples and options.\n',
+                ].join('\n');
+
                 console.log(chalk.bold.blue('\n🔌 MCP Management Commands:\n'));
                 console.log(chalk.cyan('Available subcommands:'));
                 console.log(`  ${chalk.yellow('/mcp list')} - List all configured MCP servers`);
@@ -341,7 +378,8 @@ export const mcpCommands: CommandDefinition = {
                         '\n💡 MCP servers let you connect to external tools and services.\n💡 Use /mcp add --help for detailed examples and options.\n'
                     )
                 );
-                return true;
+
+                return helpText;
             },
         },
     ],

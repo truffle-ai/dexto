@@ -22,6 +22,7 @@ import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
 import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
+import { CommandOutputHelper } from '../utils/command-output.js';
 
 /**
  * Helper to get current session info
@@ -82,12 +83,9 @@ export const sessionCommand: CommandDefinition = {
                     const current = await getCurrentSessionInfo(agent);
 
                     if (sessionIds.length === 0) {
-                        console.log(
-                            chalk.dim(
-                                '  No sessions found. Run `dexto` to start a new session, or use `dexto -c`/`dexto -r <id>`.\n'
-                            )
+                        return CommandOutputHelper.info(
+                            '📋 No sessions found.\n  Run `dexto` to start a new session, or use `dexto -r <id>` to resume.'
                         );
-                        return true;
                     }
 
                     // Fetch metadata concurrently; errors do not abort listing
@@ -118,13 +116,11 @@ export const sessionCommand: CommandDefinition = {
                     console.log(
                         chalk.dim(`\n  Total: ${displayed} of ${sessionIds.length} sessions`)
                     );
-                    console.log(chalk.dim('  💡 Use `dexto -r <id>` to resume a session\n'));
+                    console.log(chalk.dim('  💡 Use /resume <id> to switch sessions\n'));
+                    return CommandOutputHelper.noOutput(); // List is displayed above
                 } catch (error) {
-                    logger.error(
-                        `Failed to list sessions: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    return CommandOutputHelper.error(error, 'Failed to list sessions');
                 }
-                return true;
             },
         },
         {
@@ -139,19 +135,17 @@ export const sessionCommand: CommandDefinition = {
                         args.length > 0 && args[0] ? args[0] : agent.getCurrentSessionId();
 
                     await displaySessionHistory(sessionId, agent);
+                    return CommandOutputHelper.noOutput(); // History is displayed by displaySessionHistory
                 } catch (error) {
                     if (error instanceof Error && error.message.includes('not found')) {
-                        console.log(chalk.red(`❌ Session not found: ${args[0] || 'current'}`));
-                        console.log(chalk.dim('   Use /session list to see available sessions'));
-                    } else {
-                        logger.error(
-                            `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`,
-                            null,
-                            'red'
+                        return CommandOutputHelper.error(
+                            new Error(
+                                `Session not found: ${args[0] || 'current'}\n   Use /session list to see available sessions`
+                            )
                         );
                     }
+                    return CommandOutputHelper.error(error, 'Failed to get session history');
                 }
-                return true;
             },
         },
         {
@@ -159,37 +153,32 @@ export const sessionCommand: CommandDefinition = {
             description: 'Delete a session',
             usage: '/session delete <id>',
             handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
-                if (args.length === 0) {
-                    console.log(chalk.red('❌ Session ID required. Usage: /session delete <id>'));
-                    return true;
-                }
+                const validationError = CommandOutputHelper.validateRequiredArg(
+                    args,
+                    0,
+                    'Session ID',
+                    '/session delete <id>'
+                );
+                if (validationError) return validationError;
 
+                const sessionId = args[0] || '';
                 try {
-                    const sessionId = args[0]!; // Safe to assert non-null since we checked args.length
-
                     const current = await getCurrentSessionInfo(agent);
 
                     // Check if trying to delete current session
                     if (sessionId === current.id) {
-                        console.log(
-                            chalk.yellow('⚠️  Cannot delete the currently active session.')
+                        return CommandOutputHelper.warning(
+                            '⚠️  Cannot delete the currently active session.\n   Switch to another session first, then delete this one.'
                         );
-                        console.log(
-                            chalk.dim('   Switch to another session first, then delete this one.')
-                        );
-                        return true;
                     }
 
                     await agent.deleteSession(sessionId);
-                    console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
-                } catch (error) {
-                    logger.error(
-                        `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
-                        null,
-                        'red'
+                    return CommandOutputHelper.success(
+                        `✅ Deleted session: ${sessionId.slice(0, 8)}`
                     );
+                } catch (error) {
+                    return CommandOutputHelper.error(error, 'Failed to delete session');
                 }
-                return true;
             },
         },
         {
@@ -197,6 +186,18 @@ export const sessionCommand: CommandDefinition = {
             description: 'Show detailed help for session commands',
             usage: '/session help',
             handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+                const helpText = [
+                    '\n📋 Session Management Commands:\n',
+                    'Available subcommands:',
+                    '  /session list - List all sessions with their status and activity',
+                    '  /session history [sessionId] - Display session history',
+                    '  /session delete <id> - Delete a session (cannot delete active session)',
+                    '  /session help - Show this help message',
+                    '\n💡 Sessions allow you to maintain separate chat sessions',
+                    '💡 Use /resume to switch between sessions',
+                    '💡 Use /clear to start a new session (preserves old sessions)\n',
+                ].join('\n');
+
                 console.log(chalk.bold.blue('\n📋 Session Management Commands:\n'));
 
                 console.log(chalk.cyan('Available subcommands:'));
@@ -214,14 +215,12 @@ export const sessionCommand: CommandDefinition = {
                 console.log(
                     chalk.dim('\n💡 Sessions allow you to maintain separate chat sessions')
                 );
-                console.log(chalk.dim('💡 Use `dexto -r <id>` to resume a different session'));
+                console.log(chalk.dim('💡 Use /resume to switch between sessions'));
                 console.log(
-                    chalk.dim(
-                        '💡 Use `dexto` to start a new session or `dexto -c` to continue most recent\n'
-                    )
+                    chalk.dim('💡 Use /clear to start a new session (preserves old sessions)\n')
                 );
 
-                return true;
+                return helpText;
             },
         },
     ],
@@ -281,53 +280,29 @@ export const historyCommand: CommandDefinition = {
 };
 
 /**
- * Standalone resume command for quick access to session switching
+ * Resume command - shows interactive session selector
+ * Note: In interactive CLI, this always shows the selector (args ignored)
+ * For headless CLI, use `dexto -r <sessionId>` instead
  */
 export const resumeCommand: CommandDefinition = {
     name: 'resume',
-    description: 'Resume/switch to a different session',
-    usage: '/resume [sessionId]',
-    category: 'Session Management',
-    aliases: ['switch'],
-    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
-        // If session ID provided, switch directly
-        if (args.length > 0 && args[0]) {
-            try {
-                const sessionId = args[0]!;
-                const currentId = agent.getCurrentSessionId();
+    description: 'Switch to a different session (interactive selector)',
+    usage: '/resume',
+    category: 'General',
+    aliases: ['r'],
+    handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        // In interactive CLI, /resume always triggers the interactive selector
+        // The selector is shown via detectInteractiveSelector in inputParsing.ts
+        // This handler should not be called in ink-cli (selector shows instead)
+        // If called in headless mode, show help
+        const helpText = [
+            '📋 Resume Session',
+            '\nIn interactive mode: Type /resume to show the session selector',
+            'In headless mode: Use `dexto -r <sessionId>` instead\n',
+        ].join('\n');
 
-                if (sessionId === currentId) {
-                    console.log(chalk.yellow(`ℹ️  Already using session ${sessionId.slice(0, 8)}`));
-                    return true;
-                }
-
-                console.log(chalk.yellow(`🔄 Switching to session ${sessionId.slice(0, 8)}...`));
-                await agent.loadSessionAsDefault(sessionId);
-                console.log(chalk.green(`✅ Switched to session ${sessionId.slice(0, 8)}`));
-            } catch (error) {
-                logger.error(
-                    `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
-                    null,
-                    'red'
-                );
-            }
-            return true;
-        }
-
-        // No args - show help (interactive mode will handle this in ink-cli)
-        console.log(chalk.bold.blue('\n📋 Resume Session:\n'));
-        console.log(chalk.cyan('Usage:'));
-        console.log(
-            `  ${chalk.yellow('/resume')} ${chalk.blue('<sessionId>')} - Switch to a specific session`
-        );
-        console.log(
-            `  ${chalk.yellow('/resume')} - Show interactive session selector (ink-cli mode)`
-        );
-        console.log(chalk.dim('\n💡 Use /session list to see available sessions'));
-        console.log(
-            chalk.dim('💡 In ink-cli mode, /resume without args shows interactive selector\n')
-        );
-        return true;
+        console.log(chalk.blue(helpText));
+        return helpText;
     },
 };
 
@@ -336,23 +311,47 @@ export const resumeCommand: CommandDefinition = {
  */
 export const searchCommand: CommandDefinition = {
     name: 'search',
-    description: 'Search session history',
-    usage: '/search <query> [options]',
-    category: 'Session Management',
+    description: 'Search messages across all sessions (or specific session)',
+    usage: '/search <query> [--session <id>] [--role <user|assistant>] [--limit <n>]',
+    category: 'General',
     aliases: ['find'],
     handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         if (args.length === 0) {
-            console.log(chalk.red('❌ Search query is required'));
+            const helpText = [
+                '\n🔍 Search Session History:\n',
+                'Usage:',
+                '  /search <query> [--session <sessionId>] [--role <role>] [--limit <number>]',
+                '\nExamples:',
+                '  /search "hello world"           # Search all sessions',
+                '  /search error --role assistant  # Search assistant messages',
+                '  /search deploy --session abc123 # Search specific session',
+                '  /search bug --limit 20          # Show up to 20 results',
+                '\nOptions:',
+                '  --session <id>  Search only in specific session',
+                '  --role <role>   Filter by role (user, assistant, system, tool)',
+                '  --limit <n>     Max results to show (default: 10)\n',
+            ].join('\n');
+
+            console.log(chalk.bold.blue('\n🔍 Search Session History:\n'));
+            console.log(chalk.cyan('Usage:'));
             console.log(
                 chalk.dim(
-                    'Usage: /search <query> [--session <sessionId>] [--role <role>] [--limit <number>]'
+                    '  /search <query> [--session <sessionId>] [--role <role>] [--limit <number>]'
                 )
             );
-            console.log(chalk.dim('Examples:'));
-            console.log(chalk.dim('  /search "hello world"'));
-            console.log(chalk.dim('  /search error --role assistant'));
-            console.log(chalk.dim('  /search deploy --session abc123'));
-            return true;
+            console.log(chalk.cyan('\nExamples:'));
+            console.log(chalk.dim('  /search "hello world"           # Search all sessions'));
+            console.log(chalk.dim('  /search error --role assistant  # Search assistant messages'));
+            console.log(chalk.dim('  /search deploy --session abc123 # Search specific session'));
+            console.log(chalk.dim('  /search bug --limit 20          # Show up to 20 results'));
+            console.log(chalk.cyan('\nOptions:'));
+            console.log(chalk.dim('  --session <id>  Search only in specific session'));
+            console.log(
+                chalk.dim('  --role <role>   Filter by role (user, assistant, system, tool)')
+            );
+            console.log(chalk.dim('  --limit <n>     Max results to show (default: 10)\n'));
+
+            return helpText;
         }
 
         try {
@@ -403,34 +402,34 @@ export const searchCommand: CommandDefinition = {
             }
 
             if (!query.trim()) {
-                console.log(chalk.red('❌ Search query is required'));
-                return true;
+                const errorMsg = '❌ Search query is required';
+                console.log(chalk.red(errorMsg));
+                return errorMsg;
             }
-
-            console.log(chalk.blue(`🔍 Searching for: "${query}"`));
-            if (options.sessionId) {
-                console.log(chalk.dim(`   Session: ${options.sessionId}`));
-            }
-            if (options.role) {
-                console.log(chalk.dim(`   Role: ${options.role}`));
-            }
-            console.log(chalk.dim(`   Limit: ${options.limit}`));
-            console.log();
 
             const results = await agent.searchMessages(query, options);
 
             if (results.results.length === 0) {
-                console.log(chalk.yellow('📭 No messages found matching your search'));
-                return true;
+                const noResultsMsg = `📭 No messages found matching: "${query}"`;
+                console.log(chalk.yellow(noResultsMsg));
+                return noResultsMsg;
             }
 
-            console.log(
-                chalk.green(`✅ Found ${results.total} result${results.total === 1 ? '' : 's'}`)
-            );
-            if (results.hasMore) {
-                console.log(chalk.dim(`   Showing first ${results.results.length} results`));
+            // Build output string for ink-cli
+            const outputLines: string[] = [];
+            outputLines.push(`\n🔍 Search results for: "${query}"`);
+            if (options.sessionId) {
+                outputLines.push(`   Session: ${options.sessionId}`);
             }
-            console.log();
+            if (options.role) {
+                outputLines.push(`   Role: ${options.role}`);
+            }
+            outputLines.push(`   Limit: ${options.limit}\n`);
+            outputLines.push(`✅ Found ${results.total} result${results.total === 1 ? '' : 's'}`);
+            if (results.hasMore) {
+                outputLines.push(`   Showing first ${results.results.length} results`);
+            }
+            outputLines.push('');
 
             // Display results
             results.results.forEach((result, index) => {
@@ -441,24 +440,56 @@ export const searchCommand: CommandDefinition = {
                           ? chalk.green
                           : chalk.yellow;
 
+                // For console
                 console.log(
-                    `${chalk.dim(`${index + 1}.`)} ${chalk.cyan(result.sessionId)} ${roleColor(`[${result.message.role}]`)}`
+                    `${chalk.dim(`${index + 1}.`)} ${chalk.cyan(result.sessionId.slice(0, 8))} ${roleColor(`[${result.message.role}]`)}`
                 );
                 console.log(
                     `   ${result.context.replace(new RegExp(`(${query})`, 'gi'), chalk.inverse('$1'))}`
                 );
                 console.log();
+
+                // For ink-cli output (without color codes)
+                outputLines.push(
+                    `${index + 1}. ${result.sessionId.slice(0, 8)} [${result.message.role}]`
+                );
+                outputLines.push(`   ${result.context}`);
+                outputLines.push('');
             });
+
+            if (results.hasMore) {
+                outputLines.push('💡 Use --limit to see more results');
+            }
+
+            const output = outputLines.join('\n');
+
+            // Console output for regular CLI
+            console.log(chalk.blue(`🔍 Searching for: "${query}"`));
+            if (options.sessionId) {
+                console.log(chalk.dim(`   Session: ${options.sessionId}`));
+            }
+            if (options.role) {
+                console.log(chalk.dim(`   Role: ${options.role}`));
+            }
+            console.log(chalk.dim(`   Limit: ${options.limit}`));
+            console.log();
+            console.log(
+                chalk.green(`✅ Found ${results.total} result${results.total === 1 ? '' : 's'}`)
+            );
+            if (results.hasMore) {
+                console.log(chalk.dim(`   Showing first ${results.results.length} results`));
+            }
 
             if (results.hasMore) {
                 console.log(chalk.dim('💡 Use --limit to see more results'));
             }
+
+            return output;
         } catch (error) {
-            logger.error(
-                `Search failed: ${error instanceof Error ? error.message : String(error)}`
-            );
-            console.log(chalk.red('❌ Search failed. Please try again.'));
+            const errorMsg = `❌ Search failed: ${error instanceof Error ? error.message : String(error)}`;
+            logger.error(errorMsg);
+            console.log(chalk.red(errorMsg));
+            return errorMsg;
         }
-        return true;
     },
 };

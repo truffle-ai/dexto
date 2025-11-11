@@ -21,7 +21,7 @@ import { formatForInkCli } from '../utils/format-output.js';
 export const systemCommands: CommandDefinition[] = [
     {
         name: 'log',
-        description: `Set or view log level. Available levels: ${chalk.cyan('error')}, ${chalk.cyan('warn')}, ${chalk.cyan('info')}, ${chalk.cyan('http')}, ${chalk.cyan('verbose')}, ${chalk.cyan('debug')}, ${chalk.cyan('silly')}.`,
+        description: 'View or change log level interactively',
         usage: '/log [level]',
         category: 'System',
         aliases: [],
@@ -30,35 +30,49 @@ export const systemCommands: CommandDefinition[] = [
             const level = args[0];
 
             if (!level) {
+                // Interactive view: show current level and options
+                const currentLevel = logger.getLevel();
+                const logFilePath = logger.getLogFilePath();
+
+                console.log(chalk.bold.blue('\n📊 Logging Configuration:\n'));
+                console.log(`  Current level: ${chalk.green.bold(currentLevel)}`);
+                if (logFilePath) {
+                    console.log(`  Log file: ${chalk.cyan(logFilePath)}`);
+                }
+                console.log(chalk.dim('\n  Available levels (from least to most verbose):'));
+                validLevels.forEach((lvl) => {
+                    const isCurrent = lvl === currentLevel;
+                    const marker = isCurrent ? chalk.green('▶') : ' ';
+                    const levelText = isCurrent ? chalk.green.bold(lvl) : chalk.gray(lvl);
+                    console.log(`  ${marker} ${levelText}`);
+                });
+                console.log(
+                    chalk.dim('\n  💡 Use /log <level> to change level (e.g., /log debug)\n')
+                );
+
                 const output = [
-                    `\nCurrent log level: ${logger.getLevel()}`,
-                    logger.getLogFilePath() ? `Log file location: ${logger.getLogFilePath()}` : '',
-                    'Available levels: error, warn, info, http, verbose, debug, silly',
-                    '💡 Use /log [level] to set the log level',
+                    '\n📊 Logging Configuration:',
+                    `Current level: ${currentLevel}`,
+                    logFilePath ? `Log file: ${logFilePath}` : '',
+                    '\nAvailable levels: error, warn, info, http, verbose, debug, silly',
+                    '💡 Use /log <level> to change level',
                 ]
                     .filter(Boolean)
                     .join('\n');
 
-                console.log(chalk.blue(`\nCurrent log level: ${chalk.cyan(logger.getLevel())}`));
-                const logFilePath = logger.getLogFilePath();
-                if (logFilePath) {
-                    console.log(chalk.blue(`Log file location: ${chalk.cyan(logFilePath)}`));
-                }
-                console.log(
-                    chalk.dim('Available levels: error, warn, info, http, verbose, debug, silly')
-                );
-                console.log(chalk.dim('💡 Use /log [level] to set the log level'));
                 return formatForInkCli(output);
             }
 
             if (validLevels.includes(level)) {
                 logger.setLevel(level);
                 logger.info(`Log level set to ${level}`, null, 'green');
+                console.log(chalk.green(`✅ Log level changed to: ${chalk.bold(level)}`));
                 const output = `✅ Log level set to ${level}`;
                 return formatForInkCli(output);
             } else {
-                const errorMsg = `❌ Invalid log level: ${level}. Valid levels are: ${validLevels.join(', ')}`;
-                logger.error(errorMsg);
+                const errorMsg = `❌ Invalid log level: ${level}\nValid levels: ${validLevels.join(', ')}`;
+                console.log(chalk.red(`❌ Invalid log level: ${chalk.bold(level)}`));
+                console.log(chalk.dim(`Valid levels: ${validLevels.join(', ')}`));
                 return formatForInkCli(errorMsg);
             }
         },
