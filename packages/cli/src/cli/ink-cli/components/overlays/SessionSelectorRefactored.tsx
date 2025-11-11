@@ -14,6 +14,7 @@ interface SessionSelectorProps {
     onSelectSession: (sessionId: string) => void;
     onClose: () => void;
     agent: DextoAgent;
+    currentSessionId?: string | undefined;
 }
 
 interface SessionOption {
@@ -25,12 +26,14 @@ interface SessionOption {
 /**
  * Session selector - now a thin wrapper around BaseSelector
  * Provides data fetching and formatting only
+ * Uses explicit currentSessionId prop (WebUI pattern) instead of getCurrentSessionId
  */
 export default function SessionSelector({
     isVisible,
     onSelectSession,
     onClose,
     agent,
+    currentSessionId,
 }: SessionSelectorProps) {
     const [sessions, setSessions] = useState<SessionOption[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +49,6 @@ export default function SessionSelector({
         const fetchSessions = async () => {
             try {
                 const sessionIds = await agent.listSessions();
-                const currentId = agent.getCurrentSessionId();
 
                 // Fetch metadata for all sessions
                 const sessionList: SessionOption[] = await Promise.all(
@@ -56,13 +58,13 @@ export default function SessionSelector({
                             return {
                                 id,
                                 metadata,
-                                isCurrent: id === currentId,
+                                isCurrent: id === currentSessionId,
                             };
                         } catch {
                             return {
                                 id,
                                 metadata: undefined,
-                                isCurrent: id === currentId,
+                                isCurrent: id === currentSessionId,
                             };
                         }
                     })

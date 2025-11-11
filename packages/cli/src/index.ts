@@ -36,7 +36,6 @@ import {
     loadGlobalPreferences,
 } from '@dexto/agent-management';
 import type { AgentConfig } from '@dexto/core';
-import { startAiCli, startHeadlessCli, loadMostRecentSession } from './cli/cli.js';
 import { startApiServer } from './api/server.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
@@ -100,11 +99,10 @@ program
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
-    .option('-c, --continue', 'Continue most recent conversation')
     .option('-r, --resume <sessionId>', 'Resume session by ID')
     .option(
         '--mode <mode>',
-        'The application in which dexto should talk to you - web | cli | ink-cli | server | discord | telegram | mcp',
+        'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
         'web'
     )
     .option('--web-port <port>', 'port for the web UI (default: 3000)', '3000')
@@ -577,12 +575,10 @@ program
             '  dexto -p "query"         Run one-shot query, then exit\n' +
             '  cat file | dexto -p "query"  Process piped content\n\n' +
             'CLI Mode:\n' +
-            '  dexto --mode cli         Start interactive CLI REPL\n' +
-            '  dexto --mode ink-cli     Start modern Ink-based CLI (recommended)\n\n' +
+            '  dexto --mode cli         Start interactive CLI\n\n' +
             'Session Management:\n' +
-            '  dexto -c                 Continue most recent conversation\n' +
-            '  dexto -c -p "query"      Continue with one-shot query, then exit\n' +
-            '  dexto -r "<session-id>" "query"  Resume with one-shot query\n\n' +
+            '  dexto -r <session-id>    Resume specific session by ID\n' +
+            '  Use /resume in CLI       Resume a session interactively\n\n' +
             'Tool Confirmation:\n' +
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
             'Agent Selection:\n' +
@@ -810,12 +806,25 @@ program
                 // ——— Dispatch based on --mode ———
                 switch (opts.mode) {
                     case 'cli': {
-                        // Handle session options - only for CLI mode
+                        // Session management - CLI uses explicit sessionId like WebUI
+                        // NOTE: Migrated from defaultSession pattern which will be deprecated in core
+                        // We now pass sessionId explicitly to all agent methods (agent.run, agent.switchLLM, etc.)
+                        // Create new session or resume existing one
+                        let cliSessionId: string;
+
                         if (opts.resume) {
+                            // Resume specific session - verify it exists
                             try {
-                                // Resume specific session by ID
-                                await agent.loadSessionAsDefault(opts.resume);
-                                logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
+                                const session = await agent.getSession(opts.resume);
+                                if (!session) {
+                                    console.error(`❌ Session '${opts.resume}' not found`);
+                                    console.error(
+                                        '💡 Use `dexto session list` to see available sessions'
+                                    );
+                                    safeExit('main', 1, 'resume-failed');
+                                }
+                                cliSessionId = opts.resume;
+                                logger.info(`Resumed session: ${cliSessionId}`, null, 'cyan');
                             } catch (err) {
                                 console.error(
                                     `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
@@ -825,88 +834,55 @@ program
                                 );
                                 safeExit('main', 1, 'resume-failed');
                             }
-                        } else if (opts.continue) {
-                            try {
-                                // Continue from most recent session
-                                await loadMostRecentSession(agent);
-                                // Note: Session will be created automatically when first message is sent
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                safeExit('main', 1, 'continue-failed');
-                            }
-                        }
-                        // Note: No default session creation - session will be created when first message is sent
-
-                        const toolConfirmationMode =
-                            agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
-
-                        if (toolConfirmationMode === 'event-based') {
-                            // Set up CLI tool confirmation subscriber
-                            const { CLIToolConfirmationSubscriber } = await import(
-                                './cli/tool-confirmation/cli-confirmation-handler.js'
-                            );
-                            const cliSubscriber = new CLIToolConfirmationSubscriber();
-                            cliSubscriber.subscribe(agent.agentEventBus);
-                            logger.info('Setting up CLI event subscriptions...');
                         } else {
-                            logger.info(
-                                `Tool confirmation mode '${toolConfirmationMode}' active – skipping interactive CLI approval prompts.`
-                            );
+                            // Create a brand new session for this CLI launch (like WebUI does)
+                            const newSession = await agent.createSession();
+                            cliSessionId = newSession.id;
+                            logger.debug(`Created new session: ${cliSessionId}`);
                         }
 
-                        if (headlessInput) {
-                            // One shot CLI
-                            await startHeadlessCli(agent, headlessInput);
-                            safeExit('main', 0);
-                        } else {
-                            await startAiCli(agent); // Interactive CLI
-                        }
-                        break;
-                    }
+                        // Pass sessionId to the CLI - it will use it for all agent.run() calls
 
-                    case 'ink-cli': {
-                        // Handle session options - same as CLI mode
-                        if (opts.resume) {
-                            try {
-                                await agent.loadSessionAsDefault(opts.resume);
-                                logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                console.error(
-                                    '💡 Use `dexto session list` to see available sessions'
-                                );
-                                safeExit('main', 1, 'resume-failed');
-                            }
-                        } else if (opts.continue) {
-                            try {
-                                await loadMostRecentSession(agent);
-                                // Note: Session will be created automatically when first message is sent
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                safeExit('main', 1, 'continue-failed');
-                            }
-                        }
-                        // Note: No default session creation - session will be created when first message is sent
-
-                        // Note: ink-cli handles approvals directly via React components
-                        // No need to set up CLIToolConfirmationSubscriber here
+                        // Note: CLI uses ink-cli implementation internally
+                        // Approvals are handled via React components in the ink-cli
                         // The ink-cli component listens to 'dexto:approvalRequest' events directly
 
                         if (headlessInput) {
-                            // For ink-cli, headless mode falls back to regular CLI
-                            await startHeadlessCli(agent, headlessInput);
+                            // For headless mode, execute the prompt directly without the Ink UI
+                            const { CLISubscriber } = await import('./cli/cli-subscriber.js');
+                            const cliSubscriber = new CLISubscriber();
+                            cliSubscriber.subscribe(agent.agentEventBus);
+
+                            try {
+                                const llm = agent.getCurrentLLMConfig();
+                                capture('dexto_prompt', {
+                                    mode: 'headless',
+                                    provider: llm.provider,
+                                    model: llm.model,
+                                });
+                                // Pass sessionId to agent.run() like WebUI does
+                                await agent.run(headlessInput, undefined, undefined, cliSessionId);
+                            } catch (error) {
+                                logger.error(
+                                    `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
+                                );
+                            }
                             safeExit('main', 0);
                         } else {
+                            // Suppress console output before starting Ink UI
+                            // All command output should go through Ink UI components
+                            const noOp = () => {};
+                            console.log = noOp;
+                            console.error = noOp;
+                            console.warn = noOp;
+                            console.info = noOp;
+
+                            // Use the modern ink-cli implementation for interactive mode
                             const { startInkCliRefactored } = await import(
                                 './cli/ink-cli/InkCLIRefactored.js'
                             );
-                            await startInkCliRefactored(agent);
+                            // Pass sessionId to ink-cli
+                            await startInkCliRefactored(agent, cliSessionId);
                         }
                         break;
                     }

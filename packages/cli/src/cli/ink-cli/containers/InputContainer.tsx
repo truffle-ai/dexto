@@ -23,7 +23,7 @@ interface InputContainerProps {
  * Manages input state and handles submission
  */
 export function InputContainer({ state, dispatch, agent, inputService }: InputContainerProps) {
-    const { input, ui, approval } = state;
+    const { input, ui, approval, session } = state;
 
     // Handle input change
     const handleChange = useCallback(
@@ -76,10 +76,13 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
                 const commandService = new CommandService();
 
                 try {
+                    // Pass sessionId from state to command execution
+                    const currentSessionId = session.id;
                     const result = await commandService.executeCommand(
                         parsed.command,
                         parsed.args || [],
-                        agent
+                        agent,
+                        currentSessionId || undefined
                     );
 
                     if (result.type === 'prompt') {
@@ -111,20 +114,21 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
                     });
                 }
             } else {
-                // Regular prompt - pass to AI
+                // Regular prompt - pass to AI with explicit sessionId
                 try {
                     const streamingId = `assistant-${Date.now()}`;
                     dispatch({ type: 'STREAMING_START', id: streamingId });
 
-                    await agent.run(trimmed);
+                    // Pass sessionId explicitly to agent.run() like WebUI does
+                    // Use sessionId from state (never from getCurrentSessionId)
+                    const currentSessionId = session.id;
+                    if (!currentSessionId) {
+                        throw new Error('No active session');
+                    }
+                    await agent.run(trimmed, undefined, undefined, currentSessionId);
 
-                    // Session should now exist
-                    const sessionId = agent.getCurrentSessionId();
-                    dispatch({
-                        type: 'SESSION_SET',
-                        sessionId,
-                        hasActiveSession: true,
-                    });
+                    // Response will come via event bus
+                    // SUBMIT_COMPLETE will be dispatched by event handler
                 } catch (error) {
                     dispatch({
                         type: 'SUBMIT_ERROR',

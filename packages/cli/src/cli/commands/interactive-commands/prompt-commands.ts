@@ -291,10 +291,9 @@ export const promptCommands: CommandDefinition[] = [
                 }
 
                 if (finalText.trim()) {
-                    // agent.run() will expand @resource mentions automatically
-                    // This will trigger the normal message flow in ink-cli
-                    await agent.run(finalText.trim());
-                    // Return empty string to indicate command handled (ink-cli will show the message)
+                    // Use sessionId from agent context (set by executeCommand)
+                    const sessionId = (agent as any).__cliSessionId;
+                    await agent.run(finalText.trim(), undefined, undefined, sessionId);
                     return '';
                 } else {
                     const warningMsg = `⚠️  Prompt '${promptName}' returned no content`;

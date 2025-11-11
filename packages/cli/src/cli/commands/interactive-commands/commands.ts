@@ -85,17 +85,19 @@ CLI_COMMANDS.push(...baseCommands);
 /**
  * Execute a slash command
  *
- * This function maintains the exact same interface and behavior as the original
- * executeCommand function, providing backward compatibility while using the
- * new modular command structure.
- *
+ * @param sessionId - Session ID to use for agent.run() calls
  * @returns boolean indicating if command was handled, or string for ink-cli output
  */
 export async function executeCommand(
     command: string,
     args: string[],
-    agent: DextoAgent
+    agent: DextoAgent,
+    sessionId?: string
 ): Promise<boolean | string> {
+    // Store sessionId in agent context for command handlers to access
+    if (sessionId) {
+        (agent as any).__cliSessionId = sessionId;
+    }
     // Find the command (including aliases)
     const cmd = CLI_COMMANDS.find(
         (c) => c.name === command || (c.aliases && c.aliases.includes(command))

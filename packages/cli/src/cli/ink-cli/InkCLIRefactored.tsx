@@ -22,12 +22,7 @@ import type { DextoAgent } from '@dexto/core';
 import { cliReducer, createInitialState } from './state/index.js';
 
 // Custom hooks
-import {
-    useAgentEvents,
-    useInputHistory,
-    useKeyboardShortcuts,
-    useSessionSync,
-} from './hooks/index.js';
+import { useAgentEvents, useInputHistory, useKeyboardShortcuts } from './hooks/index.js';
 
 // Services
 import { InputService, MessageService } from './services/index.js';
@@ -42,6 +37,7 @@ import { OverlayContainer } from './containers/OverlayContainer.js';
 
 interface InkCLIProps {
     agent: DextoAgent;
+    initialSessionId: string;
 }
 
 /**
@@ -53,10 +49,17 @@ interface InkCLIProps {
  * - Maintainability
  * - Performance
  * - Type safety
+ *
+ * Uses explicit sessionId in state (like WebUI) instead of defaultSession pattern
  */
-export function InkCLIRefactored({ agent }: InkCLIProps) {
-    // Initialize state with reducer
-    const [state, dispatch] = useReducer(cliReducer, undefined, createInitialState);
+export function InkCLIRefactored({ agent, initialSessionId }: InkCLIProps) {
+    // Initialize state with reducer and set initial sessionId
+    const [state, dispatch] = useReducer(cliReducer, undefined, () => {
+        const initial = createInitialState();
+        initial.session.id = initialSessionId;
+        initial.session.hasActiveSession = true;
+        return initial;
+    });
 
     // Initialize services (memoized)
     const inputService = useMemo(() => new InputService(), []);
@@ -65,12 +68,8 @@ export function InkCLIRefactored({ agent }: InkCLIProps) {
     // Setup event bus subscriptions
     useAgentEvents({ agent, dispatch });
 
-    // Setup session synchronization
-    useSessionSync({
-        agent,
-        dispatch,
-        messageCount: state.messages.length,
-    });
+    // Session is now managed in state - no need for sync hook
+    // useSessionSync removed - sessionId is in state from initialization or SESSION_SET actions
 
     // Setup input history navigation
     useInputHistory({
@@ -165,19 +164,22 @@ export function InkCLIRefactored({ agent }: InkCLIProps) {
 /**
  * Start the modern Ink-based CLI
  * Entry point for the refactored CLI
+ * @param agent - The DextoAgent instance
+ * @param initialSessionId - The session ID to use for this CLI session
  */
-export async function startInkCliRefactored(agent: DextoAgent): Promise<void> {
+export async function startInkCliRefactored(
+    agent: DextoAgent,
+    initialSessionId: string
+): Promise<void> {
     const { render } = await import('ink');
 
     // Minimal initialization
     const { registerGracefulShutdown } = await import('../../utils/graceful-shutdown.js');
     registerGracefulShutdown(() => agent);
 
-    // Suppress console output in ink-cli mode
-    console.log = () => {};
-    console.error = () => {};
-    console.warn = () => {};
+    // Note: Console suppression is done in index.ts before calling this function
+    // This ensures no output leaks during command execution
 
-    // Render the refactored CLI
-    render(<InkCLIRefactored agent={agent} />);
+    // Render the refactored CLI with initial sessionId
+    render(<InkCLIRefactored agent={agent} initialSessionId={initialSessionId} />);
 }

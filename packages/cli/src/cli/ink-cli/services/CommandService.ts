@@ -33,9 +33,10 @@ export class CommandService {
     async executeCommand(
         command: string,
         args: string[],
-        agent: DextoAgent
+        agent: DextoAgent,
+        sessionId?: string
     ): Promise<CommandExecutionResult> {
-        const result = await executeCommand(command, args, agent);
+        const result = await executeCommand(command, args, agent, sessionId);
 
         // If result is empty string, it means a prompt was executed via agent.run()
         if (typeof result === 'string' && result === '') {

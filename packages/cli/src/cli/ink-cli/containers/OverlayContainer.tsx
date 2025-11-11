@@ -99,7 +99,12 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                     },
                 });
 
-                await agent.switchLLM({ provider: provider as any, model });
+                // Pass sessionId from state to switchLLM (WebUI pattern)
+                const currentSessionId = state.session.id;
+                await agent.switchLLM(
+                    { provider: provider as any, model },
+                    currentSessionId || undefined
+                );
 
                 dispatch({
                     type: 'MESSAGE_ADD',
@@ -117,24 +122,25 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 });
             }
         },
-        [dispatch, agent]
+        [dispatch, agent, state.session.id]
     );
 
     // Handle session selection
     const handleSessionSelect = useCallback(
-        async (sessionId: string) => {
+        async (newSessionId: string) => {
             dispatch({ type: 'CLOSE_OVERLAY' });
             dispatch({ type: 'INPUT_CLEAR' });
 
             try {
-                const currentId = agent.getCurrentSessionId();
-                if (sessionId === currentId) {
+                // Check if already on this session (use state, not getCurrentSessionId)
+                const currentId = state.session.id;
+                if (newSessionId === currentId) {
                     dispatch({
                         type: 'MESSAGE_ADD',
                         message: {
                             id: `system-${Date.now()}`,
                             role: 'system',
-                            content: `ℹ️  Already using session ${sessionId.slice(0, 8)}`,
+                            content: `ℹ️  Already using session ${newSessionId.slice(0, 8)}`,
                             timestamp: new Date(),
                         },
                     });
@@ -146,16 +152,23 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                     message: {
                         id: `system-${Date.now()}`,
                         role: 'system',
-                        content: `🔄 Switching to session ${sessionId.slice(0, 8)}...`,
+                        content: `🔄 Switching to session ${newSessionId.slice(0, 8)}...`,
                         timestamp: new Date(),
                     },
                 });
 
-                await agent.loadSessionAsDefault(sessionId);
+                // Verify session exists
+                const session = await agent.getSession(newSessionId);
+                if (!session) {
+                    throw new Error(`Session ${newSessionId} not found`);
+                }
+
+                // Clear messages and update sessionId (WebUI pattern - no loadSessionAsDefault)
+                dispatch({ type: 'SESSION_CLEAR' }); // Clears messages
 
                 dispatch({
                     type: 'SESSION_SET',
-                    sessionId,
+                    sessionId: newSessionId,
                     hasActiveSession: true,
                 });
 
@@ -164,7 +177,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                     message: {
                         id: `system-${Date.now()}`,
                         role: 'system',
-                        content: `✅ Switched to session ${sessionId.slice(0, 8)}`,
+                        content: `✅ Switched to session ${newSessionId.slice(0, 8)}`,
                         timestamp: new Date(),
                     },
                 });
@@ -175,7 +188,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 });
             }
         },
-        [dispatch, agent]
+        [dispatch, agent, state.session.id]
     );
 
     // Handle slash command/prompt selection
@@ -192,7 +205,14 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
             const commandService = new CommandService();
 
             try {
-                const result = await commandService.executeCommand(prompt.name, [], agent);
+                // Pass sessionId from state to command execution
+                const currentSessionId = state.session.id;
+                const result = await commandService.executeCommand(
+                    prompt.name,
+                    [],
+                    agent,
+                    currentSessionId || undefined
+                );
 
                 if (result.type === 'prompt') {
                     // Prompt execution continues via event bus
@@ -219,8 +239,10 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 });
             }
         },
-        [dispatch, agent]
+        [dispatch, agent, state.session.id]
     );
+
+    // Handle loading command/prompt into input for editing (Tab key)
 
     const handleSystemCommandSelect = useCallback(
         async (command: string) => {
@@ -234,7 +256,14 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
             const commandService = new CommandService();
 
             try {
-                const result = await commandService.executeCommand(command, [], agent);
+                // Pass sessionId from state to command execution
+                const currentSessionId = state.session.id;
+                const result = await commandService.executeCommand(
+                    command,
+                    [],
+                    agent,
+                    currentSessionId || undefined
+                );
 
                 if (result.type === 'prompt') {
                     // Prompt execution continues via event bus
@@ -353,6 +382,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                         onSelectSession={handleSessionSelect}
                         onClose={handleClose}
                         agent={agent}
+                        currentSessionId={state.session.id || undefined}
                     />
                 </Box>
             )}
