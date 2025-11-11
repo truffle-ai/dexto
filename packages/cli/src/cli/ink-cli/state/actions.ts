@@ -130,6 +130,15 @@ export type SessionClearAction = {
     type: 'SESSION_CLEAR';
 };
 
+export type ModelUpdateAction = {
+    type: 'MODEL_UPDATE';
+    modelName: string;
+};
+
+export type ConversationResetAction = {
+    type: 'CONVERSATION_RESET';
+};
+
 /**
  * Approval actions
  */
@@ -176,6 +185,8 @@ export type CLIAction =
     | CloseOverlayAction
     | SessionSetAction
     | SessionClearAction
+    | ModelUpdateAction
+    | ConversationResetAction
     | ApprovalRequestAction
     | ApprovalCompleteAction
     | ErrorAction;

@@ -10,6 +10,7 @@ import { InputService } from '../services/InputService.js';
 import type { CLIAction } from '../state/actions.js';
 import type { CLIState } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 interface InputContainerProps {
     state: CLIState;
@@ -97,7 +98,7 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
                         dispatch({
                             type: 'MESSAGE_ADD',
                             message: {
-                                id: `command-${Date.now()}`,
+                                id: generateMessageId('command'),
                                 role: 'system',
                                 content: result.output,
                                 timestamp: new Date(),
@@ -116,7 +117,7 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
             } else {
                 // Regular prompt - pass to AI with explicit sessionId
                 try {
-                    const streamingId = `assistant-${Date.now()}`;
+                    const streamingId = generateMessageId('assistant');
                     dispatch({ type: 'STREAMING_START', id: streamingId });
 
                     // Pass sessionId explicitly to agent.run() like WebUI does
@@ -137,7 +138,7 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
                 }
             }
         },
-        [dispatch, agent, inputService, ui.isProcessing]
+        [dispatch, agent, inputService, ui.isProcessing, ui.activeOverlay, session]
     );
 
     // Determine placeholder
@@ -147,11 +148,14 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
           ? 'Processing... (Press Esc to cancel)'
           : 'Type your message or /help for commands';
 
+    // Don't wire up onSubmit when autocomplete/selector is active (they handle Enter)
+    const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
+
     return (
         <InputArea
             value={input.value}
             onChange={handleChange}
-            onSubmit={handleSubmit}
+            onSubmit={shouldHandleSubmit ? handleSubmit : () => {}}
             isProcessing={ui.isProcessing}
             isDisabled={ui.isProcessing || !!approval}
             placeholder={placeholder}

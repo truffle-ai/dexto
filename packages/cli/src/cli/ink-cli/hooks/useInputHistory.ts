@@ -3,6 +3,7 @@
  * Handles keyboard shortcuts for history traversal
  */
 
+import type React from 'react';
 import { useInput } from 'ink';
 import type { CLIAction } from '../state/actions.js';
 import type { InputState } from '../state/types.js';

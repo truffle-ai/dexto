@@ -183,13 +183,14 @@ export const generalCommands: CommandDefinition[] = [
         handler: async (_args: string[], agent: DextoAgent) => {
             try {
                 await agent.resetConversation();
-                logger.info('🔄 Conversation history cleared.', null, 'green');
+                const output = '🔄 Conversation history cleared.';
+                console.log(chalk.green(output));
+                return formatForInkCli(output);
             } catch (error) {
-                logger.error(
-                    `Failed to clear conversation: ${error instanceof Error ? error.message : String(error)}`
-                );
+                const errorMsg = `Failed to clear conversation: ${error instanceof Error ? error.message : String(error)}`;
+                logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
             }
-            return true;
         },
     },
 ];

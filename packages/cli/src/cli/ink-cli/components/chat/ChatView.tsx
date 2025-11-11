@@ -9,12 +9,19 @@ import { Header } from './Header.js';
 import { MessageList } from './MessageList.js';
 import type { Message } from '../../state/types.js';
 
+interface StartupInfo {
+    connectedServers: { count: number; names: string[] };
+    failedConnections: string[];
+    toolCount: number;
+    logFile: string;
+}
+
 interface ChatViewProps {
     messages: Message[];
     modelName: string;
     sessionId?: string | undefined;
     hasActiveSession: boolean;
-    maxVisibleMessages?: number;
+    startupInfo: StartupInfo;
 }
 
 /**
@@ -26,16 +33,17 @@ export function ChatView({
     modelName,
     sessionId,
     hasActiveSession,
-    maxVisibleMessages = 50,
+    startupInfo,
 }: ChatViewProps) {
     return (
-        <>
+        <Box flexDirection="column" flexGrow={1}>
             <Header
                 modelName={modelName}
                 sessionId={sessionId}
                 hasActiveSession={hasActiveSession}
+                startupInfo={startupInfo}
             />
-            <MessageList messages={messages} maxVisible={maxVisibleMessages} />
-        </>
+            <MessageList messages={messages} />
+        </Box>
     );
 }

@@ -60,6 +60,7 @@ export interface UIState {
 export interface SessionState {
     id: string | null;
     hasActiveSession: boolean;
+    modelName: string; // Current model name
 }
 
 /**

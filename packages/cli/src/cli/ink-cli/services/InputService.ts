@@ -107,7 +107,7 @@ export class InputService {
     /**
      * Deletes entire line (for single-line input)
      */
-    deleteLine(text: string): string {
+    deleteLine(_text: string): string {
         return '';
     }
 }

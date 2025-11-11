@@ -432,13 +432,3 @@ function splitPromptArguments(args: string[]): {
     const context = contextParts.length > 0 ? contextParts.join(' ') : undefined;
     return { argMap: map, context };
 }
-
-function appendContext(text: string, context?: string): string {
-    if (!context || context.trim().length === 0) {
-        return text ?? '';
-    }
-    if (!text || text.trim().length === 0) {
-        return context;
-    }
-    return `${text.trim()}\n\n${context}`;
-}

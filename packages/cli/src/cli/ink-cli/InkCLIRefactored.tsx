@@ -14,9 +14,10 @@
  * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
-import { useReducer, useMemo, useEffect } from 'react';
-import { Box } from 'ink';
+import { useReducer, useMemo, useEffect, useState } from 'react';
+import { Box, render } from 'ink';
 import type { DextoAgent } from '@dexto/core';
+import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 
 // State management
 import { cliReducer, createInitialState } from './state/index.js';
@@ -27,17 +28,29 @@ import { useAgentEvents, useInputHistory, useKeyboardShortcuts } from './hooks/i
 // Services
 import { InputService, MessageService } from './services/index.js';
 
+// Utils
+import { getStartupInfo } from './utils/messageFormatting.js';
+
 // Components
 import { ChatView } from './components/chat/ChatView.js';
 import { Footer } from './components/chat/Footer.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 // Containers
 import { InputContainer } from './containers/InputContainer.js';
 import { OverlayContainer } from './containers/OverlayContainer.js';
 
+interface StartupInfo {
+    connectedServers: { count: number; names: string[] };
+    failedConnections: string[];
+    toolCount: number;
+    logFile: string;
+}
+
 interface InkCLIProps {
     agent: DextoAgent;
     initialSessionId: string;
+    startupInfo: StartupInfo;
 }
 
 /**
@@ -52,10 +65,11 @@ interface InkCLIProps {
  *
  * Uses explicit sessionId in state (like WebUI) instead of defaultSession pattern
  */
-export function InkCLIRefactored({ agent, initialSessionId }: InkCLIProps) {
+export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCLIProps) {
     // Initialize state with reducer and set initial sessionId
     const [state, dispatch] = useReducer(cliReducer, undefined, () => {
-        const initial = createInitialState();
+        const initialModelName = agent.getCurrentLLMConfig().model;
+        const initial = createInitialState([], initialModelName);
         initial.session.id = initialSessionId;
         initial.session.hasActiveSession = true;
         return initial;
@@ -120,9 +134,6 @@ export function InkCLIRefactored({ agent, initialSessionId }: InkCLIProps) {
         dispatch,
     ]);
 
-    // Get current model name
-    const modelName = agent.getCurrentLLMConfig().model;
-
     // Get visible messages (performance optimization)
     // Limit to last 30 messages to prevent scrolling issues
     const visibleMessages = useMemo(() => {
@@ -130,34 +141,37 @@ export function InkCLIRefactored({ agent, initialSessionId }: InkCLIProps) {
     }, [state.messages, messageService]);
 
     return (
-        <Box flexDirection="column" height="100%" width="100%">
-            {/* Chat area (header + messages) */}
-            <ChatView
-                messages={visibleMessages}
-                modelName={modelName}
-                sessionId={state.session.id || undefined}
-                hasActiveSession={state.session.hasActiveSession}
-            />
+        <ErrorBoundary>
+            <Box flexDirection="column" height="100%" width="100%">
+                {/* Chat area (header + messages) */}
+                <ChatView
+                    messages={visibleMessages}
+                    modelName={state.session.modelName}
+                    sessionId={state.session.id || undefined}
+                    hasActiveSession={state.session.hasActiveSession}
+                    startupInfo={startupInfo}
+                />
 
-            {/* Overlays (approval, selectors, autocomplete) */}
-            <OverlayContainer
-                state={state}
-                dispatch={dispatch}
-                agent={agent}
-                inputService={inputService}
-            />
+                {/* Overlays (approval, selectors, autocomplete) */}
+                <OverlayContainer
+                    state={state}
+                    dispatch={dispatch}
+                    agent={agent}
+                    inputService={inputService}
+                />
 
-            {/* Input area */}
-            <InputContainer
-                state={state}
-                dispatch={dispatch}
-                agent={agent}
-                inputService={inputService}
-            />
+                {/* Input area */}
+                <InputContainer
+                    state={state}
+                    dispatch={dispatch}
+                    agent={agent}
+                    inputService={inputService}
+                />
 
-            {/* Footer */}
-            <Footer />
-        </Box>
+                {/* Footer */}
+                <Footer />
+            </Box>
+        </ErrorBoundary>
     );
 }
 
@@ -171,15 +185,16 @@ export async function startInkCliRefactored(
     agent: DextoAgent,
     initialSessionId: string
 ): Promise<void> {
-    const { render } = await import('ink');
-
-    // Minimal initialization
-    const { registerGracefulShutdown } = await import('../../utils/graceful-shutdown.js');
     registerGracefulShutdown(() => agent);
 
     // Note: Console suppression is done in index.ts before calling this function
-    // This ensures no output leaks during command execution
+    const startupInfo = await getStartupInfo(agent);
 
-    // Render the refactored CLI with initial sessionId
-    render(<InkCLIRefactored agent={agent} initialSessionId={initialSessionId} />);
+    render(
+        <InkCLIRefactored
+            agent={agent}
+            initialSessionId={initialSessionId}
+            startupInfo={startupInfo}
+        />
+    );
 }

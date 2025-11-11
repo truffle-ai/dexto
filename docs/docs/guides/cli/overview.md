@@ -58,7 +58,6 @@ dexto --mode telegram
 | `-p, --prompt <text>` | Run single prompt and exit | `dexto -p "list files"` |
 | `-m, --model <model>` | Specify LLM model | `dexto -m gpt-5-mini` |
 | `--router <router>` | Specify router (vercel/in-built) | `dexto --router vercel` |
-| `-c, --continue` | Continue the last session | `dexto --continue` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
 | `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp, default: web) | `dexto --mode cli` |
 | `--web-port <port>` | Web UI port (default: 3000) | `dexto --web-port 8080` |
@@ -400,18 +399,12 @@ dexto --agent coding-agent -m gpt-5 --auto-approve "build a todo app with React"
 ### Session Continuation
 
 ```bash
-# Continue last conversation (opens Web UI)
-dexto --continue
-
-# Continue in CLI mode
-dexto --continue --mode cli
-
-# Continue with a one-shot prompt, then exit
-dexto -c -p "now add error handling"
-
 # Resume specific session (opens Web UI)
-# Get session id from the web UI
+# Get session id from the web UI or session list command
 dexto --resume my-project-session
+
+# Resume session in CLI mode
+dexto --resume my-project-session --mode cli
 
 # Resume and run a one-shot prompt
 dexto -r my-project-session "fix the bug we discussed"

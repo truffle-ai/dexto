@@ -3,6 +3,7 @@
  * Handles shortcuts like Ctrl+C, Escape, etc.
  */
 
+import type React from 'react';
 import { useInput, useApp } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import type { CLIAction } from '../state/actions.js';

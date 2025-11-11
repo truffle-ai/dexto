@@ -6,16 +6,24 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 
+interface StartupInfo {
+    connectedServers: { count: number; names: string[] };
+    failedConnections: string[];
+    toolCount: number;
+    logFile: string;
+}
+
 interface HeaderProps {
     modelName: string;
     sessionId?: string | undefined;
     hasActiveSession: boolean;
+    startupInfo: StartupInfo;
 }
 
 /**
  * Pure presentational component for CLI header
  */
-export function Header({ modelName, sessionId, hasActiveSession }: HeaderProps) {
+export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: HeaderProps) {
     return (
         <Box borderStyle="single" borderColor="gray" paddingX={1} flexDirection="column">
             <Box marginTop={1}>
@@ -28,6 +36,8 @@ export function Header({ modelName, sessionId, hasActiveSession }: HeaderProps) 
 ╚═════╝ ╚══════╝╚═╝  ╚═╝   ╚═╝    ╚═════╝`}
                 </Text>
             </Box>
+
+            {/* Model and Session */}
             <Box marginTop={1} flexDirection="row">
                 <Text color="gray" dimColor>
                     Model:{' '}
@@ -43,6 +53,36 @@ export function Header({ modelName, sessionId, hasActiveSession }: HeaderProps) 
                     </>
                 )}
             </Box>
+
+            {/* MCP Servers and Tools */}
+            <Box flexDirection="row">
+                <Text color="gray" dimColor>
+                    Servers:{' '}
+                </Text>
+                <Text color="white">{startupInfo.connectedServers.count}</Text>
+                <Text color="gray" dimColor>
+                    {' '}
+                    • Tools:{' '}
+                </Text>
+                <Text color="white">{startupInfo.toolCount}</Text>
+            </Box>
+
+            {/* Failed connections warning */}
+            {startupInfo.failedConnections.length > 0 && (
+                <Box flexDirection="row">
+                    <Text color="yellow">
+                        ⚠️ Failed: {startupInfo.failedConnections.join(', ')}
+                    </Text>
+                </Box>
+            )}
+
+            {/* Log file */}
+            <Box flexDirection="row">
+                <Text color="gray" dimColor>
+                    Logs: {startupInfo.logFile}
+                </Text>
+            </Box>
+
             <Box marginBottom={1}>
                 <Text> </Text>
             </Box>

@@ -3,11 +3,13 @@
  * Transforms agent events into state actions
  */
 
+import type React from 'react';
 import { useEffect } from 'react';
-import type { DextoAgent, AgentEventBus, ApprovalType } from '@dexto/core';
+import type { DextoAgent, AgentEventBus } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
 import type { CLIAction } from '../state/actions.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 interface UseAgentEventsProps {
     agent: DextoAgent;
@@ -73,7 +75,9 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
 
             // Insert before streaming message so tools appear in correct order
             // Use callId if available for matching with result later
-            const toolMessageId = payload.callId ? `tool-${payload.callId}` : `tool-${Date.now()}`;
+            const toolMessageId = payload.callId
+                ? `tool-${payload.callId}`
+                : generateMessageId('tool');
 
             dispatch({
                 type: 'MESSAGE_INSERT_BEFORE_STREAMING',
@@ -168,6 +172,25 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
         bus.on('llmservice:toolResult', handleToolResult);
         bus.on('dexto:approvalRequest', handleApprovalRequest);
 
+        // Handle model switch
+        const handleModelSwitch = (payload: any) => {
+            if (payload.newConfig?.model) {
+                dispatch({
+                    type: 'MODEL_UPDATE',
+                    modelName: payload.newConfig.model,
+                });
+            }
+        };
+
+        // Handle conversation reset
+        const handleConversationReset = () => {
+            dispatch({ type: 'CONVERSATION_RESET' });
+        };
+
+        // Subscribe to events
+        bus.on('llmservice:switched', handleModelSwitch);
+        bus.on('dexto:conversationReset', handleConversationReset);
+
         // Cleanup on unmount
         return () => {
             bus.off('llmservice:chunk', handleChunk);
@@ -176,6 +199,8 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
             bus.off('llmservice:toolCall', handleToolCall);
             bus.off('llmservice:toolResult', handleToolResult);
             bus.off('dexto:approvalRequest', handleApprovalRequest);
+            bus.off('llmservice:switched', handleModelSwitch);
+            bus.off('dexto:conversationReset', handleConversationReset);
         };
     }, [agent, dispatch]);
 }

@@ -5,6 +5,7 @@
 
 import type { CLIState, Message } from './types.js';
 import type { CLIAction } from './actions.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 /**
  * Main CLI state reducer
@@ -242,7 +243,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
 
         case 'SUBMIT_ERROR': {
             const errorMessage: Message = {
-                id: `error-${Date.now()}`,
+                id: generateMessageId('error'),
                 role: 'system',
                 content: action.errorMessage,
                 timestamp: new Date(),
@@ -300,6 +301,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
             return {
                 ...state,
                 session: {
+                    ...state.session,
                     id: action.sessionId,
                     hasActiveSession: action.hasActiveSession,
                 },
@@ -308,10 +310,28 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
         case 'SESSION_CLEAR':
             return {
                 ...state,
+                messages: [],
                 session: {
+                    ...state.session,
                     id: null,
                     hasActiveSession: false,
                 },
+            };
+
+        case 'MODEL_UPDATE':
+            return {
+                ...state,
+                session: {
+                    ...state.session,
+                    modelName: action.modelName,
+                },
+            };
+
+        case 'CONVERSATION_RESET':
+            return {
+                ...state,
+                messages: [],
+                streamingMessage: null,
             };
 
         // Approval actions
@@ -338,7 +358,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
         // Error actions
         case 'ERROR': {
             const errorMessage: Message = {
-                id: `error-${Date.now()}`,
+                id: generateMessageId('error'),
                 role: 'system',
                 content: `❌ Error: ${action.errorMessage}`,
                 timestamp: new Date(),

@@ -2,14 +2,19 @@
  * Initial state for CLI state machine
  */
 
-import type { CLIState } from './types.js';
+import type { CLIState, Message } from './types.js';
 
 /**
  * Creates the initial CLI state
+ * @param initialMessages - Optional messages to populate the state with (e.g., startup info)
+ * @param initialModelName - Initial model name
  */
-export function createInitialState(): CLIState {
+export function createInitialState(
+    initialMessages: Message[] = [],
+    initialModelName: string = ''
+): CLIState {
     return {
-        messages: [],
+        messages: initialMessages,
         streamingMessage: null,
         input: {
             value: '',
@@ -24,6 +29,7 @@ export function createInitialState(): CLIState {
         session: {
             id: null,
             hasActiveSession: false,
+            modelName: initialModelName,
         },
         approval: null,
     };

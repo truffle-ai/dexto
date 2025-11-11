@@ -16,7 +16,8 @@ import ModelSelectorRefactored from '../components/overlays/ModelSelectorRefacto
 import SessionSelectorRefactored from '../components/overlays/SessionSelectorRefactored.js';
 import type { PromptInfo, ResourceMetadata } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
-import { createUserMessage } from '../utils/messageFormatting.js';
+import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 interface OverlayContainerProps {
     state: CLIState;
@@ -92,7 +93,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 dispatch({
                     type: 'MESSAGE_ADD',
                     message: {
-                        id: `system-${Date.now()}`,
+                        id: generateMessageId('system'),
                         role: 'system',
                         content: `🔄 Switching to ${model} (${provider})...`,
                         timestamp: new Date(),
@@ -109,7 +110,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 dispatch({
                     type: 'MESSAGE_ADD',
                     message: {
-                        id: `system-${Date.now()}`,
+                        id: generateMessageId('system'),
                         role: 'system',
                         content: `✅ Successfully switched to ${model} (${provider})`,
                         timestamp: new Date(),
@@ -138,7 +139,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                     dispatch({
                         type: 'MESSAGE_ADD',
                         message: {
-                            id: `system-${Date.now()}`,
+                            id: generateMessageId('system'),
                             role: 'system',
                             content: `ℹ️  Already using session ${newSessionId.slice(0, 8)}`,
                             timestamp: new Date(),
@@ -150,7 +151,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 dispatch({
                     type: 'MESSAGE_ADD',
                     message: {
-                        id: `system-${Date.now()}`,
+                        id: generateMessageId('system'),
                         role: 'system',
                         content: `🔄 Switching to session ${newSessionId.slice(0, 8)}...`,
                         timestamp: new Date(),
@@ -172,10 +173,17 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                     hasActiveSession: true,
                 });
 
+                // Load session history
+                const history = await agent.getSessionHistory(newSessionId);
+                if (history && history.length > 0) {
+                    const historyMessages = convertHistoryToUIMessages(history, newSessionId);
+                    dispatch({ type: 'MESSAGE_ADD_MULTIPLE', messages: historyMessages });
+                }
+
                 dispatch({
                     type: 'MESSAGE_ADD',
                     message: {
-                        id: `system-${Date.now()}`,
+                        id: generateMessageId('system'),
                         role: 'system',
                         content: `✅ Switched to session ${newSessionId.slice(0, 8)}`,
                         timestamp: new Date(),
@@ -223,7 +231,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                     dispatch({
                         type: 'MESSAGE_ADD',
                         message: {
-                            id: `command-${Date.now()}`,
+                            id: generateMessageId('command'),
                             role: 'system',
                             content: result.output,
                             timestamp: new Date(),
@@ -274,7 +282,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                     dispatch({
                         type: 'MESSAGE_ADD',
                         message: {
-                            id: `command-${Date.now()}`,
+                            id: generateMessageId('command'),
                             role: 'system',
                             content: result.output,
                             timestamp: new Date(),
@@ -290,7 +298,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 });
             }
         },
-        [dispatch, agent]
+        [dispatch, agent, state.session]
     );
 
     const handleLoadIntoInput = useCallback(
