@@ -68,6 +68,7 @@ export type OverlayType =
  */
 export interface UIState {
     isProcessing: boolean;
+    isCancelling: boolean; // True when cancellation is in progress
     activeOverlay: OverlayType;
 }
 

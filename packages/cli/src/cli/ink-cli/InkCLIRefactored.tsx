@@ -74,7 +74,7 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     const messageService = useMemo(() => new MessageService(), []);
 
     // Setup event bus subscriptions
-    useAgentEvents({ agent, dispatch });
+    useAgentEvents({ agent, dispatch, isCancelling: state.ui.isCancelling });
 
     // Session is now managed in state - no need for sync hook
     // useSessionSync removed - sessionId is in state from initialization or SESSION_SET actions

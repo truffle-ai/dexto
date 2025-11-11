@@ -37,8 +37,8 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
             if (key.ctrl && inputChar === 'c') {
                 if (state.ui.isProcessing) {
                     void agent.cancel().catch(() => {});
+                    dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });
-                    dispatch({ type: 'PROCESSING_END' });
                 } else {
                     exit();
                 }
@@ -48,8 +48,8 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
             if (key.escape) {
                 if (state.ui.isProcessing) {
                     void agent.cancel().catch(() => {});
+                    dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });
-                    dispatch({ type: 'PROCESSING_END' });
                 } else if (state.ui.activeOverlay !== 'none') {
                     dispatch({ type: 'CLOSE_OVERLAY' });
                 }

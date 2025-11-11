@@ -219,8 +219,22 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 messages: streamingId
                     ? state.messages.filter((msg) => msg.id !== streamingId)
                     : state.messages,
+                ui: {
+                    ...state.ui,
+                    isCancelling: false,
+                },
             };
         }
+
+        case 'CANCEL_START':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    isProcessing: false,
+                    isCancelling: true,
+                },
+            };
 
         // Submission actions
         case 'SUBMIT_START': {
@@ -245,6 +259,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ui: {
                     ...state.ui,
                     isProcessing: true,
+                    isCancelling: false, // Clear cancellation flag for new request
                     activeOverlay: 'none',
                 },
             };
@@ -272,6 +287,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ui: {
                     ...state.ui,
                     isProcessing: false,
+                    isCancelling: false,
                 },
                 streamingMessage: null,
             };

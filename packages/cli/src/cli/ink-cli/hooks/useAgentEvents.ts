@@ -14,18 +14,20 @@ import { generateMessageId } from '../utils/idGenerator.js';
 interface UseAgentEventsProps {
     agent: DextoAgent;
     dispatch: React.Dispatch<CLIAction>;
+    isCancelling: boolean;
 }
 
 /**
  * Subscribes to agent event bus and dispatches state actions
  * Decouples event bus from UI components
  */
-export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
+export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEventsProps): void {
     useEffect(() => {
         const bus: AgentEventBus = agent.agentEventBus;
 
         // Handle streaming chunks
         const handleChunk = (payload: { type: string; content: string }) => {
+            if (isCancelling) return; // Ignore events during cancellation
             if (payload.type === 'text') {
                 dispatch({
                     type: 'STREAMING_CHUNK',
@@ -36,6 +38,7 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
 
         // Handle response completion
         const handleResponse = (payload: { content: string }) => {
+            if (isCancelling) return; // Ignore events during cancellation
             dispatch({
                 type: 'STREAMING_END',
                 content: payload.content,
@@ -58,6 +61,8 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
 
         // Handle tool calls
         const handleToolCall = (payload: { toolName: string; args: any; callId?: string }) => {
+            if (isCancelling) return; // Ignore events during cancellation
+
             // Format args for display (compact, one-line)
             let argsPreview = '';
             try {
@@ -99,6 +104,8 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
             rawResult?: any;
             success: boolean;
         }) => {
+            if (isCancelling) return; // Ignore events during cancellation
+
             // Format result preview (4-5 CLI lines, ~400 chars accounting for wrapping)
             let resultPreview = '';
             try {
@@ -207,5 +214,5 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
             bus.off('llmservice:switched', handleModelSwitch);
             bus.off('dexto:conversationReset', handleConversationReset);
         };
-    }, [agent, dispatch]);
+    }, [agent, dispatch, isCancelling]);
 }

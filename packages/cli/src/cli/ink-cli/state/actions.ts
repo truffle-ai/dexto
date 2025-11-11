@@ -83,6 +83,10 @@ export type StreamingCancelAction = {
     type: 'STREAMING_CANCEL';
 };
 
+export type CancelStartAction = {
+    type: 'CANCEL_START';
+};
+
 /**
  * Submission actions
  */
@@ -181,6 +185,7 @@ export type CLIAction =
     | StreamingChunkAction
     | StreamingEndAction
     | StreamingCancelAction
+    | CancelStartAction
     | SubmitStartAction
     | SubmitCompleteAction
     | SubmitErrorAction
