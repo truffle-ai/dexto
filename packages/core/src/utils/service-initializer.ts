@@ -160,11 +160,11 @@ export async function createAgentServices(
     logger.debug('FileSystemService initialized');
 
     const processService = new ProcessService({
+        securityLevel: 'moderate',
         workingDirectory: process.cwd(),
-        // securityLevel defaults to 'moderate' in ProcessService constructor
     });
     await processService.initialize();
-    logger.debug('ProcessService initialized with default security level (moderate)');
+    logger.debug('ProcessService initialized');
 
     // 8. Initialize tool manager with internal tools options
     // 8.1 - Create allowed tools provider based on configuration
