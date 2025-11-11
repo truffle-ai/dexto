@@ -194,12 +194,18 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
         case 'STREAMING_END': {
             if (!state.streamingMessage) return state;
 
+            // Preserve accumulated content if action.content is empty
+            const finalContent =
+                action.content && action.content.length > 0
+                    ? action.content
+                    : state.streamingMessage.content;
+
             return {
                 ...state,
                 streamingMessage: null,
                 messages: state.messages.map((msg) =>
                     msg.id === state.streamingMessage?.id
-                        ? { ...msg, content: action.content, isStreaming: false }
+                        ? { ...msg, content: finalContent, isStreaming: false }
                         : msg
                 ),
             };

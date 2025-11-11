@@ -2,6 +2,6 @@
  * Services module exports
  */
 
-export * from './CommandService.js';
-export * from './MessageService.js';
-export * from './InputService.js';
+export { CommandService, type CommandExecutionResult } from './CommandService.js';
+export { MessageService } from './MessageService.js';
+export { InputService } from './InputService.js';

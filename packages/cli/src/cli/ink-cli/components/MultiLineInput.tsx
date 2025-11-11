@@ -19,7 +19,6 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
     }, [value]);
 
     const lineCount = lines.length;
-    const displayHeight = Math.max(1, Math.min(lineCount, 8)); // Max 8 lines visible
 
     // If empty, show placeholder
     if (!value && placeholder) {
@@ -38,7 +37,7 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
     const startOffset = lineCount > 10 ? lineCount - 10 : 0;
 
     return (
-        <Box flexDirection="column" minHeight={displayHeight}>
+        <Box flexDirection="column">
             {startOffset > 0 && (
                 <Box>
                     <Text color="gray" dimColor>
@@ -50,12 +49,12 @@ export default function MultiLineInput({ value, placeholder, prompt = '> ' }: Mu
                 const actualIndex = startOffset + index;
                 return (
                     <Box key={actualIndex} flexDirection="row">
-                        {actualIndex === 0 && (
+                        {index === 0 && (
                             <Text color="green" bold>
                                 {prompt}
                             </Text>
                         )}
-                        {actualIndex > 0 && (
+                        {index > 0 && (
                             <Text color="green" dimColor>
                                 {' '.repeat(prompt.length)}
                             </Text>

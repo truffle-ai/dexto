@@ -72,11 +72,15 @@ export function BaseSelector<T>({
             if (itemsLength === 0) return;
 
             if (key.upArrow) {
-                onSelectIndex((selectedIndex - 1 + itemsLength) % itemsLength);
+                const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
+                selectedIndexRef.current = nextIndex;
+                onSelectIndex(nextIndex);
             }
 
             if (key.downArrow) {
-                onSelectIndex((selectedIndex + 1) % itemsLength);
+                const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
+                selectedIndexRef.current = nextIndex;
+                onSelectIndex(nextIndex);
             }
 
             if (key.escape) {
@@ -85,7 +89,7 @@ export function BaseSelector<T>({
 
             if (key.return && itemsLength > 0) {
                 const item = items[selectedIndexRef.current];
-                if (item) {
+                if (item !== undefined) {
                     onSelect(item);
                 }
             }

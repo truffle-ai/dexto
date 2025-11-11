@@ -862,12 +862,13 @@ program
                                 });
                                 // Pass sessionId to agent.run() like WebUI does
                                 await agent.run(headlessInput, undefined, undefined, cliSessionId);
+                                safeExit('main', 0);
                             } catch (error) {
                                 logger.error(
                                     `Error in processing input: ${error instanceof Error ? error.message : String(error)}`
                                 );
+                                safeExit('main', 1, 'prompt-error');
                             }
-                            safeExit('main', 0);
                         } else {
                             // Suppress console output before starting Ink UI
                             // All command output should go through Ink UI components
