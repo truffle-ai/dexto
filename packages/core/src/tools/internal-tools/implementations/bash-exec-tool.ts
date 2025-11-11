@@ -50,7 +50,7 @@ export function createBashExecTool(
     return {
         id: 'bash_exec',
         description:
-            'Execute a shell command. Returns stdout, stderr, exit code, and duration. Use run_in_background=true for long-running commands (use bash_output to retrieve results later). Requires approval for all commands. Dangerous commands (rm, git push, etc.) require additional per-command approval. Always quote file paths with spaces. Set timeout to prevent hanging commands. Security: dangerous commands are blocked, injection attempts are detected.',
+            'Execute a shell command with 2-minute default timeout. Returns stdout, stderr, exit code, and duration. For long-running commands (servers, watchers, npm run dev), MUST use run_in_background=true (use bash_output to retrieve results later). Commands ending with & are blocked - use run_in_background instead. Requires approval for all commands. Dangerous commands (rm, git push, etc.) require additional per-command approval. Always quote file paths with spaces. Security: dangerous commands are blocked, injection attempts are detected.',
         inputSchema: BashExecInputSchema,
         execute: async (input: unknown, context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
