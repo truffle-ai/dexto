@@ -211,11 +211,15 @@ export async function startInkCliRefactored(
     // Note: Console suppression is done in index.ts before calling this function
     const startupInfo = await getStartupInfo(agent);
 
-    render(
+    const inkApp = render(
         <InkCLIRefactored
             agent={agent}
             initialSessionId={initialSessionId}
             startupInfo={startupInfo}
         />
     );
+
+    // Wait for the Ink app to exit before resolving
+    // This ensures console suppression remains active until the UI is fully closed
+    await inkApp.waitUntilExit();
 }
