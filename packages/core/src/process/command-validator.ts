@@ -93,15 +93,13 @@ const DANGEROUS_PATTERNS = [
 ];
 
 // Command injection patterns
+// Note: We don't block compound commands with && here, as they're handled by
+// the compound command detection logic in determineApprovalRequirement()
 const INJECTION_PATTERNS = [
-    // Command chaining with dangerous commands
+    // Command chaining with dangerous commands using semicolon (more suspicious)
     /;\s*rm\s+-rf/, // ; rm -rf
-    /&&\s*rm\s+-rf/, // && rm -rf
-    /\|\s*rm\s+-rf/, // | rm -rf
     /;\s*chmod\s+777/, // ; chmod 777
-    /&&\s*chmod\s+777/, // && chmod 777
     /;\s*chown\s+root/, // ; chown root
-    /&&\s*chown\s+root/, // && chown root
 
     // Command substitution with dangerous commands
     /`.*rm.*`/, // backticks with rm
@@ -298,7 +296,16 @@ export class CommandValidator {
 
         const trimmedCommand = command.trim();
 
-        // 2. Check command length
+        // 2. Check for shell backgrounding (trailing &)
+        // This bypasses timeout and creates orphaned processes that can't be controlled
+        if (/&\s*$/.test(trimmedCommand)) {
+            return {
+                isValid: false,
+                error: 'Commands ending with & (shell backgrounding) are not allowed. Use run_in_background parameter instead for proper process management.',
+            };
+        }
+
+        // 3. Check command length
         if (trimmedCommand.length > MAX_COMMAND_LENGTH) {
             return {
                 isValid: false,
@@ -306,7 +313,7 @@ export class CommandValidator {
             };
         }
 
-        // 3. Check against dangerous patterns (strict and moderate)
+        // 4. Check against dangerous patterns (strict and moderate)
         if (this.config.securityLevel !== 'permissive') {
             for (const pattern of DANGEROUS_PATTERNS) {
                 if (pattern.test(trimmedCommand)) {
@@ -318,13 +325,13 @@ export class CommandValidator {
             }
         }
 
-        // 4. Check for command injection attempts (all security levels)
+        // 5. Check for command injection attempts (all security levels)
         const injectionResult = this.detectInjection(trimmedCommand);
         if (!injectionResult.isValid) {
             return injectionResult;
         }
 
-        // 5. Check against blocked commands list
+        // 6. Check against blocked commands list
         for (const blockedPattern of this.config.blockedCommands) {
             if (trimmedCommand.includes(blockedPattern)) {
                 return {
@@ -334,7 +341,7 @@ export class CommandValidator {
             }
         }
 
-        // 6. Check against allowed commands list (if not empty)
+        // 7. Check against allowed commands list (if not empty)
         if (this.config.allowedCommands.length > 0) {
             const isAllowed = this.config.allowedCommands.some((allowedCmd) =>
                 trimmedCommand.startsWith(allowedCmd)
@@ -348,7 +355,7 @@ export class CommandValidator {
             }
         }
 
-        // 7. Determine if approval is required based on security level
+        // 8. Determine if approval is required based on security level
         const requiresApproval = this.determineApprovalRequirement(trimmedCommand);
 
         return {
@@ -395,23 +402,35 @@ export class CommandValidator {
 
     /**
      * Determine if a command requires approval
+     * Handles compound commands (with &&, ||, ;) by checking each sub-command
      */
     private determineApprovalRequirement(command: string): boolean {
-        // Commands that modify system state always require approval
-        for (const pattern of REQUIRES_APPROVAL_PATTERNS) {
-            if (pattern.test(command)) {
+        // Split compound commands by &&, ||, or ; to check each part independently
+        // This ensures dangerous operations in the middle of compound commands are detected
+        const subCommands = command.split(/\s*(?:&&|\|\||;)\s*/).map((cmd) => cmd.trim());
+
+        // Check if ANY sub-command requires approval
+        for (const subCmd of subCommands) {
+            if (!subCmd) continue; // Skip empty parts
+
+            // Commands that modify system state always require approval
+            for (const pattern of REQUIRES_APPROVAL_PATTERNS) {
+                if (pattern.test(subCmd)) {
+                    return true;
+                }
+            }
+
+            // In strict mode, all commands require approval
+            if (this.config.securityLevel === 'strict') {
                 return true;
             }
-        }
 
-        // In strict mode, all commands require approval
-        if (this.config.securityLevel === 'strict') {
-            return true;
-        }
-
-        // In moderate mode, write operations require approval
-        if (this.config.securityLevel === 'moderate') {
-            return WRITE_PATTERNS.some((pattern) => pattern.test(command));
+            // In moderate mode, write operations require approval
+            if (this.config.securityLevel === 'moderate') {
+                if (WRITE_PATTERNS.some((pattern) => pattern.test(subCmd))) {
+                    return true;
+                }
+            }
         }
 
         // Permissive mode - no additional approval required

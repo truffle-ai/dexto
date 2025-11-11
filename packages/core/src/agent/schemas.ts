@@ -312,6 +312,20 @@ export type AgentCard = z.input<typeof AgentCardSchema>;
 // Validated type for internal use (post-parsing)
 export type ValidatedAgentCard = z.output<typeof AgentCardSchema>;
 
+// Process execution configuration schema
+const ProcessConfigSchema = z
+    .object({
+        securityLevel: z
+            .enum(['strict', 'moderate', 'permissive'])
+            .default('moderate')
+            .describe(
+                'Security level for command execution: strict (all commands require approval), moderate (write operations require approval), permissive (minimal approval)'
+            ),
+    })
+    .strict()
+    .default({})
+    .describe('Configuration for process execution and command validation');
+
 export const AgentConfigSchema = z
     .object({
         agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
@@ -346,6 +360,11 @@ export const AgentConfigSchema = z
 
         elicitation: ElicitationConfigSchema.default({}).describe(
             'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode.'
+        ),
+
+        // Process execution configuration
+        process: ProcessConfigSchema.describe(
+            'Configuration for process execution and command validation'
         ),
 
         // Internal resources configuration (filesystem, etc.)

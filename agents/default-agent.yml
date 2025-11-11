@@ -97,6 +97,13 @@ elicitation:
   enabled: true            # Enable ask_user tool and MCP server elicitations
   timeout: 120000          # Time to wait for user input (ms)
 
+# Process execution configuration - controls command security validation
+process:
+  securityLevel: moderate  # 'strict', 'moderate', or 'permissive'
+  # strict: All commands require approval, compound commands blocked
+  # moderate: Write operations and dangerous commands require approval (recommended)
+  # permissive: Only dangerous commands require approval
+
 # Internal tools - built-in Dexto capabilities
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input
