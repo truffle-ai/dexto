@@ -25,9 +25,20 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
     useEffect(() => {
         const bus: AgentEventBus = agent.agentEventBus;
 
+        // Handle thinking event (when LLM starts processing)
+        // TODO: This event should be renamed to handle actual reasoning tokens (extended thinking)
+        // Currently it just indicates LLM request start, not reasoning token generation
+        // See: https://www.anthropic.com/news/3-5-models-and-computer-use (extended thinking)
+        const handleThinking = () => {
+            if (isCancelling) return;
+            dispatch({ type: 'THINKING_START' });
+        };
+
         // Handle streaming chunks
         const handleChunk = (payload: { type: string; content: string }) => {
             if (isCancelling) return; // Ignore events during cancellation
+            // End thinking state when first chunk arrives
+            dispatch({ type: 'THINKING_END' });
             if (payload.type === 'text') {
                 dispatch({
                     type: 'STREAMING_CHUNK',
@@ -177,6 +188,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         };
 
         // Subscribe to events
+        bus.on('llmservice:thinking', handleThinking);
         bus.on('llmservice:chunk', handleChunk);
         bus.on('llmservice:response', handleResponse);
         bus.on('llmservice:error', handleError);
@@ -205,6 +217,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
 
         // Cleanup on unmount
         return () => {
+            bus.off('llmservice:thinking', handleThinking);
             bus.off('llmservice:chunk', handleChunk);
             bus.off('llmservice:response', handleResponse);
             bus.off('llmservice:error', handleError);

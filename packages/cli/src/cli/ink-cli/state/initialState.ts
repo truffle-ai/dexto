@@ -26,6 +26,7 @@ export function createInitialState(
         ui: {
             isProcessing: false,
             isCancelling: false,
+            isThinking: false,
             activeOverlay: 'none',
         },
         session: {

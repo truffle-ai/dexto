@@ -177,6 +177,7 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
                 {/* Status bar - shows processing state above input */}
                 <StatusBar
                     isProcessing={state.ui.isProcessing}
+                    isThinking={state.ui.isThinking}
                     approvalQueueCount={state.approvalQueue.length}
                 />
 

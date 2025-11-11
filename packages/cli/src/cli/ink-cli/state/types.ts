@@ -69,6 +69,7 @@ export type OverlayType =
 export interface UIState {
     isProcessing: boolean;
     isCancelling: boolean; // True when cancellation is in progress
+    isThinking: boolean; // True when LLM is thinking (before streaming starts)
     activeOverlay: OverlayType;
 }
 

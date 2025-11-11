@@ -87,6 +87,14 @@ export type CancelStartAction = {
     type: 'CANCEL_START';
 };
 
+export type ThinkingStartAction = {
+    type: 'THINKING_START';
+};
+
+export type ThinkingEndAction = {
+    type: 'THINKING_END';
+};
+
 /**
  * Submission actions
  */
@@ -186,6 +194,8 @@ export type CLIAction =
     | StreamingEndAction
     | StreamingCancelAction
     | CancelStartAction
+    | ThinkingStartAction
+    | ThinkingEndAction
     | SubmitStartAction
     | SubmitCompleteAction
     | SubmitErrorAction

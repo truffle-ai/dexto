@@ -222,6 +222,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ui: {
                     ...state.ui,
                     isCancelling: false,
+                    isThinking: false, // Clear thinking state on cancel
                 },
             };
         }
@@ -233,6 +234,24 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     ...state.ui,
                     isProcessing: false,
                     isCancelling: true,
+                },
+            };
+
+        case 'THINKING_START':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    isThinking: true,
+                },
+            };
+
+        case 'THINKING_END':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    isThinking: false,
                 },
             };
 
@@ -288,6 +307,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     ...state.ui,
                     isProcessing: false,
                     isCancelling: false,
+                    isThinking: false, // Clear thinking state on error
                 },
                 streamingMessage: null,
             };
@@ -309,6 +329,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ui: {
                     ...state.ui,
                     isProcessing: false,
+                    isThinking: false, // Clear thinking state when processing ends
                 },
             };
 
