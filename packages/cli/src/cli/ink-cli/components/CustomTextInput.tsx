@@ -48,7 +48,7 @@ export default function CustomTextInput({
                 return;
             }
 
-            // Handle Ctrl+Shift+Delete as word deletion fallback
+            // Handle Ctrl+Shift+Delete as additional word deletion shortcut (Windows/Linux)
             if (key.delete && key.ctrl && key.shift) {
                 onWordDelete?.();
                 return;

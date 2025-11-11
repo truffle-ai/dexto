@@ -20,7 +20,7 @@ import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 
 // State management
-import { cliReducer, createInitialState } from './state/index.js';
+import { cliReducer, createInitialState, type StartupInfo } from './state/index.js';
 
 // Custom hooks
 import { useAgentEvents, useInputHistory, useKeyboardShortcuts } from './hooks/index.js';
@@ -39,13 +39,6 @@ import { ErrorBoundary } from './components/ErrorBoundary.js';
 // Containers
 import { InputContainer } from './containers/InputContainer.js';
 import { OverlayContainer } from './containers/OverlayContainer.js';
-
-interface StartupInfo {
-    connectedServers: { count: number; names: string[] };
-    failedConnections: string[];
-    toolCount: number;
-    logFile: string;
-}
 
 interface InkCLIProps {
     agent: DextoAgent;

@@ -6,6 +6,16 @@
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
 /**
+ * Startup information displayed in CLI header
+ */
+export interface StartupInfo {
+    connectedServers: { count: number; names: string[] };
+    failedConnections: string[];
+    toolCount: number;
+    logFile: string;
+}
+
+/**
  * Message in the chat interface
  */
 export interface Message {

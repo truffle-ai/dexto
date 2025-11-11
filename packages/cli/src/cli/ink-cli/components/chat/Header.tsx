@@ -5,13 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
-
-interface StartupInfo {
-    connectedServers: { count: number; names: string[] };
-    failedConnections: string[];
-    toolCount: number;
-    logFile: string;
-}
+import type { StartupInfo } from '../../state/types.js';
 
 interface HeaderProps {
     modelName: string;

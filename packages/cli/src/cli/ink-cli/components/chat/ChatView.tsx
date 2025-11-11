@@ -7,14 +7,7 @@ import React from 'react';
 import { Box } from 'ink';
 import { Header } from './Header.js';
 import { MessageList } from './MessageList.js';
-import type { Message } from '../../state/types.js';
-
-interface StartupInfo {
-    connectedServers: { count: number; names: string[] };
-    failedConnections: string[];
-    toolCount: number;
-    logFile: string;
-}
+import type { Message, StartupInfo } from '../../state/types.js';
 
 interface ChatViewProps {
     messages: Message[];

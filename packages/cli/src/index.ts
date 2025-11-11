@@ -872,18 +872,33 @@ program
                         } else {
                             // Suppress console output before starting Ink UI
                             // All command output should go through Ink UI components
+                            // Save original console methods to restore on error
+                            const originalConsole = {
+                                log: console.log,
+                                error: console.error,
+                                warn: console.warn,
+                                info: console.info,
+                            };
                             const noOp = () => {};
                             console.log = noOp;
                             console.error = noOp;
                             console.warn = noOp;
                             console.info = noOp;
 
-                            // Use the modern ink-cli implementation for interactive mode
-                            const { startInkCliRefactored } = await import(
-                                './cli/ink-cli/InkCLIRefactored.js'
-                            );
-                            // Pass sessionId to ink-cli
-                            await startInkCliRefactored(agent, cliSessionId);
+                            try {
+                                // Use the modern ink-cli implementation for interactive mode
+                                const { startInkCliRefactored } = await import(
+                                    './cli/ink-cli/InkCLIRefactored.js'
+                                );
+                                // Pass sessionId to ink-cli
+                                await startInkCliRefactored(agent, cliSessionId);
+                            } finally {
+                                // Restore console methods so any errors are visible
+                                console.log = originalConsole.log;
+                                console.error = originalConsole.error;
+                                console.warn = originalConsole.warn;
+                                console.info = originalConsole.info;
+                            }
                         }
                         break;
                     }

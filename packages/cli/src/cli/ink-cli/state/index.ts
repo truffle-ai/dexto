@@ -4,6 +4,7 @@
 
 // Types
 export type {
+    StartupInfo,
     Message,
     StreamingMessage,
     InputState,
