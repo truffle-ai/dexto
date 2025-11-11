@@ -34,6 +34,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     value: '',
                     historyIndex: -1,
                     remountKey: state.input.remountKey + 1,
+                    isMultiLine: false, // Reset to single-line on clear
                 },
             };
 
@@ -77,6 +78,16 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 input: {
                     ...state.input,
                     historyIndex: -1,
+                },
+            };
+
+        case 'INPUT_TOGGLE_MULTILINE':
+            return {
+                ...state,
+                input: {
+                    ...state.input,
+                    isMultiLine: !state.input.isMultiLine,
+                    remountKey: state.input.remountKey + 1,
                 },
             };
 
@@ -223,6 +234,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     history: newHistory,
                     historyIndex: -1,
                     remountKey: state.input.remountKey + 1,
+                    isMultiLine: false, // Reset to single-line after submit
                 },
                 ui: {
                     ...state.ui,

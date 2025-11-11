@@ -12,7 +12,10 @@ import { Box, Text } from 'ink';
 export function Footer() {
     return (
         <Box borderStyle="single" borderColor="gray" paddingX={1}>
-            <Text dimColor>Ctrl+C: exit • Esc: cancel • ↑↓: history • /help: commands</Text>
+            <Text dimColor>
+                Shift+Enter: multi-line • Ctrl+W: del word • Ctrl+U: del line • Ctrl+C: exit •
+                /help: commands
+            </Text>
         </Box>
     );
 }

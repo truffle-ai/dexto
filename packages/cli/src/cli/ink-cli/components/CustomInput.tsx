@@ -1,6 +1,4 @@
-import React from 'react';
-import { Box, Text, useInput } from 'ink';
-import TextInput from 'ink-text-input';
+import { useInput, Text } from 'ink';
 
 interface CustomInputProps {
     value: string;
@@ -10,11 +8,12 @@ interface CustomInputProps {
     isProcessing?: boolean;
     onWordDelete?: () => void;
     onLineDelete?: () => void;
+    onToggleMultiLine?: () => void;
 }
 
 /**
  * Custom input component that handles keyboard shortcuts
- * Uses TextInput for actual input, handles shortcuts via useInput
+ * Fully custom implementation without TextInput to properly handle shortcuts
  */
 export default function CustomInput({
     value,
@@ -24,46 +23,73 @@ export default function CustomInput({
     isProcessing = false,
     onWordDelete,
     onLineDelete,
+    onToggleMultiLine,
 }: CustomInputProps) {
-    // Handle keyboard shortcuts via useInput
-    // These shortcuts need to be intercepted before TextInput handles them
+    // Handle all keyboard input directly
     useInput(
         (inputChar, key) => {
             if (isProcessing) return;
 
-            // Handle word deletion (Ctrl+W) - Unix standard
+            // Shift+Enter = toggle multi-line mode
+            if (key.return && key.shift) {
+                onToggleMultiLine?.();
+                return;
+            }
+
+            // Enter = submit
+            if (key.return) {
+                onSubmit(value);
+                return;
+            }
+
+            // Ctrl+U = line delete (Unix standard, also what Cmd+Backspace becomes)
+            if (key.ctrl && inputChar === 'u') {
+                onLineDelete?.();
+                return;
+            }
+
+            // Ctrl+W = word delete (Unix standard, also what Option+Backspace becomes)
             if (key.ctrl && inputChar === 'w') {
                 onWordDelete?.();
                 return;
             }
 
-            // Handle Option+Delete alternative (Ctrl+Shift+Backspace)
-            if (key.backspace && key.ctrl && key.shift) {
-                onWordDelete?.();
+            // Regular backspace/delete
+            if (key.backspace || key.delete) {
+                onChange(value.slice(0, -1));
                 return;
             }
 
-            // Handle line deletion (Cmd+Delete or Cmd+Backspace) - Mac standard
-            if ((key.delete && key.meta) || (key.backspace && key.meta)) {
-                onLineDelete?.();
-                return;
-            }
-
-            // Handle Ctrl+U (line delete) - Unix standard
-            if (key.ctrl && inputChar === 'u') {
-                onLineDelete?.();
-                return;
+            // Regular character input
+            if (inputChar && !key.ctrl && !key.meta) {
+                onChange(value + inputChar);
             }
         },
         { isActive: true }
     );
 
+    // Render with block cursor highlighting the character at cursor position
+    if (!value && placeholder) {
+        // Empty input - highlight first character of placeholder
+        const firstChar = placeholder[0] || ' ';
+        const rest = placeholder.slice(1);
+        return (
+            <Text>
+                <Text color="black" backgroundColor="green">
+                    {firstChar}
+                </Text>
+                <Text dimColor>{rest}</Text>
+            </Text>
+        );
+    }
+
+    // Has value - highlight character after end (space)
     return (
-        <TextInput
-            value={value}
-            onChange={onChange}
-            onSubmit={onSubmit}
-            {...(placeholder ? { placeholder } : {})}
-        />
+        <Text>
+            {value}
+            <Text color="black" backgroundColor="green">
+                {' '}
+            </Text>
+        </Text>
     );
 }

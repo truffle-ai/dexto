@@ -28,6 +28,10 @@ export type InputHistoryResetAction = {
     type: 'INPUT_HISTORY_RESET';
 };
 
+export type InputToggleMultiLineAction = {
+    type: 'INPUT_TOGGLE_MULTILINE';
+};
+
 /**
  * Message actions
  */
@@ -167,6 +171,7 @@ export type CLIAction =
     | InputClearAction
     | InputHistoryNavigateAction
     | InputHistoryResetAction
+    | InputToggleMultiLineAction
     | MessageAddAction
     | MessageAddMultipleAction
     | MessageInsertBeforeStreamingAction

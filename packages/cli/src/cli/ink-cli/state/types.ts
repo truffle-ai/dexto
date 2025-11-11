@@ -33,6 +33,7 @@ export interface InputState {
     history: string[];
     historyIndex: number;
     remountKey: number; // Key to force TextInput remount for cursor positioning
+    isMultiLine: boolean; // Whether multi-line input mode is active
 }
 
 /**

@@ -46,6 +46,11 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
         dispatch({ type: 'INPUT_CHANGE', value: newValue });
     }, [dispatch, inputService, input.value]);
 
+    // Handle multi-line toggle
+    const handleToggleMultiLine = useCallback(() => {
+        dispatch({ type: 'INPUT_TOGGLE_MULTILINE' });
+    }, [dispatch]);
+
     // Handle submission
     const handleSubmit = useCallback(
         async (value: string) => {
@@ -161,7 +166,9 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
             placeholder={placeholder}
             onWordDelete={handleWordDelete}
             onLineDelete={handleLineDelete}
+            onToggleMultiLine={handleToggleMultiLine}
             remountKey={input.remountKey}
+            isMultiLine={input.isMultiLine}
         />
     );
 }

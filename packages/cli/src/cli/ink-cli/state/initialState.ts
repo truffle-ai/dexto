@@ -21,6 +21,7 @@ export function createInitialState(
             history: [],
             historyIndex: -1,
             remountKey: 0,
+            isMultiLine: false,
         },
         ui: {
             isProcessing: false,
