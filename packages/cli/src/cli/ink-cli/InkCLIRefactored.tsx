@@ -14,7 +14,7 @@
  * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
-import { useReducer, useMemo } from 'react';
+import { useReducer, useMemo, useEffect } from 'react';
 import { Box } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 
@@ -81,6 +81,45 @@ export function InkCLIRefactored({ agent }: InkCLIProps) {
 
     // Setup global keyboard shortcuts
     useKeyboardShortcuts({ state, dispatch, agent });
+
+    // Detect overlays based on input (with guards to prevent infinite loop)
+    useEffect(() => {
+        // Don't detect overlays if processing or approval is active
+        if (state.ui.isProcessing || state.approval) return;
+
+        const autocompleteType = inputService.detectAutocompleteType(state.input.value);
+        const selectorType = inputService.detectInteractiveSelector(state.input.value);
+
+        // Determine what overlay should be shown
+        let desiredOverlay: typeof state.ui.activeOverlay = 'none';
+
+        // Priority: selector > autocomplete
+        if (selectorType === 'model') {
+            desiredOverlay = 'model-selector';
+        } else if (selectorType === 'session') {
+            desiredOverlay = 'session-selector';
+        } else if (autocompleteType === 'slash') {
+            desiredOverlay = 'slash-autocomplete';
+        } else if (autocompleteType === 'resource') {
+            desiredOverlay = 'resource-autocomplete';
+        }
+
+        // Only dispatch if overlay needs to change
+        if (desiredOverlay !== state.ui.activeOverlay && state.ui.activeOverlay !== 'approval') {
+            if (desiredOverlay === 'none') {
+                dispatch({ type: 'CLOSE_OVERLAY' });
+            } else {
+                dispatch({ type: 'SHOW_OVERLAY', overlay: desiredOverlay });
+            }
+        }
+    }, [
+        state.input.value,
+        state.ui.isProcessing,
+        state.approval,
+        state.ui.activeOverlay,
+        inputService,
+        dispatch,
+    ]);
 
     // Get current model name
     const modelName = agent.getCurrentLLMConfig().model;

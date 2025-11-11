@@ -32,34 +32,9 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
     const { ui, input, approval } = state;
     const eventBus = agent.agentEventBus;
 
-    // Detect what overlay should be shown based on input
-    useEffect(() => {
-        if (ui.isProcessing || approval) return;
-
-        const autocompleteType = inputService.detectAutocompleteType(input.value);
-        const selectorType = inputService.detectInteractiveSelector(input.value);
-
-        // Priority: selector > autocomplete
-        if (selectorType === 'model' && ui.activeOverlay !== 'model-selector') {
-            dispatch({ type: 'SHOW_OVERLAY', overlay: 'model-selector' });
-        } else if (selectorType === 'session' && ui.activeOverlay !== 'session-selector') {
-            dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-selector' });
-        } else if (autocompleteType === 'slash' && ui.activeOverlay !== 'slash-autocomplete') {
-            dispatch({ type: 'SHOW_OVERLAY', overlay: 'slash-autocomplete' });
-        } else if (
-            autocompleteType === 'resource' &&
-            ui.activeOverlay !== 'resource-autocomplete'
-        ) {
-            dispatch({ type: 'SHOW_OVERLAY', overlay: 'resource-autocomplete' });
-        } else if (
-            autocompleteType === 'none' &&
-            selectorType === 'none' &&
-            ui.activeOverlay !== 'none' &&
-            ui.activeOverlay !== 'approval'
-        ) {
-            dispatch({ type: 'CLOSE_OVERLAY' });
-        }
-    }, [input.value, ui.isProcessing, approval, ui.activeOverlay, dispatch, inputService]);
+    // NOTE: Automatic overlay detection removed to prevent infinite loop
+    // Overlays are now shown explicitly via SHOW_OVERLAY actions from InputContainer
+    // or from the main component's input detection logic
 
     // Handle approval responses
     const handleApprove = useCallback(

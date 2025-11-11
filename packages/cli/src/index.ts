@@ -903,8 +903,10 @@ program
                             await startHeadlessCli(agent, headlessInput);
                             safeExit('main', 0);
                         } else {
-                            const { startInkCli } = await import('./cli/ink-cli.js');
-                            await startInkCli(agent);
+                            const { startInkCliRefactored } = await import(
+                                './cli/ink-cli/InkCLIRefactored.js'
+                            );
+                            await startInkCliRefactored(agent);
                         }
                         break;
                     }
