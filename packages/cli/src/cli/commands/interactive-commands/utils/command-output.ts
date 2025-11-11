@@ -47,7 +47,7 @@ export class CommandOutputHelper {
         const fullMessage = context ? `❌ ${context}: ${errorMessage}` : `❌ ${errorMessage}`;
 
         logger.error(fullMessage);
-        console.log(chalk.red(fullMessage));
+        console.error(chalk.red(fullMessage));
         return formatForInkCli(fullMessage);
     }
 
@@ -73,8 +73,8 @@ export class CommandOutputHelper {
     ): string | null {
         if (args.length <= index || !args[index]) {
             const errorMsg = `❌ ${argName} is required\nUsage: ${usage}`;
-            console.log(chalk.red(`❌ ${argName} is required`));
-            console.log(chalk.dim(`Usage: ${usage}`));
+            console.error(chalk.red(`❌ ${argName} is required`));
+            console.error(chalk.dim(`Usage: ${usage}`));
             return formatForInkCli(errorMsg);
         }
         return null;

@@ -25,6 +25,13 @@ import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatter
 import { CommandOutputHelper } from '../utils/command-output.js';
 
 /**
+ * Escape special regex characters in a string to prevent ReDoS attacks
+ */
+function escapeRegExp(string: string): string {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Helper to get current session info
  */
 async function getCurrentSessionInfo(
@@ -445,7 +452,7 @@ export const searchCommand: CommandDefinition = {
                     `${chalk.dim(`${index + 1}.`)} ${chalk.cyan(result.sessionId.slice(0, 8))} ${roleColor(`[${result.message.role}]`)}`
                 );
                 console.log(
-                    `   ${result.context.replace(new RegExp(`(${query})`, 'gi'), chalk.inverse('$1'))}`
+                    `   ${result.context.replace(new RegExp(`(${escapeRegExp(query.trim().slice(0, 256))})`, 'gi'), chalk.inverse('$1'))}`
                 );
                 console.log();
 

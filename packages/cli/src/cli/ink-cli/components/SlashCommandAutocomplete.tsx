@@ -169,7 +169,9 @@ export default function SlashCommandAutocomplete({
                 }
             } catch (error) {
                 if (!cancelled) {
-                    console.error('Failed to fetch commands:', error);
+                    console.error(
+                        `Error in fetchCommands: ${error instanceof Error ? error.message : String(error)}`
+                    );
                     setPrompts([]);
                     setSystemCommands([]);
                     setIsLoading(false);

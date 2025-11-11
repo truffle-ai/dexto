@@ -110,7 +110,7 @@ export default function EditableMultiLineInput({
             })}
             <Box marginTop={1}>
                 <Text color="gray" dimColor>
-                    Multi-line: Cmd+Enter to submit • Shift+Enter for single-line
+                    Multi-line: Cmd+Enter (or Ctrl+Enter) to submit • Shift+Enter for single-line
                 </Text>
             </Box>
         </Box>

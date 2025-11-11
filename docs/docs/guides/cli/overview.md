@@ -444,8 +444,8 @@ dexto --web-port 8080 --api-port 9000
 # With specific agent
 dexto --agent database-agent
 
-# Continue previous session
-dexto -c
+# Resume a specific session (get session ID from web UI or session list)
+dexto --resume <sessionId>
 ```
 
 ### API Server

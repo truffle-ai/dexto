@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Text } from 'ink';
-import type { DextoAgent, LLMProvider } from '@dexto/core';
+import { logger, type DextoAgent, type LLMProvider } from '@dexto/core';
 import { BaseSelector } from '../base/BaseSelector.js';
 
 interface ModelSelectorProps {
@@ -81,7 +81,10 @@ export default function ModelSelector({
                 }
             } catch (error) {
                 if (!cancelled) {
-                    console.error('Failed to fetch models:', error);
+                    logger.error(
+                        `Failed to fetch models: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        { error }
+                    );
                     setModels([]);
                     setIsLoading(false);
                 }
