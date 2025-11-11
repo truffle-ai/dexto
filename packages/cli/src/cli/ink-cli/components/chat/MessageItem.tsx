@@ -7,6 +7,7 @@
 import { memo } from 'react';
 import { Box, Text } from 'ink';
 import type { Message } from '../../state/types.js';
+import { ToolIcon } from './ToolIcon.js';
 
 interface MessageItemProps {
     message: Message;
@@ -27,6 +28,7 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                     </Text>
                     <Text color="white">{message.content}</Text>
                 </Box>
+                <Text>{''}</Text>
             </Box>
         );
     }
@@ -43,21 +45,21 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                         <Text color="white">{message.content || ' '}</Text>
                     </Box>
                 </Box>
+                <Text>{''}</Text>
             </Box>
         );
     }
 
-    // Tool message: Yellow indicator with args and result preview
+    // Tool message: Animated icon with status-based colors
     if (message.role === 'tool') {
+        const toolStatus = message.toolStatus || 'running';
+        const textColor = toolStatus === 'finished' ? 'green' : 'magentaBright';
+
         return (
-            <Box flexDirection="column" marginBottom={0}>
+            <Box flexDirection="column" marginBottom={1}>
                 <Box flexDirection="row">
-                    <Text color="yellow" bold>
-                        ⚙{' '}
-                    </Text>
-                    <Text color="yellow" dimColor>
-                        {message.content}
-                    </Text>
+                    <ToolIcon status={toolStatus} />
+                    <Text color={textColor}>{message.content}</Text>
                 </Box>
                 {message.toolResult && (
                     <Box marginLeft={2} marginTop={0} flexDirection="column">
@@ -66,16 +68,18 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                         </Text>
                     </Box>
                 )}
+                <Text>{''}</Text>
             </Box>
         );
     }
 
     // System message: Compact gray text
     return (
-        <Box flexDirection="column" marginBottom={0}>
+        <Box flexDirection="column" marginBottom={1}>
             <Text color="gray" dimColor>
                 {message.content}
             </Text>
+            <Text>{''}</Text>
         </Box>
     );
 });

@@ -16,6 +16,11 @@ export interface StartupInfo {
 }
 
 /**
+ * Tool call status for visual feedback
+ */
+export type ToolStatus = 'running' | 'finished';
+
+/**
  * Message in the chat interface
  */
 export interface Message {
@@ -25,6 +30,7 @@ export interface Message {
     timestamp: Date;
     isStreaming?: boolean;
     toolResult?: string; // Tool result preview (first 4-5 lines)
+    toolStatus?: ToolStatus; // Status for tool messages (running/finished)
 }
 
 /**

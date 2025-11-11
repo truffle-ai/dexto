@@ -86,6 +86,7 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
                     role: 'tool',
                     content: `${payload.toolName}${argsPreview}`,
                     timestamp: new Date(),
+                    toolStatus: 'running',
                 },
             });
         };
@@ -118,14 +119,15 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
                 resultPreview = '';
             }
 
-            // Update the tool message with result preview
-            if (payload.callId && resultPreview) {
+            // Update the tool message with result preview and mark as finished
+            if (payload.callId) {
                 const toolMessageId = `tool-${payload.callId}`;
                 dispatch({
                     type: 'MESSAGE_UPDATE',
                     id: toolMessageId,
                     update: {
                         toolResult: resultPreview,
+                        toolStatus: 'finished',
                     },
                 });
             }
