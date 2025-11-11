@@ -15,6 +15,7 @@ export function createInitialState(): CLIState {
             value: '',
             history: [],
             historyIndex: -1,
+            remountKey: 0,
         },
         ui: {
             isProcessing: false,

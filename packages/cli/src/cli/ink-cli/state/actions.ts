@@ -12,6 +12,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 export type InputChangeAction = {
     type: 'INPUT_CHANGE';
     value: string;
+    forceRemount?: boolean; // Force TextInput remount to reset cursor position
 };
 
 export type InputClearAction = {
@@ -38,6 +39,11 @@ export type MessageAddAction = {
 export type MessageAddMultipleAction = {
     type: 'MESSAGE_ADD_MULTIPLE';
     messages: Message[];
+};
+
+export type MessageInsertBeforeStreamingAction = {
+    type: 'MESSAGE_INSERT_BEFORE_STREAMING';
+    message: Message;
 };
 
 export type MessageUpdateAction = {
@@ -154,6 +160,7 @@ export type CLIAction =
     | InputHistoryResetAction
     | MessageAddAction
     | MessageAddMultipleAction
+    | MessageInsertBeforeStreamingAction
     | MessageUpdateAction
     | MessageRemoveAction
     | StreamingStartAction

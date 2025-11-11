@@ -19,6 +19,9 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 input: {
                     ...state.input,
                     value: action.value,
+                    remountKey: action.forceRemount
+                        ? state.input.remountKey + 1
+                        : state.input.remountKey,
                 },
             };
 
@@ -29,6 +32,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     ...state.input,
                     value: '',
                     historyIndex: -1,
+                    remountKey: state.input.remountKey + 1,
                 },
             };
 
@@ -87,6 +91,42 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ...state,
                 messages: [...state.messages, ...action.messages],
             };
+
+        case 'MESSAGE_INSERT_BEFORE_STREAMING': {
+            // Insert message before the streaming message (for tool calls)
+            if (!state.streamingMessage) {
+                // No streaming message, just append
+                return {
+                    ...state,
+                    messages: [...state.messages, action.message],
+                };
+            }
+
+            // Find streaming message and insert before it
+            const streamingIndex = state.messages.findIndex(
+                (msg) => msg.id === state.streamingMessage?.id
+            );
+
+            if (streamingIndex === -1) {
+                // Streaming message not found, append
+                return {
+                    ...state,
+                    messages: [...state.messages, action.message],
+                };
+            }
+
+            // Insert before streaming message
+            const newMessages = [
+                ...state.messages.slice(0, streamingIndex),
+                action.message,
+                ...state.messages.slice(streamingIndex),
+            ];
+
+            return {
+                ...state,
+                messages: newMessages,
+            };
+        }
 
         case 'MESSAGE_UPDATE':
             return {
@@ -181,6 +221,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     value: '',
                     history: newHistory,
                     historyIndex: -1,
+                    remountKey: state.input.remountKey + 1,
                 },
                 ui: {
                     ...state.ui,

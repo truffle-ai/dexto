@@ -128,11 +128,11 @@ export default function SessionSelector({
     // Format session item for display
     const formatItem = (session: SessionOption, isSelected: boolean) => (
         <>
-            <Text color={isSelected ? 'black' : 'green'} bold>
+            <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                 {formatSession(session)}
             </Text>
             {session.isCurrent && (
-                <Text color={isSelected ? 'black' : 'cyan'} bold>
+                <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                     {' '}
                     ← Current
                 </Text>

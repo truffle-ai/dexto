@@ -125,8 +125,9 @@ export function InkCLIRefactored({ agent }: InkCLIProps) {
     const modelName = agent.getCurrentLLMConfig().model;
 
     // Get visible messages (performance optimization)
+    // Limit to last 30 messages to prevent scrolling issues
     const visibleMessages = useMemo(() => {
-        return messageService.getVisibleMessages(state.messages);
+        return messageService.getVisibleMessages(state.messages, 30);
     }, [state.messages, messageService]);
 
     return (

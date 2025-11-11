@@ -51,6 +51,12 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
             const trimmed = value.trim();
             if (!trimmed || ui.isProcessing) return;
 
+            // Prevent double submission when autocomplete/selector is active
+            // The autocomplete/selector will handle the submission
+            if (ui.activeOverlay !== 'none' && ui.activeOverlay !== 'approval') {
+                return;
+            }
+
             // Create user message
             const userMessage = createUserMessage(trimmed);
 
@@ -79,6 +85,7 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
                     if (result.type === 'prompt') {
                         // Command executed a prompt via agent.run()
                         // Processing will continue via event bus
+                        // Don't set SUBMIT_COMPLETE here - wait for agent response
                         return;
                     }
 
@@ -95,6 +102,7 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
                         });
                     }
 
+                    // Always complete for non-prompt commands
                     dispatch({ type: 'SUBMIT_COMPLETE' });
                 } catch (error) {
                     dispatch({
@@ -145,6 +153,7 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
             placeholder={placeholder}
             onWordDelete={handleWordDelete}
             onLineDelete={handleLineDelete}
+            remountKey={input.remountKey}
         />
     );
 }

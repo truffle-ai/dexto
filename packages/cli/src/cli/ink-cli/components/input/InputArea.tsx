@@ -17,6 +17,7 @@ interface InputAreaProps {
     placeholder?: string | undefined;
     onWordDelete: () => void;
     onLineDelete: () => void;
+    remountKey?: number; // Key to force TextInput remount for cursor positioning
 }
 
 /**
@@ -31,6 +32,7 @@ export function InputArea({
     placeholder,
     onWordDelete,
     onLineDelete,
+    remountKey = 0,
 }: InputAreaProps) {
     return (
         <Box borderStyle="single" borderColor="green" paddingX={1} flexDirection="row">
@@ -39,6 +41,7 @@ export function InputArea({
             </Text>
             <Box flexGrow={1}>
                 <CustomInput
+                    key={remountKey}
                     value={value}
                     onChange={onChange}
                     onSubmit={onSubmit}

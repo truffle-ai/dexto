@@ -98,7 +98,7 @@ export default function ModelSelector({
     // Format model item for display
     const formatItem = (model: ModelOption, isSelected: boolean) => (
         <>
-            <Text color={isSelected ? 'black' : 'green'} bold>
+            <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                 {model.displayName || model.name}
             </Text>
             <Text color={isSelected ? 'black' : 'gray'} dimColor={!isSelected}>
@@ -110,13 +110,13 @@ export default function ModelSelector({
                 • {model.maxInputTokens.toLocaleString()} tokens
             </Text>
             {model.isDefault && (
-                <Text color={isSelected ? 'black' : 'yellow'} dimColor={!isSelected}>
+                <Text color={isSelected ? 'black' : 'gray'} dimColor={!isSelected}>
                     {' '}
                     [DEFAULT]
                 </Text>
             )}
             {model.isCurrent && (
-                <Text color={isSelected ? 'black' : 'cyan'} bold>
+                <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                     {' '}
                     ← Current
                 </Text>

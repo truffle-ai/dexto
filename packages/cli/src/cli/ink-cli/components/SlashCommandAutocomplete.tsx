@@ -389,9 +389,9 @@ export default function SlashCommandAutocomplete({
                             key="create"
                             paddingX={1}
                             paddingY={0}
-                            backgroundColor={isSelected ? 'cyan' : undefined}
+                            backgroundColor={isSelected ? 'yellow' : undefined}
                         >
-                            <Text color={isSelected ? 'black' : 'cyan'} bold>
+                            <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                                 + Create new prompt: /{commandQuery || 'name'}
                             </Text>
                         </Box>
@@ -405,10 +405,10 @@ export default function SlashCommandAutocomplete({
                             key={`system-${cmd.name}`}
                             paddingX={1}
                             paddingY={0}
-                            backgroundColor={isSelected ? 'cyan' : undefined}
+                            backgroundColor={isSelected ? 'yellow' : undefined}
                             flexDirection="row"
                         >
-                            <Text color={isSelected ? 'black' : 'yellow'} bold>
+                            <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                                 /{cmd.name}
                             </Text>
                             {cmd.description && (
@@ -442,10 +442,10 @@ export default function SlashCommandAutocomplete({
                         key={`prompt-${prompt.name}`}
                         paddingX={1}
                         paddingY={0}
-                        backgroundColor={isSelected ? 'cyan' : undefined}
+                        backgroundColor={isSelected ? 'yellow' : undefined}
                         flexDirection="row"
                     >
-                        <Text color={isSelected ? 'black' : 'green'} bold>
+                        <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                             /{prompt.name}
                         </Text>
                         {argsString && (

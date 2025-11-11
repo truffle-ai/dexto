@@ -14,6 +14,7 @@ export interface Message {
     content: string;
     timestamp: Date;
     isStreaming?: boolean;
+    toolResult?: string; // Tool result preview (first 4-5 lines)
 }
 
 /**
@@ -31,6 +32,7 @@ export interface InputState {
     value: string;
     history: string[];
     historyIndex: number;
+    remountKey: number; // Key to force TextInput remount for cursor positioning
 }
 
 /**

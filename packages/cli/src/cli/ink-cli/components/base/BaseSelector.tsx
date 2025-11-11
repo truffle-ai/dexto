@@ -4,7 +4,7 @@
  * Used by ModelSelector and SessionSelector
  */
 
-import React, { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 export interface BaseSelectorProps<T> {
@@ -65,7 +65,7 @@ export function BaseSelector<T>({
 
     // Handle keyboard navigation
     useInput(
-        (input, key) => {
+        (_inputChar, key) => {
             if (!isVisible) return;
 
             const itemsLength = items.length;
@@ -137,7 +137,12 @@ export function BaseSelector<T>({
                 const isSelected = actualIndex === selectedIndex;
 
                 return (
-                    <Box key={actualIndex} paddingX={1} paddingY={0}>
+                    <Box
+                        key={actualIndex}
+                        paddingX={1}
+                        paddingY={0}
+                        backgroundColor={isSelected ? 'yellow' : undefined}
+                    >
                         {formatItem(item, isSelected)}
                     </Box>
                 );

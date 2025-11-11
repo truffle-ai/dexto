@@ -23,8 +23,17 @@ export function MessageList({ messages, maxVisible = 50 }: MessageListProps) {
         return messages.slice(-maxVisible);
     }, [messages, maxVisible]);
 
+    const hasMoreMessages = messages.length > maxVisible;
+
     return (
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
+            {hasMoreMessages && (
+                <Box marginBottom={1}>
+                    <Text color="gray" dimColor>
+                        ... ({messages.length - maxVisible} earlier messages hidden)
+                    </Text>
+                </Box>
+            )}
             {visibleMessages.length === 0 && (
                 <Box marginY={2}>
                     <Text dimColor>

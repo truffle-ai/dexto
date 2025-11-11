@@ -3,7 +3,7 @@
  * Smart container for managing all overlays (selectors, autocomplete, approval)
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { Box } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
@@ -16,6 +16,7 @@ import ModelSelectorRefactored from '../components/overlays/ModelSelectorRefacto
 import SessionSelectorRefactored from '../components/overlays/SessionSelectorRefactored.js';
 import type { PromptInfo, ResourceMetadata } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
+import { createUserMessage } from '../utils/messageFormatting.js';
 
 interface OverlayContainerProps {
     state: CLIState;
@@ -179,49 +180,93 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
 
     // Handle slash command/prompt selection
     const handlePromptSelect = useCallback(
-        (prompt: PromptInfo) => {
-            // Execute immediately
+        async (prompt: PromptInfo) => {
             const commandText = `/${prompt.name}`;
-            dispatch({ type: 'INPUT_CLEAR' });
             dispatch({ type: 'CLOSE_OVERLAY' });
+            dispatch({ type: 'INPUT_CLEAR' });
+            dispatch({ type: 'PROCESSING_START' });
 
-            // Trigger submission
-            setTimeout(() => {
-                const userMessage = {
-                    id: `user-${Date.now()}`,
-                    role: 'user' as const,
-                    content: commandText,
-                    timestamp: new Date(),
-                };
-                dispatch({ type: 'SUBMIT_START', userMessage, inputValue: commandText });
-            }, 0);
+            // Execute the prompt command directly without showing user message
+            // (user can already see the command in the autocomplete)
+            const { CommandService } = await import('../services/CommandService.js');
+            const commandService = new CommandService();
+
+            try {
+                const result = await commandService.executeCommand(prompt.name, [], agent);
+
+                if (result.type === 'prompt') {
+                    // Prompt execution continues via event bus
+                    return;
+                }
+
+                if (result.type === 'output' && result.output) {
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: `command-${Date.now()}`,
+                            role: 'system',
+                            content: result.output,
+                            timestamp: new Date(),
+                        },
+                    });
+                }
+
+                dispatch({ type: 'PROCESSING_END' });
+            } catch (error) {
+                dispatch({
+                    type: 'ERROR',
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                });
+            }
         },
-        [dispatch]
+        [dispatch, agent]
     );
 
     const handleSystemCommandSelect = useCallback(
-        (command: string) => {
-            const commandText = `/${command}`;
-            dispatch({ type: 'INPUT_CLEAR' });
+        async (command: string) => {
             dispatch({ type: 'CLOSE_OVERLAY' });
+            dispatch({ type: 'INPUT_CLEAR' });
+            dispatch({ type: 'PROCESSING_START' });
 
-            // Execute immediately
-            setTimeout(() => {
-                const userMessage = {
-                    id: `user-${Date.now()}`,
-                    role: 'user' as const,
-                    content: commandText,
-                    timestamp: new Date(),
-                };
-                dispatch({ type: 'SUBMIT_START', userMessage, inputValue: commandText });
-            }, 0);
+            // Execute the system command directly without showing user message
+            // (user can already see the command in the autocomplete)
+            const { CommandService } = await import('../services/CommandService.js');
+            const commandService = new CommandService();
+
+            try {
+                const result = await commandService.executeCommand(command, [], agent);
+
+                if (result.type === 'prompt') {
+                    // Prompt execution continues via event bus
+                    return;
+                }
+
+                if (result.type === 'output' && result.output) {
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: `command-${Date.now()}`,
+                            role: 'system',
+                            content: result.output,
+                            timestamp: new Date(),
+                        },
+                    });
+                }
+
+                dispatch({ type: 'PROCESSING_END' });
+            } catch (error) {
+                dispatch({
+                    type: 'ERROR',
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                });
+            }
         },
-        [dispatch]
+        [dispatch, agent]
     );
 
     const handleLoadIntoInput = useCallback(
         (text: string) => {
-            dispatch({ type: 'INPUT_CHANGE', value: text });
+            dispatch({ type: 'INPUT_CHANGE', value: text, forceRemount: true });
             dispatch({ type: 'CLOSE_OVERLAY' });
         },
         [dispatch]

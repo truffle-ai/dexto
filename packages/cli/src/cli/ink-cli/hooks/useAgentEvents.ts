@@ -55,16 +55,76 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
         };
 
         // Handle tool calls
-        const handleToolCall = (payload: { toolName: string; args: any }) => {
+        const handleToolCall = (payload: { toolName: string; args: any; callId?: string }) => {
+            // Format args for display (compact, one-line)
+            let argsPreview = '';
+            try {
+                const argsStr = JSON.stringify(payload.args);
+                // Remove outer braces and limit length
+                const cleanArgs = argsStr.replace(/^\{|\}$/g, '').trim();
+                if (cleanArgs.length > 80) {
+                    argsPreview = ` • ${cleanArgs.slice(0, 80)}...`;
+                } else if (cleanArgs.length > 0) {
+                    argsPreview = ` • ${cleanArgs}`;
+                }
+            } catch {
+                argsPreview = '';
+            }
+
+            // Insert before streaming message so tools appear in correct order
+            // Use callId if available for matching with result later
+            const toolMessageId = payload.callId ? `tool-${payload.callId}` : `tool-${Date.now()}`;
+
             dispatch({
-                type: 'MESSAGE_ADD',
+                type: 'MESSAGE_INSERT_BEFORE_STREAMING',
                 message: {
-                    id: `tool-${Date.now()}`,
+                    id: toolMessageId,
                     role: 'tool',
-                    content: `🔧 Calling tool: ${payload.toolName}`,
+                    content: `${payload.toolName}${argsPreview}`,
                     timestamp: new Date(),
                 },
             });
+        };
+
+        // Handle tool results
+        const handleToolResult = (payload: {
+            toolName: string;
+            callId?: string;
+            sanitized?: any;
+            rawResult?: any;
+            success: boolean;
+        }) => {
+            // Format result preview (4-5 CLI lines, ~400 chars accounting for wrapping)
+            let resultPreview = '';
+            try {
+                const result = payload.sanitized || payload.rawResult;
+                if (result) {
+                    const resultStr =
+                        typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+
+                    // Limit to ~400 chars (roughly 4-5 terminal lines at 80-100 chars width)
+                    const maxChars = 400;
+                    if (resultStr.length > maxChars) {
+                        resultPreview = resultStr.slice(0, maxChars) + '\n...';
+                    } else {
+                        resultPreview = resultStr;
+                    }
+                }
+            } catch {
+                resultPreview = '';
+            }
+
+            // Update the tool message with result preview
+            if (payload.callId && resultPreview) {
+                const toolMessageId = `tool-${payload.callId}`;
+                dispatch({
+                    type: 'MESSAGE_UPDATE',
+                    id: toolMessageId,
+                    update: {
+                        toolResult: resultPreview,
+                    },
+                });
+            }
         };
 
         // Handle approval requests
@@ -105,6 +165,7 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
         bus.on('llmservice:response', handleResponse);
         bus.on('llmservice:error', handleError);
         bus.on('llmservice:toolCall', handleToolCall);
+        bus.on('llmservice:toolResult', handleToolResult);
         bus.on('dexto:approvalRequest', handleApprovalRequest);
 
         // Cleanup on unmount
@@ -113,6 +174,7 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
             bus.off('llmservice:response', handleResponse);
             bus.off('llmservice:error', handleError);
             bus.off('llmservice:toolCall', handleToolCall);
+            bus.off('llmservice:toolResult', handleToolResult);
             bus.off('dexto:approvalRequest', handleApprovalRequest);
         };
     }, [agent, dispatch]);

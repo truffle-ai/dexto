@@ -300,14 +300,14 @@ export default function ResourceAutocomplete({
                     >
                         <Box flexDirection="column">
                             <Box>
-                                {isImage && <Text color={isSelected ? 'black' : 'cyan'}>🖼️ </Text>}
-                                <Text color={isSelected ? 'black' : 'green'} bold>
+                                {isImage && <Text color={isSelected ? 'black' : 'gray'}>🖼️ </Text>}
+                                <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
                                     {displayName}
                                 </Text>
                                 {resource.serverName && (
                                     <Box marginLeft={1}>
                                         <Text
-                                            color={isSelected ? 'black' : 'yellow'}
+                                            color={isSelected ? 'black' : 'gray'}
                                             dimColor={!isSelected}
                                         >
                                             [{resource.serverName}]
