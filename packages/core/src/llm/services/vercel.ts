@@ -28,7 +28,7 @@ import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
-import { trace } from '@opentelemetry/api';
+import { trace, context, propagation } from '@opentelemetry/api';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -280,67 +280,103 @@ export class VercelLLMService implements ILLMService {
         fileData?: FileData,
         stream?: boolean
     ): Promise<string> {
-        // Add user message, with optional image and file data
-        logger.debug(
-            `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
-                imageData
-            )}, file=${Boolean(fileData)})`
-        );
-        await this.contextManager.addUserMessage(textInput, imageData, fileData);
+        // Get active span and context
+        const activeSpan = trace.getActiveSpan();
+        const currentContext = context.active();
 
-        // Get all tools
-        const tools = await this.toolManager.getAllTools();
-        logger.silly(
-            `[VercelLLMService] Tools before formatting: ${JSON.stringify(tools, null, 2)}`
-        );
+        const provider = this.config.provider;
+        const model = this.getModelId();
 
-        const formattedTools = this.formatTools(tools);
-
-        logger.silly(
-            `[VercelLLMService] Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`
-        );
-
-        let fullResponse = '';
-
-        this.sessionEventBus.emit('llmservice:thinking');
-        const prepared = await this.contextManager.getFormattedMessagesWithCompression(
-            { mcpManager: this.toolManager.getMcpManager() },
-            { provider: this.config.provider, model: this.getModelId() }
-        );
-        const formattedMessages: ModelMessage[] = prepared.formattedMessages as ModelMessage[];
-        const tokensUsed: number = prepared.tokensUsed;
-
-        logger.silly(
-            `Messages (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
-        );
-        logger.silly(`Tools: ${JSON.stringify(formattedTools, null, 2)}`);
-        logger.debug(`Estimated tokens being sent to Vercel provider: ${tokensUsed}`);
-
-        // Both methods now return strings and handle message processing internally
-        if (stream) {
-            fullResponse = await this.streamText(
-                formattedMessages,
-                formattedTools,
-                this.config.maxIterations,
-                options?.signal
-            );
-        } else {
-            fullResponse = await this.generateText(
-                formattedMessages,
-                formattedTools,
-                this.config.maxIterations,
-                options?.signal
-            );
+        // Set on active span
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', provider);
+            activeSpan.setAttribute('llm.model', model);
         }
 
-        // If the run was cancelled, don't emit the "max steps" fallback.
-        if (options?.signal?.aborted) {
-            return fullResponse; // likely '', which upstream can treat as "no content"
+        // Add to baggage for child span propagation
+        const existingBaggage = propagation.getBaggage(currentContext);
+        const baggageEntries: Record<string, import('@opentelemetry/api').BaggageEntry> = {};
+
+        // Preserve existing baggage
+        if (existingBaggage) {
+            existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                baggageEntries[key] = entry;
+            });
         }
-        return (
-            fullResponse ||
-            `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
+
+        // Add LLM metadata
+        baggageEntries['llm.provider'] = { value: provider };
+        baggageEntries['llm.model'] = { value: model };
+
+        const updatedContext = propagation.setBaggage(
+            currentContext,
+            propagation.createBaggage(baggageEntries)
         );
+
+        // Execute rest of method in updated context
+        return await context.with(updatedContext, async () => {
+            // Add user message, with optional image and file data
+            logger.debug(
+                `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
+                    imageData
+                )}, file=${Boolean(fileData)})`
+            );
+            await this.contextManager.addUserMessage(textInput, imageData, fileData);
+
+            // Get all tools
+            const tools = await this.toolManager.getAllTools();
+            logger.silly(
+                `[VercelLLMService] Tools before formatting: ${JSON.stringify(tools, null, 2)}`
+            );
+
+            const formattedTools = this.formatTools(tools);
+
+            logger.silly(
+                `[VercelLLMService] Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`
+            );
+
+            let fullResponse = '';
+
+            this.sessionEventBus.emit('llmservice:thinking');
+            const prepared = await this.contextManager.getFormattedMessagesWithCompression(
+                { mcpManager: this.toolManager.getMcpManager() },
+                { provider: this.config.provider, model: this.getModelId() }
+            );
+            const formattedMessages: ModelMessage[] = prepared.formattedMessages as ModelMessage[];
+            const tokensUsed: number = prepared.tokensUsed;
+
+            logger.silly(
+                `Messages (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
+            );
+            logger.silly(`Tools: ${JSON.stringify(formattedTools, null, 2)}`);
+            logger.debug(`Estimated tokens being sent to Vercel provider: ${tokensUsed}`);
+
+            // Both methods now return strings and handle message processing internally
+            if (stream) {
+                fullResponse = await this.streamText(
+                    formattedMessages,
+                    formattedTools,
+                    this.config.maxIterations,
+                    options?.signal
+                );
+            } else {
+                fullResponse = await this.generateText(
+                    formattedMessages,
+                    formattedTools,
+                    this.config.maxIterations,
+                    options?.signal
+                );
+            }
+
+            // If the run was cancelled, don't emit the "max steps" fallback.
+            if (options?.signal?.aborted) {
+                return fullResponse; // likely '', which upstream can treat as "no content"
+            }
+            return (
+                fullResponse ||
+                `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
+            );
+        });
     }
 
     async generateText(
@@ -349,6 +385,13 @@ export class VercelLLMService implements ILLMService {
         maxSteps: number = 50,
         signal?: AbortSignal
     ): Promise<string> {
+        // Set provider and model attributes at the start of the span
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', this.config.provider);
+            activeSpan.setAttribute('llm.model', this.getModelId());
+        }
+
         let stepIteration = 0;
 
         const estimatedTokens = Math.ceil(JSON.stringify(messages, null, 2).length / 4);
@@ -419,6 +462,7 @@ export class VercelLLMService implements ILLMService {
             });
 
             // Add token usage to active span (if telemetry is enabled)
+            // Note: llm.provider and llm.model are already set at the start of the method
             const activeSpan = trace.getActiveSpan();
             if (activeSpan) {
                 const attributes: Record<string, number> = {};
@@ -521,6 +565,13 @@ export class VercelLLMService implements ILLMService {
         maxSteps: number = 10,
         signal?: AbortSignal
     ): Promise<string> {
+        // Set provider and model attributes at the start of the span
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', this.config.provider);
+            activeSpan.setAttribute('llm.model', this.getModelId());
+        }
+
         let stepIteration = 0;
 
         const temperature = this.config.temperature;
@@ -630,8 +681,9 @@ export class VercelLLMService implements ILLMService {
         });
 
         // Add token usage to active span (if telemetry is enabled)
-        const activeSpan = trace.getActiveSpan();
-        if (activeSpan) {
+        // Note: llm.provider and llm.model are already set at the start of the method
+        const activeSpan2 = trace.getActiveSpan();
+        if (activeSpan2) {
             const attributes: Record<string, number> = {};
             if (usage.inputTokens !== undefined) {
                 attributes['gen_ai.usage.input_tokens'] = usage.inputTokens;
@@ -645,7 +697,7 @@ export class VercelLLMService implements ILLMService {
             if (usage.reasoningTokens !== undefined) {
                 attributes['gen_ai.usage.reasoning_tokens'] = usage.reasoningTokens;
             }
-            activeSpan.setAttributes(attributes);
+            activeSpan2.setAttributes(attributes);
         }
 
         // Update ContextManager with actual token count
