@@ -140,8 +140,11 @@ export function useAgentEvents({ agent, dispatch }: UseAgentEventsProps): void {
             timestamp: Date;
             metadata: Record<string, any>;
         }) => {
-            // Only handle tool confirmation approvals in ink-cli
-            if (event.type === ApprovalTypeEnum.TOOL_CONFIRMATION) {
+            // Handle both tool confirmation and command confirmation approvals in ink-cli
+            if (
+                event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
+                event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION
+            ) {
                 const approval: ApprovalRequest = {
                     approvalId: event.approvalId,
                     type: event.type,

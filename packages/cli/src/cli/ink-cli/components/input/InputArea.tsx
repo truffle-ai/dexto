@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
-import Spinner from 'ink-spinner';
 import CustomInput from '../CustomInput.js';
 import EditableMultiLineInput from '../EditableMultiLineInput.js';
 
@@ -68,13 +67,6 @@ export function InputArea({
                             {...(onToggleMultiLine && { onToggleMultiLine })}
                         />
                     </Box>
-                    {isProcessing && (
-                        <Box marginLeft={1}>
-                            <Text color="yellow">
-                                <Spinner type="dots" />
-                            </Text>
-                        </Box>
-                    )}
                 </Box>
             )}
         </Box>

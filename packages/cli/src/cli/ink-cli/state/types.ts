@@ -93,4 +93,5 @@ export interface CLIState {
 
     // Approval state
     approval: ApprovalRequest | null;
+    approvalQueue: ApprovalRequest[]; // Queue for pending approvals
 }

@@ -334,6 +334,12 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     id: null,
                     hasActiveSession: false,
                 },
+                approval: null,
+                approvalQueue: [],
+                ui: {
+                    ...state.ui,
+                    activeOverlay: 'none',
+                },
             };
 
         case 'MODEL_UPDATE':
@@ -350,10 +356,24 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ...state,
                 messages: [],
                 streamingMessage: null,
+                approval: null,
+                approvalQueue: [],
+                ui: {
+                    ...state.ui,
+                    activeOverlay: 'none',
+                },
             };
 
         // Approval actions
         case 'APPROVAL_REQUEST':
+            // If there's already a pending approval, queue this one
+            if (state.approval !== null) {
+                return {
+                    ...state,
+                    approvalQueue: [...state.approvalQueue, action.approval],
+                };
+            }
+            // Otherwise, show it immediately
             return {
                 ...state,
                 approval: action.approval,
@@ -364,6 +384,22 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
             };
 
         case 'APPROVAL_COMPLETE':
+            // Check if there are queued approvals
+            if (state.approvalQueue.length > 0) {
+                // Show the next approval from the queue
+                const nextApproval = state.approvalQueue[0]!;
+                const remainingQueue = state.approvalQueue.slice(1);
+                return {
+                    ...state,
+                    approval: nextApproval,
+                    approvalQueue: remainingQueue,
+                    ui: {
+                        ...state.ui,
+                        activeOverlay: 'approval',
+                    },
+                };
+            }
+            // No more approvals, clear everything
             return {
                 ...state,
                 approval: null,

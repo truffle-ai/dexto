@@ -24,22 +24,24 @@ type SelectionOption = 'yes' | 'yes-session' | 'no';
  * Shows three options in a vertical list: Yes, Yes for Session, and No
  */
 export function ApprovalPrompt({ approval, onApprove, onDeny, onCancel }: ApprovalPromptProps) {
+    const isCommandConfirmation = approval.type === 'command_confirmation';
     const [selectedOption, setSelectedOption] = useState<SelectionOption>('yes');
 
     // Handle keyboard navigation (vertical)
     useInput(
         (input, key) => {
             if (key.upArrow) {
-                // Move up: yes-session -> yes, no -> yes-session, yes -> no (wrap)
+                // Move up (skip yes-session for command confirmations)
                 setSelectedOption((current) => {
                     if (current === 'yes') return 'no';
                     if (current === 'yes-session') return 'yes';
-                    return 'yes-session'; // no -> yes-session
+                    // no -> yes-session (or yes for command confirmations)
+                    return isCommandConfirmation ? 'yes' : 'yes-session';
                 });
             } else if (key.downArrow) {
-                // Move down: yes -> yes-session, yes-session -> no, no -> yes (wrap)
+                // Move down (skip yes-session for command confirmations)
                 setSelectedOption((current) => {
-                    if (current === 'yes') return 'yes-session';
+                    if (current === 'yes') return isCommandConfirmation ? 'no' : 'yes-session';
                     if (current === 'yes-session') return 'no';
                     return 'yes'; // no -> yes (wrap)
                 });
@@ -60,8 +62,9 @@ export function ApprovalPrompt({ approval, onApprove, onDeny, onCancel }: Approv
         { isActive: true }
     );
 
-    // Extract tool information from metadata
+    // Extract information from metadata based on approval type
     const toolName = approval.metadata.toolName as string | undefined;
+    const command = approval.metadata.command as string | undefined;
 
     return (
         <Box
@@ -71,12 +74,20 @@ export function ApprovalPrompt({ approval, onApprove, onDeny, onCancel }: Approv
             paddingY={0}
             flexDirection="column"
         >
-            {/* Compact header with tool name inline */}
-            <Box flexDirection="row" marginBottom={0}>
-                <Text color="yellow" bold>
-                    🔐 Approval:{' '}
-                </Text>
-                {toolName && <Text color="cyan">{toolName}</Text>}
+            {/* Compact header with context */}
+            <Box flexDirection="column" marginBottom={0}>
+                <Box flexDirection="row">
+                    <Text color="yellow" bold>
+                        🔐 Approval:{' '}
+                    </Text>
+                    {toolName && <Text color="cyan">{toolName}</Text>}
+                </Box>
+                {isCommandConfirmation && command && (
+                    <Box flexDirection="row" marginTop={0}>
+                        <Text color="gray">{'  Command: '}</Text>
+                        <Text color="red">{command}</Text>
+                    </Box>
+                )}
             </Box>
 
             {/* Vertical selection options */}
@@ -90,15 +101,18 @@ export function ApprovalPrompt({ approval, onApprove, onDeny, onCancel }: Approv
                         <Text color="gray">{'    '}Yes</Text>
                     )}
                 </Box>
-                <Box>
-                    {selectedOption === 'yes-session' ? (
-                        <Text color="green" bold>
-                            {'  ▶ '}Yes (Session)
-                        </Text>
-                    ) : (
-                        <Text color="gray">{'    '}Yes (Session)</Text>
-                    )}
-                </Box>
+                {/* Only show "Yes (Session)" for tool confirmations, not command confirmations */}
+                {!isCommandConfirmation && (
+                    <Box>
+                        {selectedOption === 'yes-session' ? (
+                            <Text color="green" bold>
+                                {'  ▶ '}Yes (Session)
+                            </Text>
+                        ) : (
+                            <Text color="gray">{'    '}Yes (Session)</Text>
+                        )}
+                    </Box>
+                )}
                 <Box>
                     {selectedOption === 'no' ? (
                         <Text color="red" bold>

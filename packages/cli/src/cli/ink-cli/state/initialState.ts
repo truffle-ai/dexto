@@ -33,5 +33,6 @@ export function createInitialState(
             modelName: initialModelName,
         },
         approval: null,
+        approvalQueue: [],
     };
 }

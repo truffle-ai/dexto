@@ -6,7 +6,6 @@
 
 import { memo } from 'react';
 import { Box, Text } from 'ink';
-import Spinner from 'ink-spinner';
 import type { Message } from '../../state/types.js';
 
 interface MessageItemProps {
@@ -41,15 +40,7 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                         ▍{' '}
                     </Text>
                     <Box flexDirection="column" flexGrow={1}>
-                        {message.content ? (
-                            <Text color="white">{message.content}</Text>
-                        ) : (
-                            message.isStreaming && (
-                                <Text color="gray">
-                                    <Spinner type="dots" />
-                                </Text>
-                            )
-                        )}
+                        <Text color="white">{message.content || ' '}</Text>
                     </Box>
                 </Box>
             </Box>

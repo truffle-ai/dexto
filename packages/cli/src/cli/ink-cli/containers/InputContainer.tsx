@@ -146,12 +146,10 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
         [dispatch, agent, inputService, ui.isProcessing, ui.activeOverlay, session]
     );
 
-    // Determine placeholder
+    // Determine placeholder (processing state shown in StatusBar above)
     const placeholder = approval
         ? 'Approval required above...'
-        : ui.isProcessing
-          ? 'Processing... (Press Esc to cancel)'
-          : 'Type your message or /help for commands';
+        : 'Type your message or /help for commands';
 
     // Don't wire up onSubmit when autocomplete/selector is active (they handle Enter)
     const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';

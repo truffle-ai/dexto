@@ -35,6 +35,7 @@ import { getStartupInfo, convertHistoryToUIMessages } from './utils/messageForma
 import { ChatView } from './components/chat/ChatView.js';
 import { Footer } from './components/chat/Footer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { StatusBar } from './components/StatusBar.js';
 
 // Containers
 import { InputContainer } from './containers/InputContainer.js';
@@ -171,6 +172,12 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
                     sessionId={state.session.id || undefined}
                     hasActiveSession={state.session.hasActiveSession}
                     startupInfo={startupInfo}
+                />
+
+                {/* Status bar - shows processing state above input */}
+                <StatusBar
+                    isProcessing={state.ui.isProcessing}
+                    approvalQueueCount={state.approvalQueue.length}
                 />
 
                 {/* Overlays (approval, selectors, autocomplete) */}
