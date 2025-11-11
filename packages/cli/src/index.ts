@@ -835,10 +835,10 @@ program
                                 safeExit('main', 1, 'resume-failed');
                             }
                         } else {
-                            // Create a brand new session for this CLI launch (like WebUI does)
-                            const newSession = await agent.createSession();
-                            cliSessionId = newSession.id;
-                            logger.debug(`Created new session: ${cliSessionId}`);
+                            // Defer session creation until first message is sent
+                            // This prevents stale empty sessions when CLI is launched and immediately closed
+                            cliSessionId = null as any; // Will be created on first message
+                            logger.debug('Session creation deferred until first message');
                         }
 
                         // Pass sessionId to the CLI - it will use it for all agent.run() calls

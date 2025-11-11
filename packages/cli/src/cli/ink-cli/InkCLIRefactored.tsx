@@ -43,7 +43,7 @@ import { OverlayContainer } from './containers/OverlayContainer.js';
 
 interface InkCLIProps {
     agent: DextoAgent;
-    initialSessionId: string;
+    initialSessionId: string | null;
     startupInfo: StartupInfo;
 }
 
@@ -60,12 +60,12 @@ interface InkCLIProps {
  * Uses explicit sessionId in state (like WebUI) instead of defaultSession pattern
  */
 export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCLIProps) {
-    // Initialize state with reducer and set initial sessionId
+    // Initialize state with reducer and set initial sessionId (may be null for deferred creation)
     const [state, dispatch] = useReducer(cliReducer, undefined, () => {
         const initialModelName = agent.getCurrentLLMConfig().model;
         const initial = createInitialState([], initialModelName);
         initial.session.id = initialSessionId;
-        initial.session.hasActiveSession = true;
+        initial.session.hasActiveSession = initialSessionId !== null;
         return initial;
     });
 
@@ -212,7 +212,7 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
  */
 export async function startInkCliRefactored(
     agent: DextoAgent,
-    initialSessionId: string
+    initialSessionId: string | null
 ): Promise<void> {
     registerGracefulShutdown(() => agent);
 

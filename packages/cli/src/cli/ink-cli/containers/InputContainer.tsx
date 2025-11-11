@@ -127,10 +127,19 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
 
                     // Pass sessionId explicitly to agent.run() like WebUI does
                     // Use sessionId from state (never from getCurrentSessionId)
-                    const currentSessionId = session.id;
+                    let currentSessionId = session.id;
+
+                    // Create session on first message if not already created (deferred creation)
                     if (!currentSessionId) {
-                        throw new Error('No active session');
+                        const newSession = await agent.createSession();
+                        currentSessionId = newSession.id;
+                        dispatch({
+                            type: 'SESSION_SET',
+                            sessionId: currentSessionId,
+                            hasActiveSession: true,
+                        });
                     }
+
                     await agent.run(trimmed, undefined, undefined, currentSessionId);
 
                     // Response will come via event bus
