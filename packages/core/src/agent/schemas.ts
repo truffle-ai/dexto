@@ -323,7 +323,6 @@ const ProcessConfigSchema = z
             ),
     })
     .strict()
-    .default({})
     .describe('Configuration for process execution and command validation');
 
 export const AgentConfigSchema = z
@@ -363,7 +362,7 @@ export const AgentConfigSchema = z
         ),
 
         // Process execution configuration
-        process: ProcessConfigSchema.describe(
+        process: ProcessConfigSchema.default({}).describe(
             'Configuration for process execution and command validation'
         ),
 

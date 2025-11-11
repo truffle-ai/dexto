@@ -413,9 +413,17 @@ export class CommandValidator {
         for (const subCmd of subCommands) {
             if (!subCmd) continue; // Skip empty parts
 
+            // Strip leading shell keywords and braces to get the actual command
+            // This prevents bypassing approval checks via control-flow wrapping
+            const normalizedSubCmd = subCmd
+                .replace(/^(?:then|do|else)\b\s*/, '')
+                .replace(/^\{\s*/, '')
+                .trim();
+            if (!normalizedSubCmd) continue;
+
             // Commands that modify system state always require approval
             for (const pattern of REQUIRES_APPROVAL_PATTERNS) {
-                if (pattern.test(subCmd)) {
+                if (pattern.test(normalizedSubCmd)) {
                     return true;
                 }
             }
@@ -427,7 +435,7 @@ export class CommandValidator {
 
             // In moderate mode, write operations require approval
             if (this.config.securityLevel === 'moderate') {
-                if (WRITE_PATTERNS.some((pattern) => pattern.test(subCmd))) {
+                if (WRITE_PATTERNS.some((pattern) => pattern.test(normalizedSubCmd))) {
                     return true;
                 }
             }
