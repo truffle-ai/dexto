@@ -292,7 +292,7 @@ export const promptCommands: CommandDefinition[] = [
 
                 if (finalText.trim()) {
                     // Use sessionId from agent context (set by executeCommand)
-                    const sessionId = (agent as any).__cliSessionId;
+                    const sessionId = agent.getCurrentSessionId();
                     await agent.run(finalText.trim(), undefined, undefined, sessionId);
                     return '';
                 } else {
@@ -372,7 +372,8 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 if (finalText.trim()) {
                     // agent.run() will expand @resource mentions automatically
                     // This will trigger the normal message flow in ink-cli
-                    await agent.run(finalText.trim());
+                    const sessionId = agent.getCurrentSessionId();
+                    await agent.run(finalText.trim(), undefined, undefined, sessionId);
                     // Return empty string to indicate command handled (ink-cli will show the message)
                     return '';
                 } else {

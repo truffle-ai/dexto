@@ -63,11 +63,13 @@ function matchesPromptQuery(prompt: PromptInfo, query: string): boolean {
     return getPromptMatchScore(prompt, query) > 0;
 }
 
+type CommandMatchCandidate = Pick<CommandDefinition, 'name' | 'description' | 'aliases'>;
+
 /**
  * Simple fuzzy match - checks if query matches system command name or description
  * Returns a score: 0 = no match, 1 = description match, 2 = alias match, 3 = name includes, 4 = name starts with
  */
-function getSystemCommandMatchScore(cmd: CommandDefinition, query: string): number {
+function getSystemCommandMatchScore(cmd: CommandMatchCandidate, query: string): number {
     if (!query) return 4; // Show all when no query
     const lowerQuery = query.toLowerCase();
     const name = cmd.name.toLowerCase();
@@ -107,7 +109,7 @@ function getSystemCommandMatchScore(cmd: CommandDefinition, query: string): numb
 /**
  * Check if command matches query (for filtering)
  */
-function matchesSystemCommandQuery(cmd: CommandDefinition, query: string): boolean {
+function matchesSystemCommandQuery(cmd: CommandMatchCandidate, query: string): boolean {
     return getSystemCommandMatchScore(cmd, query) > 0;
 }
 
@@ -209,10 +211,10 @@ export default function SlashCommandAutocomplete({
         }
         // Filter and sort by match score (highest first)
         return systemCommands
-            .filter((cmd) => matchesSystemCommandQuery(cmd as any, commandQuery))
+            .filter((cmd) => matchesSystemCommandQuery(cmd, commandQuery))
             .sort((a, b) => {
-                const scoreA = getSystemCommandMatchScore(a as any, commandQuery);
-                const scoreB = getSystemCommandMatchScore(b as any, commandQuery);
+                const scoreA = getSystemCommandMatchScore(a, commandQuery);
+                const scoreB = getSystemCommandMatchScore(b, commandQuery);
                 return scoreB - scoreA; // Higher score first
             });
     }, [systemCommands, commandQuery]);

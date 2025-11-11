@@ -22,7 +22,7 @@ export const documentationCommands: CommandDefinition[] = [
         usage: '/docs',
         category: 'Documentation',
         aliases: ['doc'],
-        handler: async (_args: string[], _agent: DextoAgent): Promise<boolean> => {
+        handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
             const docsUrl = 'https://docs.dexto.ai/category/getting-started/';
             try {
                 const { spawn } = await import('child_process');

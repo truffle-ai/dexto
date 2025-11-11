@@ -6214,6 +6214,7 @@
                                 "properties": {
                                   "authentication": {
                                     "type": "object",
+                                    "deprecated": true,
                                     "properties": {
                                       "schemes": {
                                         "type": "array",
@@ -6279,7 +6280,9 @@
                                       "email": {
                                         "type": "string",
                                         "format": "email",
-                                        "description": "Optional user email"
+                                        "description": "Optional user email (PII - not returned in responses)",
+                                        "writeOnly": true,
+                                        "maxLength": 254
                                       }
                                     },
                                     "required": [

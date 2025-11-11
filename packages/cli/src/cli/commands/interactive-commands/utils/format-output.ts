@@ -3,12 +3,13 @@
  * Strips chalk formatting and provides plain text versions
  */
 
+import { stripVTControlCharacters } from 'node:util';
+
 /**
  * Strip ANSI color codes from a string
  */
 export function stripAnsi(str: string): string {
-    // eslint-disable-next-line no-control-regex
-    return str.replace(/\u001b\[[0-9;]*m/g, '');
+    return stripVTControlCharacters(str);
 }
 
 /**

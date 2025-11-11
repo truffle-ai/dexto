@@ -2,5 +2,5 @@
  * Base components module exports
  */
 
-export * from './BaseSelector.js';
-export * from './BaseAutocomplete.js';
+export { BaseSelector, type BaseSelectorProps } from './BaseSelector.js';
+export { BaseAutocomplete, type BaseAutocompleteProps } from './BaseAutocomplete.js';

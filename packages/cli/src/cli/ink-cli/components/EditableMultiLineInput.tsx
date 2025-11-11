@@ -57,8 +57,8 @@ export default function EditableMultiLineInput({
                 return;
             }
 
-            // Regular character input
-            if (inputChar) {
+            // Regular character input (ignore modifier key combinations)
+            if (inputChar && !key.ctrl && !key.meta) {
                 onChange(value + inputChar);
             }
         },

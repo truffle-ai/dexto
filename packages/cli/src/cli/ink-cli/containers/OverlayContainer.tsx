@@ -298,7 +298,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
                 });
             }
         },
-        [dispatch, agent, state.session]
+        [dispatch, agent, state.session.id]
     );
 
     const handleLoadIntoInput = useCallback(

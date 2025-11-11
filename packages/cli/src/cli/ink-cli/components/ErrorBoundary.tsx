@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { logger } from '@dexto/core';
 
 interface ErrorBoundaryProps {
     children: React.ReactNode;
@@ -26,7 +27,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
 
     override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-        console.error('CLI Error:', error, errorInfo);
+        logger.error(`Error in ErrorBoundary: ${error.message}`, {
+            error,
+            componentStack: errorInfo.componentStack,
+        });
     }
 
     override render(): React.ReactNode {

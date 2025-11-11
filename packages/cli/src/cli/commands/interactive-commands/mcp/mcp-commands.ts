@@ -228,7 +228,7 @@ export const mcpCommands: CommandDefinition = {
                 },
                 // TODO: Add preset subcommand when implemented
             ],
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 if (args.length === 0) {
                     showMcpAddHelp();
                     return true;
@@ -253,7 +253,7 @@ export const mcpCommands: CommandDefinition = {
             name: 'remove',
             description: 'Remove an MCP server',
             usage: '/mcp remove <name>',
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 if (args.length === 0) {
                     console.log(chalk.red('❌ Usage: /mcp remove <name>'));
                     return true;
@@ -275,7 +275,7 @@ export const mcpCommands: CommandDefinition = {
             name: 'help',
             description: 'Show detailed help for MCP commands',
             usage: '/mcp help',
-            handler: async (_args: string[], _agent: DextoAgent) => {
+            handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
                 console.log(chalk.bold.blue('\n🔌 MCP Management Commands:\n'));
                 console.log(chalk.cyan('Available subcommands:'));
                 console.log(`  ${chalk.yellow('/mcp list')} - List all configured MCP servers`);
@@ -345,7 +345,7 @@ export const mcpCommands: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent) => {
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         if (args.length === 0) {
             const helpSubcommand = mcpCommands.subcommands?.find((s) => s.name === 'help');
             if (helpSubcommand) {

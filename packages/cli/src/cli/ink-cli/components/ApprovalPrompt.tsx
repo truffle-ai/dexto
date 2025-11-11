@@ -7,7 +7,7 @@ export interface ApprovalRequest {
     sessionId?: string;
     timeout?: number;
     timestamp: Date;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
 }
 
 interface ApprovalPromptProps {

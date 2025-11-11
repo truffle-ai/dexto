@@ -2,4 +2,4 @@
  * Input components module exports
  */
 
-export * from './InputArea.js';
+export { InputArea } from './InputArea.js';

@@ -74,7 +74,7 @@ export const sessionCommand: CommandDefinition = {
             name: 'list',
             description: 'List all sessions',
             usage: '/session list',
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     console.log(chalk.bold.blue('\n📋 Sessions:\n'));
 
@@ -132,7 +132,7 @@ export const sessionCommand: CommandDefinition = {
             description: 'Show session history for current session',
             usage: '/session history [sessionId]',
             aliases: ['h'],
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     // Use provided session ID or current session
                     const sessionId =
@@ -158,7 +158,7 @@ export const sessionCommand: CommandDefinition = {
             name: 'delete',
             description: 'Delete a session',
             usage: '/session delete <id>',
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 if (args.length === 0) {
                     console.log(chalk.red('❌ Session ID required. Usage: /session delete <id>'));
                     return true;
@@ -196,7 +196,7 @@ export const sessionCommand: CommandDefinition = {
             name: 'help',
             description: 'Show detailed help for session commands',
             usage: '/session help',
-            handler: async (_args: string[], _agent: DextoAgent) => {
+            handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
                 console.log(chalk.bold.blue('\n📋 Session Management Commands:\n'));
 
                 console.log(chalk.cyan('Available subcommands:'));
@@ -225,7 +225,7 @@ export const sessionCommand: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent) => {
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         // Default to help if no subcommand
         if (args.length === 0) {
             const helpSubcommand = sessionCommand.subcommands?.find((s) => s.name === 'help');
@@ -260,7 +260,7 @@ export const historyCommand: CommandDefinition = {
     usage: '/history [sessionId]',
     category: 'Session Management',
     aliases: ['hist'],
-    handler: async (args: string[], agent: DextoAgent) => {
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         try {
             // Use provided session ID or current session
             const sessionId = args.length > 0 && args[0] ? args[0] : agent.getCurrentSessionId();
@@ -289,7 +289,7 @@ export const resumeCommand: CommandDefinition = {
     usage: '/resume [sessionId]',
     category: 'Session Management',
     aliases: ['switch'],
-    handler: async (args: string[], agent: DextoAgent) => {
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         // If session ID provided, switch directly
         if (args.length > 0 && args[0]) {
             try {
@@ -340,7 +340,7 @@ export const searchCommand: CommandDefinition = {
     usage: '/search <query> [options]',
     category: 'Session Management',
     aliases: ['find'],
-    handler: async (args: string[], agent: DextoAgent) => {
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         if (args.length === 0) {
             console.log(chalk.red('❌ Search query is required'));
             console.log(

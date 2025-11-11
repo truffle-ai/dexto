@@ -29,7 +29,7 @@ import { useAgentEvents, useInputHistory, useKeyboardShortcuts } from './hooks/i
 import { InputService, MessageService } from './services/index.js';
 
 // Utils
-import { getStartupInfo } from './utils/messageFormatting.js';
+import { getStartupInfo, convertHistoryToUIMessages } from './utils/messageFormatting.js';
 
 // Components
 import { ChatView } from './components/chat/ChatView.js';
@@ -94,6 +94,34 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 
     // Setup global keyboard shortcuts
     useKeyboardShortcuts({ state, dispatch, agent });
+
+    // Hydrate conversation history when resuming a session
+    useEffect(() => {
+        if (!initialSessionId || !state.session.hasActiveSession || state.messages.length > 0) {
+            return;
+        }
+
+        let cancelled = false;
+
+        (async () => {
+            try {
+                const history = await agent.getSessionHistory(initialSessionId);
+                if (!history?.length || cancelled) return;
+                const historyMessages = convertHistoryToUIMessages(history, initialSessionId);
+                dispatch({ type: 'MESSAGE_ADD_MULTIPLE', messages: historyMessages });
+            } catch (error) {
+                if (cancelled) return;
+                dispatch({
+                    type: 'ERROR',
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                });
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [agent, dispatch, initialSessionId, state.messages.length, state.session.hasActiveSession]);
 
     // Detect overlays based on input (with guards to prevent infinite loop)
     useEffect(() => {

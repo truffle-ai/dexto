@@ -169,7 +169,7 @@ export const generalCommands: CommandDefinition[] = [
         usage: '/exit',
         category: 'General',
         aliases: ['quit', 'q'],
-        handler: async (_args: string[], _agent: DextoAgent) => {
+        handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
             logger.warn('Exiting AI CLI. Goodbye!');
             process.exit(0);
         },
@@ -180,7 +180,7 @@ export const generalCommands: CommandDefinition[] = [
         usage: '/clear',
         category: 'General',
         aliases: ['reset'],
-        handler: async (_args: string[], agent: DextoAgent) => {
+        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
                 await agent.resetConversation();
                 const output = '🔄 Conversation history cleared.';

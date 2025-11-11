@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Text } from 'ink';
 import type { DextoAgent, SessionMetadata } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { BaseSelector } from '../base/BaseSelector.js';
 
 interface SessionSelectorProps {
@@ -87,7 +88,10 @@ export default function SessionSelector({
                 }
             } catch (error) {
                 if (!cancelled) {
-                    console.error('Failed to fetch sessions:', error);
+                    logger.error(
+                        `Failed to fetch sessions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        { error }
+                    );
                     setSessions([]);
                     setIsLoading(false);
                 }
@@ -99,7 +103,7 @@ export default function SessionSelector({
         return () => {
             cancelled = true;
         };
-    }, [isVisible, agent]);
+    }, [isVisible, agent, currentSessionId]);
 
     // Format session for display
     const formatSession = (session: SessionOption): string => {

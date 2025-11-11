@@ -30,7 +30,7 @@ export const modelCommands: CommandDefinition = {
             name: 'list',
             description: 'List all supported providers and models',
             usage: '/model list',
-            handler: async (_args: string[], agent: DextoAgent) => {
+            handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     console.log(chalk.bold.blue('\n🤖 Supported Models and Providers:\n'));
 
@@ -69,7 +69,7 @@ export const modelCommands: CommandDefinition = {
             name: 'current',
             description: 'Show current model configuration',
             usage: '/model current',
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     const config = agent.getEffectiveConfig();
                     console.log(chalk.blue('\n🤖 Current Model Configuration:\n'));
@@ -100,7 +100,7 @@ export const modelCommands: CommandDefinition = {
             name: 'switch',
             description: 'Switch to a different model',
             usage: '/model switch <model>',
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 if (args.length === 0) {
                     console.log(chalk.red('❌ Model required. Usage: /model switch <model>'));
                     return true;
@@ -155,7 +155,7 @@ export const modelCommands: CommandDefinition = {
             name: 'help',
             description: 'Show detailed help for model commands',
             usage: '/model help',
-            handler: async (_args: string[], _agent: DextoAgent) => {
+            handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
                 console.log(chalk.bold.blue('\n🤖 Model Management Commands:\n'));
 
                 console.log(chalk.cyan('Available subcommands:'));
@@ -185,7 +185,7 @@ export const modelCommands: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent) => {
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         // Default to help if no subcommand
         if (args.length === 0) {
             const helpSubcommand = modelCommands.subcommands?.find((s) => s.name === 'help');

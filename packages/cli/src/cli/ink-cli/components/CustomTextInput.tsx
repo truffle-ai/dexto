@@ -35,9 +35,9 @@ export default function CustomTextInput({
                 return;
             }
 
-            // Handle word deletion (Cmd+Delete or Cmd+Backspace)
+            // Handle word deletion (Cmd+Delete or Cmd+Backspace on Mac, Ctrl+Delete or Ctrl+Backspace on Windows/Linux)
             // Note: On Mac, Cmd+Backspace is the standard for word deletion
-            if ((key.delete && key.meta) || (key.backspace && key.meta)) {
+            if ((key.delete || key.backspace) && (key.meta || key.ctrl)) {
                 onWordDelete?.();
                 return;
             }
@@ -48,7 +48,7 @@ export default function CustomTextInput({
                 return;
             }
 
-            // Handle Ctrl+Shift+Delete as Option+Delete fallback
+            // Handle Ctrl+Shift+Delete as word deletion fallback
             if (key.delete && key.ctrl && key.shift) {
                 onWordDelete?.();
                 return;

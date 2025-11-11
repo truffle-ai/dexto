@@ -2,8 +2,8 @@
  * Chat components module exports
  */
 
-export * from './Header.js';
-export * from './Footer.js';
-export * from './MessageItem.js';
-export * from './MessageList.js';
-export * from './ChatView.js';
+export { Header } from './Header.js';
+export { Footer } from './Footer.js';
+export { MessageItem } from './MessageItem.js';
+export { MessageList } from './MessageList.js';
+export { ChatView } from './ChatView.js';

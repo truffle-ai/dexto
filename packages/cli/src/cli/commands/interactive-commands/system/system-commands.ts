@@ -25,7 +25,7 @@ export const systemCommands: CommandDefinition[] = [
         usage: '/log [level]',
         category: 'System',
         aliases: [],
-        handler: async (args: string[], _agent: DextoAgent) => {
+        handler: async (args: string[], _agent: DextoAgent): Promise<boolean | string> => {
             const validLevels = ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'];
             const level = args[0];
 
@@ -68,7 +68,7 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show current configuration',
         usage: '/config',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent) => {
+        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
                 const config = agent.getEffectiveConfig();
 
@@ -139,7 +139,7 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show system statistics',
         usage: '/stats',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent) => {
+        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
                 // Build output string
                 const outputLines: string[] = ['\n📊 System Statistics:\n'];

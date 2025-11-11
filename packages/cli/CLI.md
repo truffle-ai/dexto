@@ -112,7 +112,7 @@ The CLI is built on a modern, maintainable architecture:
 - **Base Components** - Reusable UI primitives (selectors, autocomplete)
 
 ### Code Structure
-```
+```text
 packages/cli/src/cli/ink-cli/
 ├── InkCLIRefactored.tsx       # Main component
 ├── state/                      # State management

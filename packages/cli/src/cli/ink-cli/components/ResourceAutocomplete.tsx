@@ -71,7 +71,7 @@ function sortResources(resources: ResourceMetadata[], query: string): ResourceMe
     if (!query) return resources;
 
     const lowerQuery = query.toLowerCase();
-    return resources.sort((a, b) => {
+    return [...resources].sort((a, b) => {
         const scoreA = getResourceMatchScore(a, lowerQuery);
         const scoreB = getResourceMatchScore(b, lowerQuery);
 
