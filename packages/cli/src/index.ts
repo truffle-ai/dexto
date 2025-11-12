@@ -941,7 +941,7 @@ program
                             }
                         } else {
                             // Interactive mode - create/resume session for persistent conversation
-                            let cliSessionId: string;
+                            let cliSessionId: string | null = null;
 
                             if (opts.resume) {
                                 // Resume specific session by ID
@@ -984,7 +984,7 @@ program
                             } else {
                                 // Defer session creation until first message is sent
                                 // This prevents stale empty sessions when CLI is launched and immediately closed
-                                cliSessionId = null as any; // Will be created on first message
+                                cliSessionId = null; // Will be created on first message
                                 logger.debug('Session creation deferred until first message');
                             }
 
