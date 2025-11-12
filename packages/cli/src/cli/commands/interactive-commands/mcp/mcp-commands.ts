@@ -8,6 +8,7 @@
 import chalk from 'chalk';
 import { logger, DextoAgent } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
+import { formatForInkCli } from '../utils/format-output.js';
 import {
     parseStdioArgs,
     parseHttpArgs,
@@ -136,23 +137,47 @@ export const mcpCommands: CommandDefinition = {
             name: 'list',
             description: 'List all available MCP servers',
             usage: '/mcp list',
-            handler: async (_args: string[], agent: DextoAgent) => {
+            handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     const clients = agent.getMcpClients();
                     const failedConnections = agent.getMcpFailedConnections();
 
                     if (clients.size === 0 && Object.keys(failedConnections).length === 0) {
-                        console.log(chalk.yellow('📋 No MCP servers configured or connected.'));
-                        return true;
+                        const output = '📋 No MCP servers configured or connected.';
+                        console.log(chalk.yellow(output));
+                        return formatForInkCli(output);
                     }
 
+                    // Build output string
+                    const outputLines: string[] = ['\n🔌 MCP Servers:\n'];
+                    for (const [name] of clients) {
+                        outputLines.push(`✅ ${name}:`);
+                        outputLines.push(`  Connected: Yes`);
+                        outputLines.push('');
+                    }
+
+                    if (Object.keys(failedConnections).length > 0) {
+                        outputLines.push('\n❌ Failed Connections:\n');
+                        for (const [name, error] of Object.entries(failedConnections)) {
+                            outputLines.push(`❌ ${name}:`);
+                            outputLines.push(`  Error: ${error}`);
+                        }
+                    }
+
+                    outputLines.push(
+                        '💡 Use /mcp add <name> <config_json_string> to connect a new MCP server.'
+                    );
+                    outputLines.push('💡 Use /mcp remove <name> to disconnect an MCP server.');
+                    outputLines.push('💡 Use /mcp help for detailed command descriptions.');
+                    const output = outputLines.join('\n');
+
+                    // Log for regular CLI (with chalk formatting)
                     console.log(chalk.bold.blue('\n🔌 MCP Servers:\n'));
                     for (const [name] of clients) {
                         console.log(chalk.green(`✅ ${name}:`));
                         console.log(chalk.dim(`  Connected: Yes`));
                         console.log();
                     }
-
                     if (Object.keys(failedConnections).length > 0) {
                         console.log(chalk.bold.red('\n❌ Failed Connections:\n'));
                         for (const [name, error] of Object.entries(failedConnections)) {
@@ -160,7 +185,6 @@ export const mcpCommands: CommandDefinition = {
                             console.log(chalk.dim(`  Error: ${error}`));
                         }
                     }
-
                     console.log(
                         chalk.dim(
                             '💡 Use /mcp add <name> <config_json_string> to connect a new MCP server.'
@@ -170,13 +194,13 @@ export const mcpCommands: CommandDefinition = {
                         chalk.dim('💡 Use /mcp remove <name> to disconnect an MCP server.')
                     );
                     console.log(chalk.dim('💡 Use /mcp help for detailed command descriptions.'));
-                    return true;
+
+                    return formatForInkCli(output);
                 } catch (error) {
-                    logger.error(
-                        `Failed to list MCP servers: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    const errorMsg = `Failed to list MCP servers: ${error instanceof Error ? error.message : String(error)}`;
+                    logger.error(errorMsg);
+                    return formatForInkCli(`❌ ${errorMsg}`);
                 }
-                return true;
             },
         },
         {
@@ -204,7 +228,7 @@ export const mcpCommands: CommandDefinition = {
                 },
                 // TODO: Add preset subcommand when implemented
             ],
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 if (args.length === 0) {
                     showMcpAddHelp();
                     return true;
@@ -229,29 +253,66 @@ export const mcpCommands: CommandDefinition = {
             name: 'remove',
             description: 'Remove an MCP server',
             usage: '/mcp remove <name>',
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 if (args.length === 0) {
-                    console.log(chalk.red('❌ Usage: /mcp remove <name>'));
-                    return true;
+                    const errorMsg = '❌ Usage: /mcp remove <name>';
+                    console.log(chalk.red(errorMsg));
+                    return errorMsg;
                 }
 
                 const name = args[0]!;
                 try {
                     await agent.removeMcpServer(name);
-                    console.log(chalk.green(`✅ MCP server '${name}' removed successfully`));
+                    const successMsg = `✅ MCP server '${name}' removed successfully`;
+                    console.log(chalk.green(successMsg));
+                    return successMsg;
                 } catch (error) {
-                    logger.error(
-                        `Failed to remove MCP server '${name}': ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    const errorMsg = `❌ Failed to remove MCP server '${name}': ${error instanceof Error ? error.message : String(error)}`;
+                    logger.error(errorMsg);
+                    console.log(chalk.red(errorMsg));
+                    return errorMsg;
                 }
-                return true;
             },
         },
         {
             name: 'help',
             description: 'Show detailed help for MCP commands',
             usage: '/mcp help',
-            handler: async (_args: string[], _agent: DextoAgent) => {
+            handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+                const helpText = [
+                    '\n🔌 MCP Management Commands:\n',
+                    'Available subcommands:',
+                    '  /mcp list - List all configured MCP servers',
+                    '  /mcp add <type> <name> <config...> - Add a new MCP server',
+                    '  /mcp remove <name> - Remove an MCP server',
+                    '  /mcp help - Show this help message',
+                    '\n📦 Add MCP Servers:\n',
+                    '▶️ STDIO Servers (most common):',
+                    '  /mcp add stdio <name> <command> [args...] [options]',
+                    '  Examples:',
+                    '    /mcp add stdio music uvx truffle-ai-music-creator-mcp',
+                    '    /mcp add stdio filesystem npx -y @modelcontextprotocol/server-filesystem .',
+                    '    /mcp add stdio sqlite npx -y @executeautomation/database-server example.db',
+                    '\n🌐 HTTP Servers:',
+                    '  /mcp add http <name> <url> [options]',
+                    '  Examples:',
+                    '    /mcp add http remote http://localhost:8080',
+                    '    /mcp add http notion https://api.notion.com --header-Authorization="Bearer token"',
+                    '\n📡 SSE Servers:',
+                    '  /mcp add sse <name> <url> [options]',
+                    '  Examples:',
+                    '    /mcp add sse events http://localhost:9000/events',
+                    '\n⚙️ Options:',
+                    '  --timeout=<ms>         Connection timeout (default: 30000)',
+                    '  --mode=<strict|lenient> Connection mode (default: lenient)',
+                    '  --env-<key>=<value>    Environment variables (stdio only)',
+                    '  --header-<key>=<value> HTTP/SSE headers',
+                    '\n🧹 Remove MCP Server:',
+                    '  /mcp remove <server-name>',
+                    '\n💡 MCP servers let you connect to external tools and services.',
+                    '💡 Use /mcp add --help for detailed examples and options.\n',
+                ].join('\n');
+
                 console.log(chalk.bold.blue('\n🔌 MCP Management Commands:\n'));
                 console.log(chalk.cyan('Available subcommands:'));
                 console.log(`  ${chalk.yellow('/mcp list')} - List all configured MCP servers`);
@@ -317,11 +378,12 @@ export const mcpCommands: CommandDefinition = {
                         '\n💡 MCP servers let you connect to external tools and services.\n💡 Use /mcp add --help for detailed examples and options.\n'
                     )
                 );
-                return true;
+
+                return helpText;
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent) => {
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         if (args.length === 0) {
             const helpSubcommand = mcpCommands.subcommands?.find((s) => s.name === 'help');
             if (helpSubcommand) {

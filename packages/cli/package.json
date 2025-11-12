@@ -23,6 +23,9 @@
     "posthog-node": "^4.2.1",
     "next": "15.5.2",
     "open": "^10.2.0",
+    "ink": "^6.4.0",
+    "ink-text-input": "^6.0.0",
+    "ink-spinner": "^5.0.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "ws": "^8.18.1",
@@ -38,6 +41,7 @@
     "lint": "eslint . --ext .ts"
   },
   "devDependencies": {
+    "@types/react": "^19.0.0",
     "@types/ws": "^8.5.11",
     "type-fest": "^4.26.1"
   },
