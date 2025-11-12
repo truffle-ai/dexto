@@ -100,7 +100,7 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
 
         if (imageDataInput) agent.logger.info('Image data included in message.');
         if (fileDataInput) agent.logger.info('File data included in message.');
-        if (sessionId) agent.logger.info(`Message for session: ${sessionId}`);
+        agent.logger.info(`Message for session: ${sessionId}`);
 
         // Fire and forget - start processing asynchronously
         // Results will be delivered via WebSocket
@@ -160,7 +160,7 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
 
         if (imageDataInput) agent.logger.info('Image data included in message.');
         if (fileDataInput) agent.logger.info('File data included in message.');
-        if (sessionId) agent.logger.info(`Message for session: ${sessionId}`);
+        agent.logger.info(`Message for session: ${sessionId}`);
 
         const response = await agent.run(
             message || '',
@@ -191,10 +191,7 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
                                 status: z
                                     .string()
                                     .describe('Status message indicating reset was initiated'),
-                                sessionId: z
-                                    .string()
-                                    .optional()
-                                    .describe('Session ID that was reset (if specified)'),
+                                sessionId: z.string().describe('Session ID that was reset'),
                             })
                             .strict(),
                     },

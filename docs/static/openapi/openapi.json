@@ -397,11 +397,12 @@
                     },
                     "sessionId": {
                       "type": "string",
-                      "description": "Session ID that was reset (if specified)"
+                      "description": "Session ID that was reset"
                     }
                   },
                   "required": [
-                    "status"
+                    "status",
+                    "sessionId"
                   ],
                   "additionalProperties": false
                 }
@@ -458,10 +459,6 @@
                           "type": "string",
                           "description": "Specific model name for the selected provider"
                         },
-                        "apiKey": {
-                          "type": "string",
-                          "description": "API key for provider; can be given directly or via $ENV reference"
-                        },
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
@@ -506,6 +503,10 @@
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                         },
+                        "hasApiKey": {
+                          "type": "boolean",
+                          "description": "Whether an API key is configured"
+                        },
                         "displayName": {
                           "type": "string",
                           "description": "Human-readable model display name"
@@ -513,11 +514,10 @@
                       },
                       "required": [
                         "provider",
-                        "model",
-                        "apiKey"
+                        "model"
                       ],
                       "additionalProperties": false,
-                      "description": "Current LLM configuration"
+                      "description": "LLM configuration (apiKey omitted for security)"
                     }
                   },
                   "required": [
@@ -997,7 +997,8 @@
                   "apiKey": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "API key for the provider"
+                    "description": "API key for the provider (writeOnly - never returned in responses)",
+                    "writeOnly": true
                   }
                 },
                 "required": [
@@ -1182,10 +1183,6 @@
                           "type": "string",
                           "description": "Specific model name for the selected provider"
                         },
-                        "apiKey": {
-                          "type": "string",
-                          "description": "API key for provider; can be given directly or via $ENV reference"
-                        },
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
@@ -1229,15 +1226,18 @@
                             "type": "string"
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                        },
+                        "hasApiKey": {
+                          "type": "boolean",
+                          "description": "Whether an API key is configured"
                         }
                       },
                       "required": [
                         "provider",
-                        "model",
-                        "apiKey"
+                        "model"
                       ],
                       "additionalProperties": false,
-                      "description": "New LLM configuration with all defaults applied"
+                      "description": "New LLM configuration with all defaults applied (apiKey omitted)"
                     },
                     "sessionId": {
                       "type": "string",
@@ -6619,8 +6619,9 @@
                                       },
                                       "email": {
                                         "type": "string",
+                                        "maxLength": 254,
                                         "format": "email",
-                                        "description": "Optional user email"
+                                        "description": "Optional user email (WARNING: publicly readable via .well-known/agent.json if provided)"
                                       }
                                     },
                                     "required": [

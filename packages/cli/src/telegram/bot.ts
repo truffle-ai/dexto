@@ -228,13 +228,17 @@ export function startTelegramBot(agent: DextoAgent) {
         // or simply no text was ever present and no image.
         if (userText === undefined && !imageDataInput) return;
 
-        // Get session for this user (ctx.from is optional on some updates like channel posts)
-        const senderId = ctx.from?.id ?? ctx.chat?.id;
-        if (typeof senderId !== 'number') {
-            logger.error('Telegram message without sender context; skipping session handling');
+        // Get session for this user
+        // ctx.from can be undefined for channel posts or anonymous admin messages
+        // We require user context for session isolation - don't use chat ID as it would
+        // cause multiple users in a group to share the same session (breaks isolation)
+        if (!ctx.from) {
+            logger.debug(
+                'Telegram message without user context (channel post or anonymous admin); skipping'
+            );
             return;
         }
-        const sessionId = getTelegramSessionId(senderId);
+        const sessionId = getTelegramSessionId(ctx.from.id);
 
         // Subscribe for toolCall events
         const toolCallHandler = (payload: { toolName: string; args: any; callId?: string }) => {

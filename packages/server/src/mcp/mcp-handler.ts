@@ -60,11 +60,20 @@ export async function initializeMcpServer(
             );
             // Create ephemeral session for this MCP tool call (stateless MCP interactions)
             const session = await agent.createSession(`mcp-${randomUUID()}`);
-            const text = await agent.run(message, undefined, undefined, session.id);
-            agent.logger.info(
-                `MCP tool '${toolName}' sending response: ${text?.substring(0, 100)}${(text?.length ?? 0) > 100 ? '...' : ''}`
-            );
-            return { content: [{ type: 'text', text: text ?? '' }] };
+            try {
+                const text = await agent.run(message, undefined, undefined, session.id);
+                agent.logger.info(
+                    `MCP tool '${toolName}' sending response: ${text?.substring(0, 100)}${(text?.length ?? 0) > 100 ? '...' : ''}`
+                );
+                return { content: [{ type: 'text', text: text ?? '' }] };
+            } finally {
+                // Always clean up ephemeral session to prevent accumulation
+                await agent
+                    .deleteSession(session.id)
+                    .catch((err) =>
+                        agent.logger.warn(`Failed to cleanup MCP session ${session.id}: ${err}`)
+                    );
+            }
         }
     );
     agent.logger.info(`Registered MCP tool: '${toolName}'`);

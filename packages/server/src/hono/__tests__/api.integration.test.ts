@@ -187,7 +187,7 @@ describe('Hono API Integration Tests', () => {
             );
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('session');
-            expect((res.body as any).session).toHaveProperty('id', 'test-session-load');
+            expect((res.body as { session: { id: string } }).session.id).toBe('test-session-load');
         });
 
         it('GET /api/sessions/:id/history returns session history', async () => {
