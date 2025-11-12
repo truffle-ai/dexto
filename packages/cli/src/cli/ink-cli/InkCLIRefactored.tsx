@@ -14,7 +14,7 @@
  * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
-import { useReducer, useMemo, useEffect, useState } from 'react';
+import { useReducer, useMemo, useEffect } from 'react';
 import { Box, render } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
