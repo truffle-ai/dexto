@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import { Bot, InlineKeyboard } from 'grammy';
 import https from 'https';
-import { DextoAgent } from '@dexto/core';
+import { DextoAgent, logger } from '@dexto/core';
 
 // Load environment variables (including TELEGRAM_BOT_TOKEN)
 dotenv.config();
@@ -54,6 +54,12 @@ export function startTelegramBot(agent: DextoAgent) {
     const bot = new Bot(token);
     console.log('Telegram bot started');
 
+    // Helper to get or create session for a Telegram user
+    // Each Telegram user gets their own persistent session
+    function getTelegramSessionId(userId: number): string {
+        return `telegram-${userId}`;
+    }
+
     // /start command with sample buttons
     bot.command('start', async (ctx) => {
         const keyboard = new InlineKeyboard()
@@ -69,9 +75,10 @@ export function startTelegramBot(agent: DextoAgent) {
     // Handle button callbacks
     bot.on('callback_query:data', async (ctx) => {
         const action = ctx.callbackQuery.data;
+        const sessionId = getTelegramSessionId(ctx.callbackQuery.from.id);
         try {
             if (action === 'reset') {
-                await agent.resetConversation();
+                await agent.resetConversation(sessionId);
                 await ctx.reply('🔄 Conversation has been reset.');
             } else if (action === 'help') {
                 await ctx.reply('Send me text or images and I will respond.');
@@ -98,9 +105,14 @@ export function startTelegramBot(agent: DextoAgent) {
             });
             return;
         }
+        if (!ctx.from) {
+            logger.error('Telegram /ask command received without from field');
+            return;
+        }
+        const sessionId = getTelegramSessionId(ctx.from.id);
         try {
             await ctx.replyWithChatAction('typing');
-            const answer = await agent.run(question);
+            const answer = await agent.run(question, undefined, undefined, sessionId);
             if (answer) {
                 await ctx.reply(answer);
             } else {
@@ -141,9 +153,10 @@ export function startTelegramBot(agent: DextoAgent) {
 
         currentInlineQueries++;
         try {
+            const sessionId = getTelegramSessionId(userId);
             const queryTimeout = 15000; // 15 seconds timeout
             const resultText = await Promise.race([
-                agent.run(query),
+                agent.run(query, undefined, undefined, sessionId),
                 new Promise<string>((_, reject) =>
                     setTimeout(() => reject(new Error('Query timed out')), queryTimeout)
                 ),
@@ -215,6 +228,9 @@ export function startTelegramBot(agent: DextoAgent) {
         // or simply no text was ever present and no image.
         if (userText === undefined && !imageDataInput) return;
 
+        // Get session for this user
+        const sessionId = getTelegramSessionId(ctx.from.id);
+
         // Subscribe for toolCall events
         const toolCallHandler = (payload: { toolName: string; args: any; callId?: string }) => {
             ctx.reply(`Calling *${payload.toolName}* with args: ${JSON.stringify(payload.args)}`, {
@@ -225,7 +241,12 @@ export function startTelegramBot(agent: DextoAgent) {
 
         try {
             await ctx.replyWithChatAction('typing');
-            const responseText = await agent.run(userText || '', imageDataInput);
+            const responseText = await agent.run(
+                userText || '',
+                imageDataInput,
+                undefined,
+                sessionId
+            );
             await ctx.reply(responseText || 'No response generated');
         } catch (error) {
             console.error('Error handling Telegram message', error);

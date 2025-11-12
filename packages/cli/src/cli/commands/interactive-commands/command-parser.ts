@@ -19,6 +19,22 @@ export interface CommandDefinition {
 }
 
 /**
+ * Helper for command handlers to get the current session ID from CLI context.
+ * This is set by executeCommand() when invoked from InkCLI.
+ *
+ * Maintains separation of concerns:
+ * - InkCLI state manages current sessionId
+ * - executeCommand() stores it temporarily on agent for command access
+ * - Commands use this helper instead of removed agent.getCurrentSessionId()
+ *
+ * @param agent - DextoAgent instance with __cliSessionId set by executeCommand
+ * @returns Current session ID from CLI context, or null if not available
+ */
+export function getCLISessionId(agent: DextoAgent): string | null {
+    return (agent as any).__cliSessionId || null;
+}
+
+/**
  * Parse arguments respecting quotes and escape sequences
  */
 function parseQuotedArguments(input: string): string[] {

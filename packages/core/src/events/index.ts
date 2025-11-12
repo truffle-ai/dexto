@@ -27,6 +27,7 @@ export const AGENT_EVENT_NAMES = [
     'dexto:mcpToolsListChanged',
     'dexto:resourceCacheInvalidated',
     'dexto:sessionTitleUpdated',
+    'dexto:sessionCreated',
     // User approval events (generalized approval system)
     'dexto:approvalRequest',
     'dexto:approvalResponse',
@@ -258,6 +259,12 @@ export interface AgentEventMap {
     'dexto:sessionTitleUpdated': {
         sessionId: string;
         title: string;
+    };
+
+    /** Fired when a new session is created and should become active */
+    'dexto:sessionCreated': {
+        sessionId: string;
+        switchTo: boolean; // Whether UI should switch to this session
     };
 }
 

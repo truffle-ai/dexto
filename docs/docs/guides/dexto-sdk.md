@@ -287,19 +287,24 @@ class PersistentChatBot {
 
   async resumeConversation(userId: string) {
     const sessionId = `user-${userId}`;
-    
+
     // Check if session exists
     const sessions = await this.agent.listSessions();
     if (sessions.includes(sessionId)) {
-      // Load existing session
-      await this.agent.loadSession(sessionId);
+      // Retrieve existing session history
       const history = await this.agent.getSessionHistory(sessionId);
-      return history;
+      return { sessionId, history };
     } else {
       // Create new session
-      await this.agent.createSession(sessionId);
-      return null;
+      const session = await this.agent.createSession(sessionId);
+      return { sessionId: session.id, history: null };
     }
+  }
+
+  async chat(userId: string, message: string) {
+    const sessionId = `user-${userId}`;
+    // Always pass session ID explicitly
+    return await this.agent.run(message, undefined, undefined, sessionId);
   }
 }
 ```

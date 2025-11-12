@@ -35,19 +35,19 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
 
             // Ctrl+C: Cancel or exit
             if (key.ctrl && inputChar === 'c') {
-                if (state.ui.isProcessing) {
-                    void agent.cancel().catch(() => {});
+                if (state.ui.isProcessing && state.session.id) {
+                    void agent.cancel(state.session.id).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });
-                } else {
+                } else if (!state.ui.isProcessing) {
                     exit();
                 }
             }
 
             // Escape: Cancel or close
             if (key.escape) {
-                if (state.ui.isProcessing) {
-                    void agent.cancel().catch(() => {});
+                if (state.ui.isProcessing && state.session.id) {
+                    void agent.cancel(state.session.id).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });
                 } else if (state.ui.activeOverlay !== 'none') {
