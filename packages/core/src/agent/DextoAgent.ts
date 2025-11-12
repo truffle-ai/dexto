@@ -431,6 +431,10 @@ export class DextoAgent {
     ): Promise<string> {
         this.ensureStarted();
 
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
+        }
         const targetSessionId: string = sessionId;
 
         // Propagate sessionId through OpenTelemetry context for distributed tracing
@@ -605,6 +609,12 @@ export class DextoAgent {
      */
     public async cancel(sessionId: string): Promise<boolean> {
         this.ensureStarted();
+
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
+        }
+
         // Attempt to fetch from sessionManager cache (memory only)
         const existing = await this.sessionManager.getSession(sessionId, false);
         if (existing) {
@@ -834,6 +844,12 @@ export class DextoAgent {
      */
     public async resetConversation(sessionId: string): Promise<void> {
         this.ensureStarted();
+
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
+        }
+
         try {
             // Use SessionManager's resetSession method for better consistency
             await this.sessionManager.resetSession(sessionId);

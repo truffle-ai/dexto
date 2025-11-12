@@ -4,7 +4,10 @@ import type { DextoAgent } from '@dexto/core';
 const MessageBodySchema = z
     .object({
         message: z.string().optional().describe('The user message text'),
-        sessionId: z.string().optional().describe('The session to use for this message'),
+        sessionId: z
+            .string()
+            .min(1, 'Session ID is required')
+            .describe('The session to use for this message'),
         stream: z
             .boolean()
             .optional()
@@ -36,7 +39,10 @@ const MessageBodySchema = z
 
 const ResetBodySchema = z
     .object({
-        sessionId: z.string().optional().describe('The ID of the session to reset'),
+        sessionId: z
+            .string()
+            .min(1, 'Session ID is required')
+            .describe('The ID of the session to reset'),
     })
     .describe('Request body for resetting a conversation');
 

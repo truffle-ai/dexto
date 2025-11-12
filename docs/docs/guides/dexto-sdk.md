@@ -215,8 +215,8 @@ class ChatApplication {
       this.userSessions.set(userId, sessionId);
     }
 
-    // Process message
-    return await this.agent.run(message, undefined, sessionId);
+    // Process message (explicitly passing undefined for image and file inputs)
+    return await this.agent.run(message, undefined, undefined, sessionId);
   }
 
   private broadcastToUser(sessionId: string, message: string) {
@@ -265,8 +265,8 @@ flowchart TD
     A[resumeConversation called] --> B{Session exists?}
     B -->|Yes| C[Load existing session]
     B -->|No| D[Create new session]
-    C --> E[Return history]
-    D --> F[Return null]
+    C --> E[Return sessionId, history]
+    D --> F[Return sessionId, history: null]
 ```
 </ExpandableMermaid>
 

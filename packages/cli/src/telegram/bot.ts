@@ -228,8 +228,13 @@ export function startTelegramBot(agent: DextoAgent) {
         // or simply no text was ever present and no image.
         if (userText === undefined && !imageDataInput) return;
 
-        // Get session for this user
-        const sessionId = getTelegramSessionId(ctx.from.id);
+        // Get session for this user (ctx.from is optional on some updates like channel posts)
+        const senderId = ctx.from?.id ?? ctx.chat?.id;
+        if (typeof senderId !== 'number') {
+            logger.error('Telegram message without sender context; skipping session handling');
+            return;
+        }
+        const sessionId = getTelegramSessionId(senderId);
 
         // Subscribe for toolCall events
         const toolCallHandler = (payload: { toolName: string; args: any; callId?: string }) => {
