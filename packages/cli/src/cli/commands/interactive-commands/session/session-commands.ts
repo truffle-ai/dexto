@@ -409,9 +409,7 @@ export const searchCommand: CommandDefinition = {
             }
 
             if (!query.trim()) {
-                const errorMsg = '❌ Search query is required';
-                console.log(chalk.red(errorMsg));
-                return errorMsg;
+                return CommandOutputHelper.error(new Error('Search query is required'));
             }
 
             const results = await agent.searchMessages(query, options);
@@ -438,6 +436,24 @@ export const searchCommand: CommandDefinition = {
             }
             outputLines.push('');
 
+            // Console output header for regular CLI
+            console.log(chalk.blue(`🔍 Searching for: "${query}"`));
+            if (options.sessionId) {
+                console.log(chalk.dim(`   Session: ${options.sessionId}`));
+            }
+            if (options.role) {
+                console.log(chalk.dim(`   Role: ${options.role}`));
+            }
+            console.log(chalk.dim(`   Limit: ${options.limit}`));
+            console.log();
+            console.log(
+                chalk.green(`✅ Found ${results.total} result${results.total === 1 ? '' : 's'}`)
+            );
+            if (results.hasMore) {
+                console.log(chalk.dim(`   Showing first ${results.results.length} results`));
+            }
+            console.log();
+
             // Display results
             results.results.forEach((result, index) => {
                 const roleColor =
@@ -447,7 +463,6 @@ export const searchCommand: CommandDefinition = {
                           ? chalk.green
                           : chalk.yellow;
 
-                // For console
                 console.log(
                     `${chalk.dim(`${index + 1}.`)} ${chalk.cyan(result.sessionId.slice(0, 8))} ${roleColor(`[${result.message.role}]`)}`
                 );
@@ -466,37 +481,14 @@ export const searchCommand: CommandDefinition = {
 
             if (results.hasMore) {
                 outputLines.push('💡 Use --limit to see more results');
+                console.log(chalk.dim('💡 Use --limit to see more results'));
             }
 
             const output = outputLines.join('\n');
 
-            // Console output for regular CLI
-            console.log(chalk.blue(`🔍 Searching for: "${query}"`));
-            if (options.sessionId) {
-                console.log(chalk.dim(`   Session: ${options.sessionId}`));
-            }
-            if (options.role) {
-                console.log(chalk.dim(`   Role: ${options.role}`));
-            }
-            console.log(chalk.dim(`   Limit: ${options.limit}`));
-            console.log();
-            console.log(
-                chalk.green(`✅ Found ${results.total} result${results.total === 1 ? '' : 's'}`)
-            );
-            if (results.hasMore) {
-                console.log(chalk.dim(`   Showing first ${results.results.length} results`));
-            }
-
-            if (results.hasMore) {
-                console.log(chalk.dim('💡 Use --limit to see more results'));
-            }
-
             return output;
         } catch (error) {
-            const errorMsg = `❌ Search failed: ${error instanceof Error ? error.message : String(error)}`;
-            logger.error(errorMsg);
-            console.log(chalk.red(errorMsg));
-            return errorMsg;
+            return CommandOutputHelper.error(error, 'Search failed');
         }
     },
 };
