@@ -123,7 +123,7 @@ export const sessionCommand: CommandDefinition = {
                     console.log(
                         chalk.dim(`\n  Total: ${displayed} of ${sessionIds.length} sessions`)
                     );
-                    console.log(chalk.dim('  💡 Use /resume <id> to switch sessions\n'));
+                    console.log(chalk.dim('  💡 Use /resume to pick a session\n'));
                     return CommandOutputHelper.noOutput(); // List is displayed above
                 } catch (error) {
                     return CommandOutputHelper.error(error, 'Failed to list sessions');
