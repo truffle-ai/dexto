@@ -99,8 +99,8 @@ program
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
-    .option('-c, --continue', 'Continue most recent conversation')
-    .option('-r, --resume <sessionId>', 'Resume session by ID')
+    .option('-c, --continue', 'Continue most recent session (requires -p/prompt)')
+    .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')
     .option(
         '--mode <mode>',
         'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
@@ -347,20 +347,25 @@ async function bootstrapAgentFromGlobalOpts() {
     return agent;
 }
 
-// Helper to find the most recent session (excluding ephemeral headless sessions)
-async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
+// Helper to find the most recent session
+// @param includeHeadless - If false, skip ephemeral headless sessions (for interactive mode)
+//                          If true, include all sessions (for headless mode continuation)
+async function getMostRecentSessionId(
+    agent: DextoAgent,
+    includeHeadless: boolean = false
+): Promise<string | null> {
     const sessionIds = await agent.listSessions();
     if (sessionIds.length === 0) {
         return null;
     }
 
-    // Get metadata for all sessions to find most recent (skip ephemeral headless sessions)
+    // Get metadata for all sessions to find most recent
     let mostRecentId: string | null = null;
     let mostRecentActivity = 0;
 
     for (const sessionId of sessionIds) {
-        // Skip ephemeral headless sessions (they're temporary/isolated)
-        if (sessionId.startsWith('headless-')) {
+        // Skip ephemeral headless sessions unless includeHeadless is true
+        if (!includeHeadless && sessionId.startsWith('headless-')) {
             continue;
         }
 
@@ -604,23 +609,27 @@ program
             '  cat file | dexto -p "query"  Process piped content\n\n' +
             'CLI Mode:\n' +
             '  dexto --mode cli         Start interactive CLI\n\n' +
-            'Session Management:\n' +
-            '  dexto -c                 Continue most recent conversation\n' +
-            '  dexto -r <session-id>    Resume specific session by ID\n' +
-            '  Use /resume in CLI       Resume a session interactively\n\n' +
-            'Tool Confirmation:\n' +
-            '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
+            'Headless Session Continuation:\n' +
+            '  dexto -c -p "message"           Continue most recent session\n' +
+            '  dexto -r <session-id> -p "msg"  Resume specific session by ID\n' +
+            '  (Interactive mode: use /resume command instead)\n\n' +
+            'Session Management Commands:\n' +
+            '  dexto session list              List all sessions\n' +
+            '  dexto session history [id]      Show session history\n' +
+            '  dexto session delete <id>       Delete a session\n' +
+            '  dexto search <query>            Search across sessions\n' +
+            '    Options: --session <id>, --role <user|assistant>, --limit <n>\n\n' +
             'Agent Selection:\n' +
             '  dexto --agent coding-agent       Use installed agent by name\n' +
             '  dexto --agent ./my-agent.yml     Use agent from file path\n' +
             '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
+            'Tool Confirmation:\n' +
+            '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode discord     Run as Discord bot\n' +
             '  dexto --mode telegram    Run as Telegram bot\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
-            'Session Commands: dexto session list|history|delete • search\n' +
-            'Search: dexto search <query> [--session <id>] [--role <role>]\n\n' +
             'See https://docs.dexto.ai for documentation and examples'
     )
     .action(
@@ -682,6 +691,21 @@ program
 
                 // Note: Agent selection must be passed via -a/--agent. We no longer interpret
                 // the first positional argument as an agent name to avoid ambiguity with prompts.
+
+                // ——— VALIDATE SESSION FLAGS ———
+                // -c and -r are for headless mode only (require a prompt)
+                if ((opts.continue || opts.resume) && !headlessInput) {
+                    console.error(
+                        '❌ Session continuation flags (-c/--continue or -r/--resume) require a prompt for headless mode.'
+                    );
+                    console.error(
+                        '   Provide a prompt: dexto -c -p "your message" or dexto -r <sessionId> -p "your message"'
+                    );
+                    console.error(
+                        '   For interactive mode with session management, use: dexto (starts new) or use /resume command'
+                    );
+                    safeExit('main', 1, 'session-flag-without-prompt');
+                }
 
                 // ——— FORCE CLI MODE FOR HEADLESS PROMPTS ———
                 // If a prompt was provided via -p or positional args, force CLI mode
@@ -876,8 +900,11 @@ program
                                     safeExit('main', 1, 'resume-failed');
                                 }
                             } else if (opts.continue) {
-                                // Continue most recent conversation
-                                const mostRecentSessionId = await getMostRecentSessionId(agent);
+                                // Continue most recent conversation (include headless sessions in headless mode)
+                                const mostRecentSessionId = await getMostRecentSessionId(
+                                    agent,
+                                    true
+                                );
                                 if (!mostRecentSessionId) {
                                     console.error(`❌ No previous sessions found`);
                                     console.error(
@@ -948,53 +975,10 @@ program
                                 safeExit('main', 1, 'headless-error');
                             }
                         } else {
-                            // Interactive mode - create/resume session for persistent conversation
-                            let cliSessionId: string | null = null;
-
-                            if (opts.resume) {
-                                // Resume specific session by ID
-                                try {
-                                    const session = await agent.getSession(opts.resume);
-                                    if (!session) {
-                                        console.error(`❌ Session '${opts.resume}' not found`);
-                                        console.error(
-                                            '💡 Use `dexto session list` to see available sessions'
-                                        );
-                                        safeExit('main', 1, 'resume-failed');
-                                    }
-                                    cliSessionId = opts.resume;
-                                    logger.info(`Resumed session: ${cliSessionId}`, null, 'cyan');
-                                } catch (err) {
-                                    console.error(
-                                        `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
-                                    );
-                                    console.error(
-                                        '💡 Use `dexto session list` to see available sessions'
-                                    );
-                                    safeExit('main', 1, 'resume-failed');
-                                }
-                            } else if (opts.continue) {
-                                // Continue most recent conversation
-                                const mostRecentSessionId = await getMostRecentSessionId(agent);
-                                if (!mostRecentSessionId) {
-                                    console.error(`❌ No previous sessions found`);
-                                    console.error(
-                                        '💡 Start a new conversation or use `dexto session list` to see available sessions'
-                                    );
-                                    safeExit('main', 1, 'no-sessions-found');
-                                }
-                                cliSessionId = mostRecentSessionId;
-                                logger.info(
-                                    `Continuing most recent session: ${cliSessionId}`,
-                                    null,
-                                    'cyan'
-                                );
-                            } else {
-                                // Defer session creation until first message is sent
-                                // This prevents stale empty sessions when CLI is launched and immediately closed
-                                cliSessionId = null; // Will be created on first message
-                                logger.debug('Session creation deferred until first message');
-                            }
+                            // Interactive mode - session management handled via /resume command
+                            // Note: -c and -r flags are validated to require a prompt (headless mode only)
+                            // Defer session creation until first message is sent to prevent stale empty sessions
+                            const cliSessionId: string | null = null;
 
                             // Interactive mode - use Ink CLI with session support
                             // Suppress console output before starting Ink UI
