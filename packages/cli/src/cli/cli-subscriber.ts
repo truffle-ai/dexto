@@ -50,6 +50,15 @@ export class CLISubscriber implements EventSubscriber {
      */
     cleanup(): void {
         this.streamingContent = '';
+
+        // Reject any pending promises to prevent resource leaks
+        if (this.completionReject) {
+            const reject = this.completionReject;
+            delete this.completionResolve;
+            delete this.completionReject;
+            reject(new Error('CLI subscriber cleaned up while operation pending'));
+        }
+
         logger.debug('CLI event subscriber cleaned up');
     }
 
@@ -145,6 +154,11 @@ export class CLISubscriber implements EventSubscriber {
      * Returns a promise that resolves when the response is complete
      */
     async runAndWait(agent: DextoAgent, prompt: string, sessionId: string): Promise<void> {
+        // Prevent concurrent calls
+        if (this.completionResolve || this.completionReject) {
+            throw new Error('Cannot call runAndWait while another operation is pending');
+        }
+
         return new Promise((resolve, reject) => {
             this.completionResolve = resolve;
             this.completionReject = reject;
@@ -153,7 +167,10 @@ export class CLISubscriber implements EventSubscriber {
             agent.run(prompt, undefined, undefined, sessionId).catch((error) => {
                 // If agent.run() rejects but we haven't already rejected via event
                 if (this.completionReject) {
-                    reject(error);
+                    const rejectHandler = this.completionReject;
+                    delete this.completionResolve;
+                    delete this.completionReject;
+                    rejectHandler(error);
                 }
             });
         });
