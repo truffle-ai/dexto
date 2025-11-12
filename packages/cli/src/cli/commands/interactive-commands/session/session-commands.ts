@@ -168,7 +168,7 @@ export const sessionCommand: CommandDefinition = {
                 );
                 if (validationError) return validationError;
 
-                const sessionId = args[0] || '';
+                const sessionId = args[0]!;
                 try {
                     const current = await getCurrentSessionInfo(agent);
 
@@ -272,17 +272,17 @@ export const historyCommand: CommandDefinition = {
             const sessionId = args.length > 0 && args[0] ? args[0] : agent.getCurrentSessionId();
 
             await displaySessionHistory(sessionId, agent);
+            return CommandOutputHelper.noOutput();
         } catch (error) {
             if (error instanceof Error && error.message.includes('not found')) {
-                console.log(chalk.red(`❌ Session not found: ${args[0] || 'current'}`));
-                console.log(chalk.dim('   Use /session list to see available sessions'));
-            } else {
-                logger.error(
-                    `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`
+                return CommandOutputHelper.error(
+                    new Error(
+                        `Session not found: ${args[0] || 'current'}\n   Use /session list to see available sessions`
+                    )
                 );
             }
+            return CommandOutputHelper.error(error, 'Failed to get session history');
         }
-        return true;
     },
 };
 
