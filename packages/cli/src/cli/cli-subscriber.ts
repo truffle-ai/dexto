@@ -118,21 +118,18 @@ export class CLISubscriber implements EventSubscriber {
         // Clear any partial response state
         this.streamingContent = '';
 
-        // Show error to stderr for immediate user feedback
+        // Show error to stderr for immediate user feedback (with stack for debugging)
         console.error(`❌ Error: ${error.message}`);
-
-        // Log details to file if in debug mode
-        if (logger.getLevel() === 'debug') {
-            logger.error(
-                `Error details:`,
-                {
-                    stack: error.stack,
-                    name: error.name,
-                    cause: error.cause,
-                },
-                'red'
-            );
+        if (error.stack) {
+            console.error(error.stack);
         }
+
+        // Log details to file
+        logger.error(`Error: ${error.message}`, {
+            stack: error.stack,
+            name: error.name,
+            cause: error.cause,
+        });
 
         // Reject completion promise if waiting
         if (this.completionReject) {

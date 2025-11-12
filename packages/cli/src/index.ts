@@ -932,9 +932,17 @@ program
                                 // Rethrow ExitSignal - it's not an error, it's how safeExit works
                                 if (error instanceof ExitSignal) throw error;
 
-                                logger.error(
-                                    `Error in headless mode: ${error instanceof Error ? error.message : String(error)}`
-                                );
+                                // Write to stderr for headless users/scripts
+                                const errorMessage =
+                                    error instanceof Error ? error.message : String(error);
+                                console.error(`❌ Error in headless mode: ${errorMessage}`);
+                                if (error instanceof Error && error.stack) {
+                                    console.error(error.stack);
+                                }
+
+                                // Also log for diagnostics
+                                logger.error(`Error in headless mode: ${errorMessage}`);
+
                                 cliSubscriber.cleanup();
                                 await agent.stop().catch(() => {}); // Best effort cleanup
                                 safeExit('main', 1, 'headless-error');
@@ -1028,9 +1036,12 @@ program
                             // Handle any errors from Ink CLI
                             if (inkError) {
                                 if (inkError instanceof ExitSignal) throw inkError;
-                                console.error(
-                                    `❌ Ink CLI failed: ${inkError instanceof Error ? inkError.message : String(inkError)}`
-                                );
+                                const errorMessage =
+                                    inkError instanceof Error ? inkError.message : String(inkError);
+                                console.error(`❌ Ink CLI failed: ${errorMessage}`);
+                                if (inkError instanceof Error && inkError.stack) {
+                                    console.error(inkError.stack);
+                                }
                                 safeExit('main', 1, 'ink-cli-error');
                             }
 
