@@ -63,7 +63,7 @@ export class CLISubscriber implements EventSubscriber {
         process.stdout.write(text);
     }
 
-    onToolCall(toolName: string, args: any): void {
+    onToolCall(toolName: string, _args: any): void {
         // Simple tool indicator to stderr (doesn't interfere with stdout)
         process.stderr.write(`[Tool: ${toolName}]\n`);
     }
@@ -109,8 +109,8 @@ export class CLISubscriber implements EventSubscriber {
         // Clear any partial response state
         this.streamingContent = '';
 
-        // Show error to stderr
-        logger.error(`❌ Error: ${error.message}`);
+        // Show error to stderr for immediate user feedback
+        console.error(`❌ Error: ${error.message}`);
 
         // Log details to file if in debug mode
         if (logger.getLevel() === 'debug') {

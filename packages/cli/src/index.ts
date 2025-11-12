@@ -1002,11 +1002,14 @@ program
                             console.warn = noOp;
                             console.info = noOp;
 
+                            let inkError: unknown = undefined;
                             try {
                                 const { startInkCliRefactored } = await import(
                                     './cli/ink-cli/InkCLIRefactored.js'
                                 );
                                 await startInkCliRefactored(agent, cliSessionId);
+                            } catch (error) {
+                                inkError = error;
                             } finally {
                                 // Restore console methods so any errors are visible
                                 console.log = originalConsole.log;
@@ -1014,6 +1017,24 @@ program
                                 console.warn = originalConsole.warn;
                                 console.info = originalConsole.info;
                             }
+
+                            // Stop the agent after Ink CLI exits
+                            try {
+                                await agent.stop();
+                            } catch {
+                                // Ignore shutdown errors
+                            }
+
+                            // Handle any errors from Ink CLI
+                            if (inkError) {
+                                if (inkError instanceof ExitSignal) throw inkError;
+                                console.error(
+                                    `❌ Ink CLI failed: ${inkError instanceof Error ? inkError.message : String(inkError)}`
+                                );
+                                safeExit('main', 1, 'ink-cli-error');
+                            }
+
+                            safeExit('main', 0);
                         }
                         break;
                     }
