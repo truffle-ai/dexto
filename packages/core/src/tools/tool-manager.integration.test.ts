@@ -38,6 +38,7 @@ describe('ToolManager Integration Tests', () => {
             info: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
+            silly: vi.fn(),
             trackException: vi.fn(),
             createChild: vi.fn(function (this: any) {
                 return this;
