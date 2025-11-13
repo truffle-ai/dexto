@@ -173,15 +173,16 @@ Research findings: ${research.length}`;
 
 ## Integration Examples
 
-### HTTP API
+### Express.js API
 
 Create an API that exposes MCP tools:
 
 ```typescript
-import { Hono } from 'hono';
+import express from 'express';
 import { MCPManager } from '@dexto/core';
 
-const app = new Hono();
+const app = express();
+app.use(express.json());
 
 const manager = new MCPManager();
 await manager.initializeFromConfig({

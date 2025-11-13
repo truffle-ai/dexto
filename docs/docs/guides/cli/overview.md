@@ -481,7 +481,7 @@ dexto --agent podcast-agent "create a 5-minute podcast about space exploration"
 dexto --agent nano-banana-agent "create a futuristic cityscape"
 
 # Create code with specific instructions
-dexto --agent coding-agent "build a REST API with Hono and TypeScript"
+dexto --agent coding-agent "build a REST API with Express and TypeScript"
 
 # Interactive mode for complex tasks
 dexto --agent coding-agent
