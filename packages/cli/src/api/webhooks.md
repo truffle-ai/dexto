@@ -131,19 +131,19 @@ function verifyWebhookSignature(payload, signature, secret) {
 }
 
 // In your webhook handler
-app.post('/webhooks/dexto', (req, res) => {
-    const signature = req.headers['x-dexto-signature-256'];
-    const payload = req.body.toString('utf8'); // `req.body` is a Buffer here
-    
+app.post('/webhooks/dexto', async (c) => {
+    const signature = c.req.header('x-dexto-signature-256');
+    const payload = await c.req.text();
+
     if (!verifyWebhookSignature(payload, signature, 'your_secret')) {
-        return res.status(401).send('Unauthorized');
+        return c.text('Unauthorized', 401);
     }
-    
+
     // Parse only *after* signature verification
     const event = JSON.parse(payload);
     console.log(`Received ${event.type} event:`, event.data);
-    
-    res.status(200).send('OK');
+
+    return c.text('OK', 200);
 });
 ```
 
@@ -181,39 +181,37 @@ Each webhook request includes these headers:
 ## Example Webhook Handler
 
 ```typescript
-import express from 'express';
+import { Hono } from 'hono';
 import type { DextoWebhookEvent } from '@dexto/server';
 
-const app = express();
-// Use raw body middleware for signature verification
-app.use(express.raw({ type: 'application/json' }));
+const app = new Hono();
 
-app.post('/webhooks/dexto', (req, res) => {
-    // Parse JSON from raw buffer
-    const event: DextoWebhookEvent = JSON.parse(req.body.toString('utf8'));
-    
+app.post('/webhooks/dexto', async (c) => {
+    // Parse JSON from request body
+    const event: DextoWebhookEvent = await c.req.json();
+
     try {
         switch (event.type) {
             case 'llmservice:response':
                 console.log('AI Response:', event.data.content);
                 break;
-                
+
             case 'llmservice:toolCall':
                 console.log('Tool Called:', event.data.toolName);
                 break;
-                
+
             case 'dexto:conversationReset':
                 console.log('Conversation reset for session:', event.data.sessionId);
                 break;
-                
+
             default:
                 console.log('Unknown event type:', event.type);
         }
-        
-        res.status(200).send('OK');
+
+        return c.text('OK', 200);
     } catch (error) {
         console.error('Webhook error:', error);
-        res.status(500).send('Internal Server Error');
+        return c.text('Internal Server Error', 500);
     }
 });
 ```
