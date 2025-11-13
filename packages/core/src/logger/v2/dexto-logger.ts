@@ -106,9 +106,15 @@ export class DextoLogger implements IDextoLogger {
         // Send to all transports
         for (const transport of this.transports) {
             try {
-                transport.write(entry);
+                const result = transport.write(entry);
+                // Handle async transports - attach rejection handler to prevent unhandled promise rejections
+                if (result && typeof result === 'object' && 'catch' in result) {
+                    (result as Promise<void>).catch((error) => {
+                        console.error('Logger transport error:', error);
+                    });
+                }
             } catch (error) {
-                // Don't let transport errors break logging
+                // Don't let transport errors break logging (handles sync errors)
                 console.error('Logger transport error:', error);
             }
         }

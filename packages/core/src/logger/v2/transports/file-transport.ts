@@ -28,6 +28,7 @@ export class FileTransport implements ILoggerTransport {
     private writeStream: fs.WriteStream | null = null;
     private currentSize: number = 0;
     private isRotating: boolean = false;
+    private pendingLogs: string[] = [];
 
     constructor(config: FileTransportConfig) {
         this.filePath = config.path;
@@ -62,30 +63,35 @@ export class FileTransport implements ILoggerTransport {
     }
 
     write(entry: LogEntry): void {
-        if (!this.writeStream || this.isRotating) {
-            return;
-        }
-
         // Format log entry as JSON line
         const line = JSON.stringify(entry) + '\n';
         const lineSize = Buffer.byteLength(line, 'utf8');
 
-        // Check if rotation is needed
-        if (this.currentSize + lineSize > this.maxSize) {
-            this.rotate();
+        // Buffer logs if not ready or rotating (prevents log loss)
+        if (!this.writeStream || this.isRotating) {
+            this.pendingLogs.push(line);
+            return;
         }
 
-        // Write to file
+        // Check if rotation is needed
+        if (this.currentSize + lineSize > this.maxSize) {
+            // Buffer this log and trigger async rotation
+            this.pendingLogs.push(line);
+            void this.rotate(); // Fire and forget - logs are buffered
+            return;
+        }
+
+        // Write to file immediately
         this.writeStream.write(line);
         this.currentSize += lineSize;
     }
 
     /**
-     * Rotate log files
+     * Rotate log files asynchronously
      * Renames current file to .1, shifts existing rotated files up (.1 -> .2, etc.)
-     * Deletes oldest file if maxFiles is exceeded
+     * Deletes oldest file if maxFiles is exceeded, then flushes buffered logs
      */
-    private rotate(): void {
+    private async rotate(): Promise<void> {
         if (this.isRotating) {
             return;
         }
@@ -93,40 +99,82 @@ export class FileTransport implements ILoggerTransport {
         this.isRotating = true;
 
         try {
-            // Close current write stream
+            // Close current write stream asynchronously
             if (this.writeStream) {
-                this.writeStream.end();
+                await new Promise<void>((resolve) => {
+                    this.writeStream!.end(() => resolve());
+                });
                 this.writeStream = null;
             }
 
+            // Use async file operations to avoid blocking event loop
+            const promises = [];
+
             // Delete oldest rotated file if it exists
             const oldestFile = `${this.filePath}.${this.maxFiles}`;
-            if (fs.existsSync(oldestFile)) {
-                fs.unlinkSync(oldestFile);
+            try {
+                await fs.promises.access(oldestFile);
+                promises.push(fs.promises.unlink(oldestFile));
+            } catch {
+                // File doesn't exist, skip
             }
+
+            await Promise.all(promises);
 
             // Shift existing rotated files up by one
             for (let i = this.maxFiles - 1; i >= 1; i--) {
                 const oldFile = `${this.filePath}.${i}`;
                 const newFile = `${this.filePath}.${i + 1}`;
 
-                if (fs.existsSync(oldFile)) {
-                    fs.renameSync(oldFile, newFile);
+                try {
+                    await fs.promises.access(oldFile);
+                    await fs.promises.rename(oldFile, newFile);
+                } catch {
+                    // File doesn't exist, skip
                 }
             }
 
             // Rename current file to .1
-            if (fs.existsSync(this.filePath)) {
-                fs.renameSync(this.filePath, `${this.filePath}.1`);
+            try {
+                await fs.promises.access(this.filePath);
+                await fs.promises.rename(this.filePath, `${this.filePath}.1`);
+            } catch {
+                // File doesn't exist, skip
             }
 
             // Reset size counter and create new stream
             this.currentSize = 0;
             this.createWriteStream();
+
+            // Flush buffered logs after rotation completes
+            await this.flushPendingLogs();
         } catch (error) {
             console.error('FileTransport rotation error:', error);
         } finally {
             this.isRotating = false;
+        }
+    }
+
+    /**
+     * Flush buffered logs to the write stream
+     * Called after rotation completes to prevent log loss
+     */
+    private async flushPendingLogs(): Promise<void> {
+        while (this.pendingLogs.length > 0 && this.writeStream) {
+            const line = this.pendingLogs.shift()!;
+            const lineSize = Buffer.byteLength(line, 'utf8');
+
+            // Check if we need to rotate again
+            if (this.currentSize + lineSize > this.maxSize) {
+                // Put the log back and trigger another rotation
+                this.pendingLogs.unshift(line);
+                await this.rotate();
+                break;
+            }
+
+            // Write to stream
+            this.writeStream.write(line);
+            this.currentSize += lineSize;
         }
     }
 

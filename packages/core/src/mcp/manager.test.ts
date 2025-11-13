@@ -113,6 +113,7 @@ describe('MCPManager Tool Conflict Resolution', () => {
             info: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
+            silly: vi.fn(),
             trackException: vi.fn(),
             createChild: vi.fn(function (this: any) {
                 return this;
@@ -580,6 +581,7 @@ describe('MCPManager Prompt Caching', () => {
             info: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
+            silly: vi.fn(),
             trackException: vi.fn(),
             createChild: vi.fn(function (this: any) {
                 return this;
@@ -709,6 +711,7 @@ describe('MCPManager Resource Caching', () => {
             info: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
+            silly: vi.fn(),
             trackException: vi.fn(),
             createChild: vi.fn(function (this: any) {
                 return this;
@@ -831,6 +834,7 @@ describe('Tool notification handling', () => {
             info: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
+            silly: vi.fn(),
             trackException: vi.fn(),
             createChild: vi.fn(function (this: any) {
                 return this;
