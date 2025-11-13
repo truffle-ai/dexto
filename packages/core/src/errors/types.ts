@@ -29,6 +29,7 @@ export enum ErrorScope {
     MCP = 'mcp', // MCP server connections and protocol
     TOOLS = 'tools', // Tool execution and authorization
     STORAGE = 'storage', // Storage backend operations
+    LOGGER = 'logger', // Logging system operations, transports, and configuration
     SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
     PROMPT = 'prompt', // Prompt management, resolution, and providers

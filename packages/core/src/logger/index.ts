@@ -15,6 +15,10 @@ export { ConsoleTransport } from './v2/transports/console-transport.js';
 export type { FileTransportConfig } from './v2/transports/file-transport.js';
 export { FileTransport } from './v2/transports/file-transport.js';
 
+// Error handling
+export { LoggerError } from './v2/errors.js';
+export { LoggerErrorCode } from './v2/error-codes.js';
+
 // Legacy logger (to be removed)
 export type { LoggerOptions } from './logger.js';
 export { Logger, logger } from './logger.js';

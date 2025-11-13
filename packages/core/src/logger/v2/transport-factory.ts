@@ -9,6 +9,7 @@ import type { ILoggerTransport } from './types.js';
 import type { LoggerTransportConfig } from './schemas.js';
 import { ConsoleTransport } from './transports/console-transport.js';
 import { FileTransport } from './transports/file-transport.js';
+import { LoggerError } from './errors.js';
 
 /**
  * Create a transport instance from configuration
@@ -31,12 +32,10 @@ export function createTransport(config: LoggerTransportConfig): ILoggerTransport
 
         case 'upstash':
             // TODO: Implement UpstashTransport in Phase B (optional)
-            throw new Error(
-                'Upstash transport not yet implemented. Available transports: console, file'
-            );
+            throw LoggerError.transportNotImplemented('upstash', ['console', 'file']);
 
         default:
-            throw new Error(`Unknown transport type: ${(config as any).type}`);
+            throw LoggerError.unknownTransportType((config as any).type);
     }
 }
 
