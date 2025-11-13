@@ -446,7 +446,7 @@ export class MCPManager {
             }
         });
 
-        this.logger.debug(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
+        this.logger.silly(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
         return allTools;
     }
 
