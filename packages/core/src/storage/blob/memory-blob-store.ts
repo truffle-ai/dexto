@@ -154,8 +154,8 @@ export class InMemoryBlobStore implements BlobStore {
             case 'buffer':
                 return {
                     format: 'buffer',
-                    data: blob.data,
-                    metadata: blob.metadata,
+                    data: Buffer.from(blob.data),
+                    metadata: { ...blob.metadata },
                 };
 
             case 'path':

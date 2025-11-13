@@ -19,6 +19,7 @@
     "dotenv": "^16.4.7",
     "fs-extra": "^11.3.0",
     "grammy": "^1.38.2",
+    "hono": "^4.7.13",
     "posthog-node": "^4.2.1",
     "next": "15.5.2",
     "open": "^10.2.0",
@@ -42,7 +43,6 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/ws": "^8.5.11",
-    "hono": "^4.7.13",
     "type-fest": "^4.26.1"
   },
   "files": [

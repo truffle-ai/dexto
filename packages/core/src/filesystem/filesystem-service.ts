@@ -7,6 +7,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
+import { getDextoPath } from '../utils/path.js';
 import {
     FileSystemConfig,
     FileContent,
@@ -63,16 +64,12 @@ export class FileSystemService {
     }
 
     /**
-     * Get backup directory path (requires explicit configuration)
+     * Get backup directory path (context-aware with optional override)
+     * TODO: Migrate to explicit configuration via CLI enrichment layer (per-agent paths)
      */
     private getBackupDir(): string {
-        if (!this.config.backupPath) {
-            throw FileSystemError.invalidPath(
-                '<backup-path>',
-                'Backup path must be explicitly configured when backups are enabled. CLI enrichment layer provides per-agent paths.'
-            );
-        }
-        return this.config.backupPath;
+        // Use custom path if provided (absolute), otherwise use context-aware default
+        return this.config.backupPath || getDextoPath('backups');
     }
 
     /**

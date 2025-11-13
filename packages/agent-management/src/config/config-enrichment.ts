@@ -20,11 +20,15 @@ export function deriveAgentId(config: AgentConfig, configPath?: string): string 
     // 1. Try agentCard.name if available
     if (config.agentCard?.name) {
         // Sanitize name for filesystem use (remove spaces, special chars)
-        return config.agentCard.name
+        const sanitizedName = config.agentCard.name
             .toLowerCase()
             .replace(/[^a-z0-9-_]/g, '-')
             .replace(/-+/g, '-')
             .replace(/^-|-$/g, '');
+
+        if (sanitizedName) {
+            return sanitizedName;
+        }
     }
 
     // 2. Try filename (without extension)
