@@ -6013,74 +6013,37 @@
                       "agentCard": {
                         "type": "object",
                         "properties": {
+                          "protocolVersion": {
+                            "type": "string",
+                            "default": "0.3.0",
+                            "description": "A2A protocol version (e.g., \"0.3.0\")"
+                          },
                           "name": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "Human-readable agent name"
                           },
                           "description": {
                             "type": "string",
-                            "default": "Dexto is an AI assistant capable of chat and task delegation, accessible via multiple protocols."
+                            "description": "Detailed description of agent purpose and capabilities"
                           },
                           "url": {
                             "type": "string",
-                            "format": "uri"
-                          },
-                          "provider": {
-                            "type": "object",
-                            "properties": {
-                              "organization": {
-                                "type": "string"
-                              },
-                              "url": {
-                                "type": "string",
-                                "format": "uri"
-                              }
-                            },
-                            "required": [
-                              "organization",
-                              "url"
-                            ]
+                            "format": "uri",
+                            "description": "Primary endpoint URL for the agent"
                           },
                           "version": {
-                            "type": "string"
-                          },
-                          "documentationUrl": {
                             "type": "string",
-                            "format": "uri"
+                            "description": "Agent version (semantic versioning recommended)"
                           },
-                          "capabilities": {
-                            "type": "object",
-                            "properties": {
-                              "streaming": {
-                                "type": "boolean",
-                                "default": true
-                              },
-                              "pushNotifications": {
-                                "type": "boolean"
-                              },
-                              "stateTransitionHistory": {
-                                "type": "boolean",
-                                "default": false
-                              }
-                            },
-                            "default": {},
-                            "additionalProperties": false
-                          },
-                          "authentication": {
-                            "type": "object",
-                            "properties": {
-                              "schemes": {
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                },
-                                "default": []
-                              },
-                              "credentials": {
-                                "type": "string"
-                              }
-                            },
-                            "default": {},
-                            "additionalProperties": false
+                          "preferredTransport": {
+                            "type": "string",
+                            "enum": [
+                              "JSONRPC",
+                              "GRPC",
+                              "HTTP+JSON"
+                            ],
+                            "default": "JSONRPC",
+                            "description": "Primary transport protocol for communication"
                           },
                           "defaultInputModes": {
                             "type": "array",
@@ -6090,7 +6053,8 @@
                             "default": [
                               "application/json",
                               "text/plain"
-                            ]
+                            ],
+                            "description": "Supported input MIME types"
                           },
                           "defaultOutputModes": {
                             "type": "array",
@@ -6101,7 +6065,8 @@
                               "application/json",
                               "text/event-stream",
                               "text/plain"
-                            ]
+                            ],
+                            "description": "Supported output MIME types"
                           },
                           "skills": {
                             "type": "array",
@@ -6109,25 +6074,30 @@
                               "type": "object",
                               "properties": {
                                 "id": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "description": "Unique skill identifier"
                                 },
                                 "name": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "description": "Human-readable skill name"
                                 },
                                 "description": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "description": "Detailed skill description"
                                 },
                                 "tags": {
                                   "type": "array",
                                   "items": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "description": "Searchable tags for discovery"
                                 },
                                 "examples": {
                                   "type": "array",
                                   "items": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "description": "Example use cases or queries"
                                 },
                                 "inputModes": {
                                   "type": "array",
@@ -6136,7 +6106,8 @@
                                   },
                                   "default": [
                                     "text/plain"
-                                  ]
+                                  ],
+                                  "description": "Skill-specific input MIME types"
                                 },
                                 "outputModes": {
                                   "type": "array",
@@ -6145,7 +6116,8 @@
                                   },
                                   "default": [
                                     "text/plain"
-                                  ]
+                                  ],
+                                  "description": "Skill-specific output MIME types"
                                 }
                               },
                               "required": [
@@ -6153,7 +6125,8 @@
                                 "name",
                                 "description",
                                 "tags"
-                              ]
+                              ],
+                              "additionalProperties": false
                             },
                             "default": [
                               {
@@ -6172,11 +6145,492 @@
                                   "Alternatively, use a compatible MCP client library."
                                 ]
                               }
-                            ]
+                            ],
+                            "description": "Agent capabilities/skills"
+                          },
+                          "provider": {
+                            "type": "object",
+                            "properties": {
+                              "organization": {
+                                "type": "string",
+                                "description": "Provider organization name"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "Provider organization URL"
+                              }
+                            },
+                            "required": [
+                              "organization",
+                              "url"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Agent provider information"
+                          },
+                          "iconUrl": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URL to agent icon/logo (for UI display)"
+                          },
+                          "documentationUrl": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URL to agent documentation"
+                          },
+                          "additionalInterfaces": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "Endpoint URL"
+                                },
+                                "transport": {
+                                  "type": "string",
+                                  "enum": [
+                                    "JSONRPC",
+                                    "GRPC",
+                                    "HTTP+JSON"
+                                  ],
+                                  "description": "Transport protocol"
+                                }
+                              },
+                              "required": [
+                                "url",
+                                "transport"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "description": "Additional interfaces/transports supported by the agent"
+                          },
+                          "capabilities": {
+                            "type": "object",
+                            "properties": {
+                              "streaming": {
+                                "type": "boolean",
+                                "default": true,
+                                "description": "Supports streaming responses"
+                              },
+                              "pushNotifications": {
+                                "type": "boolean",
+                                "description": "Supports push notifications"
+                              },
+                              "stateTransitionHistory": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Provides state transition history"
+                              }
+                            },
+                            "default": {},
+                            "additionalProperties": false,
+                            "description": "Agent capabilities and features"
+                          },
+                          "securitySchemes": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "apiKey"
+                                      ],
+                                      "description": "Security scheme type"
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "description": "Name of the header/query/cookie parameter"
+                                    },
+                                    "in": {
+                                      "type": "string",
+                                      "enum": [
+                                        "query",
+                                        "header",
+                                        "cookie"
+                                      ],
+                                      "description": "Location of API key"
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "description": "Description of the security scheme"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "name",
+                                    "in"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "http"
+                                      ],
+                                      "description": "Security scheme type"
+                                    },
+                                    "scheme": {
+                                      "type": "string",
+                                      "description": "HTTP authorization scheme (e.g., basic, bearer)"
+                                    },
+                                    "bearerFormat": {
+                                      "type": "string",
+                                      "description": "Hint for bearer token format"
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "description": "Description of the security scheme"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "scheme"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "oauth2"
+                                      ],
+                                      "description": "Security scheme type"
+                                    },
+                                    "flows": {
+                                      "type": "object",
+                                      "properties": {
+                                        "implicit": {
+                                          "type": "object",
+                                          "properties": {
+                                            "authorizationUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Authorization URL for the flow"
+                                            },
+                                            "tokenUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Token URL for the flow"
+                                            },
+                                            "refreshUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Refresh URL for the flow"
+                                            },
+                                            "scopes": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "description": "Available scopes for the OAuth2 flow"
+                                            }
+                                          },
+                                          "required": [
+                                            "scopes"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "password": {
+                                          "type": "object",
+                                          "properties": {
+                                            "authorizationUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Authorization URL for the flow"
+                                            },
+                                            "tokenUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Token URL for the flow"
+                                            },
+                                            "refreshUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Refresh URL for the flow"
+                                            },
+                                            "scopes": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "description": "Available scopes for the OAuth2 flow"
+                                            }
+                                          },
+                                          "required": [
+                                            "scopes"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "clientCredentials": {
+                                          "type": "object",
+                                          "properties": {
+                                            "authorizationUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Authorization URL for the flow"
+                                            },
+                                            "tokenUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Token URL for the flow"
+                                            },
+                                            "refreshUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Refresh URL for the flow"
+                                            },
+                                            "scopes": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "description": "Available scopes for the OAuth2 flow"
+                                            }
+                                          },
+                                          "required": [
+                                            "scopes"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "authorizationCode": {
+                                          "type": "object",
+                                          "properties": {
+                                            "authorizationUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Authorization URL for the flow"
+                                            },
+                                            "tokenUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Token URL for the flow"
+                                            },
+                                            "refreshUrl": {
+                                              "type": "string",
+                                              "format": "uri",
+                                              "description": "Refresh URL for the flow"
+                                            },
+                                            "scopes": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "type": "string"
+                                              },
+                                              "description": "Available scopes for the OAuth2 flow"
+                                            }
+                                          },
+                                          "required": [
+                                            "scopes"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "additionalProperties": false,
+                                      "description": "OAuth2 flow configurations"
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "description": "Description of the security scheme"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "flows"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "openIdConnect"
+                                      ],
+                                      "description": "Security scheme type"
+                                    },
+                                    "openIdConnectUrl": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "OpenID Connect discovery URL"
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "description": "Description of the security scheme"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "openIdConnectUrl"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "mutualTLS"
+                                      ],
+                                      "description": "Security scheme type"
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "description": "Description of the security scheme"
+                                    }
+                                  },
+                                  "required": [
+                                    "type"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              ]
+                            },
+                            "description": "Map of security scheme definitions (A2A format)"
+                          },
+                          "security": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "description": "Security requirements (array of security scheme references with required scopes)"
+                          },
+                          "supportsAuthenticatedExtendedCard": {
+                            "type": "boolean",
+                            "description": "Whether extended card is available with authentication"
+                          },
+                          "signatures": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "protected": {
+                                  "type": "string",
+                                  "description": "Base64url-encoded JWS Protected Header"
+                                },
+                                "signature": {
+                                  "type": "string",
+                                  "description": "Base64url-encoded JWS Signature"
+                                }
+                              },
+                              "required": [
+                                "protected",
+                                "signature"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "description": "JSON Web Signatures for verifying AgentCard integrity"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "dexto": {
+                                "type": "object",
+                                "properties": {
+                                  "authentication": {
+                                    "type": "object",
+                                    "properties": {
+                                      "schemes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "default": [],
+                                        "description": "Legacy authentication schemes (deprecated: use securitySchemes)"
+                                      },
+                                      "credentials": {
+                                        "type": "string",
+                                        "description": "Credentials information"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Legacy authentication configuration"
+                                  },
+                                  "delegation": {
+                                    "type": "object",
+                                    "properties": {
+                                      "protocol": {
+                                        "type": "string",
+                                        "enum": [
+                                          "dexto-v1",
+                                          "http-simple",
+                                          "a2a-jsonrpc",
+                                          "mcp-http"
+                                        ],
+                                        "description": "Delegation protocol version"
+                                      },
+                                      "endpoint": {
+                                        "type": "string",
+                                        "description": "Delegation endpoint (relative path or full URL)"
+                                      },
+                                      "supportsSession": {
+                                        "type": "boolean",
+                                        "description": "Whether agent supports stateful sessions"
+                                      },
+                                      "supportsStreaming": {
+                                        "type": "boolean",
+                                        "description": "Whether agent supports streaming responses"
+                                      }
+                                    },
+                                    "required": [
+                                      "protocol",
+                                      "endpoint",
+                                      "supportsSession"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Delegation protocol information for agent-to-agent communication"
+                                  },
+                                  "owner": {
+                                    "type": "object",
+                                    "properties": {
+                                      "userId": {
+                                        "type": "string",
+                                        "description": "Unique user identifier from auth system"
+                                      },
+                                      "username": {
+                                        "type": "string",
+                                        "description": "Display name"
+                                      },
+                                      "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "Optional user email"
+                                      }
+                                    },
+                                    "required": [
+                                      "userId",
+                                      "username"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Agent owner information (for multi-tenant deployments)"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Dexto-specific extension metadata"
+                              }
+                            },
+                            "description": "Extension-specific metadata (namespaced by extension name)"
                           }
                         },
                         "required": [
                           "name",
+                          "description",
                           "url",
                           "version"
                         ],
@@ -7017,6 +7471,26 @@
                         "default": {},
                         "additionalProperties": false,
                         "description": "Tool confirmation and approval configuration"
+                      },
+                      "elicitation": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Enable elicitation support (ask_user tool and MCP server elicitations). When disabled, elicitation requests will be rejected."
+                          },
+                          "timeout": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "default": 120000,
+                            "description": "Timeout for elicitation requests in milliseconds, defaults to 120000ms (2 mins)"
+                          }
+                        },
+                        "default": {},
+                        "additionalProperties": false,
+                        "description": "Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode."
                       },
                       "internalResources": {
                         "anyOf": [
