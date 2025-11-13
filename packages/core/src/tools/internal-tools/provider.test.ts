@@ -66,8 +66,14 @@ describe('InternalToolsProvider', () => {
         approvalManager = new ApprovalManager(
             mockAgentEventBus,
             {
-                mode: 'auto-approve',
-                timeout: 120000,
+                toolConfirmation: {
+                    mode: 'auto-approve',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
             },
             mockLogger
         );

@@ -69,6 +69,10 @@ export class VercelMessageFormatter implements IMessageFormatter {
             });
         }
 
+        // Track pending tool calls to detect orphans (tool calls without results)
+        // Map stores toolCallId -> toolName for proper synthetic result generation
+        const pendingToolCalls = new Map<string, string>();
+
         for (const msg of filteredHistory) {
             switch (msg.role) {
                 case 'user':
@@ -116,11 +120,54 @@ export class VercelMessageFormatter implements IMessageFormatter {
 
                 case 'assistant':
                     formatted.push({ role: 'assistant', ...this.formatAssistantMessage(msg) });
+                    // Track tool call IDs and names as pending
+                    if (msg.toolCalls && msg.toolCalls.length > 0) {
+                        for (const toolCall of msg.toolCalls) {
+                            pendingToolCalls.set(toolCall.id, toolCall.function.name);
+                        }
+                    }
                     break;
 
                 case 'tool':
-                    formatted.push({ role: 'tool', ...this.formatToolMessage(msg) });
+                    // Only add if we've seen the corresponding tool call
+                    if (msg.toolCallId && pendingToolCalls.has(msg.toolCallId)) {
+                        formatted.push({ role: 'tool', ...this.formatToolMessage(msg) });
+                        // Remove from pending since we found its result
+                        pendingToolCalls.delete(msg.toolCallId);
+                    } else {
+                        // Orphaned tool result (result without matching call)
+                        // Skip it to prevent API errors - can't send result without corresponding call
+                        this.logger.warn(
+                            `Skipping orphaned tool result ${msg.toolCallId} (no matching tool call found) - cannot send to Vercel AI SDK without corresponding tool-call`
+                        );
+                    }
                     break;
+            }
+        }
+
+        // Add synthetic error results for any orphaned tool calls
+        // This can happen when CLI crashes/interrupts before tool execution completes
+        if (pendingToolCalls.size > 0) {
+            for (const [toolCallId, toolName] of pendingToolCalls.entries()) {
+                // Vercel AI SDK uses tool-result content parts with output property
+                formatted.push({
+                    role: 'tool',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: toolCallId,
+                            toolName: toolName,
+                            output: {
+                                type: 'text',
+                                value: 'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
+                            },
+                            isError: true,
+                        } as ToolResultPart,
+                    ],
+                });
+                this.logger.warn(
+                    `Tool call ${toolCallId} (${toolName}) had no matching tool result - added synthetic error result to prevent API errors`
+                );
             }
         }
 

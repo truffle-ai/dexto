@@ -58,6 +58,9 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
             });
         }
 
+        // Track pending tool calls to detect orphans (tool calls without results)
+        const pendingToolCallIds = new Set<string>();
+
         for (const msg of filteredHistory) {
             switch (msg.role) {
                 case 'system':
@@ -84,6 +87,10 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                             content: String(msg.content || ''),
                             tool_calls: msg.toolCalls,
                         });
+                        // Track these tool call IDs as pending
+                        for (const toolCall of msg.toolCalls) {
+                            pendingToolCallIds.add(toolCall.id);
+                        }
                     } else {
                         formatted.push({
                             role: 'assistant',
@@ -94,12 +101,39 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
 
                 case 'tool':
                     // Tool results for OpenAI — only text field is supported.
-                    formatted.push({
-                        role: 'tool',
-                        content: toTextForToolMessage(msg.content),
-                        tool_call_id: msg.toolCallId || '',
-                    });
+                    // Only add if we've seen the corresponding tool call
+                    if (msg.toolCallId && pendingToolCallIds.has(msg.toolCallId)) {
+                        formatted.push({
+                            role: 'tool',
+                            content: toTextForToolMessage(msg.content),
+                            tool_call_id: msg.toolCallId,
+                        });
+                        // Remove from pending since we found its result
+                        pendingToolCallIds.delete(msg.toolCallId);
+                    } else {
+                        // Orphaned tool result (result without matching call)
+                        // Skip it to prevent API errors - can't send result without corresponding call
+                        this.logger.warn(
+                            `Skipping orphaned tool result ${msg.toolCallId} (no matching tool call found) - cannot send to OpenAI without corresponding tool_calls`
+                        );
+                    }
                     break;
+            }
+        }
+
+        // Add synthetic error results for any orphaned tool calls
+        // This can happen when CLI crashes/interrupts before tool execution completes
+        if (pendingToolCallIds.size > 0) {
+            for (const toolCallId of pendingToolCallIds) {
+                formatted.push({
+                    role: 'tool',
+                    content:
+                        'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
+                    tool_call_id: toolCallId,
+                });
+                this.logger.warn(
+                    `Tool call ${toolCallId} had no matching tool result - added synthetic error result to prevent API errors`
+                );
             }
         }
 

@@ -36,7 +36,6 @@ import {
     loadGlobalPreferences,
 } from '@dexto/agent-management';
 import type { AgentConfig } from '@dexto/core';
-import { startAiCli, startHeadlessCli, loadMostRecentSession } from './cli/cli.js';
 import { startApiServer } from './api/server.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
@@ -101,8 +100,8 @@ program
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
-    .option('-c, --continue', 'Continue most recent conversation')
-    .option('-r, --resume <sessionId>', 'Resume session by ID')
+    .option('-c, --continue', 'Continue most recent session (requires -p/prompt)')
+    .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')
     .option(
         '--mode <mode>',
         'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
@@ -350,6 +349,38 @@ async function bootstrapAgentFromGlobalOpts() {
     return agent;
 }
 
+// Helper to find the most recent session
+// @param includeHeadless - If false, skip ephemeral headless sessions (for interactive mode)
+//                          If true, include all sessions (for headless mode continuation)
+async function getMostRecentSessionId(
+    agent: DextoAgent,
+    includeHeadless: boolean = false
+): Promise<string | null> {
+    const sessionIds = await agent.listSessions();
+    if (sessionIds.length === 0) {
+        return null;
+    }
+
+    // Get metadata for all sessions to find most recent
+    let mostRecentId: string | null = null;
+    let mostRecentActivity = 0;
+
+    for (const sessionId of sessionIds) {
+        // Skip ephemeral headless sessions unless includeHeadless is true
+        if (!includeHeadless && sessionId.startsWith('headless-')) {
+            continue;
+        }
+
+        const metadata = await agent.getSessionMetadata(sessionId);
+        if (metadata && metadata.lastActivity > mostRecentActivity) {
+            mostRecentActivity = metadata.lastActivity;
+            mostRecentId = sessionId;
+        }
+    }
+
+    return mostRecentId;
+}
+
 // 9) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
@@ -579,24 +610,28 @@ program
             '  dexto -p "query"         Run one-shot query, then exit\n' +
             '  cat file | dexto -p "query"  Process piped content\n\n' +
             'CLI Mode:\n' +
-            '  dexto --mode cli         Start interactive CLI REPL\n\n' +
-            'Session Management:\n' +
-            '  dexto -c                 Continue most recent conversation\n' +
-            '  dexto -c -p "query"      Continue with one-shot query, then exit\n' +
-            '  dexto -r "<session-id>" "query"  Resume with one-shot query\n\n' +
-            'Tool Confirmation:\n' +
-            '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
+            '  dexto --mode cli         Start interactive CLI\n\n' +
+            'Headless Session Continuation:\n' +
+            '  dexto -c -p "message"           Continue most recent session\n' +
+            '  dexto -r <session-id> -p "msg"  Resume specific session by ID\n' +
+            '  (Interactive mode: use /resume command instead)\n\n' +
+            'Session Management Commands:\n' +
+            '  dexto session list              List all sessions\n' +
+            '  dexto session history [id]      Show session history\n' +
+            '  dexto session delete <id>       Delete a session\n' +
+            '  dexto search <query>            Search across sessions\n' +
+            '    Options: --session <id>, --role <user|assistant>, --limit <n>\n\n' +
             'Agent Selection:\n' +
             '  dexto --agent coding-agent       Use installed agent by name\n' +
             '  dexto --agent ./my-agent.yml     Use agent from file path\n' +
             '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
+            'Tool Confirmation:\n' +
+            '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode discord     Run as Discord bot\n' +
             '  dexto --mode telegram    Run as Telegram bot\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
-            'Session Commands: dexto session list|history|delete • search\n' +
-            'Search: dexto search <query> [--session <id>] [--role <role>]\n\n' +
             'See https://docs.dexto.ai for documentation and examples'
     )
     .action(
@@ -659,13 +694,28 @@ program
                 // Note: Agent selection must be passed via -a/--agent. We no longer interpret
                 // the first positional argument as an agent name to avoid ambiguity with prompts.
 
+                // ——— VALIDATE SESSION FLAGS ———
+                // -c and -r are for headless mode only (require a prompt)
+                if ((opts.continue || opts.resume) && !headlessInput) {
+                    console.error(
+                        '❌ Session continuation flags (-c/--continue or -r/--resume) require a prompt for headless mode.'
+                    );
+                    console.error(
+                        '   Provide a prompt: dexto -c -p "your message" or dexto -r <sessionId> -p "your message"'
+                    );
+                    console.error(
+                        '   For interactive mode with session management, use: dexto (starts new) or use /resume command'
+                    );
+                    safeExit('main', 1, 'session-flag-without-prompt');
+                }
+
                 // ——— FORCE CLI MODE FOR HEADLESS PROMPTS ———
                 // If a prompt was provided via -p or positional args, force CLI mode
                 if (headlessInput && opts.mode !== 'cli') {
-                    console.log(
+                    console.error(
                         `ℹ️  Prompt detected via -p or positional argument. Forcing CLI mode for one-shot execution.`
                     );
-                    console.log(`   Original mode: ${opts.mode} → Overridden to: cli`);
+                    console.error(`   Original mode: ${opts.mode} → Overridden to: cli`);
                     opts.mode = 'cli';
                 }
 
@@ -785,7 +835,7 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    console.log(`🚀 Initializing Dexto with config: ${resolvedPath}`);
+                    console.error(`🚀 Initializing Dexto with config: ${resolvedPath}`);
 
                     // Set run mode for tool confirmation provider
                     process.env.DEXTO_RUN_MODE = opts.mode;
@@ -822,79 +872,177 @@ program
                 // ——— Dispatch based on --mode ———
                 switch (opts.mode) {
                     case 'cli': {
-                        // Handle session options - only for CLI mode
-                        if (opts.resume) {
-                            try {
-                                // Resume specific session by ID
-                                await agent.loadSessionAsDefault(opts.resume);
-                                logger.info(`Resumed session: ${opts.resume}`, null, 'cyan');
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                console.error(
-                                    '💡 Use `dexto session list` to see available sessions'
-                                );
-                                safeExit('main', 1, 'resume-failed');
-                            }
-                        } else if (opts.continue) {
-                            try {
-                                // Continue from most recent session
-                                await loadMostRecentSession(agent);
-                                // If no sessions existed, create a new one to honor default-new invariant
-                                const sessionsAfter = await agent.listSessions();
-                                if (sessionsAfter.length === 0) {
-                                    const session = await agent.createSession();
-                                    await agent.loadSessionAsDefault(session.id);
-                                    logger.info(
-                                        `Created new session: ${session.id}`,
-                                        null,
-                                        'green'
-                                    );
-                                }
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to continue session: ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                safeExit('main', 1, 'continue-failed');
-                            }
-                        } else {
-                            // Default behavior: create new session for CLI mode
-                            try {
-                                const session = await agent.createSession();
-                                await agent.loadSessionAsDefault(session.id);
-                                logger.info(`Created new session: ${session.id}`, null, 'green');
-                            } catch (err) {
-                                console.error(
-                                    `❌ Failed to create new session: ${err instanceof Error ? err.message : String(err)}`
-                                );
-                                safeExit('main', 1, 'create-session-failed');
-                            }
-                        }
+                        // Session management - CLI uses explicit sessionId like WebUI
+                        // NOTE: Migrated from defaultSession pattern which will be deprecated in core
+                        // We now pass sessionId explicitly to all agent methods (agent.run, agent.switchLLM, etc.)
 
-                        const toolConfirmationMode =
-                            agent.getEffectiveConfig().toolConfirmation?.mode ?? 'event-based';
-
-                        if (toolConfirmationMode === 'event-based') {
-                            // Set up CLI tool confirmation subscriber
-                            const { CLIToolConfirmationSubscriber } = await import(
-                                './cli/tool-confirmation/cli-confirmation-handler.js'
-                            );
-                            const cliSubscriber = new CLIToolConfirmationSubscriber();
-                            cliSubscriber.subscribe(agent.agentEventBus);
-                            logger.info('Setting up CLI event subscriptions...');
-                        } else {
-                            logger.info(
-                                `Tool confirmation mode '${toolConfirmationMode}' active – skipping interactive CLI approval prompts.`
-                            );
-                        }
+                        // Note: CLI uses different implementations for interactive vs headless modes
+                        // - Interactive: Ink CLI with full TUI
+                        // - Headless: CLISubscriber (no TUI, works in pipes/scripts)
 
                         if (headlessInput) {
-                            // One shot CLI
-                            await startHeadlessCli(agent, headlessInput);
-                            safeExit('main', 0);
+                            // Headless mode - isolated execution by default
+                            // Each run gets a unique ephemeral session to avoid context bleeding between runs
+                            // Use persistent session if explicitly resuming with -r or -c
+                            let headlessSessionId: string;
+
+                            if (opts.resume) {
+                                // Resume specific session by ID
+                                try {
+                                    const session = await agent.getSession(opts.resume);
+                                    if (!session) {
+                                        console.error(`❌ Session '${opts.resume}' not found`);
+                                        console.error(
+                                            '💡 Use `dexto session list` to see available sessions'
+                                        );
+                                        safeExit('main', 1, 'resume-failed');
+                                    }
+                                    headlessSessionId = opts.resume;
+                                    logger.info(
+                                        `Resumed session: ${headlessSessionId}`,
+                                        null,
+                                        'cyan'
+                                    );
+                                } catch (err) {
+                                    console.error(
+                                        `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
+                                    );
+                                    console.error(
+                                        '💡 Use `dexto session list` to see available sessions'
+                                    );
+                                    safeExit('main', 1, 'resume-failed');
+                                }
+                            } else if (opts.continue) {
+                                // Continue most recent conversation (include headless sessions in headless mode)
+                                const mostRecentSessionId = await getMostRecentSessionId(
+                                    agent,
+                                    true
+                                );
+                                if (!mostRecentSessionId) {
+                                    console.error(`❌ No previous sessions found`);
+                                    console.error(
+                                        '💡 Start a new conversation or use `dexto session list` to see available sessions'
+                                    );
+                                    safeExit('main', 1, 'no-sessions-found');
+                                }
+                                headlessSessionId = mostRecentSessionId;
+                                logger.info(
+                                    `Continuing most recent session: ${headlessSessionId}`,
+                                    null,
+                                    'cyan'
+                                );
+                            } else {
+                                // TODO: Remove this workaround once defaultSession is deprecated in core
+                                // Currently passing null/undefined to agent.run() falls back to defaultSession,
+                                // causing context to bleed between headless runs. We create a unique ephemeral
+                                // session ID to ensure each headless run is isolated.
+                                // When defaultSession is removed, we can pass null here for truly stateless execution.
+                                headlessSessionId = `headless-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+                                logger.debug(
+                                    `Created ephemeral session for headless run: ${headlessSessionId}`
+                                );
+                            }
+                            // Headless mode - use CLISubscriber for simple stdout output
+                            const llm = agent.getCurrentLLMConfig();
+                            capture('dexto_prompt', {
+                                mode: 'headless',
+                                provider: llm.provider,
+                                model: llm.model,
+                            });
+
+                            const { CLISubscriber } = await import('./cli/cli-subscriber.js');
+                            const cliSubscriber = new CLISubscriber();
+                            cliSubscriber.subscribe(agent.agentEventBus);
+
+                            try {
+                                await cliSubscriber.runAndWait(
+                                    agent,
+                                    headlessInput,
+                                    headlessSessionId
+                                );
+                                // Clean up before exit
+                                cliSubscriber.cleanup();
+                                try {
+                                    await agent.stop();
+                                } catch (stopError) {
+                                    logger.debug(`Agent stop error (ignoring): ${stopError}`);
+                                }
+                                safeExit('main', 0);
+                            } catch (error) {
+                                // Rethrow ExitSignal - it's not an error, it's how safeExit works
+                                if (error instanceof ExitSignal) throw error;
+
+                                // Write to stderr for headless users/scripts
+                                const errorMessage =
+                                    error instanceof Error ? error.message : String(error);
+                                console.error(`❌ Error in headless mode: ${errorMessage}`);
+                                if (error instanceof Error && error.stack) {
+                                    console.error(error.stack);
+                                }
+
+                                // Also log for diagnostics
+                                logger.error(`Error in headless mode: ${errorMessage}`);
+
+                                cliSubscriber.cleanup();
+                                await agent.stop().catch(() => {}); // Best effort cleanup
+                                safeExit('main', 1, 'headless-error');
+                            }
                         } else {
-                            await startAiCli(agent); // Interactive CLI
+                            // Interactive mode - session management handled via /resume command
+                            // Note: -c and -r flags are validated to require a prompt (headless mode only)
+                            // Defer session creation until first message is sent to prevent stale empty sessions
+                            const cliSessionId: string | null = null;
+
+                            // Interactive mode - use Ink CLI with session support
+                            // Suppress console output before starting Ink UI
+                            const originalConsole = {
+                                log: console.log,
+                                error: console.error,
+                                warn: console.warn,
+                                info: console.info,
+                            };
+                            const noOp = () => {};
+                            console.log = noOp;
+                            console.error = noOp;
+                            console.warn = noOp;
+                            console.info = noOp;
+
+                            let inkError: unknown = undefined;
+                            try {
+                                const { startInkCliRefactored } = await import(
+                                    './cli/ink-cli/InkCLIRefactored.js'
+                                );
+                                await startInkCliRefactored(agent, cliSessionId);
+                            } catch (error) {
+                                inkError = error;
+                            } finally {
+                                // Restore console methods so any errors are visible
+                                console.log = originalConsole.log;
+                                console.error = originalConsole.error;
+                                console.warn = originalConsole.warn;
+                                console.info = originalConsole.info;
+                            }
+
+                            // Stop the agent after Ink CLI exits
+                            try {
+                                await agent.stop();
+                            } catch {
+                                // Ignore shutdown errors
+                            }
+
+                            // Handle any errors from Ink CLI
+                            if (inkError) {
+                                if (inkError instanceof ExitSignal) throw inkError;
+                                const errorMessage =
+                                    inkError instanceof Error ? inkError.message : String(inkError);
+                                console.error(`❌ Ink CLI failed: ${errorMessage}`);
+                                if (inkError instanceof Error && inkError.stack) {
+                                    console.error(inkError.stack);
+                                }
+                                safeExit('main', 1, 'ink-cli-error');
+                            }
+
+                            safeExit('main', 0);
                         }
                         break;
                     }

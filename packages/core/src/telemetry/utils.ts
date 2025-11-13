@@ -33,8 +33,9 @@ export function getBaggageValues(ctx: Context, logger?: IDextoLogger) {
     const runId = currentBaggage?.getEntry('runId')?.value;
     const threadId = currentBaggage?.getEntry('threadId')?.value;
     const resourceId = currentBaggage?.getEntry('resourceId')?.value;
+    const sessionId = currentBaggage?.getEntry('sessionId')?.value;
     logger?.silly(
-        `getBaggageValues: Extracted - requestId: ${requestId}, componentName: ${componentName}, runId: ${runId}, threadId: ${threadId}, resourceId: ${resourceId}`
+        `getBaggageValues: Extracted - requestId: ${requestId}, componentName: ${componentName}, runId: ${runId}, threadId: ${threadId}, resourceId: ${resourceId}, sessionId: ${sessionId}`
     );
     return {
         requestId,
@@ -42,6 +43,7 @@ export function getBaggageValues(ctx: Context, logger?: IDextoLogger) {
         runId,
         threadId,
         resourceId,
+        sessionId,
     };
 }
 
@@ -53,7 +55,10 @@ export function getBaggageValues(ctx: Context, logger?: IDextoLogger) {
  */
 export function addBaggageAttributesToSpan(span: Span, ctx: Context, logger?: IDextoLogger): void {
     logger?.debug('addBaggageAttributesToSpan called.');
-    const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx, logger);
+    const { requestId, componentName, runId, threadId, resourceId, sessionId } = getBaggageValues(
+        ctx,
+        logger
+    );
 
     if (componentName) {
         span.setAttribute('componentName', componentName);
@@ -69,6 +74,9 @@ export function addBaggageAttributesToSpan(span: Span, ctx: Context, logger?: ID
     }
     if (resourceId) {
         span.setAttribute('resourceId', resourceId);
+    }
+    if (sessionId) {
+        span.setAttribute('sessionId', sessionId);
     }
     logger?.debug('addBaggageAttributesToSpan: Baggage attributes added to span.');
 }

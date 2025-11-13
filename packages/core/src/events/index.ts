@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
-import { ApprovalStatus } from '../approval/types.js';
+import { ApprovalStatus, DenialReason } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
 
 /**
@@ -225,6 +225,8 @@ export interface AgentEventMap {
         status: ApprovalStatus;
         sessionId?: string | undefined;
         data?: Record<string, any> | undefined;
+        reason?: DenialReason | undefined;
+        message?: string | undefined;
     };
 
     /** Fired when MCP server resource is updated */

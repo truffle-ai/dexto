@@ -1,6 +1,6 @@
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
-import type { ApprovalType } from './types.js';
+import type { ApprovalType, DenialReason } from './types.js';
 
 /**
  * Context for approval validation errors
@@ -258,15 +258,54 @@ export class ApprovalError {
      */
     static toolConfirmationDenied(
         toolName: string,
+        reason?: DenialReason,
+        customMessage?: string,
         sessionId?: string
-    ): DextoRuntimeError<{ toolName: string; sessionId?: string }> {
+    ): DextoRuntimeError<{ toolName: string; reason?: DenialReason; sessionId?: string }> {
+        // Generate message based on reason
+        let message: string;
+        let suggestions: string[];
+
+        switch (reason) {
+            case 'user_denied':
+                message = customMessage ?? `Tool execution denied by user: ${toolName}`;
+                suggestions = ['Tool was denied by user'];
+                break;
+            case 'system_denied':
+                message = customMessage ?? `Tool execution denied by system policy: ${toolName}`;
+                suggestions = [
+                    'Tool is in the alwaysDeny list',
+                    'Check toolConfirmation.toolPolicies in agent configuration',
+                ];
+                break;
+            case 'timeout':
+                message = customMessage ?? `Tool confirmation timed out: ${toolName}`;
+                suggestions = [
+                    'Increase the timeout value',
+                    'Respond to approval requests more quickly',
+                ];
+                break;
+            default:
+                message = customMessage ?? `Tool execution denied: ${toolName}`;
+                suggestions = [
+                    'Approve the tool in the confirmation dialog',
+                    'Check tool permissions',
+                ];
+        }
+
+        const context: { toolName: string; reason?: DenialReason; sessionId?: string } = {
+            toolName,
+        };
+        if (reason) context.reason = reason;
+        if (sessionId) context.sessionId = sessionId;
+
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_TOOL_CONFIRMATION_DENIED,
             ErrorScope.TOOLS,
             ErrorType.FORBIDDEN,
-            `Tool execution denied: ${toolName}`,
-            sessionId ? { toolName, sessionId } : { toolName },
-            ['Approve the tool in the confirmation dialog', 'Check tool permissions']
+            message,
+            context,
+            suggestions
         );
     }
 
@@ -275,15 +314,80 @@ export class ApprovalError {
      */
     static elicitationDenied(
         serverName: string,
+        reason?: DenialReason,
+        customMessage?: string,
         sessionId?: string
-    ): DextoRuntimeError<{ serverName: string; sessionId?: string }> {
+    ): DextoRuntimeError<{ serverName: string; reason?: DenialReason; sessionId?: string }> {
+        // Generate message based on reason
+        let message: string;
+        let suggestions: string[];
+
+        switch (reason) {
+            case 'user_denied':
+                message =
+                    customMessage ??
+                    `Elicitation request denied by user from MCP server: ${serverName}`;
+                suggestions = [
+                    'User clicked deny on the form',
+                    'The agent cannot proceed without this input',
+                ];
+                break;
+            case 'user_cancelled':
+                message =
+                    customMessage ??
+                    `Elicitation request cancelled by user from MCP server: ${serverName}`;
+                suggestions = [
+                    'User cancelled the form',
+                    'The agent cannot proceed without this input',
+                ];
+                break;
+            case 'system_cancelled':
+                message =
+                    customMessage ?? `Elicitation request cancelled from MCP server: ${serverName}`;
+                suggestions = ['Session may have ended', 'Try again'];
+                break;
+            case 'timeout':
+                message =
+                    customMessage ?? `Elicitation request timed out from MCP server: ${serverName}`;
+                suggestions = [
+                    'Increase the timeout value',
+                    'Respond to elicitation requests more quickly',
+                ];
+                break;
+            case 'elicitation_disabled':
+                message =
+                    customMessage ??
+                    `Elicitation is disabled. Cannot request input from MCP server: ${serverName}`;
+                suggestions = [
+                    'Enable elicitation in your agent configuration',
+                    'Set elicitation.enabled: true in agent.yml',
+                ];
+                break;
+            case 'validation_failed':
+                message =
+                    customMessage ??
+                    `Elicitation form validation failed from MCP server: ${serverName}`;
+                suggestions = ['Check the form inputs match the schema requirements'];
+                break;
+            default:
+                message =
+                    customMessage ?? `Elicitation request denied from MCP server: ${serverName}`;
+                suggestions = ['Complete the requested form', 'Check MCP server requirements'];
+        }
+
+        const context: { serverName: string; reason?: DenialReason; sessionId?: string } = {
+            serverName,
+        };
+        if (reason) context.reason = reason;
+        if (sessionId) context.sessionId = sessionId;
+
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_ELICITATION_DENIED,
             ErrorScope.TOOLS,
             ErrorType.FORBIDDEN,
-            `Elicitation request denied from MCP server: ${serverName}`,
-            sessionId ? { serverName, sessionId } : { serverName },
-            ['Complete the requested form', 'Check MCP server requirements']
+            message,
+            context,
+            suggestions
         );
     }
 

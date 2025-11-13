@@ -14,6 +14,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
+import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
 import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
@@ -435,123 +436,172 @@ export class DextoAgent {
         stream: boolean = false
     ): Promise<string> {
         this.ensureStarted();
-        try {
-            // Determine target session ID for validation
-            const targetSessionId = sessionId || this.currentDefaultSessionId;
 
-            // Get session-specific LLM config for validation
-            const llmConfig = this.stateManager.getLLMConfig(targetSessionId);
+        // Determine target session ID for validation
+        const targetSessionId = sessionId || this.currentDefaultSessionId;
 
-            // Validate inputs early using session-specific config
-            const validation = validateInputForLLM(
-                {
-                    text: textInput,
-                    ...(imageDataInput && { imageData: imageDataInput }),
-                    ...(fileDataInput && { fileData: fileDataInput }),
-                },
-                {
-                    provider: llmConfig.provider,
-                    model: llmConfig.model,
-                },
-                this.logger
-            );
+        // Propagate sessionId through OpenTelemetry context for distributed tracing
+        // This ensures all child spans will have access to the sessionId
+        const activeContext = context.active();
+        const span = trace.getActiveSpan();
 
-            // Validate input and throw if invalid
-            ensureOk(validation, this.logger);
+        // Add sessionId to span attributes
+        if (span) {
+            span.setAttribute('sessionId', targetSessionId);
+        }
 
-            // Resolve the concrete ChatSession for the target session id
-            const existingSession = await this.sessionManager.getSession(targetSessionId);
-            const session: ChatSession =
-                existingSession || (await this.sessionManager.createSession(targetSessionId));
+        // Preserve existing baggage entries and add sessionId
+        const existingBaggage = propagation.getBaggage(activeContext);
+        const baggageEntries: Record<string, BaggageEntry> = {};
 
-            this.logger.debug(
-                `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
-                    imageDataInput
-                )}, hasFile=${Boolean(fileDataInput)}`
-            );
-            // Expand @resource mentions into content before sending to the model
-            let finalText = textInput;
-            let finalImageData = imageDataInput;
-            if (textInput && textInput.includes('@')) {
-                try {
-                    const resources = await this.resourceManager.list();
-                    const expansion = await expandMessageReferences(textInput, resources, (uri) =>
-                        this.resourceManager.read(uri)
-                    );
+        // Copy existing baggage entries to preserve them (including metadata)
+        if (existingBaggage) {
+            existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                baggageEntries[key] = { ...entry };
+            });
+        }
 
-                    // Warn about unresolved references
-                    if (expansion.unresolvedReferences.length > 0) {
-                        const unresolvedNames = expansion.unresolvedReferences
-                            .map((ref) => ref.originalRef)
-                            .join(', ');
-                        this.logger.warn(
-                            `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
+        // Add or update sessionId while preserving any existing metadata
+        baggageEntries.sessionId = { ...baggageEntries.sessionId, value: targetSessionId };
+
+        // Create updated context with merged baggage
+        const updatedContext = propagation.setBaggage(
+            activeContext,
+            propagation.createBaggage(baggageEntries)
+        );
+
+        // Debug logging to verify baggage propagation
+        const verifyBaggage = propagation.getBaggage(updatedContext);
+        this.logger.debug(
+            `Baggage after setting sessionId: ${JSON.stringify(
+                Array.from(verifyBaggage?.getAllEntries() || [])
+            )}`
+        );
+
+        // Execute the rest of the method within the updated context
+        return await context.with(updatedContext, async () => {
+            try {
+                // Get session-specific LLM config for validation
+                const llmConfig = this.stateManager.getLLMConfig(targetSessionId);
+
+                // Validate inputs early using session-specific config
+                const validation = validateInputForLLM(
+                    {
+                        text: textInput,
+                        ...(imageDataInput && { imageData: imageDataInput }),
+                        ...(fileDataInput && { fileData: fileDataInput }),
+                    },
+                    {
+                        provider: llmConfig.provider,
+                        model: llmConfig.model,
+                    },
+                    this.logger
+                );
+
+                // Validate input and throw if invalid
+                ensureOk(validation, this.logger);
+
+                // Resolve the concrete ChatSession for the target session id
+                const existingSession = await this.sessionManager.getSession(targetSessionId);
+                const session: ChatSession =
+                    existingSession || (await this.sessionManager.createSession(targetSessionId));
+
+                this.logger.debug(
+                    `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
+                        imageDataInput
+                    )}, hasFile=${Boolean(fileDataInput)}`
+                );
+                // Expand @resource mentions into content before sending to the model
+                let finalText = textInput;
+                let finalImageData = imageDataInput;
+                if (textInput && textInput.includes('@')) {
+                    try {
+                        const resources = await this.resourceManager.list();
+                        const expansion = await expandMessageReferences(
+                            textInput,
+                            resources,
+                            (uri) => this.resourceManager.read(uri)
                         );
-                    }
 
-                    // Validate expanded message size (5MB limit)
-                    const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
-                    const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
-                    if (expandedSize > MAX_EXPANDED_SIZE) {
-                        this.logger.warn(
-                            `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
-                        );
-                    }
-
-                    finalText = expansion.expandedMessage;
-
-                    // If we extracted images from resources and don't already have image data, use the first extracted image
-                    if (expansion.extractedImages.length > 0 && !imageDataInput) {
-                        const firstImage = expansion.extractedImages[0];
-                        if (firstImage) {
-                            finalImageData = {
-                                image: firstImage.image,
-                                mimeType: firstImage.mimeType,
-                            };
-                            this.logger.debug(
-                                `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                        // Warn about unresolved references
+                        if (expansion.unresolvedReferences.length > 0) {
+                            const unresolvedNames = expansion.unresolvedReferences
+                                .map((ref) => ref.originalRef)
+                                .join(', ');
+                            this.logger.warn(
+                                `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
                             );
                         }
+
+                        // Validate expanded message size (5MB limit)
+                        const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
+                        const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
+                        if (expandedSize > MAX_EXPANDED_SIZE) {
+                            this.logger.warn(
+                                `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
+                            );
+                        }
+
+                        finalText = expansion.expandedMessage;
+
+                        // If we extracted images from resources and don't already have image data, use the first extracted image
+                        if (expansion.extractedImages.length > 0 && !imageDataInput) {
+                            const firstImage = expansion.extractedImages[0];
+                            if (firstImage) {
+                                finalImageData = {
+                                    image: firstImage.image,
+                                    mimeType: firstImage.mimeType,
+                                };
+                                this.logger.debug(
+                                    `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
+                                );
+                            }
+                        }
+                    } catch (error) {
+                        // Log error but continue with original message to avoid blocking the user
+                        this.logger.error(
+                            `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
+                        );
+                        // Continue with original text instead of throwing
                     }
-                } catch (error) {
-                    // Log error but continue with original message to avoid blocking the user
-                    this.logger.error(
-                        `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
-                    );
-                    // Continue with original text instead of throwing
                 }
-            }
 
-            // Validate that we have either text or media content after expansion
-            if (!finalText.trim() && !finalImageData && !fileDataInput) {
-                this.logger.warn(
-                    'Resource expansion resulted in empty content. Using original message.'
-                );
-                finalText = textInput;
-            }
-
-            // Kick off background title generation for first turn if needed
-            void this.maybeGenerateTitle(targetSessionId, finalText, llmConfig);
-
-            const response = await session.run(finalText, finalImageData, fileDataInput, stream);
-
-            // Increment message count for this session (counts each)
-            // Fire-and-forget to avoid race conditions during shutdown
-            this.sessionManager
-                .incrementMessageCount(session.id)
-                .catch((error) =>
+                // Validate that we have either text or media content after expansion
+                if (!finalText.trim() && !finalImageData && !fileDataInput) {
                     this.logger.warn(
-                        `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
-                    )
+                        'Resource expansion resulted in empty content. Using original message.'
+                    );
+                    finalText = textInput;
+                }
+
+                // Kick off background title generation for first turn if needed
+                void this.maybeGenerateTitle(targetSessionId, finalText, llmConfig);
+
+                const response = await session.run(
+                    finalText,
+                    finalImageData,
+                    fileDataInput,
+                    stream
                 );
 
-            return response;
-        } catch (error) {
-            this.logger.error(
-                `Error during DextoAgent.run: ${error instanceof Error ? error.message : JSON.stringify(error)}`
-            );
-            throw error;
-        }
+                // Increment message count for this session (counts each)
+                // Fire-and-forget to avoid race conditions during shutdown
+                this.sessionManager
+                    .incrementMessageCount(session.id)
+                    .catch((error) =>
+                        this.logger.warn(
+                            `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
+                        )
+                    );
+
+                return response;
+            } catch (error) {
+                this.logger.error(
+                    `Error during DextoAgent.run: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+                );
+                throw error;
+            }
+        });
     }
 
     /**

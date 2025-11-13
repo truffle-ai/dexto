@@ -99,8 +99,14 @@ export async function createAgentServices(
     const approvalManager = new ApprovalManager(
         agentEventBus,
         {
-            mode: config.toolConfirmation.mode,
-            timeout: config.toolConfirmation.timeout,
+            toolConfirmation: {
+                mode: config.toolConfirmation.mode,
+                timeout: config.toolConfirmation.timeout,
+            },
+            elicitation: {
+                enabled: config.elicitation.enabled,
+                timeout: config.elicitation.timeout,
+            },
         },
         logger
     );

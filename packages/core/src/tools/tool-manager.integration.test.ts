@@ -61,8 +61,14 @@ describe('ToolManager Integration Tests', () => {
         approvalManager = new ApprovalManager(
             mockAgentEventBus,
             {
-                mode: 'auto-approve',
-                timeout: 120000,
+                toolConfirmation: {
+                    mode: 'auto-approve',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
             },
             mockLogger
         );
@@ -224,11 +230,17 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Confirmation Flow Integration', () => {
         it('should work with auto-approve mode', async () => {
-            const testAutoApproveManager = new ApprovalManager(
+            const autoApproveManager = new ApprovalManager(
                 mockAgentEventBus,
                 {
-                    mode: 'auto-approve',
-                    timeout: 120000,
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
                 mockLogger
             );
@@ -251,7 +263,7 @@ describe('ToolManager Integration Tests', () => {
 
             const toolManager = new ToolManager(
                 mcpMgr,
-                testAutoApproveManager,
+                autoApproveManager,
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
@@ -271,8 +283,14 @@ describe('ToolManager Integration Tests', () => {
             const autoDenyManager = new ApprovalManager(
                 mockAgentEventBus,
                 {
-                    mode: 'auto-deny',
-                    timeout: 120000,
+                    toolConfirmation: {
+                        mode: 'auto-deny',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
                 mockLogger
             );

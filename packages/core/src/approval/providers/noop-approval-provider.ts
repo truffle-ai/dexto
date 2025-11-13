@@ -4,6 +4,7 @@ import type {
     ApprovalResponse,
     ApprovalStatus,
 } from '../types.js';
+import { DenialReason } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 
@@ -34,6 +35,12 @@ export class NoOpApprovalProvider implements ApprovalProvider {
 
         if (request.sessionId !== undefined) {
             response.sessionId = request.sessionId;
+        }
+
+        // Add reason for denied status
+        if (this.defaultStatus === 'denied') {
+            response.reason = DenialReason.SYSTEM_DENIED;
+            response.message = `Approval automatically denied by system policy (auto-deny mode)`;
         }
 
         return response;

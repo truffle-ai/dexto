@@ -74,3 +74,29 @@ export const ToolConfirmationConfigSchema = z
 
 export type ToolConfirmationConfig = z.input<typeof ToolConfirmationConfigSchema>;
 export type ValidatedToolConfirmationConfig = z.output<typeof ToolConfirmationConfigSchema>;
+
+// Elicitation configuration schema - independent from tool confirmation
+export const ElicitationConfigSchema = z
+    .object({
+        enabled: z
+            .boolean()
+            .default(true)
+            .describe(
+                'Enable elicitation support (ask_user tool and MCP server elicitations). When disabled, elicitation requests will be rejected.'
+            ),
+        timeout: z
+            .number()
+            .int()
+            .positive()
+            .default(120000)
+            .describe(
+                'Timeout for elicitation requests in milliseconds, defaults to 120000ms (2 mins)'
+            ),
+    })
+    .strict()
+    .describe(
+        'Elicitation configuration for user input requests. Independent from tool confirmation mode, allowing auto-approve for tools while still supporting elicitation.'
+    );
+
+export type ElicitationConfig = z.input<typeof ElicitationConfigSchema>;
+export type ValidatedElicitationConfig = z.output<typeof ElicitationConfigSchema>;

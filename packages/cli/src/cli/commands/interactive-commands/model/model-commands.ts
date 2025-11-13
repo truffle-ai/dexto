@@ -15,22 +15,25 @@
 import chalk from 'chalk';
 import { logger, DextoAgent, DextoRuntimeError, DextoValidationError } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
+import { CommandOutputHelper } from '../utils/command-output.js';
 
 /**
  * Model management command definition
+ * Note: In interactive CLI, /model shows the interactive selector
+ * Subcommands available for debugging/advanced use, but not emphasized
  */
 export const modelCommands: CommandDefinition = {
     name: 'model',
-    description: 'Manage AI models',
-    usage: '/model <subcommand> [args]',
-    category: 'Model Management',
+    description: 'Switch AI model (interactive selector)',
+    usage: '/model',
+    category: 'General',
     aliases: ['m'],
     subcommands: [
         {
             name: 'list',
             description: 'List all supported providers and models',
             usage: '/model list',
-            handler: async (_args: string[], agent: DextoAgent) => {
+            handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     console.log(chalk.bold.blue('\n🤖 Supported Models and Providers:\n'));
 
@@ -57,19 +60,17 @@ export const modelCommands: CommandDefinition = {
                     console.log(chalk.dim('💡 Use /model switch <model> to switch models'));
                     console.log(chalk.dim('💡 Default models are marked with [DEFAULT]'));
                     console.log(chalk.dim('💡 Token limits show maximum input context size\n'));
+                    return CommandOutputHelper.noOutput(); // List is displayed above
                 } catch (error) {
-                    logger.error(
-                        `Failed to list models: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    return CommandOutputHelper.error(error, 'Failed to list models');
                 }
-                return true;
             },
         },
         {
             name: 'current',
             description: 'Show current model configuration',
             usage: '/model current',
-            handler: async (args: string[], agent: DextoAgent) => {
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
                     const config = agent.getEffectiveConfig();
                     console.log(chalk.blue('\n🤖 Current Model Configuration:\n'));
@@ -88,33 +89,35 @@ export const modelCommands: CommandDefinition = {
                         );
                     }
                     console.log();
+                    return CommandOutputHelper.noOutput(); // Config is displayed above
                 } catch (error) {
-                    logger.error(
-                        `Failed to get model info: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    return CommandOutputHelper.error(error, 'Failed to get model info');
                 }
-                return true;
             },
         },
         {
             name: 'switch',
             description: 'Switch to a different model',
             usage: '/model switch <model>',
-            handler: async (args: string[], agent: DextoAgent) => {
-                if (args.length === 0) {
-                    console.log(chalk.red('❌ Model required. Usage: /model switch <model>'));
-                    return true;
-                }
+            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+                const validationError = CommandOutputHelper.validateRequiredArg(
+                    args,
+                    0,
+                    'Model name',
+                    '/model switch <model>'
+                );
+                if (validationError) return validationError;
 
+                const model = args[0] || '';
                 try {
-                    const model = args[0]!; // Safe to assert since we checked args.length above
-
                     // Infer provider from model name
                     const provider = agent.inferProviderFromModel(model);
                     if (!provider) {
-                        console.log(chalk.red(`❌ Unknown model: ${model}`));
-                        console.log(chalk.dim('💡 Use /model list to see available models'));
-                        return true;
+                        return CommandOutputHelper.error(
+                            new Error(
+                                `Unknown model: ${model}\n💡 Use /model list to see available models`
+                            )
+                        );
                     }
 
                     console.log(chalk.yellow(`🔄 Switching to ${model} (${provider})...`));
@@ -122,40 +125,54 @@ export const modelCommands: CommandDefinition = {
                     const llmConfig = { model, provider };
                     await agent.switchLLM(llmConfig);
 
-                    console.log(chalk.green(`✅ Successfully switched to ${model} (${provider})`));
+                    return CommandOutputHelper.success(
+                        `✅ Successfully switched to ${model} (${provider})`
+                    );
                 } catch (error: unknown) {
                     if (error instanceof DextoRuntimeError) {
-                        console.log(chalk.red('❌ Failed to switch model:'));
-                        console.log(chalk.red(`   ${error.message}`));
-                        // Show error details
-                        console.log(chalk.dim(`   Code: ${error.code}`));
+                        const errorLines = [
+                            `Failed to switch model:\n   ${error.message}\n   Code: ${error.code}`,
+                        ];
                         if (error.recovery) {
                             const recoverySteps = Array.isArray(error.recovery)
                                 ? error.recovery
                                 : [error.recovery];
-                            for (const step of recoverySteps) {
-                                console.log(chalk.blue(`💡 ${step}`));
-                            }
+                            errorLines.push(...recoverySteps.map((step) => `💡 ${step}`));
                         }
+                        console.log(chalk.red(errorLines.join('\n')));
+                        return CommandOutputHelper.error(new Error(errorLines.join('\n')));
                     } else if (error instanceof DextoValidationError) {
-                        console.log(chalk.red('❌ Validation failed:'));
-                        error.errors.forEach((err) => {
-                            console.log(chalk.red(`   - ${err.message}`));
-                        });
-                    } else {
-                        logger.error(
-                            `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`
+                        const errors = error.errors.map((e) => `   - ${e.message}`).join('\n');
+                        return CommandOutputHelper.error(
+                            new Error(`Validation failed:\n${errors}`)
                         );
                     }
+                    return CommandOutputHelper.error(error, 'Failed to switch model');
                 }
-                return true;
             },
         },
         {
             name: 'help',
             description: 'Show detailed help for model commands',
             usage: '/model help',
-            handler: async (_args: string[], _agent: DextoAgent) => {
+            handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+                const helpText = [
+                    '\n🤖 Model Management Commands:\n',
+                    'Available subcommands:',
+                    '  /model list - List all supported providers, models, and capabilities',
+                    '  /model current - Display currently active model and configuration',
+                    '  /model switch <model> - Switch to a different AI model (provider auto-detected)',
+                    '    Examples:',
+                    '      /model switch gpt-5',
+                    '      /model switch claude-sonnet-4-5-20250929',
+                    '      /model switch gemini-2.5-pro',
+                    '  /model help - Show this help message',
+                    '\n💡 Switching models allows you to use different AI capabilities',
+                    '💡 Model changes apply to the current session immediately',
+                    '💡 Available providers: openai, anthropic, gemini',
+                    '💡 You can also press Ctrl+M for interactive model selector\n',
+                ].join('\n');
+
                 console.log(chalk.bold.blue('\n🤖 Model Management Commands:\n'));
 
                 console.log(chalk.cyan('Available subcommands:'));
@@ -179,20 +196,28 @@ export const modelCommands: CommandDefinition = {
                 );
                 console.log(chalk.dim('💡 Model changes apply to the current session immediately'));
                 console.log(chalk.dim('💡 Available providers: openai, anthropic, gemini'));
-                console.log(chalk.dim('💡 Check your config file for supported models\n'));
+                console.log(
+                    chalk.dim('💡 You can also press Ctrl+M for interactive model selector\n')
+                );
 
-                return true;
+                return helpText;
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent) => {
-        // Default to help if no subcommand
+    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        // Default to showing help about interactive selector if no subcommand
         if (args.length === 0) {
-            const helpSubcommand = modelCommands.subcommands?.find((s) => s.name === 'help');
-            if (helpSubcommand) {
-                return helpSubcommand.handler([], agent);
-            }
-            return true;
+            const helpText = [
+                '🤖 Model Selection',
+                '\nIn interactive mode: Press Ctrl+M or type /model to show the model selector',
+                '\nAdvanced subcommands (optional):',
+                '  /model list    - List all available models',
+                '  /model current - Show current model',
+                '  /model switch <model> - Switch to specific model\n',
+            ].join('\n');
+
+            console.log(chalk.blue(helpText));
+            return helpText;
         }
 
         const subcommand = args[0];
@@ -204,9 +229,8 @@ export const modelCommands: CommandDefinition = {
             return subcmd.handler(subArgs, agent);
         }
 
-        console.log(chalk.red(`❌ Unknown model subcommand: ${subcommand}`));
-        console.log(chalk.dim('Available subcommands: list, current, switch, help'));
-        console.log(chalk.dim('💡 Use /model help for detailed command descriptions'));
-        return true;
+        const errorMsg = `❌ Unknown model subcommand: ${subcommand}\nUse /model for interactive selector or /model list to see all models`;
+        console.log(chalk.red(errorMsg));
+        return errorMsg;
     },
 };

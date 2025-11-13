@@ -23,12 +23,13 @@ export type {
 // Internal types - not exported to avoid naming conflicts with tools module
 // ToolConfirmationMetadata, ToolConfirmationRequest, ToolConfirmationResponse, ToolConfirmationResponseData
 
-export { ApprovalType, ApprovalStatus } from './types.js';
+export { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 
 // Schemas
 export {
     ApprovalTypeSchema,
     ApprovalStatusSchema,
+    DenialReasonSchema,
     ToolConfirmationMetadataSchema,
     ElicitationMetadataSchema,
     CustomApprovalMetadataSchema,

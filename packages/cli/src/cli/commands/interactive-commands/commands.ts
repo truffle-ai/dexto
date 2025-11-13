@@ -19,12 +19,12 @@
  * into a single CLI_COMMANDS array for the command execution system.
  */
 
-import type { DextoAgent } from '@dexto/core';
+import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
 
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
-import { sessionCommands } from './session/index.js';
+import { searchCommand, resumeCommand } from './session/index.js';
 import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
 import { systemCommands } from './system/index.js';
@@ -50,15 +50,18 @@ import { documentationCommands } from './documentation-commands.js';
 export const CLI_COMMANDS: CommandDefinition[] = [];
 
 // Build the commands array with proper help command that can access all commands
+// Note: Interactive CLI uses simplified commands (interactive selectors instead of subcommands)
+// Regular CLI (headless) has full subcommand access via `dexto session list`, etc.
 const baseCommands: CommandDefinition[] = [
     // General commands (without help)
     ...generalCommands,
 
-    // Session management commands
-    ...sessionCommands,
+    // Session management - simplified for interactive CLI
+    searchCommand, // /search - search across sessions
+    resumeCommand, // /resume - show interactive selector (no /session subcommands)
 
-    // Model management commands
-    modelCommands,
+    // Model management - simplified for interactive CLI
+    modelCommands, // /model - show interactive selector (subcommands available but not emphasized)
 
     // MCP server management commands
     mcpCommands,
@@ -85,34 +88,72 @@ CLI_COMMANDS.push(...baseCommands);
 /**
  * Execute a slash command
  *
- * This function maintains the exact same interface and behavior as the original
- * executeCommand function, providing backward compatibility while using the
- * new modular command structure.
+ * @param sessionId - Session ID to use for agent.run() calls
+ * @returns boolean indicating if command was handled, or string for ink-cli output
  */
 export async function executeCommand(
     command: string,
     args: string[],
-    agent: DextoAgent
-): Promise<boolean> {
+    agent: DextoAgent,
+    sessionId?: string
+): Promise<boolean | string> {
+    // Store sessionId in agent context for command handlers to access
+    if (sessionId) {
+        (agent as any).__cliSessionId = sessionId;
+    }
     // Find the command (including aliases)
     const cmd = CLI_COMMANDS.find(
         (c) => c.name === command || (c.aliases && c.aliases.includes(command))
     );
 
-    if (!cmd) {
-        console.log(`❌ Unknown command: /${command}`);
-        console.log('Type /help to see available commands');
-        return true;
+    if (cmd) {
+        try {
+            // Execute the handler with error handling
+            const result = await cmd.handler(args, agent);
+            // If handler returns a string, it's formatted output for ink-cli
+            // If it returns boolean, it's the old behavior (handled or not)
+            return result;
+        } catch (error) {
+            const errorMsg = `❌ Error executing command /${command}:\n${error instanceof Error ? error.message : String(error)}`;
+            console.error(errorMsg);
+            return errorMsg; // Return for ink-cli
+        }
     }
 
+    // Command not found in static commands - check if it's a prompt
     try {
-        // Execute the handler with error handling
-        return await cmd.handler(args, agent);
+        const hasPrompt = await agent.hasPrompt(command);
+        if (hasPrompt) {
+            // Import prompt command creation dynamically to avoid circular dependencies
+            const { getDynamicPromptCommands } = await import('./prompt-commands.js');
+            const dynamicCommands = await getDynamicPromptCommands(agent);
+            const promptCmd = dynamicCommands.find((c) => c.name === command);
+
+            if (promptCmd) {
+                try {
+                    const result = await promptCmd.handler(args, agent);
+                    // If result is a string, return it (for ink-cli display)
+                    // If result is boolean true, return empty string (command handled, message shown via agent.run())
+                    // If result is boolean false, return empty string (command handled)
+                    return typeof result === 'string' ? result : '';
+                } catch (error) {
+                    const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
+                    console.error(errorMsg);
+                    return errorMsg;
+                }
+            }
+        }
     } catch (error) {
-        console.error(`❌ Error executing command /${command}:`);
-        console.error(error instanceof Error ? error.message : String(error));
-        return true;
+        // If checking for prompt fails, continue to unknown command error
+        logger.debug(
+            `Failed to check if ${command} is a prompt: ${error instanceof Error ? error.message : String(error)}`
+        );
     }
+
+    // Command not found and not a prompt
+    const errorMsg = `❌ Unknown command: /${command}\nType /help to see available commands`;
+    console.log(errorMsg);
+    return errorMsg; // Return for ink-cli
 }
 
 /**
