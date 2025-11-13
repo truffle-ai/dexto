@@ -44,6 +44,7 @@ export type HonoInitializationResult = {
     getActiveAgentId: () => string | undefined;
 };
 
+//TODO (migration): consider moving this to the server package
 export async function initializeHonoApi(
     agent: DextoAgent,
     agentCardOverride?: Partial<AgentCard>,
