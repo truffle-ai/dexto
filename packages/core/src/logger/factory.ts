@@ -6,7 +6,8 @@
  */
 
 import type { LoggerConfig } from './v2/schemas.js';
-import type { DextoLogComponent, IDextoLogger } from './v2/types.js';
+import type { IDextoLogger } from './v2/types.js';
+import { DextoLogComponent } from './v2/types.js';
 import { DextoLogger } from './v2/dexto-logger.js';
 import { createTransport } from './v2/transport-factory.js';
 
@@ -37,7 +38,7 @@ export interface CreateLoggerOptions {
  * ```
  */
 export function createLogger(options: CreateLoggerOptions): IDextoLogger {
-    const { config, agentId, component = 'agent' as DextoLogComponent } = options;
+    const { config, agentId, component = DextoLogComponent.AGENT } = options;
 
     // Create transport instances from configs
     const transports = config.transports.map((transportConfig) => {
