@@ -157,7 +157,7 @@ describe('SessionManager', () => {
         );
 
         // Mock ChatSession constructor and methods
-        MockChatSession.mockImplementation((services, id, logger) => {
+        MockChatSession.mockImplementation((services, id, _logger) => {
             const mockSession = {
                 id,
                 init: vi.fn().mockResolvedValue(undefined),

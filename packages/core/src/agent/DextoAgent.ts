@@ -22,7 +22,6 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
-import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {

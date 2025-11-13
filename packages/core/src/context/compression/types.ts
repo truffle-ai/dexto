@@ -1,6 +1,5 @@
 import { InternalMessage } from '../types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
-import { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
  * Defines the contract for a strategy used to compress a conversation history

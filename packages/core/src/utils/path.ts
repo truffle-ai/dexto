@@ -5,8 +5,6 @@ import * as path from 'path';
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
 import { walkUpDirectories } from './fs-walk.js';
 import {
     getExecutionContext,

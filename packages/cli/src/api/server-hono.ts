@@ -1,11 +1,7 @@
 import os from 'node:os';
 import type { AgentCard } from '@dexto/core';
 import { createAgentCard, logger, AgentError, DextoAgent } from '@dexto/core';
-import {
-    loadAgentConfig,
-    updateAgentConfigFile,
-    reloadAgentConfigFromFile,
-} from '@dexto/agent-management';
+import { loadAgentConfig } from '@dexto/agent-management';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
