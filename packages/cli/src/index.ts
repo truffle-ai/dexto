@@ -36,7 +36,7 @@ import {
     loadGlobalPreferences,
 } from '@dexto/agent-management';
 import type { AgentConfig } from '@dexto/core';
-import { startApiServer } from './api/server.js';
+import { startHonoApiServer } from './api/server-hono.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
@@ -73,7 +73,7 @@ import {
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
-import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
+import { initializeMcpServer, createMcpTransport } from '@dexto/server';
 import { createAgentCard } from '@dexto/core';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
@@ -1063,8 +1063,8 @@ program
                         const nextJSserverURL =
                             process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
 
-                        // Start API server
-                        await startApiServer(
+                        // Start API server (Hono)
+                        await startHonoApiServer(
                             agent,
                             apiPort,
                             agent.getEffectiveConfig().agentCard || {},
@@ -1107,7 +1107,7 @@ program
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + WebSockets)...');
-                        await startApiServer(agent, apiPort, agentCard, derivedAgentId);
+                        await startHonoApiServer(agent, apiPort, agentCard, derivedAgentId);
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
                         console.log('  POST /api/message - Send async message');
@@ -1161,11 +1161,7 @@ program
                             );
                             // Use stdio transport in mcp mode
                             const mcpTransport = await createMcpTransport('stdio');
-                            await initializeMcpServer(
-                                () => agent,
-                                () => agentCardData,
-                                mcpTransport
-                            );
+                            await initializeMcpServer(agent, agentCardData, mcpTransport);
                         } catch (err) {
                             // Write to stderr instead of stdout to avoid interfering with MCP protocol
                             process.stderr.write(`MCP server startup failed: ${err}\n`);

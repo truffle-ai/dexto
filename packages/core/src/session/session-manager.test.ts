@@ -41,6 +41,7 @@ describe('SessionManager', () => {
         vi.resetAllMocks();
 
         mockLogger = {
+            silly: vi.fn(),
             debug: vi.fn(),
             info: vi.fn(),
             warn: vi.fn(),

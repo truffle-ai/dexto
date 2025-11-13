@@ -254,7 +254,7 @@ export class DextoAgent {
             }
 
             // Show log location if file logging is configured
-            const fileTransport = this.config.logger.transports.find((t) => t.type === 'file');
+            const fileTransport = this.config.logger?.transports?.find((t) => t.type === 'file');
             if (fileTransport && 'path' in fileTransport) {
                 console.log(`📋 Logs available at: ${fileTransport.path}`);
             }

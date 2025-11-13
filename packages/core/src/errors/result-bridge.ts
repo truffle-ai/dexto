@@ -9,7 +9,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
  * Note: Runtime errors are thrown directly, not through Result pattern
  *
  * @param result - The Result to check (typically from validation functions)
- * @param logger - Optional logger instance for logging
+ * @param logger - Logger instance for logging errors
  * @returns The data if successful
  * @throws DextoValidationError if the result contains validation issues
  *
@@ -17,11 +17,11 @@ import type { IDextoLogger } from '../logger/v2/types.js';
  * ```typescript
  * // Validation flow
  * const result = validateInputForLLM(input, config);
- * const data = ensureOk(result); // Throws DextoValidationError if validation failed
+ * const data = ensureOk(result, logger); // Throws DextoValidationError if validation failed
  *
  * // LLM config validation
  * const configResult = resolveAndValidateLLMConfig(current, updates);
- * const validatedConfig = ensureOk(configResult);
+ * const validatedConfig = ensureOk(configResult, logger);
  * ```
  */
 export function ensureOk<T, C>(result: Result<T, C>, logger: IDextoLogger): T {
