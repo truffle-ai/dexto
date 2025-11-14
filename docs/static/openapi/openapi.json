@@ -890,40 +890,40 @@
           {
             "schema": {
               "type": "string",
-              "description": "Pagination token"
+              "description": "Pagination token (not yet implemented - reserved for future use)"
             },
             "required": false,
-            "description": "Pagination token",
+            "description": "Pagination token (not yet implemented - reserved for future use)",
             "name": "pageToken",
             "in": "query"
           },
           {
             "schema": {
               "type": "string",
-              "description": "Limit history items"
+              "description": "Limit history items (not yet implemented - reserved for future use)"
             },
             "required": false,
-            "description": "Limit history items",
+            "description": "Limit history items (not yet implemented - reserved for future use)",
             "name": "historyLength",
             "in": "query"
           },
           {
             "schema": {
               "type": "string",
-              "description": "Unix timestamp filter"
+              "description": "Unix timestamp filter (not yet implemented - reserved for future use)"
             },
             "required": false,
-            "description": "Unix timestamp filter",
+            "description": "Unix timestamp filter (not yet implemented - reserved for future use)",
             "name": "lastUpdatedAfter",
             "in": "query"
           },
           {
             "schema": {
               "type": "string",
-              "description": "Include artifacts in response"
+              "description": "Include artifacts in response (not yet implemented - reserved for future use)"
             },
             "required": false,
-            "description": "Include artifacts in response",
+            "description": "Include artifacts in response (not yet implemented - reserved for future use)",
             "name": "includeArtifacts",
             "in": "query"
           }
@@ -1419,7 +1419,8 @@
                     "totalSize",
                     "pageSize",
                     "nextPageToken"
-                  ]
+                  ],
+                  "description": "Response body for tasks/list"
                 }
               }
             }
