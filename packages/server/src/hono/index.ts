@@ -9,12 +9,16 @@ import { createSessionsRouter } from './routes/sessions.js';
 import { createSearchRouter } from './routes/search.js';
 import { createMcpRouter } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
+import { createA2AJsonRpcRouter } from './routes/a2a-jsonrpc.js';
+import { createA2ASSERouter } from './routes/a2a-sse.js';
+import { createA2ATasksRouter } from './routes/a2a-tasks.js';
 import { createWebhooksRouter } from './routes/webhooks.js';
 import { createPromptsRouter } from './routes/prompts.js';
 import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
 import { createAgentsRouter } from './routes/agents.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
+import { SSEEventSubscriber } from '../events/sse-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 import { createCorsMiddleware } from './middleware/cors.js';
@@ -46,10 +50,12 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     const { getAgent, getAgentCard, agentsContext } = options;
     const app = new OpenAPIHono({ strict: false }) as DextoApp;
     const webhookSubscriber = new WebhookEventSubscriber();
+    const sseSubscriber = new SSEEventSubscriber();
 
     // Subscribe to agent's event bus (will be updated when agent switches)
     const agent = getAgent();
     webhookSubscriber.subscribe(agent.agentEventBus);
+    sseSubscriber.subscribe(agent.agentEventBus);
     app.webhookSubscriber = webhookSubscriber;
 
     // Global CORS middleware for cross-origin requests (must be first)
@@ -64,6 +70,15 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
 
     // A2A routes use getter for agent card (updated on agent switch)
     app.route('/', createA2aRouter(getAgentCard));
+
+    // A2A JSON-RPC endpoint (protocol transport)
+    app.route('/', createA2AJsonRpcRouter(getAgent));
+
+    // A2A REST task endpoints (HTTP+JSON alternative to JSON-RPC)
+    app.route('/', createA2ATasksRouter(getAgent));
+
+    // A2A SSE streaming endpoint
+    app.route('/', createA2ASSERouter(getAgent, sseSubscriber));
 
     const api = new OpenAPIHono();
     api.use('*', prettyJsonMiddleware);
