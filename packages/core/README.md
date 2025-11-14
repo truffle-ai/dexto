@@ -108,6 +108,49 @@ const result = await manager.executeTool('readFile', { path: './README.md' });
 await manager.disconnectAll();
 ```
 
+### Agent-to-Agent Delegation
+
+Delegate tasks to other A2A-compliant agents using the built-in `delegate_to_url` tool.
+
+```typescript
+const agent = new DextoAgent({
+  llm: { /* ... */ },
+  internalTools: ['delegate_to_url'] // Enable delegation tool
+});
+await agent.start();
+
+// Delegate via natural language
+await agent.run(`
+  Please delegate this task to the PDF analyzer agent at http://localhost:3001:
+  "Extract all tables from the Q4 sales report"
+`);
+
+// Or call the tool directly
+const tools = await agent.getAllTools();
+const delegateTool = tools.find(t => t.name === 'internal--delegate_to_url');
+// The tool is prefixed with 'internal--' by the ToolManager
+```
+
+**Configuration (YAML):**
+```yaml
+internalTools:
+  - name: delegate_to_url
+    enabled: true
+```
+
+**What it provides:**
+- Point-to-point delegation when you know the agent URL
+- A2A Protocol v0.3.0 compliant (JSON-RPC transport)
+- Session management for stateful multi-turn conversations
+- Automatic endpoint discovery (/v1/jsonrpc, /jsonrpc)
+- Timeout handling and error recovery
+
+**Use cases:**
+- Multi-agent systems with known agent URLs
+- Delegation to specialized agents
+- Building agent workflows and pipelines
+- Testing agent-to-agent communication
+
 ### Telemetry
 
 Built-in OpenTelemetry distributed tracing for observability.
