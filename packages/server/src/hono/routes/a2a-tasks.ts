@@ -243,11 +243,10 @@ export function createA2ATasksRouter(
 
         logger.info('REST: message/send', { hasMessage: !!body.message });
 
-        // Type cast needed: Zod infers readonly types incompatible with mutable handler types
+        // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
+        // from mutable handler types. Structurally compatible at runtime.
         const result = await handlers.messageSend(body as any);
 
-        // Always return Task (blocking mode) - spec allows Task or Message
-        // For now, we only implement blocking mode which returns Task
         return ctx.json(result as any);
     });
 
@@ -256,14 +255,23 @@ export function createA2ATasksRouter(
         try {
             const body = await ctx.req.json();
 
-            if (!body.message) {
-                return ctx.json({ error: 'message is required' }, 400);
+            // Validate with Zod schema
+            const parseResult = MessageSendRequestSchema.safeParse(body);
+            if (!parseResult.success) {
+                return ctx.json(
+                    {
+                        error: 'Invalid request body',
+                        details: parseResult.error.issues,
+                    },
+                    400
+                );
             }
 
-            logger.info('REST: message/stream', { hasMessage: !!body.message });
+            const validatedBody = parseResult.data;
+            logger.info('REST: message/stream', { hasMessage: !!validatedBody.message });
 
             // Create or get session
-            const taskId = body.message.taskId;
+            const taskId = validatedBody.message.taskId;
             const agent = getAgent();
             const session = await agent.createSession(taskId);
 
@@ -271,7 +279,8 @@ export function createA2ATasksRouter(
             const stream = sseSubscriber.createStream(session.id);
 
             // Start agent processing in background
-            const { text, image, file } = a2aToInternalMessage(body.message);
+            // Note: Errors are automatically broadcast via the event bus (llmservice:error event)
+            const { text, image, file } = a2aToInternalMessage(validatedBody.message as any);
             agent.run(text, image, file, session.id).catch((error) => {
                 logger.error(`Error in streaming task ${session.id}: ${error}`);
             });
@@ -326,7 +335,8 @@ export function createA2ATasksRouter(
         const handlers = new A2AMethodHandlers(getAgent());
         const query = ctx.req.valid('query');
 
-        // Type cast needed: Zod infers readonly types incompatible with mutable handler types
+        // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
+        // from mutable handler types. Structurally compatible at runtime.
         const result = await handlers.tasksList(query as any);
 
         return ctx.json(result);
