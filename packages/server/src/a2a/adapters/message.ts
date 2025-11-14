@@ -118,28 +118,108 @@ export function internalToA2AMessage(
                     parts.push({ kind: 'text', text: part.text });
                     break;
 
-                case 'image':
-                    parts.push({
-                        kind: 'file',
-                        file: {
-                            bytes: part.image.toString(),
-                            mimeType: part.mimeType || 'image/png',
-                        },
-                    });
+                case 'image': {
+                    const imageData = part.image;
+                    const mimeType = part.mimeType || 'image/png';
+
+                    // Convert different input types to base64 or URL
+                    let fileObj: any;
+                    if (
+                        imageData instanceof URL ||
+                        (typeof imageData === 'string' && imageData.startsWith('http'))
+                    ) {
+                        // URL reference
+                        fileObj = {
+                            uri: imageData.toString(),
+                            mimeType,
+                        };
+                    } else if (Buffer.isBuffer(imageData)) {
+                        // Buffer -> base64
+                        fileObj = {
+                            bytes: imageData.toString('base64'),
+                            mimeType,
+                        };
+                    } else if (imageData instanceof Uint8Array) {
+                        // Uint8Array -> base64
+                        fileObj = {
+                            bytes: Buffer.from(imageData).toString('base64'),
+                            mimeType,
+                        };
+                    } else if (imageData instanceof ArrayBuffer) {
+                        // ArrayBuffer -> base64
+                        fileObj = {
+                            bytes: Buffer.from(imageData).toString('base64'),
+                            mimeType,
+                        };
+                    } else if (typeof imageData === 'string') {
+                        // Assume already base64 if string but not a URL
+                        fileObj = {
+                            bytes: imageData,
+                            mimeType,
+                        };
+                    }
+
+                    if (fileObj) {
+                        parts.push({
+                            kind: 'file',
+                            file: fileObj,
+                        });
+                    }
                     break;
+                }
 
                 case 'file': {
-                    const fileObj: any = {
-                        bytes: part.data.toString(),
-                        mimeType: part.mimeType,
-                    };
-                    if (part.filename) {
-                        fileObj.name = part.filename;
+                    const fileData = part.data;
+                    const mimeType = part.mimeType;
+
+                    // Convert different input types to base64 or URL
+                    let fileObj: any;
+                    if (
+                        fileData instanceof URL ||
+                        (typeof fileData === 'string' && fileData.startsWith('http'))
+                    ) {
+                        // URL reference
+                        fileObj = {
+                            uri: fileData.toString(),
+                            mimeType,
+                        };
+                    } else if (Buffer.isBuffer(fileData)) {
+                        // Buffer -> base64
+                        fileObj = {
+                            bytes: fileData.toString('base64'),
+                            mimeType,
+                        };
+                    } else if (fileData instanceof Uint8Array) {
+                        // Uint8Array -> base64
+                        fileObj = {
+                            bytes: Buffer.from(fileData).toString('base64'),
+                            mimeType,
+                        };
+                    } else if (fileData instanceof ArrayBuffer) {
+                        // ArrayBuffer -> base64
+                        fileObj = {
+                            bytes: Buffer.from(fileData).toString('base64'),
+                            mimeType,
+                        };
+                    } else if (typeof fileData === 'string') {
+                        // Assume already base64 if string but not a URL
+                        fileObj = {
+                            bytes: fileData,
+                            mimeType,
+                        };
                     }
-                    parts.push({
-                        kind: 'file',
-                        file: fileObj,
-                    });
+
+                    if (fileObj) {
+                        // Add filename if present
+                        if (part.filename) {
+                            fileObj.name = part.filename;
+                        }
+
+                        parts.push({
+                            kind: 'file',
+                            file: fileObj,
+                        });
+                    }
                     break;
                 }
             }

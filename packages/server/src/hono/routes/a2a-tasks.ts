@@ -150,10 +150,15 @@ const TaskListQuerySchema = z
             .transform((v) => {
                 if (!v) return undefined;
                 const n = Number.parseInt(v, 10);
-                return Number.isNaN(n) ? undefined : n;
+                // Enforce 1-100 range, return undefined for invalid values
+                if (Number.isNaN(n) || n < 1 || n > 100) return undefined;
+                return n;
             })
             .describe('Number of results (1-100, default 50)'),
-        pageToken: z.string().optional().describe('Pagination token'),
+        pageToken: z
+            .string()
+            .optional()
+            .describe('Pagination token (not yet implemented - reserved for future use)'),
         historyLength: z
             .string()
             .optional()
@@ -162,7 +167,7 @@ const TaskListQuerySchema = z
                 const n = Number.parseInt(v, 10);
                 return Number.isNaN(n) ? undefined : n;
             })
-            .describe('Limit history items'),
+            .describe('Limit history items (not yet implemented - reserved for future use)'),
         lastUpdatedAfter: z
             .string()
             .optional()
@@ -171,12 +176,14 @@ const TaskListQuerySchema = z
                 const n = Number.parseInt(v, 10);
                 return Number.isNaN(n) ? undefined : n;
             })
-            .describe('Unix timestamp filter'),
+            .describe('Unix timestamp filter (not yet implemented - reserved for future use)'),
         includeArtifacts: z
             .string()
             .optional()
             .transform((v) => v === 'true')
-            .describe('Include artifacts in response'),
+            .describe(
+                'Include artifacts in response (not yet implemented - reserved for future use)'
+            ),
     })
     .describe('Query parameters for tasks/list');
 
@@ -236,6 +243,7 @@ export function createA2ATasksRouter(
 
         logger.info('REST: message/send', { hasMessage: !!body.message });
 
+        // Type cast needed: Zod infers readonly types incompatible with mutable handler types
         const result = await handlers.messageSend(body as any);
 
         // Always return Task (blocking mode) - spec allows Task or Message
@@ -300,12 +308,14 @@ export function createA2ATasksRouter(
                 description: 'Task list',
                 content: {
                     'application/json': {
-                        schema: z.object({
-                            tasks: z.array(TaskSchema).describe('Array of tasks'),
-                            totalSize: z.number().describe('Total number of tasks'),
-                            pageSize: z.number().describe('Number of tasks in this page'),
-                            nextPageToken: z.string().describe('Token for next page'),
-                        }),
+                        schema: z
+                            .object({
+                                tasks: z.array(TaskSchema).describe('Array of tasks'),
+                                totalSize: z.number().describe('Total number of tasks'),
+                                pageSize: z.number().describe('Number of tasks in this page'),
+                                nextPageToken: z.string().describe('Token for next page'),
+                            })
+                            .describe('Response body for tasks/list'),
                     },
                 },
             },
@@ -316,6 +326,7 @@ export function createA2ATasksRouter(
         const handlers = new A2AMethodHandlers(getAgent());
         const query = ctx.req.valid('query');
 
+        // Type cast needed: Zod infers readonly types incompatible with mutable handler types
         const result = await handlers.tasksList(query as any);
 
         return ctx.json(result);

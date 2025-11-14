@@ -59,11 +59,11 @@ export class JsonRpcServer {
      * Handle a JSON-RPC request (single or batch).
      *
      * @param request Single request or batch array
-     * @returns Single response or batch array
+     * @returns Single response, batch array, or undefined for notifications
      */
     async handle(
         request: JsonRpcRequest | JsonRpcBatchRequest
-    ): Promise<JsonRpcResponse | JsonRpcBatchResponse> {
+    ): Promise<JsonRpcResponse | JsonRpcBatchResponse | undefined> {
         // Handle batch requests
         if (Array.isArray(request)) {
             return await this.handleBatch(request);
@@ -79,9 +79,11 @@ export class JsonRpcServer {
      * Processes all requests in parallel per JSON-RPC 2.0 spec.
      *
      * @param requests Array of requests
-     * @returns Array of responses
+     * @returns Array of responses, or undefined if all were notifications
      */
-    private async handleBatch(requests: JsonRpcBatchRequest): Promise<JsonRpcBatchResponse> {
+    private async handleBatch(
+        requests: JsonRpcBatchRequest
+    ): Promise<JsonRpcBatchResponse | undefined> {
         // Empty batch is an error
         if (requests.length === 0) {
             return [
@@ -92,23 +94,30 @@ export class JsonRpcServer {
         // Process all requests in parallel
         const responses = await Promise.all(requests.map((req) => this.handleSingle(req)));
 
-        // Filter out notification responses (id is undefined)
-        return responses.filter((res) => res.id !== undefined);
+        // Filter out notification responses (undefined)
+        const validResponses = responses.filter((res): res is JsonRpcResponse => res !== undefined);
+
+        // Per JSON-RPC 2.0 spec: if all requests were notifications, return undefined
+        if (validResponses.length === 0) {
+            return undefined;
+        }
+
+        return validResponses;
     }
 
     /**
      * Handle a single JSON-RPC request.
      *
      * @param request JSON-RPC request object
-     * @returns JSON-RPC response object
+     * @returns JSON-RPC response object, or undefined for notifications
      */
-    private async handleSingle(request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    private async handleSingle(request: JsonRpcRequest): Promise<JsonRpcResponse | undefined> {
         try {
             // Validate JSON-RPC version
             if (request.jsonrpc !== '2.0') {
                 // Notifications must not receive any response, even on error
                 if (request.id === undefined) {
-                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                    return undefined;
                 }
                 return this.createErrorResponse(
                     request.id ?? null,
@@ -121,7 +130,7 @@ export class JsonRpcServer {
             if (typeof request.method !== 'string') {
                 // Notifications must not receive any response, even on error
                 if (request.id === undefined) {
-                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                    return undefined;
                 }
                 return this.createErrorResponse(
                     request.id ?? null,
@@ -135,7 +144,7 @@ export class JsonRpcServer {
             if (!handler) {
                 // Notifications must not receive any response, even on error
                 if (request.id === undefined) {
-                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                    return undefined;
                 }
                 return this.createErrorResponse(
                     request.id ?? null,
@@ -150,8 +159,7 @@ export class JsonRpcServer {
 
                 // Notifications (id is undefined) don't get responses
                 if (request.id === undefined) {
-                    // Return a dummy response that will be filtered out in batch processing
-                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                    return undefined;
                 }
 
                 return this.createSuccessResponse(request.id ?? null, result);
@@ -166,7 +174,7 @@ export class JsonRpcServer {
 
                 // Notifications must not receive any response, even on error
                 if (request.id === undefined) {
-                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                    return undefined;
                 }
 
                 // Method execution error - return error response
@@ -182,7 +190,10 @@ export class JsonRpcServer {
                 );
             }
         } catch (error) {
-            // Request parsing/validation error
+            // Request parsing/validation error - if notification, still no response
+            if (request.id === undefined) {
+                return undefined;
+            }
             const errorMessage = error instanceof Error ? error.message : String(error);
             return this.createErrorResponse(null, JsonRpcErrorCode.INVALID_REQUEST, errorMessage);
         }
