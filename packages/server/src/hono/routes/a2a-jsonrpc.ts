@@ -10,6 +10,8 @@ import type { DextoAgent } from '@dexto/core';
 import { JsonRpcServer } from '../../a2a/jsonrpc/server.js';
 import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
+import type { SSEEventSubscriber } from '../../events/sse-subscriber.js';
+import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
 
 /**
  * Create A2A JSON-RPC router
@@ -18,7 +20,7 @@ import { logger } from '@dexto/core';
  *
  * Usage:
  * ```typescript
- * const a2aRouter = createA2AJsonRpcRouter(getAgent);
+ * const a2aRouter = createA2AJsonRpcRouter(getAgent, sseSubscriber);
  * app.route('/', a2aRouter);
  * ```
  *
@@ -29,12 +31,13 @@ import { logger } from '@dexto/core';
  *
  * {
  *   "jsonrpc": "2.0",
- *   "method": "agent.createTask",
+ *   "method": "message/send",
  *   "params": {
  *     "message": {
  *       "role": "user",
- *       "content": [{ "type": "text", "text": "Hello!" }],
- *       "timestamp": "2025-11-13T00:00:00Z"
+ *       "parts": [{ "kind": "text", "text": "Hello!" }],
+ *       "messageId": "msg-123",
+ *       "kind": "message"
  *     }
  *   },
  *   "id": 1
@@ -42,24 +45,72 @@ import { logger } from '@dexto/core';
  * ```
  *
  * @param getAgent Function to get current DextoAgent instance
+ * @param sseSubscriber SSE event subscriber for streaming methods
  * @returns Hono router with /jsonrpc endpoint
  */
-export function createA2AJsonRpcRouter(getAgent: () => DextoAgent) {
+export function createA2AJsonRpcRouter(
+    getAgent: () => DextoAgent,
+    sseSubscriber: SSEEventSubscriber
+) {
     const app = new Hono();
 
     /**
      * POST /jsonrpc - JSON-RPC 2.0 endpoint
      *
      * Accepts JSON-RPC requests (single or batch) and returns JSON-RPC responses.
+     * For streaming methods (message/stream), returns SSE stream.
      */
     app.post('/jsonrpc', async (ctx) => {
         try {
             const agent = getAgent();
+            const requestBody = await ctx.req.json();
 
-            // Create method handlers
+            // Check if this is a streaming method request
+            const isStreamingRequest =
+                !Array.isArray(requestBody) && requestBody.method === 'message/stream';
+
+            if (isStreamingRequest) {
+                // Handle streaming request with SSE
+                logger.info('JSON-RPC streaming request: message/stream');
+
+                const params = requestBody.params;
+                if (!params?.message) {
+                    return ctx.json({
+                        jsonrpc: '2.0',
+                        error: {
+                            code: -32602,
+                            message: 'Invalid params: message is required',
+                        },
+                        id: requestBody.id,
+                    });
+                }
+
+                // Create or get session
+                const taskId = params.message.taskId;
+                const session = await agent.createSession(taskId);
+
+                // Create SSE stream
+                const stream = sseSubscriber.createStream(session.id);
+
+                // Start agent processing in background
+                const { text, image, file } = a2aToInternalMessage(params.message);
+                agent.run(text, image, file, session.id).catch((error) => {
+                    logger.error(`Error in streaming task ${session.id}: ${error}`);
+                });
+
+                // Set SSE headers and return stream
+                ctx.header('Content-Type', 'text/event-stream');
+                ctx.header('Cache-Control', 'no-cache');
+                ctx.header('Connection', 'keep-alive');
+                ctx.header('X-Accel-Buffering', 'no');
+
+                logger.info(`JSON-RPC SSE stream opened for task ${session.id}`);
+
+                return new Response(stream);
+            }
+
+            // Handle regular (non-streaming) JSON-RPC request
             const handlers = new A2AMethodHandlers(agent);
-
-            // Create JSON-RPC server
             const rpcServer = new JsonRpcServer({
                 methods: handlers.getMethods(),
                 onError: (error, request) => {
@@ -70,25 +121,17 @@ export function createA2AJsonRpcRouter(getAgent: () => DextoAgent) {
                 },
             });
 
-            // Parse request body
-            const requestBody = await ctx.req.json();
-
             logger.debug(`A2A JSON-RPC request received`, {
                 method: Array.isArray(requestBody)
                     ? `batch(${requestBody.length})`
                     : requestBody.method,
             });
 
-            // Handle request
             const response = await rpcServer.handle(requestBody);
-
-            // Return JSON-RPC response
             return ctx.json(response);
         } catch (error) {
-            // Parsing error or other unexpected error
             logger.error(`Failed to process JSON-RPC request: ${error}`, { error });
 
-            // Return JSON-RPC error response
             return ctx.json({
                 jsonrpc: '2.0',
                 error: {

@@ -15,6 +15,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
+import type { SSEEventSubscriber } from '../../events/sse-subscriber.js';
+import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
 
 // Request/Response Schemas for OpenAPI (using A2A-compliant schema)
 
@@ -145,14 +147,19 @@ const TaskListQuerySchema = z.object({
  *
  * Endpoints:
  * - POST   /v1/message:send        - Send message to agent
+ * - POST   /v1/message:stream      - Send message with SSE streaming
  * - GET    /v1/tasks/{id}          - Get task
  * - GET    /v1/tasks               - List tasks
  * - POST   /v1/tasks/{id}:cancel   - Cancel task
  *
  * @param getAgent Function to get current DextoAgent instance
+ * @param sseSubscriber SSE event subscriber for streaming
  * @returns OpenAPIHono router with REST task endpoints
  */
-export function createA2ATasksRouter(getAgent: () => DextoAgent) {
+export function createA2ATasksRouter(
+    getAgent: () => DextoAgent,
+    sseSubscriber: SSEEventSubscriber
+) {
     const app = new OpenAPIHono();
 
     // POST /v1/message:send - Send message to agent
@@ -194,6 +201,46 @@ export function createA2ATasksRouter(getAgent: () => DextoAgent) {
         // Always return Task (blocking mode) - spec allows Task or Message
         // For now, we only implement blocking mode which returns Task
         return ctx.json(result as any);
+    });
+
+    // POST /v1/message:stream - Send message with streaming response
+    app.post('/v1/message:stream', async (ctx) => {
+        try {
+            const body = await ctx.req.json();
+
+            if (!body.message) {
+                return ctx.json({ error: 'message is required' }, 400);
+            }
+
+            logger.info('REST: message/stream', { hasMessage: !!body.message });
+
+            // Create or get session
+            const taskId = body.message.taskId;
+            const agent = getAgent();
+            const session = await agent.createSession(taskId);
+
+            // Create SSE stream
+            const stream = sseSubscriber.createStream(session.id);
+
+            // Start agent processing in background
+            const { text, image, file } = a2aToInternalMessage(body.message);
+            agent.run(text, image, file, session.id).catch((error) => {
+                logger.error(`Error in streaming task ${session.id}: ${error}`);
+            });
+
+            // Set SSE headers and return stream
+            ctx.header('Content-Type', 'text/event-stream');
+            ctx.header('Cache-Control', 'no-cache');
+            ctx.header('Connection', 'keep-alive');
+            ctx.header('X-Accel-Buffering', 'no');
+
+            logger.info(`REST SSE stream opened for task ${session.id}`);
+
+            return new Response(stream);
+        } catch (error) {
+            logger.error(`Failed to handle message:stream: ${error}`);
+            return ctx.json({ error: 'Failed to initiate streaming' }, 500);
+        }
     });
 
     // GET /v1/tasks - List tasks

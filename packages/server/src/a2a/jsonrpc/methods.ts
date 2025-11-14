@@ -168,6 +168,37 @@ export class A2AMethodHandlers {
     }
 
     /**
+     * message/stream - Send a message with streaming response
+     *
+     * This is a streaming variant of message/send. Instead of returning a complete Task,
+     * it returns a stream of TaskStatusUpdateEvent and TaskArtifactUpdateEvent as the
+     * agent processes the message.
+     *
+     * Note: This method signature is for the handler registry. The actual streaming
+     * is handled by the transport layer (JSON-RPC or REST) which will return an SSE stream.
+     *
+     * @param params Message send parameters (same as message/send)
+     * @returns Task ID for streaming (transport layer handles actual SSE stream)
+     */
+    async messageStream(params: MessageSendParams): Promise<{ taskId: string }> {
+        if (!params?.message) {
+            throw new Error('message is required');
+        }
+
+        const { message } = params;
+
+        // Extract taskId from message (or generate new one)
+        const taskId = message.taskId;
+
+        // Create or get session
+        const session = await this.agent.createSession(taskId);
+
+        // Return task ID immediately - the transport layer will handle
+        // setting up the SSE stream and calling agent.run() with streaming
+        return { taskId: session.id };
+    }
+
+    /**
      * Get all method handlers as a Record for JsonRpcServer
      *
      * Returns methods with A2A-compliant names (slash notation).
@@ -177,6 +208,7 @@ export class A2AMethodHandlers {
     getMethods(): Record<string, (params: any) => Promise<any>> {
         return {
             'message/send': this.messageSend.bind(this),
+            'message/stream': this.messageStream.bind(this),
             'tasks/get': this.tasksGet.bind(this),
             'tasks/list': this.tasksList.bind(this),
             'tasks/cancel': this.tasksCancel.bind(this),

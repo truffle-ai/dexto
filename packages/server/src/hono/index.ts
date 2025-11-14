@@ -10,7 +10,6 @@ import { createSearchRouter } from './routes/search.js';
 import { createMcpRouter } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
 import { createA2AJsonRpcRouter } from './routes/a2a-jsonrpc.js';
-import { createA2ASSERouter } from './routes/a2a-sse.js';
 import { createA2ATasksRouter } from './routes/a2a-tasks.js';
 import { createWebhooksRouter } from './routes/webhooks.js';
 import { createPromptsRouter } from './routes/prompts.js';
@@ -71,14 +70,11 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     // A2A routes use getter for agent card (updated on agent switch)
     app.route('/', createA2aRouter(getAgentCard));
 
-    // A2A JSON-RPC endpoint (protocol transport)
-    app.route('/', createA2AJsonRpcRouter(getAgent));
+    // A2A JSON-RPC endpoint (protocol transport, supports message/stream with SSE)
+    app.route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber));
 
-    // A2A REST task endpoints (HTTP+JSON alternative to JSON-RPC)
-    app.route('/', createA2ATasksRouter(getAgent));
-
-    // A2A SSE streaming endpoint
-    app.route('/', createA2ASSERouter(getAgent, sseSubscriber));
+    // A2A REST task endpoints (HTTP+JSON alternative to JSON-RPC, includes message:stream)
+    app.route('/', createA2ATasksRouter(getAgent, sseSubscriber));
 
     const api = new OpenAPIHono();
     api.use('*', prettyJsonMiddleware);
