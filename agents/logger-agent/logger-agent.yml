@@ -61,7 +61,7 @@ storage:
   database:
     type: sqlite
   blob:
-    type: local
+    type: local  # CLI provides storePath automatically
     maxBlobSize: 52428800
     maxTotalSize: 1073741824
     cleanupAfterDays: 30

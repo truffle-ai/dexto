@@ -52,6 +52,18 @@ llm:
 #   apiKey: $ANTHROPIC_API_KEY
 #
 
+# Logger configuration - multi-transport logging system
+# The CLI automatically adds a file transport for agent-specific logs
+# logger:
+#   level: info  # error | warn | info | debug | silly
+#   transports:
+#     - type: console
+#       colorize: true
+#     - type: file
+#       path: ./logs/agent.log
+#       maxSize: 10485760    # 10MB
+#       maxFiles: 5
+
 # Storage configuration - uses a two-tier architecture: cache (fast, ephemeral) and database (persistent, reliable)
 # Memory cache with file-based database (good for development with persistence)
 storage:
