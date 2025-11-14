@@ -13,7 +13,7 @@
  */
 
 import chalk from 'chalk';
-import { logger, DextoAgent, DextoRuntimeError, DextoValidationError } from '@dexto/core';
+import { DextoAgent, DextoRuntimeError, DextoValidationError } from '@dexto/core';
 import { CommandDefinition } from '../command-parser.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 

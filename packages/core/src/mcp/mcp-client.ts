@@ -5,7 +5,8 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { EventEmitter } from 'events';
 import { z } from 'zod';
 
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus } from '../approval/types.js';
 import type {
@@ -16,7 +17,6 @@ import type {
 } from './schemas.js';
 import { ToolSet } from '../tools/types.js';
 import { IMCPClient, MCPResourceSummary } from './types.js';
-import { resolveBundledScript } from '../utils/path.js';
 import { MCPError } from './errors.js';
 import type {
     GetPromptResult,
@@ -51,6 +51,13 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
     private approvalManager: ApprovalManager | null = null; // Will be set by MCPManager
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        super();
+        this.logger = logger.createChild(DextoLogComponent.MCP);
+    }
+
     async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
         if (config.type === 'stdio') {
@@ -96,42 +103,20 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         this.serverEnv = env || null;
         this.serverAlias = serverAlias || null;
 
-        // --- Resolve path for bundled node scripts ---
-        // TODO: Improve this logic to be less hacky
-        if (
-            command === 'node' &&
-            this.resolvedArgs &&
-            this.resolvedArgs.length > 0 &&
-            this.resolvedArgs[0]?.startsWith('dist/')
-        ) {
-            try {
-                const scriptRelativePath = this.resolvedArgs[0]!;
-                this.resolvedArgs[0] = resolveBundledScript(scriptRelativePath);
-                logger.debug(
-                    `Resolved bundled script path: ${scriptRelativePath} -> ${this.resolvedArgs[0]}`
-                );
-            } catch (e) {
-                logger.warn(
-                    `Failed to resolve path for bundled script ${this.resolvedArgs[0]}: ${JSON.stringify(e, null, 2)}`
-                );
-            }
-        }
-        // --- End path resolution ---
-
-        logger.info('=======================================');
-        logger.info(`MCP SERVER: ${command} ${this.resolvedArgs.join(' ')}`, null, 'magenta');
+        this.logger.info('=======================================');
+        this.logger.info(`MCP SERVER: ${command} ${this.resolvedArgs.join(' ')}`);
         if (env) {
-            logger.info('Environment:');
+            this.logger.info('Environment:');
             Object.entries(env).forEach(([key, _]) => {
-                logger.info(`  ${key}= [value hidden]`);
+                this.logger.info(`  ${key}= [value hidden]`);
             });
         }
-        logger.info('=======================================\n');
+        this.logger.info('=======================================\n');
 
         const serverName = this.serverAlias
             ? `"${this.serverAlias}" (${command} ${this.resolvedArgs.join(' ')})`
             : `${command} ${this.resolvedArgs.join(' ')}`;
-        logger.info(`Connecting to MCP server: ${serverName}`);
+        this.logger.info(`Connecting to MCP server: ${serverName}`);
 
         // Create a properly expanded environment by combining process.env with the provided env
         const expandedEnv = {
@@ -160,13 +145,13 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         );
 
         try {
-            logger.info('Establishing connection...');
+            this.logger.info('Establishing connection...');
             await this.client.connect(this.transport);
 
             // If connection is successful, we know the server was spawned
             this.serverSpawned = true;
-            logger.info(`✅ Stdio SERVER ${serverName} SPAWNED`);
-            logger.info('Connection established!\n\n');
+            this.logger.info(`✅ Stdio SERVER ${serverName} SPAWNED`);
+            this.logger.info('Connection established!\n\n');
             this.isConnected = true;
             this.setupNotificationHandlers();
             // Set up elicitation handler now that client is connected
@@ -174,7 +159,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
 
             return this.client;
         } catch (error: any) {
-            logger.error(
+            this.logger.error(
                 `Failed to connect to MCP server ${serverName}: ${JSON.stringify(error.message, null, 2)}`
             );
             throw error;
@@ -186,7 +171,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         headers: Record<string, string> = {},
         serverName: string
     ): Promise<Client> {
-        logger.debug(`Connecting to SSE MCP server at url: ${url}`);
+        this.logger.debug(`Connecting to SSE MCP server at url: ${url}`);
 
         this.transport = new SSEClientTransport(new URL(url), {
             // For regular HTTP requests
@@ -197,7 +182,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         });
 
         // Avoid logging full transport to prevent leaking headers/tokens
-        logger.debug('[connectViaSSE] SSE transport initialized');
+        this.logger.debug('[connectViaSSE] SSE transport initialized');
         this.client = new Client(
             {
                 name: 'Dexto-sse-mcp-client',
@@ -212,12 +197,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         );
 
         try {
-            logger.info('Establishing connection...');
+            this.logger.info('Establishing connection...');
             await this.client.connect(this.transport);
             // If connection is successful, we know the server was spawned
             this.serverSpawned = true;
-            logger.info(`✅ ${serverName} SSE SERVER SPAWNED`);
-            logger.info('Connection established!\n\n');
+            this.logger.info(`✅ ${serverName} SSE SERVER SPAWNED`);
+            this.logger.info('Connection established!\n\n');
             this.isConnected = true;
             this.setupNotificationHandlers();
             // Set up elicitation handler now that client is connected
@@ -225,7 +210,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
 
             return this.client;
         } catch (error: any) {
-            logger.error(
+            this.logger.error(
                 `Failed to connect to SSE MCP server ${url}: ${JSON.stringify(error.message, null, 2)}`
             );
             throw error;
@@ -240,7 +225,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         headers: Record<string, string> = {},
         serverAlias?: string
     ): Promise<Client> {
-        logger.info(`Connecting to HTTP MCP server at ${url}`);
+        this.logger.info(`Connecting to HTTP MCP server at ${url}`);
         // Ensure required Accept headers are set for Streamable HTTP transport
         const defaultHeaders = {
             Accept: 'application/json, text/event-stream',
@@ -259,16 +244,16 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             }
         );
         try {
-            logger.info('Establishing HTTP connection...');
+            this.logger.info('Establishing HTTP connection...');
             await this.client.connect(this.transport);
             this.isConnected = true;
-            logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
+            this.logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
             this.setupNotificationHandlers();
             // Set up elicitation handler now that client is connected
             this.setupElicitationHandler();
             return this.client;
         } catch (error: any) {
-            logger.error(
+            this.logger.error(
                 `Failed to connect to HTTP MCP server ${url}: ${JSON.stringify(error.message, null, 2)}`
             );
             throw error;
@@ -284,9 +269,9 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 await this.transport.close();
                 this.isConnected = false;
                 this.serverSpawned = false;
-                logger.info('Disconnected from MCP server');
+                this.logger.info('Disconnected from MCP server');
             } catch (error: any) {
-                logger.error(
+                this.logger.error(
                     `Error disconnecting from MCP server: ${JSON.stringify(error.message, null, 2)}`
                 );
             }
@@ -313,7 +298,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             // Add telemetry attributes
             if (span) {
                 const ctx = trace.setSpan(context.active(), span);
-                addBaggageAttributesToSpan(span, ctx);
+                addBaggageAttributesToSpan(span, ctx, this.logger);
                 span.setAttribute('tool.name', name);
                 span.setAttribute('tool.server', this.serverAlias || 'unknown');
                 span.setAttribute('tool.timeout', this.timeout);
@@ -321,7 +306,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 span.setAttribute('tool.arguments', safeStringify(args, 4096));
             }
 
-            logger.debug(`Calling tool '${name}' with args: ${JSON.stringify(args, null, 2)}`);
+            this.logger.debug(`Calling tool '${name}' with args: ${JSON.stringify(args, null, 2)}`);
 
             // Parse args if it's a string (handle JSON strings)
             let toolArgs = args;
@@ -335,7 +320,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             }
 
             // Call the tool with properly formatted arguments
-            logger.debug(`Using timeout: ${this.timeout}`);
+            this.logger.debug(`Using timeout: ${this.timeout}`);
 
             const result = await this.client!.callTool(
                 { name, arguments: toolArgs },
@@ -354,7 +339,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 },
                 2
             );
-            logger.debug(`Tool '${name}' result: ${logResult}`);
+            this.logger.debug(`Tool '${name}' result: ${logResult}`);
 
             // Add result to telemetry span (sanitized and truncated)
             if (span) {
@@ -368,7 +353,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             }
             return result;
         } catch (error) {
-            logger.error(`Tool call '${name}' failed: ${JSON.stringify(error, null, 2)}`);
+            this.logger.error(`Tool call '${name}' failed: ${JSON.stringify(error, null, 2)}`);
 
             // Record error in telemetry span
             if (span) {
@@ -396,13 +381,13 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         try {
             // Call listTools with parameters only
             const listToolResult = await this.client!.listTools({});
-            logger.silly(`listTools result: ${JSON.stringify(listToolResult, null, 2)}`);
+            this.logger.silly(`listTools result: ${JSON.stringify(listToolResult, null, 2)}`);
 
             // Populate tools
             if (listToolResult && listToolResult.tools) {
                 listToolResult.tools.forEach((tool: any) => {
                     if (!tool.description) {
-                        logger.warn(`Tool '${tool.name}' is missing a description`);
+                        this.logger.warn(`Tool '${tool.name}' is missing a description`);
                     }
                     if (!tool.inputSchema) {
                         throw MCPError.invalidToolSchema(tool.name, 'missing input schema');
@@ -418,7 +403,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 );
             }
         } catch (error) {
-            logger.warn(
+            this.logger.warn(
                 `Failed to get tools from MCP server, proceeding with zero tools: ${JSON.stringify(error, null, 2)}`
             );
             return tools;
@@ -434,10 +419,10 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         this.ensureConnected();
         try {
             const response = await this.client!.listPrompts();
-            logger.debug(`listPrompts response: ${JSON.stringify(response, null, 2)}`);
+            this.logger.debug(`listPrompts response: ${JSON.stringify(response, null, 2)}`);
             return response.prompts;
         } catch (error) {
-            logger.debug(
+            this.logger.debug(
                 `Failed to list prompts from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
             );
             return [];
@@ -454,16 +439,18 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     async getPrompt(name: string, args?: any): Promise<GetPromptResult> {
         this.ensureConnected();
         try {
-            logger.debug(`Getting prompt '${name}' with args: ${JSON.stringify(args, null, 2)}`);
+            this.logger.debug(
+                `Getting prompt '${name}' with args: ${JSON.stringify(args, null, 2)}`
+            );
             // Pass params first, then options
             const response = await this.client!.getPrompt(
                 { name, arguments: args },
                 { timeout: this.timeout }
             );
-            logger.debug(`getPrompt '${name}' response: ${JSON.stringify(response, null, 2)}`);
+            this.logger.debug(`getPrompt '${name}' response: ${JSON.stringify(response, null, 2)}`);
             return response; // Return the full response object
         } catch (error: any) {
-            logger.debug(
+            this.logger.debug(
                 `Failed to get prompt '${name}' from MCP server: ${JSON.stringify(error, null, 2)}`
             );
             throw MCPError.protocolError(
@@ -481,7 +468,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         this.ensureConnected();
         try {
             const response = await this.client!.listResources();
-            logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
+            this.logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
             return response.resources.map(
                 (r: Resource): MCPResourceSummary => ({
                     uri: r.uri,
@@ -491,7 +478,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 })
             );
         } catch (error) {
-            logger.debug(
+            this.logger.debug(
                 `Failed to list resources from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
             );
             return [];
@@ -506,13 +493,15 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     async readResource(uri: string): Promise<ReadResourceResult> {
         this.ensureConnected();
         try {
-            logger.debug(`Reading resource '${uri}'`);
+            this.logger.debug(`Reading resource '${uri}'`);
             // Pass params first, then options
             const response = await this.client!.readResource({ uri }, { timeout: this.timeout });
-            logger.debug(`readResource '${uri}' response: ${JSON.stringify(response, null, 2)}`);
+            this.logger.debug(
+                `readResource '${uri}' response: ${JSON.stringify(response, null, 2)}`
+            );
             return response; // Return the full response object
         } catch (error: any) {
-            logger.debug(
+            this.logger.debug(
                 `Failed to read resource '${uri}' from MCP server: ${JSON.stringify(error, null, 2)}`
             );
             throw MCPError.protocolError(
@@ -594,7 +583,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 }
             );
         } catch (error) {
-            logger.warn(`Could not set resources/updated notification handler: ${error}`);
+            this.logger.warn(`Could not set resources/updated notification handler: ${error}`);
         }
         try {
             // Prompts list changed
@@ -602,7 +591,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 this.handlePromptsListChanged();
             });
         } catch (error) {
-            logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
+            this.logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
         }
         try {
             // Tools list changed
@@ -610,17 +599,17 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 this.handleToolsListChanged();
             });
         } catch (error) {
-            logger.warn(`Could not set tools/list_changed notification handler: ${error}`);
+            this.logger.warn(`Could not set tools/list_changed notification handler: ${error}`);
         }
 
-        logger.debug('MCP notification handlers registered (resources, prompts, tools)');
+        this.logger.debug('MCP notification handlers registered (resources, prompts, tools)');
     }
 
     /**
      * Handle resource updated notification
      */
     private handleResourceUpdated(params: { uri: string }): void {
-        logger.debug(`Resource updated: ${params.uri}`);
+        this.logger.debug(`Resource updated: ${params.uri}`);
         this.emit('resourceUpdated', params);
     }
 
@@ -628,7 +617,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
      * Handle prompts list changed notification
      */
     private handlePromptsListChanged(): void {
-        logger.debug('Prompts list changed');
+        this.logger.debug('Prompts list changed');
         this.emit('promptsListChanged');
     }
 
@@ -636,7 +625,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
      * Handle tools list changed notification
      */
     private handleToolsListChanged(): void {
-        logger.debug('Tools list changed');
+        this.logger.debug('Tools list changed');
         this.emit('toolsListChanged');
     }
 
@@ -656,12 +645,12 @@ export class MCPClient extends EventEmitter implements IMCPClient {
      */
     private setupElicitationHandler(): void {
         if (!this.client) {
-            logger.warn('Cannot setup elicitation handler: client not initialized');
+            this.logger.warn('Cannot setup elicitation handler: client not initialized');
             return;
         }
 
         if (!this.approvalManager) {
-            logger.warn('Cannot setup elicitation handler: approval manager not set');
+            this.logger.warn('Cannot setup elicitation handler: approval manager not set');
             return;
         }
 
@@ -681,14 +670,14 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         // Set up request handler for elicitation/create
         this.client.setRequestHandler(ElicitationCreateRequestSchema, async (request) => {
             const params = request.params;
-            logger.info(
+            this.logger.info(
                 `Elicitation request from MCP server '${this.serverAlias}': ${params.message}`
             );
 
             try {
                 // Request elicitation through ApprovalManager
                 if (!this.approvalManager) {
-                    logger.error('Approval manager not available for elicitation request');
+                    this.logger.error('Approval manager not available for elicitation request');
                     return { action: 'decline' };
                 }
 
@@ -703,7 +692,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                     params.requestedSchema === null ||
                     Array.isArray(params.requestedSchema)
                 ) {
-                    logger.error(
+                    this.logger.error(
                         `Invalid elicitation schema from '${this.serverAlias}': expected object, got ${typeof params.requestedSchema}`
                     );
                     return { action: 'decline' };
@@ -723,26 +712,28 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                         'formData' in response.data
                             ? (response.data as { formData: unknown }).formData
                             : {};
-                    logger.info(`Elicitation approved for '${this.serverAlias}', returning data`);
+                    this.logger.info(
+                        `Elicitation approved for '${this.serverAlias}', returning data`
+                    );
                     return {
                         action: 'accept',
                         content: formData,
                     };
                 } else if (response.status === ApprovalStatus.DENIED) {
                     // User declined
-                    logger.info(`Elicitation declined for '${this.serverAlias}'`);
+                    this.logger.info(`Elicitation declined for '${this.serverAlias}'`);
                     return {
                         action: 'decline',
                     };
                 } else {
                     // User cancelled
-                    logger.info(`Elicitation cancelled for '${this.serverAlias}'`);
+                    this.logger.info(`Elicitation cancelled for '${this.serverAlias}'`);
                     return {
                         action: 'cancel',
                     };
                 }
             } catch (error) {
-                logger.error(`Elicitation error for '${this.serverAlias}': ${error}`);
+                this.logger.error(`Elicitation error for '${this.serverAlias}': ${error}`);
                 // On error, return decline
                 return {
                     action: 'decline',
@@ -750,6 +741,6 @@ export class MCPClient extends EventEmitter implements IMCPClient {
             }
         });
 
-        logger.debug(`Elicitation handler registered for MCP server '${this.serverAlias}'`);
+        this.logger.debug(`Elicitation handler registered for MCP server '${this.serverAlias}'`);
     }
 }

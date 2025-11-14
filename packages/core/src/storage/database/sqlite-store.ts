@@ -1,10 +1,9 @@
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
 import type { Database } from './types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SqliteDatabaseConfig } from './schemas.js';
-import { getDextoPath } from '../../utils/path.js';
-import * as path from 'path';
 import { StorageError } from '../errors.js';
 
 // Dynamic import for better-sqlite3
@@ -18,46 +17,17 @@ export class SQLiteStore implements Database {
     private db: any | null = null; // Database.Database
     private dbPath: string;
     private config: SqliteDatabaseConfig;
-    private agentId: string | undefined;
+    private logger: IDextoLogger;
 
-    constructor(config: SqliteDatabaseConfig, agentId?: string) {
+    constructor(config: SqliteDatabaseConfig, logger: IDextoLogger) {
         this.config = config;
-
-        // Validate agentId for filesystem safety if provided
-        if (agentId) {
-            const trimmed = agentId.trim();
-            if (!trimmed) {
-                throw StorageError.databaseInvalidConfig(
-                    'agentId cannot be empty or whitespace-only'
-                );
-            }
-            if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-                throw StorageError.databaseInvalidConfig(
-                    'agentId must contain only alphanumeric characters, hyphens, and underscores'
-                );
-            }
-            this.agentId = trimmed;
-        } else {
-            this.agentId = agentId;
-        }
-
-        // Path will be resolved in connect() method
+        // Path is provided via CLI enrichment
         this.dbPath = '';
-    }
-
-    private resolveDefaultPath(dbName: string): string {
-        // Use reliable path resolution
-        const storageDir = getDextoPath('database');
-        const finalPath = path.join(storageDir, dbName);
-
-        logger.info(`SQLite storage directory: ${storageDir}`);
-        logger.debug(`SQLite database file: ${finalPath}`);
-
-        return finalPath;
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }
 
     private initializeTables(): void {
-        logger.debug('SQLite initializing database schema...');
+        this.logger.debug('SQLite initializing database schema...');
 
         try {
             // Create key-value table
@@ -88,7 +58,7 @@ export class SQLiteStore implements Database {
                 CREATE INDEX IF NOT EXISTS idx_list_store_sequence ON list_store(key, sequence);
             `);
 
-            logger.debug(
+            this.logger.debug(
                 'SQLite database schema initialized: kv_store, list_store tables with indexes'
             );
         } catch (error) {
@@ -115,29 +85,24 @@ export class SQLiteStore implements Database {
             }
         }
 
-        // Initialize database path - use custom path if provided, otherwise auto-detect
-        if (this.config.path) {
-            this.dbPath = this.config.path;
-            logger.info(`SQLite using custom path: ${this.dbPath}`);
-        } else {
-            // Use agent-specific database filename or fall back to default
-            const defaultFilename = this.agentId ? `${this.agentId}.db` : 'dexto.db';
-            this.dbPath = this.resolveDefaultPath(this.config.database || defaultFilename);
-        }
+        // Initialize database path from config (full path is provided via enrichment)
+        this.dbPath = this.config.path;
+
+        this.logger.info(`SQLite using database file: ${this.dbPath}`);
 
         // Ensure directory exists
         const dir = dirname(this.dbPath);
-        logger.debug(`SQLite ensuring directory exists: ${dir}`);
+        this.logger.debug(`SQLite ensuring directory exists: ${dir}`);
         try {
             mkdirSync(dir, { recursive: true });
         } catch (error) {
             // Directory might already exist, that's fine
-            logger.debug(`Directory creation result: ${error ? 'exists' : 'created'}`);
+            this.logger.debug(`Directory creation result: ${error ? 'exists' : 'created'}`);
         }
 
         // Initialize SQLite database
         const sqliteOptions = this.config.options || {};
-        logger.debug(`SQLite initializing database with config:`, {
+        this.logger.debug(`SQLite initializing database with config:`, {
             readonly: sqliteOptions.readonly || false,
             fileMustExist: sqliteOptions.fileMustExist || false,
             timeout: sqliteOptions.timeout || 5000,
@@ -149,12 +114,15 @@ export class SQLiteStore implements Database {
             timeout: sqliteOptions.timeout || 5000,
             verbose: sqliteOptions.verbose
                 ? (message?: unknown, ...additionalArgs: unknown[]) => {
-                      logger.debug(
-                          typeof message === 'string' ||
-                              (typeof message === 'object' && message !== null)
+                      const messageStr =
+                          typeof message === 'string'
                               ? message
-                              : String(message),
-                          ...additionalArgs
+                              : typeof message === 'object' && message !== null
+                                ? JSON.stringify(message)
+                                : String(message);
+                      this.logger.debug(
+                          messageStr,
+                          additionalArgs.length > 0 ? { args: additionalArgs } : undefined
                       );
                   }
                 : undefined,
@@ -162,12 +130,12 @@ export class SQLiteStore implements Database {
 
         // Enable WAL mode for better concurrency
         this.db.pragma('journal_mode = WAL');
-        logger.debug('SQLite enabled WAL mode for better concurrency');
+        this.logger.debug('SQLite enabled WAL mode for better concurrency');
 
         // Create tables if they don't exist
         this.initializeTables();
 
-        logger.info(`✅ SQLite store successfully connected to: ${this.dbPath}`);
+        this.logger.info(`✅ SQLite store successfully connected to: ${this.dbPath}`);
     }
 
     async disconnect(): Promise<void> {

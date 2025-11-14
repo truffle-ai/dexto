@@ -7,7 +7,7 @@
  */
 
 import { logger, DextoAgent } from '@dexto/core';
-import { EventSubscriber } from '../api/types.js';
+import { EventSubscriber } from '@dexto/server';
 import { AgentEventBus } from '@dexto/core';
 import type { SanitizedToolResult } from '@dexto/core';
 

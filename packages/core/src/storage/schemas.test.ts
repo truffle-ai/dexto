@@ -12,6 +12,9 @@ import {
     type DatabaseConfig,
 } from './schemas.js';
 
+// Test helper: default blob config for tests
+const testBlobConfig = { type: 'local' as const, storePath: '/tmp/test-blobs' };
+
 describe('StorageSchema', () => {
     describe('Backend Configuration - In-Memory', () => {
         it('should accept minimal in-memory backend config', () => {
@@ -19,6 +22,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse({
                 cache: config,
                 database: config,
+                blob: testBlobConfig,
             });
 
             expect(result.success).toBe(true);
@@ -46,6 +50,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse({
                 cache: cacheConfig,
                 database: dbConfig,
+                blob: testBlobConfig,
             });
             expect(result.success).toBe(true);
         });
@@ -61,6 +66,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: config,
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(result.cache.type).toBe('redis');
             if (result.cache.type === 'redis') {
@@ -80,6 +86,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: config,
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(result.cache.type).toBe('redis');
             if (result.cache.type === 'redis') {
@@ -105,43 +112,18 @@ describe('StorageSchema', () => {
         it('should accept SQLite backend with path', () => {
             const config: SqliteDatabaseConfig = {
                 type: 'sqlite',
-                path: '/tmp/dexto.db',
+                path: '/tmp/db/dexto.db',
             };
 
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             });
             expect(result.database.type).toBe('sqlite');
             if (result.database.type === 'sqlite') {
-                expect(result.database.path).toBe('/tmp/dexto.db');
+                expect(result.database.path).toBe('/tmp/db/dexto.db');
             }
-        });
-
-        it('should accept SQLite backend with database filename', () => {
-            const config: SqliteDatabaseConfig = {
-                type: 'sqlite',
-                database: 'dexto.db',
-            };
-
-            const result = StorageSchema.parse({
-                cache: { type: 'in-memory' },
-                database: config,
-            });
-            expect(result.database.type).toBe('sqlite');
-            if (result.database.type === 'sqlite') {
-                expect(result.database.database).toBe('dexto.db');
-            }
-        });
-
-        it('should accept SQLite backend with minimal config', () => {
-            const config = { type: 'sqlite' as const };
-
-            const result = StorageSchema.parse({
-                cache: { type: 'in-memory' },
-                database: config,
-            });
-            expect(result.database.type).toBe('sqlite');
         });
     });
 
@@ -155,6 +137,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.database.type).toBe('postgres');
             if (result.database.type === 'postgres') {
@@ -171,6 +154,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.database.type).toBe('postgres');
             if (result.database.type === 'postgres') {
@@ -192,6 +176,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.parse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.database.type).toBe('postgres');
             if (result.database.type === 'postgres') {
@@ -206,6 +191,7 @@ describe('StorageSchema', () => {
             const result = StorageSchema.safeParse({
                 cache: { type: 'in-memory' },
                 database: config,
+                blob: testBlobConfig,
             });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.custom);
@@ -267,6 +253,7 @@ describe('StorageSchema', () => {
             const validResult = StorageSchema.parse({
                 cache: { type: 'in-memory', maxConnections: 10 },
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(validResult.cache.maxConnections).toBe(10);
         });
@@ -294,6 +281,7 @@ describe('StorageSchema', () => {
             const validResult = StorageSchema.parse({
                 cache: { type: 'in-memory', idleTimeoutMillis: 5000 },
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
             });
             expect(validResult.cache.idleTimeoutMillis).toBe(5000);
         });
@@ -319,6 +307,7 @@ describe('StorageSchema', () => {
             const configWithExtra = {
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
+                blob: testBlobConfig,
                 unknownField: 'should fail',
             };
 
@@ -333,6 +322,7 @@ describe('StorageSchema', () => {
             const config: StorageConfig = {
                 cache: { type: 'redis', url: 'redis://localhost:6379' },
                 database: { type: 'postgres', url: 'postgresql://localhost/dexto' },
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             };
 
             const result = StorageSchema.safeParse(config);
@@ -353,6 +343,7 @@ describe('StorageSchema', () => {
                 const result = StorageSchema.parse({
                     cache: cacheConfig,
                     database: { type: 'in-memory' },
+                    blob: testBlobConfig,
                 });
                 expect(result.cache.type).toBe(cacheConfig.type);
             });
@@ -361,7 +352,7 @@ describe('StorageSchema', () => {
         it('should handle database config type unions correctly', () => {
             const dbConfigs: DatabaseConfig[] = [
                 { type: 'in-memory' },
-                { type: 'sqlite', path: '/tmp/test.db' },
+                { type: 'sqlite', path: '/tmp/db/test.db' },
                 { type: 'postgres', url: 'postgresql://localhost/test' },
             ];
 
@@ -369,6 +360,7 @@ describe('StorageSchema', () => {
                 const result = StorageSchema.parse({
                     cache: { type: 'in-memory' },
                     database: dbConfig,
+                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
                 });
                 expect(result.database.type).toBe(dbConfig.type);
             });
@@ -379,20 +371,14 @@ describe('StorageSchema', () => {
         it('should handle typical development configuration', () => {
             const devConfig: StorageConfig = {
                 cache: { type: 'in-memory' },
-                database: { type: 'sqlite', path: './dev.db' },
+                database: { type: 'sqlite', path: './dev-db/dev.db' },
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             };
 
             const result = StorageSchema.safeParse(devConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                // Blob config is added with default value
                 expect(result.data).toMatchObject(devConfig);
-                expect(result.data.blob).toEqual({
-                    type: 'local',
-                    maxBlobSize: 50 * 1024 * 1024,
-                    maxTotalSize: 1024 * 1024 * 1024,
-                    cleanupAfterDays: 30,
-                });
             }
         });
 
@@ -410,19 +396,13 @@ describe('StorageSchema', () => {
                     maxConnections: 20,
                     connectionTimeoutMillis: 5000,
                 },
+                blob: { type: 'local', storePath: '/var/dexto/blobs' },
             };
 
             const result = StorageSchema.safeParse(prodConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                // Blob config is added with default value
                 expect(result.data).toMatchObject(prodConfig);
-                expect(result.data.blob).toEqual({
-                    type: 'local',
-                    maxBlobSize: 50 * 1024 * 1024,
-                    maxTotalSize: 1024 * 1024 * 1024,
-                    cleanupAfterDays: 30,
-                });
             }
         });
 
@@ -443,19 +423,13 @@ describe('StorageSchema', () => {
                     password: 'db-secret',
                     maxConnections: 50,
                 },
+                blob: { type: 'local', storePath: '/var/dexto/blobs' },
             };
 
             const result = StorageSchema.safeParse(haConfig);
             expect(result.success).toBe(true);
             if (result.success) {
-                // Blob config is added with default value
                 expect(result.data).toMatchObject(haConfig);
-                expect(result.data.blob).toEqual({
-                    type: 'local',
-                    maxBlobSize: 50 * 1024 * 1024,
-                    maxTotalSize: 1024 * 1024 * 1024,
-                    cleanupAfterDays: 30,
-                });
             }
         });
     });

@@ -12,7 +12,8 @@ import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
 import type { GenerateTextResult, StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 
 /**
  * Message formatter for Vercel AI SDK.
@@ -26,6 +27,11 @@ import { logger } from '@core/logger/index.js';
  * particularly in its handling of function calls and responses.
  */
 export class VercelMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into Vercel AI SDK format
      *
@@ -44,12 +50,14 @@ export class VercelMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
 
             const modelInfo = `${context.provider}/${context.model}`;
-            logger.debug(`Applied Vercel filtering for ${modelInfo}`);
+            this.logger.debug(`Applied Vercel filtering for ${modelInfo}`);
         } catch (error) {
-            logger.warn(`Failed to apply capability filtering, using original history: ${error}`);
+            this.logger.warn(
+                `Failed to apply capability filtering, using original history: ${error}`
+            );
             filteredHistory = [...history];
         }
 
@@ -129,7 +137,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     } else {
                         // Orphaned tool result (result without matching call)
                         // Skip it to prevent API errors - can't send result without corresponding call
-                        logger.warn(
+                        this.logger.warn(
                             `Skipping orphaned tool result ${msg.toolCallId} (no matching tool call found) - cannot send to Vercel AI SDK without corresponding tool-call`
                         );
                     }
@@ -157,7 +165,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         } as ToolResultPart,
                     ],
                 });
-                logger.warn(
+                this.logger.warn(
                     `Tool call ${toolCallId} (${toolName}) had no matching tool result - added synthetic error result to prevent API errors`
                 );
             }
@@ -403,7 +411,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         parsed = JSON.parse(rawArgs);
                     } catch {
                         parsed = {};
-                        logger.warn(
+                        this.logger.warn(
                             `Vercel formatter: invalid tool args JSON for ${toolCall.function.name}`
                         );
                     }
@@ -453,7 +461,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
                 const imagePart = msg.content[0];
-                const imageDataBase64 = getImageData(imagePart);
+                const imageDataBase64 = getImageData(imagePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
@@ -471,7 +479,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 };
             } else if (msg.content[0]?.type === 'file') {
                 const filePart = msg.content[0];
-                const fileDataBase64 = getFileData(filePart);
+                const fileDataBase64 = getFileData(filePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,

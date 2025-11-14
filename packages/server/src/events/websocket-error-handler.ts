@@ -7,8 +7,7 @@ import {
     AgentErrorCode,
 } from '@dexto/core';
 import { ZodError } from 'zod';
-import { zodToIssues, toError } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { zodToIssues, toError, logger } from '@dexto/core';
 
 /**
  * TODO: temporarily DUPE OF cli

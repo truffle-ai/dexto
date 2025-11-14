@@ -9,7 +9,9 @@ import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices } from '../utils/service-initializer.js';
-import { logger } from '../logger/index.js';
+import { createLogger } from '../logger/factory.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
@@ -20,7 +22,6 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
-import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -39,11 +40,7 @@ import type { IMCPClient } from '../mcp/types.js';
 import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
-import { getDextoPath } from '../utils/path.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
-import { loadAgentConfig } from '../config/loader.js';
-import { promises as fs } from 'fs';
-import { parseDocument } from 'yaml';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
@@ -165,6 +162,9 @@ export class DextoAgent {
     // Telemetry instance for distributed tracing
     private telemetry?: Telemetry;
 
+    // Logger instance for this agent (dependency injection)
+    public readonly logger: IDextoLogger;
+
     constructor(
         config: AgentConfig,
         private configPath?: string
@@ -172,8 +172,16 @@ export class DextoAgent {
         // Validate and transform the input config
         this.config = AgentConfigSchema.parse(config);
 
+        // Create logger instance for this agent
+        // agentId is set by CLI enrichment from agentCard.name or filename
+        this.logger = createLogger({
+            config: this.config.logger,
+            agentId: this.config.agentId,
+            component: DextoLogComponent.AGENT,
+        });
+
         // call start() to initialize services
-        logger.info('DextoAgent created.');
+        this.logger.info('DextoAgent created.');
     }
 
     /**
@@ -189,11 +197,11 @@ export class DextoAgent {
         }
 
         try {
-            logger.info('Starting DextoAgent...');
+            this.logger.info('Starting DextoAgent...');
 
             // Initialize all services asynchronously
-            // Note: createAgentServices handles agentId derivation internally
-            const services = await createAgentServices(this.config, this.configPath);
+            // Pass logger to services for dependency injection
+            const services = await createAgentServices(this.config, this.configPath, this.logger);
 
             // Validate all required services are provided
             for (const service of requiredServices) {
@@ -227,7 +235,8 @@ export class DextoAgent {
                 this.resourceManager,
                 this.config,
                 this.agentEventBus,
-                services.storageManager.getDatabase()
+                services.storageManager.getDatabase(),
+                this.logger
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
@@ -237,18 +246,22 @@ export class DextoAgent {
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
-            logger.info('DextoAgent started successfully.');
+            this.logger.info('DextoAgent started successfully.');
 
             // Subscribe all registered event subscribers to the new event bus
             for (const subscriber of this.eventSubscribers) {
                 subscriber.subscribe(this.agentEventBus);
             }
 
-            // Show log location for SDK users
-            const logPath = getDextoPath('logs', 'dexto.log');
-            console.log(`📋 Logs available at: ${logPath}`);
+            // Show log location if file logging is configured
+            const fileTransport = this.config.logger?.transports?.find((t) => t.type === 'file');
+            if (fileTransport && 'path' in fileTransport) {
+                console.log(`📋 Logs available at: ${fileTransport.path}`);
+            }
         } catch (error) {
-            logger.error('Failed to start DextoAgent', error);
+            this.logger.error('Failed to start DextoAgent', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
         }
     }
@@ -262,7 +275,7 @@ export class DextoAgent {
      */
     public async stop(): Promise<void> {
         if (this._isStopped) {
-            logger.warn('Agent is already stopped');
+            this.logger.warn('Agent is already stopped');
             return;
         }
 
@@ -271,7 +284,7 @@ export class DextoAgent {
         }
 
         try {
-            logger.info('Stopping DextoAgent...');
+            this.logger.info('Stopping DextoAgent...');
 
             const shutdownErrors: Error[] = [];
 
@@ -279,7 +292,7 @@ export class DextoAgent {
             try {
                 if (this.sessionManager) {
                     await this.sessionManager.cleanup();
-                    logger.debug('SessionManager cleaned up successfully');
+                    this.logger.debug('SessionManager cleaned up successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
@@ -291,7 +304,7 @@ export class DextoAgent {
             try {
                 if (this.services?.pluginManager) {
                     await this.services.pluginManager.cleanup();
-                    logger.debug('PluginManager cleaned up successfully');
+                    this.logger.debug('PluginManager cleaned up successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
@@ -302,7 +315,7 @@ export class DextoAgent {
             try {
                 if (this.mcpManager) {
                     await this.mcpManager.disconnectAll();
-                    logger.debug('MCPManager disconnected all clients successfully');
+                    this.logger.debug('MCPManager disconnected all clients successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
@@ -313,7 +326,7 @@ export class DextoAgent {
             try {
                 if (this.services?.storageManager) {
                     await this.services.storageManager.disconnect();
-                    logger.debug('Storage manager disconnected successfully');
+                    this.logger.debug('Storage manager disconnected successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
@@ -330,13 +343,15 @@ export class DextoAgent {
 
             if (shutdownErrors.length > 0) {
                 const errorMessages = shutdownErrors.map((e) => e.message).join('; ');
-                logger.warn(`DextoAgent stopped with some errors: ${errorMessages}`);
+                this.logger.warn(`DextoAgent stopped with some errors: ${errorMessages}`);
                 // Still consider it stopped, but log the errors
             } else {
-                logger.info('DextoAgent stopped successfully.');
+                this.logger.info('DextoAgent stopped successfully.');
             }
         } catch (error) {
-            logger.error('Failed to stop DextoAgent', error);
+            this.logger.error('Failed to stop DextoAgent', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
         }
     }
@@ -390,11 +405,11 @@ export class DextoAgent {
      */
     private ensureStarted(): void {
         if (this._isStopped) {
-            logger.warn('Agent is stopped');
+            this.logger.warn('Agent is stopped');
             throw AgentError.stopped();
         }
         if (!this._isStarted) {
-            logger.warn('Agent is not started');
+            this.logger.warn('Agent is not started');
             throw AgentError.notStarted();
         }
     }
@@ -456,7 +471,7 @@ export class DextoAgent {
 
         // Debug logging to verify baggage propagation
         const verifyBaggage = propagation.getBaggage(updatedContext);
-        logger.debug(
+        this.logger.debug(
             `Baggage after setting sessionId: ${JSON.stringify(
                 Array.from(verifyBaggage?.getAllEntries() || [])
             )}`
@@ -478,18 +493,19 @@ export class DextoAgent {
                     {
                         provider: llmConfig.provider,
                         model: llmConfig.model,
-                    }
+                    },
+                    this.logger
                 );
 
                 // Validate input and throw if invalid
-                ensureOk(validation);
+                ensureOk(validation, this.logger);
 
                 // Resolve the concrete ChatSession for the target session id
                 const existingSession = await this.sessionManager.getSession(targetSessionId);
                 const session: ChatSession =
                     existingSession || (await this.sessionManager.createSession(targetSessionId));
 
-                logger.debug(
+                this.logger.debug(
                     `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
                         imageDataInput
                     )}, hasFile=${Boolean(fileDataInput)}`
@@ -511,7 +527,7 @@ export class DextoAgent {
                             const unresolvedNames = expansion.unresolvedReferences
                                 .map((ref) => ref.originalRef)
                                 .join(', ');
-                            logger.warn(
+                            this.logger.warn(
                                 `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
                             );
                         }
@@ -520,7 +536,7 @@ export class DextoAgent {
                         const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
                         const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
                         if (expandedSize > MAX_EXPANDED_SIZE) {
-                            logger.warn(
+                            this.logger.warn(
                                 `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
                             );
                         }
@@ -535,14 +551,14 @@ export class DextoAgent {
                                     image: firstImage.image,
                                     mimeType: firstImage.mimeType,
                                 };
-                                logger.debug(
+                                this.logger.debug(
                                     `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
                                 );
                             }
                         }
                     } catch (error) {
                         // Log error but continue with original message to avoid blocking the user
-                        logger.error(
+                        this.logger.error(
                             `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
                         );
                         // Continue with original text instead of throwing
@@ -551,7 +567,7 @@ export class DextoAgent {
 
                 // Validate that we have either text or media content after expansion
                 if (!finalText.trim() && !finalImageData && !fileDataInput) {
-                    logger.warn(
+                    this.logger.warn(
                         'Resource expansion resulted in empty content. Using original message.'
                     );
                     finalText = textInput;
@@ -572,14 +588,14 @@ export class DextoAgent {
                 this.sessionManager
                     .incrementMessageCount(session.id)
                     .catch((error) =>
-                        logger.warn(
+                        this.logger.warn(
                             `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
                         )
                     );
 
                 return response;
             } catch (error) {
-                logger.error(
+                this.logger.error(
                     `Error during DextoAgent.run: ${error instanceof Error ? error.message : JSON.stringify(error)}`
                 );
                 throw error;
@@ -707,25 +723,25 @@ export class DextoAgent {
         try {
             const metadata = await this.sessionManager.getSessionMetadata(sessionId);
             if (!metadata) {
-                logger.debug(
+                this.logger.debug(
                     `[SessionTitle] No session metadata available for ${sessionId}, skipping title generation`
                 );
                 return;
             }
             if (metadata.title) {
-                logger.debug(
+                this.logger.debug(
                     `[SessionTitle] Session ${sessionId} already has title '${metadata.title}', skipping`
                 );
                 return;
             }
             if (!userText || !userText.trim()) {
-                logger.debug(
+                this.logger.debug(
                     `[SessionTitle] User text empty for session ${sessionId}, skipping title generation`
                 );
                 return;
             }
 
-            logger.debug(
+            this.logger.debug(
                 `[SessionTitle] Checking title generation preconditions for session ${sessionId}`
             );
             const result = await generateSessionTitle(
@@ -734,10 +750,11 @@ export class DextoAgent {
                 this.toolManager,
                 this.systemPromptManager,
                 this.resourceManager,
-                userText
+                userText,
+                this.logger
             );
             if (result.error) {
-                logger.debug(
+                this.logger.debug(
                     `[SessionTitle] LLM title generation failed for ${sessionId}: ${result.error}${
                         result.timedOut ? ' (timeout)' : ''
                     }`
@@ -748,22 +765,24 @@ export class DextoAgent {
             if (!title) {
                 title = deriveHeuristicTitle(userText);
                 if (title) {
-                    logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+                    this.logger.info(
+                        `[SessionTitle] Using heuristic title for ${sessionId}: ${title}`
+                    );
                 } else {
-                    logger.debug(
+                    this.logger.debug(
                         `[SessionTitle] No suitable title derived for session ${sessionId}`
                     );
                     return;
                 }
             } else {
-                logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
+                this.logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
             }
 
             await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
             this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });
         } catch (err) {
             // Swallow background errors – never impact main flow
-            logger.silly(`Title generation skipped/failed for ${sessionId}: ${String(err)}`);
+            this.logger.debug(`Title generation skipped/failed for ${sessionId}: ${String(err)}`);
         }
     }
 
@@ -787,14 +806,16 @@ export class DextoAgent {
         return await Promise.all(
             history.map(async (message) => ({
                 ...message,
-                content: await expandBlobReferences(message.content, this.resourceManager).catch(
-                    (error) => {
-                        logger.warn(
-                            `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
-                        );
-                        return message.content; // Return original content on error
-                    }
-                ),
+                content: await expandBlobReferences(
+                    message.content,
+                    this.resourceManager,
+                    this.logger
+                ).catch((error) => {
+                    this.logger.warn(
+                        `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    return message.content; // Return original content on error
+                }),
             }))
         );
     }
@@ -849,7 +870,7 @@ export class DextoAgent {
         if (sessionId === null) {
             this.currentDefaultSessionId = 'default';
             this.defaultSession = null; // Clear cached session to force reload
-            logger.debug('Agent default session reset to original default');
+            this.logger.debug('Agent default session reset to original default');
             return;
         }
 
@@ -861,7 +882,7 @@ export class DextoAgent {
 
         this.currentDefaultSessionId = sessionId;
         this.defaultSession = null; // Clear cached session to force reload
-        logger.info(`Agent default session changed to: ${sessionId}`);
+        this.logger.info(`Agent default session changed to: ${sessionId}`);
     }
 
     /**
@@ -917,12 +938,12 @@ export class DextoAgent {
             // Use SessionManager's resetSession method for better consistency
             await this.sessionManager.resetSession(targetSessionId);
 
-            logger.info(`DextoAgent conversation reset for session: ${targetSessionId}`);
+            this.logger.info(`DextoAgent conversation reset for session: ${targetSessionId}`);
             this.agentEventBus.emit('dexto:conversationReset', {
                 sessionId: targetSessionId,
             });
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Error during DextoAgent.resetConversation: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -984,11 +1005,11 @@ export class DextoAgent {
         this.ensureStarted();
 
         // Validate input using schema (single source of truth)
-        logger.debug(`DextoAgent.switchLLM: llmUpdates: ${safeStringify(llmUpdates)}`);
+        this.logger.debug(`DextoAgent.switchLLM: llmUpdates: ${safeStringify(llmUpdates)}`);
         const parseResult = LLMUpdatesSchema.safeParse(llmUpdates);
         if (!parseResult.success) {
             const validation = fail(zodToIssues(parseResult.error, 'error'));
-            ensureOk(validation); // This will throw DextoValidationError
+            ensureOk(validation, this.logger); // This will throw DextoValidationError
             throw new Error('Unreachable'); // For TypeScript
         }
         const validatedUpdates = parseResult.data;
@@ -999,17 +1020,19 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig().llm;
 
         // Build and validate the new configuration using Result pattern internally
-        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates);
-        const validatedConfig = ensureOk(result);
+        const result = resolveAndValidateLLMConfig(currentLLMConfig, validatedUpdates, this.logger);
+        const validatedConfig = ensureOk(result, this.logger);
 
         // Perform the actual LLM switch with validated config
         await this.performLLMSwitch(validatedConfig, sessionId);
-        logger.info(`DextoAgent.switchLLM: LLM switched to: ${safeStringify(validatedConfig)}`);
+        this.logger.info(
+            `DextoAgent.switchLLM: LLM switched to: ${safeStringify(validatedConfig)}`
+        );
 
         // Log warnings if present
         const warnings = result.issues.filter((issue) => issue.severity === 'warning');
         if (warnings.length > 0) {
-            logger.warn(
+            this.logger.warn(
                 `LLM switch completed with warnings: ${warnings.map((w) => w.message).join(', ')}`
             );
         }
@@ -1171,7 +1194,7 @@ export class DextoAgent {
         // Validate the server configuration
         const existingServerNames = Object.keys(this.stateManager.getRuntimeConfig().mcpServers);
         const validation = resolveAndValidateMcpServerConfig(name, config, existingServerNames);
-        const validatedConfig = ensureOk(validation);
+        const validatedConfig = ensureOk(validation, this.logger);
 
         // Add to runtime state (no validation needed - already validated)
         this.stateManager.addMcpServer(name, validatedConfig);
@@ -1192,12 +1215,14 @@ export class DextoAgent {
                 source: 'mcp',
             });
 
-            logger.info(`DextoAgent: Successfully added and connected to MCP server '${name}'.`);
+            this.logger.info(
+                `DextoAgent: Successfully added and connected to MCP server '${name}'.`
+            );
 
             // Log warnings if present
             const warnings = validation.issues.filter((i) => i.severity === 'warning');
             if (warnings.length > 0) {
-                logger.warn(
+                this.logger.warn(
                     `MCP server connected with warnings: ${warnings.map((w) => w.message).join(', ')}`
                 );
             }
@@ -1205,7 +1230,9 @@ export class DextoAgent {
             // Connection successful - method completes without returning data
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error(`DextoAgent: Failed to connect to MCP server '${name}': ${errorMessage}`);
+            this.logger.error(
+                `DextoAgent: Failed to connect to MCP server '${name}': ${errorMessage}`
+            );
 
             // Clean up state if connection failed
             this.stateManager.removeMcpServer(name);
@@ -1246,7 +1273,7 @@ export class DextoAgent {
         this.ensureStarted();
 
         try {
-            logger.info(`DextoAgent: Restarting MCP server '${name}'...`);
+            this.logger.info(`DextoAgent: Restarting MCP server '${name}'...`);
 
             // Restart the server using MCPManager
             await this.mcpManager.restartServer(name);
@@ -1262,10 +1289,12 @@ export class DextoAgent {
                 source: 'mcp',
             });
 
-            logger.info(`DextoAgent: Successfully restarted MCP server '${name}'.`);
+            this.logger.info(`DextoAgent: Successfully restarted MCP server '${name}'.`);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error(`DextoAgent: Failed to restart MCP server '${name}': ${errorMessage}`);
+            this.logger.error(
+                `DextoAgent: Failed to restart MCP server '${name}': ${errorMessage}`
+            );
 
             // Note: No event emitted on failure since the error is thrown
             // The calling layer (API) will handle error reporting
@@ -1529,122 +1558,59 @@ export class DextoAgent {
     }
 
     /**
-     * Reloads the agent configuration from disk.
-     * This will re-read the config file, validate it, and detect what changed.
-     * Most configuration changes require a full agent restart to take effect.
+     * Reloads the agent configuration with a new config object.
+     * Validates the new config, detects what changed, and automatically
+     * restarts the agent if necessary to apply the changes.
      *
-     * To apply changes: stop the agent and start it again with the new config.
-     *
-     * @returns Object containing list of changes that require restart
-     * @throws Error if config file cannot be read or is invalid
+     * @param newConfig The new agent configuration to apply
+     * @returns Object containing whether agent was restarted and list of changes applied
+     * @throws Error if config is invalid or restart fails
      *
      * TODO: improve hot reload capabilites so that we don't always require a restart
      */
-    public async reloadConfig(): Promise<{
-        restartRequired: string[];
+    public async reload(newConfig: AgentConfig): Promise<{
+        restarted: boolean;
+        changesApplied: string[];
     }> {
-        if (!this.configPath) {
-            throw AgentError.noConfigPath();
-        }
-
-        logger.info(`Reloading agent configuration from: ${this.configPath}`);
+        this.logger.info('Reloading agent configuration');
 
         const oldConfig = this.config;
-        const newConfig = await loadAgentConfig(this.configPath);
         const validated = AgentConfigSchema.parse(newConfig);
 
         // Detect what changed
-        const restartRequired = this.detectRestartRequiredChanges(oldConfig, validated);
+        const changesApplied = this.detectConfigChanges(oldConfig, validated);
 
-        // Update the config reference (but services won't pick up changes until restart)
+        // Update the config reference
         this.config = validated;
 
-        if (restartRequired.length > 0) {
-            logger.warn(
-                `Configuration updated. Restart required to apply: ${restartRequired.join(', ')}`
+        let restarted = false;
+        if (changesApplied.length > 0) {
+            this.logger.info(
+                `Configuration changed. Restarting agent to apply: ${changesApplied.join(', ')}`
             );
+            await this.restart();
+            restarted = true;
+            this.logger.info('Agent restarted successfully with new configuration');
         } else {
-            logger.info('Agent configuration reloaded successfully (no changes detected)');
+            this.logger.info('Agent configuration reloaded successfully (no changes detected)');
         }
 
         return {
-            restartRequired,
+            restarted,
+            changesApplied,
         };
     }
 
     /**
-     * Updates and saves the agent configuration to disk.
-     * This merges the updates with the raw config from disk, validates, and writes to file.
-     * IMPORTANT: This preserves environment variable placeholders (e.g., $OPENAI_API_KEY)
-     * to avoid leaking secrets into the config file.
-     * @param updates Partial configuration updates to apply
-     * @param targetPath Optional path to save to (defaults to current config path)
-     * @returns Object containing list of changes that require restart
-     * @throws Error if validation fails or file cannot be written
-     */
-    public async updateAndSaveConfig(
-        updates: Partial<AgentConfig>,
-        targetPath?: string
-    ): Promise<{
-        restartRequired: string[];
-    }> {
-        const path = targetPath || this.configPath;
-
-        if (!path) {
-            throw AgentError.noConfigPath();
-        }
-
-        logger.info(`Updating and saving agent configuration to: ${path}`);
-
-        // Read raw YAML from disk (without env var expansion)
-        const rawYaml = await fs.readFile(path, 'utf-8');
-
-        // Use YAML Document API to preserve comments/anchors/formatting
-        const doc = parseDocument(rawYaml);
-        const rawConfig = doc.toJSON() as Record<string, unknown>;
-
-        // Shallow merge top-level updates
-        const updatedRawConfig = { ...rawConfig, ...updates };
-
-        // Validate merged config using Result helpers
-        const parsed = AgentConfigSchema.safeParse(updatedRawConfig);
-        if (!parsed.success) {
-            // Convert Zod errors to DextoValidationError using Result helpers
-            const result = fail(zodToIssues(parsed.error, 'error'));
-            throw new DextoValidationError(result.issues);
-        }
-
-        // Apply updates to the YAML document (preserves formatting/comments)
-        for (const [key, value] of Object.entries(updates)) {
-            doc.set(key, value);
-        }
-
-        // Serialize the Document back to YAML
-        const yamlContent = String(doc);
-
-        // Atomic write: write to temp file then rename
-        const tmpPath = `${path}.tmp`;
-        await fs.writeFile(tmpPath, yamlContent, 'utf-8');
-        await fs.rename(tmpPath, path);
-
-        // Reload config with env var expansion for runtime use (this applies hot reload)
-        const reloadResult = await this.reloadConfig();
-
-        logger.info(`Agent configuration saved to: ${path}`);
-
-        return reloadResult;
-    }
-
-    /**
      * Detects configuration changes that require a full agent restart.
+     * Pure comparison logic - no file I/O.
      * Returns an array of change descriptions.
      *
      * @param oldConfig Previous validated configuration
      * @param newConfig New validated configuration
      * @returns Array of restart-required change descriptions
-     * @private
      */
-    private detectRestartRequiredChanges(
+    public detectConfigChanges(
         oldConfig: ValidatedAgentConfig,
         newConfig: ValidatedAgentConfig
     ): string[] {

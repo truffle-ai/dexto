@@ -3,6 +3,7 @@ import type { LLMRouter } from '@core/llm/types.js';
 import type { ToolManager } from '@core/tools/tool-manager.js';
 import type { SystemPromptManager } from '@core/systemPrompt/manager.js';
 import type { ResourceManager } from '@core/resources/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { createLLMService } from '@core/llm/services/factory.js';
 import { SessionEventBus } from '@core/events/index.js';
 import { MemoryHistoryProvider } from './history/memory.js';
@@ -24,6 +25,7 @@ export async function generateSessionTitle(
     systemPromptManager: SystemPromptManager,
     resourceManager: ResourceManager,
     userText: string,
+    logger: IDextoLogger,
     opts: { timeoutMs?: number } = {}
 ): Promise<GenerateSessionTitleResult> {
     const timeoutMs = opts.timeoutMs;
@@ -44,7 +46,8 @@ export async function generateSessionTitle(
             history,
             bus,
             `titlegen-${Math.random().toString(36).slice(2)}`,
-            resourceManager
+            resourceManager,
+            logger
         );
 
         const instruction = [

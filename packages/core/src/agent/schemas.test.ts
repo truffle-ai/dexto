@@ -6,7 +6,6 @@ import {
     type AgentCard,
     type ValidatedAgentCard,
     type AgentConfig,
-    type ValidatedAgentConfig,
 } from './schemas.js';
 
 describe('AgentCardSchema', () => {
@@ -499,6 +498,7 @@ describe('AgentConfigSchema', () => {
             // Should apply defaults from composed schemas
             expect(result.mcpServers).toEqual({});
             expect(result.internalTools).toEqual([]);
+            expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory');
             expect(result.storage.database.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
@@ -541,6 +541,7 @@ describe('AgentConfigSchema', () => {
                 storage: {
                     cache: { type: 'redis', url: 'redis://localhost:6379' },
                     database: { type: 'postgres', url: 'postgresql://localhost:5432/test' },
+                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
                 },
                 sessions: {
                     maxSessions: 5,
@@ -628,6 +629,7 @@ describe('AgentConfigSchema', () => {
             // Defaults from different schemas should all be applied
             expect(result.llm.maxIterations).toBe(50); // LLM schema default
             expect(result.llm.router).toBe('vercel'); // LLM schema default
+            expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory'); // Storage schema default
             expect(result.sessions.maxSessions).toBe(100); // Session schema default
             expect(result.toolConfirmation.mode).toBe('event-based'); // Tool schema default
@@ -650,7 +652,8 @@ describe('AgentConfigSchema', () => {
     describe('Type Safety', () => {
         it('should handle input and output types correctly', () => {
             const input: AgentConfig = validAgentConfig;
-            const result: ValidatedAgentConfig = AgentConfigSchema.parse(input);
+
+            const result = AgentConfigSchema.parse(input);
 
             // Should have applied defaults from all composed schemas
             expect(result.mcpServers).toBeDefined();
@@ -738,6 +741,7 @@ describe('AgentConfigSchema', () => {
                         type: 'postgres',
                         url: 'postgresql://db.company.com:5432/agent_db',
                     },
+                    blob: { type: 'local', storePath: '/tmp/test-blobs' },
                 },
                 sessions: {
                     maxSessions: 100,
@@ -777,8 +781,10 @@ describe('AgentConfigSchema', () => {
             // Should have all defaults applied
             expect(result.mcpServers).toEqual({});
             expect(result.internalTools).toEqual([]);
+            expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory');
             expect(result.storage.database.type).toBe('in-memory');
+            expect(result.storage.blob.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation.mode).toBe('event-based');
             expect(result.llm.maxIterations).toBe(50);

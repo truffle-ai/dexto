@@ -1,4 +1,5 @@
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 import type { Database } from '@core/storage/types.js';
 import { SessionError } from '../errors.js';
 import type { InternalMessage } from '@core/context/types.js';
@@ -17,10 +18,15 @@ import type { IConversationHistoryProvider } from './types.js';
  * This will significantly improve performance for sessions with many messages.
  */
 export class DatabaseHistoryProvider implements IConversationHistoryProvider {
+    private logger: IDextoLogger;
+
     constructor(
         private sessionId: string,
-        private database: Database
-    ) {}
+        private database: Database,
+        logger: IDextoLogger
+    ) {
+        this.logger = logger.createChild(DextoLogComponent.SESSION);
+    }
 
     async getHistory(): Promise<InternalMessage[]> {
         const key = this.getMessagesKey();
@@ -28,13 +34,13 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
             // Get all messages for this session in chronological order (oldest first)
             const messages = await this.database.getRange<InternalMessage>(key, 0, 1000);
 
-            logger.debug(
+            this.logger.debug(
                 `DatabaseHistoryProvider: Retrieved ${messages.length} messages for session ${this.sessionId}`
             );
 
             return messages;
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `DatabaseHistoryProvider: Error retrieving messages for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
             return [];
@@ -59,12 +65,15 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
                 }
             }
 
-            logger.debug(`DatabaseHistoryProvider: Saved message for session ${this.sessionId}`, {
-                role: message.role,
-                content: contentPreview,
-            });
+            this.logger.debug(
+                `DatabaseHistoryProvider: Saved message for session ${this.sessionId}`,
+                {
+                    role: message.role,
+                    content: contentPreview,
+                }
+            );
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `DatabaseHistoryProvider: Error saving message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw SessionError.storageFailed(
@@ -79,9 +88,11 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
         const key = this.getMessagesKey();
         try {
             await this.database.delete(key);
-            logger.debug(`DatabaseHistoryProvider: Cleared history for session ${this.sessionId}`);
+            this.logger.debug(
+                `DatabaseHistoryProvider: Cleared history for session ${this.sessionId}`
+            );
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `DatabaseHistoryProvider: Error clearing session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw SessionError.resetFailed(

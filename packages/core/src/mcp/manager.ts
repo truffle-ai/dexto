@@ -1,6 +1,7 @@
 import { MCPClient } from './mcp-client.js';
 import { ValidatedServerConfigs, ValidatedMcpServerConfig } from './schemas.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
 import { IMCPClient, MCPResolvedResource, MCPResourceSummary } from './types.js';
 import { ToolSet } from '../tools/types.js';
@@ -73,12 +74,15 @@ export class MCPManager {
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
     private sanitizedNameToServerMap: Map<string, string> = new Map();
     private approvalManager: ApprovalManager | null = null; // Will be set by service initializer
+    private logger: IDextoLogger;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
     private static readonly SERVER_DELIMITER = '--';
 
-    constructor() {}
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.MCP);
+    }
 
     /**
      * Set the approval manager for handling elicitation requests from MCP servers
@@ -142,7 +146,7 @@ export class MCPManager {
      */
     registerClient(name: string, client: IMCPClient): void {
         if (this.clients.has(name)) {
-            logger.warn(`Client '${name}' already registered. Overwriting.`);
+            this.logger.warn(`Client '${name}' already registered. Overwriting.`);
         }
 
         // Clear cache first (which removes old mappings)
@@ -160,7 +164,7 @@ export class MCPManager {
         this.sanitizedNameToServerMap.set(sanitizedName, name);
         this.setupClientNotifications(name, client);
 
-        logger.info(`Registered client: ${name}`);
+        this.logger.info(`Registered client: ${name}`);
         delete this.connectionErrors[name];
     }
 
@@ -225,7 +229,9 @@ export class MCPManager {
                     this.toolCache.delete(qualifiedKey);
                     this.toolCache.set(baseName, entry);
                     this.toolConflicts.delete(baseName);
-                    logger.debug(`Restored tool '${baseName}' to simple name (conflict resolved)`);
+                    this.logger.debug(
+                        `Restored tool '${baseName}' to simple name (conflict resolved)`
+                    );
                 }
             }
             // If remainingTools.length > 1, conflict still exists, keep qualified names
@@ -245,7 +251,7 @@ export class MCPManager {
             }
         }
 
-        logger.debug(`Cleared cache for client: ${clientName}`);
+        this.logger.debug(`Cleared cache for client: ${clientName}`);
     }
 
     /**
@@ -293,7 +299,7 @@ export class MCPManager {
         // Cache tools with full definitions
         try {
             const tools = await client.getTools();
-            logger.debug(
+            this.logger.debug(
                 `🔧 Discovered ${Object.keys(tools).length} tools from server '${clientName}': [${Object.keys(tools).join(', ')}]`
             );
 
@@ -321,7 +327,7 @@ export class MCPManager {
                         definition: toolDef,
                     });
 
-                    logger.warn(
+                    this.logger.warn(
                         `⚠️  Tool conflict detected for '${toolName}' - using server prefixes: ${existingQualified}, ${newQualified}`
                     );
                 } else if (this.toolConflicts.has(toolName)) {
@@ -333,7 +339,7 @@ export class MCPManager {
                         client,
                         definition: toolDef,
                     });
-                    logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
+                    this.logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
                 } else {
                     // No conflict, cache with simple name
                     this.toolCache.set(toolName, {
@@ -341,14 +347,14 @@ export class MCPManager {
                         client,
                         definition: toolDef,
                     });
-                    logger.debug(`✅ Tool '${toolName}' mapped to ${clientName}`);
+                    this.logger.debug(`✅ Tool '${toolName}' mapped to ${clientName}`);
                 }
             }
-            logger.debug(
+            this.logger.debug(
                 `✅ Successfully cached ${Object.keys(tools).length} tools for client: ${clientName}`
             );
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `❌ Error retrieving tools for client ${clientName}: ${error instanceof Error ? error.message : String(error)}`
             );
             return; // Early return on error, no caching
@@ -374,9 +380,9 @@ export class MCPManager {
                 });
             }
 
-            logger.debug(`Cached ${prompts.length} prompts for client: ${clientName}`);
+            this.logger.debug(`Cached ${prompts.length} prompts for client: ${clientName}`);
         } catch (error) {
-            logger.debug(`Skipping prompts for client ${clientName}: ${error}`);
+            this.logger.debug(`Skipping prompts for client ${clientName}: ${error}`);
         }
 
         // Cache resources, if supported
@@ -392,9 +398,9 @@ export class MCPManager {
                     summary,
                 });
             });
-            logger.debug(`Cached resources for client: ${clientName}`);
+            this.logger.debug(`Cached resources for client: ${clientName}`);
         } catch (error) {
-            logger.debug(`Skipping resources for client ${clientName}: ${error}`);
+            this.logger.debug(`Skipping resources for client ${clientName}: ${error}`);
         }
     }
 
@@ -428,21 +434,19 @@ export class MCPManager {
             new Set(Array.from(this.toolCache.values()).map((e) => e.serverName))
         );
 
-        logger.debug(
+        this.logger.debug(
             `🔧 MCP tools from cache: ${Object.keys(allTools).length} total tools, ${this.toolConflicts.size} conflicts, connected servers: ${serverNames.join(', ')}`
         );
 
-        if (logger.getLevel() === 'debug') {
-            Object.keys(allTools).forEach((toolName) => {
-                if (toolName.includes(MCPManager.SERVER_DELIMITER)) {
-                    logger.debug(`  - ${toolName} (qualified)`);
-                } else {
-                    logger.debug(`  - ${toolName}`);
-                }
-            });
-        }
+        Object.keys(allTools).forEach((toolName) => {
+            if (toolName.includes(MCPManager.SERVER_DELIMITER)) {
+                this.logger.debug(`  - ${toolName} (qualified)`);
+            } else {
+                this.logger.debug(`  - ${toolName}`);
+            }
+        });
 
-        logger.silly(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
+        this.logger.silly(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
         return allTools;
     }
 
@@ -495,9 +499,11 @@ export class MCPManager {
     async executeTool(toolName: string, args: any, _sessionId?: string): Promise<any> {
         const client = this.getToolClient(toolName);
         if (!client) {
-            logger.error(`❌ No MCP tool found: ${toolName}`);
-            logger.debug(`Available MCP tools: ${Array.from(this.toolCache.keys()).join(', ')}`);
-            logger.debug(`Conflicted tools: ${Array.from(this.toolConflicts).join(', ')}`);
+            this.logger.error(`❌ No MCP tool found: ${toolName}`);
+            this.logger.debug(
+                `Available MCP tools: ${Array.from(this.toolCache.keys()).join(', ')}`
+            );
+            this.logger.debug(`Conflicted tools: ${Array.from(this.toolConflicts).join(', ')}`);
             throw MCPError.toolNotFound(toolName);
         }
 
@@ -506,13 +512,15 @@ export class MCPManager {
         const actualToolName = parsed ? parsed.toolName : toolName;
         const serverName = parsed ? parsed.serverName : 'direct';
 
-        logger.debug(`▶️  Executing MCP tool '${actualToolName}' on server '${serverName}'...`);
+        this.logger.debug(
+            `▶️  Executing MCP tool '${actualToolName}' on server '${serverName}'...`
+        );
 
         try {
             const result = await client.callTool(actualToolName, args);
             return result;
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `❌ MCP tool execution failed: '${actualToolName}' - ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -628,7 +636,7 @@ export class MCPManager {
     async initializeFromConfig(serverConfigs: ValidatedServerConfigs): Promise<void> {
         // Handle empty server configurations gracefully
         if (Object.keys(serverConfigs).length === 0) {
-            logger.info('No MCP servers configured - running without external tools');
+            this.logger.info('No MCP servers configured - running without external tools');
             return;
         }
 
@@ -651,7 +659,7 @@ export class MCPManager {
                     successfulConnections.push(name);
                 })
                 .catch((error) => {
-                    logger.debug(
+                    this.logger.debug(
                         `Handled connection error for '${name}' during initialization: ${error.message}`
                     );
                 });
@@ -684,13 +692,13 @@ export class MCPManager {
      */
     async connectServer(name: string, config: ValidatedMcpServerConfig): Promise<void> {
         if (this.clients.has(name)) {
-            logger.warn(`Client '${name}' is already connected or registered.`);
+            this.logger.warn(`Client '${name}' is already connected or registered.`);
             return;
         }
 
-        const client = new MCPClient();
+        const client = new MCPClient(this.logger);
         try {
-            logger.info(`Attempting to connect to new server '${name}'...`);
+            this.logger.info(`Attempting to connect to new server '${name}'...`);
             await client.connect(config, name);
 
             // Set approval manager if available
@@ -704,11 +712,11 @@ export class MCPManager {
             // Store config for potential restart
             this.configCache.set(name, config);
 
-            logger.info(`Successfully connected and cached new server '${name}'`);
+            this.logger.info(`Successfully connected and cached new server '${name}'`);
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             this.connectionErrors[name] = errorMsg;
-            logger.error(`Failed to connect to new server '${name}': ${errorMsg}`);
+            this.logger.error(`Failed to connect to new server '${name}': ${errorMsg}`);
             this.clients.delete(name);
             throw MCPError.connectionFailed(name, errorMsg);
         }
@@ -736,7 +744,7 @@ export class MCPManager {
      * In normal operation, caches are automatically kept fresh via server notifications
      */
     async refresh(): Promise<void> {
-        logger.debug('Refreshing all MCPManager caches...');
+        this.logger.debug('Refreshing all MCPManager caches...');
         const refreshPromises: Promise<void>[] = [];
 
         for (const [clientName, client] of this.clients.entries()) {
@@ -744,7 +752,9 @@ export class MCPManager {
         }
 
         await Promise.all(refreshPromises);
-        logger.debug(`✅ MCPManager cache refresh complete for ${this.clients.size} client(s)`);
+        this.logger.debug(
+            `✅ MCPManager cache refresh complete for ${this.clients.size} client(s)`
+        );
     }
 
     /**
@@ -756,9 +766,9 @@ export class MCPManager {
         if (client) {
             try {
                 await client.disconnect();
-                logger.info(`Successfully disconnected client: ${name}`);
+                this.logger.info(`Successfully disconnected client: ${name}`);
             } catch (error) {
-                logger.error(
+                this.logger.error(
                     `Error disconnecting client '${name}': ${error instanceof Error ? error.message : String(error)}`
                 );
                 // Continue with removal even if disconnection fails
@@ -768,12 +778,12 @@ export class MCPManager {
             this.clients.delete(name);
             // Remove stored config
             this.configCache.delete(name);
-            logger.info(`Removed client from manager: ${name}`);
+            this.logger.info(`Removed client from manager: ${name}`);
         }
         // Also remove from failed connections if it was registered there before successful connection or if it failed.
         if (this.connectionErrors[name]) {
             delete this.connectionErrors[name];
-            logger.info(`Cleared connection error for removed client: ${name}`);
+            this.logger.info(`Cleared connection error for removed client: ${name}`);
         }
     }
 
@@ -795,20 +805,20 @@ export class MCPManager {
         // Allow restart even if client is not currently registered (enables retries after failed restart)
         const client = this.clients.get(name);
 
-        logger.info(`Restarting MCP server '${name}'...`);
+        this.logger.info(`Restarting MCP server '${name}'...`);
 
         // Disconnect existing client if one exists
         if (client) {
             try {
                 await client.disconnect();
-                logger.info(`Disconnected server '${name}' for restart`);
+                this.logger.info(`Disconnected server '${name}' for restart`);
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Error disconnecting server '${name}' during restart (continuing): ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         } else {
-            logger.info(
+            this.logger.info(
                 `No active client found for '${name}' during restart; attempting fresh connection`
             );
         }
@@ -820,7 +830,7 @@ export class MCPManager {
 
         // Reconnect with original config
         try {
-            const newClient = new MCPClient();
+            const newClient = new MCPClient(this.logger);
             await newClient.connect(config, name);
 
             // Set approval manager if available
@@ -832,14 +842,14 @@ export class MCPManager {
             await this.updateClientCache(name, newClient);
 
             // Config is still in cache from original connection
-            logger.info(`Successfully restarted server '${name}'`);
+            this.logger.info(`Successfully restarted server '${name}'`);
 
             // Emit event for restart
             eventBus.emit('dexto:mcpServerRestarted', { serverName: name });
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             this.connectionErrors[name] = errorMsg;
-            logger.error(`Failed to restart server '${name}': ${errorMsg}`);
+            this.logger.error(`Failed to restart server '${name}': ${errorMsg}`);
             // Note: Config remains in cache for potential retry
             throw MCPError.connectionFailed(name, errorMsg);
         }
@@ -854,9 +864,9 @@ export class MCPManager {
             disconnectPromises.push(
                 client
                     .disconnect()
-                    .then(() => logger.info(`Disconnected client: ${name}`))
+                    .then(() => this.logger.info(`Disconnected client: ${name}`))
                     .catch((error) =>
-                        logger.error(`Failed to disconnect client '${name}': ${error}`)
+                        this.logger.error(`Failed to disconnect client '${name}': ${error}`)
                     )
             );
         }
@@ -870,7 +880,7 @@ export class MCPManager {
         this.promptCache.clear();
         this.resourceCache.clear();
         this.sanitizedNameToServerMap.clear();
-        logger.info('Disconnected all clients and cleared caches.');
+        this.logger.info('Disconnected all clients and cleared caches.');
     }
 
     /**
@@ -880,7 +890,7 @@ export class MCPManager {
         try {
             // Listen for resource updates
             client.on('resourceUpdated', async (params: { uri: string }) => {
-                logger.debug(
+                this.logger.debug(
                     `Received resource update notification from ${clientName}: ${params.uri}`
                 );
                 await this.handleResourceUpdated(clientName, params);
@@ -888,19 +898,19 @@ export class MCPManager {
 
             // Listen for prompt list changes
             client.on('promptsListChanged', async () => {
-                logger.debug(`Received prompts list change notification from ${clientName}`);
+                this.logger.debug(`Received prompts list change notification from ${clientName}`);
                 await this.handlePromptsListChanged(clientName, client);
             });
 
             // Listen for tool list changes
             client.on('toolsListChanged', async () => {
-                logger.debug(`Received tools list change notification from ${clientName}`);
+                this.logger.debug(`Received tools list change notification from ${clientName}`);
                 await this.handleToolsListChanged(clientName, client);
             });
 
-            logger.debug(`Set up notification listeners for client: ${clientName}`);
+            this.logger.debug(`Set up notification listeners for client: ${clientName}`);
         } catch (error) {
-            logger.warn(`Failed to set up notification listeners for ${clientName}: ${error}`);
+            this.logger.warn(`Failed to set up notification listeners for ${clientName}: ${error}`);
         }
     }
 
@@ -929,10 +939,10 @@ export class MCPManager {
                             client,
                             summary: updatedResource,
                         });
-                        logger.debug(`Updated resource cache for: ${params.uri}`);
+                        this.logger.debug(`Updated resource cache for: ${params.uri}`);
                     }
                 } catch (error) {
-                    logger.warn(`Failed to refresh resource ${params.uri}: ${error}`);
+                    this.logger.warn(`Failed to refresh resource ${params.uri}: ${error}`);
                 }
             }
 
@@ -942,7 +952,7 @@ export class MCPManager {
                 resourceUri: params.uri,
             });
         } catch (error) {
-            logger.error(`Error handling resource update: ${error}`);
+            this.logger.error(`Error handling resource update: ${error}`);
         }
     }
 
@@ -982,7 +992,7 @@ export class MCPManager {
                 }
 
                 const promptNames = newPrompts.map((p) => p.name);
-                logger.debug(
+                this.logger.debug(
                     `Updated prompts cache for ${serverName}: [${promptNames.join(', ')}]`
                 );
 
@@ -992,10 +1002,10 @@ export class MCPManager {
                     prompts: promptNames,
                 });
             } catch (error) {
-                logger.warn(`Failed to refresh prompts for ${serverName}: ${error}`);
+                this.logger.warn(`Failed to refresh prompts for ${serverName}: ${error}`);
             }
         } catch (error) {
-            logger.error(`Error handling prompts list change: ${error}`);
+            this.logger.error(`Error handling prompts list change: ${error}`);
         }
     }
 
@@ -1025,7 +1035,7 @@ export class MCPManager {
                 const tools = await client.getTools();
                 const toolNames = Object.keys(tools);
 
-                logger.debug(
+                this.logger.debug(
                     `🔧 Refreshing tools from server '${serverName}': [${toolNames.join(', ')}]`
                 );
 
@@ -1054,7 +1064,7 @@ export class MCPManager {
                             definition: toolDef,
                         });
 
-                        logger.warn(
+                        this.logger.warn(
                             `⚠️  Tool conflict detected for '${toolName}' - using server prefixes: ${existingQualified}, ${newQualified}`
                         );
                     } else if (this.toolConflicts.has(toolName)) {
@@ -1066,7 +1076,7 @@ export class MCPManager {
                             client,
                             definition: toolDef,
                         });
-                        logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
+                        this.logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
                     } else {
                         // No conflict, cache with simple name
                         this.toolCache.set(toolName, {
@@ -1074,7 +1084,7 @@ export class MCPManager {
                             client,
                             definition: toolDef,
                         });
-                        logger.debug(`✅ Tool '${toolName}' mapped to ${serverName}`);
+                        this.logger.debug(`✅ Tool '${toolName}' mapped to ${serverName}`);
                     }
                 }
 
@@ -1103,14 +1113,16 @@ export class MCPManager {
                             this.toolCache.delete(qualifiedKey);
                             this.toolCache.set(baseName, entry);
                             this.toolConflicts.delete(baseName);
-                            logger.debug(
+                            this.logger.debug(
                                 `Restored tool '${baseName}' to simple name (conflict resolved)`
                             );
                         }
                     }
                 }
 
-                logger.debug(`Updated tools cache for ${serverName}: [${toolNames.join(', ')}]`);
+                this.logger.debug(
+                    `Updated tools cache for ${serverName}: [${toolNames.join(', ')}]`
+                );
 
                 // Emit event to notify other parts of the system
                 eventBus.emit('dexto:mcpToolsListChanged', {
@@ -1118,10 +1130,10 @@ export class MCPManager {
                     tools: toolNames,
                 });
             } catch (error) {
-                logger.warn(`Failed to refresh tools for ${serverName}: ${error}`);
+                this.logger.warn(`Failed to refresh tools for ${serverName}: ${error}`);
             }
         } catch (error) {
-            logger.error(`Error handling tools list change: ${error}`);
+            this.logger.error(`Error handling tools list change: ${error}`);
         }
     }
 }

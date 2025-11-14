@@ -17,7 +17,8 @@ import {
     SessionEventNames,
     SessionEventName,
 } from '../events/index.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { InternalMessage } from '../context/types.js';
@@ -106,6 +107,8 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
+    private logger: IDextoLogger;
+
     /**
      * Creates a new ChatSession instance.
      *
@@ -116,6 +119,7 @@ export class ChatSession {
      *
      * @param services - The shared services from the agent (state manager, prompt, client managers, etc.)
      * @param id - Unique identifier for this session
+     * @param logger - Logger instance for dependency injection
      */
     constructor(
         private services: {
@@ -129,8 +133,10 @@ export class ChatSession {
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
         },
-        public readonly id: string
+        public readonly id: string,
+        logger: IDextoLogger
     ) {
+        this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
         this.eventBus = new SessionEventBus();
 
@@ -138,7 +144,7 @@ export class ChatSession {
         this.setupEventForwarding();
 
         // Services will be initialized in init() method due to async requirements
-        logger.debug(`ChatSession ${this.id}: Created, awaiting initialization`);
+        this.logger.debug(`ChatSession ${this.id}: Created, awaiting initialization`);
     }
 
     /**
@@ -166,7 +172,7 @@ export class ChatSession {
                     payload && typeof payload === 'object'
                         ? { ...payload, sessionId: this.id }
                         : { sessionId: this.id };
-                logger.silly(
+                this.logger.silly(
                     `Forwarding session event ${eventName} to agent bus with session context: ${JSON.stringify(payloadWithSession, null, 2)}`
                 );
                 // Forward to agent bus with session context
@@ -192,7 +198,8 @@ export class ChatSession {
         // This persists across LLM switches to maintain conversation history
         this.historyProvider = createDatabaseHistoryProvider(
             this.services.storageManager.getDatabase(),
-            this.id
+            this.id,
+            this.logger
         );
 
         // Create session-specific LLM service
@@ -205,10 +212,11 @@ export class ChatSession {
             this.historyProvider, // Pass history provider for service to use
             this.eventBus, // Use session event bus
             this.id,
-            this.services.resourceManager // Pass ResourceManager for blob storage
+            this.services.resourceManager, // Pass ResourceManager for blob storage
+            this.logger // Pass logger for dependency injection
         );
 
-        logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
+        this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
     }
 
     /**
@@ -289,7 +297,7 @@ export class ChatSession {
         stream?: boolean
     ): Promise<string> {
         // Log metadata only (no sensitive content) to prevent PII/secret leakage in logs
-        logger.debug(
+        this.logger.debug(
             `Running session ${this.id} | input.len=${input?.length ?? 0} | image=${imageDataInput ? imageDataInput.mimeType : 'none'} | file=${fileDataInput ? `${fileDataInput.mimeType}:${fileDataInput.filename ?? 'unknown'}` : 'none'}`
         );
 
@@ -389,9 +397,11 @@ export class ChatSession {
                         imageDataInput,
                         fileDataInput
                     );
-                    logger.debug(`ChatSession ${this.id}: Saved blocked interaction to history`);
+                    this.logger.debug(
+                        `ChatSession ${this.id}: Saved blocked interaction to history`
+                    );
                 } catch (saveError) {
-                    logger.warn(
+                    this.logger.warn(
                         `Failed to save blocked interaction to history: ${
                             saveError instanceof Error ? saveError.message : String(saveError)
                         }`
@@ -519,13 +529,14 @@ export class ChatSession {
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
                 this.eventBus, // Use session event bus
                 this.id,
-                this.services.resourceManager
+                this.services.resourceManager,
+                this.logger
             );
 
             // Replace the LLM service
             this.llmService = newLLMService;
 
-            logger.info(
+            this.logger.info(
                 `ChatSession ${this.id}: LLM switched to ${newLLMConfig.provider}/${newLLMConfig.model}`
             );
 
@@ -536,7 +547,7 @@ export class ChatSession {
                 historyRetained: true,
             });
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Error during ChatSession.switchLLM for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -554,11 +565,11 @@ export class ChatSession {
             // Do NOT reset conversation - that would delete chat history!
             this.dispose();
 
-            logger.debug(
+            this.logger.debug(
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`
             );
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Error during ChatSession cleanup for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -573,7 +584,7 @@ export class ChatSession {
      * Without this cleanup, sessions would remain in memory due to listener references.
      */
     public dispose(): void {
-        logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
+        this.logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
 
         // Remove all event forwarders from the session event bus
         this.forwarders.forEach((forwarder, eventName) => {
@@ -583,7 +594,7 @@ export class ChatSession {
         // Clear the forwarders map
         this.forwarders.clear();
 
-        logger.debug(`Session ${this.id} disposed successfully`);
+        this.logger.debug(`Session ${this.id} disposed successfully`);
     }
 
     /**

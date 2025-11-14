@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { parse as parseYaml } from 'yaml';
-import { AgentConfig } from '@core/agent/schemas.js';
-import { logger } from '../logger/index.js';
+import type { AgentConfig } from '@dexto/core';
+import type { IDextoLogger } from '@dexto/core';
 import { ConfigError } from './errors.js';
 
 /**
@@ -74,12 +74,16 @@ function validateExpandedPath(original: string, expanded: string, agentDir: stri
  * Note: Path resolution should be done before calling this function using resolveConfigPath().
  *
  * @param configPath - Path to the configuration file (absolute or relative)
+ * @param logger - logger instance for logging
  * @returns A Promise that resolves to the parsed `AgentConfig` object with template variables expanded
  * @throws {ConfigError} with FILE_NOT_FOUND if the configuration file does not exist
  * @throws {ConfigError} with FILE_READ_ERROR if file read fails (e.g., permissions issues)
  * @throws {ConfigError} with PARSE_ERROR if the content is not valid YAML or template expansion fails
  */
-export async function loadAgentConfig(configPath: string): Promise<AgentConfig> {
+export async function loadAgentConfig(
+    configPath: string,
+    logger?: IDextoLogger
+): Promise<AgentConfig> {
     const absolutePath = path.resolve(configPath);
 
     // --- Step 1: Verify the configuration file exists and is accessible ---
@@ -124,7 +128,7 @@ export async function loadAgentConfig(configPath: string): Promise<AgentConfig> 
     try {
         const agentDir = path.dirname(absolutePath);
         config = expandTemplateVars(config, agentDir);
-        logger.debug(`Expanded template variables for agent in: ${agentDir}`);
+        logger?.debug(`Expanded template variables for agent in: ${agentDir}`);
     } catch (error) {
         throw ConfigError.parseError(
             absolutePath,

@@ -1,7 +1,8 @@
 import { ITokenizer, TokenizationError } from './types.js';
 import type { Tiktoken, TiktokenModel } from 'tiktoken';
 import { createRequire } from 'module';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 
 // Fallback encoding name if model is not supported by tiktoken
 const FALLBACK_ENCODING = 'cl100k_base'; // Encoding used by GPT-4, GPT-3.5 Turbo, GPT-4o etc.
@@ -14,33 +15,43 @@ const FALLBACK_ENCODING = 'cl100k_base'; // Encoding used by GPT-4, GPT-3.5 Turb
 export class OpenAITokenizer implements ITokenizer {
     private modelName: string; // Store original model name for context/logging
     private encoding: Tiktoken; // Tiktoken encoding instance
+    private logger: IDextoLogger;
 
     /**
      * Initializes the tokenizer for a specific OpenAI model or compatible model.
      * @param model The OpenAI model name (e.g., 'gpt-5') or a custom model name.
+     * @param logger The logger instance for logging.
      * @throws TokenizationError if tiktoken initialization fails for both specific model and fallback.
      */
-    constructor(model: string) {
+    constructor(model: string, logger: IDextoLogger) {
         this.modelName = model;
+        this.logger = logger.createChild(DextoLogComponent.LLM);
         try {
             // 1. Try to get encoding for the specific model name
             const { encoding_for_model } = loadTiktoken();
             this.encoding = encoding_for_model(model as TiktokenModel);
-            logger.debug(`Initialized tiktoken with specific encoding for model: ${model}`);
+            this.logger.debug(`Initialized tiktoken with specific encoding for model: ${model}`);
         } catch (error) {
             // 2. If specific model encoding fails, fall back to cl100k_base
-            logger.warn(
+            this.logger.warn(
                 `Could not get specific encoding for model '${this.modelName}'. Falling back to '${FALLBACK_ENCODING}'. Error: ${error instanceof Error ? error.message : String(error)}`
             );
             try {
                 const { get_encoding } = loadTiktoken();
                 this.encoding = get_encoding(FALLBACK_ENCODING);
-                logger.debug(`Initialized tiktoken with fallback encoding: ${FALLBACK_ENCODING}`);
+                this.logger.debug(
+                    `Initialized tiktoken with fallback encoding: ${FALLBACK_ENCODING}`
+                );
             } catch (fallbackError) {
                 // 3. If fallback also fails (very unlikely), then throw
-                logger.error(
+                this.logger.error(
                     `Failed to initialize tiktoken with specific model '${this.modelName}' or fallback '${FALLBACK_ENCODING}'.`,
-                    fallbackError
+                    {
+                        error:
+                            fallbackError instanceof Error
+                                ? fallbackError.message
+                                : String(fallbackError),
+                    }
                 );
                 throw new TokenizationError(
                     `Failed to initialize tiktoken for model '${this.modelName}' using specific or fallback encoding ('${FALLBACK_ENCODING}'): ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
@@ -61,9 +72,9 @@ export class OpenAITokenizer implements ITokenizer {
             const tokens = this.encoding.encode(text);
             return tokens.length;
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Tiktoken encoding failed for model ${this.modelName} (using encoding: ${this.encoding.name}):`,
-                error
+                { error: error instanceof Error ? error.message : String(error) }
             );
             throw new TokenizationError(
                 `Encoding failed for text snippet using model ${this.modelName}.`

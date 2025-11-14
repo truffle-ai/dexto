@@ -1,6 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { logger } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
 
@@ -37,7 +36,7 @@ const WebhookBodySchema = z
     .describe('Request body for registering a webhook');
 
 export function createWebhooksRouter(
-    _getAgent: () => DextoAgent,
+    getAgent: () => DextoAgent,
     webhookSubscriber: WebhookEventSubscriber
 ) {
     const app = new OpenAPIHono();
@@ -67,6 +66,7 @@ export function createWebhooksRouter(
         },
     });
     app.openapi(registerRoute, async (ctx) => {
+        const agent = getAgent();
         const { url, secret, description } = ctx.req.valid('json');
 
         const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -79,7 +79,7 @@ export function createWebhooksRouter(
         };
 
         webhookSubscriber.addWebhook(webhook);
-        logger.info(`Webhook registered: ${webhookId} -> ${url}`);
+        agent.logger.info(`Webhook registered: ${webhookId} -> ${url}`);
 
         return ctx.json(
             {
@@ -195,12 +195,13 @@ export function createWebhooksRouter(
         },
     });
     app.openapi(deleteRoute, (ctx) => {
+        const agent = getAgent();
         const { webhookId } = ctx.req.valid('param');
         const removed = webhookSubscriber.removeWebhook(webhookId);
         if (!removed) {
             return ctx.json({ error: 'Webhook not found' }, 404);
         }
-        logger.info(`Webhook removed: ${webhookId}`);
+        agent.logger.info(`Webhook removed: ${webhookId}`);
         return ctx.json({ status: 'removed', webhookId });
     });
 
@@ -231,6 +232,7 @@ export function createWebhooksRouter(
         },
     });
     app.openapi(testRoute, async (ctx) => {
+        const agent = getAgent();
         const { webhookId } = ctx.req.valid('param');
         const webhook = webhookSubscriber.getWebhook(webhookId);
 
@@ -238,7 +240,7 @@ export function createWebhooksRouter(
             return ctx.json({ error: 'Webhook not found' }, 404);
         }
 
-        logger.info(`Testing webhook: ${webhookId}`);
+        agent.logger.info(`Testing webhook: ${webhookId}`);
         const result = await webhookSubscriber.testWebhook(webhookId);
 
         return ctx.json({

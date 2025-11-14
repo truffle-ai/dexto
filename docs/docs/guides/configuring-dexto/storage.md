@@ -81,7 +81,7 @@ File-based persistence:
 storage:
   database:
     type: sqlite
-    database: my-agent.db
+    path: ./data/my-agent.db
 ```
 
 **Use for:** Single-instance, simple deployments
@@ -137,8 +137,23 @@ storage:
 ### Development (Default)
 
 ```yaml
-# No storage config needed - uses in-memory defaults
+# No storage config needed - defaults to in-memory for all components
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: in-memory
+  blob:
+    type: in-memory
 ```
+
+:::tip CLI Auto-Configuration
+When using the Dexto CLI, SQLite database and local blob storage paths are automatically provided at:
+- Database: `~/.dexto/database/<agent-id>.db`
+- Blobs: `~/.dexto/blobs/<agent-id>/`
+
+You don't need to specify these paths manually unless you want custom locations.
+:::
 
 ### Production (Redis + PostgreSQL)
 
@@ -161,9 +176,22 @@ storage:
 storage:
   database:
     type: sqlite
-    database: my-agent.db
+    # path: automatically provided by CLI as ~/.dexto/database/<agent-id>.db
   blob:
     type: local
+    # storePath: automatically provided by CLI as ~/.dexto/blobs/<agent-id>/
+```
+
+Or with explicit paths:
+
+```yaml
+storage:
+  database:
+    type: sqlite
+    path: ./data/my-agent.db
+  blob:
+    type: local
+    storePath: ./data/blobs
 ```
 
 ## When to Use

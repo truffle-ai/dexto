@@ -3,7 +3,8 @@ import { ChatSession } from './chat-session.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { AgentEventBus } from '../events/index.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
@@ -57,6 +58,7 @@ export class SessionManager {
     private initializationPromise!: Promise<void>;
     // Add a Map to track ongoing session creation operations to prevent race conditions
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
+    private logger: IDextoLogger;
 
     constructor(
         private services: {
@@ -69,10 +71,12 @@ export class SessionManager {
             pluginManager: PluginManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
         },
-        config: SessionManagerConfig = {}
+        config: SessionManagerConfig = {},
+        logger: IDextoLogger
     ) {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
+        this.logger = logger.createChild(DextoLogComponent.SESSION);
     }
 
     /**
@@ -93,13 +97,13 @@ export class SessionManager {
         this.cleanupInterval = setInterval(
             () =>
                 this.cleanupExpiredSessions().catch((err) =>
-                    logger.error(`Periodic session cleanup failed: ${err}`)
+                    this.logger.error(`Periodic session cleanup failed: ${err}`)
                 ),
             cleanupIntervalMs
         );
 
         this.initialized = true;
-        logger.debug(
+        this.logger.debug(
             `SessionManager initialized with periodic cleanup every ${Math.round(cleanupIntervalMs / 1000 / 60)} minutes`
         );
     }
@@ -112,7 +116,7 @@ export class SessionManager {
         try {
             // Use the database backend to list sessions with the 'session:' prefix
             const sessionKeys = await this.services.storageManager.getDatabase().list('session:');
-            logger.debug(`Found ${sessionKeys.length} persisted sessions to restore`);
+            this.logger.debug(`Found ${sessionKeys.length} persisted sessions to restore`);
 
             for (const sessionKey of sessionKeys) {
                 const sessionId = sessionKey.replace('session:', '');
@@ -127,16 +131,16 @@ export class SessionManager {
 
                     if (now - lastActivity <= this.sessionTTL) {
                         // Session is still valid, but don't create ChatSession until requested
-                        logger.debug(`Session ${sessionId} restored from storage`);
+                        this.logger.debug(`Session ${sessionId} restored from storage`);
                     } else {
                         // Session expired, clean it up
                         await this.services.storageManager.getDatabase().delete(sessionKey);
-                        logger.debug(`Expired session ${sessionId} cleaned up during restore`);
+                        this.logger.debug(`Expired session ${sessionId} cleaned up during restore`);
                     }
                 }
             }
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Failed to restore sessions from storage: ${error instanceof Error ? error.message : String(error)}`
             );
             // Continue without restored sessions
@@ -207,10 +211,14 @@ export class SessionManager {
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
-            const session = new ChatSession({ ...this.services, sessionManager: this }, id);
+            const session = new ChatSession(
+                { ...this.services, sessionManager: this },
+                id,
+                this.logger
+            );
             await session.init();
             this.sessions.set(id, session);
-            logger.info(`Restored session from storage: ${id}`, null, 'cyan');
+            this.logger.info(`Restored session from storage: ${id}`);
             return session;
         }
 
@@ -234,7 +242,9 @@ export class SessionManager {
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
         } catch (error) {
             // If storage fails, another concurrent creation might have succeeded
-            logger.error(`Failed to store session metadata for ${id}:`, error);
+            this.logger.error(`Failed to store session metadata for ${id}:`, {
+                error: error instanceof Error ? error.message : String(error),
+            });
             // Re-throw the original error to maintain test compatibility
             throw error;
         }
@@ -242,7 +252,7 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            session = new ChatSession({ ...this.services, sessionManager: this }, id);
+            session = new ChatSession({ ...this.services, sessionManager: this }, id, this.logger);
             await session.init();
             this.sessions.set(id, session);
 
@@ -251,11 +261,11 @@ export class SessionManager {
                 .getCache()
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
 
-            logger.info(`Created new session: ${id}`, null, 'green');
+            this.logger.info(`Created new session: ${id}`);
             return session;
         } catch (error) {
             // If session creation fails after we've claimed the slot, clean up the metadata
-            logger.error(
+            this.logger.error(
                 `Failed to initialize session ${id}: ${error instanceof Error ? error.message : String(error)}`
             );
             await this.services.storageManager.getDatabase().delete(sessionKey);
@@ -309,7 +319,8 @@ export class SessionManager {
                 // Restore session to memory
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
-                    sessionId
+                    sessionId,
+                    this.logger
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);
@@ -340,7 +351,9 @@ export class SessionManager {
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getCache().delete(sessionKey);
 
-        logger.debug(`Ended session (removed from memory, chat history preserved): ${sessionId}`);
+        this.logger.debug(
+            `Ended session (removed from memory, chat history preserved): ${sessionId}`
+        );
     }
 
     /**
@@ -365,7 +378,7 @@ export class SessionManager {
         await this.services.storageManager.getDatabase().delete(sessionKey);
         await this.services.storageManager.getCache().delete(sessionKey);
 
-        logger.debug(`Deleted session and conversation history: ${sessionId}`);
+        this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
     }
 
     /**
@@ -399,7 +412,7 @@ export class SessionManager {
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
         }
 
-        logger.debug(`Reset session conversation: ${sessionId}`);
+        this.logger.debug(`Reset session conversation: ${sessionId}`);
     }
 
     /**
@@ -560,14 +573,14 @@ export class SessionManager {
                 // Only dispose memory resources, don't delete chat history
                 session.dispose();
                 this.sessions.delete(sessionId);
-                logger.debug(
+                this.logger.debug(
                     `Removed expired session from memory: ${sessionId} (chat history preserved)`
                 );
             }
         }
 
         if (expiredSessions.length > 0) {
-            logger.debug(
+            this.logger.debug(
                 `Memory cleanup: removed ${expiredSessions.length} inactive sessions, chat history preserved`
             );
         }
@@ -598,7 +611,7 @@ export class SessionManager {
                 } catch (error) {
                     // Session-level failure - continue processing other sessions (isolation)
                     failedSessions.push(sId);
-                    logger.warn(
+                    this.logger.warn(
                         `Error switching LLM for session ${sId}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
@@ -713,7 +726,7 @@ export class SessionManager {
         if (this.cleanupInterval) {
             clearInterval(this.cleanupInterval);
             delete this.cleanupInterval;
-            logger.debug('Periodic session cleanup stopped');
+            this.logger.debug('Periodic session cleanup stopped');
         }
 
         // End all in-memory sessions (preserve conversation history)
@@ -722,7 +735,7 @@ export class SessionManager {
             try {
                 await this.endSession(sessionId);
             } catch (error) {
-                logger.error(
+                this.logger.error(
                     `Failed to cleanup session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -730,6 +743,6 @@ export class SessionManager {
 
         this.sessions.clear();
         this.initialized = false;
-        logger.debug('SessionManager cleanup completed');
+        this.logger.debug('SessionManager cleanup completed');
     }
 }

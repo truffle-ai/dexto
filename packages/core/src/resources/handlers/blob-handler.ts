@@ -1,4 +1,5 @@
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
@@ -9,10 +10,12 @@ import type { InternalResourceHandler, InternalResourceServices } from './types.
 export class BlobResourceHandler implements InternalResourceHandler {
     private config: ValidatedBlobResourceConfig;
     private blobStore: BlobStore;
+    private logger: IDextoLogger;
 
-    constructor(config: ValidatedBlobResourceConfig, blobStore: BlobStore) {
+    constructor(config: ValidatedBlobResourceConfig, blobStore: BlobStore, logger: IDextoLogger) {
         this.config = config;
         this.blobStore = blobStore;
+        this.logger = logger.createChild(DextoLogComponent.RESOURCE);
     }
 
     getType(): string {
@@ -21,21 +24,23 @@ export class BlobResourceHandler implements InternalResourceHandler {
 
     async initialize(_services: InternalResourceServices): Promise<void> {
         // Config and blobStore are set in constructor
-        logger.debug('BlobResourceHandler initialized with BlobStore');
+        this.logger.debug('BlobResourceHandler initialized with BlobStore');
     }
 
     async listResources(): Promise<ResourceMetadata[]> {
-        logger.debug('🔍 BlobResourceHandler.listResources() called');
+        this.logger.debug('🔍 BlobResourceHandler.listResources() called');
 
         try {
             const stats = await this.blobStore.getStats();
-            logger.debug(`📊 BlobStore stats: ${stats.count} blobs, backend: ${stats.backendType}`);
+            this.logger.debug(
+                `📊 BlobStore stats: ${stats.count} blobs, backend: ${stats.backendType}`
+            );
             const resources: ResourceMetadata[] = [];
 
             // List individual blobs from the store
             try {
                 const blobs = await this.blobStore.listBlobs();
-                logger.debug(`📄 Found ${blobs.length} individual blobs`);
+                this.logger.debug(`📄 Found ${blobs.length} individual blobs`);
 
                 for (const blob of blobs) {
                     // Filter out 'system' source blobs (prompt .md files, custom prompt attachments).
@@ -67,13 +72,13 @@ export class BlobResourceHandler implements InternalResourceHandler {
                     });
                 }
             } catch (error) {
-                logger.warn(`Failed to list individual blobs: ${String(error)}`);
+                this.logger.warn(`Failed to list individual blobs: ${String(error)}`);
             }
 
-            logger.debug(`✅ BlobResourceHandler returning ${resources.length} resources`);
+            this.logger.debug(`✅ BlobResourceHandler returning ${resources.length} resources`);
             return resources;
         } catch (error) {
-            logger.warn(`Failed to list blob resources: ${String(error)}`);
+            this.logger.warn(`Failed to list blob resources: ${String(error)}`);
             return [];
         }
     }
@@ -141,9 +146,9 @@ export class BlobResourceHandler implements InternalResourceHandler {
         // But we can perform cleanup of old blobs if configured
         try {
             await this.blobStore.cleanup();
-            logger.debug('Blob store cleanup completed');
+            this.logger.debug('Blob store cleanup completed');
         } catch (error) {
-            logger.warn(`Blob store cleanup failed: ${String(error)}`);
+            this.logger.warn(`Blob store cleanup failed: ${String(error)}`);
         }
     }
 

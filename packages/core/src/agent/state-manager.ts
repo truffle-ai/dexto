@@ -1,4 +1,5 @@
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { ValidatedMcpServerConfig } from '@core/mcp/schemas.js';
@@ -29,21 +30,25 @@ export class AgentStateManager {
     private runtimeConfig: ValidatedAgentConfig;
     private readonly baselineConfig: ValidatedAgentConfig;
     private sessionOverrides: Map<string, SessionOverride> = new Map();
+    private logger: IDextoLogger;
 
     /**
      * Initialize AgentStateManager from a validated static configuration.
      *
      * @param staticConfig The validated configuration from DextoAgent
      * @param agentEventBus The agent event bus for emitting state change events
+     * @param logger Logger instance for this agent
      */
     constructor(
         staticConfig: ValidatedAgentConfig,
-        private agentEventBus: AgentEventBus
+        private agentEventBus: AgentEventBus,
+        logger: IDextoLogger
     ) {
         this.baselineConfig = structuredClone(staticConfig);
         this.runtimeConfig = structuredClone(staticConfig);
+        this.logger = logger.createChild(DextoLogComponent.AGENT);
 
-        logger.debug('AgentStateManager initialized', {
+        this.logger.debug('AgentStateManager initialized', {
             staticConfigKeys: Object.keys(this.baselineConfig),
             mcpServerCount: Object.keys(this.runtimeConfig.mcpServers).length,
         });
@@ -97,7 +102,7 @@ export class AgentStateManager {
             ...(sessionId && { sessionId }),
         });
 
-        logger.info('LLM config updated', {
+        this.logger.info('LLM config updated', {
             sessionId,
             provider: validatedConfig.provider,
             model: validatedConfig.model,
@@ -115,7 +120,7 @@ export class AgentStateManager {
      * branded type ensures validation has occurred.
      */
     public addMcpServer(serverName: string, validatedConfig: ValidatedMcpServerConfig): void {
-        logger.debug(`Adding/updating MCP server: ${serverName}`);
+        this.logger.debug(`Adding/updating MCP server: ${serverName}`);
 
         // Update state
         const isUpdate = serverName in this.runtimeConfig.mcpServers;
@@ -132,14 +137,16 @@ export class AgentStateManager {
             // sessionId omitted - MCP servers are global
         });
 
-        logger.info(`MCP server '${serverName}' ${isUpdate ? 'updated' : 'added'} successfully`);
+        this.logger.info(
+            `MCP server '${serverName}' ${isUpdate ? 'updated' : 'added'} successfully`
+        );
     }
 
     /**
      * Remove an MCP server configuration at runtime.
      */
     public removeMcpServer(serverName: string): void {
-        logger.debug(`Removing MCP server: ${serverName}`);
+        this.logger.debug(`Removing MCP server: ${serverName}`);
 
         if (serverName in this.runtimeConfig.mcpServers) {
             delete this.runtimeConfig.mcpServers[serverName];
@@ -152,9 +159,9 @@ export class AgentStateManager {
                 // sessionId omitted - MCP servers are global
             });
 
-            logger.info(`MCP server '${serverName}' removed successfully`);
+            this.logger.info(`MCP server '${serverName}' removed successfully`);
         } else {
-            logger.warn(`MCP server '${serverName}' not found for removal`);
+            this.logger.warn(`MCP server '${serverName}' not found for removal`);
         }
     }
 
@@ -187,7 +194,7 @@ export class AgentStateManager {
 
         if (hadOverride) {
             this.agentEventBus.emit('dexto:sessionOverrideCleared', { sessionId });
-            logger.info('Session override cleared', { sessionId });
+            this.logger.info('Session override cleared', { sessionId });
         }
     }
 
@@ -203,7 +210,7 @@ export class AgentStateManager {
         });
 
         if (sessionIds.length > 0) {
-            logger.info('All session overrides cleared', { clearedSessions: sessionIds });
+            this.logger.info('All session overrides cleared', { clearedSessions: sessionIds });
         }
     }
 
@@ -225,7 +232,7 @@ export class AgentStateManager {
             config: exportedConfig,
         });
 
-        logger.info('Runtime state exported as config', {
+        this.logger.info('Runtime state exported as config', {
             exportedConfig,
         });
 
@@ -241,7 +248,7 @@ export class AgentStateManager {
         this.clearAllSessionOverrides();
         this.agentEventBus.emit('dexto:stateReset', { toConfig: this.baselineConfig });
 
-        logger.info('Runtime state reset to baseline config');
+        this.logger.info('Runtime state reset to baseline config');
     }
 
     // ============= CONVENIENCE GETTERS FOR USED FUNCTIONALITY =============

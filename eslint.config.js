@@ -3,6 +3,7 @@ import tsParser from '@typescript-eslint/parser';
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import requireZodDescribe from './eslint-rules/require-zod-describe.js';
+import noOptionalLoggerInConstructor from './eslint-rules/no-optional-logger-in-constructor.js';
 
 export default [
     // Base config for all files
@@ -10,7 +11,7 @@ export default [
     {
         linterOptions: {
             reportUnusedDisableDirectives: 'warn',
-        }
+        },
     },
 
     // TypeScript specific config (general rules)
@@ -66,17 +67,28 @@ export default [
             'no-unused-vars': 'off',
             '@typescript-eslint/explicit-module-boundary-types': 'off',
             '@typescript-eslint/no-explicit-any': 'off',
-            '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+            '@typescript-eslint/no-unused-vars': [
+                'warn',
+                {
+                    argsIgnorePattern: '^_',
+                    varsIgnorePattern: '^_',
+                    caughtErrorsIgnorePattern: '^_',
+                },
+            ],
             'no-dupe-class-members': 'off', // Allow TypeScript method overloading
             'no-restricted-syntax': [
                 'error',
                 {
-                    selector: 'TSTypeReference > TSTypeQuery > Identifier[name="z"] ~ TSQualifiedName > Identifier[name="infer"]',
-                    message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
+                    selector:
+                        'TSTypeReference > TSTypeQuery > Identifier[name="z"] ~ TSQualifiedName > Identifier[name="infer"]',
+                    message:
+                        'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
                 },
                 {
-                    selector: 'TSTypeReference[typeName.type="TSQualifiedName"][typeName.left.name="z"][typeName.right.name="infer"]',
-                    message: 'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
+                    selector:
+                        'TSTypeReference[typeName.type="TSQualifiedName"][typeName.left.name="z"][typeName.right.name="infer"]',
+                    message:
+                        'Use z.output instead of z.infer for better type inference with Zod schemas. z.output includes transformations while z.infer may miss them.',
                 },
             ],
         },
@@ -107,6 +119,23 @@ export default [
         },
     },
 
+    // Prevent optional logger parameters in class constructors
+    {
+        files: ['packages/core/src/**/*.ts'],
+        plugins: {
+            'dexto-custom': {
+                rules: {
+                    'no-optional-logger-in-constructor': noOptionalLoggerInConstructor,
+                },
+            },
+        },
+        rules: {
+            // Enforce required logger parameters in class constructors
+            // Logger is a critical dependency that should always be provided
+            'dexto-custom/no-optional-logger-in-constructor': 'error',
+        },
+    },
+
     // Ignore patterns (keep existing ignores)
     {
         ignores: [
@@ -133,7 +162,7 @@ export default [
             '**/__pycache__/**',
             '**/*.pyc',
             '**/*.pyo',
-            '**/*.pyd'
+            '**/*.pyd',
         ],
     },
 

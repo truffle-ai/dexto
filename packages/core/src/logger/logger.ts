@@ -66,7 +66,6 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getDextoPath } from '../utils/path.js';
 
 // Winston logger configuration
 const logLevels = {
@@ -191,11 +190,12 @@ export class Logger {
         const logToConsole = options.logToConsole ?? process.env.DEXTO_LOG_TO_CONSOLE === 'true';
         this.logToConsole = logToConsole;
 
-        // Set up file logging path synchronously
+        // Set up file logging path only if explicitly provided
+        // File logging is optional - CLI enrichment layer provides paths for v2 logger
         if (options.customLogPath) {
             this.logFilePath = options.customLogPath;
         } else {
-            this.logFilePath = getDextoPath('logs', 'dexto.log');
+            this.logFilePath = null;
         }
     }
 
@@ -215,9 +215,9 @@ export class Logger {
             );
         }
 
-        // Add file transport
-        try {
-            if (this.logFilePath) {
+        // Add file transport only if path is provided
+        if (this.logFilePath) {
+            try {
                 // Ensure log directory exists
                 const logDir = path.dirname(this.logFilePath);
                 fs.mkdirSync(logDir, { recursive: true });
@@ -237,22 +237,38 @@ export class Logger {
                         tailable: true,
                     })
                 );
-            }
-        } catch (error) {
-            // If file logging fails, fall back to console
-            console.error(`Failed to initialize file logging: ${error}. Falling back to console.`);
-            if (!this.logToConsole) {
-                this.logToConsole = true;
-                transports.push(
-                    new winston.transports.Console({
-                        format: winston.format.combine(
-                            winston.format.timestamp({ format: 'HH:mm:ss' }),
-                            maskFormat(),
-                            consoleFormat
-                        ),
-                    })
+            } catch (error) {
+                // If file logging fails, fall back to console
+                console.error(
+                    `Failed to initialize file logging: ${error}. Falling back to console.`
                 );
+                if (!this.logToConsole) {
+                    this.logToConsole = true;
+                    transports.push(
+                        new winston.transports.Console({
+                            format: winston.format.combine(
+                                winston.format.timestamp({ format: 'HH:mm:ss' }),
+                                maskFormat(),
+                                consoleFormat
+                            ),
+                        })
+                    );
+                }
             }
+        }
+
+        // Ensure at least one transport exists (console fallback)
+        if (transports.length === 0) {
+            this.logToConsole = true;
+            transports.push(
+                new winston.transports.Console({
+                    format: winston.format.combine(
+                        winston.format.timestamp({ format: 'HH:mm:ss' }),
+                        maskFormat(),
+                        consoleFormat
+                    ),
+                })
+            );
         }
 
         return transports;

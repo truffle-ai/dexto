@@ -1,13 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import { logger, safeStringify, AgentConfigSchema, type LLMProvider } from '@dexto/core';
 import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
-    logger,
-    safeStringify,
-    AgentConfigSchema,
-    type LLMProvider,
-} from '@dexto/core';
+    reloadAgentConfigFromFile,
+} from '@dexto/agent-management';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
@@ -802,17 +800,18 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             // Write new config
             await fs.writeFile(agentPath, yaml, 'utf-8');
 
-            // Reload configuration to detect what changed
-            const reloadResult = await agent.reloadConfig();
+            // Load from file (agent-management's job)
+            const newConfig = await reloadAgentConfigFromFile(agentPath);
 
-            // If any changes require restart, automatically restart the agent
-            if (reloadResult.restartRequired.length > 0) {
+            // Reload into agent (core's job - handles restart automatically)
+            const reloadResult = await agent.reload(newConfig);
+
+            if (reloadResult.restarted) {
                 logger.info(
-                    `Auto-restarting agent to apply changes: ${reloadResult.restartRequired.join(', ')}`
+                    `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
                 );
-
-                await agent.restart();
-                logger.info('Agent restarted successfully with all event subscribers reconnected');
+            } else if (reloadResult.changesApplied.length === 0) {
+                logger.info('Configuration saved (no changes detected)');
             }
 
             // Clean up backup file after successful save
@@ -826,12 +825,11 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 ok: true,
                 path: agentPath,
                 reloaded: true,
-                restarted: reloadResult.restartRequired.length > 0,
-                changesApplied: reloadResult.restartRequired,
-                message:
-                    reloadResult.restartRequired.length > 0
-                        ? 'Configuration saved and applied successfully (agent restarted)'
-                        : 'Configuration saved successfully (no changes detected)',
+                restarted: reloadResult.restarted,
+                changesApplied: reloadResult.changesApplied,
+                message: reloadResult.restarted
+                    ? 'Configuration saved and applied successfully (agent restarted)'
+                    : 'Configuration saved successfully (no changes detected)',
             });
         } catch (error) {
             // Restore backup on error

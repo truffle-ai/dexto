@@ -2,7 +2,7 @@ import { IMessageFormatter } from './types.js';
 import { VercelMessageFormatter } from './vercel.js';
 import { OpenAIMessageFormatter } from './openai.js';
 import { AnthropicMessageFormatter } from './anthropic.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
 import type { LLMProvider, LLMRouter } from '../types.js';
 import { LLMError } from '../errors.js';
 
@@ -13,15 +13,16 @@ import { LLMError } from '../errors.js';
  */
 export function createMessageFormatter(
     provider: LLMProvider,
-    router: LLMRouter
+    router: LLMRouter,
+    logger: IDextoLogger
 ): IMessageFormatter {
     if (router === 'vercel') {
-        return new VercelMessageFormatter();
+        return new VercelMessageFormatter(logger);
     } else if (router === 'in-built') {
         if (provider === 'openai' || provider === 'openai-compatible') {
-            return new OpenAIMessageFormatter();
+            return new OpenAIMessageFormatter(logger);
         } else if (provider === 'anthropic') {
-            return new AnthropicMessageFormatter();
+            return new AnthropicMessageFormatter(logger);
         } else {
             logger.error(
                 `Provider '${provider}' supported by registry but not configured for 'default' router message formatting.`

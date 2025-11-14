@@ -198,6 +198,7 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
                         config.storage || {
                             cache: { type: 'in-memory' },
                             database: { type: 'in-memory' },
+                            blob: { type: 'local', storePath: '/tmp/dexto-blobs' },
                         }
                     }
                     onChange={updateStorage}

@@ -1,6 +1,6 @@
 import { InternalMessage, TextPart, ImagePart, FilePart, SanitizedToolResult } from './types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
 import { ContextError } from './errors.js';
@@ -313,6 +313,7 @@ function buildToolBlobName(
 async function resolveBlobReferenceToParts(
     resourceUri: string,
     resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
     allowedMediaTypes?: string[]
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     try {
@@ -401,6 +402,7 @@ async function resolveBlobReferenceToParts(
 
         return parts;
     } catch (error) {
+        // logger is not available in this utility function
         logger.warn(`Failed to resolve blob reference ${resourceUri}: ${String(error)}`);
         return [{ type: 'text', text: `[Attachment unavailable: ${resourceUri}]` }];
     }
@@ -425,7 +427,8 @@ async function resolveBlobReferenceToParts(
 export function countMessagesTokens(
     history: InternalMessage[],
     tokenizer: ITokenizer,
-    overheadPerMessage: number = DEFAULT_OVERHEAD_PER_MESSAGE
+    overheadPerMessage: number = DEFAULT_OVERHEAD_PER_MESSAGE,
+    logger: IDextoLogger
 ): number {
     let total = 0;
     logger.debug(`Counting tokens for ${history.length} messages`);
@@ -520,9 +523,12 @@ export function countMessagesTokens(
  * @param imagePart The image part containing image data
  * @returns Base64-encoded string or URL string
  */
-export function getImageData(imagePart: {
-    image: string | Uint8Array | Buffer | ArrayBuffer | URL;
-}): string {
+export function getImageData(
+    imagePart: {
+        image: string | Uint8Array | Buffer | ArrayBuffer | URL;
+    },
+    logger: IDextoLogger
+): string {
     const { image } = imagePart;
     if (typeof image === 'string') {
         return image;
@@ -542,11 +548,15 @@ export function getImageData(imagePart: {
 /**
  * Extracts file data (base64 or URL) from a FilePart or raw buffer.
  * @param filePart The file part containing file data
+ * @param logger Optional logger instance
  * @returns Base64-encoded string or URL string
  */
-export function getFileData(filePart: {
-    data: string | Uint8Array | Buffer | ArrayBuffer | URL;
-}): string {
+export function getFileData(
+    filePart: {
+        data: string | Uint8Array | Buffer | ArrayBuffer | URL;
+    },
+    logger: IDextoLogger
+): string {
     const { data } = filePart;
     if (typeof data === 'string') {
         return data;
@@ -568,13 +578,15 @@ export function getFileData(filePart: {
  * If the image is a blob reference, resolves it from the resource manager.
  * @param imagePart The image part containing image data or blob reference
  * @param resourceManager Resource manager for resolving blob references
+ * @param logger Optional logger instance
  * @returns Promise<Base64-encoded string or URL string>
  */
 export async function getImageDataWithBlobSupport(
     imagePart: {
         image: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger
 ): Promise<string> {
     const { image } = imagePart;
 
@@ -595,7 +607,7 @@ export async function getImageDataWithBlobSupport(
     }
 
     // Fallback to original behavior
-    return getImageData(imagePart);
+    return getImageData(imagePart, logger);
 }
 
 /**
@@ -609,7 +621,8 @@ export async function getFileDataWithBlobSupport(
     filePart: {
         data: string | Uint8Array | Buffer | ArrayBuffer | URL;
     },
-    resourceManager: import('../resources/index.js').ResourceManager
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger
 ): Promise<string> {
     const { data } = filePart;
 
@@ -630,7 +643,7 @@ export async function getFileDataWithBlobSupport(
     }
 
     // Fallback to original behavior
-    return getFileData(filePart);
+    return getFileData(filePart, logger);
 }
 
 /**
@@ -648,6 +661,7 @@ export async function getFileDataWithBlobSupport(
 export async function expandBlobReferences(
     content: InternalMessage['content'],
     resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
     allowedMediaTypes?: string[]
 ): Promise<InternalMessage['content']> {
     // Handle string content with blob references
@@ -682,6 +696,7 @@ export async function expandBlobReferences(
                 resolvedParts = await resolveBlobReferenceToParts(
                     resourceUri,
                     resourceManager,
+                    logger,
                     allowedMediaTypes
                 );
                 resolvedCache.set(resourceUri, resolvedParts);
@@ -727,6 +742,7 @@ export async function expandBlobReferences(
                 const resolved = await resolveBlobReferenceToParts(
                     resourceUri,
                     resourceManager,
+                    logger,
                     allowedMediaTypes
                 );
                 if (resolved.length > 0) {
@@ -747,6 +763,7 @@ export async function expandBlobReferences(
                 const resolved = await resolveBlobReferenceToParts(
                     resourceUri,
                     resourceManager,
+                    logger,
                     allowedMediaTypes
                 );
                 if (resolved.length > 0) {
@@ -755,7 +772,8 @@ export async function expandBlobReferences(
                     try {
                         const resolvedData = await getFileDataWithBlobSupport(
                             part,
-                            resourceManager
+                            resourceManager,
+                            logger
                         );
                         expandedParts.push({ ...part, data: resolvedData });
                     } catch (error) {
@@ -770,6 +788,7 @@ export async function expandBlobReferences(
                 const expanded = await expandBlobReferences(
                     part.text,
                     resourceManager,
+                    logger,
                     allowedMediaTypes
                 );
                 if (typeof expanded === 'string') {
@@ -801,7 +820,8 @@ export async function expandBlobReferences(
  */
 export function filterMessagesByLLMCapabilities(
     messages: InternalMessage[],
-    config: LLMContext
+    config: LLMContext,
+    logger: IDextoLogger
 ): InternalMessage[] {
     try {
         return messages.map((message) => {
@@ -941,7 +961,7 @@ export function matchesAnyMimePattern(mimeType: string | undefined, patterns: st
  * @param fileTypes Array of supported file types from LLM registry (e.g., ['image', 'pdf', 'audio'])
  * @returns Array of MIME type patterns (e.g., ['image/*', 'application/pdf', 'audio/*'])
  */
-export function fileTypesToMimePatterns(fileTypes: string[]): string[] {
+export function fileTypesToMimePatterns(fileTypes: string[], logger: IDextoLogger): string[] {
     const patterns: string[] = [];
     for (const fileType of fileTypes) {
         switch (fileType) {
@@ -1003,7 +1023,7 @@ function generateMediaPlaceholder(metadata: {
  * Recursively sanitize objects by replacing suspiciously-large base64 strings
  * with placeholders to avoid blowing up the context window.
  */
-function sanitizeDeepObject(obj: unknown): unknown {
+function sanitizeDeepObject(obj: unknown, logger: IDextoLogger): unknown {
     if (obj == null) return obj;
     if (typeof obj === 'string') {
         if (isLikelyBase64String(obj)) {
@@ -1016,19 +1036,27 @@ function sanitizeDeepObject(obj: unknown): unknown {
         }
         return obj;
     }
-    if (Array.isArray(obj)) return obj.map((x) => sanitizeDeepObject(x));
+    if (Array.isArray(obj)) return obj.map((x) => sanitizeDeepObject(x, logger));
     if (typeof obj === 'object') {
         const out: Record<string, any> = {};
         for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-            out[k] = sanitizeDeepObject(v);
+            out[k] = sanitizeDeepObject(v, logger);
         }
         return out;
     }
     return obj;
 }
 
-export async function normalizeToolResult(result: unknown): Promise<NormalizedToolResult> {
-    const content = await sanitizeToolResultToContentWithBlobs(result);
+export async function normalizeToolResult(
+    result: unknown,
+    logger: IDextoLogger
+): Promise<NormalizedToolResult> {
+    const content = await sanitizeToolResultToContentWithBlobs(
+        result,
+        logger,
+        undefined,
+        undefined
+    );
     const parts = coerceContentToParts(content);
     const inlineMedia: InlineMediaHint[] = [];
 
@@ -1055,7 +1083,8 @@ function shouldPersistInlineMedia(hint: InlineMediaHint): boolean {
 
 export async function persistToolMedia(
     normalized: NormalizedToolResult,
-    options: PersistToolMediaOptions
+    options: PersistToolMediaOptions,
+    logger: IDextoLogger
 ): Promise<PersistToolMediaResult> {
     const parts = normalized.parts.map((part) => clonePart(part));
     const blobStore = options.blobStore;
@@ -1122,6 +1151,7 @@ export async function persistToolMedia(
  */
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
+    logger: IDextoLogger,
     blobStore?: import('../storage/blob/types.js').BlobStore,
     namingOptions?: ToolBlobNamingOptions
 ): Promise<InternalMessage['content']> {
@@ -1241,6 +1271,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Process each item recursively
                 const processedItem = await sanitizeToolResultToContentWithBlobs(
                     item,
+                    logger,
                     blobStore,
                     namingOptions
                 );
@@ -1348,7 +1379,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                         // Handle legacy data field (for backwards compatibility)
                         if ('data' in item && item.mimeType) {
-                            const fileData = getFileData({ data: item.data });
+                            const fileData = getFileData({ data: item.data }, logger);
                             const mimeType = item.mimeType;
 
                             // Check if we should store as blob
@@ -1421,7 +1452,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
             // Common shapes: { image, mimeType? } or { data, mimeType }
             if ('image' in anyObj) {
-                const imageData = getImageData({ image: anyObj.image });
+                const imageData = getImageData({ image: anyObj.image }, logger);
                 const mimeType = anyObj.mimeType || 'image/jpeg';
 
                 // Check if we should store as blob
@@ -1457,7 +1488,7 @@ export async function sanitizeToolResultToContentWithBlobs(
             }
 
             if ('data' in anyObj && anyObj.mimeType) {
-                const fileData = getFileData({ data: anyObj.data });
+                const fileData = getFileData({ data: anyObj.data }, logger);
                 const mimeType = anyObj.mimeType;
 
                 // Check if we should store as blob
@@ -1499,7 +1530,7 @@ export async function sanitizeToolResultToContentWithBlobs(
             }
 
             // Generic object: remove huge base64 fields and stringify
-            const cleaned = sanitizeDeepObject(anyObj);
+            const cleaned = sanitizeDeepObject(anyObj, logger);
             return safeStringify(cleaned);
         }
 
@@ -1581,14 +1612,19 @@ export async function sanitizeToolResult(
         toolName: string;
         toolCallId: string;
         success?: boolean;
-    }
+    },
+    logger: IDextoLogger
 ): Promise<SanitizedToolResult> {
-    const normalized = await normalizeToolResult(result);
-    const persisted = await persistToolMedia(normalized, {
-        ...(options.blobStore ? { blobStore: options.blobStore } : {}),
-        toolName: options.toolName,
-        toolCallId: options.toolCallId,
-    });
+    const normalized = await normalizeToolResult(result, logger);
+    const persisted = await persistToolMedia(
+        normalized,
+        {
+            ...(options.blobStore ? { blobStore: options.blobStore } : {}),
+            toolName: options.toolName,
+            toolCallId: options.toolCallId,
+        },
+        logger
+    );
 
     const fallbackContent: TextPart[] = [{ type: 'text', text: '' }];
     const content = persisted.parts.length > 0 ? persisted.parts : fallbackContent;

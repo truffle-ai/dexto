@@ -1,6 +1,7 @@
 import os from 'node:os';
 import type { AgentCard } from '@dexto/core';
-import { createAgentCard, logger, AgentError, loadAgentConfig, DextoAgent } from '@dexto/core';
+import { createAgentCard, logger, AgentError, DextoAgent } from '@dexto/core';
+import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
@@ -43,6 +44,7 @@ export type HonoInitializationResult = {
     getActiveAgentId: () => string | undefined;
 };
 
+//TODO (migration): consider moving this to the server package
 export async function initializeHonoApi(
     agent: DextoAgent,
     agentCardOverride?: Partial<AgentCard>,
@@ -214,14 +216,17 @@ export async function initializeHonoApi(
             // 2. Load agent configuration from file path
             const config = await loadAgentConfig(filePath);
 
-            // 3. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
-            newAgent = new DextoAgent(config, filePath);
+            // 3. Enrich config with per-agent paths (logs, storage, etc.)
+            const enrichedConfig = enrichAgentConfig(config, filePath);
 
-            // 4. Derive agent ID from config or filename
-            const agentId =
-                config.agentCard?.name || path.basename(filePath, path.extname(filePath));
+            // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
+            newAgent = new DextoAgent(enrichedConfig, filePath);
 
-            // 5. Use common switch logic (register subscribers, start agent, stop previous)
+            // 5. Use enriched agentId (derived from config or filename during enrichment)
+            // enrichAgentConfig always sets agentId, so it's safe to assert non-null
+            const agentId = enrichedConfig.agentId!;
+
+            // 6. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, bridge);
         } catch (error) {
             logger.error(

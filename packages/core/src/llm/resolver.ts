@@ -15,15 +15,17 @@ import {
 } from './registry.js';
 import type { LLMUpdateContext } from './types.js';
 import { resolveApiKeyForProvider } from '@core/utils/api-key-resolver.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
 
 /**
  * Convenience function that combines resolveLLM and validateLLM
  */
 export function resolveAndValidateLLMConfig(
     previous: ValidatedLLMConfig,
-    updates: LLMUpdates
+    updates: LLMUpdates,
+    logger: IDextoLogger
 ): Result<ValidatedLLMConfig, LLMUpdateContext> {
-    const { candidate, warnings } = resolveLLMConfig(previous, updates);
+    const { candidate, warnings } = resolveLLMConfig(previous, updates, logger);
 
     // If resolver produced any errors, fail immediately (don’t try to validate a broken candidate)
     if (hasErrors(warnings)) {
@@ -42,7 +44,8 @@ export function resolveAndValidateLLMConfig(
  */
 export function resolveLLMConfig(
     previous: ValidatedLLMConfig,
-    updates: LLMUpdates
+    updates: LLMUpdates,
+    logger: IDextoLogger
 ): { candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] } {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
@@ -145,7 +148,7 @@ export function resolveLLMConfig(
     // Token defaults - always use model's effective max unless explicitly provided
     const maxInputTokens =
         updates.maxInputTokens ??
-        getEffectiveMaxInputTokens({ provider, model, apiKey: apiKey || previous.apiKey });
+        getEffectiveMaxInputTokens({ provider, model, apiKey: apiKey || previous.apiKey }, logger);
 
     return {
         candidate: {

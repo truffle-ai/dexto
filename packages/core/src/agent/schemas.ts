@@ -6,6 +6,7 @@
  */
 
 import { LLMConfigSchema } from '@core/llm/schemas.js';
+import { LoggerConfigSchema } from '@core/logger/index.js';
 import { ServerConfigsSchema as McpServersConfigSchema } from '@core/mcp/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
@@ -314,59 +315,84 @@ export type ValidatedAgentCard = z.output<typeof AgentCardSchema>;
 
 export const AgentConfigSchema = z
     .object({
-        agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
-        greeting: z
-            .string()
-            .max(500)
-            .optional()
-            .describe('Default greeting text to show when a chat starts (for UI consumption)'),
+        // ========================================
+        // REQUIRED FIELDS (user must provide or schema validation fails)
+        // ========================================
         systemPrompt: SystemPromptConfigSchema.describe(
             'System prompt: string shorthand or structured config'
         ),
-        mcpServers: McpServersConfigSchema.default({}).describe(
-            'Configurations for MCP (Model Context Protocol) servers used by the agent'
-        ),
-
-        internalTools: InternalToolsSchema,
 
         llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
 
-        // Storage configuration
-        storage: StorageSchema.default({
+        // ========================================
+        // OPTIONAL FEATURES (undefined if not provided)
+        // ========================================
+        agentCard: AgentCardSchema.describe('Configuration for the agent card').optional(),
+
+        greeting: z
+            .string()
+            .max(500)
+            .describe('Default greeting text to show when a chat starts (for UI consumption)')
+            .optional(),
+
+        telemetry: OtelConfigurationSchema.describe(
+            'OpenTelemetry configuration for distributed tracing and observability'
+        ).optional(),
+
+        // ========================================
+        // FIELDS WITH DEFAULTS (always present after parsing)
+        // ========================================
+        agentId: z
+            .string()
+            .describe(
+                'Unique identifier for this agent instance - CLI enrichment derives from agentCard.name or filename'
+            )
+            .default('default-agent'),
+
+        mcpServers: McpServersConfigSchema.describe(
+            'Configurations for MCP (Model Context Protocol) servers used by the agent'
+        ).default({}),
+
+        internalTools: InternalToolsSchema.describe(
+            'Internal tools configuration (read-file, write-file, bash-exec, etc.)'
+        ).default([]),
+
+        logger: LoggerConfigSchema.describe(
+            'Logger configuration with multi-transport support (file, console, remote) - CLI enrichment adds per-agent file transport'
+        ).default({
+            level: 'info',
+            transports: [{ type: 'console', colorize: true }],
+        }),
+
+        storage: StorageSchema.describe(
+            'Storage configuration for cache, database, and blob storage - defaults to in-memory, CLI enrichment provides filesystem paths'
+        ).default({
             cache: { type: 'in-memory' },
             database: { type: 'in-memory' },
-            blob: { type: 'local' },
-        }).describe('Storage configuration for cache, database, and blob storage'),
+            blob: { type: 'in-memory' },
+        }),
 
-        sessions: SessionConfigSchema.default({}).describe('Session management configuration'),
+        sessions: SessionConfigSchema.describe('Session management configuration').default({}),
 
-        toolConfirmation: ToolConfirmationConfigSchema.default({}).describe(
+        toolConfirmation: ToolConfirmationConfigSchema.describe(
             'Tool confirmation and approval configuration'
-        ),
+        ).default({}),
 
         elicitation: ElicitationConfigSchema.default({}).describe(
             'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode.'
         ),
 
-        // Internal resources configuration (filesystem, etc.)
         internalResources: InternalResourcesSchema.describe(
             'Configuration for internal resources (filesystem, etc.)'
         ).default([]),
 
-        // Agent-specific starter prompts configuration (used by WebUI and PromptManager)
         starterPrompts: StarterPromptsSchema.describe(
             'Agent-specific starter prompts configuration (used by WebUI and PromptManager)'
         ).default([]),
 
-        // Plugin configuration
         plugins: PluginsConfigSchema.describe(
             'Plugin system configuration for built-in and custom plugins'
         ).default({}),
-
-        // Telemetry configuration
-        telemetry: OtelConfigurationSchema.describe(
-            'OpenTelemetry configuration for distributed tracing and observability'
-        ).optional(),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')

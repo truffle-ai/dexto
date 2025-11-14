@@ -23,7 +23,6 @@ import {
     getProviderFromModel,
     getAllSupportedModels,
     DextoAgent,
-    loadAgentConfig,
     type LLMProvider,
     isPath,
     resolveApiKeyForProvider,
@@ -32,16 +31,18 @@ import {
 import {
     resolveAgentPath,
     getAgentRegistry,
+    loadAgentConfig,
     globalPreferencesExist,
     loadGlobalPreferences,
 } from '@dexto/agent-management';
 import type { AgentConfig } from '@dexto/core';
-import { startApiServer } from './api/server.js';
+import { startHonoApiServer } from './api/server-hono.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
+import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
@@ -72,7 +73,7 @@ import {
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { startNextJsWebServer } from './web.js';
-import { initializeMcpServer, createMcpTransport } from './api/mcp/mcp_handler.js';
+import { initializeMcpServer, createMcpTransport } from '@dexto/server';
 import { createAgentCard } from '@dexto/core';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
 import { CLIConfigOverrides } from './config/cli-overrides.js';
@@ -329,7 +330,8 @@ async function bootstrapAgentFromGlobalOpts() {
     );
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-    const agent = new DextoAgent(mergedConfig, resolvedPath);
+    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath);
+    const agent = new DextoAgent(enrichedConfig, resolvedPath);
     await agent.start();
 
     // Register graceful shutdown
@@ -807,9 +809,19 @@ program
                     const rawConfig = await loadAgentConfig(resolvedPath);
                     const mergedConfig = applyCLIOverrides(rawConfig, opts as CLIConfigOverrides);
 
-                    // Validate with interactive setup if needed (for API key issues)
-                    validatedConfig = await validateAgentConfig(
+                    // Enrich config with per-agent paths BEFORE validation
+                    // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
+                    // Interactive CLI mode: only log to file (console would interfere with chat UI)
+                    const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
+                    const enrichedConfig = enrichAgentConfig(
                         mergedConfig,
+                        resolvedPath,
+                        isInteractiveCli
+                    );
+
+                    // Validate enriched config with interactive setup if needed (for API key issues)
+                    validatedConfig = await validateAgentConfig(
+                        enrichedConfig,
                         opts.interactive !== false
                     );
                 } catch (err) {
@@ -838,6 +850,7 @@ program
                         }
                     }
 
+                    // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
                     agent = new DextoAgent(validatedConfig, resolvedPath);
 
@@ -1050,8 +1063,8 @@ program
                         const nextJSserverURL =
                             process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
 
-                        // Start API server
-                        await startApiServer(
+                        // Start API server (Hono)
+                        await startHonoApiServer(
                             agent,
                             apiPort,
                             agent.getEffectiveConfig().agentCard || {},
@@ -1094,7 +1107,7 @@ program
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + WebSockets)...');
-                        await startApiServer(agent, apiPort, agentCard, derivedAgentId);
+                        await startHonoApiServer(agent, apiPort, agentCard, derivedAgentId);
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
                         console.log('  POST /api/message - Send async message');
@@ -1148,11 +1161,7 @@ program
                             );
                             // Use stdio transport in mcp mode
                             const mcpTransport = await createMcpTransport('stdio');
-                            await initializeMcpServer(
-                                () => agent,
-                                () => agentCardData,
-                                mcpTransport
-                            );
+                            await initializeMcpServer(agent, agentCardData, mcpTransport);
                         } catch (err) {
                             // Write to stderr instead of stdout to avoid interfering with MCP protocol
                             process.stderr.write(`MCP server startup failed: ${err}\n`);

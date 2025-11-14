@@ -5,15 +5,13 @@ import * as path from 'path';
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
 import { walkUpDirectories } from './fs-walk.js';
 import {
     getExecutionContext,
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
@@ -133,68 +131,9 @@ export function findPackageRoot(startPath: string = process.cwd()): string | nul
     });
 }
 
-/**
- * Resolve bundled script paths for MCP servers
- * @param scriptPath Relative script path
- * @returns Absolute path to bundled script
- */
-export function resolveBundledScript(scriptPath: string): string {
-    // Build list of candidate relative paths to try, favoring packaged (dist) first
-    const candidates = scriptPath.startsWith('dist/')
-        ? [scriptPath, scriptPath.replace(/^dist\//, '')]
-        : [`dist/${scriptPath}`, scriptPath];
-
-    // Keep a list of absolute paths we attempted for better diagnostics
-    const triedAbs: string[] = [];
-
-    const tryRoots = (roots: Array<string | null | undefined>): string | null => {
-        for (const root of roots) {
-            if (!root) continue;
-            for (const rel of candidates) {
-                const abs = path.resolve(root, rel);
-                if (existsSync(abs)) return abs;
-                triedAbs.push(abs);
-            }
-        }
-        return null;
-    };
-
-    // 0) Explicit env override (useful for exotic/linked setups)
-    const envRoot = process?.env?.DEXTO_PACKAGE_ROOT;
-    const fromEnv = tryRoots([envRoot]);
-    if (fromEnv) return fromEnv;
-
-    // 1) Try to resolve from installed CLI package root (global/local install)
-    try {
-        const require = createRequire(import.meta.url);
-        const pkgJson = require.resolve('dexto/package.json');
-        const pkgRoot = path.dirname(pkgJson);
-        const fromPkg = tryRoots([pkgRoot]);
-        if (fromPkg) return fromPkg;
-    } catch {
-        // ignore, fall through to dev/project resolution
-    }
-
-    // 2) Development fallback anchored to this module's location (monorepo source)
-    try {
-        const thisModuleDir = path.dirname(fileURLToPath(import.meta.url));
-        const sourceRoot = findDextoSourceRoot(thisModuleDir);
-        const fromSource = tryRoots([sourceRoot ?? undefined]);
-        if (fromSource) return fromSource;
-    } catch {
-        // ignore and continue to legacy fallback
-    }
-
-    // 3) Legacy fallback: repo/project root derived from CWD
-    const repoRoot = findPackageRoot();
-    const fromCwd = tryRoots([repoRoot ?? undefined]);
-    if (fromCwd) return fromCwd;
-
-    // Not found anywhere: throw with helpful message and absolute paths attempted
-    throw new Error(
-        `Bundled script not found: ${scriptPath} (tried absolute: ${triedAbs.join(', ')})`
-    );
-}
+// resolveBundledScript has been moved to @dexto/agent-management
+// Core no longer needs to resolve bundled script paths - users should use
+// ${{dexto.agent_dir}} template variables in their configs instead
 
 /**
  * Ensure ~/.dexto directory exists for global storage
@@ -216,9 +155,10 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  * Uses the same project detection logic as other dexto paths.
  *
  * @param startPath Starting directory for project detection
+ * @param logger Optional logger instance for logging
  * @returns Absolute path to .env file for saving
  */
-export function getDextoEnvPath(startPath: string = process.cwd()): string {
+export function getDextoEnvPath(startPath: string = process.cwd(), logger?: IDextoLogger): string {
     const context = getExecutionContext(startPath);
     let envPath = '';
     switch (context) {
@@ -250,6 +190,6 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
             break;
         }
     }
-    logger.debug(`Dexto env path: ${envPath}, context: ${context}`);
+    logger?.debug(`Dexto env path: ${envPath}, context: ${context}`);
     return envPath;
 }

@@ -18,7 +18,8 @@ import {
 } from './types.js';
 import { CommandValidator } from './command-validator.js';
 import { ProcessError } from './errors.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
 const DEFAULT_MAX_TIMEOUT = 600000; // 10 minutes
@@ -49,8 +50,9 @@ export class ProcessService {
     private commandValidator: CommandValidator;
     private initialized: boolean = false;
     private backgroundProcesses: Map<string, BackgroundProcess> = new Map();
+    private logger: IDextoLogger;
 
-    constructor(config: Partial<ProcessConfig> = {}) {
+    constructor(config: Partial<ProcessConfig> = {}, logger: IDextoLogger) {
         // Set defaults
         this.config = {
             securityLevel: config.securityLevel || 'moderate',
@@ -64,7 +66,8 @@ export class ProcessService {
             workingDirectory: config.workingDirectory,
         };
 
-        this.commandValidator = new CommandValidator(this.config);
+        this.logger = logger.createChild(DextoLogComponent.PROCESS);
+        this.commandValidator = new CommandValidator(this.config, this.logger);
     }
 
     /**
@@ -72,7 +75,7 @@ export class ProcessService {
      */
     async initialize(): Promise<void> {
         if (this.initialized) {
-            logger.debug('ProcessService already initialized');
+            this.logger.debug('ProcessService already initialized');
             return;
         }
 
@@ -80,7 +83,7 @@ export class ProcessService {
         this.backgroundProcesses.clear();
 
         this.initialized = true;
-        logger.info('ProcessService initialized successfully');
+        this.logger.info('ProcessService initialized successfully');
     }
 
     /**
@@ -112,17 +115,17 @@ export class ProcessService {
                 );
             }
 
-            logger.info(
+            this.logger.info(
                 `Command requires approval: ${normalizedCommand} - requesting user confirmation`
             );
             const approved = await options.approvalFunction(normalizedCommand);
 
             if (!approved) {
-                logger.info(`Command approval denied: ${normalizedCommand}`);
+                this.logger.info(`Command approval denied: ${normalizedCommand}`);
                 throw ProcessError.approvalDenied(normalizedCommand);
             }
 
-            logger.info(`Command approved: ${normalizedCommand}`);
+            this.logger.info(`Command approved: ${normalizedCommand}`);
         }
 
         // Handle timeout - clamp to valid range to prevent negative/NaN/invalid values
@@ -175,7 +178,7 @@ export class ProcessService {
             let killed = false;
             let closed = false;
 
-            logger.debug(`Executing command: ${command}`);
+            this.logger.debug(`Executing command: ${command}`);
 
             // Spawn process with shell
             const child = spawn(command, {
@@ -222,7 +225,7 @@ export class ProcessService {
                     stderr += `\nProcess terminated by signal ${signal ?? 'UNKNOWN'}`;
                 }
 
-                logger.debug(
+                this.logger.debug(
                     `Command completed with exit code ${exitCode} in ${duration}ms: ${command}`
                 );
 
@@ -284,7 +287,7 @@ export class ProcessService {
             }
         }
 
-        logger.debug(`Starting background process ${processId}: ${command}`);
+        this.logger.debug(`Starting background process ${processId}: ${command}`);
 
         // Spawn process
         const child = spawn(command, {
@@ -324,14 +327,14 @@ export class ProcessService {
         );
         const killTimer = setTimeout(() => {
             if (bgProcess.status === 'running') {
-                logger.warn(
+                this.logger.warn(
                     `Background process ${processId} timed out after ${bgTimeout}ms, sending SIGTERM`
                 );
                 child.kill('SIGTERM');
                 // Escalate to SIGKILL if process doesn't terminate
                 setTimeout(() => {
                     if (bgProcess.status === 'running') {
-                        logger.warn(
+                        this.logger.warn(
                             `Background process ${processId} did not respond to SIGTERM, sending SIGKILL`
                         );
                         child.kill('SIGKILL');
@@ -353,7 +356,7 @@ export class ProcessService {
             } else {
                 if (!outputBuffer.truncated) {
                     outputBuffer.truncated = true;
-                    logger.warn(`Output buffer full for process ${processId}`);
+                    this.logger.warn(`Output buffer full for process ${processId}`);
                 }
             }
         });
@@ -368,7 +371,7 @@ export class ProcessService {
             } else {
                 if (!outputBuffer.truncated) {
                     outputBuffer.truncated = true;
-                    logger.warn(`Error buffer full for process ${processId}`);
+                    this.logger.warn(`Error buffer full for process ${processId}`);
                 }
             }
         });
@@ -381,7 +384,7 @@ export class ProcessService {
             bgProcess.completedAt = new Date();
             bgProcess.outputBuffer.complete = true;
 
-            logger.debug(`Background process ${processId} completed with exit code ${code}`);
+            this.logger.debug(`Background process ${processId} completed with exit code ${code}`);
         });
 
         // Handle errors
@@ -398,11 +401,11 @@ export class ProcessService {
             } else {
                 if (!bgProcess.outputBuffer.truncated) {
                     bgProcess.outputBuffer.truncated = true;
-                    logger.warn(`Error buffer full for process ${processId}`);
+                    this.logger.warn(`Error buffer full for process ${processId}`);
                 }
             }
 
-            logger.error(`Background process ${processId} failed: ${error.message}`);
+            this.logger.error(`Background process ${processId} failed: ${error.message}`);
         });
 
         return {
@@ -462,7 +465,7 @@ export class ProcessService {
         }
 
         if (bgProcess.status !== 'running') {
-            logger.debug(`Process ${processId} is not running (status: ${bgProcess.status})`);
+            this.logger.debug(`Process ${processId} is not running (status: ${bgProcess.status})`);
             return; // Already completed
         }
 
@@ -477,7 +480,7 @@ export class ProcessService {
                 }
             }, 5000);
 
-            logger.debug(`Process ${processId} sent SIGTERM`);
+            this.logger.debug(`Process ${processId} sent SIGTERM`);
         } catch (error) {
             throw ProcessError.killFailed(
                 processId,
@@ -552,7 +555,7 @@ export class ProcessService {
                 const age = now - bgProcess.completedAt.getTime();
                 if (age > CLEANUP_AGE) {
                     this.backgroundProcesses.delete(processId);
-                    logger.debug(`Cleaned up old process ${processId}`);
+                    this.logger.debug(`Cleaned up old process ${processId}`);
                 }
             }
         }

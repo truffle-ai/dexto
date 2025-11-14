@@ -3,7 +3,7 @@ import * as readline from 'readline';
 import chalk from 'chalk';
 import boxen from 'boxen';
 import { AgentEventBus } from '@dexto/core';
-import { EventSubscriber } from '../../api/types.js';
+import { EventSubscriber } from '@dexto/server';
 
 /**
  * CLI-specific subscriber for approval events

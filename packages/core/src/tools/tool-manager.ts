@@ -4,7 +4,8 @@ import { InternalToolsServices } from './internal-tools/registry.js';
 import type { InternalToolsConfig, ToolPolicies } from './schemas.js';
 import { ToolSet } from './types.js';
 import { ToolError } from './errors.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus } from '../approval/types.js';
@@ -79,6 +80,7 @@ export class ToolManager {
     // Tool caching for performance
     private toolsCache: ToolSet = {};
     private cacheValid: boolean = false;
+    private logger: IDextoLogger;
 
     constructor(
         mcpManager: MCPManager,
@@ -86,8 +88,9 @@ export class ToolManager {
         allowedToolsProvider: IAllowedToolsProvider,
         approvalMode: 'event-based' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
-        toolPolicies?: ToolPolicies,
-        options?: InternalToolsOptions
+        toolPolicies: ToolPolicies,
+        options: InternalToolsOptions,
+        logger: IDextoLogger
     ) {
         this.mcpManager = mcpManager;
         this.approvalManager = approvalManager;
@@ -95,20 +98,22 @@ export class ToolManager {
         this.approvalMode = approvalMode;
         this.agentEventBus = agentEventBus;
         this.toolPolicies = toolPolicies;
+        this.logger = logger.createChild(DextoLogComponent.TOOLS);
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
             this.internalToolsProvider = new InternalToolsProvider(
                 options.internalToolsServices || {},
                 approvalManager,
-                options.internalToolsConfig
+                options.internalToolsConfig,
+                this.logger
             );
         }
 
         // Set up event listeners for surgical cache updates
         this.setupNotificationListeners();
 
-        logger.debug('ToolManager initialized');
+        this.logger.debug('ToolManager initialized');
     }
 
     /**
@@ -118,7 +123,7 @@ export class ToolManager {
         if (this.internalToolsProvider) {
             await this.internalToolsProvider.initialize();
         }
-        logger.debug('ToolManager initialization complete');
+        this.logger.debug('ToolManager initialization complete');
     }
 
     /**
@@ -132,7 +137,7 @@ export class ToolManager {
         this.pluginManager = pluginManager;
         this.sessionManager = sessionManager;
         this.stateManager = stateManager;
-        logger.debug('Plugin support configured for ToolManager');
+        this.logger.debug('Plugin support configured for ToolManager');
     }
 
     /**
@@ -150,13 +155,17 @@ export class ToolManager {
         // Listen for MCP server connection changes that affect tools
         this.agentEventBus.on('dexto:mcpServerConnected', async (payload) => {
             if (payload.success) {
-                logger.debug(`🔄 MCP server connected, invalidating tool cache: ${payload.name}`);
+                this.logger.debug(
+                    `🔄 MCP server connected, invalidating tool cache: ${payload.name}`
+                );
                 this.invalidateCache();
             }
         });
 
         this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
-            logger.debug(`🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`);
+            this.logger.debug(
+                `🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`
+            );
             this.invalidateCache();
         });
     }
@@ -197,7 +206,7 @@ export class ToolManager {
         try {
             mcpTools = await this.mcpManager.getAllTools();
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Failed to get MCP tools: ${error instanceof Error ? error.message : String(error)}`
             );
             mcpTools = {};
@@ -206,7 +215,7 @@ export class ToolManager {
         try {
             internalTools = this.internalToolsProvider?.getAllTools() || {};
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Failed to get internal tools: ${error instanceof Error ? error.message : String(error)}`
             );
             internalTools = {};
@@ -236,7 +245,7 @@ export class ToolManager {
         const mcpCount = Object.keys(mcpTools).length;
         const internalCount = Object.keys(internalTools).length;
 
-        logger.debug(
+        this.logger.debug(
             `🔧 Unified tool discovery: ${totalTools} total tools (${mcpCount} MCP → ${ToolManager.MCP_TOOL_PREFIX}*, ${internalCount} internal → ${ToolManager.INTERNAL_TOOL_PREFIX}*)`
         );
 
@@ -267,14 +276,14 @@ export class ToolManager {
         args: Record<string, unknown>,
         sessionId?: string
     ): Promise<unknown> {
-        logger.debug(`🔧 Tool execution requested: '${toolName}'`);
-        logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
+        this.logger.debug(`🔧 Tool execution requested: '${toolName}'`);
+        this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
 
         // Handle approval/confirmation flow
         await this.handleToolApproval(toolName, args, sessionId);
 
-        logger.debug(`✅ Tool execution approved: ${toolName}`);
-        logger.info(
+        this.logger.debug(`✅ Tool execution approved: ${toolName}`);
+        this.logger.info(
             `🔧 Tool execution started for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );
 
@@ -309,17 +318,17 @@ export class ToolManager {
 
             // Route to MCP tools
             if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-                logger.debug(`🔧 Detected MCP tool: '${toolName}'`);
+                this.logger.debug(`🔧 Detected MCP tool: '${toolName}'`);
                 const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
                     throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
                 }
-                logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
+                this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
                 result = await this.mcpManager.executeTool(actualToolName, args, sessionId);
             }
             // Route to internal tools
             else if (toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)) {
-                logger.debug(`🔧 Detected internal tool: '${toolName}'`);
+                this.logger.debug(`🔧 Detected internal tool: '${toolName}'`);
                 const actualToolName = toolName.substring(ToolManager.INTERNAL_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
                     throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
@@ -327,7 +336,7 @@ export class ToolManager {
                 if (!this.internalToolsProvider) {
                     throw ToolError.internalToolsNotInitialized(toolName);
                 }
-                logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
+                this.logger.debug(`🎯 Internal routing: '${toolName}' -> '${actualToolName}'`);
                 result = await this.internalToolsProvider.executeTool(
                     actualToolName,
                     args,
@@ -337,18 +346,20 @@ export class ToolManager {
             // Tool doesn't have proper prefix
             // TODO: will update for custom tools
             else {
-                logger.debug(`🔧 Detected tool without proper prefix: '${toolName}'`);
+                this.logger.debug(`🔧 Detected tool without proper prefix: '${toolName}'`);
                 const stats = await this.getToolStats();
-                logger.error(
+                this.logger.error(
                     `❌ Tool missing source prefix: '${toolName}' (expected '${ToolManager.MCP_TOOL_PREFIX}*' or '${ToolManager.INTERNAL_TOOL_PREFIX}*')`
                 );
-                logger.debug(`Available: ${stats.mcp} MCP tools, ${stats.internal} internal tools`);
+                this.logger.debug(
+                    `Available: ${stats.mcp} MCP tools, ${stats.internal} internal tools`
+                );
                 throw ToolError.notFound(toolName);
             }
 
             const duration = Date.now() - startTime;
-            logger.debug(`🎯 Tool execution completed in ${duration}ms: '${toolName}'`);
-            logger.info(
+            this.logger.debug(`🎯 Tool execution completed in ${duration}ms: '${toolName}'`);
+            this.logger.info(
                 `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
 
@@ -380,7 +391,7 @@ export class ToolManager {
             return result;
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error(
+            this.logger.error(
                 `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
 
@@ -442,7 +453,7 @@ export class ToolManager {
         try {
             mcpTools = await this.mcpManager.getAllTools();
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Failed to get MCP tools for stats: ${error instanceof Error ? error.message : String(error)}`
             );
             mcpTools = {};
@@ -451,7 +462,7 @@ export class ToolManager {
         try {
             internalTools = this.internalToolsProvider?.getAllTools() || {};
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Failed to get internal tools for stats: ${error instanceof Error ? error.message : String(error)}`
             );
             internalTools = {};
@@ -569,16 +580,16 @@ export class ToolManager {
     ): Promise<void> {
         // PRECEDENCE 1: Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
-            logger.info(
+            this.logger.info(
                 `Tool '${toolName}' is in static deny list – blocking execution (session: ${sessionId ?? 'global'})`
             );
-            logger.debug(`🚫 Tool execution blocked by policy: ${toolName}`);
+            this.logger.debug(`🚫 Tool execution blocked by policy: ${toolName}`);
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
         // PRECEDENCE 2: Check static alwaysAllow list
         if (this.isInAlwaysAllowList(toolName)) {
-            logger.info(
+            this.logger.info(
                 `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'global'})`
             );
             return;
@@ -588,7 +599,7 @@ export class ToolManager {
         const isAllowed = await this.allowedToolsProvider.isToolAllowed(toolName, sessionId);
 
         if (isAllowed) {
-            logger.info(
+            this.logger.info(
                 `Tool '${toolName}' already allowed for session '${sessionId ?? 'global'}' – skipping confirmation.`
             );
             return;
@@ -597,17 +608,17 @@ export class ToolManager {
         // PRECEDENCE 4: Fall back to approval mode
         // Handle different approval modes
         if (this.approvalMode === 'auto-approve') {
-            logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
+            this.logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
             return;
         }
 
         if (this.approvalMode === 'auto-deny') {
-            logger.debug(`🚫 Auto-denying tool execution: ${toolName}`);
+            this.logger.debug(`🚫 Auto-denying tool execution: ${toolName}`);
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
         // Event-based mode - request approval
-        logger.info(
+        this.logger.info(
             `Tool confirmation requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );
 
@@ -639,7 +650,7 @@ export class ToolManager {
                 // Fall back to response.sessionId only if request didn't specify one
                 const allowSessionId = sessionId ?? response.sessionId;
                 await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
-                logger.info(
+                this.logger.info(
                     `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
                 );
             }
@@ -647,19 +658,19 @@ export class ToolManager {
             const approved = response.status === ApprovalStatus.APPROVED;
 
             if (!approved) {
-                logger.info(
+                this.logger.info(
                     `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}`
                 );
-                logger.debug(`🚫 Tool execution denied: ${toolName}`);
+                this.logger.debug(`🚫 Tool execution denied: ${toolName}`);
                 throw ToolError.executionDenied(toolName, sessionId);
             }
 
-            logger.info(
+            this.logger.info(
                 `Tool confirmation approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
             );
         } catch (error) {
             // Log and re-throw - errors are already properly formatted by ApprovalManager
-            logger.error(
+            this.logger.error(
                 `Tool confirmation error for ${toolName}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -677,7 +688,7 @@ export class ToolManager {
         // Then: Invalidate our cache so next getAllTools() rebuilds from fresh MCP data
         this.invalidateCache();
 
-        logger.debug('ToolManager refreshed (including MCP server capabilities)');
+        this.logger.debug('ToolManager refreshed (including MCP server capabilities)');
     }
 
     /**

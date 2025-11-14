@@ -10,7 +10,7 @@ import {
 } from './utils/execution-context.js';
 import { logger } from '@dexto/core';
 import { loadGlobalPreferences, globalPreferencesExist } from './preferences/loader.js';
-import { ConfigError } from '@dexto/core';
+import { ConfigError } from './config/index.js';
 
 /**
  * Resolve agent path with preference integration

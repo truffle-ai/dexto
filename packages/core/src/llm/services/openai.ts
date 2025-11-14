@@ -3,7 +3,8 @@ import { ChatCompletionMessageParam } from 'openai/resources';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { ToolSet } from '../../tools/types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
@@ -40,6 +41,7 @@ export class OpenAIService implements ILLMService {
     private contextManager: ContextManager<ChatCompletionMessageParam>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private logger: IDextoLogger;
 
     constructor(
         toolManager: ToolManager,
@@ -49,8 +51,10 @@ export class OpenAIService implements ILLMService {
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
-        resourceManager: import('../../resources/index.js').ResourceManager
+        resourceManager: import('../../resources/index.js').ResourceManager,
+        logger: IDextoLogger
     ) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
         this.config = config;
         this.openai = openai;
         this.toolManager = toolManager;
@@ -58,9 +62,9 @@ export class OpenAIService implements ILLMService {
         this.sessionId = sessionId;
 
         // Create properly-typed ContextManager for OpenAI
-        const formatter = new OpenAIMessageFormatter();
-        const tokenizer = createTokenizer(config.provider, config.model);
-        const maxInputTokens = getEffectiveMaxInputTokens(config);
+        const formatter = new OpenAIMessageFormatter(this.logger);
+        const tokenizer = createTokenizer(config.provider, config.model, this.logger);
+        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         this.contextManager = new ContextManager<ChatCompletionMessageParam>(
             config,
@@ -70,7 +74,8 @@ export class OpenAIService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            resourceManager
+            resourceManager,
+            this.logger
             // compressionStrategies uses default
         );
     }
@@ -128,7 +133,7 @@ export class OpenAIService implements ILLMService {
             const rawTools = await this.toolManager.getAllTools();
             const formattedTools = this.formatToolsForOpenAI(rawTools);
 
-            logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
+            this.logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
 
             // Notify thinking
             this.sessionEventBus.emit('llmservice:thinking');
@@ -228,13 +233,13 @@ export class OpenAIService implements ILLMService {
                         (
                             toolCall
                         ): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall => {
-                            logger.debug(`Tool call type received: ${toolCall.type}`);
+                            this.logger.debug(`Tool call type received: ${toolCall.type}`);
                             return toolCall.type === 'function';
                         }
                     );
 
                     if (message.tool_calls.length > functionToolCalls.length) {
-                        logger.warn(
+                        this.logger.warn(
                             `Filtered out ${message.tool_calls.length - functionToolCalls.length} non-function tool calls`
                         );
                     }
@@ -259,8 +264,10 @@ export class OpenAIService implements ILLMService {
                                 aborted: true,
                             });
                         }
-                        logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
-                        logger.debug(`Tool call details: ${JSON.stringify(toolCall, null, 2)}`);
+                        this.logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
+                        this.logger.debug(
+                            `Tool call details: ${JSON.stringify(toolCall, null, 2)}`
+                        );
                         // Since we're only processing function tool calls now
                         const toolName = toolCall.function.name;
                         let args: Record<string, any> = {};
@@ -268,7 +275,9 @@ export class OpenAIService implements ILLMService {
                         try {
                             args = JSON.parse(toolCall.function.arguments);
                         } catch (e) {
-                            logger.error(`Error parsing arguments for ${toolName}:`, e);
+                            this.logger.error(`Error parsing arguments for ${toolName}:`, {
+                                error: e instanceof Error ? e.message : String(e),
+                            });
                             const sanitized = await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
@@ -323,7 +332,9 @@ export class OpenAIService implements ILLMService {
                             // Handle tool execution error
                             const errorMessage =
                                 error instanceof Error ? error.message : String(error);
-                            logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
+                            this.logger.error(
+                                `Tool execution error for ${toolName}: ${errorMessage}`
+                            );
 
                             // Add error as tool result
                             const sanitized = await this.contextManager.addToolResult(
@@ -349,7 +360,9 @@ export class OpenAIService implements ILLMService {
                 }
 
                 // If we reached max iterations
-                logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
+                this.logger.warn(
+                    `Reached maximum iterations (${this.config.maxIterations}) for task.`
+                );
                 const finalResponse =
                     fullResponse || 'Task completed but reached maximum tool call iterations.';
                 await this.contextManager.addAssistantMessage(finalResponse, undefined, {
@@ -407,11 +420,11 @@ export class OpenAIService implements ILLMService {
                 }
                 // Handle API errors
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error(`Error in ${contextStr}: ${errorMessage}`, { error });
+                this.logger.error(`Error in ${contextStr}: ${errorMessage}`, { error });
 
                 if (!stream) {
                     // Hint for token overflow (only for non-streaming to avoid spam)
-                    logger.warn(
+                    this.logger.warn(
                         `If this error is due to token overflow, consider configuring 'maxInputTokens' in your LLMConfig.`
                     );
                 }
@@ -442,13 +455,14 @@ export class OpenAIService implements ILLMService {
         try {
             modelMaxInputTokens = getMaxInputTokensForModel(
                 this.config.provider,
-                this.config.model
+                this.config.model,
+                this.logger
             );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens
             if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
                 modelMaxInputTokens = configuredMaxInputTokens;
-                logger.debug(
+                this.logger.debug(
                     `Could not find model ${this.config.model} in LLM registry to get max tokens. Using configured max tokens: ${configuredMaxInputTokens}.`
                 );
                 // for any other error, throw
@@ -478,7 +492,7 @@ export class OpenAIService implements ILLMService {
         const MAX_ATTEMPTS = 3;
 
         // Add a log of tools size
-        logger.debug(`Tools size in getAIResponseWithRetries: ${tools.length}`);
+        this.logger.debug(`Tools size in getAIResponseWithRetries: ${tools.length}`);
 
         while (attempts < MAX_ATTEMPTS) {
             attempts++;
@@ -494,10 +508,10 @@ export class OpenAIService implements ILLMService {
                     { provider: this.config.provider, model: this.config.model }
                 );
 
-                logger.silly(
+                this.logger.silly(
                     `Message history (potentially compressed) in getAIResponseWithRetries: ${JSON.stringify(formattedMessages, null, 2)}`
                 );
-                logger.debug(`Estimated tokens being sent to OpenAI: ${tokensUsed}`);
+                this.logger.debug(`Estimated tokens being sent to OpenAI: ${tokensUsed}`);
 
                 // Call OpenAI API
                 const response = await this.openai.chat.completions.create(
@@ -510,9 +524,8 @@ export class OpenAIService implements ILLMService {
                     signal ? { signal } : undefined
                 );
 
-                logger.silly(
-                    'OPENAI CHAT COMPLETION RESPONSE: ',
-                    JSON.stringify(response, null, 2)
+                this.logger.silly(
+                    `OPENAI CHAT COMPLETION RESPONSE: ${JSON.stringify(response, null, 2)}`
                 );
 
                 // Get the response message
@@ -533,19 +546,19 @@ export class OpenAIService implements ILLMService {
                     throw error;
                 }
                 const apiError = error as APIError;
-                logger.error(
+                this.logger.error(
                     `Error in OpenAI API call (Attempt ${attempts}/${MAX_ATTEMPTS}): ${apiError.message || JSON.stringify(apiError, null, 2)}`,
                     { status: apiError.status, headers: apiError.headers }
                 );
 
                 if (apiError.status === 400 && apiError.code === 'context_length_exceeded') {
-                    logger.warn(
+                    this.logger.warn(
                         `Context length exceeded. ContextManager compression might not be sufficient. Error details: ${JSON.stringify(apiError.error)}`
                     );
                 }
 
                 if (attempts >= MAX_ATTEMPTS) {
-                    logger.error(
+                    this.logger.error(
                         `Failed to get response from OpenAI after ${MAX_ATTEMPTS} attempts.`
                     );
                     throw error;
@@ -582,10 +595,10 @@ export class OpenAIService implements ILLMService {
                     { provider: this.config.provider, model: this.config.model }
                 );
 
-                logger.silly(
+                this.logger.silly(
                     `Streaming message history (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
                 );
-                logger.debug(`Estimated tokens being sent to OpenAI streaming: ${tokensUsed}`);
+                this.logger.debug(`Estimated tokens being sent to OpenAI streaming: ${tokensUsed}`);
 
                 // Create streaming chat completion
                 const stream = await this.openai.chat.completions.create(
@@ -691,11 +704,11 @@ export class OpenAIService implements ILLMService {
                     ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
                 };
 
-                logger.debug(`OpenAI streaming completed. Usage info: ${usage}`);
+                this.logger.debug(`OpenAI streaming completed. Usage info: ${usage}`);
                 return { message, ...(usage && { usage }) };
             } catch (error) {
                 const apiError = error as APIError;
-                logger.error(
+                this.logger.error(
                     `Error in OpenAI streaming API call (Attempt ${attempts}/${MAX_ATTEMPTS}): ${apiError.message || JSON.stringify(apiError, null, 2)}`,
                     { status: apiError.status, headers: apiError.headers }
                 );
@@ -704,13 +717,13 @@ export class OpenAIService implements ILLMService {
                     apiError.status === 400 &&
                     apiError.message?.includes('maximum context length')
                 ) {
-                    logger.warn(
+                    this.logger.warn(
                         `Context length exceeded in streaming. ContextManager compression might not be sufficient. Error details: ${JSON.stringify(apiError.error)}`
                     );
                 }
 
                 if (attempts >= MAX_ATTEMPTS) {
-                    logger.error(
+                    this.logger.error(
                         `Failed to get streaming response from OpenAI after ${MAX_ATTEMPTS} attempts.`
                     );
                     throw error;

@@ -1,6 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { logger } from '@dexto/core';
 
 const MessageBodySchema = z
     .object({
@@ -78,7 +77,7 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(messageRoute, async (ctx) => {
         const agent = getAgent();
-        logger.info('Received message via POST /api/message');
+        agent.logger.info('Received message via POST /api/message');
         const { message, sessionId, stream, imageData, fileData } = ctx.req.valid('json');
 
         const imageDataInput = imageData
@@ -93,16 +92,16 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
               }
             : undefined;
 
-        if (imageDataInput) logger.info('Image data included in message.');
-        if (fileDataInput) logger.info('File data included in message.');
-        if (sessionId) logger.info(`Message for session: ${sessionId}`);
+        if (imageDataInput) agent.logger.info('Image data included in message.');
+        if (fileDataInput) agent.logger.info('File data included in message.');
+        if (sessionId) agent.logger.info(`Message for session: ${sessionId}`);
 
         // Fire and forget - start processing asynchronously
         // Results will be delivered via WebSocket
         agent
             .run(message || '', imageDataInput, fileDataInput, sessionId, stream || false)
             .catch((error) => {
-                logger.error(
+                agent.logger.error(
                     `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
                 );
             });
@@ -138,7 +137,7 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(messageSyncRoute, async (ctx) => {
         const agent = getAgent();
-        logger.info('Received message via POST /api/message-sync');
+        agent.logger.info('Received message via POST /api/message-sync');
         const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
 
         const imageDataInput = imageData
@@ -153,9 +152,9 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
               }
             : undefined;
 
-        if (imageDataInput) logger.info('Image data included in message.');
-        if (fileDataInput) logger.info('File data included in message.');
-        if (sessionId) logger.info(`Message for session: ${sessionId}`);
+        if (imageDataInput) agent.logger.info('Image data included in message.');
+        if (fileDataInput) agent.logger.info('File data included in message.');
+        if (sessionId) agent.logger.info(`Message for session: ${sessionId}`);
 
         const response = await agent.run(
             message || '',
@@ -199,7 +198,7 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(resetRoute, async (ctx) => {
         const agent = getAgent();
-        logger.info('Received request via POST /api/reset');
+        agent.logger.info('Received request via POST /api/reset');
         const { sessionId } = ctx.req.valid('json');
         await agent.resetConversation(sessionId);
         return ctx.json({ status: 'reset initiated', sessionId });

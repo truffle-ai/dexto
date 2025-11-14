@@ -1,6 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { MCPManager, logger, type ValidatedServerConfigs, jsonSchemaToZodShape } from '@dexto/core';
+import {
+    MCPManager,
+    logger,
+    type ValidatedServerConfigs,
+    jsonSchemaToZodShape,
+    createLogger,
+    DextoLogComponent,
+} from '@dexto/core';
 import { z } from 'zod';
 
 /**
@@ -15,7 +22,15 @@ export async function initializeMcpToolAggregationServer(
     _strict: boolean
 ): Promise<McpServer> {
     // Create MCP manager with no confirmation provider (tools are auto-approved)
-    const mcpManager = new MCPManager();
+    const mcpLogger = createLogger({
+        config: {
+            level: 'info',
+            transports: [{ type: 'console', colorize: true }],
+        },
+        agentId: 'mcp-tool-aggregation',
+        component: DextoLogComponent.MCP,
+    });
+    const mcpManager = new MCPManager(mcpLogger);
 
     // Initialize all MCP server connections from config
     logger.info('Connecting to configured MCP servers for tool aggregation...');

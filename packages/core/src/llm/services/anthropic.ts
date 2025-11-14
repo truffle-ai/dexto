@@ -3,7 +3,8 @@ import { MessageParam } from '@anthropic-ai/sdk/resources';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { ToolSet } from '../../tools/types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
@@ -38,6 +39,7 @@ export class AnthropicService implements ILLMService {
     private contextManager: ContextManager<MessageParam>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private logger: IDextoLogger;
 
     constructor(
         toolManager: ToolManager,
@@ -47,8 +49,10 @@ export class AnthropicService implements ILLMService {
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
-        resourceManager: import('../../resources/index.js').ResourceManager
+        resourceManager: import('../../resources/index.js').ResourceManager,
+        logger: IDextoLogger
     ) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
         this.config = config;
         this.anthropic = anthropic;
         this.toolManager = toolManager;
@@ -56,9 +60,9 @@ export class AnthropicService implements ILLMService {
         this.sessionId = sessionId;
 
         // Create properly-typed ContextManager for Anthropic
-        const formatter = new AnthropicMessageFormatter();
-        const tokenizer = createTokenizer(config.provider, config.model);
-        const maxInputTokens = getEffectiveMaxInputTokens(config);
+        const formatter = new AnthropicMessageFormatter(this.logger);
+        const tokenizer = createTokenizer(config.provider, config.model, this.logger);
+        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         // Use the provided ResourceManager
 
@@ -70,7 +74,8 @@ export class AnthropicService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            resourceManager
+            resourceManager,
+            this.logger
             // compressionStrategies uses default
         );
     }
@@ -128,7 +133,7 @@ export class AnthropicService implements ILLMService {
             const rawTools = await this.toolManager.getAllTools();
             const formattedTools = this.formatToolsForClaude(rawTools);
 
-            logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
+            this.logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
 
             // Notify thinking
             this.sessionEventBus.emit('llmservice:thinking');
@@ -146,7 +151,7 @@ export class AnthropicService implements ILLMService {
                         });
                     }
                     iterationCount++;
-                    logger.debug(`Iteration ${iterationCount}`);
+                    this.logger.debug(`Iteration ${iterationCount}`);
 
                     // Use the new method that implements proper flow: get system prompt, compress history, format messages
                     // For system prompt generation, we need to pass the mcpManager as the context expects
@@ -173,8 +178,8 @@ export class AnthropicService implements ILLMService {
                     const formattedSystemPrompt =
                         await this.contextManager.getFormattedSystemPrompt(contributorContext);
 
-                    logger.debug(`Messages: ${JSON.stringify(formattedMessages, null, 2)}`);
-                    logger.debug(`Estimated tokens being sent to Anthropic: ${tokensUsed}`);
+                    this.logger.debug(`Messages: ${JSON.stringify(formattedMessages, null, 2)}`);
+                    this.logger.debug(`Estimated tokens being sent to Anthropic: ${tokensUsed}`);
 
                     // Get response with appropriate method
                     const { message, usage } = stream
@@ -314,7 +319,9 @@ export class AnthropicService implements ILLMService {
                             // Handle tool execution error
                             const errorMessage =
                                 error instanceof Error ? error.message : String(error);
-                            logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
+                            this.logger.error(
+                                `Tool execution error for ${toolName}: ${errorMessage}`
+                            );
 
                             // Add error as tool result
                             const sanitized = await this.contextManager.addToolResult(
@@ -340,7 +347,9 @@ export class AnthropicService implements ILLMService {
                 }
 
                 // If we reached max iterations
-                logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
+                this.logger.warn(
+                    `Reached maximum iterations (${this.config.maxIterations}) for task.`
+                );
 
                 // Update ContextManager with actual token count for hybrid approach
                 if (totalTokens > 0) {
@@ -375,7 +384,9 @@ export class AnthropicService implements ILLMService {
                 }
                 // Handle API errors
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error(`Error in Anthropic service API call: ${errorMessage}`, { error });
+                this.logger.error(`Error in Anthropic service API call: ${errorMessage}`, {
+                    error,
+                });
 
                 this.sessionEventBus.emit('llmservice:error', {
                     error: error instanceof Error ? error : new Error(errorMessage),
@@ -395,7 +406,8 @@ export class AnthropicService implements ILLMService {
         const configuredMaxInputTokens = this.contextManager.getMaxInputTokens();
         const modelMaxInputTokens = getMaxInputTokensForModel(
             this.config.provider,
-            this.config.model
+            this.config.model,
+            this.logger
         );
 
         return {
@@ -430,14 +442,14 @@ export class AnthropicService implements ILLMService {
                         input_schema.required = jsonSchemaParams.required;
                     }
                 } else {
-                    logger.warn(
+                    this.logger.warn(
                         `Unexpected parameters format for tool ${toolName}:`,
                         jsonSchemaParams
                     );
                 }
             } else {
                 // Handle case where tool might have no parameters
-                logger.debug(`Tool ${toolName} has no defined parameters.`);
+                this.logger.debug(`Tool ${toolName} has no defined parameters.`);
             }
 
             return {
@@ -552,7 +564,7 @@ export class AnthropicService implements ILLMService {
                             }
                         } catch {
                             // JSON is still incomplete, keep accumulating
-                            logger.debug(
+                            this.logger.debug(
                                 `Accumulating JSON for tool ${toolContent.name}: ${jsonAccumulators[blockIndex]}`
                             );
                         }

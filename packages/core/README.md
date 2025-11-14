@@ -128,6 +128,24 @@ const agent = new DextoAgent({
 
 Automatically traces agent operations, LLM calls with token usage, and tool executions. See `src/telemetry/README.md` for details.
 
+### Logger
+
+Multi-transport logging system (v2) with console, file, and remote transports. Configure in agent YAML:
+
+```yaml
+logger:
+  level: info  # error | warn | info | debug | silly
+  transports:
+    - type: console
+      colorize: true
+    - type: file
+      path: ./logs/agent.log
+      maxSize: 10485760
+      maxFiles: 5
+```
+
+CLI automatically adds per-agent file transport at `~/.dexto/logs/<agent-id>.log`. See architecture in `src/logger/v2/`.
+
 See the DextoAgent API reference for all methods:
 https://docs.dexto.ai/api/dexto-agent/
 

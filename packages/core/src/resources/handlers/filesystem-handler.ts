@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
@@ -14,9 +15,15 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     private fileCount: number = 0;
     private canonicalRoots: string[] = [];
     private blobStoragePath: string | undefined;
+    private logger: IDextoLogger;
 
-    constructor(config: ValidatedFileSystemResourceConfig, blobStoragePath?: string) {
+    constructor(
+        config: ValidatedFileSystemResourceConfig,
+        logger: IDextoLogger,
+        blobStoragePath?: string
+    ) {
         this.config = config;
+        this.logger = logger.createChild(DextoLogComponent.RESOURCE);
         this.blobStoragePath = blobStoragePath;
     }
 
@@ -32,7 +39,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 const canonicalRoot = await fs.realpath(path.resolve(configPath));
                 this.canonicalRoots.push(canonicalRoot);
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Failed to canonicalize root path '${configPath}': ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -204,7 +211,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
 
         for (const configPath of paths) {
             if (this.fileCount >= maxFiles) {
-                logger.warn(`Reached maximum file limit (${maxFiles}), stopping scan`);
+                this.logger.warn(`Reached maximum file limit (${maxFiles}), stopping scan`);
                 break;
             }
 
@@ -212,13 +219,13 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 const root = await fs.realpath(path.resolve(configPath));
                 await this.scanPath(root, 0, root);
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Failed to scan path '${configPath}': ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         }
 
-        logger.debug(
+        this.logger.debug(
             `FileSystem resources cached: ${this.resourcesCache.size} resources (${this.fileCount} files scanned)`
         );
     }
@@ -248,7 +255,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
         if (this.fileCount >= maxFiles) return;
         if (currentDepth > maxDepth) {
             // silly to avoid spamming the logs
-            logger.silly(`Skipping path due to depth limit (${maxDepth}): ${canonical}`);
+            this.logger.silly(`Skipping path due to depth limit (${maxDepth}): ${canonical}`);
             return;
         }
         if (this.visitedPaths.has(canonical)) return;
@@ -285,7 +292,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 }
             }
         } catch (error) {
-            logger.debug(
+            this.logger.debug(
                 `Skipping inaccessible path: ${canonical} - ${error instanceof Error ? error.message : String(error)}`
             );
         }

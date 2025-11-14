@@ -28,10 +28,9 @@ import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
 import { dirname, resolve } from 'path';
-import * as path from 'path';
 import { createStorageManager, StorageManager } from '../storage/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
@@ -65,13 +64,13 @@ export type AgentServices = {
  * Initializes all agent services from a validated configuration.
  * @param config The validated agent configuration object
  * @param configPath Optional path to the config file (for relative path resolution)
- * @param agentId Optional agent identifier used for database naming (default: derived from config or 'default-agent')
+ * @param logger Logger instance for this agent (dependency injection)
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
     config: ValidatedAgentConfig,
-    configPath?: string,
-    agentId?: string
+    configPath: string | undefined,
+    logger: IDextoLogger
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -85,16 +84,9 @@ export async function createAgentServices(
     const agentEventBus: AgentEventBus = new AgentEventBus();
     logger.debug('Agent event bus initialized');
 
-    // 2. Derive agent ID for database naming (if not provided)
-    const effectiveAgentId =
-        agentId ||
-        config.agentCard?.name ||
-        (configPath ? path.basename(configPath, path.extname(configPath)) : undefined) ||
-        'default-agent';
-
-    // 3. Initialize storage manager with agent ID
-    logger.debug('Initializing storage manager', { agentId: effectiveAgentId });
-    const storageManager = await createStorageManager(config.storage, effectiveAgentId);
+    // 2. Initialize storage manager (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
+    logger.debug('Initializing storage manager');
+    const storageManager = await createStorageManager(config.storage, logger);
 
     logger.debug('Storage manager initialized', {
         cache: config.storage.cache.type,
@@ -104,20 +96,24 @@ export async function createAgentServices(
     // 3. Initialize approval system (generalized user approval)
     // Created before MCP manager since MCP manager depends on it for elicitation support
     logger.debug('Initializing approval manager');
-    const approvalManager = new ApprovalManager(agentEventBus, {
-        toolConfirmation: {
-            mode: config.toolConfirmation.mode,
-            timeout: config.toolConfirmation.timeout,
+    const approvalManager = new ApprovalManager(
+        agentEventBus,
+        {
+            toolConfirmation: {
+                mode: config.toolConfirmation.mode,
+                timeout: config.toolConfirmation.timeout,
+            },
+            elicitation: {
+                enabled: config.elicitation.enabled,
+                timeout: config.elicitation.timeout,
+            },
         },
-        elicitation: {
-            enabled: config.elicitation.enabled,
-            timeout: config.elicitation.timeout,
-        },
-    });
+        logger
+    );
     logger.debug('Approval system initialized');
 
     // 4. Initialize MCP manager
-    const mcpManager = new MCPManager();
+    const mcpManager = new MCPManager(logger);
     await mcpManager.initializeFromConfig(config.mcpServers);
 
     // 4.1 - Wire approval manager into MCP manager for elicitation support
@@ -125,19 +121,22 @@ export async function createAgentServices(
     logger.debug('Approval manager connected to MCP manager for elicitation support');
 
     // 5. Initialize search service
-    const searchService = new SearchService(storageManager.getDatabase());
+    const searchService = new SearchService(storageManager.getDatabase(), logger);
 
     // 6. Initialize memory manager
-    const memoryManager = new MemoryManager(storageManager.getDatabase());
+    const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize plugin manager
     const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
-    const pluginManager = new PluginManager({
-        agentEventBus,
-        storageManager,
-        configDir,
-    });
+    const pluginManager = new PluginManager(
+        {
+            agentEventBus,
+            storageManager,
+            configDir,
+        },
+        logger
+    );
 
     // Register built-in plugins from registry
     registerBuiltInPlugins({ pluginManager, config });
@@ -147,31 +146,52 @@ export async function createAgentServices(
     await pluginManager.initialize(config.plugins.custom);
     logger.info('Plugin manager initialized');
 
-    // TODO: Consider lazy initialization of ProcessService and FileSystemService
-    // - Only initialize if they will be used by some tools
+    // TODO: Conditional initialization of FileSystemService and ProcessService
+    // These services are only needed when specific internal tools are enabled:
+    // - FileSystemService: Required by read-file, write-file, edit-file, glob-files, grep-content tools
+    // - ProcessService: Required by bash-exec, bash-output, kill-process tools
+    //
+    // Consider lazy initialization pattern:
+    // 1. Check config.internalTools to see which tools are enabled
+    // 2. Only initialize services if their dependent tools are present
+    // 3. This avoids overhead for agents that don't need file/process operations
+    //
+    // Current behavior: Always initialized for backward compatibility
     // 7. Initialize FileSystemService and ProcessService for internal tools
-    const fileSystemService = new FileSystemService({
-        allowedPaths: ['.'],
-        blockedPaths: ['.git', 'node_modules/.bin', '.env'],
-        blockedExtensions: ['.exe', '.dll', '.so'],
-        workingDirectory: process.cwd(),
-    });
+    const fileSystemService = new FileSystemService(
+        {
+            allowedPaths: ['.'],
+            blockedPaths: ['.git', 'node_modules/.bin', '.env'],
+            blockedExtensions: ['.exe', '.dll', '.so'],
+            workingDirectory: process.cwd(),
+            // Note: enableBackups and backupPath are not configured here
+            // Backups are disabled by default. To enable per-agent backups,
+            // filesystem config would need to be added to AgentConfig schema
+        },
+        logger
+    );
     await fileSystemService.initialize();
     logger.debug('FileSystemService initialized');
 
-    const processService = new ProcessService({
-        securityLevel: 'moderate',
-        workingDirectory: process.cwd(),
-    });
+    const processService = new ProcessService(
+        {
+            securityLevel: 'moderate',
+            workingDirectory: process.cwd(),
+        },
+        logger
+    );
     await processService.initialize();
     logger.debug('ProcessService initialized');
 
     // 8. Initialize tool manager with internal tools options
     // 8.1 - Create allowed tools provider based on configuration
-    const allowedToolsProvider = createAllowedToolsProvider({
-        type: config.toolConfirmation.allowedToolsStorage,
-        storageManager,
-    });
+    const allowedToolsProvider = createAllowedToolsProvider(
+        {
+            type: config.toolConfirmation.allowedToolsStorage,
+            storageManager,
+        },
+        logger
+    );
 
     // 8.2 - Initialize tool manager with direct ApprovalManager integration
     const toolManager = new ToolManager(
@@ -188,7 +208,8 @@ export async function createAgentServices(
                 processService,
             },
             internalToolsConfig: config.internalTools,
-        }
+        },
+        logger
     );
     await toolManager.initialize();
 
@@ -212,18 +233,23 @@ export async function createAgentServices(
     const systemPromptManager = new SystemPromptManager(
         config.systemPrompt,
         configDir,
-        memoryManager
+        memoryManager,
+        logger
     );
 
     // 10. Initialize state manager for runtime state tracking
-    const stateManager = new AgentStateManager(config, agentEventBus);
+    const stateManager = new AgentStateManager(config, agentEventBus, logger);
     logger.debug('Agent state manager initialized');
 
     // 11. Initialize resource manager (MCP + internal resources)
-    const resourceManager = new ResourceManager(mcpManager, {
-        internalResourcesConfig: config.internalResources,
-        blobStore: storageManager.getBlobStore(),
-    });
+    const resourceManager = new ResourceManager(
+        mcpManager,
+        {
+            internalResourcesConfig: config.internalResources,
+            blobStore: storageManager.getBlobStore(),
+        },
+        logger
+    );
     await resourceManager.initialize();
 
     // 12. Initialize session manager
@@ -241,7 +267,8 @@ export async function createAgentServices(
         {
             maxSessions: config.sessions?.maxSessions,
             sessionTTL: config.sessions?.sessionTTL,
-        }
+        },
+        logger
     );
 
     // Initialize the session manager with persistent storage

@@ -7,7 +7,8 @@ import {
     filterMessagesByLLMCapabilities,
     toTextForToolMessage,
 } from '@core/context/utils.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 
 /**
  * Message formatter for OpenAI's Chat Completion API.
@@ -18,6 +19,11 @@ import { logger } from '@core/logger/index.js';
  * - Tool results use the 'tool' role with tool_call_id and name
  */
 export class OpenAIMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into OpenAI's Chat Completion API format
      *
@@ -36,9 +42,11 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
         } catch (error) {
-            logger.warn(`Failed to apply capability filtering, using original history: ${error}`);
+            this.logger.warn(
+                `Failed to apply capability filtering, using original history: ${error}`
+            );
             filteredHistory = [...history];
         }
 
@@ -105,7 +113,7 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     } else {
                         // Orphaned tool result (result without matching call)
                         // Skip it to prevent API errors - can't send result without corresponding call
-                        logger.warn(
+                        this.logger.warn(
                             `Skipping orphaned tool result ${msg.toolCallId} (no matching tool call found) - cannot send to OpenAI without corresponding tool_calls`
                         );
                     }
@@ -123,7 +131,7 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                         'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
                     tool_call_id: toolCallId,
                 });
-                logger.warn(
+                this.logger.warn(
                     `Tool call ${toolCallId} had no matching tool result - added synthetic error result to prevent API errors`
                 );
             }
@@ -208,7 +216,7 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     return { type: 'text', text: part.text };
                 }
                 if (part.type === 'image') {
-                    const raw = getImageData(part);
+                    const raw = getImageData(part, this.logger);
                     const url =
                         raw.startsWith('http://') ||
                         raw.startsWith('https://') ||

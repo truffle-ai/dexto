@@ -8,6 +8,7 @@ describe('DatabaseHistoryProvider error mapping', () => {
     let db: Mocked<Database>;
     let provider: DatabaseHistoryProvider;
     const sessionId = 's-1';
+    let mockLogger: any;
 
     beforeEach(() => {
         db = {
@@ -25,7 +26,18 @@ describe('DatabaseHistoryProvider error mapping', () => {
             getStoreType: vi.fn().mockReturnValue('memory'),
         } as any;
 
-        provider = new DatabaseHistoryProvider(sessionId, db);
+        mockLogger = {
+            silly: vi.fn(),
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn().mockReturnThis(),
+            destroy: vi.fn(),
+        };
+
+        provider = new DatabaseHistoryProvider(sessionId, db, mockLogger);
     });
 
     test('saveMessage maps backend error to SessionError.storageFailed', async () => {

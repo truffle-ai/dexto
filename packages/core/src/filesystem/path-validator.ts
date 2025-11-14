@@ -7,7 +7,7 @@
 import * as path from 'node:path';
 import { realpathSync } from 'node:fs';
 import { FileSystemConfig, PathValidation } from './types.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
  * PathValidator - Validates file paths for security and policy compliance
@@ -25,9 +25,11 @@ export class PathValidator {
     private normalizedAllowedPaths: string[];
     private normalizedBlockedPaths: string[];
     private normalizedBlockedExtensions: string[];
+    private logger: IDextoLogger;
 
-    constructor(config: FileSystemConfig) {
+    constructor(config: FileSystemConfig, logger: IDextoLogger) {
         this.config = config;
+        this.logger = logger;
 
         // Normalize allowed paths to absolute paths
         const workingDir = config.workingDirectory || process.cwd();
@@ -42,7 +44,7 @@ export class PathValidator {
             return e.toLowerCase();
         });
 
-        logger.debug(
+        this.logger.debug(
             `PathValidator initialized with ${this.normalizedAllowedPaths.length} allowed paths`
         );
     }

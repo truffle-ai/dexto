@@ -1,5 +1,6 @@
 import type { AgentErrorCode } from '@core/agent/error-codes.js';
-import type { ConfigErrorCode } from '@core/config/error-codes.js';
+// ConfigErrorCode has been moved to @dexto/agent-management
+// Import from there if needed for error type unions
 import type { ContextErrorCode } from '@core/context/error-codes.js';
 import type { LLMErrorCode } from '@core/llm/error-codes.js';
 import type { MCPErrorCode } from '@core/mcp/error-codes.js';
@@ -28,6 +29,7 @@ export enum ErrorScope {
     MCP = 'mcp', // MCP server connections and protocol
     TOOLS = 'tools', // Tool execution and authorization
     STORAGE = 'storage', // Storage backend operations
+    LOGGER = 'logger', // Logging system operations, transports, and configuration
     SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
     PROMPT = 'prompt', // Prompt management, resolution, and providers
@@ -56,11 +58,11 @@ export enum ErrorType {
 /**
  * Union type for all error codes across domains
  * Provides type safety for error handling
+ * Note: ConfigErrorCode has been moved to @dexto/agent-management
  */
 export type DextoErrorCode =
     | LLMErrorCode
     | AgentErrorCode
-    | ConfigErrorCode
     | ContextErrorCode
     | SessionErrorCode
     | MCPErrorCode

@@ -18,14 +18,16 @@ Complete reference for all agent.yml configuration options.
 7. [Storage Configuration](#storage-configuration)
 8. [Session Configuration](#session-configuration)
 9. [Telemetry Configuration](#telemetry-configuration)
-10. [Plugins](#plugins)
-11. [Internal Tools](#internal-tools)
-12. [Internal Resources](#internal-resources)
-13. [Agent Identity / A2A](#agent-identity--a2a)
-14. [Dynamic Changes](#dynamic-changes)
-15. [Starter Prompts](#starter-prompts)
-16. [Greeting](#greeting)
-17. [Global Preferences](#global-preferences)
+10. [Logger Configuration](#logger-configuration)
+11. [Plugins](#plugins)
+12. [Internal Tools](#internal-tools)
+13. [Internal Resources](#internal-resources)
+14. [Agent Identity / A2A](#agent-identity--a2a)
+15. [Agent ID](#agent-id)
+16. [Dynamic Changes](#dynamic-changes)
+17. [Starter Prompts](#starter-prompts)
+18. [Greeting](#greeting)
+19. [Global Preferences](#global-preferences)
 
 ## Minimal Configuration
 
@@ -117,6 +119,17 @@ telemetry:
     type: otlp
     protocol: http
     endpoint: http://localhost:4318/v1/traces
+
+# Logger
+logger:
+  level: info
+  transports:
+    - type: console
+      colorize: true
+    - type: file
+      path: ./logs/agent.log
+      maxSize: 10485760
+      maxFiles: 5
 
 # Plugins
 plugins:
@@ -424,9 +437,8 @@ database:
 # SQLite
 database:
   type: sqlite
-  path: string                  # Optional, auto-detected
-  database: string              # Optional
-  maxConnections: number
+  path: string                  # Required: full path to database file
+  maxConnections: number        # Optional
 
 # PostgreSQL
 database:
@@ -525,6 +537,88 @@ telemetry:
   export:
     type: console
 ```
+
+## Logger Configuration
+
+Multi-transport logging system with file, console, and remote transport support.
+
+:::tip CLI Auto-Configuration
+The CLI automatically adds a per-agent file transport at `~/.dexto/logs/<agent-id>.log`. You only need to configure this section if you want to customize logging behavior or add additional transports.
+:::
+
+### Schema
+
+```yaml
+logger:
+  level: error | warn | info | debug | silly  # Default: info
+  transports:
+    - type: console | file
+      # Type-specific fields below
+```
+
+### Log Levels
+
+Following Winston convention (lower = more severe):
+- `error` - Only critical errors
+- `warn` - Warnings and errors
+- `info` - General information (default)
+- `debug` - Detailed debugging information
+- `silly` - Very detailed trace information
+
+### Transport Types
+
+```yaml
+# Console Transport
+- type: console
+  colorize: boolean        # Default: true
+
+# File Transport
+- type: file
+  path: string            # Required: full path to log file
+  maxSize: number         # Default: 10485760 (10MB)
+  maxFiles: number        # Default: 5 (rotation count)
+```
+
+### Examples
+
+```yaml
+# Console only (development)
+logger:
+  level: debug
+  transports:
+    - type: console
+      colorize: true
+
+# File only (production)
+logger:
+  level: info
+  transports:
+    - type: file
+      path: ./logs/agent.log
+      maxSize: 10485760
+      maxFiles: 5
+
+# Both console and file
+logger:
+  level: debug
+  transports:
+    - type: console
+      colorize: true
+    - type: file
+      path: ./logs/agent.log
+      maxSize: 10485760
+      maxFiles: 5
+```
+
+### Per-Agent Log Files
+
+The CLI automatically creates per-agent log files at:
+- `~/.dexto/logs/<agent-id>.log`
+
+Where `<agent-id>` is derived from:
+1. `agentCard.name` (sanitized for filesystem)
+2. Config filename (e.g., `my-agent.yml` → `my-agent`)
+3. Fallback: `default-agent`
 
 ## Plugins
 
@@ -739,6 +833,46 @@ For runtime configuration and overrides, see **[Dynamic Changes Guide](./dynamic
 :::
 
 Runtime configuration changes and environment overrides.
+
+## Agent ID
+
+Unique identifier for this agent instance, used for per-agent isolation of logs, database, and blob storage.
+
+:::tip CLI Auto-Derives
+The CLI automatically derives the agent ID from your `agentCard.name` or config filename. You rarely need to set this manually.
+:::
+
+### Schema
+
+```yaml
+agentId: string           # Default: derived from agentCard.name or filename
+```
+
+### Derivation Rules
+
+The CLI derives `agentId` in this priority order:
+
+1. **agentCard.name** (sanitized for filesystem):
+   ```yaml
+   agentCard:
+     name: "My Custom Agent"  # → agentId: "my-custom-agent"
+   ```
+
+2. **Config filename** (without extension):
+   ```text
+   my-agent.yml            # → agentId: "my-agent"
+   database-agent.yml      # → agentId: "database-agent"
+   ```
+
+3. **Fallback**: `default-agent`
+
+### Manual Override
+
+```yaml
+agentId: custom-id-123
+```
+
+Use this when you need explicit control over storage isolation or have multiple instances of the same agent.
 
 ## Starter Prompts
 

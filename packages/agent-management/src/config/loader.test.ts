@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'node:url';
 import { loadAgentConfig } from './loader.js';
-import { ErrorScope, ErrorType } from '@core/errors/index.js';
+import { ErrorScope, ErrorType } from '@dexto/core';
 import { ConfigErrorCode } from './error-codes.js';
 
 // Temp config file path relative to this test file (stable across monorepo runners)

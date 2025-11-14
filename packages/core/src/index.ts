@@ -13,7 +13,11 @@
 export * from './agent/index.js';
 
 // Configuration
-export * from './config/index.js';
+// Config loading has been moved to @dexto/agent-management
+// Import from '@dexto/agent-management' instead:
+// - loadAgentConfig
+// - ConfigError
+// - ConfigErrorCode
 
 // Errors
 export * from './errors/index.js';

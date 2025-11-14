@@ -1,7 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { setMaxListeners } from 'events';
-import { AgentEventBus } from '@dexto/core';
-import { logger } from '@dexto/core';
+import { AgentEventBus, logger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 
 /**
