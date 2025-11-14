@@ -71,6 +71,8 @@ storage:
     type: in-memory
   database:
     type: sqlite
+  blob:
+    type: in-memory
 
 # Tool confirmation configuration - auto-approve for better development experience
 toolConfirmation:
