@@ -106,6 +106,10 @@ export class JsonRpcServer {
         try {
             // Validate JSON-RPC version
             if (request.jsonrpc !== '2.0') {
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                }
                 return this.createErrorResponse(
                     request.id ?? null,
                     JsonRpcErrorCode.INVALID_REQUEST,
@@ -115,6 +119,10 @@ export class JsonRpcServer {
 
             // Validate method exists
             if (typeof request.method !== 'string') {
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                }
                 return this.createErrorResponse(
                     request.id ?? null,
                     JsonRpcErrorCode.INVALID_REQUEST,
@@ -125,6 +133,10 @@ export class JsonRpcServer {
             // Check if method exists
             const handler = this.methods[request.method];
             if (!handler) {
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                }
                 return this.createErrorResponse(
                     request.id ?? null,
                     JsonRpcErrorCode.METHOD_NOT_FOUND,
@@ -144,18 +156,23 @@ export class JsonRpcServer {
 
                 return this.createSuccessResponse(request.id ?? null, result);
             } catch (error) {
-                // Method execution error
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                const errorData =
-                    error instanceof Error ? { name: error.name, stack: error.stack } : undefined;
-
-                // Call error handler if provided
+                // Call error handler if provided (always log server-side)
                 if (this.onError) {
                     this.onError(
                         error instanceof Error ? error : new Error(String(error)),
                         request
                     );
                 }
+
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return { jsonrpc: '2.0', result: null, id: undefined as any };
+                }
+
+                // Method execution error - return error response
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                // Don't leak stack traces to clients (already logged via onError)
+                const errorData = error instanceof Error ? { name: error.name } : undefined;
 
                 return this.createErrorResponse(
                     request.id ?? null,

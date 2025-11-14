@@ -86,14 +86,18 @@ export class A2AMethodHandlers {
      *
      * @param params Parameters containing task ID
      * @returns Task details
+     * @throws Error if task not found
      */
     async tasksGet(params: TaskQueryParams): Promise<Task> {
         if (!params?.id) {
             throw new Error('id is required');
         }
 
-        // Get session by ID (taskId === sessionId)
-        const session = await this.agent.createSession(params.id);
+        // Check if session exists (don't create if not found)
+        const session = await this.agent.getSession(params.id);
+        if (!session) {
+            throw new Error(`Task not found: ${params.id}`);
+        }
 
         // Convert to task view
         const taskView = new TaskView(session);
@@ -152,14 +156,20 @@ export class A2AMethodHandlers {
      *
      * @param params Parameters containing task ID
      * @returns Updated task (in canceled state)
+     * @throws Error if task not found
      */
     async tasksCancel(params: TaskIdParams): Promise<Task> {
         if (!params?.id) {
             throw new Error('id is required');
         }
 
-        // Get session and cancel it
-        const session = await this.agent.createSession(params.id);
+        // Check if session exists (don't create if not found)
+        const session = await this.agent.getSession(params.id);
+        if (!session) {
+            throw new Error(`Task not found: ${params.id}`);
+        }
+
+        // Cancel the session
         session.cancel();
 
         // Return updated task view

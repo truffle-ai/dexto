@@ -98,15 +98,17 @@ export function createA2AJsonRpcRouter(
                     logger.error(`Error in streaming task ${session.id}: ${error}`);
                 });
 
-                // Set SSE headers and return stream
-                ctx.header('Content-Type', 'text/event-stream');
-                ctx.header('Cache-Control', 'no-cache');
-                ctx.header('Connection', 'keep-alive');
-                ctx.header('X-Accel-Buffering', 'no');
-
                 logger.info(`JSON-RPC SSE stream opened for task ${session.id}`);
 
-                return new Response(stream);
+                // Return stream with SSE headers
+                return new Response(stream, {
+                    headers: {
+                        'Content-Type': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        Connection: 'keep-alive',
+                        'X-Accel-Buffering': 'no',
+                    },
+                });
             }
 
             // Handle regular (non-streaming) JSON-RPC request

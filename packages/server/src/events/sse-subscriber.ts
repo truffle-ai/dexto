@@ -240,15 +240,20 @@ export class SSEEventSubscriber {
      * @param eventName SSE event name
      * @param data Event data
      */
-    private broadcastToTask(taskId: string, eventName: string, data: any): void {
+    private broadcastToTask(
+        taskId: string,
+        eventName: string,
+        data: Record<string, unknown>
+    ): void {
         let sent = 0;
         for (const [connectionId, connection] of this.connections.entries()) {
             if (connection.taskId === taskId) {
                 try {
                     this.sendSSEEvent(connection.controller, eventName, data);
                     sent++;
-                } catch (error) {
-                    logger.warn(`Failed to send SSE event to ${connectionId}: ${error}`);
+                } catch (error: unknown) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    logger.warn(`Failed to send SSE event to ${connectionId}: ${errorMessage}`);
                     // Clean up failed connection
                     connection.abortController.abort();
                     this.connections.delete(connectionId);
@@ -273,7 +278,7 @@ export class SSEEventSubscriber {
     private sendSSEEvent(
         controller: ReadableStreamDefaultController,
         eventName: string,
-        data: any
+        data: Record<string, unknown>
     ): void {
         const event = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
         controller.enqueue(new TextEncoder().encode(event));
