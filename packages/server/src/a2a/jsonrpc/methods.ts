@@ -59,7 +59,7 @@ export class A2AMethodHandlers {
             throw new Error('message is required');
         }
 
-        const { message, configuration } = params;
+        const { message } = params;
 
         // Extract taskId from message (or generate new one)
         const taskId = message.taskId;

@@ -20,125 +20,153 @@ import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
 
 // Request/Response Schemas for OpenAPI (using A2A-compliant schema)
 
-const PartSchema = z.discriminatedUnion('kind', [
-    z.object({
-        kind: z.literal('text'),
-        text: z.string(),
-        metadata: z.record(z.any()).optional(),
-    }),
-    z.object({
-        kind: z.literal('file'),
-        file: z.union([
-            z.object({
-                bytes: z.string(),
-                name: z.string().optional(),
-                mimeType: z.string().optional(),
-            }),
-            z.object({
-                uri: z.string(),
-                name: z.string().optional(),
-                mimeType: z.string().optional(),
-            }),
-        ]),
-        metadata: z.record(z.any()).optional(),
-    }),
-    z.object({
-        kind: z.literal('data'),
-        data: z.record(z.any()),
-        metadata: z.record(z.any()).optional(),
-    }),
-]);
+const PartSchema = z
+    .discriminatedUnion('kind', [
+        z.object({
+            kind: z.literal('text').describe('Part type discriminator'),
+            text: z.string().describe('Text content'),
+            metadata: z.record(z.any()).optional().describe('Extension metadata'),
+        }),
+        z.object({
+            kind: z.literal('file').describe('Part type discriminator'),
+            file: z
+                .union([
+                    z.object({
+                        bytes: z.string().describe('Base64-encoded file data'),
+                        name: z.string().optional().describe('File name'),
+                        mimeType: z.string().optional().describe('MIME type'),
+                    }),
+                    z.object({
+                        uri: z.string().describe('File URI'),
+                        name: z.string().optional().describe('File name'),
+                        mimeType: z.string().optional().describe('MIME type'),
+                    }),
+                ])
+                .describe('File data (bytes or URI)'),
+            metadata: z.record(z.any()).optional().describe('Extension metadata'),
+        }),
+        z.object({
+            kind: z.literal('data').describe('Part type discriminator'),
+            data: z.record(z.any()).describe('Structured JSON data'),
+            metadata: z.record(z.any()).optional().describe('Extension metadata'),
+        }),
+    ])
+    .describe('Message part (text, file, or data)');
 
-const MessageSchema = z.object({
-    role: z.enum(['user', 'agent']),
-    parts: z.array(PartSchema),
-    messageId: z.string(),
-    taskId: z.string().optional(),
-    contextId: z.string().optional(),
-    metadata: z.record(z.any()).optional(),
-    extensions: z.array(z.string()).optional(),
-    referenceTaskIds: z.array(z.string()).optional(),
-    kind: z.literal('message'),
-});
+const MessageSchema = z
+    .object({
+        role: z.enum(['user', 'agent']).describe('Message role'),
+        parts: z.array(PartSchema).describe('Message parts'),
+        messageId: z.string().describe('Unique message identifier'),
+        taskId: z.string().optional().describe('Associated task ID'),
+        contextId: z.string().optional().describe('Context identifier'),
+        metadata: z.record(z.any()).optional().describe('Extension metadata'),
+        extensions: z.array(z.string()).optional().describe('Extension identifiers'),
+        referenceTaskIds: z.array(z.string()).optional().describe('Referenced task IDs'),
+        kind: z.literal('message').describe('Object type discriminator'),
+    })
+    .describe('A2A Protocol message');
 
-const TaskStatusSchema = z.object({
-    state: z.enum([
-        'submitted',
-        'working',
-        'input-required',
-        'completed',
-        'canceled',
-        'failed',
-        'rejected',
-        'auth-required',
-        'unknown',
-    ]),
-    message: MessageSchema.optional(),
-    timestamp: z.string().optional(),
-});
+const TaskStatusSchema = z
+    .object({
+        state: z
+            .enum([
+                'submitted',
+                'working',
+                'input-required',
+                'completed',
+                'canceled',
+                'failed',
+                'rejected',
+                'auth-required',
+                'unknown',
+            ])
+            .describe('Current task state'),
+        message: MessageSchema.optional().describe('Status message'),
+        timestamp: z.string().optional().describe('ISO 8601 timestamp'),
+    })
+    .describe('Task status');
 
-const TaskSchema = z.object({
-    id: z.string(),
-    contextId: z.string(),
-    status: TaskStatusSchema,
-    history: z.array(MessageSchema).optional(),
-    artifacts: z.array(z.any()).optional(),
-    metadata: z.record(z.any()).optional(),
-    kind: z.literal('task'),
-});
+const TaskSchema = z
+    .object({
+        id: z.string().describe('Unique task identifier'),
+        contextId: z.string().describe('Context identifier across related tasks'),
+        status: TaskStatusSchema.describe('Current task status'),
+        history: z.array(MessageSchema).optional().describe('Conversation history'),
+        artifacts: z.array(z.any()).optional().describe('Task artifacts'),
+        metadata: z.record(z.any()).optional().describe('Extension metadata'),
+        kind: z.literal('task').describe('Object type discriminator'),
+    })
+    .describe('A2A Protocol task');
 
-const MessageSendRequestSchema = z.object({
-    message: MessageSchema.describe('Message to send to the agent'),
-    configuration: z
-        .object({
-            acceptedOutputModes: z.array(z.string()).optional(),
-            historyLength: z.number().optional(),
-            pushNotificationConfig: z
-                .object({
-                    url: z.string(),
-                    headers: z.record(z.string()).optional(),
-                })
-                .optional(),
-            blocking: z.boolean().optional(),
-        })
-        .optional()
-        .describe('Optional configuration'),
-    metadata: z.record(z.any()).optional().describe('Optional metadata'),
-});
+const MessageSendRequestSchema = z
+    .object({
+        message: MessageSchema.describe('Message to send to the agent'),
+        configuration: z
+            .object({
+                acceptedOutputModes: z
+                    .array(z.string())
+                    .optional()
+                    .describe('Accepted output MIME types'),
+                historyLength: z.number().optional().describe('Limit conversation history length'),
+                pushNotificationConfig: z
+                    .object({
+                        url: z.string().describe('Push notification webhook URL'),
+                        headers: z
+                            .record(z.string())
+                            .optional()
+                            .describe('HTTP headers for webhook'),
+                    })
+                    .optional()
+                    .describe('Push notification configuration'),
+                blocking: z.boolean().optional().describe('Wait for task completion'),
+            })
+            .optional()
+            .describe('Optional configuration'),
+        metadata: z.record(z.any()).optional().describe('Optional metadata'),
+    })
+    .describe('Request body for message/send');
 
-const TaskListQuerySchema = z.object({
-    contextId: z.string().optional(),
-    status: z
-        .enum([
-            'submitted',
-            'working',
-            'input-required',
-            'completed',
-            'canceled',
-            'failed',
-            'rejected',
-            'auth-required',
-            'unknown',
-        ])
-        .optional(),
-    pageSize: z
-        .string()
-        .optional()
-        .transform((v) => (v ? parseInt(v) : undefined)),
-    pageToken: z.string().optional(),
-    historyLength: z
-        .string()
-        .optional()
-        .transform((v) => (v ? parseInt(v) : undefined)),
-    lastUpdatedAfter: z
-        .string()
-        .optional()
-        .transform((v) => (v ? parseInt(v) : undefined)),
-    includeArtifacts: z
-        .string()
-        .optional()
-        .transform((v) => v === 'true'),
-});
+const TaskListQuerySchema = z
+    .object({
+        contextId: z.string().optional().describe('Filter by context ID'),
+        status: z
+            .enum([
+                'submitted',
+                'working',
+                'input-required',
+                'completed',
+                'canceled',
+                'failed',
+                'rejected',
+                'auth-required',
+                'unknown',
+            ])
+            .optional()
+            .describe('Filter by task state'),
+        pageSize: z
+            .string()
+            .optional()
+            .transform((v) => (v ? parseInt(v) : undefined))
+            .describe('Number of results (1-100, default 50)'),
+        pageToken: z.string().optional().describe('Pagination token'),
+        historyLength: z
+            .string()
+            .optional()
+            .transform((v) => (v ? parseInt(v) : undefined))
+            .describe('Limit history items'),
+        lastUpdatedAfter: z
+            .string()
+            .optional()
+            .transform((v) => (v ? parseInt(v) : undefined))
+            .describe('Unix timestamp filter'),
+        includeArtifacts: z
+            .string()
+            .optional()
+            .transform((v) => v === 'true')
+            .describe('Include artifacts in response'),
+    })
+    .describe('Query parameters for tasks/list');
 
 /**
  * Create A2A REST Task router
@@ -259,10 +287,10 @@ export function createA2ATasksRouter(
                 content: {
                     'application/json': {
                         schema: z.object({
-                            tasks: z.array(TaskSchema),
-                            totalSize: z.number(),
-                            pageSize: z.number(),
-                            nextPageToken: z.string(),
+                            tasks: z.array(TaskSchema).describe('Array of tasks'),
+                            totalSize: z.number().describe('Total number of tasks'),
+                            pageSize: z.number().describe('Number of tasks in this page'),
+                            nextPageToken: z.string().describe('Token for next page'),
                         }),
                     },
                 },
@@ -288,7 +316,7 @@ export function createA2ATasksRouter(
         tags: ['a2a'],
         request: {
             params: z.object({
-                id: z.string(),
+                id: z.string().describe('Task ID'),
             }),
         },
         responses: {
@@ -328,7 +356,7 @@ export function createA2ATasksRouter(
         tags: ['a2a'],
         request: {
             params: z.object({
-                id: z.string(),
+                id: z.string().describe('Task ID'),
             }),
         },
         responses: {

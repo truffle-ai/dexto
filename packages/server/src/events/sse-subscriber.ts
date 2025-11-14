@@ -11,6 +11,7 @@
  * - Supports multiple concurrent SSE connections
  */
 
+/* eslint-disable no-undef */
 import { setMaxListeners } from 'events';
 import { AgentEventBus } from '@dexto/core';
 import { logger } from '@dexto/core';
@@ -209,7 +210,7 @@ export class SSEEventSubscriber {
                 const keepaliveInterval = setInterval(() => {
                     try {
                         this.sendSSEComment(controller, 'keepalive');
-                    } catch (error) {
+                    } catch (_error) {
                         clearInterval(keepaliveInterval);
                     }
                 }, 30000);
@@ -297,11 +298,11 @@ export class SSEEventSubscriber {
     cleanup(): void {
         logger.debug(`Cleaning up ${this.connections.size} SSE connections`);
 
-        for (const [connectionId, connection] of this.connections.entries()) {
+        for (const [_connectionId, connection] of this.connections.entries()) {
             connection.abortController.abort();
             try {
                 connection.controller.close();
-            } catch (error) {
+            } catch (_error) {
                 // Ignore errors on close
             }
         }

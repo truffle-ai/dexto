@@ -32,7 +32,7 @@ export function a2aToInternalMessage(a2aMsg: Message): ConvertedMessage {
                 text += (text ? ' ' : '') + part.text;
                 break;
 
-            case 'file':
+            case 'file': {
                 // Determine if this is an image or general file
                 const fileData = part.file;
                 const mimeType = fileData.mimeType || '';
@@ -58,6 +58,7 @@ export function a2aToInternalMessage(a2aMsg: Message): ConvertedMessage {
                     file = fileObj;
                 }
                 break;
+            }
 
             case 'data':
                 // Convert structured data to JSON text
@@ -127,7 +128,7 @@ export function internalToA2AMessage(
                     });
                     break;
 
-                case 'file':
+                case 'file': {
                     const fileObj: any = {
                         bytes: part.data.toString(),
                         mimeType: part.mimeType,
@@ -140,6 +141,7 @@ export function internalToA2AMessage(
                         file: fileObj,
                     });
                     break;
+                }
             }
         }
     }
