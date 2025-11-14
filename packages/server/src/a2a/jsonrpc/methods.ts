@@ -107,8 +107,8 @@ export class A2AMethodHandlers {
     /**
      * tasks/list - List all tasks (optional filters)
      *
-     * Note: This is a simple implementation that lists all sessions.
-     * For production, filtering by status, pagination, etc. would be added.
+     * Note: This implementation loads all sessions, applies filters, then paginates.
+     * For production with many sessions, consider filtering at the session manager level.
      *
      * @param params Optional filter parameters
      * @returns List of tasks with pagination info
@@ -117,16 +117,15 @@ export class A2AMethodHandlers {
         // Get all session IDs
         const sessionIds = await this.agent.listSessions();
 
-        // Apply pagination if provided
-        const pageSize = Math.min(params?.pageSize ?? 50, 100);
-        const offset = 0; // TODO: Implement proper pagination with pageToken
+        // Convert each session to task view and apply filters
+        const allTasks: Task[] = [];
+        for (const sessionId of sessionIds) {
+            // Use getSession to only retrieve existing sessions (don't create)
+            const session = await this.agent.getSession(sessionId);
+            if (!session) {
+                continue; // Skip if session no longer exists
+            }
 
-        const paginatedIds = sessionIds.slice(offset, offset + pageSize);
-
-        // Convert each session to task view
-        const tasks: Task[] = [];
-        for (const sessionId of paginatedIds) {
-            const session = await this.agent.createSession(sessionId);
             const taskView = new TaskView(session);
             const task = await taskView.toA2ATask();
 
@@ -140,12 +139,17 @@ export class A2AMethodHandlers {
                 continue;
             }
 
-            tasks.push(task);
+            allTasks.push(task);
         }
 
+        // Apply pagination after filtering
+        const pageSize = Math.min(params?.pageSize ?? 50, 100);
+        const offset = 0; // TODO: Implement proper pagination with pageToken
+        const paginatedTasks = allTasks.slice(offset, offset + pageSize);
+
         return {
-            tasks,
-            totalSize: tasks.length,
+            tasks: paginatedTasks,
+            totalSize: allTasks.length, // Total matching tasks before pagination
             pageSize,
             nextPageToken: '', // TODO: Implement pagination tokens
         };
@@ -184,11 +188,24 @@ export class A2AMethodHandlers {
      * it returns a stream of TaskStatusUpdateEvent and TaskArtifactUpdateEvent as the
      * agent processes the message.
      *
-     * Note: This method signature is for the handler registry. The actual streaming
-     * is handled by the transport layer (JSON-RPC or REST) which will return an SSE stream.
+     * **ARCHITECTURE NOTE**: This method is designed as a lightweight handler that returns
+     * a taskId immediately. The actual message processing happens at the transport layer:
+     *
+     * - **JSON-RPC Transport** (packages/server/src/hono/routes/a2a-jsonrpc.ts:72-112):
+     *   The route intercepts 'message/stream' requests BEFORE calling this handler,
+     *   processes the message directly (lines 96-99), and returns an SSE stream.
+     *   This handler is registered but never actually invoked for JSON-RPC streaming.
+     *
+     * - **REST Transport** (packages/server/src/hono/routes/a2a-tasks.ts:206-244):
+     *   Similar pattern - route processes message and returns SSE stream directly.
+     *
+     * This design separates concerns:
+     * - Handler provides taskId for API compatibility
+     * - Transport layer manages SSE streaming and message processing
+     * - Event bus broadcasts updates to connected SSE clients
      *
      * @param params Message send parameters (same as message/send)
-     * @returns Task ID for streaming (transport layer handles actual SSE stream)
+     * @returns Task ID for streaming (transport layer handles actual SSE stream and message processing)
      */
     async messageStream(params: MessageSendParams): Promise<{ taskId: string }> {
         if (!params?.message) {
@@ -205,6 +222,7 @@ export class A2AMethodHandlers {
 
         // Return task ID immediately - the transport layer will handle
         // setting up the SSE stream and calling agent.run() with streaming
+        // See architecture note above for where message processing occurs
         return { taskId: session.id };
     }
 

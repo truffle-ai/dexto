@@ -147,18 +147,30 @@ const TaskListQuerySchema = z
         pageSize: z
             .string()
             .optional()
-            .transform((v) => (v ? parseInt(v) : undefined))
+            .transform((v) => {
+                if (!v) return undefined;
+                const n = Number.parseInt(v, 10);
+                return Number.isNaN(n) ? undefined : n;
+            })
             .describe('Number of results (1-100, default 50)'),
         pageToken: z.string().optional().describe('Pagination token'),
         historyLength: z
             .string()
             .optional()
-            .transform((v) => (v ? parseInt(v) : undefined))
+            .transform((v) => {
+                if (!v) return undefined;
+                const n = Number.parseInt(v, 10);
+                return Number.isNaN(n) ? undefined : n;
+            })
             .describe('Limit history items'),
         lastUpdatedAfter: z
             .string()
             .optional()
-            .transform((v) => (v ? parseInt(v) : undefined))
+            .transform((v) => {
+                if (!v) return undefined;
+                const n = Number.parseInt(v, 10);
+                return Number.isNaN(n) ? undefined : n;
+            })
             .describe('Unix timestamp filter'),
         includeArtifacts: z
             .string()
@@ -256,15 +268,17 @@ export function createA2ATasksRouter(
                 logger.error(`Error in streaming task ${session.id}: ${error}`);
             });
 
-            // Set SSE headers and return stream
-            ctx.header('Content-Type', 'text/event-stream');
-            ctx.header('Cache-Control', 'no-cache');
-            ctx.header('Connection', 'keep-alive');
-            ctx.header('X-Accel-Buffering', 'no');
-
             logger.info(`REST SSE stream opened for task ${session.id}`);
 
-            return new Response(stream);
+            // Return stream with SSE headers
+            return new Response(stream, {
+                headers: {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    Connection: 'keep-alive',
+                    'X-Accel-Buffering': 'no',
+                },
+            });
         } catch (error) {
             logger.error(`Failed to handle message:stream: ${error}`);
             return ctx.json({ error: 'Failed to initiate streaming' }, 500);
