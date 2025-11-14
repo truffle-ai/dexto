@@ -49,7 +49,7 @@ export class LoggerError {
             ErrorScope.LOGGER,
             ErrorType.SYSTEM,
             `Failed to initialize ${transportType} transport: ${reason}`,
-            { transportType, reason, ...details }
+            { transportType, reason, ...(details ?? {}) }
         );
     }
 

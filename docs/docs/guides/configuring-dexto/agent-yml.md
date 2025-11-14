@@ -859,7 +859,7 @@ The CLI derives `agentId` in this priority order:
    ```
 
 2. **Config filename** (without extension):
-   ```
+   ```text
    my-agent.yml            # → agentId: "my-agent"
    database-agent.yml      # → agentId: "database-agent"
    ```
