@@ -19,6 +19,7 @@ export const INTERNAL_TOOL_NAMES = [
     'bash_exec',
     'bash_output',
     'kill_process',
+    'delegate_to_url',
 ] as const;
 
 export type KnownInternalTool = (typeof INTERNAL_TOOL_NAMES)[number];

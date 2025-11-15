@@ -62,7 +62,7 @@ fetch('http://localhost:3000/api/message', {
 
 These routes are always accessible:
 - `GET /health` - Health check
-- `GET /.well-known/agent.json` - A2A agent discovery
+- `GET /.well-known/agent-card.json` - A2A agent discovery
 - `GET /openapi.json` - API documentation
 
 ## Security Best Practices
@@ -227,7 +227,7 @@ A: Generate a new key immediately and update all clients.
 A: Yes, pass `Authorization: Bearer <key>` header when connecting.
 
 **Q: Can I disable auth for specific routes?**
-A: Public routes (/health, /.well-known/agent.json) are always accessible. To add more, modify `PUBLIC_ROUTES` in `middleware/auth.ts`.
+A: Public routes (/health, /.well-known/agent-card.json) are always accessible. To add more, modify `PUBLIC_ROUTES` in `middleware/auth.ts`.
 
 ## Contact
 

@@ -440,9 +440,13 @@ describe('Hono API Integration Tests', () => {
     });
 
     describe('A2A Routes', () => {
-        it('GET /.well-known/agent.json returns agent card', async () => {
+        it('GET /.well-known/agent-card.json returns agent card', async () => {
             if (!testServer) throw new Error('Test server not initialized');
-            const res = await httpRequest(testServer.baseUrl, 'GET', '/.well-known/agent.json');
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/.well-known/agent-card.json'
+            );
             expect(res.status).toBe(200);
             expect((res.body as { name: unknown }).name).toBeDefined();
         });

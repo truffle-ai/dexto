@@ -1,0 +1,85 @@
+# Specialist Agent - Receives delegated tasks and processes them
+agentId: data-analyzer-specialist
+
+# Agent Card for A2A Protocol
+agentCard:
+  name: "Data Analyzer"
+  description: "Specialized agent for analyzing data, generating insights, and creating reports. Excellent at statistical analysis and data visualization."
+  url: "http://localhost:3001"
+  version: "1.0.0"
+  skills:
+    - id: "data-analysis"
+      name: "Data Analysis"
+      description: "Analyze datasets, identify trends, and generate statistical insights"
+      tags: ["data", "analysis", "statistics", "trends"]
+      examples:
+        - "Analyze sales trends for Q4"
+        - "Find correlations in customer data"
+        - "Generate summary statistics"
+    - id: "report-generation"
+      name: "Report Generation"
+      description: "Create comprehensive reports with insights and recommendations"
+      tags: ["reporting", "documentation", "insights"]
+      examples:
+        - "Generate quarterly report"
+        - "Summarize key findings"
+
+# LLM Configuration
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: ${ANTHROPIC_API_KEY}
+
+# System Prompt
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a Data Analyzer specialist agent. Your role is to:
+
+        1. Analyze data and identify patterns/trends
+        2. Provide statistical insights
+        3. Generate clear, actionable reports
+
+        When you receive a delegation request, focus on:
+        - Understanding the data or question thoroughly
+        - Providing specific, quantitative insights
+        - Being concise but comprehensive
+
+        Always structure your responses with:
+        - Summary of findings
+        - Key insights (3-5 bullet points)
+        - Recommendations
+    - id: dateTime
+      type: dynamic
+      priority: 10
+      source: dateTime
+      enabled: true
+
+# Session configuration
+sessions:
+  sessionTTL: 3600000 # 1 hour
+  maxSessions: 100
+
+# Storage
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: in-memory
+
+# Tool confirmation
+toolConfirmation:
+  mode: auto-approve
+  timeout: 120000
+
+# Logging
+logger:
+  level: info
+  transports:
+    - type: console
+      colorize: true
