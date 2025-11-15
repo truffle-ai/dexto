@@ -483,7 +483,7 @@ export class SessionManager {
                 this.logger,
                 options.agentConfig,
                 subAgent?.parentSessionId,
-                options.agentIdentifier
+                subAgent?.agentIdentifier
             );
             await session.init();
             this.sessions.set(id, session);

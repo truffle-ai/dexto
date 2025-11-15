@@ -868,11 +868,6 @@ export class ChatSession {
             // Do NOT reset conversation - that would delete chat history!
             this.dispose();
 
-            if (this.customToolManager) {
-                this.customToolManager.dispose();
-                this.customToolManager = null;
-            }
-
             this.logger.debug(
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`
             );
@@ -920,6 +915,12 @@ export class ChatSession {
             this.logger.debug(
                 `Cleaned up parent event forwarders for sub-agent session ${this.id} → ${this.parentSessionId}`
             );
+        }
+
+        // Dispose custom ToolManager if present (for sub-agent sessions with custom tools)
+        if (this.customToolManager) {
+            this.customToolManager.dispose();
+            this.customToolManager = null;
         }
 
         this.logger.debug(`Session ${this.id} disposed successfully`);

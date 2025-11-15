@@ -17,10 +17,10 @@ export const SessionConfigSchema = z
         maxSubAgentDepth: z
             .number()
             .int()
-            .positive()
+            .nonnegative()
             .default(1)
             .describe(
-                'Maximum nesting depth for spawned sub-agents. 1 allows parent → child; increase for deeper hierarchies.'
+                'Maximum nesting depth for spawned sub-agents. 0 disables sub-agents; 1 allows parent → child; increase for deeper hierarchies.'
             ),
         subAgentLifecycle: z
             .enum(['ephemeral', 'persistent'])
