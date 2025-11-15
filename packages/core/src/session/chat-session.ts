@@ -241,125 +241,119 @@ export class ChatSession {
     }
 
     /**
+     * Construct a payload tagged with sub-agent metadata for parent delivery.
+     */
+    private buildParentForwardPayload(
+        payload: any,
+        parentSessionId: string,
+        overrideSessionId?: string
+    ): Record<string, unknown> {
+        const basePayload = {
+            fromSubAgent: true,
+            subAgentSessionId: this.id,
+            subAgentType: this.agentType,
+            parentSessionId,
+        };
+
+        const mergedPayload =
+            payload && typeof payload === 'object' ? { ...payload, ...basePayload } : basePayload;
+
+        return overrideSessionId
+            ? {
+                  ...mergedPayload,
+                  sessionId: overrideSessionId,
+              }
+            : mergedPayload;
+    }
+
+    /**
+     * Register a parent forwarder for the provided event emitter.
+     */
+    private registerParentForwarder(
+        key: string,
+        source: SessionEventBus | AgentEventBus,
+        target: SessionEventBus | AgentEventBus,
+        eventName: SessionEventName | string,
+        parentSessionId: string,
+        options?: { filterBySessionId?: string; overrideSessionId?: string }
+    ): void {
+        const forwarder = (payload?: any) => {
+            if (options?.filterBySessionId && payload?.sessionId !== options.filterBySessionId) {
+                return;
+            }
+
+            const augmentedPayload = this.buildParentForwardPayload(
+                payload,
+                parentSessionId,
+                options?.overrideSessionId
+            );
+
+            this.logger.silly(
+                `Forwarding sub-agent event ${eventName} to parent session ${parentSessionId}: ${JSON.stringify(augmentedPayload, null, 2)}`
+            );
+
+            target.emit(eventName as any, augmentedPayload);
+        };
+
+        this.parentForwarders.set(key, forwarder);
+        source.on(eventName as any, forwarder);
+    }
+
+    /**
      * Sets up event forwarding from this sub-agent session to the parent session's event bus.
      * This allows the parent session to receive real-time updates about sub-agent progress,
      * including tool calls, thinking events, and approval requests.
-     *
-     * Events are augmented with metadata to identify them as coming from a sub-agent:
-     * - fromSubAgent: true
-     * - subAgentSessionId: this session's ID
-     * - subAgentType: the agent type (if known)
      */
     private async setupParentEventForwarding(): Promise<void> {
-        if (!this.parentSessionId) {
+        const parentSessionId = this.parentSessionId;
+        if (!parentSessionId) {
             return;
         }
 
         try {
-            // Get parent session from session manager
-            const parentSession = await this.services.sessionManager.getSession(
-                this.parentSessionId
-            );
+            const parentSession = await this.services.sessionManager.getSession(parentSessionId);
             if (!parentSession) {
                 this.logger.warn(
-                    `Parent session ${this.parentSessionId} not found, skipping parent event forwarding`
+                    `Parent session ${parentSessionId} not found, skipping parent event forwarding`
                 );
                 return;
             }
 
             this.logger.debug(
-                `Setting up parent event forwarding from ${this.id} to ${this.parentSessionId}`
+                `Setting up parent event forwarding from ${this.id} to ${parentSessionId}`
             );
 
-            // Agent-level events that sub-agents need to forward to parent
-            // (most agent events are global, but approvals are session-specific)
+            SessionEventNames.forEach((eventName) => {
+                this.registerParentForwarder(
+                    `session:${eventName}`,
+                    this.eventBus,
+                    parentSession.eventBus,
+                    eventName,
+                    parentSessionId
+                );
+            });
+
             const agentEventsToForward = [
                 'dexto:approvalRequest',
                 'dexto:approvalResponse',
             ] as const;
 
-            // Forward session events to parent with sub-agent metadata
-            SessionEventNames.forEach((eventName) => {
-                const parentForwarder = (payload?: any) => {
-                    // Augment payload with sub-agent metadata
-                    const augmentedPayload =
-                        payload && typeof payload === 'object'
-                            ? {
-                                  ...payload,
-                                  fromSubAgent: true,
-                                  subAgentSessionId: this.id,
-                                  subAgentType: this.agentType,
-                                  parentSessionId: this.parentSessionId,
-                              }
-                            : {
-                                  fromSubAgent: true,
-                                  subAgentSessionId: this.id,
-                                  subAgentType: this.agentType,
-                                  parentSessionId: this.parentSessionId,
-                              };
-
-                    this.logger.silly(
-                        `Forwarding sub-agent event ${eventName} to parent session ${this.parentSessionId}: ${JSON.stringify(augmentedPayload, null, 2)}`
-                    );
-
-                    // Forward to parent session's event bus
-                    parentSession.eventBus.emit(eventName as any, augmentedPayload);
-                };
-
-                // Store parent forwarder for cleanup
-                this.parentForwarders.set(`session:${eventName}`, parentForwarder);
-
-                // Attach the forwarder to this session's event bus
-                this.eventBus.on(eventName, parentForwarder);
-            });
-
-            // Also forward critical agent-level events (approvals)
-            // These are emitted on the global AgentEventBus, so we need to filter by sessionId
             agentEventsToForward.forEach((eventName) => {
-                const agentEventForwarder = (payload?: any) => {
-                    // Only forward events that belong to this sub-agent session
-                    const eventSessionId = payload?.sessionId;
-                    if (eventSessionId !== this.id) {
-                        return; // Not from this sub-agent, ignore
+                this.registerParentForwarder(
+                    `agent:${eventName}`,
+                    this.services.agentEventBus,
+                    this.services.agentEventBus,
+                    eventName,
+                    parentSessionId,
+                    {
+                        filterBySessionId: this.id,
+                        overrideSessionId: parentSessionId,
                     }
-
-                    const augmentedPayload =
-                        payload && typeof payload === 'object'
-                            ? {
-                                  ...payload,
-                                  fromSubAgent: true,
-                                  subAgentSessionId: this.id,
-                                  subAgentType: this.agentType,
-                                  parentSessionId: this.parentSessionId,
-                                  // Override sessionId to be parent's sessionId so UI picks it up
-                                  sessionId: this.parentSessionId,
-                              }
-                            : {
-                                  fromSubAgent: true,
-                                  subAgentSessionId: this.id,
-                                  subAgentType: this.agentType,
-                                  parentSessionId: this.parentSessionId,
-                                  sessionId: this.parentSessionId,
-                              };
-
-                    this.logger.silly(
-                        `Forwarding sub-agent agent event ${eventName} from ${this.id} to parent ${this.parentSessionId}: ${JSON.stringify(augmentedPayload, null, 2)}`
-                    );
-
-                    // Forward directly to global AgentEventBus with parent's sessionId
-                    // (bypassing parent's SessionEventBus since agent events aren't session events)
-                    this.services.agentEventBus.emit(eventName as any, augmentedPayload);
-                };
-
-                // Store agent forwarder for cleanup
-                this.parentForwarders.set(`agent:${eventName}`, agentEventForwarder);
-
-                // Subscribe to agent events on the global event bus (where approval events are emitted)
-                this.services.agentEventBus.on(eventName as any, agentEventForwarder);
+                );
             });
 
             this.logger.info(
-                `Parent event forwarding configured: ${this.id} → ${this.parentSessionId} (${SessionEventNames.length} session events + ${agentEventsToForward.length} agent events)`
+                `Parent event forwarding configured: ${this.id} → ${parentSessionId} (${SessionEventNames.length} session events + ${agentEventsToForward.length} agent events)`
             );
         } catch (error) {
             this.logger.error(

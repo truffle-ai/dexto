@@ -232,7 +232,82 @@ export class SessionManager {
      * Helper to normalize session type for legacy session entries
      */
     private normalizeType(type?: string): string {
-        return type ?? SessionManager.DEFAULT_SESSION_TYPE;
+        const normalized = type?.trim();
+        return normalized && normalized.length > 0
+            ? normalized
+            : SessionManager.DEFAULT_SESSION_TYPE;
+    }
+
+    /**
+     * Determine the session type and compute sub-agent metadata when needed.
+     */
+    private async resolveSessionTypeAndMetadata(options?: {
+        type?: string;
+        subAgent?: Partial<SubAgentMetadata>;
+    }): Promise<{ type: string; subAgentMetadata?: SubAgentMetadata }> {
+        const requestedType = options?.type?.trim();
+        const wantsSubAgent = requestedType === 'sub-agent' || Boolean(options?.subAgent);
+
+        if (!wantsSubAgent) {
+            if (requestedType === '') {
+                throw SessionError.invalidMetadata('type', requestedType, 'type cannot be empty');
+            }
+            return { type: this.normalizeType(requestedType) };
+        }
+
+        const parentSessionId = options?.subAgent?.parentSessionId;
+        if (!parentSessionId) {
+            throw SessionError.invalidMetadata(
+                'subAgent.parentSessionId',
+                undefined,
+                'parentSessionId is required for sub-agent sessions'
+            );
+        }
+
+        const parentSession = await this.getSession(parentSessionId);
+        if (!parentSession) {
+            throw SessionError.parentNotFound(parentSessionId);
+        }
+        const parentMetadata = await this.getSessionMetadata(parentSessionId);
+        if (!parentMetadata) {
+            throw SessionError.parentNotFound(parentSessionId);
+        }
+
+        const parentSubAgent = parentMetadata.metadata?.subAgent as SubAgentMetadata | undefined;
+        const parentDepth = parentSubAgent?.depth ?? 0;
+        const depth = options?.subAgent?.depth ?? parentDepth + 1;
+
+        if (depth <= parentDepth) {
+            throw SessionError.invalidMetadata(
+                'subAgent.depth',
+                depth,
+                `Sub-agent depth (${depth}) must be greater than parent depth (${parentDepth})`
+            );
+        }
+
+        if (depth > this.maxSubAgentDepth) {
+            throw SessionError.maxDepthExceeded(depth, this.maxSubAgentDepth);
+        }
+
+        const lifecycle = options?.subAgent?.lifecycle ?? this.subAgentLifecycle;
+        if (!['ephemeral', 'persistent'].includes(lifecycle)) {
+            throw SessionError.invalidMetadata(
+                'subAgent.lifecycle',
+                lifecycle,
+                "must be 'ephemeral' or 'persistent'"
+            );
+        }
+
+        const subAgentMetadata: SubAgentMetadata = {
+            parentSessionId,
+            depth,
+            lifecycle,
+            ...(options?.subAgent?.agentIdentifier && {
+                agentIdentifier: options.subAgent.agentIdentifier,
+            }),
+        };
+
+        return { type: 'sub-agent', subAgentMetadata };
     }
 
     /**
@@ -272,79 +347,11 @@ export class SessionManager {
 
         const id = sessionId ?? randomUUID();
 
-        // Determine session type
-        const type = options?.type ?? (options?.subAgent ? 'sub-agent' : 'primary');
-
-        // Validate type
-        if (!type || type.trim() === '') {
-            throw SessionError.invalidMetadata('type', type, 'type cannot be empty');
-        }
+        const { type, subAgentMetadata } = await this.resolveSessionTypeAndMetadata(options);
 
         // Build metadata structure
         let metadata = options?.metadata || {};
-
-        // Handle sub-agent metadata
-        if (options?.subAgent || type === 'sub-agent') {
-            const parentSessionId = options?.subAgent?.parentSessionId;
-            if (!parentSessionId) {
-                throw SessionError.invalidMetadata(
-                    'subAgent.parentSessionId',
-                    undefined,
-                    'parentSessionId is required for sub-agent sessions'
-                );
-            }
-
-            // Validate parent exists
-            const parentExists = await this.getSession(parentSessionId);
-            if (!parentExists) {
-                throw SessionError.parentNotFound(parentSessionId);
-            }
-
-            const parentMetadata = await this.getSessionMetadata(parentSessionId);
-            if (!parentMetadata) {
-                throw SessionError.parentNotFound(parentSessionId);
-            }
-
-            // Calculate depth from parent
-            const parentSubAgent = parentMetadata.metadata?.subAgent as
-                | SubAgentMetadata
-                | undefined;
-            const parentDepth = parentSubAgent?.depth ?? 0;
-            const depth = options?.subAgent?.depth ?? parentDepth + 1;
-
-            // Validate depth
-            if (depth <= parentDepth) {
-                throw SessionError.invalidMetadata(
-                    'subAgent.depth',
-                    depth,
-                    `Sub-agent depth (${depth}) must be greater than parent depth (${parentDepth})`
-                );
-            }
-
-            if (depth > this.maxSubAgentDepth) {
-                throw SessionError.maxDepthExceeded(depth, this.maxSubAgentDepth);
-            }
-
-            // Validate lifecycle
-            const lifecycle = options?.subAgent?.lifecycle ?? this.subAgentLifecycle;
-            if (!['ephemeral', 'persistent'].includes(lifecycle)) {
-                throw SessionError.invalidMetadata(
-                    'subAgent.lifecycle',
-                    lifecycle,
-                    "must be 'ephemeral' or 'persistent'"
-                );
-            }
-
-            // Build sub-agent metadata
-            const subAgentMetadata: SubAgentMetadata = {
-                parentSessionId,
-                depth,
-                lifecycle,
-                ...(options?.subAgent?.agentIdentifier && {
-                    agentIdentifier: options.subAgent.agentIdentifier,
-                }),
-            };
-
+        if (subAgentMetadata) {
             metadata = {
                 ...metadata,
                 subAgent: subAgentMetadata,
