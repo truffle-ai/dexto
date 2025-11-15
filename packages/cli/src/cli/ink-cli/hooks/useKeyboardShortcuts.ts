@@ -35,7 +35,13 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
 
             // Ctrl+C: Cancel or exit
             if (key.ctrl && inputChar === 'c') {
-                if (state.ui.isProcessing && state.session.id) {
+                if (state.ui.isProcessing) {
+                    if (!state.session.id) {
+                        console.error('Warning: Cannot cancel - no active session ID');
+                        // Allow forced exit if stuck
+                        exit();
+                        return;
+                    }
                     void agent.cancel(state.session.id).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });
@@ -46,7 +52,11 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
 
             // Escape: Cancel or close
             if (key.escape) {
-                if (state.ui.isProcessing && state.session.id) {
+                if (state.ui.isProcessing) {
+                    if (!state.session.id) {
+                        console.error('Warning: Cannot cancel - no active session ID');
+                        return;
+                    }
                     void agent.cancel(state.session.id).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });

@@ -290,7 +290,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     if (!sessionId) {
                         const errorMsg =
                             '❌ No active session. This should not happen in interactive mode.';
-                        console.log(chalk.red(errorMsg));
+                        console.error(chalk.red(errorMsg));
                         return formatForInkCli(errorMsg);
                     }
                     await agent.run(finalText.trim(), undefined, undefined, sessionId);

@@ -241,7 +241,14 @@ export function startTelegramBot(agent: DextoAgent) {
         const sessionId = getTelegramSessionId(ctx.from.id);
 
         // Subscribe for toolCall events
-        const toolCallHandler = (payload: { toolName: string; args: any; callId?: string }) => {
+        const toolCallHandler = (payload: {
+            toolName: string;
+            args: any;
+            callId?: string;
+            sessionId: string;
+        }) => {
+            // Filter by sessionId to avoid cross-session leakage
+            if (payload.sessionId !== sessionId) return;
             ctx.reply(`Calling *${payload.toolName}* with args: ${JSON.stringify(payload.args)}`, {
                 parse_mode: 'Markdown',
             });
