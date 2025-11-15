@@ -5,9 +5,15 @@
  */
 
 /**
+ * Valid todo status values
+ * Centralized constant to prevent duplication across domains
+ */
+export const TODO_STATUS_VALUES = ['pending', 'in_progress', 'completed'] as const;
+
+/**
  * Todo item status
  */
-export type TodoStatus = 'pending' | 'in_progress' | 'completed';
+export type TodoStatus = (typeof TODO_STATUS_VALUES)[number];
 
 /**
  * Todo item with system metadata

@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.2.4",
+    "version": "1.3.0",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -6890,7 +6890,7 @@
                           "description": "Available internal tool names"
                         },
                         "default": [],
-                        "description": "Internal tools configuration (read-file, write-file, bash-exec, etc.)"
+                        "description": "Internal tools configuration (read-file, write-file, todo-write, bash-exec, etc.)"
                       },
                       "logger": {
                         "type": "object",

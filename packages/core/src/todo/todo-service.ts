@@ -11,6 +11,7 @@ import { logger } from '../logger/index.js';
 import { TodoError } from './errors.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import type { Todo, TodoInput, TodoUpdateResult, TodoConfig, TodoStatus } from './types.js';
+import { TODO_STATUS_VALUES } from './types.js';
 
 const DEFAULT_MAX_TODOS = 100;
 const TODOS_KEY_PREFIX = 'todos:';
@@ -173,24 +174,25 @@ export class TodoService {
 
     /**
      * Generate consistent key for todo matching (content + activeForm)
+     * Uses JSON encoding to prevent collisions when fields contain delimiters
      */
     private getTodoKey(todo: Todo | TodoInput): string {
-        return `${todo.content}|${todo.activeForm}`;
+        return JSON.stringify([todo.content, todo.activeForm]);
     }
 
     /**
      * Generate key from TodoInput
+     * Uses JSON encoding to prevent collisions when fields contain delimiters
      */
     private getTodoKeyFromInput(input: TodoInput): string {
-        return `${input.content}|${input.activeForm}`;
+        return JSON.stringify([input.content, input.activeForm]);
     }
 
     /**
      * Validate todo status
      */
     private validateTodoStatus(status: TodoStatus): void {
-        const validStatuses: TodoStatus[] = ['pending', 'in_progress', 'completed'];
-        if (!validStatuses.includes(status)) {
+        if (!TODO_STATUS_VALUES.includes(status)) {
             throw TodoError.invalidStatus(status);
         }
     }

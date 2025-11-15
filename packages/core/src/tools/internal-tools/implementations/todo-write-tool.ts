@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import type { InternalTool, ToolExecutionContext } from '../../types.js';
 import type { TodoService } from '../../../todo/index.js';
+import { TODO_STATUS_VALUES } from '../../../todo/types.js';
 
 /**
  * Zod schema for todo item input
@@ -23,7 +24,7 @@ const TodoItemSchema = z.object({
             'Present continuous form shown during execution (e.g., "Fixing authentication bug")'
         ),
     status: z
-        .enum(['pending', 'in_progress', 'completed'])
+        .enum(TODO_STATUS_VALUES)
         .describe(
             'Task status: pending (not started), in_progress (currently working), completed (finished)'
         ),
@@ -63,7 +64,7 @@ export function createTodoWriteTool(todoService: TodoService): InternalTool {
             const validatedInput = TodoWriteInputSchema.parse(input);
 
             // Use explicit session_id from input if provided, otherwise use context, otherwise default
-            const sessionId = validatedInput.session_id || context?.sessionId || 'default';
+            const sessionId = validatedInput.session_id ?? context?.sessionId ?? 'default';
 
             // Update todos in todo service
             const result = await todoService.updateTodos(sessionId, validatedInput.todos);
