@@ -56,6 +56,8 @@ import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
 import { type ApprovalEvent } from './ToolConfirmationHandler';
 import { InlineApprovalCard } from './InlineApprovalCard';
+import { TodoPanel } from './TodoPanel';
+import type { Todo } from '@dexto/core';
 
 interface MessageListProps {
     messages: Message[];
@@ -71,6 +73,7 @@ interface MessageListProps {
      * top-level wrapping div around the list content.
      */
     outerRef?: React.Ref<HTMLDivElement>;
+    todos?: Todo[];
 }
 
 // Helper to format timestamp from createdAt
@@ -330,6 +333,7 @@ export default function MessageList({
     pendingApproval,
     onApprovalApprove,
     onApprovalDeny,
+    todos = [],
 }: MessageListProps) {
     const endRef = useRef<HTMLDivElement>(null);
     const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
@@ -1471,6 +1475,22 @@ export default function MessageList({
                     </React.Fragment>
                 );
             })}
+
+            {/* Render todos as inline message */}
+            {todos.length > 0 && (
+                <div className="w-full" data-role="todos">
+                    <div className="grid w-full grid-cols-[auto_1fr] gap-x-2 items-start">
+                        <div className="h-7 w-7 mt-1 flex items-center justify-center col-start-1 flex-shrink-0">
+                            <span className="text-lg">📋</span>
+                        </div>
+                        <div className="flex flex-col group w-full col-start-2 justify-self-start items-start min-w-0">
+                            <div className="rounded-xl w-full max-w-[90%] min-w-0">
+                                <TodoPanel todos={todos} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Render pending approval as inline message */}
             {pendingApproval && onApprovalApprove && onApprovalDeny && (

@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, ErrorMessage } from './useChat';
 import { useGreeting } from './useGreeting';
-import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
+import type { FilePart, ImagePart, SanitizedToolResult, TextPart, Todo } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
@@ -51,6 +51,8 @@ interface ChatContextType {
     clearError: () => void;
     // Greeting state
     greeting: string | null;
+    // Todo state
+    todos: Todo[];
 }
 
 import { getWsUrl } from '@/lib/api-url';
@@ -246,6 +248,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         clearError,
         processing,
         cancel,
+        todos,
     } = useChat(wsUrl, () => currentSessionId);
 
     // Fetch current LLM config using TanStack Query
@@ -555,6 +558,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 clearError,
                 // Greeting state
                 greeting,
+                // Todo state
+                todos,
             }}
         >
             {children}

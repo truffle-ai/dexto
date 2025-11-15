@@ -20,6 +20,7 @@ import MemoryPanel from './MemoryPanel';
 import { ToolConfirmationHandler, type ApprovalEvent } from './ToolConfirmationHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
+import { TodoPanel } from './TodoPanel';
 import { Button } from './ui/button';
 import {
     Server,
@@ -95,6 +96,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         greeting,
         isStreaming,
         setStreaming,
+        todos,
     } = useChatContext();
 
     // Theme management
@@ -1261,6 +1263,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                                 pendingApproval={pendingApproval}
                                                 onApprovalApprove={approvalHandlers?.onApprove}
                                                 onApprovalDeny={approvalHandlers?.onDeny}
+                                                todos={todos}
                                             />
                                         </div>
                                         {/* Sticky input dock inside scroll viewport */}

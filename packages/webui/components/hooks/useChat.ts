@@ -8,6 +8,7 @@ import type {
     FilePart,
     Issue,
     SanitizedToolResult,
+    Todo,
 } from '@dexto/core';
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
@@ -153,6 +154,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
     const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
+    // Todo list state
+    const [todos, setTodos] = useState<Todo[]>([]);
 
     // Keep analytics ref updated
     useEffect(() => {
@@ -755,6 +758,20 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     }
                     break;
                 }
+                case 'todoUpdated': {
+                    console.log('[useChat] todoUpdated event received:', payload);
+                    if (!isForActiveSession((payload as any).sessionId)) {
+                        console.log('[useChat] todoUpdated ignored - not active session');
+                        return;
+                    }
+                    const todoList = (payload as any).todos;
+                    console.log('[useChat] todoList:', todoList);
+                    if (Array.isArray(todoList)) {
+                        console.log('[useChat] Setting todos state with', todoList.length, 'items');
+                        setTodos(todoList);
+                    }
+                    break;
+                }
                 default:
                     break;
             }
@@ -859,5 +876,7 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         // Error state
         activeError,
         clearError,
+        // Todo state
+        todos,
     };
 }

@@ -284,6 +284,29 @@ export class WebSocketEventSubscriber implements EventSubscriber {
             },
             { signal }
         );
+
+        // Forward todo update events
+        eventBus.on(
+            'todo:updated',
+            (payload) => {
+                logger.debug(
+                    `[websocket-subscriber]: todo:updated: ${JSON.stringify({
+                        sessionId: payload.sessionId,
+                        todoCount: payload.todos.length,
+                        stats: payload.stats,
+                    })}`
+                );
+                this.broadcast({
+                    event: 'todoUpdated',
+                    data: {
+                        sessionId: payload.sessionId,
+                        todos: payload.todos,
+                        stats: payload.stats,
+                    },
+                });
+            },
+            { signal }
+        );
     }
 
     /**
