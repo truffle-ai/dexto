@@ -984,7 +984,7 @@ export class DextoAgent {
         } else {
             // No sessionScope provided - this is a configuration-level switch only
             // State manager has been updated, individual sessions will pick up changes when created
-            logger.debug('LLM config updated at agent level (no active session switches)');
+            this.logger.debug('LLM config updated at agent level (no active session switches)');
         }
     }
 
