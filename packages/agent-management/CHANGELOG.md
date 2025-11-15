@@ -1,10 +1,30 @@
-# @dexto/analytics
+# @dexto/agent-management
 
 ## 1.2.5
 
 ### Patch Changes
 
-- 5e27806: Add changeset for updated agentCard with protocol version 0.3.0
+- c1e814f: ## Logger v2 & Config Enrichment
+
+    ### New Features
+    - **Multi-transport logging system**: Configure console, file, and remote logging transports via `logger` field in agent.yml. Supports log levels (error, warn, info, debug, silly) and automatic log rotation for file transports.
+    - **Per-agent isolation**: CLI automatically creates per-agent log files at `~/.dexto/logs/<agent-id>.log`, database at `~/.dexto/database/<agent-id>.db`, and blob storage at `~/.dexto/blobs/<agent-id>/`
+    - **Agent ID derivation**: Agent ID is now automatically derived from `agentCard.name` (sanitized) or config filename, enabling proper multi-agent isolation without manual configuration
+
+    ### Breaking Changes
+    - **Storage blob default changed**: Default blob storage type changed from `local` to `in-memory`. Existing configs with explicit `blob: { type: 'local' }` are unaffected. CLI enrichment provides automatic paths for SQLite and local blob storage.
+
+    ### Improvements
+    - **Config enrichment layer**: New `enrichAgentConfig()` in agent-management package adds per-agent paths before initialization, eliminating path resolution in core services
+    - **Logger error factory**: Added typed error factory pattern for logger errors following project conventions
+    - **Removed wildcard exports**: Logger module now uses explicit named exports for better tree-shaking
+
+    ### Documentation
+    - Added complete logger configuration section to agent.yml documentation
+    - Documented agentId field and derivation rules
+    - Updated storage documentation with CLI auto-configuration notes
+    - Added logger v2 architecture notes to core README
+
 - a154ae0: UI refactor with TanStack Query, new agent management package, and Hono as default server
 
     **Server:**
@@ -42,28 +62,4 @@
 - Updated dependencies [5e27806]
 - Updated dependencies [0fa6ef5]
 - Updated dependencies [a154ae0]
-    - @dexto/agent-management@1.2.5
     - @dexto/core@1.2.5
-
-## 1.2.4
-
-### Patch Changes
-
-- cd706e7: bump up version after fixing node-machine-id
-- Updated dependencies [cd706e7]
-    - @dexto/core@1.2.4
-
-## 1.2.3
-
-### Patch Changes
-
-- 5d6ae73: Bump up version to fix bugs
-- Updated dependencies [5d6ae73]
-    - @dexto/core@1.2.3
-
-## 1.2.2
-
-### Patch Changes
-
-- 8b96b63: Add posthog analytics package and add to web ui
-    - @dexto/core@1.2.2
