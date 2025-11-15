@@ -134,8 +134,7 @@ const delegateTool = tools.find(t => t.name === 'internal--delegate_to_url');
 **Configuration (YAML):**
 ```yaml
 internalTools:
-  - name: delegate_to_url
-    enabled: true
+  - delegate_to_url
 ```
 
 **What it provides:**

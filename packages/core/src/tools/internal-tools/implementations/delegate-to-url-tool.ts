@@ -33,7 +33,7 @@ const DelegateToUrlInputSchema = z
     })
     .strict();
 
-type DelegateToUrlInput = z.infer<typeof DelegateToUrlInputSchema>;
+type DelegateToUrlInput = z.output<typeof DelegateToUrlInputSchema>;
 
 /**
  * A2A JSON-RPC 2.0 message structure

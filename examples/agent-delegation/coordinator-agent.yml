@@ -28,8 +28,7 @@ llm:
 
 # Internal Tools - Enable delegation
 internalTools:
-  - name: delegate_to_url
-    enabled: true
+  - delegate_to_url
 
 # System Prompt
 systemPrompt:
