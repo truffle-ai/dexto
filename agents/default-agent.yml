@@ -112,6 +112,7 @@ elicitation:
 # Internal tools - built-in Dexto capabilities
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input
+  - todo_write    # Track and manage task lists during complex workflows
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above

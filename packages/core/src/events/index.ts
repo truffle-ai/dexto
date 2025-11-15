@@ -3,6 +3,7 @@ import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 import { ApprovalStatus, DenialReason } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
+import type { Todo } from '../todo/types.js';
 
 /**
  * Agent-level event names - events that occur at the agent/global level
@@ -31,6 +32,8 @@ export const AGENT_EVENT_NAMES = [
     // User approval events (generalized approval system)
     'dexto:approvalRequest',
     'dexto:approvalResponse',
+    // Todo events (todo list management)
+    'todo:updated',
 ] as const;
 
 /**
@@ -259,6 +262,17 @@ export interface AgentEventMap {
     'dexto:sessionTitleUpdated': {
         sessionId: string;
         title: string;
+    };
+
+    /** Fired when todos are updated for a session */
+    'todo:updated': {
+        sessionId: string;
+        todos: Todo[];
+        stats: {
+            created: number;
+            updated: number;
+            deleted: number;
+        };
     };
 
     /** Fired when a new session is created and should become active */

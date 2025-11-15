@@ -6884,7 +6884,8 @@
                             "edit_file",
                             "bash_exec",
                             "bash_output",
-                            "kill_process"
+                            "kill_process",
+                            "todo_write"
                           ],
                           "description": "Available internal tool names"
                         },
