@@ -274,9 +274,7 @@ export class SessionManager {
      * await createSession(undefined, {
      *   type: 'sub-agent',
      *   subAgent: {
-     *     parentSessionId: parentId,
-     *     depth: 1,
-     *     lifecycle: 'persistent'
+     *     parentSessionId: parentId
      *   },
      *   agentConfig: customAgent
      * });
@@ -345,7 +343,6 @@ export class SessionManager {
             type: string;
             metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
-            agentIdentifier?: string;
         }
     ): Promise<ChatSession> {
         // Clean up expired sessions first

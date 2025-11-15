@@ -44,7 +44,6 @@ import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../se
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import { SubAgentCoordinator } from './sub-agent-coordinator.js';
-import type { SubAgentInfo } from './sub-agent-coordinator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -868,8 +867,6 @@ export class DextoAgent {
     public async listSessions(filters?: {
         type?: string;
         parentSessionId?: string;
-        depth?: number;
-        lifecycle?: 'ephemeral' | 'persistent';
     }): Promise<string[]> {
         this.ensureStarted();
         return await this.sessionManager.listSessions(filters);

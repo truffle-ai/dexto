@@ -10,7 +10,7 @@
 
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from './state-manager.js';
-import type { AgentEventBus, SessionEventNames as SessionEventNamesType } from '../events/index.js';
+import type { AgentEventBus } from '../events/index.js';
 import { SessionEventNames } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { AgentConfig } from './schemas.js';

@@ -15,18 +15,11 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         .object({
             type: z.string().optional().describe('Filter by session type'),
             parentSessionId: z.string().optional().describe('Filter by parent session ID'),
-            depth: z.coerce.number().int().nonnegative().optional().describe('Filter by depth'),
-            lifecycle: z
-                .enum(['ephemeral', 'persistent'])
-                .optional()
-                .describe('Filter by lifecycle policy'),
         })
         .describe('Query parameters for filtering sessions by scope criteria');
     type SessionQueryFilters = {
         type?: string;
         parentSessionId?: string;
-        depth?: number;
-        lifecycle?: 'ephemeral' | 'persistent';
     };
 
     const listRoute = createRoute({
@@ -63,8 +56,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         const filters: SessionQueryFilters = {};
         if (query.type) filters.type = query.type;
         if (query.parentSessionId) filters.parentSessionId = query.parentSessionId;
-        if (query.depth !== undefined) filters.depth = query.depth;
-        if (query.lifecycle) filters.lifecycle = query.lifecycle;
 
         // Pass filters to listSessions
         const sessionIds = await agent.listSessions(
@@ -93,6 +84,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         messageCount: 0,
                         title: null,
                         type: 'primary',
+                        metadata: undefined,
                     };
                 }
             })

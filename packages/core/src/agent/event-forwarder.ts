@@ -43,24 +43,40 @@ export class EventForwarder {
      * @param options - Transformation and filtering options
      */
     forward(eventName: string, options?: ForwardOptions): void {
+        // Prevent duplicate registration
+        if (this.forwarders.has(eventName)) {
+            this.logger.warn(
+                `Forwarder for ${eventName} already exists, skipping duplicate registration`
+            );
+            return;
+        }
+
         // Create forwarder function
         const forwarder = (payload?: any) => {
-            // Apply filter if provided
-            if (options?.filter && !options.filter(payload)) {
-                this.logger.silly(`Event ${eventName} filtered, not forwarding`);
-                return;
+            try {
+                // Apply filter if provided
+                if (options?.filter && !options.filter(payload)) {
+                    this.logger.silly(`Event ${eventName} filtered, not forwarding`);
+                    return;
+                }
+
+                // Augment payload if transformer provided
+                const augmented = options?.augmentPayload
+                    ? options.augmentPayload(payload)
+                    : payload;
+
+                this.logger.silly(`Forwarding event ${eventName}`, {
+                    hasPayload: !!payload,
+                    augmented: !!options?.augmentPayload,
+                });
+
+                // Forward to target
+                (this.target as any).emit(eventName, augmented);
+            } catch (error) {
+                this.logger.error(
+                    `Error forwarding event ${eventName}: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
-
-            // Augment payload if transformer provided
-            const augmented = options?.augmentPayload ? options.augmentPayload(payload) : payload;
-
-            this.logger.silly(`Forwarding event ${eventName}`, {
-                hasPayload: !!payload,
-                augmented: !!options?.augmentPayload,
-            });
-
-            // Forward to target
-            (this.target as any).emit(eventName, augmented);
         };
 
         // Store forwarder for cleanup
