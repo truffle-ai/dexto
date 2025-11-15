@@ -178,13 +178,19 @@ export class SubAgentCoordinator {
             throw new Error('Must provide either agentReference or agentConfig');
         }
 
-        // 4. Validate sub-agent config
+        // 4. Validate parent session exists
+        const parentSession = await this.sessionManager.getSession(parentSessionId);
+        if (!parentSession) {
+            throw SessionError.parentNotFound(parentSessionId);
+        }
+
+        // 5. Validate sub-agent config
         validateSubAgentConfig(resolvedConfig.config);
 
-        // 5. Build agent identifier for tracking
+        // 6. Build agent identifier for tracking
         const agentIdentifier = this.buildAgentIdentifier(resolvedConfig.source);
 
-        // 6. Create session with minimal metadata (only parentSessionId)
+        // 7. Create session with minimal metadata (only parentSessionId)
         const session = await this.sessionManager.createSession(undefined, {
             type: 'sub-agent',
             subAgent: {
@@ -197,10 +203,10 @@ export class SubAgentCoordinator {
             `Created sub-agent session ${session.id} (depth: ${depth + 1}, agent: ${agentIdentifier})`
         );
 
-        // 7. Set up event forwarding
+        // 8. Set up event forwarding
         await this.setupEventForwarding(session, parentSessionId, depth + 1, agentIdentifier);
 
-        // 8. Track active sub-agent in-memory
+        // 9. Track active sub-agent in-memory
         const context: SubAgentContext = {
             sessionId: session.id,
             parentSessionId,
@@ -216,7 +222,7 @@ export class SubAgentCoordinator {
             context as unknown as Record<string, unknown>
         );
 
-        // 9. Return handle
+        // 10. Return handle
         return new SubAgentHandle(session, context, this);
     }
 

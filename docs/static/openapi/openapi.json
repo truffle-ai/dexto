@@ -1306,7 +1306,6 @@
           {
             "schema": {
               "type": "integer",
-              "nullable": true,
               "minimum": 0,
               "description": "Filter by depth"
             },
