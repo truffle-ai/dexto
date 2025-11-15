@@ -18,10 +18,6 @@ describe('Session Integration: Chat History Preservation', () => {
             apiKey: 'test-key-123',
         },
         mcpServers: {},
-        storage: {
-            cache: { type: 'in-memory' },
-            database: { type: 'in-memory' },
-        },
         sessions: {
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
@@ -214,35 +210,37 @@ describe('Session Integration: Chat History Preservation', () => {
     // The core functionality (chat history preservation) is thoroughly tested above
 
     describe('Scope-based session management', () => {
-        test('should create session with explicit scopes', async () => {
+        test('should create session with explicit type', async () => {
             const session = await agent.createSession('scope-test', {
-                scopes: {
-                    type: 'custom-type',
-                    depth: 0,
-                    lifecycle: 'persistent',
-                },
+                type: 'custom-type',
             });
 
             expect(session).toBeDefined();
             expect(session.id).toBe('scope-test');
 
-            // Verify scopes were stored
+            // Verify type was stored
             const metadata = await agent.getSessionMetadata('scope-test');
             expect(metadata).toBeDefined();
-            expect(metadata?.scopes.type).toBe('custom-type');
-            expect(metadata?.scopes.lifecycle).toBe('persistent');
+            expect(metadata?.type).toBe('custom-type');
         });
 
-        test('should filter sessions by scope type', async () => {
+        test('should filter sessions by type', async () => {
             // Create sessions with different types
             await agent.createSession('primary-1', {
-                scopes: { type: 'primary', depth: 0, lifecycle: 'persistent' },
+                type: 'primary',
             });
+
+            // Create sub-agent session with required parent
             await agent.createSession('sub-agent-1', {
-                scopes: { type: 'sub-agent', depth: 1, lifecycle: 'ephemeral' },
+                type: 'sub-agent',
+                subAgent: {
+                    parentSessionId: 'primary-1',
+                    depth: 1,
+                },
             });
+
             await agent.createSession('primary-2', {
-                scopes: { type: 'primary', depth: 0, lifecycle: 'persistent' },
+                type: 'primary',
             });
 
             // Filter by type
@@ -258,40 +256,23 @@ describe('Session Integration: Chat History Preservation', () => {
         });
 
         test('should maintain backward compatibility with old API', async () => {
-            // Create session using old API (without scopes)
+            // Create session using old API (without explicit type)
             const _session = await agent.createSession('backward-compat');
 
-            // Verify default scopes were applied
+            // Verify default type was applied
             const metadata = await agent.getSessionMetadata('backward-compat');
             expect(metadata).toBeDefined();
-            expect(metadata?.scopes.type).toBe('primary');
-            expect(metadata?.scopes.depth).toBe(0);
-            expect(metadata?.scopes.lifecycle).toBe('persistent');
-        });
-
-        test('should filter sessions by lifecycle', async () => {
-            await agent.createSession('persistent-1', {
-                scopes: { type: 'primary', lifecycle: 'persistent' },
-            });
-            await agent.createSession('ephemeral-1', {
-                scopes: { type: 'sub-agent', lifecycle: 'ephemeral' },
-            });
-
-            const persistentSessions = await agent.listSessions({ lifecycle: 'persistent' });
-            const ephemeralSessions = await agent.listSessions({ lifecycle: 'ephemeral' });
-
-            expect(persistentSessions).toContain('persistent-1');
-            expect(ephemeralSessions).toContain('ephemeral-1');
+            expect(metadata?.type).toBe('primary');
         });
 
         test('should support custom session types', async () => {
             // Create sessions with custom types
             await agent.createSession('analysis-1', {
-                scopes: { type: 'background-task', lifecycle: 'persistent' },
+                type: 'background-task',
                 metadata: { priority: 'high' },
             });
             await agent.createSession('task-1', {
-                scopes: { type: 'task', lifecycle: 'persistent' },
+                type: 'task',
                 metadata: { taskName: 'daily-report' },
             });
 

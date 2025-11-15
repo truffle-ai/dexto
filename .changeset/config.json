@@ -2,7 +2,15 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.4/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["dexto", "@dexto/core", "@dexto/client-sdk"]],
+  "fixed": [[
+    "dexto",
+    "@dexto/core",
+    "@dexto/client-sdk",
+    "@dexto/agent-management",
+    "@dexto/analytics",
+    "@dexto/server",
+    "@dexto/webui"
+  ]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

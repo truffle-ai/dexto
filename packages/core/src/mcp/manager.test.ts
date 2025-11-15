@@ -105,9 +105,22 @@ describe('MCPManager Tool Conflict Resolution', () => {
     let client1: MockMCPClient;
     let client2: MockMCPClient;
     let client3: MockMCPClient;
+    let mockLogger: any;
 
     beforeEach(() => {
-        manager = new MCPManager();
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            silly: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
+        manager = new MCPManager(mockLogger);
 
         // Create clients with overlapping and unique tools
         client1 = new MockMCPClient({
@@ -560,9 +573,22 @@ describe('MCPManager Prompt Caching', () => {
     let manager: MCPManager;
     let client1: MockMCPClient;
     let client2: MockMCPClient;
+    let mockLogger: any;
 
     beforeEach(() => {
-        manager = new MCPManager();
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            silly: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
+        manager = new MCPManager(mockLogger);
 
         client1 = new MockMCPClient({}, ['prompt1', 'prompt2', 'shared_prompt'], []);
 
@@ -677,9 +703,22 @@ describe('MCPManager Resource Caching', () => {
     let manager: MCPManager;
     let client1: MockMCPClient;
     let client2: MockMCPClient;
+    let mockLogger: any;
 
     beforeEach(() => {
-        manager = new MCPManager();
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            silly: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
+        manager = new MCPManager(mockLogger);
 
         client1 = new MockMCPClient(
             {},
@@ -787,9 +826,22 @@ describe('Tool notification handling', () => {
     let manager: MCPManager;
     let client1: MockMCPClient;
     let client2: MockMCPClient;
+    let mockLogger: any;
 
     beforeEach(() => {
-        manager = new MCPManager();
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            silly: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
+        manager = new MCPManager(mockLogger);
         client1 = new MockMCPClient(
             {
                 tool1: { name: 'tool1', description: 'Tool 1', parameters: {} },

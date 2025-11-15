@@ -9,7 +9,8 @@ import {
 import { MemoryError } from './errors.js';
 import { MemoryErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { nanoid } from 'nanoid';
 
 const MEMORY_KEY_PREFIX = 'memory:item:';
@@ -32,8 +33,14 @@ const MEMORY_KEY_PREFIX = 'memory:item:';
  * context-aware retrieval.
  */
 export class MemoryManager {
-    constructor(private database: Database) {
-        logger.debug('MemoryManager initialized');
+    private logger: IDextoLogger;
+
+    constructor(
+        private database: Database,
+        logger: IDextoLogger
+    ) {
+        this.logger = logger.createChild(DextoLogComponent.MEMORY);
+        this.logger.debug('MemoryManager initialized');
     }
 
     /**
@@ -62,7 +69,7 @@ export class MemoryManager {
         try {
             // Store in database
             await this.database.set(this.toKey(id), validatedMemory);
-            logger.info(`Created memory: ${id}`);
+            this.logger.info(`Created memory: ${id}`);
             return validatedMemory;
         } catch (error) {
             throw MemoryError.storageError(
@@ -136,7 +143,7 @@ export class MemoryManager {
 
         try {
             await this.database.set(this.toKey(id), validatedMemory);
-            logger.info(`Updated memory: ${id}`);
+            this.logger.info(`Updated memory: ${id}`);
             return validatedMemory;
         } catch (error) {
             throw MemoryError.storageError(
@@ -159,7 +166,7 @@ export class MemoryManager {
 
         try {
             await this.database.delete(this.toKey(id));
-            logger.info(`Deleted memory: ${id}`);
+            this.logger.info(`Deleted memory: ${id}`);
         } catch (error) {
             throw MemoryError.deleteError(
                 `Failed to delete memory: ${error instanceof Error ? error.message : String(error)}`,
@@ -188,7 +195,7 @@ export class MemoryManager {
                         memories.push(memory);
                     }
                 } catch (error) {
-                    logger.warn(
+                    this.logger.warn(
                         `Failed to retrieve memory from key ${key}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }

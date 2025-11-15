@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { logger, McpServerConfigSchema } from '@dexto/core';
+import { updateAgentConfigFile } from '@dexto/agent-management';
 import { ResourceSchema } from '../schemas/responses.js';
 
 const McpServerRequestSchema = z
@@ -149,7 +150,16 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
                     },
                 };
 
-                await agent.updateAndSaveConfig(updates);
+                // Write to file (agent-management's job)
+                const newConfig = await updateAgentConfigFile(agent.getAgentFilePath(), updates);
+
+                // Reload into agent (core's job - handles restart automatically)
+                const reloadResult = await agent.reload(newConfig);
+                if (reloadResult.restarted) {
+                    logger.info(
+                        `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
+                    );
+                }
                 logger.info(`Saved server '${name}' to agent configuration file`);
             } catch (saveError) {
                 const errorMessage =

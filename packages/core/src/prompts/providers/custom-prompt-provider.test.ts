@@ -2,6 +2,17 @@ import { describe, test, expect, beforeAll } from 'vitest';
 import { CustomPromptProvider } from './custom-prompt-provider.js';
 import { MemoryDatabaseStore } from '../../storage/database/memory-database-store.js';
 
+const mockLogger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    silly: () => {},
+    trackException: () => {},
+    createChild: () => mockLogger,
+    destroy: async () => {},
+} as any;
+
 describe('CustomPromptProvider', () => {
     let db: MemoryDatabaseStore;
     const resourceManagerStub = { getBlobStore: () => undefined } as any;
@@ -12,7 +23,7 @@ describe('CustomPromptProvider', () => {
     });
 
     test('appends Context at END when no placeholders', async () => {
-        const provider = new CustomPromptProvider(db as any, resourceManagerStub);
+        const provider = new CustomPromptProvider(db as any, resourceManagerStub, mockLogger);
         await provider.createPrompt({ name: 'c1', content: 'Simple content' });
         const res = await provider.getPrompt('c1', { _context: 'CTX' } as any);
         const text = (res.messages?.[0]?.content as any).text as string;
@@ -20,7 +31,7 @@ describe('CustomPromptProvider', () => {
     });
 
     test('replaces named placeholders and does not append when used', async () => {
-        const provider = new CustomPromptProvider(db as any, resourceManagerStub);
+        const provider = new CustomPromptProvider(db as any, resourceManagerStub, mockLogger);
         await provider.createPrompt({
             name: 'c2',
             content: 'Process: {{data}} with mode {{mode}}',

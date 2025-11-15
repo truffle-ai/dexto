@@ -1,6 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { logger } from '@dexto/core';
 import { SessionMetadataSchema, InternalMessageSchema } from '../schemas/responses.js';
 
 const CreateSessionSchema = z
@@ -315,7 +314,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         const { sessionId } = ctx.req.valid('param');
         const cancelled = await agent.cancel(sessionId);
         if (!cancelled) {
-            logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+            agent.logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
         }
         return ctx.json({ cancelled, sessionId });
     });

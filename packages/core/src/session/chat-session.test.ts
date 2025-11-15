@@ -55,6 +55,7 @@ describe('ChatSession', () => {
     let mockCache: any;
     let mockDatabase: any;
     let mockBlobStore: any;
+    let mockLogger: any;
 
     const sessionId = 'test-session-123';
     const mockLLMConfig = LLMConfigSchema.parse({
@@ -184,8 +185,20 @@ describe('ChatSession', () => {
         mockCreateFormatter.mockReturnValue(mockFormatter);
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
+        // Create mock logger
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            silly: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn().mockReturnThis(),
+            destroy: vi.fn().mockResolvedValue(undefined),
+        };
+
         // Create ChatSession instance
-        chatSession = new ChatSession(mockServices, sessionId);
+        chatSession = new ChatSession(mockServices, sessionId, mockLogger);
     });
 
     afterEach(() => {
@@ -204,8 +217,12 @@ describe('ChatSession', () => {
         test('should initialize with unified storage system', async () => {
             await chatSession.init();
 
-            // Verify createDatabaseHistoryProvider is called with the database backend and sessionId
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(mockDatabase, sessionId);
+            // Verify createDatabaseHistoryProvider is called with the database backend, sessionId, and logger
+            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
+                mockDatabase,
+                sessionId,
+                expect.any(Object) // Logger object
+            );
         });
 
         test('should properly dispose resources to prevent memory leaks', () => {
@@ -285,7 +302,8 @@ describe('ChatSession', () => {
                 mockHistoryProvider,
                 chatSession.eventBus,
                 sessionId,
-                mockServices.resourceManager
+                mockServices.resourceManager,
+                mockLogger
             );
         });
 
@@ -310,7 +328,8 @@ describe('ChatSession', () => {
                 mockHistoryProvider,
                 chatSession.eventBus,
                 sessionId,
-                mockServices.resourceManager
+                mockServices.resourceManager,
+                mockLogger
             );
         });
 
@@ -430,11 +449,16 @@ describe('ChatSession', () => {
                 mockHistoryProvider,
                 chatSession.eventBus, // Session-specific event bus
                 sessionId,
-                mockServices.resourceManager // ResourceManager parameter
+                mockServices.resourceManager, // ResourceManager parameter
+                mockLogger // Logger parameter
             );
 
             // Verify session-specific history provider creation
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(mockDatabase, sessionId);
+            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
+                mockDatabase,
+                sessionId,
+                expect.any(Object) // Logger object
+            );
         });
     });
 });

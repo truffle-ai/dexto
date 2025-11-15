@@ -1,4 +1,5 @@
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import type { Database } from '@core/storage/types.js';
 import type { InternalMessage } from '../context/types.js';
 import type {
@@ -14,7 +15,14 @@ import type {
  * TODO: remove duplicate stuff related to session manager instead of directly using DB
  */
 export class SearchService {
-    constructor(private database: Database) {}
+    private logger: IDextoLogger;
+
+    constructor(
+        private database: Database,
+        logger: IDextoLogger
+    ) {
+        this.logger = logger.createChild(DextoLogComponent.SESSION);
+    }
 
     /**
      * Search for messages across all sessions or within a specific session
@@ -33,7 +41,7 @@ export class SearchService {
         }
 
         try {
-            logger.debug(`Searching messages for query: "${query}"`, {
+            this.logger.debug(`Searching messages for query: "${query}"`, {
                 sessionId,
                 role,
                 limit,
@@ -65,7 +73,7 @@ export class SearchService {
                 options,
             };
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Error searching messages: ${error instanceof Error ? error.message : String(error)}`
             );
             return {
@@ -92,7 +100,7 @@ export class SearchService {
         }
 
         try {
-            logger.debug(`Searching sessions for query: "${query}"`);
+            this.logger.debug(`Searching sessions for query: "${query}"`);
 
             const sessionResults: SessionSearchResult[] = [];
             const sessionIds = await this.getSessionIds();
@@ -134,7 +142,7 @@ export class SearchService {
                 query,
             };
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Error searching sessions: ${error instanceof Error ? error.message : String(error)}`
             );
             return {

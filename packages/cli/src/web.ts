@@ -81,7 +81,7 @@ export async function startNextJsWebServer(
         const resolvedHostname = process.env.HOSTNAME ?? '0.0.0.0';
         const resolvedPort = process.env.FRONTEND_PORT ?? process.env.PORT ?? String(frontPort);
 
-        // WebSocket URL uses root path for both Express and Hono
+        // WebSocket URL uses root path
         const defaultWsUrl = `ws://localhost:${apiPort}/`;
         logger.info(`Using WS URL: ${defaultWsUrl}`);
 

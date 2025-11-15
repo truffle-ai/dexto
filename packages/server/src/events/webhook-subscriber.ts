@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { setMaxListeners } from 'events';
-import { AgentEventBus, type AgentEventName, type AgentEventMap, logger } from '@dexto/core';
+import { AgentEventBus, type AgentEventName, type AgentEventMap } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 import {
     type WebhookConfig,
@@ -170,12 +171,12 @@ export class WebhookEventSubscriber implements EventSubscriber {
                     `Error aborting controller during unsubscribe: ${
                         error instanceof Error ? error.message : String(error)
                     }`,
-                    JSON.stringify({
+                    {
                         location: 'WebhookEventSubscriber.unsubscribe',
                         ...(error instanceof Error
                             ? { stack: error.stack }
                             : { value: String(error) }),
-                    })
+                    }
                 );
             }
         }

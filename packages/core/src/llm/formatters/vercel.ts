@@ -12,7 +12,8 @@ import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
 import type { GenerateTextResult, StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 
 /**
  * Message formatter for Vercel AI SDK.
@@ -26,6 +27,11 @@ import { logger } from '@core/logger/index.js';
  * particularly in its handling of function calls and responses.
  */
 export class VercelMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into Vercel AI SDK format
      *
@@ -44,12 +50,14 @@ export class VercelMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
 
             const modelInfo = `${context.provider}/${context.model}`;
-            logger.debug(`Applied Vercel filtering for ${modelInfo}`);
+            this.logger.debug(`Applied Vercel filtering for ${modelInfo}`);
         } catch (error) {
-            logger.warn(`Failed to apply capability filtering, using original history: ${error}`);
+            this.logger.warn(
+                `Failed to apply capability filtering, using original history: ${error}`
+            );
             filteredHistory = [...history];
         }
 
@@ -60,6 +68,10 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 content: systemPrompt,
             });
         }
+
+        // Track pending tool calls to detect orphans (tool calls without results)
+        // Map stores toolCallId -> toolName for proper synthetic result generation
+        const pendingToolCalls = new Map<string, string>();
 
         for (const msg of filteredHistory) {
             switch (msg.role) {
@@ -108,11 +120,54 @@ export class VercelMessageFormatter implements IMessageFormatter {
 
                 case 'assistant':
                     formatted.push({ role: 'assistant', ...this.formatAssistantMessage(msg) });
+                    // Track tool call IDs and names as pending
+                    if (msg.toolCalls && msg.toolCalls.length > 0) {
+                        for (const toolCall of msg.toolCalls) {
+                            pendingToolCalls.set(toolCall.id, toolCall.function.name);
+                        }
+                    }
                     break;
 
                 case 'tool':
-                    formatted.push({ role: 'tool', ...this.formatToolMessage(msg) });
+                    // Only add if we've seen the corresponding tool call
+                    if (msg.toolCallId && pendingToolCalls.has(msg.toolCallId)) {
+                        formatted.push({ role: 'tool', ...this.formatToolMessage(msg) });
+                        // Remove from pending since we found its result
+                        pendingToolCalls.delete(msg.toolCallId);
+                    } else {
+                        // Orphaned tool result (result without matching call)
+                        // Skip it to prevent API errors - can't send result without corresponding call
+                        this.logger.warn(
+                            `Skipping orphaned tool result ${msg.toolCallId} (no matching tool call found) - cannot send to Vercel AI SDK without corresponding tool-call`
+                        );
+                    }
                     break;
+            }
+        }
+
+        // Add synthetic error results for any orphaned tool calls
+        // This can happen when CLI crashes/interrupts before tool execution completes
+        if (pendingToolCalls.size > 0) {
+            for (const [toolCallId, toolName] of pendingToolCalls.entries()) {
+                // Vercel AI SDK uses tool-result content parts with output property
+                formatted.push({
+                    role: 'tool',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: toolCallId,
+                            toolName: toolName,
+                            output: {
+                                type: 'text',
+                                value: 'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
+                            },
+                            isError: true,
+                        } as ToolResultPart,
+                    ],
+                });
+                this.logger.warn(
+                    `Tool call ${toolCallId} (${toolName}) had no matching tool result - added synthetic error result to prevent API errors`
+                );
             }
         }
 
@@ -356,7 +411,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                         parsed = JSON.parse(rawArgs);
                     } catch {
                         parsed = {};
-                        logger.warn(
+                        this.logger.warn(
                             `Vercel formatter: invalid tool args JSON for ${toolCall.function.name}`
                         );
                     }
@@ -406,7 +461,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
                 const imagePart = msg.content[0];
-                const imageDataBase64 = getImageData(imagePart);
+                const imageDataBase64 = getImageData(imagePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,
@@ -424,7 +479,7 @@ export class VercelMessageFormatter implements IMessageFormatter {
                 };
             } else if (msg.content[0]?.type === 'file') {
                 const filePart = msg.content[0];
-                const fileDataBase64 = getFileData(filePart);
+                const fileDataBase64 = getFileData(filePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId!,

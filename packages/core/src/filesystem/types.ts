@@ -189,7 +189,7 @@ export interface FileSystemConfig {
     maxFileSize: number;
     /** Enable automatic backups */
     enableBackups: boolean;
-    /** Backup directory absolute path (optional override, defaults to context-aware getDextoPath('backups')) */
+    /** Backup directory absolute path (required when enableBackups is true - provided by CLI enrichment) */
     backupPath?: string | undefined;
     /** Backup retention period in days (default: 7) */
     backupRetentionDays: number;

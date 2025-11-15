@@ -11,7 +11,8 @@ import { EventBasedApprovalProvider } from './providers/event-based-approval-pro
 import { NoOpApprovalProvider } from './providers/noop-approval-provider.js';
 import { createApprovalRequest } from './providers/factory.js';
 import type { AgentEventBus } from '../events/index.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 
 /**
@@ -62,21 +63,27 @@ export class ApprovalManager {
     private toolProvider: ApprovalProvider;
     private elicitationProvider: ApprovalProvider | null;
     private config: ApprovalManagerConfig;
+    private logger: IDextoLogger;
 
-    constructor(agentEventBus: AgentEventBus, config: ApprovalManagerConfig) {
+    constructor(agentEventBus: AgentEventBus, config: ApprovalManagerConfig, logger: IDextoLogger) {
         this.config = config;
+        this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 
         // Create provider for tool/command confirmations
         this.toolProvider = this.createToolProvider(agentEventBus, config.toolConfirmation);
 
         // Create provider for elicitation (or null if disabled)
         this.elicitationProvider = config.elicitation.enabled
-            ? new EventBasedApprovalProvider(agentEventBus, {
-                  defaultTimeout: config.elicitation.timeout,
-              })
+            ? new EventBasedApprovalProvider(
+                  agentEventBus,
+                  {
+                      defaultTimeout: config.elicitation.timeout,
+                  },
+                  this.logger
+              )
             : null;
 
-        logger.debug(
+        this.logger.debug(
             `ApprovalManager initialized with toolConfirmation.mode: ${config.toolConfirmation.mode}, elicitation.enabled: ${config.elicitation.enabled}`
         );
     }
@@ -90,13 +97,23 @@ export class ApprovalManager {
     ): ApprovalProvider {
         switch (toolConfig.mode) {
             case 'event-based':
-                return new EventBasedApprovalProvider(agentEventBus, {
-                    defaultTimeout: toolConfig.timeout,
-                });
+                return new EventBasedApprovalProvider(
+                    agentEventBus,
+                    {
+                        defaultTimeout: toolConfig.timeout,
+                    },
+                    this.logger
+                );
             case 'auto-approve':
-                return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.APPROVED });
+                return new NoOpApprovalProvider(
+                    { defaultStatus: ApprovalStatus.APPROVED },
+                    this.logger
+                );
             case 'auto-deny':
-                return new NoOpApprovalProvider({ defaultStatus: ApprovalStatus.DENIED });
+                return new NoOpApprovalProvider(
+                    { defaultStatus: ApprovalStatus.DENIED },
+                    this.logger
+                );
             default:
                 throw ApprovalError.invalidConfig(
                     `Unknown approval mode: ${toolConfig.mode as string}`

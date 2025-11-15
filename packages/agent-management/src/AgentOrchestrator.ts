@@ -1,6 +1,9 @@
-import { logger, loadAgentConfig, AgentError, DextoAgent } from '@dexto/core';
+import { logger, AgentError, DextoAgent, DextoValidationError } from '@dexto/core';
+import { loadAgentConfig, enrichAgentConfig } from './config/index.js';
 import { getAgentRegistry } from './registry/registry.js';
 import { deriveDisplayName } from './registry/types.js';
+import { ZodError } from 'zod';
+import { zodToIssues } from '@dexto/core';
 
 /**
  * AgentOrchestrator - Main orchestrator class for managing Dexto agents
@@ -339,13 +342,31 @@ export class AgentOrchestrator {
             // Load agent configuration
             const config = await loadAgentConfig(agentPath);
 
+            // Enrich config with per-agent paths (logs, storage, etc.)
+            const enrichedConfig = enrichAgentConfig(config, agentPath);
+
             // Create new agent (not started)
             logger.info(`Creating agent: ${agentName}`);
-            const newAgent = new DextoAgent(config, agentPath);
+            const newAgent = new DextoAgent(enrichedConfig, agentPath);
 
             logger.info(`Successfully created agent: ${agentName}`);
             return newAgent;
         } catch (error) {
+            // TODO: Use centralized error handler utility once logger type compatibility is fixed
+            // Convert ZodError to DextoValidationError for better error messages
+            if (error instanceof ZodError) {
+                const issues = zodToIssues(error, 'error');
+                const formatted = issues.map((issue) => {
+                    const path = Array.isArray(issue.path)
+                        ? issue.path.join('.')
+                        : String(issue.path);
+                    return `${path}: ${issue.message}`;
+                });
+                const message = `Configuration validation failed for agent '${agentName}':\n${formatted.join('\n')}`;
+                logger.error(message);
+                throw new DextoValidationError(issues);
+            }
+
             logger.error(
                 `Failed to create agent '${agentName}': ${
                     error instanceof Error ? error.message : String(error)

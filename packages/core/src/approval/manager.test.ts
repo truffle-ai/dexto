@@ -1,29 +1,43 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ApprovalManager } from './manager.js';
 import { ApprovalStatus, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 describe('ApprovalManager', () => {
     let agentEventBus: AgentEventBus;
+    let mockLogger: IDextoLogger;
 
     beforeEach(() => {
         agentEventBus = new AgentEventBus();
+        mockLogger = {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            silly: vi.fn(),
+            createChild: vi.fn().mockReturnThis(),
+        } as any;
     });
 
     describe('Configuration - Separate tool and elicitation control', () => {
         it('should allow auto-approve for tools while elicitation is enabled', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-approve',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             // Tool confirmation should be auto-approved
             const toolResponse = await manager.requestToolConfirmation({
@@ -35,16 +49,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should reject elicitation when disabled, even if tools are auto-approved', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-approve',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: false,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: false,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             // Elicitation should throw error when disabled
             await expect(
@@ -75,16 +93,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should auto-deny tools while elicitation is enabled', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-deny',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-deny',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             // Tool confirmation should be auto-denied
             const toolResponse = await manager.requestToolConfirmation({
@@ -96,16 +118,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should use separate timeouts for tools and elicitation', () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'event-based',
-                    timeout: 60000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'event-based',
+                        timeout: 60000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 180000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 180000,
-                },
-            });
+                mockLogger
+            );
 
             const config = manager.getConfig();
             expect(config.toolConfirmation.timeout).toBe(60000);
@@ -115,16 +141,20 @@ describe('ApprovalManager', () => {
 
     describe('Approval routing by type', () => {
         it('should route tool confirmations to tool provider', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-approve',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             const response = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
@@ -135,16 +165,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should route command confirmations to tool provider', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-approve',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             const response = await manager.requestCommandConfirmation({
                 toolName: 'bash_exec',
@@ -156,16 +190,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should route elicitation to elicitation provider when enabled', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-deny', // Different mode for tools
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-deny', // Different mode for tools
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             // Elicitation should not be auto-denied (uses event-based provider)
             // We'll timeout immediately to avoid hanging tests
@@ -187,16 +225,20 @@ describe('ApprovalManager', () => {
 
     describe('Pending approvals tracking', () => {
         it('should track pending approvals across both providers', () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'event-based',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'event-based',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             // Initially no pending approvals
             expect(manager.getPendingApprovals()).toEqual([]);
@@ -206,16 +248,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should cancel approvals in both providers', () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'event-based',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'event-based',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             // Should not throw when cancelling (even if approval doesn't exist)
             expect(() => manager.cancelApproval('test-id')).not.toThrow();
@@ -225,16 +271,20 @@ describe('ApprovalManager', () => {
 
     describe('Error handling', () => {
         it('should throw clear error when elicitation is disabled', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-approve',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: false,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: false,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             await expect(
                 manager.getElicitationData({
@@ -251,16 +301,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should provide helpful error message about enabling elicitation', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-approve',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: false,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: false,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             try {
                 await manager.requestElicitation({
@@ -284,16 +338,20 @@ describe('ApprovalManager', () => {
 
     describe('Backward compatibility', () => {
         it('should work with event-based mode for both tools and elicitation', () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'event-based',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'event-based',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             expect(manager.getConfig()).toEqual({
                 toolConfirmation: {
@@ -308,16 +366,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should respect elicitation enabled:true as default', () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'event-based',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'event-based',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             expect(manager.getConfig().elicitation.enabled).toBe(true);
         });
@@ -325,16 +387,20 @@ describe('ApprovalManager', () => {
 
     describe('Denial Reasons', () => {
         it('should include system_denied reason in auto-deny mode', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-deny',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-deny',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             const response = await manager.requestToolConfirmation({
                 toolName: 'test_tool',
@@ -347,16 +413,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should throw error with specific reason when tool is denied', async () => {
-            const manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'auto-deny',
-                    timeout: 120000,
+            const manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'auto-deny',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             try {
                 await manager.checkToolConfirmation({
@@ -375,16 +445,20 @@ describe('ApprovalManager', () => {
         });
 
         it('should handle user_denied reason in error message', async () => {
-            const _manager = new ApprovalManager(agentEventBus, {
-                toolConfirmation: {
-                    mode: 'event-based',
-                    timeout: 1, // Quick timeout for test
+            const _manager = new ApprovalManager(
+                agentEventBus,
+                {
+                    toolConfirmation: {
+                        mode: 'event-based',
+                        timeout: 1, // Quick timeout for test
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
                 },
-                elicitation: {
-                    enabled: true,
-                    timeout: 120000,
-                },
-            });
+                mockLogger
+            );
 
             // Simulate user denying via event
             setTimeout(() => {

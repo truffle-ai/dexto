@@ -2,8 +2,8 @@ import { promises as fs, createReadStream } from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
-import { logger } from '../../logger/index.js';
-import { getDextoPath } from '../../utils/path.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { StorageError } from '../errors.js';
 import type {
     BlobStore,
@@ -30,32 +30,15 @@ export class LocalBlobStore implements BlobStore {
     private statsCache: { count: number; totalSize: number } | null = null;
     private statsCachePromise: Promise<void> | null = null;
     private lastStatsRefresh: number = 0;
-    private agentId: string | undefined;
+    private logger: IDextoLogger;
 
     private static readonly STATS_REFRESH_INTERVAL_MS = 60000; // 1 minute
 
-    constructor(config: LocalBlobStoreConfig, agentId?: string) {
+    constructor(config: LocalBlobStoreConfig, logger: IDextoLogger) {
         this.config = config;
-
-        // Validate agentId for filesystem safety if provided
-        if (agentId) {
-            const trimmed = agentId.trim();
-            if (!trimmed) {
-                throw StorageError.blobInvalidConfig('agentId cannot be empty or whitespace-only');
-            }
-            if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-                throw StorageError.blobInvalidConfig(
-                    'agentId must contain only alphanumeric characters, hyphens, and underscores'
-                );
-            }
-            this.agentId = trimmed;
-        } else {
-            this.agentId = agentId;
-        }
-
-        // Use agent-specific blob directory if agentId is provided, otherwise use shared 'blobs' directory
-        const blobSubdir = this.agentId ? `blobs-${this.agentId}` : 'blobs';
-        this.storePath = config.storePath || getDextoPath('data', blobSubdir);
+        // Store path is provided via CLI enrichment
+        this.storePath = config.storePath;
+        this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }
 
     async connect(): Promise<void> {
@@ -66,7 +49,7 @@ export class LocalBlobStore implements BlobStore {
             await this.refreshStatsCache();
             this.lastStatsRefresh = Date.now();
             this.connected = true;
-            logger.debug(`LocalBlobStore connected at: ${this.storePath}`);
+            this.logger.debug(`LocalBlobStore connected at: ${this.storePath}`);
 
             // TODO: Implement automatic blob cleanup scheduling
             // - Call cleanup() on connect to remove old blobs based on cleanupAfterDays config
@@ -80,7 +63,7 @@ export class LocalBlobStore implements BlobStore {
 
     async disconnect(): Promise<void> {
         this.connected = false;
-        logger.debug('LocalBlobStore disconnected');
+        this.logger.debug('LocalBlobStore disconnected');
     }
 
     /**
@@ -127,7 +110,9 @@ export class LocalBlobStore implements BlobStore {
             const existingMeta = await fs.readFile(metaPath, 'utf-8');
             const parsed = JSON.parse(existingMeta) as any;
             const existingMetadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
-            logger.debug(`Blob ${id} already exists, returning existing reference (deduplication)`);
+            this.logger.debug(
+                `Blob ${id} already exists, returning existing reference (deduplication)`
+            );
 
             return {
                 id,
@@ -168,7 +153,9 @@ export class LocalBlobStore implements BlobStore {
                 fs.writeFile(metaPath, JSON.stringify(storedMetadata, null, 2)),
             ]);
 
-            logger.debug(`Stored blob ${id} (${buffer.length} bytes, ${storedMetadata.mimeType})`);
+            this.logger.debug(
+                `Stored blob ${id} (${buffer.length} bytes, ${storedMetadata.mimeType})`
+            );
 
             this.updateStatsCacheAfterStore(buffer.length);
 
@@ -275,7 +262,7 @@ export class LocalBlobStore implements BlobStore {
             const parsed = JSON.parse(metaContent) as any;
             const metadata: StoredBlobMetadata = this.normalizeMetadata(parsed);
             await Promise.all([fs.unlink(blobPath), fs.unlink(metaPath)]);
-            logger.debug(`Deleted blob: ${id}`);
+            this.logger.debug(`Deleted blob: ${id}`);
             this.updateStatsCacheAfterDelete(metadata.size);
         } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -315,15 +302,17 @@ export class LocalBlobStore implements BlobStore {
                         ]);
                         deletedCount++;
                         this.updateStatsCacheAfterDelete(metadata.size);
-                        logger.debug(`Cleaned up old blob: ${id}`);
+                        this.logger.debug(`Cleaned up old blob: ${id}`);
                     }
                 } catch (error) {
-                    logger.warn(`Failed to process blob metadata ${metaFile}: ${String(error)}`);
+                    this.logger.warn(
+                        `Failed to process blob metadata ${metaFile}: ${String(error)}`
+                    );
                 }
             }
 
             if (deletedCount > 0) {
-                logger.info(`Blob cleanup: removed ${deletedCount} old blobs`);
+                this.logger.info(`Blob cleanup: removed ${deletedCount} old blobs`);
             }
 
             return deletedCount;
@@ -375,13 +364,15 @@ export class LocalBlobStore implements BlobStore {
                         metadata,
                     });
                 } catch (error) {
-                    logger.warn(`Failed to process blob metadata ${metaFile}: ${String(error)}`);
+                    this.logger.warn(
+                        `Failed to process blob metadata ${metaFile}: ${String(error)}`
+                    );
                 }
             }
 
             return blobs;
         } catch (error) {
-            logger.warn(`Failed to list blobs: ${String(error)}`);
+            this.logger.warn(`Failed to list blobs: ${String(error)}`);
             return [];
         }
     }
@@ -420,13 +411,13 @@ export class LocalBlobStore implements BlobStore {
                     const stat = await fs.stat(path.join(this.storePath, datFile));
                     stats.totalSize += stat.size;
                 } catch (error) {
-                    logger.debug(
+                    this.logger.debug(
                         `Skipping size calculation for ${datFile}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
             }
         } catch (error) {
-            logger.warn(`Failed to refresh blob stats cache: ${String(error)}`);
+            this.logger.warn(`Failed to refresh blob stats cache: ${String(error)}`);
         }
 
         this.statsCache = stats;

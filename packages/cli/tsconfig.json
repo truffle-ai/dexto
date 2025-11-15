@@ -3,6 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "noEmit": true,
+    "jsx": "react-jsx",
     "paths": {
       "@dexto/core": [
         "../core/src/index.ts"

@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StorageAllowedToolsProvider } from './storage.js';
 import type { StorageManager } from '@core/storage/index.js';
+import { IDextoLogger } from '@core/logger/v2/types.js';
 
-// Mock the logger
-vi.mock('@core/logger/index.js', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-    },
-}));
+const mockLogger: IDextoLogger = {
+    debug: vi.fn(),
+    silly: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    trackException: vi.fn(),
+    createChild: vi.fn(),
+    destroy: vi.fn(),
+};
 
 describe('StorageAllowedToolsProvider', () => {
     let provider: StorageAllowedToolsProvider;
@@ -30,7 +32,7 @@ describe('StorageAllowedToolsProvider', () => {
             getCache: vi.fn(),
         } as any;
 
-        provider = new StorageAllowedToolsProvider(mockStorageManager);
+        provider = new StorageAllowedToolsProvider(mockStorageManager, mockLogger);
     });
 
     describe('Session-scoped tool allowance', () => {

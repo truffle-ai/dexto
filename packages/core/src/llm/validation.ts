@@ -1,6 +1,6 @@
 import { validateModelFileSupport, getAllowedMimeTypes } from './registry.js';
 import type { LLMProvider } from './types.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 import { Result, ok, fail } from '../utils/result.js';
 import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
@@ -53,11 +53,13 @@ const MAX_IMAGE_SIZE = 20971520; // 20MB
  * This is the single entry point for all input validation using pure Result<T,C> pattern.
  * @param input The input data to validate (text, image, file)
  * @param config The LLM configuration (provider and model)
+ * @param logger The logger instance for logging
  * @returns Comprehensive validation result
  */
 export function validateInputForLLM(
     input: ValidationInput,
-    config: ValidationLLMConfig
+    config: ValidationLLMConfig,
+    logger: IDextoLogger
 ): Result<ValidationData, ValidationContext> {
     const issues: Issue<ValidationContext>[] = [];
     const validationData: ValidationData = {};
@@ -70,7 +72,7 @@ export function validateInputForLLM(
 
         // Validate file data if provided
         if (input.fileData) {
-            const fileValidation = validateFileInput(input.fileData, config);
+            const fileValidation = validateFileInput(input.fileData, config, logger);
             validationData.fileValidation = fileValidation;
 
             if (!fileValidation.isSupported) {
@@ -93,7 +95,7 @@ export function validateInputForLLM(
 
         // Validate image data if provided
         if (input.imageData) {
-            const imageValidation = validateImageInput(input.imageData, config);
+            const imageValidation = validateImageInput(input.imageData, config, logger);
             validationData.imageValidation = imageValidation;
 
             if (!imageValidation.isSupported) {
@@ -139,11 +141,13 @@ export function validateInputForLLM(
  * Validates file input including security checks and model capability validation.
  * @param fileData The file data to validate
  * @param config The LLM configuration
+ * @param logger The logger instance for logging
  * @returns File validation result
  */
 function validateFileInput(
     fileData: FileData,
-    config: ValidationLLMConfig
+    config: ValidationLLMConfig,
+    logger: IDextoLogger
 ): NonNullable<ValidationData['fileValidation']> {
     logger.info(`Validating file input: ${fileData.mimeType}`);
 
@@ -194,12 +198,14 @@ function validateFileInput(
 /**
  * Validates image input with size and format checks.
  * @param imageData The image data to validate
- * @param _config The LLM configuration
+ * @param config The LLM configuration
+ * @param logger The logger instance for logging
  * @returns Image validation result
  */
 function validateImageInput(
     imageData: ImageData,
-    config: ValidationLLMConfig
+    config: ValidationLLMConfig,
+    logger: IDextoLogger
 ): NonNullable<ValidationData['imageValidation']> {
     logger.info(`Validating image input: ${imageData.mimeType}`);
 

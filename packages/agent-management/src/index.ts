@@ -54,3 +54,26 @@ export {
 } from './utils/execution-context.js';
 export { walkUpDirectories } from './utils/fs-walk.js';
 export { updateEnvFile } from './utils/env-file.js';
+
+// Config management utilities
+export {
+    updateAgentConfigFile,
+    reloadAgentConfigFromFile,
+    loadAgentConfig,
+    enrichAgentConfig,
+    deriveAgentId,
+    ConfigError,
+    ConfigErrorCode,
+} from './config/index.js';
+
+// API Key utilities
+export {
+    saveProviderApiKey,
+    getProviderKeyStatus,
+    listProviderKeyStatus,
+} from './utils/api-key-store.js';
+export {
+    resolveApiKeyForProvider,
+    getPrimaryApiKeyEnvVar,
+    PROVIDER_API_KEY_MAP,
+} from './utils/api-key-resolver.js';

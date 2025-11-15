@@ -15,7 +15,7 @@ export interface CommandDefinition {
     category?: string;
     aliases?: string[];
     subcommands?: CommandDefinition[];
-    handler: (args: string[], agent: DextoAgent) => Promise<boolean>;
+    handler: (args: string[], agent: DextoAgent) => Promise<boolean | string>; // Can return string for ink-cli output
 }
 
 /**

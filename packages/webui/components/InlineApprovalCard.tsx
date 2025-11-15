@@ -9,6 +9,7 @@ import {
     getElicitationMetadata,
     isElicitationEvent,
     isToolConfirmationEvent,
+    isCommandConfirmationEvent,
 } from '../types/approval.js';
 import type { JSONSchema7 } from 'json-schema';
 
@@ -24,6 +25,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
     const [rememberChoice, setRememberChoice] = useState(false);
 
     const isElicitation = isElicitationEvent(approval);
+    const isCommandConfirmation = isCommandConfirmationEvent(approval);
 
     // Update form field value
     const updateFormField = (fieldName: string, value: unknown) => {
@@ -223,7 +225,37 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             </div>
 
             {/* Content */}
-            {isElicitation ? (
+            {isCommandConfirmation ? (
+                <div className="space-y-3 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Wrench className="h-4 w-4 flex-shrink-0" />
+                        <span className="font-medium text-sm break-words min-w-0">
+                            Tool: {approval.toolName}
+                        </span>
+                    </div>
+
+                    <div className="min-w-0">
+                        <span className="font-medium text-sm block mb-2">Command:</span>
+                        <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-auto max-h-40 border border-border break-words whitespace-pre-wrap max-w-full text-red-600 dark:text-red-400">
+                            {approval.command}
+                        </pre>
+                    </div>
+
+                    {approval.originalCommand && approval.originalCommand !== approval.command && (
+                        <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">
+                                Original: {approval.originalCommand}
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md border border-yellow-200 dark:border-yellow-800">
+                        <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                            ⚠️ This command requires approval because it may modify your system.
+                        </p>
+                    </div>
+                </div>
+            ) : isElicitation ? (
                 (() => {
                     const elicitationMeta = getElicitationMetadata(approval);
                     if (!elicitationMeta) {
@@ -301,6 +333,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         </pre>
                     </div>
 
+                    {/* Only show "Remember choice" for tool confirmations, not command confirmations */}
                     <div className="flex items-center space-x-2 pt-2">
                         <Checkbox
                             id="remember"

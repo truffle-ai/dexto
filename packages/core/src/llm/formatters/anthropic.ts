@@ -8,7 +8,8 @@ import type {
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 import {
     getImageData,
     getFileData,
@@ -26,6 +27,11 @@ import {
  * - System prompts are not included in the messages array but sent separately
  */
 export class AnthropicMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into Anthropic's Claude API format
      *
@@ -48,9 +54,11 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
         } catch (error) {
-            logger.warn('Failed to apply capability filtering, using original history:', error);
+            this.logger.warn('Failed to apply capability filtering, using original history:', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             filteredHistory = [...history];
         }
 
@@ -60,6 +68,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
             {
                 assistantMsg: MessageParam | null;
                 index: number;
+                toolName: string;
             }
         >();
 
@@ -112,20 +121,15 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     // Remove from pending calls
                     pendingToolCalls.delete(msg.toolCallId);
                 } else {
-                    // This shouldn't normally happen
-                    logger.warn(`Tool result found without matching tool call: ${msg.toolCallId}`);
-                    const orphanSafe: string = toTextForToolMessage(msg.content);
-                    const orphanToolResult: MessageParam = {
-                        role: 'user',
-                        content: [
-                            {
-                                type: 'tool_result',
-                                tool_use_id: msg.toolCallId!,
-                                content: orphanSafe,
-                            } as ToolResultBlockParam,
-                        ],
-                    };
-                    formatted.push(orphanToolResult);
+                    // Orphaned tool result (result without matching call)
+                    // This can happen when:
+                    // - Tool call was removed during history compression
+                    // - Session state is corrupted
+                    // We MUST skip this result as Anthropic requires every tool_result
+                    // to have a corresponding tool_use in the previous message
+                    this.logger.warn(
+                        `Skipping orphaned tool result ${msg.toolCallId} (no matching tool call found) - cannot send to Anthropic without corresponding tool_use`
+                    );
                 }
                 continue;
             }
@@ -163,6 +167,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     pendingToolCalls.set(toolCall.id, {
                         assistantMsg,
                         index: i,
+                        toolName: toolCall.function.name,
                     });
                 }
                 continue;
@@ -180,15 +185,35 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         }
 
         // Add any remaining tool calls that never got their results
-        // This generally shouldn't happen, but handle it just in case
+        // This can happen when CLI crashes/interrupts before tool execution completes
         const remainingToolCalls = Array.from(pendingToolCalls.entries()).sort(
             (a, b) => a[1].index - b[1].index
         );
 
-        for (const [id, { assistantMsg }] of remainingToolCalls) {
+        for (const [id, { assistantMsg, toolName }] of remainingToolCalls) {
             if (assistantMsg) {
+                // Add the assistant message with the tool call
                 formatted.push(assistantMsg);
-                logger.warn(`Tool call ${id} had no matching tool result`);
+
+                // Add a synthetic error tool result to prevent 400 errors
+                // Anthropic requires every tool_use to have a corresponding tool_result
+                const syntheticResult: MessageParam = {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'tool_result',
+                            tool_use_id: id,
+                            content:
+                                'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
+                            is_error: true,
+                        } as ToolResultBlockParam,
+                    ],
+                };
+                formatted.push(syntheticResult);
+
+                this.logger.warn(
+                    `Tool call ${id} (${toolName}) had no matching tool result - added synthetic error result to prevent API errors`
+                );
             }
         }
 
@@ -261,7 +286,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                     return { type: 'text', text: part.text } as TextBlockParam;
                 }
                 if (part.type === 'image') {
-                    const raw = getImageData(part);
+                    const raw = getImageData(part, this.logger);
                     let source: any;
                     if (raw.startsWith('http://') || raw.startsWith('https://')) {
                         source = { type: 'url', url: raw };
@@ -282,7 +307,7 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
                 }
                 if (part.type === 'file') {
                     // Anthropic doesn't support file uploads directly, so we convert files to text
-                    const raw = getFileData(part);
+                    const raw = getFileData(part, this.logger);
                     const fileName = (part as any).filename || 'file';
 
                     // If it's a text-based file, try to decode it

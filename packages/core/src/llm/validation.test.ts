@@ -1,13 +1,30 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { validateInputForLLM } from './validation.js';
 import { LLMErrorCode } from './error-codes.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 describe('validateInputForLLM', () => {
+    let mockLogger: IDextoLogger;
+
+    beforeEach(() => {
+        mockLogger = {
+            debug: () => {},
+            info: () => {},
+            warn: () => {},
+            error: () => {},
+            silly: () => {},
+            trackException: () => {},
+            createChild: () => mockLogger,
+            destroy: async () => {},
+        } as IDextoLogger;
+    });
+
     describe('text validation', () => {
         test('should pass validation for valid text input', () => {
             const result = validateInputForLLM(
                 { text: 'Hello, world!' },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -17,7 +34,8 @@ describe('validateInputForLLM', () => {
         test('should pass validation for empty text when no other input provided', () => {
             const result = validateInputForLLM(
                 { text: '' },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -25,7 +43,11 @@ describe('validateInputForLLM', () => {
         });
 
         test('should pass validation for undefined text', () => {
-            const result = validateInputForLLM({}, { provider: 'openai', model: 'gpt-5' });
+            const result = validateInputForLLM(
+                {},
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
+            );
 
             expect(result.ok).toBe(true);
             expect(result.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
@@ -43,7 +65,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -63,7 +86,8 @@ describe('validateInputForLLM', () => {
                         filename: 'audio.mp3',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o-audio-preview' }
+                { provider: 'openai', model: 'gpt-4o-audio-preview' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -83,7 +107,8 @@ describe('validateInputForLLM', () => {
                         filename: 'audio.mp3',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' } // This model doesn't support audio
+                { provider: 'openai', model: 'gpt-5' }, // This model doesn't support audio
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -103,7 +128,8 @@ describe('validateInputForLLM', () => {
                         filename: 'malware.exe',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -127,7 +153,8 @@ describe('validateInputForLLM', () => {
                         filename: 'large.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -146,7 +173,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -165,7 +193,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai' } // No model specified
+                { provider: 'openai' }, // No model specified
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -184,7 +213,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -207,7 +237,8 @@ describe('validateInputForLLM', () => {
                         filename: 'recording.webm',
                     },
                 },
-                { provider: 'openai', model: 'gpt-4o-audio-preview' }
+                { provider: 'openai', model: 'gpt-4o-audio-preview' },
+                mockLogger
             );
 
             expect(webmResult.ok).toBe(true);
@@ -222,7 +253,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(pdfResult.ok).toBe(true);
@@ -239,7 +271,8 @@ describe('validateInputForLLM', () => {
                         mimeType: 'image/jpeg',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -258,7 +291,8 @@ describe('validateInputForLLM', () => {
                         image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -281,7 +315,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' }
+                { provider: 'openai', model: 'gpt-5' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -302,7 +337,8 @@ describe('validateInputForLLM', () => {
                         filename: 'audio.mp3',
                     },
                 },
-                { provider: 'openai', model: 'gpt-5' } // This model doesn't support audio
+                { provider: 'openai', model: 'gpt-5' }, // This model doesn't support audio
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -324,7 +360,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'unknown-model' }
+                { provider: 'openai', model: 'unknown-model' },
+                mockLogger
             );
 
             expect(result.ok).toBe(false);
@@ -341,7 +378,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'openai', model: 'unknown-model' }
+                { provider: 'openai', model: 'unknown-model' },
+                mockLogger
             );
 
             // Fixed behavior: unknown models should fail validation
@@ -364,7 +402,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'anthropic', model: 'claude-4-sonnet-20250514' }
+                { provider: 'anthropic', model: 'claude-4-sonnet-20250514' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -384,7 +423,8 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'google', model: 'gemini-2.0-flash' }
+                { provider: 'google', model: 'gemini-2.0-flash' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);
@@ -403,7 +443,8 @@ describe('validateInputForLLM', () => {
                         mimeType: 'image/jpeg',
                     },
                 },
-                { provider: 'google', model: 'gemini-2.0-flash' }
+                { provider: 'google', model: 'gemini-2.0-flash' },
+                mockLogger
             );
 
             expect(result.ok).toBe(true);

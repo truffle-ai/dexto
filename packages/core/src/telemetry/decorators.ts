@@ -5,8 +5,9 @@ import {
     SpanKind,
     propagation,
     SpanOptions,
+    type BaggageEntry,
 } from '@opentelemetry/api';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 import { safeStringify } from '../utils/safe-stringify.js';
 
@@ -28,11 +29,14 @@ export function withSpan(options: {
         const methodName = String(propertyKey);
 
         descriptor.value = function (this: unknown, ...args: unknown[]) {
+            // Try to get logger from instance for DI pattern (optional)
+            const logger = (this as any)?.logger as IDextoLogger | undefined;
+
             // Skip if no telemetry is available and skipIfNoTelemetry is true
             // Guard against Telemetry.get() throwing if globalThis.__TELEMETRY__ is not yet defined
             if (
                 options?.skipIfNoTelemetry &&
-                (!globalThis.__TELEMETRY__ || !hasActiveTelemetry())
+                (!globalThis.__TELEMETRY__ || !hasActiveTelemetry(logger))
             ) {
                 return originalMethod.apply(this, args);
             }
@@ -63,24 +67,40 @@ export function withSpan(options: {
                 span.setAttribute(`${spanName}.argument.${index}`, safeStringify(arg, 8192));
             });
 
-            const { requestId, componentName, runId, threadId, resourceId } = getBaggageValues(ctx);
+            // Extract baggage values from the current context (may include values set by parent spans)
+            const { requestId, componentName, runId, threadId, resourceId, sessionId } =
+                getBaggageValues(ctx);
+
+            // Add all baggage values to span attributes
+            // Set both direct attributes and baggage-prefixed versions for storage schema fallback
+            if (sessionId) {
+                span.setAttribute('sessionId', sessionId);
+                span.setAttribute('baggage.sessionId', sessionId); // Fallback for storage
+            }
+
             if (requestId) {
                 span.setAttribute('http.request_id', requestId);
+                span.setAttribute('baggage.http.request_id', requestId);
             }
 
             if (threadId) {
                 span.setAttribute('threadId', threadId);
+                span.setAttribute('baggage.threadId', threadId);
             }
 
             if (resourceId) {
                 span.setAttribute('resourceId', resourceId);
+                span.setAttribute('baggage.resourceId', resourceId);
+            }
+
+            if (runId !== undefined) {
+                span.setAttribute('runId', String(runId));
+                span.setAttribute('baggage.runId', String(runId));
             }
 
             if (componentName) {
                 span.setAttribute('componentName', componentName);
-                if (runId !== undefined) {
-                    span.setAttribute('runId', String(runId));
-                }
+                span.setAttribute('baggage.componentName', componentName);
             } else if (this && typeof this === 'object') {
                 const contextObj = this as {
                     name?: string;
@@ -94,24 +114,58 @@ export function withSpan(options: {
                 }
                 if (contextObj.runId) {
                     span.setAttribute('runId', contextObj.runId);
+                    span.setAttribute('baggage.runId', contextObj.runId);
                 }
 
-                const baggageEntries: Record<string, { value: string }> = {};
+                // Merge with existing baggage to preserve parent context values
+                const existingBaggage = propagation.getBaggage(ctx);
+                const baggageEntries: Record<string, BaggageEntry> = {};
 
-                if (inferredName !== undefined) {
-                    baggageEntries.componentName = { value: String(inferredName) };
+                // Copy all existing baggage entries to preserve custom baggage
+                if (existingBaggage) {
+                    existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                        baggageEntries[key] = entry;
+                    });
                 }
-                if (contextObj.runId !== undefined) {
-                    baggageEntries.runId = { value: String(contextObj.runId) };
+
+                // Preserve existing baggage values and metadata
+                if (sessionId !== undefined) {
+                    baggageEntries.sessionId = {
+                        ...baggageEntries.sessionId,
+                        value: String(sessionId),
+                    };
                 }
                 if (requestId !== undefined) {
-                    baggageEntries['http.request_id'] = { value: String(requestId) };
+                    baggageEntries['http.request_id'] = {
+                        ...baggageEntries['http.request_id'],
+                        value: String(requestId),
+                    };
                 }
                 if (threadId !== undefined) {
-                    baggageEntries.threadId = { value: String(threadId) };
+                    baggageEntries.threadId = {
+                        ...baggageEntries.threadId,
+                        value: String(threadId),
+                    };
                 }
                 if (resourceId !== undefined) {
-                    baggageEntries.resourceId = { value: String(resourceId) };
+                    baggageEntries.resourceId = {
+                        ...baggageEntries.resourceId,
+                        value: String(resourceId),
+                    };
+                }
+
+                // Add new component-specific baggage values
+                if (inferredName !== undefined) {
+                    baggageEntries.componentName = {
+                        ...baggageEntries.componentName,
+                        value: String(inferredName),
+                    };
+                }
+                if (contextObj.runId !== undefined) {
+                    baggageEntries.runId = {
+                        ...baggageEntries.runId,
+                        value: String(contextObj.runId),
+                    };
                 }
 
                 if (Object.keys(baggageEntries).length > 0) {
@@ -152,8 +206,11 @@ export function withSpan(options: {
                 // Return regular results
                 return result;
             } catch (error) {
-                logger.error(
-                    `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`
+                // Try to use instance logger if available (DI pattern)
+                const logger = (this as any)?.logger as IDextoLogger | undefined;
+                logger?.error(
+                    `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
+                    { error }
                 );
                 span.setStatus({
                     code: SpanStatusCode.ERROR,

@@ -4,7 +4,7 @@ import type { ReadResourceCallback } from '@modelcontextprotocol/sdk/server/mcp.
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { AgentCard } from '@dexto/core';
+import type { AgentCard, IDextoLogger } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { z } from 'zod';
 import type { DextoAgent } from '@dexto/core';
@@ -55,35 +55,36 @@ export async function initializeMcpServer(
         toolDescription,
         { message: z.string() },
         async ({ message }: { message: string }) => {
-            logger.info(
+            agent.logger.info(
                 `MCP tool '${toolName}' received message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
             );
             const text = await agent.run(message);
-            logger.info(
+            agent.logger.info(
                 `MCP tool '${toolName}' sending response: ${text?.substring(0, 100)}${(text?.length ?? 0) > 100 ? '...' : ''}`
             );
             return { content: [{ type: 'text', text: text ?? '' }] };
         }
     );
-    logger.info(`Registered MCP tool: '${toolName}'`);
+    agent.logger.info(`Registered MCP tool: '${toolName}'`);
 
-    await initializeAgentCardResource(mcpServer, agentCardData);
+    await initializeAgentCardResource(mcpServer, agentCardData, agent.logger);
 
-    logger.info(`Initializing MCP protocol server connection...`);
+    agent.logger.info(`Initializing MCP protocol server connection...`);
     await mcpServer.connect(mcpTransport);
-    logger.info(`✅ MCP server protocol connected via transport.`);
+    agent.logger.info(`✅ MCP server protocol connected via transport.`);
     return mcpServer;
 }
 
 export async function initializeAgentCardResource(
     mcpServer: McpServer,
-    agentCardData: AgentCard
+    agentCardData: AgentCard,
+    agentLogger: IDextoLogger
 ): Promise<void> {
     const agentCardResourceProgrammaticName = 'agentCard';
     const agentCardResourceUri = 'dexto://agent/card';
     try {
         const readCallback: ReadResourceCallback = async (uri, _extra) => {
-            logger.info(`MCP client requesting resource at ${uri.href}`);
+            agentLogger.info(`MCP client requesting resource at ${uri.href}`);
             return {
                 contents: [
                     {
@@ -95,11 +96,11 @@ export async function initializeAgentCardResource(
             };
         };
         mcpServer.resource(agentCardResourceProgrammaticName, agentCardResourceUri, readCallback);
-        logger.info(
+        agentLogger.info(
             `Registered MCP Resource: '${agentCardResourceProgrammaticName}' at URI '${agentCardResourceUri}'`
         );
     } catch (e: any) {
-        logger.warn(
+        agentLogger.warn(
             `Error attempting to register MCP Resource '${agentCardResourceProgrammaticName}': ${e.message}. Check SDK.`
         );
     }

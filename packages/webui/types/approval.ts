@@ -35,6 +35,17 @@ export type ToolConfirmationEvent = ApprovalEventBase & {
 };
 
 /**
+ * Command confirmation approval event
+ * For approving dangerous commands within an already-approved tool
+ */
+export type CommandConfirmationEvent = ApprovalEventBase & {
+    type: 'command_confirmation';
+    toolName: string;
+    command: string;
+    originalCommand?: string;
+};
+
+/**
  * Elicitation approval event (form-based input request)
  */
 export type ElicitationEvent = ApprovalEventBase & {
@@ -44,7 +55,7 @@ export type ElicitationEvent = ApprovalEventBase & {
 /**
  * Union of all approval event types with proper discriminated union
  */
-export type ApprovalEvent = ToolConfirmationEvent | ElicitationEvent;
+export type ApprovalEvent = ToolConfirmationEvent | CommandConfirmationEvent | ElicitationEvent;
 
 /**
  * Elicitation metadata from approval event
@@ -62,6 +73,15 @@ export interface ElicitationMetadata {
  */
 export function isToolConfirmationEvent(event: ApprovalEvent): event is ToolConfirmationEvent {
     return event.type === 'tool_confirmation';
+}
+
+/**
+ * Type guard to check if event is a command confirmation
+ */
+export function isCommandConfirmationEvent(
+    event: ApprovalEvent
+): event is CommandConfirmationEvent {
+    return event.type === 'command_confirmation';
 }
 
 /**

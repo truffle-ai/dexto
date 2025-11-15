@@ -65,7 +65,7 @@ storage:
   database:
     type: sqlite
   blob:
-    type: local
+    type: local  # CLI provides storePath automatically
     maxBlobSize: 209715200    # 200MB per blob (for HD videos up to 32 seconds)
     maxTotalSize: 2147483648  # 2GB total storage
     cleanupAfterDays: 30

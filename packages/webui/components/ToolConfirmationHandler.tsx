@@ -64,9 +64,13 @@ export function ToolConfirmationHandler({
                     const sid = message.data.sessionId as string | undefined;
                     if (sid && sid !== currentSessionId) return;
 
-                    // Handle both tool confirmation and elicitation types
+                    // Handle tool confirmation, command confirmation, and elicitation types
                     const messageType = message.data.type;
-                    if (messageType !== 'tool_confirmation' && messageType !== 'elicitation') {
+                    if (
+                        messageType !== 'tool_confirmation' &&
+                        messageType !== 'command_confirmation' &&
+                        messageType !== 'elicitation'
+                    ) {
                         console.debug(`[WebUI] Ignoring unsupported approval type: ${messageType}`);
                         return;
                     }
@@ -127,6 +131,46 @@ export function ToolConfirmationHandler({
                             subAgentSessionId: message.data.subAgentSessionId,
                             subAgentType: message.data.subAgentType,
                         };
+                    } else if (messageType === 'command_confirmation') {
+                        // Validate metadata exists and has required properties
+                        const metadata = message.data.metadata;
+                        if (!metadata || typeof metadata !== 'object') {
+                            console.error(
+                                '[WebUI] Invalid command_confirmation: metadata is missing or not an object'
+                            );
+                            return;
+                        }
+
+                        const toolName = metadata.toolName;
+                        const command = metadata.command;
+
+                        if (typeof toolName !== 'string') {
+                            console.error(
+                                '[WebUI] Invalid command_confirmation: metadata.toolName must be a string'
+                            );
+                            return;
+                        }
+
+                        if (typeof command !== 'string') {
+                            console.error(
+                                '[WebUI] Invalid command_confirmation: metadata.command must be a string'
+                            );
+                            return;
+                        }
+
+                        approvalEvent = {
+                            approvalId,
+                            type: messageType,
+                            toolName: toolName,
+                            command: command,
+                            originalCommand:
+                                typeof metadata.originalCommand === 'string'
+                                    ? metadata.originalCommand
+                                    : undefined,
+                            timestamp,
+                            sessionId: message.data.sessionId,
+                            metadata: metadata,
+                        };
                     } else {
                         // Elicitation request
                         approvalEvent = {
@@ -173,14 +217,18 @@ export function ToolConfirmationHandler({
             if (!pendingConfirmation || !websocket) return;
 
             const isElicitation = pendingConfirmation.type === 'elicitation';
+            const isCommandConfirmation = pendingConfirmation.type === 'command_confirmation';
 
             // For elicitation: only include data when approved AND formData exists
-            // For tool confirmation: always include rememberChoice
+            // For tool confirmation: include rememberChoice
+            // For command confirmation: no data needed (per-command approval, no remember)
             const responseData = isElicitation
                 ? approved && formData
                     ? { formData }
                     : undefined
-                : { rememberChoice: rememberChoice ?? false };
+                : isCommandConfirmation
+                  ? undefined
+                  : { rememberChoice: rememberChoice ?? false };
 
             const response = {
                 type: 'approvalResponse',

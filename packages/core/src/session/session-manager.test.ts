@@ -28,14 +28,11 @@ describe('SessionManager', () => {
     let mockServices: any;
     let mockStorageManager: any;
     let mockLLMConfig: ValidatedLLMConfig;
+    let mockLogger: any;
 
     const mockSessionData = {
         id: 'test-session',
-        scopes: {
-            type: 'primary',
-            depth: 0,
-            lifecycle: 'persistent',
-        },
+        type: 'primary',
         createdAt: new Date('2024-01-01T00:00:00Z').getTime(),
         lastActivity: new Date('2024-01-01T01:00:00Z').getTime(),
         messageCount: 5,
@@ -43,6 +40,19 @@ describe('SessionManager', () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
+
+        mockLogger = {
+            silly: vi.fn(),
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(function (this: any) {
+                return this;
+            }),
+            destroy: vi.fn(),
+        } as any;
 
         // Mock storage manager with proper getter structure
         const mockCache = {
@@ -139,13 +149,17 @@ describe('SessionManager', () => {
         });
 
         // Create SessionManager instance
-        sessionManager = new SessionManager(mockServices, {
-            maxSessions: 10,
-            sessionTTL: 1800000, // 30 minutes
-        });
+        sessionManager = new SessionManager(
+            mockServices,
+            {
+                maxSessions: 10,
+                sessionTTL: 1800000, // 30 minutes
+            },
+            mockLogger
+        );
 
         // Mock ChatSession constructor and methods
-        MockChatSession.mockImplementation((services, id) => {
+        MockChatSession.mockImplementation((services, id, _logger) => {
             const mockSession = {
                 id,
                 init: vi.fn().mockResolvedValue(undefined),
@@ -178,11 +192,15 @@ describe('SessionManager', () => {
 
     describe('Session Lifecycle Management', () => {
         test('should support flexible initialization options', () => {
-            const defaultManager = new SessionManager(mockServices);
-            const customManager = new SessionManager(mockServices, {
-                maxSessions: 50,
-                sessionTTL: 7200000, // 2 hours
-            });
+            const defaultManager = new SessionManager(mockServices, {}, mockLogger);
+            const customManager = new SessionManager(
+                mockServices,
+                {
+                    maxSessions: 50,
+                    sessionTTL: 7200000, // 2 hours
+                },
+                mockLogger
+            );
 
             expect(defaultManager).toBeDefined();
             expect(customManager).toBeDefined();
@@ -253,6 +271,7 @@ describe('SessionManager', () => {
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 'mock-uuid-123',
+                mockLogger,
                 undefined, // agentConfig
                 undefined, // parentSessionId
                 undefined // agentType
@@ -267,6 +286,7 @@ describe('SessionManager', () => {
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 customId,
+                mockLogger,
                 undefined, // agentConfig
                 undefined, // parentSessionId
                 undefined // agentType
@@ -303,6 +323,7 @@ describe('SessionManager', () => {
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 'default',
+                mockLogger,
                 undefined, // agentConfig
                 undefined, // parentSessionId
                 undefined // agentType
@@ -313,7 +334,7 @@ describe('SessionManager', () => {
     describe('Session Limits and Resource Management', () => {
         test('should enforce maximum session limits', async () => {
             const maxSessions = 2;
-            const limitedManager = new SessionManager(mockServices, { maxSessions });
+            const limitedManager = new SessionManager(mockServices, { maxSessions }, mockLogger);
             await limitedManager.init();
 
             // Mock that we already have max sessions
@@ -464,8 +485,7 @@ describe('SessionManager', () => {
                 lastActivity: mockSessionData.lastActivity,
                 messageCount: mockSessionData.messageCount,
             });
-            expect(metadata?.scopes).toBeDefined();
-            expect(metadata?.scopes.type).toBe('primary');
+            expect(metadata?.type).toBe('primary');
             expect(mockStorageManager.database.get).toHaveBeenCalledWith(`session:${sessionId}`);
         });
 
@@ -722,10 +742,14 @@ describe('SessionManager', () => {
 
         test('should prevent race conditions when creating multiple different sessions concurrently', async () => {
             // Set a low session limit to test the race condition prevention
-            const limitedSessionManager = new SessionManager(mockServices, {
-                maxSessions: 2,
-                sessionTTL: 1800000, // 30 minutes
-            });
+            const limitedSessionManager = new SessionManager(
+                mockServices,
+                {
+                    maxSessions: 2,
+                    sessionTTL: 1800000, // 30 minutes
+                },
+                mockLogger
+            );
             await limitedSessionManager.init();
 
             // Create 2 sessions sequentially first to reach the limit
@@ -775,11 +799,7 @@ describe('SessionManager', () => {
                 createdAt: new Date().getTime(),
                 lastActivity: new Date().getTime(),
                 messageCount: 0,
-                scopes: {
-                    type: 'primary',
-                    depth: 0,
-                    lifecycle: 'persistent',
-                },
+                type: 'primary',
                 // Missing maxSessions and sessionTTL (legacy fields)
             };
 
@@ -869,9 +889,13 @@ describe('SessionManager', () => {
 
         test('should use correct cleanup interval based on session TTL', async () => {
             // Create SessionManager with different TTL
-            const shortTTLSessionManager = new SessionManager(mockServices, {
-                sessionTTL: 60000, // 1 minute
-            });
+            const shortTTLSessionManager = new SessionManager(
+                mockServices,
+                {
+                    sessionTTL: 60000, // 1 minute
+                },
+                mockLogger
+            );
 
             const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
@@ -906,11 +930,7 @@ describe('SessionManager', () => {
                 createdAt: Date.now() - 7200000, // 2 hours ago
                 lastActivity: Date.now() - 7200000, // 2 hours ago (expired)
                 messageCount: 5,
-                scopes: {
-                    type: 'primary',
-                    depth: 0,
-                    lifecycle: 'persistent',
-                },
+                type: 'primary',
             };
             mockStorageManager.database.get.mockResolvedValue(expiredSessionData);
 
@@ -936,11 +956,7 @@ describe('SessionManager', () => {
                 createdAt: Date.now() - 3600000, // 1 hour ago
                 lastActivity: Date.now() - 1800000, // 30 minutes ago
                 messageCount: 10,
-                scopes: {
-                    type: 'primary',
-                    depth: 0,
-                    lifecycle: 'persistent',
-                },
+                type: 'primary',
             };
             mockStorageManager.database.get.mockResolvedValue(storedSessionData);
 
@@ -952,6 +968,7 @@ describe('SessionManager', () => {
             expect(MockChatSession).toHaveBeenCalledWith(
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 sessionId,
+                mockLogger,
                 undefined, // agentConfig
                 undefined, // parentSessionId (from scopes)
                 undefined // agentIdentifier (from metadata)
@@ -989,11 +1006,7 @@ describe('SessionManager', () => {
                 createdAt: Date.now() - 7200000,
                 lastActivity: Date.now() - 7200000, // Expired
                 messageCount: 15,
-                scopes: {
-                    type: 'primary',
-                    depth: 0,
-                    lifecycle: 'persistent',
-                },
+                type: 'primary',
             };
             mockStorageManager.database.get.mockResolvedValue(expiredSessionData);
 
@@ -1077,9 +1090,10 @@ describe('SessionManager', () => {
             const storageConfig = StorageSchema.parse({
                 cache: { type: 'in-memory' as const },
                 database: { type: 'in-memory' as const },
+                blob: { type: 'local', storePath: '/tmp/test-blobs' },
             });
 
-            realStorageBackends = await createStorageManager(storageConfig);
+            realStorageBackends = await createStorageManager(storageConfig, mockLogger);
 
             // Create SessionManager with real storage and short TTL for faster testing
             realSessionManager = new SessionManager(
@@ -1090,7 +1104,8 @@ describe('SessionManager', () => {
                 {
                     maxSessions: 10,
                     sessionTTL: 100, // 100ms for fast testing
-                }
+                },
+                mockLogger
             );
 
             await realSessionManager.init();

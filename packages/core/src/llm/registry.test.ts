@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { LLM_PROVIDERS } from './types.js';
 import {
     LLM_REGISTRY,
@@ -23,6 +23,19 @@ import {
 } from './registry.js';
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+
+const mockLogger: IDextoLogger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    trackException: vi.fn(),
+    createChild: vi.fn(function (this: any) {
+        return this;
+    }),
+    destroy: vi.fn(),
+} as any;
 
 describe('LLM Registry Core Functions', () => {
     describe('getSupportedProviders', () => {
@@ -41,11 +54,11 @@ describe('LLM Registry Core Functions', () => {
 
     describe('getMaxInputTokensForModel', () => {
         it('returns correct maxInputTokens for valid provider and model', () => {
-            expect(getMaxInputTokensForModel('openai', 'o4-mini')).toBe(200000);
+            expect(getMaxInputTokensForModel('openai', 'o4-mini', mockLogger)).toBe(200000);
         });
 
         it('throws DextoRuntimeError with model unknown code for unknown model', () => {
-            expect(() => getMaxInputTokensForModel('openai', 'unknown-model')).toThrow(
+            expect(() => getMaxInputTokensForModel('openai', 'unknown-model', mockLogger)).toThrow(
                 expect.objectContaining({
                     code: LLMErrorCode.MODEL_UNKNOWN,
                     scope: ErrorScope.LLM,
@@ -166,8 +179,8 @@ describe('Provider Capabilities', () => {
 describe('Case Sensitivity', () => {
     it('handles model names case-insensitively across all functions', () => {
         // Test multiple functions with case variations
-        expect(getMaxInputTokensForModel('openai', 'O4-MINI')).toBe(200000);
-        expect(getMaxInputTokensForModel('openai', 'o4-mini')).toBe(200000);
+        expect(getMaxInputTokensForModel('openai', 'O4-MINI', mockLogger)).toBe(200000);
+        expect(getMaxInputTokensForModel('openai', 'o4-mini', mockLogger)).toBe(200000);
         expect(isValidProviderModel('openai', 'O4-MINI')).toBe(true);
         expect(isValidProviderModel('openai', 'o4-mini')).toBe(true);
         expect(getProviderFromModel('O4-MINI')).toBe('openai');
@@ -196,17 +209,17 @@ describe('Registry Consistency', () => {
 describe('getEffectiveMaxInputTokens', () => {
     it('returns explicit override when provided and within registry limit', () => {
         const config = { provider: 'openai', model: 'o4-mini', maxInputTokens: 1000 } as any;
-        expect(getEffectiveMaxInputTokens(config)).toBe(1000);
+        expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(1000);
     });
 
     it('caps override exceeding registry limit to registry value', () => {
-        const registryLimit = getMaxInputTokensForModel('openai', 'o4-mini');
+        const registryLimit = getMaxInputTokensForModel('openai', 'o4-mini', mockLogger);
         const config = {
             provider: 'openai',
             model: 'o4-mini',
             maxInputTokens: registryLimit + 1,
         } as any;
-        expect(getEffectiveMaxInputTokens(config)).toBe(registryLimit);
+        expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(registryLimit);
     });
 
     it('returns override for unknown model when provided', () => {
@@ -215,7 +228,7 @@ describe('getEffectiveMaxInputTokens', () => {
             model: 'unknown-model',
             maxInputTokens: 50000,
         } as any;
-        expect(getEffectiveMaxInputTokens(config)).toBe(50000);
+        expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(50000);
     });
 
     it('defaults to 128000 when baseURL is set and maxInputTokens is missing', () => {
@@ -224,7 +237,7 @@ describe('getEffectiveMaxInputTokens', () => {
             model: 'custom-model',
             baseURL: 'https://example.com',
         } as any;
-        expect(getEffectiveMaxInputTokens(config)).toBe(128000);
+        expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(128000);
     });
 
     it('returns provided maxInputTokens when baseURL is set', () => {
@@ -234,23 +247,23 @@ describe('getEffectiveMaxInputTokens', () => {
             baseURL: 'https://example.com',
             maxInputTokens: 12345,
         } as any;
-        expect(getEffectiveMaxInputTokens(config)).toBe(12345);
+        expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(12345);
     });
 
     it('defaults to 128000 for providers accepting any model without baseURL', () => {
         const config = { provider: 'openai-compatible', model: 'any-model' } as any;
-        expect(getEffectiveMaxInputTokens(config)).toBe(128000);
+        expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(128000);
     });
 
     it('uses registry when no override or baseURL is present', () => {
-        const registryLimit = getMaxInputTokensForModel('openai', 'o4-mini');
+        const registryLimit = getMaxInputTokensForModel('openai', 'o4-mini', mockLogger);
         const config = { provider: 'openai', model: 'o4-mini' } as any;
-        expect(getEffectiveMaxInputTokens(config)).toBe(registryLimit);
+        expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(registryLimit);
     });
 
     it('throws EffectiveMaxInputTokensError when lookup fails without override or baseURL', () => {
         const config = { provider: 'openai', model: 'non-existent-model' } as any;
-        expect(() => getEffectiveMaxInputTokens(config)).toThrow(
+        expect(() => getEffectiveMaxInputTokens(config, mockLogger)).toThrow(
             expect.objectContaining({
                 code: LLMErrorCode.MODEL_UNKNOWN,
                 scope: ErrorScope.LLM,
@@ -509,10 +522,12 @@ describe('Provider-Specific Tests', () => {
         });
 
         it('returns correct maxInputTokens for cohere models', () => {
-            expect(getMaxInputTokensForModel('cohere', 'command-a-03-2025')).toBe(256000);
-            expect(getMaxInputTokensForModel('cohere', 'command-r-plus')).toBe(128000);
-            expect(getMaxInputTokensForModel('cohere', 'command-r')).toBe(128000);
-            expect(getMaxInputTokensForModel('cohere', 'command-r7b')).toBe(128000);
+            expect(getMaxInputTokensForModel('cohere', 'command-a-03-2025', mockLogger)).toBe(
+                256000
+            );
+            expect(getMaxInputTokensForModel('cohere', 'command-r-plus', mockLogger)).toBe(128000);
+            expect(getMaxInputTokensForModel('cohere', 'command-r', mockLogger)).toBe(128000);
+            expect(getMaxInputTokensForModel('cohere', 'command-r7b', mockLogger)).toBe(128000);
         });
     });
 });

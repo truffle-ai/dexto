@@ -7,7 +7,8 @@ import {
     filterMessagesByLLMCapabilities,
     toTextForToolMessage,
 } from '@core/context/utils.js';
-import { logger } from '@core/logger/index.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
+import { DextoLogComponent } from '@core/logger/v2/types.js';
 
 /**
  * Message formatter for OpenAI's Chat Completion API.
@@ -18,6 +19,11 @@ import { logger } from '@core/logger/index.js';
  * - Tool results use the 'tool' role with tool_call_id and name
  */
 export class OpenAIMessageFormatter implements IMessageFormatter {
+    private logger: IDextoLogger;
+
+    constructor(logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
+    }
     /**
      * Formats internal messages into OpenAI's Chat Completion API format
      *
@@ -36,9 +42,11 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
         // Apply model-aware capability filtering
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context);
+            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
         } catch (error) {
-            logger.warn(`Failed to apply capability filtering, using original history: ${error}`);
+            this.logger.warn(
+                `Failed to apply capability filtering, using original history: ${error}`
+            );
             filteredHistory = [...history];
         }
 
@@ -49,6 +57,9 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                 content: systemPrompt,
             });
         }
+
+        // Track pending tool calls to detect orphans (tool calls without results)
+        const pendingToolCallIds = new Set<string>();
 
         for (const msg of filteredHistory) {
             switch (msg.role) {
@@ -76,6 +87,10 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                             content: String(msg.content || ''),
                             tool_calls: msg.toolCalls,
                         });
+                        // Track these tool call IDs as pending
+                        for (const toolCall of msg.toolCalls) {
+                            pendingToolCallIds.add(toolCall.id);
+                        }
                     } else {
                         formatted.push({
                             role: 'assistant',
@@ -86,12 +101,39 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
 
                 case 'tool':
                     // Tool results for OpenAI — only text field is supported.
-                    formatted.push({
-                        role: 'tool',
-                        content: toTextForToolMessage(msg.content),
-                        tool_call_id: msg.toolCallId || '',
-                    });
+                    // Only add if we've seen the corresponding tool call
+                    if (msg.toolCallId && pendingToolCallIds.has(msg.toolCallId)) {
+                        formatted.push({
+                            role: 'tool',
+                            content: toTextForToolMessage(msg.content),
+                            tool_call_id: msg.toolCallId,
+                        });
+                        // Remove from pending since we found its result
+                        pendingToolCallIds.delete(msg.toolCallId);
+                    } else {
+                        // Orphaned tool result (result without matching call)
+                        // Skip it to prevent API errors - can't send result without corresponding call
+                        this.logger.warn(
+                            `Skipping orphaned tool result ${msg.toolCallId} (no matching tool call found) - cannot send to OpenAI without corresponding tool_calls`
+                        );
+                    }
                     break;
+            }
+        }
+
+        // Add synthetic error results for any orphaned tool calls
+        // This can happen when CLI crashes/interrupts before tool execution completes
+        if (pendingToolCallIds.size > 0) {
+            for (const toolCallId of pendingToolCallIds) {
+                formatted.push({
+                    role: 'tool',
+                    content:
+                        'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
+                    tool_call_id: toolCallId,
+                });
+                this.logger.warn(
+                    `Tool call ${toolCallId} had no matching tool result - added synthetic error result to prevent API errors`
+                );
             }
         }
 
@@ -174,7 +216,7 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     return { type: 'text', text: part.text };
                 }
                 if (part.type === 'image') {
-                    const raw = getImageData(part);
+                    const raw = getImageData(part, this.logger);
                     const url =
                         raw.startsWith('http://') ||
                         raw.startsWith('https://') ||

@@ -5,7 +5,8 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
 import type { LLMProvider, AgentConfig } from '@dexto/core';
 import { type GlobalPreferences } from './preferences/schemas.js';
-import { logger, ConfigError } from '@dexto/core';
+import { logger } from '@dexto/core';
+import { ConfigError } from './config/index.js';
 
 export interface LLMOverrides {
     provider?: LLMProvider;

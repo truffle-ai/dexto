@@ -1,9 +1,20 @@
 import { describe, test, expect } from 'vitest';
 import { FilePromptProvider } from './file-prompt-provider.js';
 
+const mockLogger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    silly: () => {},
+    trackException: () => {},
+    createChild: () => mockLogger,
+    destroy: async () => {},
+} as any;
+
 function makeProvider() {
     const resourceManagerStub = { getBlobStore: () => undefined } as any;
-    const provider = new FilePromptProvider({ resourceManager: resourceManagerStub });
+    const provider = new FilePromptProvider({ resourceManager: resourceManagerStub }, mockLogger);
     return provider;
 }
 

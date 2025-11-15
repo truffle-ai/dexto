@@ -7,6 +7,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
+import { getDextoPath } from '../utils/path.js';
 import {
     FileSystemConfig,
     FileContent,
@@ -26,8 +27,8 @@ import {
 } from './types.js';
 import { PathValidator } from './path-validator.js';
 import { FileSystemError } from './errors.js';
-import { logger } from '../logger/index.js';
-import { getDextoPath } from '../utils/path.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -37,13 +38,15 @@ const DEFAULT_MAX_SEARCH_RESULTS = 100;
 /**
  * FileSystemService - Handles all file system operations with security checks
  * TODO: Add tests for this class
+ * TODO: instantiate only when internal file tools are enabled to avoid file dependencies which won't work in serverless
  */
 export class FileSystemService {
     private config: FileSystemConfig;
     private pathValidator: PathValidator;
     private initialized: boolean = false;
+    private logger: IDextoLogger;
 
-    constructor(config: Partial<FileSystemConfig> = {}) {
+    constructor(config: Partial<FileSystemConfig> = {}, logger: IDextoLogger) {
         // Set defaults
         this.config = {
             allowedPaths: config.allowedPaths || ['.'],
@@ -56,11 +59,13 @@ export class FileSystemService {
             workingDirectory: config.workingDirectory,
         };
 
-        this.pathValidator = new PathValidator(this.config);
+        this.logger = logger.createChild(DextoLogComponent.FILESYSTEM);
+        this.pathValidator = new PathValidator(this.config, this.logger);
     }
 
     /**
      * Get backup directory path (context-aware with optional override)
+     * TODO: Migrate to explicit configuration via CLI enrichment layer (per-agent paths)
      */
     private getBackupDir(): string {
         // Use custom path if provided (absolute), otherwise use context-aware default
@@ -72,7 +77,7 @@ export class FileSystemService {
      */
     async initialize(): Promise<void> {
         if (this.initialized) {
-            logger.debug('FileSystemService already initialized');
+            this.logger.debug('FileSystemService already initialized');
             return;
         }
 
@@ -81,16 +86,16 @@ export class FileSystemService {
             try {
                 const backupDir = this.getBackupDir();
                 await fs.mkdir(backupDir, { recursive: true });
-                logger.debug(`Backup directory created/verified: ${backupDir}`);
+                this.logger.debug(`Backup directory created/verified: ${backupDir}`);
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Failed to create backup directory: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         }
 
         this.initialized = true;
-        logger.info('FileSystemService initialized successfully');
+        this.logger.info('FileSystemService initialized successfully');
     }
 
     /**
@@ -202,7 +207,7 @@ export class FileSystemService {
                 // Validate path
                 const validation = this.pathValidator.validatePath(file);
                 if (!validation.isValid || !validation.normalizedPath) {
-                    logger.debug(`Skipping invalid path: ${file}`);
+                    this.logger.debug(`Skipping invalid path: ${file}`);
                     continue;
                 }
 
@@ -217,7 +222,7 @@ export class FileSystemService {
                             isDirectory: stats.isDirectory(),
                         });
                     } catch (error) {
-                        logger.debug(
+                        this.logger.debug(
                             `Failed to stat file ${file}: ${error instanceof Error ? error.message : String(error)}`
                         );
                     }
@@ -331,7 +336,7 @@ export class FileSystemService {
                     }
                 } catch (error) {
                     // Skip files that can't be read
-                    logger.debug(
+                    this.logger.debug(
                         `Skipping file ${fileInfo.path}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
@@ -403,7 +408,7 @@ export class FileSystemService {
 
             const bytesWritten = Buffer.byteLength(content, encoding);
 
-            logger.debug(`File written: ${normalizedPath} (${bytesWritten} bytes)`);
+            this.logger.debug(`File written: ${normalizedPath} (${bytesWritten} bytes)`);
 
             return {
                 success: true,
@@ -478,7 +483,7 @@ export class FileSystemService {
             // Write updated content
             await fs.writeFile(normalizedPath, content, options.encoding || DEFAULT_ENCODING);
 
-            logger.debug(`File edited: ${normalizedPath} (${occurrences} replacements)`);
+            this.logger.debug(`File edited: ${normalizedPath} (${occurrences} replacements)`);
 
             return {
                 success: true,
@@ -509,7 +514,7 @@ export class FileSystemService {
         try {
             await fs.mkdir(backupDir, { recursive: true });
             await fs.copyFile(filePath, backupPath);
-            logger.debug(`Backup created: ${backupPath}`);
+            this.logger.debug(`Backup created: ${backupPath}`);
 
             // Clean up old backups after creating new one
             await this.cleanupOldBackups();
@@ -535,7 +540,7 @@ export class FileSystemService {
         try {
             backupDir = this.getBackupDir();
         } catch (error) {
-            logger.warn(
+            this.logger.warn(
                 `Failed to resolve backup directory: ${error instanceof Error ? error.message : String(error)}`
             );
             return 0;
@@ -565,22 +570,22 @@ export class FileSystemService {
                     if (stats.mtime < cutoffDate) {
                         await fs.unlink(filePath);
                         deletedCount++;
-                        logger.debug(`Cleaned up old backup: ${file}`);
+                        this.logger.debug(`Cleaned up old backup: ${file}`);
                     }
                 } catch (error) {
-                    logger.warn(
+                    this.logger.warn(
                         `Failed to process backup file ${file}: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
             }
 
             if (deletedCount > 0) {
-                logger.info(`Backup cleanup: removed ${deletedCount} old backup files`);
+                this.logger.info(`Backup cleanup: removed ${deletedCount} old backup files`);
             }
 
             return deletedCount;
         } catch (error) {
-            logger.warn(
+            this.logger.warn(
                 `Failed to cleanup backup directory: ${error instanceof Error ? error.message : String(error)}`
             );
             return 0;

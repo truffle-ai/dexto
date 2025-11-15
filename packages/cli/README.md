@@ -76,11 +76,11 @@ dexto
 dexto --mode cli
 ```
 
-In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more. 
+In 2 -> Dexto will use filesystem tools to write code and browser tools to open it — all from a single prompt. The Web UI (default mode) allows you to navigate previous conversations and experiment with different models, tools and more.
 
-The interactive CLI (3) allows you to interact with agents in the terminal.
+The CLI mode (3) provides a modern terminal interface with message history, streaming responses, slash commands, autocomplete, and a clean chat-optimized experience.
 
-See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
+See [CLI.md](./CLI.md) for detailed CLI documentation and keyboard shortcuts.
 
 ### Skip Tool Prompts While Prototyping
 
@@ -264,14 +264,14 @@ dexto --agent ./agents/examples/email_slack.yml
 | Mode | Command | Best for |
 |------|---------|----------|
 | **Web UI** | `dexto` | Friendly chat interface w/ image support (default) |
-| **Interactive CLI** | `dexto --mode cli` | Everyday automation & quick tasks |
+| **CLI** | `dexto --mode cli` | Modern terminal interface with autocomplete & streaming |
 | **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
 | **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](https://github.com/truffle-ai/dexto/blob/HEAD/packages/cli/src/discord/README.md)) |
 | **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](https://github.com/truffle-ai/dexto/blob/HEAD/packages/cli/src/telegram/README.md)) |
 
-Run `dexto --help` for **all flags, sub-commands, and environment variables**.
+Run `dexto --help` for all flags and commands. See [CLI.md](./CLI.md) for detailed CLI documentation.
 
 ## Configuration
 
@@ -484,12 +484,11 @@ Basic Usage:
   cat file | dexto -p "query"  Process piped content
 
 CLI Mode:
-  dexto --mode cli         Start interactive CLI REPL
+  dexto --mode cli         Start interactive CLI
 
 Session Management:
-  dexto -c                 Continue most recent conversation
-  dexto -c -p "query"      Continue with one-shot query, then exit
-  dexto -r "<session-id>" "query"  Resume with one-shot query
+  dexto -r <session-id>    Resume specific session by ID
+  Use /resume in CLI       Resume a session interactively
 
 Tool Confirmation:
   dexto --auto-approve     Auto-approve all tool executions
@@ -531,7 +530,6 @@ Options:
                                    in-built)
   --auto-approve                   Always approve tool executions without
                                    confirmation prompts
-  -c, --continue                   Continue most recent conversation
   -r, --resume <sessionId>         Resume session by ID
   --mode <mode>                    The application in which dexto should talk
                                    to you - web | cli | server | discord |
@@ -564,7 +562,7 @@ Commands:
 ```
 </details>
 
-See the [CLI Guide](https://docs.dexto.ai/docs/guides/cli/overview) for full details.
+See [CLI.md](./CLI.md) for detailed CLI documentation and [docs.dexto.ai](https://docs.dexto.ai) for complete guides.
 
 ---
 

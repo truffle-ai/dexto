@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileContributor } from './contributors.js';
 import { writeFile, mkdir, rm } from 'fs/promises';
 import { join } from 'path';
@@ -6,6 +6,18 @@ import { DynamicContributorContext } from './types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import { IDextoLogger } from '../logger/v2/types.js';
+
+const mockLogger: IDextoLogger = {
+    debug: vi.fn(),
+    silly: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    trackException: vi.fn(),
+    createChild: vi.fn(),
+    destroy: vi.fn(),
+};
 
 describe('FileContributor', () => {
     const testDir = join(process.cwd(), 'test-files');
@@ -33,7 +45,13 @@ describe('FileContributor', () => {
     });
 
     test('should read single markdown file with default options', async () => {
-        const contributor = new FileContributor('test', 0, [join(testDir, 'test1.md')]);
+        const contributor = new FileContributor(
+            'test',
+            0,
+            [join(testDir, 'test1.md')],
+            {},
+            mockLogger
+        );
         const result = await contributor.getContent(mockContext);
 
         expect(result).toContain('<fileContext>');
@@ -50,7 +68,8 @@ describe('FileContributor', () => {
             [join(testDir, 'test1.md'), join(testDir, 'test2.txt')],
             {
                 separator: '\n\n===\n\n',
-            }
+            },
+            mockLogger
         );
         const result = await contributor.getContent(mockContext);
 
@@ -66,7 +85,8 @@ describe('FileContributor', () => {
             [join(testDir, 'missing.md'), join(testDir, 'test1.md')],
             {
                 errorHandling: 'skip',
-            }
+            },
+            mockLogger
         );
         const result = await contributor.getContent(mockContext);
 
@@ -81,7 +101,8 @@ describe('FileContributor', () => {
             [join(testDir, 'missing.md'), join(testDir, 'test1.md')],
             {
                 errorHandling: 'error',
-            }
+            },
+            mockLogger
         );
 
         const error = (await contributor
@@ -94,9 +115,15 @@ describe('FileContributor', () => {
     });
 
     test('should throw error for missing files with single file error mode', async () => {
-        const contributor = new FileContributor('test', 0, [join(testDir, 'missing.md')], {
-            errorHandling: 'error',
-        });
+        const contributor = new FileContributor(
+            'test',
+            0,
+            [join(testDir, 'missing.md')],
+            {
+                errorHandling: 'error',
+            },
+            mockLogger
+        );
 
         const error = (await contributor
             .getContent(mockContext)
@@ -115,7 +142,8 @@ describe('FileContributor', () => {
             {
                 maxFileSize: 1000,
                 errorHandling: 'skip',
-            }
+            },
+            mockLogger
         );
         const result = await contributor.getContent(mockContext);
 
@@ -130,7 +158,8 @@ describe('FileContributor', () => {
             [join(testDir, 'invalid.json'), join(testDir, 'test1.md')],
             {
                 errorHandling: 'skip',
-            }
+            },
+            mockLogger
         );
         const result = await contributor.getContent(mockContext);
 
@@ -139,9 +168,15 @@ describe('FileContributor', () => {
     });
 
     test('should throw error for invalid file types with error mode', async () => {
-        const contributor = new FileContributor('test', 0, [join(testDir, 'invalid.json')], {
-            errorHandling: 'error',
-        });
+        const contributor = new FileContributor(
+            'test',
+            0,
+            [join(testDir, 'invalid.json')],
+            {
+                errorHandling: 'error',
+            },
+            mockLogger
+        );
 
         await expect(contributor.getContent(mockContext)).rejects.toThrow(
             'is not a .md or .txt file'
@@ -149,9 +184,15 @@ describe('FileContributor', () => {
     });
 
     test('should exclude filenames when configured', async () => {
-        const contributor = new FileContributor('test', 0, [join(testDir, 'test1.md')], {
-            includeFilenames: false,
-        });
+        const contributor = new FileContributor(
+            'test',
+            0,
+            [join(testDir, 'test1.md')],
+            {
+                includeFilenames: false,
+            },
+            mockLogger
+        );
         const result = await contributor.getContent(mockContext);
 
         expect(result).toContain('# Test Document 1');
@@ -159,9 +200,15 @@ describe('FileContributor', () => {
     });
 
     test('should include metadata when configured', async () => {
-        const contributor = new FileContributor('test', 0, [join(testDir, 'test1.md')], {
-            includeMetadata: true,
-        });
+        const contributor = new FileContributor(
+            'test',
+            0,
+            [join(testDir, 'test1.md')],
+            {
+                includeMetadata: true,
+            },
+            mockLogger
+        );
         const result = await contributor.getContent(mockContext);
 
         expect(result).toContain('*File size:');
@@ -169,9 +216,15 @@ describe('FileContributor', () => {
     });
 
     test('should return empty context when no files can be loaded', async () => {
-        const contributor = new FileContributor('test', 0, [join(testDir, 'missing.md')], {
-            errorHandling: 'skip',
-        });
+        const contributor = new FileContributor(
+            'test',
+            0,
+            [join(testDir, 'missing.md')],
+            {
+                errorHandling: 'skip',
+            },
+            mockLogger
+        );
         const result = await contributor.getContent(mockContext);
 
         expect(result).toBe('<fileContext>No files could be loaded</fileContext>');
@@ -184,7 +237,7 @@ describe('FileContributor', () => {
         const absolutePath = join(configDir, 'config-file.md');
         await writeFile(absolutePath, '# Config File\n\nThis is a config file.');
 
-        const contributor = new FileContributor('test', 0, [absolutePath]);
+        const contributor = new FileContributor('test', 0, [absolutePath], {}, mockLogger);
 
         const result = await contributor.getContent(mockContext);
 
@@ -203,7 +256,7 @@ describe('FileContributor', () => {
         const nestedPath = join(docsDir, 'readme.md');
         await writeFile(nestedPath, '# Documentation\n\nThis is documentation.');
 
-        const contributor = new FileContributor('test', 0, [nestedPath]);
+        const contributor = new FileContributor('test', 0, [nestedPath], {}, mockLogger);
 
         const result = await contributor.getContent(mockContext);
 

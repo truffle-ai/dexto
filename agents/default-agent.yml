@@ -58,6 +58,18 @@ llm:
   #   - "audio/*"           # All audio formats
   # Note: Unsupported types become descriptive placeholders like: [Video: demo.mp4 (5.2 MB)]
 
+# Logger configuration - multi-transport logging system
+# The CLI automatically adds a file transport for agent-specific logs
+# logger:
+#   level: info  # error | warn | info | debug | silly
+#   transports:
+#     - type: console
+#       colorize: true
+#     - type: file
+#       path: ./logs/agent.log
+#       maxSize: 10485760    # 10MB
+#       maxFiles: 5
+
 storage:
   cache:
     type: in-memory
@@ -69,7 +81,7 @@ storage:
     maxBlobSize: 52428800     # 50MB per blob
     maxTotalSize: 1073741824  # 1GB total storage
     cleanupAfterDays: 30      # Auto-cleanup blobs older than 30 days
-    # storePath: ~/.dexto/blobs (defaults to context-aware path for local backend)
+    # storePath: (automatically provided by CLI as ~/.dexto/blobs/<agent-id>)
 
 toolConfirmation:
   mode: event-based

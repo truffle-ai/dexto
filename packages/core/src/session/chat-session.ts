@@ -17,7 +17,8 @@ import {
     SessionEventNames,
     SessionEventName,
 } from '../events/index.js';
-import { logger } from '../logger/index.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
+import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { InternalMessage } from '../context/types.js';
@@ -112,6 +113,8 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
+    private logger: IDextoLogger;
+
     /**
      * Optional agent configuration for this session.
      * When provided, overrides system prompts, tools, and LLM settings.
@@ -150,6 +153,7 @@ export class ChatSession {
      *
      * @param services - The shared services from the agent (state manager, prompt, client managers, etc.)
      * @param id - Unique identifier for this session
+     * @param logger - Logger instance for dependency injection
      * @param agentConfig - Optional agent configuration to override default behavior
      * @param parentSessionId - Optional parent session ID for sub-agent event forwarding
      * @param agentType - Optional agent type identifier for sub-agent metadata
@@ -167,10 +171,12 @@ export class ChatSession {
             sessionManager: import('./session-manager.js').SessionManager;
         },
         public readonly id: string,
+        logger: IDextoLogger,
         agentConfig?: import('../agent/schemas.js').AgentConfig,
         parentSessionId?: string,
         agentType?: string
     ) {
+        this.logger = logger.createChild(DextoLogComponent.SESSION);
         this.agentConfig = agentConfig;
         this.parentSessionId = parentSessionId;
         this.agentType = agentType;
@@ -184,7 +190,7 @@ export class ChatSession {
         // Services will be initialized in init() method due to async requirements
         const configInfo = agentConfig ? ' with custom agent config' : '';
         const parentInfo = parentSessionId ? ` (parent: ${parentSessionId})` : '';
-        logger.debug(
+        this.logger.debug(
             `ChatSession ${this.id}: Created${configInfo}${parentInfo}, awaiting initialization`
         );
     }
@@ -219,7 +225,7 @@ export class ChatSession {
                     payload && typeof payload === 'object'
                         ? { ...payload, sessionId: this.id }
                         : { sessionId: this.id };
-                logger.silly(
+                this.logger.silly(
                     `Forwarding session event ${eventName} to agent bus with session context: ${JSON.stringify(payloadWithSession, null, 2)}`
                 );
                 // Forward to agent bus with session context
@@ -255,13 +261,13 @@ export class ChatSession {
                 this.parentSessionId
             );
             if (!parentSession) {
-                logger.warn(
+                this.logger.warn(
                     `Parent session ${this.parentSessionId} not found, skipping parent event forwarding`
                 );
                 return;
             }
 
-            logger.debug(
+            this.logger.debug(
                 `Setting up parent event forwarding from ${this.id} to ${this.parentSessionId}`
             );
 
@@ -293,7 +299,7 @@ export class ChatSession {
                                   parentSessionId: this.parentSessionId,
                               };
 
-                    logger.silly(
+                    this.logger.silly(
                         `Forwarding sub-agent event ${eventName} to parent session ${this.parentSessionId}: ${JSON.stringify(augmentedPayload, null, 2)}`
                     );
 
@@ -337,7 +343,7 @@ export class ChatSession {
                                   sessionId: this.parentSessionId,
                               };
 
-                    logger.silly(
+                    this.logger.silly(
                         `Forwarding sub-agent agent event ${eventName} from ${this.id} to parent ${this.parentSessionId}: ${JSON.stringify(augmentedPayload, null, 2)}`
                     );
 
@@ -353,11 +359,11 @@ export class ChatSession {
                 this.services.agentEventBus.on(eventName as any, agentEventForwarder);
             });
 
-            logger.info(
+            this.logger.info(
                 `Parent event forwarding configured: ${this.id} → ${this.parentSessionId} (${SessionEventNames.length} session events + ${agentEventsToForward.length} agent events)`
             );
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Failed to set up parent event forwarding: ${error instanceof Error ? error.message : String(error)}`
             );
             // Don't throw - parent forwarding is a nice-to-have, not critical
@@ -393,7 +399,8 @@ export class ChatSession {
         // This persists across LLM switches to maintain conversation history
         this.historyProvider = createDatabaseHistoryProvider(
             this.services.storageManager.getDatabase(),
-            this.id
+            this.id,
+            this.logger
         );
 
         // Create session-specific LLM service
@@ -406,11 +413,12 @@ export class ChatSession {
             this.historyProvider,
             this.eventBus,
             this.id,
-            this.services.resourceManager
+            this.services.resourceManager,
+            this.logger
         );
 
         const configInfo = this.agentConfig ? ' with custom agent config applied' : '';
-        logger.debug(`ChatSession ${this.id}: Services initialized with storage${configInfo}`);
+        this.logger.debug(`ChatSession ${this.id}: Services initialized with storage${configInfo}`);
     }
 
     /**
@@ -434,22 +442,22 @@ export class ChatSession {
             };
         }
 
-        logger.info(`Applying agent config overrides for session ${this.id}`);
+        this.logger.info(`Applying agent config overrides for session ${this.id}`);
 
         // 1. Override LLM if specified in agent config
         let llmConfig = baseLLMConfig;
         if (this.agentConfig.llm) {
-            logger.debug(`Overriding LLM config from agent config`);
+            this.logger.debug(`Overriding LLM config from agent config`);
             // Import and validate LLM schema
             const { LLMConfigSchema } = await import('../llm/schemas.js');
             try {
                 const validated = LLMConfigSchema.parse(this.agentConfig.llm);
                 llmConfig = validated;
-                logger.info(
+                this.logger.info(
                     `LLM overridden: ${llmConfig.provider}/${llmConfig.model} for session ${this.id}`
                 );
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Invalid LLM config in agent config, using parent config: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -458,7 +466,7 @@ export class ChatSession {
         // 2. Apply tool scoping if specified in agent config
         let toolManager = baseToolManager;
         if (this.agentConfig.internalTools) {
-            logger.debug(
+            this.logger.debug(
                 `Creating custom ToolManager with ${this.agentConfig.internalTools.length} allowed tools`
             );
 
@@ -472,15 +480,16 @@ export class ChatSession {
                 baseToolManager.getAllowedToolsProvider(),
                 baseToolManager.getApprovalMode(),
                 this.services.agentEventBus,
-                baseToolManager.getToolPolicies(),
+                baseToolManager.getToolPolicies() || { alwaysAllow: [], alwaysDeny: [] },
                 {
                     internalToolsServices: baseToolManager.getInternalToolsServices(),
                     internalToolsConfig: this.agentConfig.internalTools,
-                }
+                },
+                this.logger
             );
             await toolManager.initialize();
 
-            logger.info(
+            this.logger.info(
                 `Custom ToolManager created with tools: ${this.agentConfig.internalTools.join(', ')} for session ${this.id}`
             );
         }
@@ -488,7 +497,7 @@ export class ChatSession {
         // 3. System prompt override
         let systemPromptManager = baseSystemPromptManager;
         if (this.agentConfig.systemPrompt) {
-            logger.debug(`Overriding system prompt from agent config`);
+            this.logger.debug(`Overriding system prompt from agent config`);
             const { SystemPromptManager } = await import('../systemPrompt/manager.js');
             const { SystemPromptConfigSchema } = await import('../systemPrompt/schemas.js');
 
@@ -501,14 +510,15 @@ export class ChatSession {
                 systemPromptManager = new SystemPromptManager(
                     validated,
                     process.cwd(), // configDir for file contributors
-                    undefined // No memory manager for sub-agents
+                    undefined, // No memory manager for sub-agents
+                    this.logger
                 );
 
-                logger.info(
+                this.logger.info(
                     `System prompt overridden with ${validated.contributors.length} contributors for session ${this.id}`
                 );
             } catch (error) {
-                logger.warn(
+                this.logger.warn(
                     `Invalid system prompt config in agent config, using parent config: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
@@ -598,7 +608,7 @@ export class ChatSession {
         stream?: boolean
     ): Promise<string> {
         // Log metadata only (no sensitive content) to prevent PII/secret leakage in logs
-        logger.debug(
+        this.logger.debug(
             `Running session ${this.id} | input.len=${input?.length ?? 0} | image=${imageDataInput ? imageDataInput.mimeType : 'none'} | file=${fileDataInput ? `${fileDataInput.mimeType}:${fileDataInput.filename ?? 'unknown'}` : 'none'}`
         );
 
@@ -697,9 +707,11 @@ export class ChatSession {
                         imageDataInput,
                         fileDataInput
                     );
-                    logger.debug(`ChatSession ${this.id}: Saved blocked interaction to history`);
+                    this.logger.debug(
+                        `ChatSession ${this.id}: Saved blocked interaction to history`
+                    );
                 } catch (saveError) {
-                    logger.warn(
+                    this.logger.warn(
                         `Failed to save blocked interaction to history: ${
                             saveError instanceof Error ? saveError.message : String(saveError)
                         }`
@@ -826,14 +838,15 @@ export class ChatSession {
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
                 this.eventBus,
                 this.id,
-                this.services.resourceManager
+                this.services.resourceManager,
+                this.logger
             );
 
             // Replace the LLM service and update session config
             this.llmService = newLLMService;
             this.llmConfig = newLLMConfig;
 
-            logger.info(
+            this.logger.info(
                 `ChatSession ${this.id}: LLM switched to ${newLLMConfig.provider}/${newLLMConfig.model}`
             );
 
@@ -844,7 +857,7 @@ export class ChatSession {
                 historyRetained: true,
             });
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Error during ChatSession.switchLLM for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -867,11 +880,11 @@ export class ChatSession {
                 this.customToolManager = null;
             }
 
-            logger.debug(
+            this.logger.debug(
                 `ChatSession ${this.id}: Memory cleanup completed (chat history preserved)`
             );
         } catch (error) {
-            logger.error(
+            this.logger.error(
                 `Error during ChatSession cleanup for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
@@ -886,7 +899,7 @@ export class ChatSession {
      * Without this cleanup, sessions would remain in memory due to listener references.
      */
     public dispose(): void {
-        logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
+        this.logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
 
         // Remove all event forwarders from the session event bus (session → agent forwarding)
         this.forwarders.forEach((forwarder, eventName) => {
@@ -911,12 +924,12 @@ export class ChatSession {
             });
 
             this.parentForwarders.clear();
-            logger.debug(
+            this.logger.debug(
                 `Cleaned up parent event forwarders for sub-agent session ${this.id} → ${this.parentSessionId}`
             );
         }
 
-        logger.debug(`Session ${this.id} disposed successfully`);
+        this.logger.debug(`Session ${this.id} disposed successfully`);
     }
 
     /**

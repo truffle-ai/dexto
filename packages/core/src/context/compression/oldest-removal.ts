@@ -3,6 +3,8 @@ import { InternalMessage } from '../types.js';
 import { ICompressionStrategy } from './types.js';
 import { countMessagesTokens } from '../utils.js';
 import { ContextError } from '../errors.js';
+import { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 
 /**
  * Configuration options for the OldestRemovalStrategy.
@@ -24,15 +26,15 @@ export interface OldestRemovalStrategyOptions {
  */
 export class OldestRemovalStrategy implements ICompressionStrategy {
     private readonly minMessagesToKeep: number;
-
+    private readonly logger: IDextoLogger;
     /**
      * Creates an instance of OldestRemovalStrategy.
      *
      * @param options Configuration options for preserving messages.
      */
-    constructor(options: OldestRemovalStrategyOptions = {}) {
+    constructor(options: OldestRemovalStrategyOptions = {}, logger: IDextoLogger) {
         this.minMessagesToKeep = options.minMessagesToKeep ?? 4;
-
+        this.logger = logger.createChild(DextoLogComponent.CONTEXT);
         if (this.minMessagesToKeep < 0) {
             throw ContextError.minMessagesNegative();
         }
@@ -53,7 +55,12 @@ export class OldestRemovalStrategy implements ICompressionStrategy {
         maxHistoryTokens: number
     ): InternalMessage[] {
         let currentHistory = [...history]; // Work on a copy
-        let currentTokenCount = countMessagesTokens(currentHistory, tokenizer);
+        let currentTokenCount = countMessagesTokens(
+            currentHistory,
+            tokenizer,
+            undefined,
+            this.logger
+        );
 
         while (
             currentHistory.length > this.minMessagesToKeep &&
@@ -62,18 +69,23 @@ export class OldestRemovalStrategy implements ICompressionStrategy {
             // Remove the oldest message (index 0)
             currentHistory.shift();
             // Recalculate token count after removal
-            currentTokenCount = countMessagesTokens(currentHistory, tokenizer);
+            currentTokenCount = countMessagesTokens(
+                currentHistory,
+                tokenizer,
+                undefined,
+                this.logger
+            );
         }
 
         if (
             currentTokenCount > maxHistoryTokens &&
             currentHistory.length <= this.minMessagesToKeep
         ) {
-            console.warn(
+            this.logger.warn(
                 `OldestRemovalStrategy: Could not compress below max tokens (${maxHistoryTokens}) without violating minMessagesToKeep (${this.minMessagesToKeep}). Final token count: ${currentTokenCount}, Messages: ${currentHistory.length}`
             );
         } else if (currentTokenCount > maxHistoryTokens) {
-            console.warn(
+            this.logger.warn(
                 `OldestRemovalStrategy: Unable to compress below max tokens (${maxHistoryTokens}). Final token count: ${currentTokenCount}`
             );
         }

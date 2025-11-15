@@ -3,6 +3,7 @@ import { StorageAllowedToolsProvider } from './storage.js';
 import type { IAllowedToolsProvider } from './types.js';
 import type { StorageManager } from '@core/storage/index.js';
 import { ToolError } from '../../errors.js';
+import type { IDextoLogger } from '@core/logger/v2/types.js';
 
 // TODO: Re-evaluate storage + toolConfirmation config together to avoid duplication
 // Currently we have:
@@ -24,12 +25,15 @@ export type AllowedToolsConfig =
 /**
  * Create an AllowedToolsProvider based on configuration.
  */
-export function createAllowedToolsProvider(config: AllowedToolsConfig): IAllowedToolsProvider {
+export function createAllowedToolsProvider(
+    config: AllowedToolsConfig,
+    logger: IDextoLogger
+): IAllowedToolsProvider {
     switch (config.type) {
         case 'memory':
             return new InMemoryAllowedToolsProvider();
         case 'storage':
-            return new StorageAllowedToolsProvider(config.storageManager);
+            return new StorageAllowedToolsProvider(config.storageManager, logger);
         default: {
             // Exhaustive check; at runtime this guards malformed config
             const _exhaustive: never = config;

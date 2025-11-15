@@ -12,7 +12,7 @@ import {
     type LLMProvider,
     LLMUpdatesSchema,
 } from '@dexto/core';
-import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/core';
+import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/agent-management';
 import {
     ProviderCatalogSchema,
     ModelFlatSchema,

@@ -1,33 +1,26 @@
 import type { BlobStore } from './types.js';
-import type { BlobStoreConfig, LocalBlobStoreConfig } from '../schemas.js';
+import type { BlobStoreConfig } from './schemas.js';
 import { LocalBlobStore } from './local-blob-store.js';
-import { logger } from '../../logger/index.js';
+import { InMemoryBlobStore } from './memory-blob-store.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
  * Create a blob store based on configuration.
- * Note: In-memory blob store defaults to local file-based storage.
+ * Blob paths are provided via CLI enrichment layer for local storage.
  * @param config Blob store configuration
- * @param agentId Optional agent identifier for per-agent blob isolation
+ * @param logger Logger instance for logging
  */
-export function createBlobStore(config: BlobStoreConfig, agentId?: string): BlobStore {
+export function createBlobStore(config: BlobStoreConfig, logger: IDextoLogger): BlobStore {
     switch (config.type) {
+        case 'in-memory':
+            logger.info('Using in-memory blob store');
+            return new InMemoryBlobStore(config, logger);
+
         case 'local':
             logger.info('Using local file-based blob store');
-            return new LocalBlobStore(config, agentId);
+            return new LocalBlobStore(config, logger);
 
-        case 'in-memory':
-        default: {
-            logger.info(
-                'In-memory blob store not implemented, defaulting to local file-based storage'
-            );
-            // Convert in-memory config to local config
-            const localConfig: LocalBlobStoreConfig = {
-                type: 'local',
-                maxBlobSize: config.maxBlobSize,
-                maxTotalSize: config.maxTotalSize,
-                cleanupAfterDays: 30, // Default for in-memory fallback
-            };
-            return new LocalBlobStore(localConfig, agentId);
-        }
+        default:
+            throw new Error(`Unknown blob store type: ${(config as any).type}`);
     }
 }

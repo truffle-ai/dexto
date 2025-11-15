@@ -1,7 +1,7 @@
 import type { MCPManager } from '../../mcp/manager.js';
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
  * MCP Prompt Provider - Provides prompts from connected MCP servers
@@ -12,9 +12,11 @@ import { logger } from '../../logger/index.js';
  */
 export class MCPPromptProvider implements PromptProvider {
     private mcpManager: MCPManager;
+    private logger: IDextoLogger;
 
-    constructor(mcpManager: MCPManager) {
+    constructor(mcpManager: MCPManager, logger: IDextoLogger) {
         this.mcpManager = mcpManager;
+        this.logger = logger;
     }
 
     /**
@@ -29,7 +31,7 @@ export class MCPPromptProvider implements PromptProvider {
      */
     invalidateCache(): void {
         // MCPManager handles cache invalidation through event notifications
-        logger.debug('MCPPromptProvider cache invalidation (handled by MCPManager)');
+        this.logger.debug('MCPPromptProvider cache invalidation (handled by MCPManager)');
     }
 
     /**
@@ -57,7 +59,7 @@ export class MCPPromptProvider implements PromptProvider {
             }
         );
 
-        logger.debug(`📝 Listed ${prompts.length} MCP prompts from cache`);
+        this.logger.debug(`📝 Listed ${prompts.length} MCP prompts from cache`);
 
         return {
             prompts,
@@ -68,7 +70,7 @@ export class MCPPromptProvider implements PromptProvider {
      * Get a specific prompt by name
      */
     async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
-        logger.debug(`📝 Reading MCP prompt: ${name}`);
+        this.logger.debug(`📝 Reading MCP prompt: ${name}`);
         return await this.mcpManager.getPrompt(name, args);
     }
 
@@ -89,7 +91,7 @@ export class MCPPromptProvider implements PromptProvider {
                 ...(definition.arguments && { arguments: definition.arguments }),
             };
         } catch (error) {
-            logger.debug(
+            this.logger.debug(
                 `Failed to get prompt definition for '${name}': ${error instanceof Error ? error.message : String(error)}`
             );
             return null;

@@ -1,7 +1,8 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { PromptError } from '../errors.js';
 
 type StarterPromptItem = ValidatedAgentConfig['starterPrompts'][number];
@@ -18,8 +19,10 @@ export class StarterPromptProvider implements PromptProvider {
     private starterPrompts: StarterPromptItem[] = [];
     private promptsCache: PromptInfo[] = [];
     private cacheValid: boolean = false;
+    private logger: IDextoLogger;
 
-    constructor(agentConfig: ValidatedAgentConfig) {
+    constructor(agentConfig: ValidatedAgentConfig, logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.PROMPT);
         // Starter prompts come from the validated AgentConfig schema
         this.starterPrompts = agentConfig.starterPrompts;
         this.buildPromptsCache();
@@ -38,7 +41,7 @@ export class StarterPromptProvider implements PromptProvider {
     invalidateCache(): void {
         this.cacheValid = false;
         this.promptsCache = [];
-        logger.debug('StarterPromptProvider cache invalidated');
+        this.logger.debug('StarterPromptProvider cache invalidated');
     }
 
     /**
@@ -82,7 +85,7 @@ export class StarterPromptProvider implements PromptProvider {
         this.promptsCache = allPrompts;
         this.cacheValid = true;
 
-        logger.debug(`📝 Cached ${allPrompts.length} starter prompts`);
+        this.logger.debug(`📝 Cached ${allPrompts.length} starter prompts`);
     }
 
     /**
@@ -117,7 +120,7 @@ export class StarterPromptProvider implements PromptProvider {
         }
         const promptText = rawPrompt;
 
-        logger.debug(`📝 Reading starter prompt: ${name}`);
+        this.logger.debug(`📝 Reading starter prompt: ${name}`);
 
         // Apply arguments if provided: append at END when no placeholders are used
         let content = promptText;

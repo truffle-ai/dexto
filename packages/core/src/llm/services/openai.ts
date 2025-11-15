@@ -3,7 +3,8 @@ import { ChatCompletionMessageParam } from 'openai/resources';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
 import { ToolSet } from '../../tools/types.js';
-import { logger } from '../../logger/index.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
@@ -17,7 +18,7 @@ import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
-import { trace } from '@opentelemetry/api';
+import { trace, context, propagation } from '@opentelemetry/api';
 
 /**
  * OpenAI implementation of LLMService
@@ -40,6 +41,7 @@ export class OpenAIService implements ILLMService {
     private contextManager: ContextManager<ChatCompletionMessageParam>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
+    private logger: IDextoLogger;
 
     constructor(
         toolManager: ToolManager,
@@ -49,8 +51,10 @@ export class OpenAIService implements ILLMService {
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
-        resourceManager: import('../../resources/index.js').ResourceManager
+        resourceManager: import('../../resources/index.js').ResourceManager,
+        logger: IDextoLogger
     ) {
+        this.logger = logger.createChild(DextoLogComponent.LLM);
         this.config = config;
         this.openai = openai;
         this.toolManager = toolManager;
@@ -58,9 +62,9 @@ export class OpenAIService implements ILLMService {
         this.sessionId = sessionId;
 
         // Create properly-typed ContextManager for OpenAI
-        const formatter = new OpenAIMessageFormatter();
-        const tokenizer = createTokenizer(config.provider, config.model);
-        const maxInputTokens = getEffectiveMaxInputTokens(config);
+        const formatter = new OpenAIMessageFormatter(this.logger);
+        const tokenizer = createTokenizer(config.provider, config.model, this.logger);
+        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         this.contextManager = new ContextManager<ChatCompletionMessageParam>(
             config,
@@ -70,7 +74,8 @@ export class OpenAIService implements ILLMService {
             tokenizer,
             historyProvider,
             sessionId,
-            resourceManager
+            resourceManager,
+            this.logger
             // compressionStrategies uses default
         );
     }
@@ -86,305 +91,355 @@ export class OpenAIService implements ILLMService {
         fileData?: FileData,
         stream?: boolean
     ): Promise<string> {
-        // Add user message with optional image and file data
-        await this.contextManager.addUserMessage(textInput, imageData, fileData);
+        // Get active span and context
+        const activeSpan = trace.getActiveSpan();
+        const currentContext = context.active();
 
-        // Get all tools
-        const rawTools = await this.toolManager.getAllTools();
-        const formattedTools = this.formatToolsForOpenAI(rawTools);
+        const provider = this.config.provider;
+        const model = this.config.model;
 
-        logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
+        // Set on active span
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', provider);
+            activeSpan.setAttribute('llm.model', model);
+        }
 
-        // Notify thinking
-        this.sessionEventBus.emit('llmservice:thinking');
+        // Add to baggage for child span propagation
+        const existingBaggage = propagation.getBaggage(currentContext);
+        const baggageEntries: Record<string, import('@opentelemetry/api').BaggageEntry> = {};
 
-        let iterationCount = 0;
-        let totalTokens = 0;
-        let inputTokens = 0;
-        let outputTokens = 0;
-        let reasoningTokens = 0;
-        let fullResponse = '';
-        const context = stream ? 'OpenAI streaming API call' : 'OpenAI API call';
+        // Preserve existing baggage
+        if (existingBaggage) {
+            existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                baggageEntries[key] = entry;
+            });
+        }
 
-        try {
-            while (iterationCount < this.config.maxIterations) {
-                if (options?.signal?.aborted) {
-                    throw Object.assign(new Error('Aborted'), {
-                        name: 'AbortError',
-                        aborted: true,
-                    });
-                }
-                iterationCount++;
+        // Add LLM metadata
+        baggageEntries['llm.provider'] = { value: provider };
+        baggageEntries['llm.model'] = { value: model };
 
-                // Get response with appropriate method
-                const { message, usage } = stream
-                    ? await this.getAIStreamingResponseWithRetries(formattedTools, options?.signal)
-                    : await this.getAIResponseWithRetries(formattedTools, options?.signal);
+        const updatedContext = propagation.setBaggage(
+            currentContext,
+            propagation.createBaggage(baggageEntries)
+        );
 
-                // Track token usage
-                if (usage) {
-                    totalTokens += usage.total_tokens ?? 0;
-                    inputTokens += usage.prompt_tokens ?? 0;
-                    outputTokens += usage.completion_tokens ?? 0;
-                    reasoningTokens += usage.completion_tokens_details?.reasoning_tokens ?? 0;
-                }
+        // Execute rest of method in updated context
+        return await context.with(updatedContext, async () => {
+            // Add user message with optional image and file data
+            await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
-                // If there are no tool calls, we're done
-                if (!message.tool_calls || message.tool_calls.length === 0) {
-                    const responseText = message.content || '';
-                    const finalContent = stream ? fullResponse + responseText : responseText;
+            // Get all tools
+            const rawTools = await this.toolManager.getAllTools();
+            const formattedTools = this.formatToolsForOpenAI(rawTools);
 
-                    // Add assistant message to history (include streamed prefix if any)
-                    await this.contextManager.addAssistantMessage(finalContent, undefined, {
-                        tokenUsage:
-                            totalTokens > 0
-                                ? {
-                                      totalTokens,
-                                      inputTokens,
-                                      outputTokens,
-                                      reasoningTokens,
-                                  }
-                                : undefined,
-                    });
+            this.logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
 
-                    // Update ContextManager with actual token count
-                    if (totalTokens > 0) {
-                        this.contextManager.updateActualTokenCount(totalTokens);
-                    }
+            // Notify thinking
+            this.sessionEventBus.emit('llmservice:thinking');
 
-                    // Always emit token usage
-                    this.sessionEventBus.emit('llmservice:response', {
-                        content: finalContent,
-                        provider: this.config.provider,
-                        model: this.config.model,
-                        router: 'in-built',
-                        tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
-                    });
+            let iterationCount = 0;
+            let totalTokens = 0;
+            let inputTokens = 0;
+            let outputTokens = 0;
+            let reasoningTokens = 0;
+            let fullResponse = '';
+            const contextStr = stream ? 'OpenAI streaming API call' : 'OpenAI API call';
 
-                    // Add token usage to active span (if telemetry is enabled)
-                    const activeSpan = trace.getActiveSpan();
-                    if (activeSpan && totalTokens > 0) {
-                        const attributes: Record<string, number> = {
-                            'gen_ai.usage.total_tokens': totalTokens,
-                        };
-                        if (inputTokens > 0) {
-                            attributes['gen_ai.usage.input_tokens'] = inputTokens;
-                        }
-                        if (outputTokens > 0) {
-                            attributes['gen_ai.usage.output_tokens'] = outputTokens;
-                        }
-                        if (reasoningTokens > 0) {
-                            attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
-                        }
-                        activeSpan.setAttributes(attributes);
-                    }
-
-                    return finalContent;
-                }
-
-                // Add assistant message with tool calls to history
-                // OpenAI v5 supports both function and custom tool types
-                // We currently only handle function types, so filter for those
-                const functionToolCalls = message.tool_calls.filter(
-                    (
-                        toolCall
-                    ): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall => {
-                        logger.debug(`Tool call type received: ${toolCall.type}`);
-                        return toolCall.type === 'function';
-                    }
-                );
-
-                if (message.tool_calls.length > functionToolCalls.length) {
-                    logger.warn(
-                        `Filtered out ${message.tool_calls.length - functionToolCalls.length} non-function tool calls`
-                    );
-                }
-
-                await this.contextManager.addAssistantMessage(
-                    message.content,
-                    functionToolCalls.length > 0 ? functionToolCalls : undefined,
-                    {}
-                );
-
-                // Accumulate response for streaming mode
-                if (stream && message.content) {
-                    fullResponse += message.content;
-                }
-
-                // Handle tool calls (using robust non-streaming approach)
-                // Only process function tool calls that we've added to history
-                for (const toolCall of functionToolCalls) {
+            try {
+                while (iterationCount < this.config.maxIterations) {
                     if (options?.signal?.aborted) {
                         throw Object.assign(new Error('Aborted'), {
                             name: 'AbortError',
                             aborted: true,
                         });
                     }
-                    logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
-                    logger.debug(`Tool call details: ${JSON.stringify(toolCall, null, 2)}`);
-                    // Since we're only processing function tool calls now
-                    const toolName = toolCall.function.name;
-                    let args: Record<string, any> = {};
+                    iterationCount++;
 
-                    try {
-                        args = JSON.parse(toolCall.function.arguments);
-                    } catch (e) {
-                        logger.error(`Error parsing arguments for ${toolName}:`, e);
-                        const sanitized = await this.contextManager.addToolResult(
-                            toolCall.id,
-                            toolName,
-                            { error: `Failed to parse arguments: ${e}` },
-                            { success: false }
-                        );
-                        // Notify failure so UI & logging subscribers stay in sync
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName,
-                            callId: toolCall.id,
-                            success: false,
-                            sanitized,
-                            ...(shouldIncludeRawToolResult()
-                                ? { rawResult: { error: `Failed to parse arguments: ${e}` } }
-                                : {}),
-                        });
-                        continue;
+                    // Get response with appropriate method
+                    const { message, usage } = stream
+                        ? await this.getAIStreamingResponseWithRetries(
+                              formattedTools,
+                              options?.signal
+                          )
+                        : await this.getAIResponseWithRetries(formattedTools, options?.signal);
+
+                    // Track token usage
+                    if (usage) {
+                        totalTokens += usage.total_tokens ?? 0;
+                        inputTokens += usage.prompt_tokens ?? 0;
+                        outputTokens += usage.completion_tokens ?? 0;
+                        reasoningTokens += usage.completion_tokens_details?.reasoning_tokens ?? 0;
                     }
 
-                    // Notify tool call
-                    this.sessionEventBus.emit('llmservice:toolCall', {
-                        toolName,
-                        args,
-                        callId: toolCall.id,
-                    });
+                    // If there are no tool calls, we're done
+                    if (!message.tool_calls || message.tool_calls.length === 0) {
+                        const responseText = message.content || '';
+                        const finalContent = stream ? fullResponse + responseText : responseText;
 
-                    // Execute tool
-                    try {
-                        const result = await this.toolManager.executeTool(
+                        // Add assistant message to history (include streamed prefix if any)
+                        await this.contextManager.addAssistantMessage(finalContent, undefined, {
+                            tokenUsage:
+                                totalTokens > 0
+                                    ? {
+                                          totalTokens,
+                                          inputTokens,
+                                          outputTokens,
+                                          reasoningTokens,
+                                      }
+                                    : undefined,
+                        });
+
+                        // Update ContextManager with actual token count
+                        if (totalTokens > 0) {
+                            this.contextManager.updateActualTokenCount(totalTokens);
+                        }
+
+                        // Always emit token usage
+                        this.sessionEventBus.emit('llmservice:response', {
+                            content: finalContent,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: 'in-built',
+                            tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
+                        });
+
+                        // Add token usage to active span (if telemetry is enabled)
+                        // Note: llm.provider and llm.model are already set at the start of completeTask
+                        const activeSpan = trace.getActiveSpan();
+                        if (activeSpan && totalTokens > 0) {
+                            const attributes: Record<string, number> = {
+                                'gen_ai.usage.total_tokens': totalTokens,
+                            };
+                            if (inputTokens > 0) {
+                                attributes['gen_ai.usage.input_tokens'] = inputTokens;
+                            }
+                            if (outputTokens > 0) {
+                                attributes['gen_ai.usage.output_tokens'] = outputTokens;
+                            }
+                            if (reasoningTokens > 0) {
+                                attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
+                            }
+                            activeSpan.setAttributes(attributes);
+                        }
+
+                        return finalContent;
+                    }
+
+                    // Add assistant message with tool calls to history
+                    // OpenAI v5 supports both function and custom tool types
+                    // We currently only handle function types, so filter for those
+                    const functionToolCalls = message.tool_calls.filter(
+                        (
+                            toolCall
+                        ): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall => {
+                            this.logger.debug(`Tool call type received: ${toolCall.type}`);
+                            return toolCall.type === 'function';
+                        }
+                    );
+
+                    if (message.tool_calls.length > functionToolCalls.length) {
+                        this.logger.warn(
+                            `Filtered out ${message.tool_calls.length - functionToolCalls.length} non-function tool calls`
+                        );
+                    }
+
+                    await this.contextManager.addAssistantMessage(
+                        message.content,
+                        functionToolCalls.length > 0 ? functionToolCalls : undefined,
+                        {}
+                    );
+
+                    // Accumulate response for streaming mode
+                    if (stream && message.content) {
+                        fullResponse += message.content;
+                    }
+
+                    // Handle tool calls (using robust non-streaming approach)
+                    // Only process function tool calls that we've added to history
+                    for (const toolCall of functionToolCalls) {
+                        if (options?.signal?.aborted) {
+                            throw Object.assign(new Error('Aborted'), {
+                                name: 'AbortError',
+                                aborted: true,
+                            });
+                        }
+                        this.logger.debug(`Tool call initiated - Type: ${toolCall.type}`);
+                        this.logger.debug(
+                            `Tool call details: ${JSON.stringify(toolCall, null, 2)}`
+                        );
+                        // Since we're only processing function tool calls now
+                        const toolName = toolCall.function.name;
+                        let args: Record<string, any> = {};
+
+                        try {
+                            args = JSON.parse(toolCall.function.arguments);
+                        } catch (e) {
+                            this.logger.error(`Error parsing arguments for ${toolName}:`, {
+                                error: e instanceof Error ? e.message : String(e),
+                            });
+                            const sanitized = await this.contextManager.addToolResult(
+                                toolCall.id,
+                                toolName,
+                                { error: `Failed to parse arguments: ${e}` },
+                                { success: false }
+                            );
+                            // Notify failure so UI & logging subscribers stay in sync
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName,
+                                callId: toolCall.id,
+                                success: false,
+                                sanitized,
+                                ...(shouldIncludeRawToolResult()
+                                    ? { rawResult: { error: `Failed to parse arguments: ${e}` } }
+                                    : {}),
+                            });
+                            continue;
+                        }
+
+                        // Notify tool call
+                        this.sessionEventBus.emit('llmservice:toolCall', {
                             toolName,
                             args,
-                            this.sessionId
-                        );
-
-                        // Add tool result to message manager
-                        const sanitized = await this.contextManager.addToolResult(
-                            toolCall.id,
-                            toolName,
-                            result,
-                            { success: true }
-                        );
-
-                        // Notify tool result
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName,
                             callId: toolCall.id,
-                            success: true,
-                            sanitized,
-                            ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
                         });
-                    } catch (error) {
-                        // Handle tool execution error
-                        const errorMessage = error instanceof Error ? error.message : String(error);
-                        logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
 
-                        // Add error as tool result
-                        const sanitized = await this.contextManager.addToolResult(
-                            toolCall.id,
-                            toolName,
-                            { error: errorMessage },
-                            { success: false }
-                        );
+                        // Execute tool
+                        try {
+                            const result = await this.toolManager.executeTool(
+                                toolName,
+                                args,
+                                this.sessionId
+                            );
 
-                        this.sessionEventBus.emit('llmservice:toolResult', {
-                            toolName,
-                            callId: toolCall.id,
-                            success: false,
-                            sanitized,
-                            ...(shouldIncludeRawToolResult()
-                                ? { rawResult: { error: errorMessage } }
-                                : {}),
-                        });
+                            // Add tool result to message manager
+                            const sanitized = await this.contextManager.addToolResult(
+                                toolCall.id,
+                                toolName,
+                                result,
+                                { success: true }
+                            );
+
+                            // Notify tool result
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName,
+                                callId: toolCall.id,
+                                success: true,
+                                sanitized,
+                                ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
+                            });
+                        } catch (error) {
+                            // Handle tool execution error
+                            const errorMessage =
+                                error instanceof Error ? error.message : String(error);
+                            this.logger.error(
+                                `Tool execution error for ${toolName}: ${errorMessage}`
+                            );
+
+                            // Add error as tool result
+                            const sanitized = await this.contextManager.addToolResult(
+                                toolCall.id,
+                                toolName,
+                                { error: errorMessage },
+                                { success: false }
+                            );
+
+                            this.sessionEventBus.emit('llmservice:toolResult', {
+                                toolName,
+                                callId: toolCall.id,
+                                success: false,
+                                sanitized,
+                                ...(shouldIncludeRawToolResult()
+                                    ? { rawResult: { error: errorMessage } }
+                                    : {}),
+                            });
+                        }
                     }
+
+                    // Continue to next iteration
                 }
 
-                // Continue to next iteration
-            }
-
-            // If we reached max iterations
-            logger.warn(`Reached maximum iterations (${this.config.maxIterations}) for task.`);
-            const finalResponse =
-                fullResponse || 'Task completed but reached maximum tool call iterations.';
-            await this.contextManager.addAssistantMessage(finalResponse, undefined, {
-                tokenUsage:
-                    totalTokens > 0
-                        ? {
-                              totalTokens,
-                              inputTokens,
-                              outputTokens,
-                              reasoningTokens,
-                          }
-                        : undefined,
-            });
-
-            // Update ContextManager with actual token count
-            if (totalTokens > 0) {
-                this.contextManager.updateActualTokenCount(totalTokens);
-            }
-
-            // Always emit token usage
-            this.sessionEventBus.emit('llmservice:response', {
-                content: finalResponse,
-                provider: this.config.provider,
-                model: this.config.model,
-                router: 'in-built',
-                tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
-            });
-
-            // Add token usage to active span (if telemetry is enabled)
-            const activeSpan = trace.getActiveSpan();
-            if (activeSpan && totalTokens > 0) {
-                const attributes: Record<string, number> = {
-                    'gen_ai.usage.total_tokens': totalTokens,
-                };
-                if (inputTokens > 0) {
-                    attributes['gen_ai.usage.input_tokens'] = inputTokens;
-                }
-                if (outputTokens > 0) {
-                    attributes['gen_ai.usage.output_tokens'] = outputTokens;
-                }
-                if (reasoningTokens > 0) {
-                    attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
-                }
-                activeSpan.setAttributes(attributes);
-            }
-
-            return finalResponse;
-        } catch (error) {
-            if (
-                error instanceof Error &&
-                (error.name === 'AbortError' || (error as any).aborted === true)
-            ) {
-                throw error;
-            }
-            // Handle API errors
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error(`Error in ${context}: ${errorMessage}`, { error });
-
-            if (!stream) {
-                // Hint for token overflow (only for non-streaming to avoid spam)
-                logger.warn(
-                    `If this error is due to token overflow, consider configuring 'maxInputTokens' in your LLMConfig.`
+                // If we reached max iterations
+                this.logger.warn(
+                    `Reached maximum iterations (${this.config.maxIterations}) for task.`
                 );
+                const finalResponse =
+                    fullResponse || 'Task completed but reached maximum tool call iterations.';
+                await this.contextManager.addAssistantMessage(finalResponse, undefined, {
+                    tokenUsage:
+                        totalTokens > 0
+                            ? {
+                                  totalTokens,
+                                  inputTokens,
+                                  outputTokens,
+                                  reasoningTokens,
+                              }
+                            : undefined,
+                });
+
+                // Update ContextManager with actual token count
+                if (totalTokens > 0) {
+                    this.contextManager.updateActualTokenCount(totalTokens);
+                }
+
+                // Always emit token usage
+                this.sessionEventBus.emit('llmservice:response', {
+                    content: finalResponse,
+                    provider: this.config.provider,
+                    model: this.config.model,
+                    router: 'in-built',
+                    tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
+                });
+
+                // Add token usage to active span (if telemetry is enabled)
+                // Note: llm.provider and llm.model are already set at the start of completeTask
+                const activeSpan = trace.getActiveSpan();
+                if (activeSpan && totalTokens > 0) {
+                    const attributes: Record<string, number> = {
+                        'gen_ai.usage.total_tokens': totalTokens,
+                    };
+                    if (inputTokens > 0) {
+                        attributes['gen_ai.usage.input_tokens'] = inputTokens;
+                    }
+                    if (outputTokens > 0) {
+                        attributes['gen_ai.usage.output_tokens'] = outputTokens;
+                    }
+                    if (reasoningTokens > 0) {
+                        attributes['gen_ai.usage.reasoning_tokens'] = reasoningTokens;
+                    }
+                    activeSpan.setAttributes(attributes);
+                }
+
+                return finalResponse;
+            } catch (error) {
+                if (
+                    error instanceof Error &&
+                    (error.name === 'AbortError' || (error as any).aborted === true)
+                ) {
+                    throw error;
+                }
+                // Handle API errors
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                this.logger.error(`Error in ${contextStr}: ${errorMessage}`, { error });
+
+                if (!stream) {
+                    // Hint for token overflow (only for non-streaming to avoid spam)
+                    this.logger.warn(
+                        `If this error is due to token overflow, consider configuring 'maxInputTokens' in your LLMConfig.`
+                    );
+                }
+
+                this.sessionEventBus.emit('llmservice:error', {
+                    error: error instanceof Error ? error : new Error(errorMessage),
+                    context: contextStr,
+                    recoverable: false,
+                });
+
+                const errorResponse = `Error processing ${stream ? 'streaming ' : ''}request: ${errorMessage}`;
+                await this.contextManager.addAssistantMessage(errorResponse, undefined, {});
+                return errorResponse;
             }
-
-            this.sessionEventBus.emit('llmservice:error', {
-                error: error instanceof Error ? error : new Error(errorMessage),
-                context,
-                recoverable: false,
-            });
-
-            const errorResponse = `Error processing ${stream ? 'streaming ' : ''}request: ${errorMessage}`;
-            await this.contextManager.addAssistantMessage(errorResponse, undefined, {});
-            return errorResponse;
-        }
+        });
     }
 
     /**
@@ -400,13 +455,14 @@ export class OpenAIService implements ILLMService {
         try {
             modelMaxInputTokens = getMaxInputTokensForModel(
                 this.config.provider,
-                this.config.model
+                this.config.model,
+                this.logger
             );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens
             if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
                 modelMaxInputTokens = configuredMaxInputTokens;
-                logger.debug(
+                this.logger.debug(
                     `Could not find model ${this.config.model} in LLM registry to get max tokens. Using configured max tokens: ${configuredMaxInputTokens}.`
                 );
                 // for any other error, throw
@@ -436,7 +492,7 @@ export class OpenAIService implements ILLMService {
         const MAX_ATTEMPTS = 3;
 
         // Add a log of tools size
-        logger.debug(`Tools size in getAIResponseWithRetries: ${tools.length}`);
+        this.logger.debug(`Tools size in getAIResponseWithRetries: ${tools.length}`);
 
         while (attempts < MAX_ATTEMPTS) {
             attempts++;
@@ -452,10 +508,10 @@ export class OpenAIService implements ILLMService {
                     { provider: this.config.provider, model: this.config.model }
                 );
 
-                logger.silly(
+                this.logger.silly(
                     `Message history (potentially compressed) in getAIResponseWithRetries: ${JSON.stringify(formattedMessages, null, 2)}`
                 );
-                logger.debug(`Estimated tokens being sent to OpenAI: ${tokensUsed}`);
+                this.logger.debug(`Estimated tokens being sent to OpenAI: ${tokensUsed}`);
 
                 // Call OpenAI API
                 const response = await this.openai.chat.completions.create(
@@ -468,9 +524,8 @@ export class OpenAIService implements ILLMService {
                     signal ? { signal } : undefined
                 );
 
-                logger.silly(
-                    'OPENAI CHAT COMPLETION RESPONSE: ',
-                    JSON.stringify(response, null, 2)
+                this.logger.silly(
+                    `OPENAI CHAT COMPLETION RESPONSE: ${JSON.stringify(response, null, 2)}`
                 );
 
                 // Get the response message
@@ -491,19 +546,19 @@ export class OpenAIService implements ILLMService {
                     throw error;
                 }
                 const apiError = error as APIError;
-                logger.error(
+                this.logger.error(
                     `Error in OpenAI API call (Attempt ${attempts}/${MAX_ATTEMPTS}): ${apiError.message || JSON.stringify(apiError, null, 2)}`,
                     { status: apiError.status, headers: apiError.headers }
                 );
 
                 if (apiError.status === 400 && apiError.code === 'context_length_exceeded') {
-                    logger.warn(
+                    this.logger.warn(
                         `Context length exceeded. ContextManager compression might not be sufficient. Error details: ${JSON.stringify(apiError.error)}`
                     );
                 }
 
                 if (attempts >= MAX_ATTEMPTS) {
-                    logger.error(
+                    this.logger.error(
                         `Failed to get response from OpenAI after ${MAX_ATTEMPTS} attempts.`
                     );
                     throw error;
@@ -540,10 +595,10 @@ export class OpenAIService implements ILLMService {
                     { provider: this.config.provider, model: this.config.model }
                 );
 
-                logger.silly(
+                this.logger.silly(
                     `Streaming message history (potentially compressed): ${JSON.stringify(formattedMessages, null, 2)}`
                 );
-                logger.debug(`Estimated tokens being sent to OpenAI streaming: ${tokensUsed}`);
+                this.logger.debug(`Estimated tokens being sent to OpenAI streaming: ${tokensUsed}`);
 
                 // Create streaming chat completion
                 const stream = await this.openai.chat.completions.create(
@@ -649,11 +704,11 @@ export class OpenAIService implements ILLMService {
                     ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
                 };
 
-                logger.debug(`OpenAI streaming completed. Usage info: ${usage}`);
+                this.logger.debug(`OpenAI streaming completed. Usage info: ${usage}`);
                 return { message, ...(usage && { usage }) };
             } catch (error) {
                 const apiError = error as APIError;
-                logger.error(
+                this.logger.error(
                     `Error in OpenAI streaming API call (Attempt ${attempts}/${MAX_ATTEMPTS}): ${apiError.message || JSON.stringify(apiError, null, 2)}`,
                     { status: apiError.status, headers: apiError.headers }
                 );
@@ -662,13 +717,13 @@ export class OpenAIService implements ILLMService {
                     apiError.status === 400 &&
                     apiError.message?.includes('maximum context length')
                 ) {
-                    logger.warn(
+                    this.logger.warn(
                         `Context length exceeded in streaming. ContextManager compression might not be sufficient. Error details: ${JSON.stringify(apiError.error)}`
                     );
                 }
 
                 if (attempts >= MAX_ATTEMPTS) {
-                    logger.error(
+                    this.logger.error(
                         `Failed to get streaming response from OpenAI after ${MAX_ATTEMPTS} attempts.`
                     );
                     throw error;
