@@ -20,7 +20,6 @@ systemPrompt:
         - Debug issues by examining error messages and code structure
         - Refactor code following best practices and design patterns
         - Explain complex code concepts clearly
-        - Track complex tasks using todo lists for better workflow organization
         - Delegate work to sub-agents for parallel or specialized tasks
 
         Guidelines:
@@ -30,7 +29,6 @@ systemPrompt:
         - Follow the project's existing code style and conventions
         - Provide clear explanations for your code decisions
         - Ask for clarification when requirements are ambiguous
-        - For complex multi-step tasks, use todo_write to track progress
         - For parallel work or specialized analysis, use spawn_agent to delegate to sub-agents
     - id: memories
       type: memory
@@ -77,7 +75,6 @@ toolConfirmation:
       - internal--grep_content   # Search within files without approval
       - internal--bash_output    # Check background process output
       - internal--kill_process   # Kill processes without approval
-      - internal--todo_write     # Track tasks without approval
       - internal--spawn_agent    # Spawn sub-agents without approval
 
     # Tools that are always denied (dangerous operations)
@@ -96,7 +93,6 @@ internalTools:
   - bash_exec      # Execute shell commands (requires approval)
   - bash_output    # Retrieve output from background processes
   - kill_process   # Terminate background processes
-  - todo_write     # Track tasks and progress during complex workflows
   - spawn_agent    # Spawn sub-agent tasks for parallel or delegated work
 
 # Internal resources configuration - expanded for coding projects

@@ -19,7 +19,6 @@ export const INTERNAL_TOOL_NAMES = [
     'bash_exec',
     'bash_output',
     'kill_process',
-    'todo_write',
     'spawn_agent',
 ] as const;
 

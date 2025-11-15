@@ -6998,7 +6998,6 @@
                             "bash_exec",
                             "bash_output",
                             "kill_process",
-                            "todo_write",
                             "spawn_agent"
                           ],
                           "description": "Available internal tool names"

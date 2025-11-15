@@ -217,7 +217,10 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         {isElicitation ? 'Information Request' : 'Approval Required'}
                     </span>
                     {approval.fromSubAgent && approval.subAgentType && (
-                        <span className="text-xs text-blue-600 dark:text-blue-400">
+                        <span
+                            className="text-xs text-blue-600 dark:text-blue-400"
+                            aria-label={`Approval originated from the ${approval.subAgentType} sub-agent`}
+                        >
                             From sub-agent: {approval.subAgentType}
                         </span>
                     )}

@@ -3,7 +3,6 @@ import { SearchService } from '../../search/index.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { FileSystemService } from '../../filesystem/index.js';
 import { ProcessService } from '../../process/index.js';
-import { TodoService } from '../../todo/todo-service.js';
 import type { SessionManager } from '../../session/index.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
@@ -15,7 +14,6 @@ import { createEditFileTool } from './implementations/edit-file-tool.js';
 import { createBashExecTool } from './implementations/bash-exec-tool.js';
 import { createBashOutputTool } from './implementations/bash-output-tool.js';
 import { createKillProcessTool } from './implementations/kill-process-tool.js';
-import { createTodoWriteTool } from './implementations/todo-write-tool.js';
 import { createSpawnAgentTool } from './implementations/spawn-agent-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
@@ -28,7 +26,6 @@ export interface InternalToolsServices {
     approvalManager?: ApprovalManager;
     fileSystemService?: FileSystemService;
     processService?: ProcessService;
-    todoService?: TodoService;
     sessionManager?: SessionManager;
     // Future services can be added here:
     // storageManager?: StorageManager;
@@ -98,10 +95,6 @@ export const INTERNAL_TOOL_REGISTRY: Record<
         factory: (services: InternalToolsServices) =>
             createKillProcessTool(services.processService!),
         requiredServices: ['processService'] as const,
-    },
-    todo_write: {
-        factory: (services: InternalToolsServices) => createTodoWriteTool(services.todoService!),
-        requiredServices: ['todoService'] as const,
     },
     spawn_agent: {
         factory: (services: InternalToolsServices) =>

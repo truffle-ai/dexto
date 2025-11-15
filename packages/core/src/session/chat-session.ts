@@ -272,11 +272,10 @@ export class ChatSession {
             );
 
             // Agent-level events that sub-agents need to forward to parent
-            // (most agent events are global, but approvals and todos are session-specific)
+            // (most agent events are global, but approvals are session-specific)
             const agentEventsToForward = [
                 'dexto:approvalRequest',
                 'dexto:approvalResponse',
-                'todo:updated',
             ] as const;
 
             // Forward session events to parent with sub-agent metadata
@@ -314,7 +313,7 @@ export class ChatSession {
                 this.eventBus.on(eventName, parentForwarder);
             });
 
-            // Also forward critical agent-level events (approvals, todos)
+            // Also forward critical agent-level events (approvals)
             // These are emitted on the global AgentEventBus, so we need to filter by sessionId
             agentEventsToForward.forEach((eventName) => {
                 const agentEventForwarder = (payload?: any) => {
