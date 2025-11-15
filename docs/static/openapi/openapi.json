@@ -1302,31 +1302,6 @@
             "description": "Filter by parent session ID",
             "name": "parentSessionId",
             "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Filter by depth"
-            },
-            "required": false,
-            "description": "Filter by depth",
-            "name": "depth",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ephemeral",
-                "persistent"
-              ],
-              "description": "Filter by lifecycle policy"
-            },
-            "required": false,
-            "description": "Filter by lifecycle policy",
-            "name": "lifecycle",
-            "in": "query"
           }
         ],
         "responses": {
