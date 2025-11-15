@@ -340,7 +340,6 @@ export class SessionManager {
             subAgent?: Partial<SubAgentMetadata>;
             metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
-            agentIdentifier?: string; // For sub-agent event metadata (not stored in metadata)
         }
     ): Promise<ChatSession> {
         await this.ensureInitialized();
@@ -376,7 +375,9 @@ export class SessionManager {
             type,
             metadata,
             ...(options?.agentConfig && { agentConfig: options.agentConfig }),
-            ...(options?.agentIdentifier && { agentIdentifier: options.agentIdentifier }),
+            ...(subAgentMetadata?.agentIdentifier && {
+                agentIdentifier: subAgentMetadata.agentIdentifier,
+            }),
         });
         this.pendingCreations.set(id, creationPromise);
 
@@ -431,7 +432,7 @@ export class SessionManager {
                 this.logger,
                 undefined, // agentConfig - not restored
                 subAgent?.parentSessionId, // parentSessionId - restore for event forwarding
-                existingData.metadata?.agentIdentifier // agentIdentifier - restore from metadata
+                subAgent?.agentIdentifier // agentIdentifier - restore from sub-agent metadata
             );
             await session.init();
             this.sessions.set(id, session);
@@ -561,7 +562,7 @@ export class SessionManager {
                     this.logger,
                     undefined, // agentConfig - not restored
                     subAgent?.parentSessionId, // parentSessionId - restore for event forwarding
-                    sessionData.metadata?.agentIdentifier // agentIdentifier - restore from metadata
+                    subAgent?.agentIdentifier // agentIdentifier - restore from sub-agent metadata
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);

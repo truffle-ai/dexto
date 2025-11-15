@@ -1371,15 +1371,16 @@
                             "nullable": true,
                             "description": "Optional session title"
                           },
-                          "scopes": {
-                            "$ref": "#/components/schemas/SessionScopes"
+                          "type": {
+                            "type": "string",
+                            "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
                           },
                           "metadata": {
                             "type": "object",
                             "additionalProperties": {
                               "nullable": true
                             },
-                            "description": "Type-specific flexible metadata (not indexed)"
+                            "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                           }
                         },
                         "required": [
@@ -1387,7 +1388,7 @@
                           "createdAt",
                           "lastActivity",
                           "messageCount",
-                          "scopes"
+                          "type"
                         ],
                         "additionalProperties": false,
                         "description": "Session metadata"
@@ -1466,15 +1467,16 @@
                           "nullable": true,
                           "description": "Optional session title"
                         },
-                        "scopes": {
-                          "$ref": "#/components/schemas/SessionScopes"
+                        "type": {
+                          "type": "string",
+                          "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
                         },
                         "metadata": {
                           "type": "object",
                           "additionalProperties": {
                             "nullable": true
                           },
-                          "description": "Type-specific flexible metadata (not indexed)"
+                          "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                         }
                       },
                       "required": [
@@ -1482,7 +1484,7 @@
                         "createdAt",
                         "lastActivity",
                         "messageCount",
-                        "scopes"
+                        "type"
                       ],
                       "additionalProperties": false,
                       "description": "Newly created session metadata"
@@ -1589,15 +1591,16 @@
                           "nullable": true,
                           "description": "Optional session title"
                         },
-                        "scopes": {
-                          "$ref": "#/components/schemas/SessionScopes"
+                        "type": {
+                          "type": "string",
+                          "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
                         },
                         "metadata": {
                           "type": "object",
                           "additionalProperties": {
                             "nullable": true
                           },
-                          "description": "Type-specific flexible metadata (not indexed)"
+                          "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                         },
                         "history": {
                           "type": "integer",
@@ -1610,7 +1613,7 @@
                         "createdAt",
                         "lastActivity",
                         "messageCount",
-                        "scopes",
+                        "type",
                         "history"
                       ],
                       "additionalProperties": false,
@@ -1753,15 +1756,16 @@
                           "nullable": true,
                           "description": "Optional session title"
                         },
-                        "scopes": {
-                          "$ref": "#/components/schemas/SessionScopes"
+                        "type": {
+                          "type": "string",
+                          "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
                         },
                         "metadata": {
                           "type": "object",
                           "additionalProperties": {
                             "nullable": true
                           },
-                          "description": "Type-specific flexible metadata (not indexed)"
+                          "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                         }
                       },
                       "required": [
@@ -1769,7 +1773,7 @@
                         "createdAt",
                         "lastActivity",
                         "messageCount",
-                        "scopes"
+                        "type"
                       ],
                       "additionalProperties": false,
                       "description": "Updated session metadata"

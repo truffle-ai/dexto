@@ -9,14 +9,14 @@ import { ConfigError } from './errors.js';
  * Expand template variables in agent configuration
  * Replaces ${{dexto.agent_dir}} with the agent's directory path
  */
-function expandTemplateVars(config: unknown, agentDir: string): unknown {
+function expandTemplateVars(config: unknown, agentDir: string, configPath: string): unknown {
     // Deep clone to avoid mutations
     const result = JSON.parse(JSON.stringify(config));
 
     // Walk the config recursively
     function walk(obj: unknown): unknown {
         if (typeof obj === 'string') {
-            return expandString(obj, agentDir);
+            return expandString(obj, agentDir, configPath);
         }
         if (Array.isArray(obj)) {
             return obj.map(walk);
@@ -37,13 +37,13 @@ function expandTemplateVars(config: unknown, agentDir: string): unknown {
 /**
  * Expand template variables in a string value
  */
-function expandString(str: string, agentDir: string): string {
+function expandString(str: string, agentDir: string, configPath: string): string {
     // Replace ${{dexto.agent_dir}} with absolute path
     const result = str.replace(/\${{\s*dexto\.agent_dir\s*}}/g, agentDir);
 
     // Security: Validate no path traversal for any expanded path
     if (result !== str) {
-        validateExpandedPath(str, result, agentDir);
+        validateExpandedPath(str, result, agentDir, configPath);
     }
 
     return result;
@@ -52,16 +52,19 @@ function expandString(str: string, agentDir: string): string {
 /**
  * Validate that template expansion doesn't allow path traversal
  */
-function validateExpandedPath(original: string, expanded: string, agentDir: string): void {
+function validateExpandedPath(
+    original: string,
+    expanded: string,
+    agentDir: string,
+    configPath: string
+): void {
     const resolved = path.resolve(expanded);
     const agentRoot = path.resolve(agentDir);
     const relative = path.relative(agentRoot, resolved);
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
-        throw new Error(
-            `Security: Template expansion attempted to escape agent directory.\n` +
-                `Original: ${original}\n` +
-                `Expanded: ${expanded}\n` +
-                `Agent root: ${agentRoot}`
+        throw ConfigError.parseError(
+            configPath,
+            `Security: Template expansion attempted to escape agent directory. Original: ${original}, Expanded: ${expanded}, Agent root: ${agentRoot}`
         );
     }
 }
@@ -127,9 +130,14 @@ export async function loadAgentConfig(
     // --- Step 4: Expand template variables ---
     try {
         const agentDir = path.dirname(absolutePath);
-        config = expandTemplateVars(config, agentDir);
+        config = expandTemplateVars(config, agentDir, absolutePath);
         logger?.debug(`Expanded template variables for agent in: ${agentDir}`);
     } catch (error) {
+        // If error is already a ConfigError, rethrow it as-is
+        if (error instanceof ConfigError) {
+            throw error;
+        }
+        // Otherwise wrap in ConfigError
         throw ConfigError.parseError(
             absolutePath,
             `Template expansion failed: ${error instanceof Error ? error.message : String(error)}`

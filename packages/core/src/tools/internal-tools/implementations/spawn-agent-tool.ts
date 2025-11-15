@@ -51,7 +51,10 @@ interface SpawnAgentResult {
 /**
  * Create spawn_agent internal tool
  */
-export function createSpawnAgentTool(sessionManager: SessionManager): InternalTool {
+export function createSpawnAgentTool(
+    sessionManager: SessionManager,
+    processService: import('../../../process/index.js').ProcessService
+): InternalTool {
     return {
         id: 'spawn_agent',
         description:
@@ -104,7 +107,7 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     parentSessionId,
                 });
                 const resolutionContext: AgentResolutionContext = {
-                    workingDir: process.cwd(),
+                    workingDir: processService.getConfig().workingDirectory || process.cwd(),
                     parentSessionId,
                 };
                 const resolved = await resolveAgentConfig(agentReference, resolutionContext);
@@ -138,7 +141,6 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                         agentIdentifier,
                     },
                     agentConfig: resolved.config,
-                    agentIdentifier,
                 });
                 subAgentSessionId = session.id;
 

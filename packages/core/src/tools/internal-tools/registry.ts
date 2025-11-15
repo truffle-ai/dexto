@@ -98,8 +98,8 @@ export const INTERNAL_TOOL_REGISTRY: Record<
     },
     spawn_agent: {
         factory: (services: InternalToolsServices) =>
-            createSpawnAgentTool(services.sessionManager!),
-        requiredServices: ['sessionManager'] as const,
+            createSpawnAgentTool(services.sessionManager!, services.processService!),
+        requiredServices: ['sessionManager', 'processService'] as const,
     },
 };
 

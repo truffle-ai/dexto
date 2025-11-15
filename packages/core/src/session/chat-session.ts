@@ -292,7 +292,7 @@ export class ChatSession {
                 `Forwarding sub-agent event ${eventName} to parent session ${parentSessionId}: ${JSON.stringify(augmentedPayload, null, 2)}`
             );
 
-            target.emit(eventName as any, augmentedPayload);
+            (target as any).emit(eventName, augmentedPayload);
         };
 
         this.parentForwarders.set(key, forwarder);
