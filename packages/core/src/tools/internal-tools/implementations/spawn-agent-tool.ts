@@ -91,7 +91,10 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                     const parentSession = await sessionManager.getSession(parentSessionId);
                     if (parentSession) {
                         const metadata = await sessionManager.getSessionMetadata(parentSessionId);
-                        parentDepth = metadata?.scopes.depth ?? 0;
+                        const subAgent = metadata?.metadata?.subAgent as
+                            | { depth?: number }
+                            | undefined;
+                        parentDepth = subAgent?.depth ?? 0;
                     }
                 }
 
@@ -125,19 +128,17 @@ export function createSpawnAgentTool(sessionManager: SessionManager): InternalTo
                 const sessionManagerConfig = sessionManager.getConfig();
                 const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'persistent';
 
-                // Create sub-agent session with scopes
+                // Create sub-agent session with type + metadata pattern
                 const session = await sessionManager.createSession(undefined, {
-                    scopes: {
-                        type: 'sub-agent',
+                    type: 'sub-agent',
+                    subAgent: {
                         parentSessionId,
                         depth: parentDepth + 1,
-                        lifecycle, // Use configured lifecycle (ephemeral or persistent)
+                        lifecycle,
+                        agentIdentifier,
                     },
                     agentConfig: resolved.config,
                     agentIdentifier,
-                    metadata: {
-                        agentIdentifier,
-                    },
                 });
                 subAgentSessionId = session.id;
 

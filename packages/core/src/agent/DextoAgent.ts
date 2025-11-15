@@ -565,27 +565,37 @@ export class DextoAgent {
      * Creates a new chat session or returns an existing one.
      *
      * @param sessionId Optional session ID. If not provided, a UUID will be generated.
-     * @param options Optional session creation options including scopes and metadata
+     * @param options Optional session creation options including type, sub-agent metadata, and custom metadata
      * @returns The created or existing ChatSession
      *
      * @example
      * // Create a primary session
+     * await agent.createSession();
+     *
+     * // Create a sub-agent session
      * await agent.createSession(undefined, {
-     *   scopes: { type: 'primary', lifecycle: 'persistent' }
+     *   type: 'sub-agent',
+     *   subAgent: {
+     *     parentSessionId: 'parent-id',
+     *     depth: 1,
+     *     lifecycle: 'ephemeral'
+     *   }
      * });
      *
      * // Create a custom session type
      * await agent.createSession('analysis-task', {
-     *   scopes: { type: 'background-task', lifecycle: 'ephemeral' },
+     *   type: 'background-task',
      *   metadata: { priority: 'high', category: 'analysis' }
      * });
      */
     public async createSession(
         sessionId?: string,
         options?: {
-            scopes?: Partial<import('../session/session-manager.js').SessionScopes>;
+            type?: string;
+            subAgent?: Partial<import('../session/session-manager.js').SubAgentMetadata>;
             metadata?: Record<string, any>;
             agentConfig?: import('../agent/schemas.js').AgentConfig;
+            agentIdentifier?: string;
         }
     ): Promise<ChatSession> {
         this.ensureStarted();

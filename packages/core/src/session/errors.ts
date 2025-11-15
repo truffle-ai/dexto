@@ -62,16 +62,16 @@ export class SessionError {
     }
 
     /**
-     * Invalid scope value
+     * Invalid metadata value
      */
-    static invalidScope(field: string, value: any, reason: string) {
+    static invalidMetadata(field: string, value: any, reason: string) {
         return new DextoRuntimeError(
             SessionErrorCode.SESSION_INVALID_SCOPE,
             ErrorScope.SESSION,
             ErrorType.USER,
-            `Invalid scope value for '${field}': ${reason}`,
+            `Invalid metadata value for '${field}': ${reason}`,
             { field, value, reason },
-            'Provide a valid scope value'
+            'Provide a valid metadata value'
         );
     }
 

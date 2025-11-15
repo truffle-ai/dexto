@@ -20,9 +20,13 @@ import { Trash2, AlertTriangle, RefreshCw, History, Search, X } from 'lucide-rea
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { SessionScopes as CoreSessionScopes } from '@dexto/core';
 
-type SessionScopes = CoreSessionScopes;
+interface SubAgentMetadata {
+    parentSessionId: string;
+    depth: number;
+    lifecycle: 'ephemeral' | 'persistent';
+    agentIdentifier?: string;
+}
 
 interface Session {
     id: string;
@@ -30,8 +34,12 @@ interface Session {
     lastActivity: string | null;
     messageCount: number;
     title?: string | null;
-    scopes: SessionScopes;
-    metadata?: Record<string, unknown> | null;
+    type: string;
+    metadata?: {
+        subAgent?: SubAgentMetadata;
+        agentIdentifier?: string;
+        [key: string]: unknown;
+    } | null;
 }
 
 interface SessionPanelProps {
@@ -157,11 +165,7 @@ export default function SessionPanel({
                             lastActivity: new Date().toISOString(),
                             messageCount: 1,
                             title: null,
-                            scopes: {
-                                type: 'primary',
-                                depth: 0,
-                                lifecycle: 'persistent',
-                            },
+                            type: 'primary',
                             metadata: null,
                         };
                         return sortSessions([newSession, ...old]);
@@ -251,12 +255,12 @@ export default function SessionPanel({
     // Filter sessions based on selected filter
     const filteredSessions = sessions.filter((session) => {
         if (sessionFilter === 'all') return true;
-        return session.scopes.type === sessionFilter;
+        return session.type === sessionFilter;
     });
 
     // Count sessions by type
-    const primaryCount = sessions.filter((s) => s.scopes.type === 'primary').length;
-    const subAgentCount = sessions.filter((s) => s.scopes.type === 'sub-agent').length;
+    const primaryCount = sessions.filter((s) => s.type === 'primary').length;
+    const subAgentCount = sessions.filter((s) => s.type === 'sub-agent').length;
 
     const content = (
         <div className="flex flex-col h-full">
@@ -407,9 +411,6 @@ export default function SessionPanel({
                                         ? session.title
                                         : session.id;
                                 const isActive = currentSessionId === session.id;
-                                const agentIdentifier = session.metadata?.agentIdentifier as
-                                    | string
-                                    | undefined;
                                 return (
                                     <Tooltip key={session.id} delayDuration={150}>
                                         <TooltipTrigger asChild>
@@ -441,15 +442,16 @@ export default function SessionPanel({
                                                         >
                                                             {title}
                                                         </h3>
-                                                        {session.scopes.type !== 'primary' && (
+                                                        {session.type !== 'primary' && (
                                                             <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                                                                {session.scopes.type === 'sub-agent'
+                                                                {session.type === 'sub-agent'
                                                                     ? 'Sub'
-                                                                    : session.scopes.type}
-                                                                {session.scopes.depth !==
-                                                                    undefined &&
-                                                                    session.scopes.depth > 0 &&
-                                                                    ` L${session.scopes.depth}`}
+                                                                    : session.type}
+                                                                {session.metadata?.subAgent
+                                                                    ?.depth !== undefined &&
+                                                                    (session.metadata.subAgent
+                                                                        .depth as number) > 0 &&
+                                                                    ` L${session.metadata.subAgent.depth}`}
                                                             </span>
                                                         )}
                                                     </div>
@@ -501,13 +503,14 @@ export default function SessionPanel({
                                                     {session.messageCount} messages
                                                 </div>
                                                 <div className="text-muted-foreground">
-                                                    Type: {session.scopes.type}
-                                                    {session.scopes.depth !== undefined &&
-                                                        ` (depth: ${session.scopes.depth})`}
+                                                    Type: {session.type}
+                                                    {session.metadata?.subAgent?.depth !==
+                                                        undefined &&
+                                                        ` (depth: ${session.metadata.subAgent.depth})`}
                                                 </div>
-                                                {agentIdentifier && (
+                                                {session.metadata?.agentIdentifier && (
                                                     <div className="text-muted-foreground text-[10px]">
-                                                        Agent: {agentIdentifier}
+                                                        Agent: {session.metadata.agentIdentifier}
                                                     </div>
                                                 )}
                                             </div>

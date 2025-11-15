@@ -2074,11 +2074,7 @@ export async function initializeApi(
                             lastActivity: metadata?.lastActivity || null,
                             messageCount: metadata?.messageCount || 0,
                             title: metadata?.title || null,
-                            scopes: metadata?.scopes || {
-                                type: 'primary',
-                                depth: 0,
-                                lifecycle: 'persistent',
-                            },
+                            type: metadata?.type || 'primary',
                             metadata: metadata?.metadata,
                         };
                     } catch (_error) {
@@ -2089,11 +2085,7 @@ export async function initializeApi(
                             lastActivity: null,
                             messageCount: 0,
                             title: null,
-                            scopes: {
-                                type: 'primary',
-                                depth: 0,
-                                lifecycle: 'persistent',
-                            },
+                            type: 'primary',
                         };
                     }
                 })
@@ -2120,11 +2112,7 @@ export async function initializeApi(
                     lastActivity: metadata?.lastActivity || Date.now(),
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
-                    scopes: metadata?.scopes || {
-                        type: 'primary',
-                        depth: 0,
-                        lifecycle: 'persistent',
-                    },
+                    type: metadata?.type || 'primary',
                     metadata: metadata?.metadata,
                 },
             });
@@ -2160,7 +2148,7 @@ export async function initializeApi(
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
-                    scopes: metadata?.scopes,
+                    type: metadata?.type || 'primary',
                     metadata: metadata?.metadata,
                     history: history.length,
                 },
@@ -2266,7 +2254,7 @@ export async function initializeApi(
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || title,
-                    scopes: metadata?.scopes,
+                    type: metadata?.type || 'primary',
                     metadata: metadata?.metadata,
                 },
             });

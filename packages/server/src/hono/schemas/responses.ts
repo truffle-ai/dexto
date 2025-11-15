@@ -72,23 +72,20 @@ const BinaryDataSchema = z.custom<string | unknown>(
 
 // --- Session Schemas ---
 
-export const SessionScopesSchema = z
+export const SubAgentMetadataSchema = z
     .object({
-        type: z.string().describe('Session type (primary, sub-agent, scheduled, task, or custom)'),
-        parentSessionId: z
+        parentSessionId: z.string().describe('Parent session ID'),
+        depth: z.number().int().positive().describe('Depth in session hierarchy (1+)'),
+        lifecycle: z.enum(['ephemeral', 'persistent']).describe('Lifecycle policy for the session'),
+        agentIdentifier: z
             .string()
             .optional()
-            .describe('Parent session ID for hierarchical sessions'),
-        depth: z.number().int().nonnegative().optional().describe('Depth in session hierarchy'),
-        lifecycle: z
-            .enum(['ephemeral', 'persistent'])
-            .optional()
-            .describe('Lifecycle policy for the session'),
+            .describe('Agent identifier (e.g., built-in:code-reviewer)'),
     })
     .strict()
-    .describe('Session scopes for filtering and organization');
+    .describe('Sub-agent specific metadata');
 
-export type SessionScopes = z.output<typeof SessionScopesSchema>;
+export type SubAgentMetadata = z.output<typeof SubAgentMetadataSchema>;
 
 export const SessionMetadataSchema = z
     .object({
@@ -111,11 +108,11 @@ export const SessionMetadataSchema = z
             .nonnegative()
             .describe('Total number of messages in session'),
         title: z.string().optional().nullable().describe('Optional session title'),
-        scopes: SessionScopesSchema.describe('Session scopes for filtering and organization'),
+        type: z.string().describe('Session type (primary, sub-agent, scheduled, task, or custom)'),
         metadata: z
             .record(z.unknown())
             .optional()
-            .describe('Type-specific flexible metadata (not indexed)'),
+            .describe('Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)'),
     })
     .strict()
     .describe('Session metadata');
