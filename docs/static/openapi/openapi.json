@@ -161,6 +161,7 @@
                   },
                   "sessionId": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "The session to use for this message"
                   },
                   "stream": {
@@ -208,6 +209,9 @@
                     "description": "Optional file data to include with the message"
                   }
                 },
+                "required": [
+                  "sessionId"
+                ],
                 "description": "Request body for sending a message to the agent"
               }
             }
@@ -264,6 +268,7 @@
                   },
                   "sessionId": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "The session to use for this message"
                   },
                   "stream": {
@@ -311,6 +316,9 @@
                     "description": "Optional file data to include with the message"
                   }
                 },
+                "required": [
+                  "sessionId"
+                ],
                 "description": "Request body for sending a message to the agent"
               }
             }
@@ -363,9 +371,13 @@
                 "properties": {
                   "sessionId": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "The ID of the session to reset"
                   }
                 },
+                "required": [
+                  "sessionId"
+                ],
                 "description": "Request body for resetting a conversation"
               }
             }
@@ -385,11 +397,12 @@
                     },
                     "sessionId": {
                       "type": "string",
-                      "description": "Session ID that was reset (if specified)"
+                      "description": "Session ID that was reset"
                     }
                   },
                   "required": [
-                    "status"
+                    "status",
+                    "sessionId"
                   ],
                   "additionalProperties": false
                 }
@@ -446,10 +459,6 @@
                           "type": "string",
                           "description": "Specific model name for the selected provider"
                         },
-                        "apiKey": {
-                          "type": "string",
-                          "description": "API key for provider; can be given directly or via $ENV reference"
-                        },
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
@@ -494,6 +503,10 @@
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                         },
+                        "hasApiKey": {
+                          "type": "boolean",
+                          "description": "Whether an API key is configured"
+                        },
                         "displayName": {
                           "type": "string",
                           "description": "Human-readable model display name"
@@ -501,11 +514,10 @@
                       },
                       "required": [
                         "provider",
-                        "model",
-                        "apiKey"
+                        "model"
                       ],
                       "additionalProperties": false,
-                      "description": "Current LLM configuration"
+                      "description": "LLM configuration (apiKey omitted for security)"
                     }
                   },
                   "required": [
@@ -985,7 +997,8 @@
                   "apiKey": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "API key for the provider"
+                    "description": "API key for the provider (writeOnly - never returned in responses)",
+                    "writeOnly": true
                   }
                 },
                 "required": [
@@ -1170,10 +1183,6 @@
                           "type": "string",
                           "description": "Specific model name for the selected provider"
                         },
-                        "apiKey": {
-                          "type": "string",
-                          "description": "API key for provider; can be given directly or via $ENV reference"
-                        },
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
@@ -1217,15 +1226,18 @@
                             "type": "string"
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                        },
+                        "hasApiKey": {
+                          "type": "boolean",
+                          "description": "Whether an API key is configured"
                         }
                       },
                       "required": [
                         "provider",
-                        "model",
-                        "apiKey"
+                        "model"
                       ],
                       "additionalProperties": false,
-                      "description": "New LLM configuration with all defaults applied"
+                      "description": "New LLM configuration with all defaults applied (apiKey omitted)"
                     },
                     "sessionId": {
                       "type": "string",
@@ -1388,38 +1400,6 @@
                   },
                   "required": [
                     "session"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/current": {
-      "get": {
-        "summary": "Get Current Session",
-        "description": "Retrieves the ID of the currently active session",
-        "tags": [
-          "sessions"
-        ],
-        "responses": {
-          "200": {
-            "description": "Current active session ID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "currentSessionId": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "ID of the current session, or null if none"
-                    }
-                  },
-                  "required": [
-                    "currentSessionId"
                   ],
                   "additionalProperties": false
                 }
@@ -1977,9 +1957,9 @@
       }
     },
     "/api/sessions/{sessionId}/load": {
-      "post": {
+      "get": {
         "summary": "Load Session",
-        "description": "Sets a session as the current active session",
+        "description": "Validates and retrieves session information. The client should track the active session.",
         "tags": [
           "sessions"
         ],
@@ -1995,48 +1975,78 @@
             "in": "path"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": false
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Session loaded or reset successfully",
+            "description": "Session information retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "loaded",
-                        "reset"
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique session identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "nullable": true,
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms, null if unavailable)"
+                        },
+                        "lastActivity": {
+                          "type": "integer",
+                          "nullable": true,
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last activity timestamp (Unix ms, null if unavailable)"
+                        },
+                        "messageCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total number of messages in session"
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional session title"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "createdAt",
+                        "lastActivity",
+                        "messageCount"
                       ],
-                      "description": "Operation status"
-                    },
-                    "sessionId": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "Loaded session ID or null if reset"
-                    },
-                    "currentSession": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "Current active session ID"
+                      "additionalProperties": false,
+                      "description": "Session metadata"
                     }
                   },
                   "required": [
-                    "status",
-                    "sessionId",
-                    "currentSession"
+                    "session"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message"
+                    }
+                  },
+                  "required": [
+                    "error"
                   ],
                   "additionalProperties": false
                 }
@@ -6609,8 +6619,9 @@
                                       },
                                       "email": {
                                         "type": "string",
+                                        "maxLength": 254,
                                         "format": "email",
-                                        "description": "Optional user email"
+                                        "description": "Optional user email (WARNING: publicly readable via .well-known/agent.json if provided)"
                                       }
                                     },
                                     "required": [

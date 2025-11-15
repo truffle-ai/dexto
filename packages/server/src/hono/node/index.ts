@@ -298,20 +298,26 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
 
             if (data.type === 'reset') {
                 const sessionId = data.sessionId as string | undefined;
-                agent.logger.info(
-                    `Processing reset command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
-                );
+                if (!sessionId) {
+                    agent.logger.error('Received WebSocket reset without sessionId');
+                    sendWebSocketValidationError(
+                        ws,
+                        'sessionId is required for reset operation',
+                        'unknown',
+                        { messageType: 'reset' }
+                    );
+                    return;
+                }
+                agent.logger.info(`Processing reset command from WebSocket for session: ${sessionId}`);
 
                 // Check agent availability before processing reset
                 if (!agent.isStarted() || agent.isStopped()) {
                     agent.logger.error('Agent not available for WebSocket reset');
-                    if (sessionId) {
-                        sendWebSocketError(
-                            ws,
-                            new Error('Agent is not available. Please try again.'),
-                            sessionId
-                        );
-                    }
+                    sendWebSocketError(
+                        ws,
+                        new Error('Agent is not available. Please try again.'),
+                        sessionId
+                    );
                     return;
                 }
 
@@ -321,20 +327,26 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
 
             if (data.type === 'cancel') {
                 const sessionId = data.sessionId as string | undefined;
-                agent.logger.info(
-                    `Processing cancel command from WebSocket${sessionId ? ` for session: ${sessionId}` : ''}.`
-                );
+                if (!sessionId) {
+                    agent.logger.error('Received WebSocket cancel without sessionId');
+                    sendWebSocketValidationError(
+                        ws,
+                        'sessionId is required for cancel operation',
+                        'unknown',
+                        { messageType: 'cancel' }
+                    );
+                    return;
+                }
+                agent.logger.info(`Processing cancel command from WebSocket for session: ${sessionId}`);
 
                 // Check agent availability before processing cancel
                 if (!agent.isStarted() || agent.isStopped()) {
                     agent.logger.error('Agent not available for WebSocket cancel');
-                    if (sessionId) {
-                        sendWebSocketError(
-                            ws,
-                            new Error('Agent is not available. Please try again.'),
-                            sessionId
-                        );
-                    }
+                    sendWebSocketError(
+                        ws,
+                        new Error('Agent is not available. Please try again.'),
+                        sessionId
+                    );
                     return;
                 }
 

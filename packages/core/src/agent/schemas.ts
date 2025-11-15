@@ -144,7 +144,14 @@ const DextoMetadataSchema = z
             .object({
                 userId: z.string().describe('Unique user identifier from auth system'),
                 username: z.string().describe('Display name'),
-                email: z.string().email().optional().describe('Optional user email'),
+                email: z
+                    .string()
+                    .email()
+                    .max(254)
+                    .optional()
+                    .describe(
+                        'Optional user email (WARNING: publicly readable via .well-known/agent.json if provided)'
+                    ),
             })
             .strict()
             .optional()

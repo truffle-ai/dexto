@@ -81,14 +81,28 @@ async run(
 ```typescript
 const agent = new DextoAgent(config);
 await agent.start();
-const response = await agent.run("Explain quantum computing");
-// ... use agent ...
+
+// Create a session for the conversation
+const session = await agent.createSession();
+
+// Run with explicit session ID
+const response = await agent.run(
+  "Explain quantum computing",
+  undefined,
+  undefined,
+  session.id
+);
+
 await agent.stop();
 ```
 
 ---
 
 ## Session Management
+
+:::note Architectural Pattern
+DextoAgent's core is **stateless** and does not track a "current" or "default" session. All session-specific operations require an explicit `sessionId` parameter. Application layers (CLI, WebUI, API servers) are responsible for managing which session is active in their own context.
+:::
 
 ### `createSession`
 
@@ -103,6 +117,16 @@ async createSession(sessionId?: string): Promise<ChatSession>
 | `sessionId` | `string` | (Optional) Custom session ID |
 
 **Returns:** `Promise<ChatSession>`
+
+**Example:**
+```typescript
+// Create a new session
+const session = await agent.createSession();
+console.log(`Created session: ${session.id}`);
+
+// Use the session for conversations
+await agent.run("Hello!", undefined, undefined, session.id);
+```
 
 ### `getSession`
 
@@ -142,29 +166,17 @@ async deleteSession(sessionId: string): Promise<void>
 
 **Note:** This completely removes the session and all associated conversation data from storage.
 
-### `loadSession`
-
-Sets a session as the default for subsequent operations that don't specify a session ID.
-
-```typescript
-async loadSession(sessionId: string | null): Promise<void>
-```
-
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `sessionId` | `string \| null` | Session ID to load as default, or null to reset |
-
 ### `resetConversation`
 
 Clears the conversation history of a session while keeping the session active.
 
 ```typescript
-async resetConversation(sessionId?: string): Promise<void>
+async resetConversation(sessionId: string): Promise<void>
 ```
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `sessionId` | `string` | (Optional) Session to reset |
+| `sessionId` | `string` | Session ID to reset |
 
 ### `getSessionMetadata`
 
@@ -193,26 +205,6 @@ async getSessionHistory(sessionId: string): Promise<ConversationHistory>
 | `sessionId` | `string` | Session ID |
 
 **Returns:** `Promise<ConversationHistory>`
-
-### `getCurrentSessionId`
-
-Returns the ID of the currently loaded default session.
-
-```typescript
-getCurrentSessionId(): string
-```
-
-**Returns:** `string` - Current default session ID
-
-### `getDefaultSession`
-
-Returns the currently loaded default session instance.
-
-```typescript
-async getDefaultSession(): Promise<ChatSession>
-```
-
-**Returns:** `Promise<ChatSession>`
 
 ---
 
@@ -246,13 +238,13 @@ console.log(config.model);
 
 ### `getCurrentLLMConfig`
 
-Returns the current LLM configuration for the default session.
+Returns the base LLM configuration from the agent's initialization config.
 
 ```typescript
 getCurrentLLMConfig(): LLMConfig
 ```
 
-**Returns:** `LLMConfig`
+**Returns:** `LLMConfig` - The base LLM configuration (does not include session-specific overrides)
 
 ### `getEffectiveConfig`
 

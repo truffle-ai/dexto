@@ -308,17 +308,6 @@ describe('SessionManager', () => {
             expect(session.id).toBe(sessionId);
             expect(mockStorageManager.database.get).toHaveBeenCalledWith(`session:${sessionId}`);
         });
-
-        test('should provide default session for backward compatibility', async () => {
-            const session = await sessionManager.getDefaultSession();
-
-            expect(session.id).toBe('default');
-            expect(MockChatSession).toHaveBeenCalledWith(
-                expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
-                'default',
-                mockLogger
-            );
-        });
     });
 
     describe('Session Limits and Resource Management', () => {
@@ -559,29 +548,6 @@ describe('SessionManager', () => {
     describe('LLM Configuration Management Across Sessions', () => {
         beforeEach(async () => {
             await sessionManager.init();
-        });
-
-        test('should switch LLM for default session', async () => {
-            const newLLMConfig: ValidatedLLMConfig = {
-                ...mockLLMConfig,
-                provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
-            };
-
-            const result = await sessionManager.switchLLMForDefaultSession(newLLMConfig);
-
-            expect(result.message).toContain(
-                'Successfully switched to anthropic/claude-4-opus-20250514'
-            );
-            expect(result.warnings).toEqual([]);
-            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
-                'dexto:llmSwitched',
-                expect.objectContaining({
-                    newConfig: newLLMConfig,
-                    router: newLLMConfig.router,
-                    historyRetained: true,
-                })
-            );
         });
 
         test('should switch LLM for specific session', async () => {

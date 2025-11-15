@@ -17,14 +17,36 @@ function escapeRegExp(string: string): string {
 }
 
 /**
- * Helper to get current session info
+ * Helper to get most recent session info (for non-interactive CLI)
+ * Non-interactive commands don't have a "current session" concept,
+ * so we use the most recently active session as a sensible default.
  */
-async function getCurrentSessionInfo(
+async function getMostRecentSessionInfo(
     agent: DextoAgent
-): Promise<{ id: string; metadata: SessionMetadata | undefined }> {
-    const currentId = agent.getCurrentSessionId();
-    const metadata = await agent.getSessionMetadata(currentId);
-    return { id: currentId, metadata };
+): Promise<{ id: string; metadata: SessionMetadata | undefined } | null> {
+    const sessionIds = await agent.listSessions();
+    if (sessionIds.length === 0) {
+        return null;
+    }
+
+    // Find most recently active session
+    let mostRecentId: string | null = null;
+    let mostRecentActivity = 0;
+
+    for (const sessionId of sessionIds) {
+        const metadata = await agent.getSessionMetadata(sessionId);
+        if (metadata && metadata.lastActivity > mostRecentActivity) {
+            mostRecentActivity = metadata.lastActivity;
+            mostRecentId = sessionId;
+        }
+    }
+
+    if (!mostRecentId) {
+        return null;
+    }
+
+    const metadata = await agent.getSessionMetadata(mostRecentId);
+    return { id: mostRecentId, metadata };
 }
 
 /**
@@ -56,7 +78,7 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
         console.log(chalk.bold.blue('\n📋 Sessions:\n'));
 
         const sessionIds = await agent.listSessions();
-        const current = await getCurrentSessionInfo(agent);
+        const mostRecent = await getMostRecentSessionInfo(agent);
 
         if (sessionIds.length === 0) {
             console.log(
@@ -87,8 +109,9 @@ export async function handleSessionListCommand(agent: DextoAgent): Promise<void>
         let displayed = 0;
         for (const { id, metadata } of entries) {
             if (!metadata) continue;
-            const isCurrent = id === current.id;
-            console.log(`  ${formatSessionInfo(id, metadata, isCurrent)}`);
+            // Mark most recent session with indicator (instead of "current")
+            const isMostRecent = mostRecent ? id === mostRecent.id : false;
+            console.log(`  ${formatSessionInfo(id, metadata, isMostRecent)}`);
             displayed++;
         }
 
@@ -112,19 +135,26 @@ export async function handleSessionHistoryCommand(
     sessionId?: string
 ): Promise<void> {
     try {
-        // Use provided session ID or current session
-        const targetSessionId = sessionId || agent.getCurrentSessionId();
+        // Use provided session ID or most recent session
+        let targetSessionId = sessionId;
+        if (!targetSessionId) {
+            const recentSession = await getMostRecentSessionInfo(agent);
+            if (!recentSession) {
+                console.log(chalk.red('❌ No sessions found'));
+                console.log(chalk.dim('   Create a session first by running: dexto'));
+                throw new Error('No sessions found');
+            }
+            targetSessionId = recentSession.id;
+            console.log(chalk.dim(`Using most recent session: ${targetSessionId}\n`));
+        }
+
         await displaySessionHistory(targetSessionId, agent);
     } catch (error) {
         if (error instanceof Error && error.message.includes('not found')) {
             console.log(chalk.red(`❌ Session not found: ${sessionId || 'current'}`));
             console.log(chalk.dim('   Use `dexto session list` to see available sessions'));
-        } else {
-            logger.error(
-                `Failed to get session history: ${error instanceof Error ? error.message : String(error)}`,
-                null,
-                'red'
-            );
+        } else if (error instanceof Error && error.message !== 'No sessions found') {
+            logger.error(`Failed to get session history: ${error.message}`, null, 'red');
         }
         throw error;
     }
@@ -138,15 +168,8 @@ export async function handleSessionDeleteCommand(
     sessionId: string
 ): Promise<void> {
     try {
-        const current = await getCurrentSessionInfo(agent);
-
-        // Check if trying to delete current session
-        if (sessionId === current.id) {
-            console.log(chalk.yellow('⚠️  Cannot delete the currently active session.'));
-            console.log(chalk.dim('   Switch to another session first, then delete this one.'));
-            return;
-        }
-
+        // Note: For non-interactive CLI, there's no concept of "current session"
+        // We just delete the requested session without restrictions
         await agent.deleteSession(sessionId);
         console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
     } catch (error) {

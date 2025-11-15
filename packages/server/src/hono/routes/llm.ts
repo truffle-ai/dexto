@@ -16,8 +16,7 @@ import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/agent-managemen
 import {
     ProviderCatalogSchema,
     ModelFlatSchema,
-    LLMConfigSchema,
-    LLMConfigBaseSchema,
+    LLMConfigResponseSchema,
 } from '../schemas/responses.js';
 
 const CurrentQuerySchema = z
@@ -80,7 +79,11 @@ const SaveKeySchema = z
         provider: z
             .enum(LLM_PROVIDERS)
             .describe('LLM provider identifier (e.g., openai, anthropic)'),
-        apiKey: z.string().min(1, 'API key is required').describe('API key for the provider'),
+        apiKey: z
+            .string()
+            .min(1, 'API key is required')
+            .describe('API key for the provider (writeOnly - never returned in responses)')
+            .openapi({ writeOnly: true }),
     })
     .describe('Request body for saving a provider API key');
 
@@ -104,17 +107,6 @@ const SwitchLLMBodySchema = LLMUpdatesSchema.and(
     })
 ).describe('LLM switch request body with optional session ID and LLM fields');
 
-// Response schema for GET /llm/current - matches actual spread result
-// Note: Spreading ValidatedLLMConfig makes TS infer defaults as optional
-const CurrentLLMConfigResponseSchema = LLMConfigBaseSchema.partial({
-    maxIterations: true,
-    router: true,
-})
-    .extend({
-        displayName: z.string().optional().describe('Human-readable model display name'),
-    })
-    .describe('Current LLM configuration');
-
 export function createLlmRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
 
@@ -132,7 +124,15 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                     'application/json': {
                         schema: z
                             .object({
-                                config: CurrentLLMConfigResponseSchema,
+                                config: LLMConfigResponseSchema.partial({
+                                    maxIterations: true,
+                                    router: true,
+                                }).extend({
+                                    displayName: z
+                                        .string()
+                                        .optional()
+                                        .describe('Human-readable model display name'),
+                                }),
                             })
                             .describe('Response containing current LLM configuration'),
                     },
@@ -158,8 +158,14 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             // ignore lookup errors
         }
 
+        // Omit apiKey from response for security
+        const { apiKey, ...configWithoutKey } = currentConfig;
         return ctx.json({
-            config: { ...currentConfig, displayName },
+            config: {
+                ...configWithoutKey,
+                hasApiKey: !!apiKey,
+                ...(displayName && { displayName }),
+            },
         });
     });
 
@@ -376,8 +382,8 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                     'application/json': {
                         schema: z
                             .object({
-                                config: LLMConfigSchema.describe(
-                                    'New LLM configuration with all defaults applied'
+                                config: LLMConfigResponseSchema.describe(
+                                    'New LLM configuration with all defaults applied (apiKey omitted)'
                                 ),
                                 sessionId: z
                                     .string()
@@ -399,7 +405,16 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         const { sessionId: _omit, ...llmCandidate } = raw as Record<string, unknown>;
         const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
         const config = await agent.switchLLM(llmConfig, sessionId);
-        return ctx.json({ config, sessionId });
+
+        // Omit apiKey from response for security
+        const { apiKey, ...configWithoutKey } = config;
+        return ctx.json({
+            config: {
+                ...configWithoutKey,
+                hasApiKey: !!apiKey,
+            },
+            sessionId,
+        });
     });
 
     return app;
