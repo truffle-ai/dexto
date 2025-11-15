@@ -208,4 +208,78 @@ describe('Session Integration: Chat History Preservation', () => {
 
     // Note: Activity-based expiry prevention test removed due to timing complexities
     // The core functionality (chat history preservation) is thoroughly tested above
+
+    describe('Scope-based session management', () => {
+        test('should create session with explicit type', async () => {
+            const session = await agent.createSession('scope-test', {
+                type: 'custom-type',
+            });
+
+            expect(session).toBeDefined();
+            expect(session.id).toBe('scope-test');
+
+            // Verify type was stored
+            const metadata = await agent.getSessionMetadata('scope-test');
+            expect(metadata).toBeDefined();
+            expect(metadata?.type).toBe('custom-type');
+        });
+
+        test('should filter sessions by type', async () => {
+            // Create sessions with different types
+            await agent.createSession('primary-1', {
+                type: 'primary',
+            });
+
+            // Create sub-agent session with required parent
+            await agent.createSession('sub-agent-1', {
+                type: 'sub-agent',
+                subAgent: {
+                    parentSessionId: 'primary-1',
+                },
+            });
+
+            await agent.createSession('primary-2', {
+                type: 'primary',
+            });
+
+            // Filter by type
+            const primarySessions = await agent.listSessions({ type: 'primary' });
+            const subAgentSessions = await agent.listSessions({ type: 'sub-agent' });
+
+            expect(primarySessions).toHaveLength(2);
+            expect(primarySessions).toContain('primary-1');
+            expect(primarySessions).toContain('primary-2');
+
+            expect(subAgentSessions).toHaveLength(1);
+            expect(subAgentSessions).toContain('sub-agent-1');
+        });
+
+        test('should maintain backward compatibility with old API', async () => {
+            // Create session using old API (without explicit type)
+            const _session = await agent.createSession('backward-compat');
+
+            // Verify default type was applied
+            const metadata = await agent.getSessionMetadata('backward-compat');
+            expect(metadata).toBeDefined();
+            expect(metadata?.type).toBe('primary');
+        });
+
+        test('should support custom session types', async () => {
+            // Create sessions with custom types
+            await agent.createSession('analysis-1', {
+                type: 'background-task',
+                metadata: { priority: 'high' },
+            });
+            await agent.createSession('task-1', {
+                type: 'task',
+                metadata: { taskName: 'daily-report' },
+            });
+
+            const backgroundSessions = await agent.listSessions({ type: 'background-task' });
+            const taskSessions = await agent.listSessions({ type: 'task' });
+
+            expect(backgroundSessions).toContain('analysis-1');
+            expect(taskSessions).toContain('task-1');
+        });
+    });
 });

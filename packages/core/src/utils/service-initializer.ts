@@ -206,6 +206,7 @@ export async function createAgentServices(
                 searchService,
                 fileSystemService,
                 processService,
+                // sessionManager will be set after SessionManager is created
             },
             internalToolsConfig: config.internalTools,
         },
@@ -267,6 +268,8 @@ export async function createAgentServices(
         {
             maxSessions: config.sessions?.maxSessions,
             sessionTTL: config.sessions?.sessionTTL,
+            maxSubAgentDepth: config.sessions?.maxSubAgentDepth,
+            subAgentLifecycle: config.sessions?.subAgentLifecycle,
         },
         logger
     );
@@ -279,6 +282,10 @@ export async function createAgentServices(
     // 12.5 Wire up plugin support to ToolManager (after SessionManager is created)
     toolManager.setPluginSupport(pluginManager, sessionManager, stateManager);
     logger.debug('Plugin support connected to ToolManager');
+
+    // 12.6 Wire up SessionManager to internal tools (for spawn_agent tool)
+    toolManager.setSessionManager(sessionManager);
+    logger.debug('SessionManager connected to internal tools');
 
     // 13. Return the core services
     return {

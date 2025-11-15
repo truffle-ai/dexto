@@ -1,4 +1,4 @@
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { ConfigErrorCode } from './error-codes.js';
 
 /**

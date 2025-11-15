@@ -140,6 +140,73 @@ async function syncOpenAPISpec() {
             throw new Error('OpenAPI spec missing "paths" object');
         }
 
+        // Normalize reusable schemas (SessionScopes) to prevent drift
+        const ensureSessionScopesComponent = () => {
+            const sessionScopesSchema = {
+                type: 'object',
+                properties: {
+                    type: {
+                        type: 'string',
+                        description:
+                            'Session type (primary, sub-agent, scheduled, task, or custom)',
+                    },
+                    parentSessionId: {
+                        type: 'string',
+                        description: 'Parent session ID for hierarchical sessions',
+                    },
+                    depth: {
+                        type: 'integer',
+                        minimum: 0,
+                        description: 'Depth in session hierarchy',
+                    },
+                    lifecycle: {
+                        type: 'string',
+                        enum: ['ephemeral', 'persistent'],
+                        description: 'Lifecycle policy for the session',
+                    },
+                },
+                required: ['type'],
+                additionalProperties: false,
+                description: 'Session scopes for filtering and organization',
+            };
+
+            spec.components = spec.components ?? {};
+            spec.components.schemas = spec.components.schemas ?? {};
+            spec.components.schemas.SessionScopes =
+                spec.components.schemas.SessionScopes ?? sessionScopesSchema;
+        };
+
+        const isSessionScopesObject = (value: any) => {
+            if (!value || typeof value !== 'object') return false;
+            const props = value.properties;
+            if (!props) return false;
+            return (
+                typeof props.type?.description === 'string' &&
+                props.type.description.startsWith('Session type (primary, sub-agent')
+            );
+        };
+
+        const replaceInlineSessionScopes = (node: any) => {
+            if (!node) return;
+            if (Array.isArray(node)) {
+                node.forEach(replaceInlineSessionScopes);
+                return;
+            }
+            if (typeof node !== 'object') return;
+            for (const [key, value] of Object.entries(node)) {
+                if (key === 'scopes' && isSessionScopesObject(value)) {
+                    (node as Record<string, any>)[key] = {
+                        $ref: '#/components/schemas/SessionScopes',
+                    };
+                } else {
+                    replaceInlineSessionScopes(value);
+                }
+            }
+        };
+
+        ensureSessionScopesComponent();
+        replaceInlineSessionScopes(spec.paths);
+
         const routeCount = Object.keys(spec.paths).length;
         const newContent = JSON.stringify(spec, null, 2) + '\n';
 

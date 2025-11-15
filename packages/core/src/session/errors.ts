@@ -48,6 +48,48 @@ export class SessionError {
     }
 
     /**
+     * Maximum sub-agent depth exceeded
+     */
+    static maxDepthExceeded(depth: number, maxDepth: number) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_MAX_DEPTH_EXCEEDED,
+            ErrorScope.SESSION,
+            ErrorType.USER,
+            `Sub-agent nesting depth (${depth}) exceeds maximum allowed depth (${maxDepth})`,
+            { depth, maxDepth },
+            'Reduce sub-agent nesting or increase maxSubAgentDepth limit in configuration'
+        );
+    }
+
+    /**
+     * Invalid metadata value
+     */
+    static invalidMetadata(field: string, value: any, reason: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_INVALID_SCOPE,
+            ErrorScope.SESSION,
+            ErrorType.USER,
+            `Invalid metadata value for '${field}': ${reason}`,
+            { field, value, reason },
+            'Provide a valid metadata value'
+        );
+    }
+
+    /**
+     * Parent session not found
+     */
+    static parentNotFound(parentSessionId: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_PARENT_NOT_FOUND,
+            ErrorScope.SESSION,
+            ErrorType.USER,
+            `Parent session '${parentSessionId}' not found`,
+            { parentSessionId },
+            'Create the parent session first or remove parentSessionId from scopes'
+        );
+    }
+
+    /**
      * Session storage failed
      */
     static storageFailed(sessionId: string, operation: string, reason: string) {

@@ -72,6 +72,7 @@ export class ToolManager {
     private pluginManager?: PluginManager;
     private sessionManager?: SessionManager;
     private stateManager?: AgentStateManager;
+    private notificationHandlers: Array<{ event: string; handler: (...args: any[]) => void }> = [];
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -141,6 +142,25 @@ export class ToolManager {
     }
 
     /**
+     * Set session manager for internal tools that need it (e.g., spawn_agent)
+     */
+    setSessionManager(sessionManager: SessionManager): void {
+        this.sessionManager = sessionManager;
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setSessionManager(sessionManager);
+        }
+    }
+
+    /**
+     * Set agent for internal tools that need it (e.g., spawn_agent)
+     */
+    setAgent(agent: import('../agent/DextoAgent.js').DextoAgent): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setAgent(agent);
+        }
+    }
+
+    /**
      * Invalidate the tools cache when tool sources change
      */
     private invalidateCache(): void {
@@ -152,26 +172,74 @@ export class ToolManager {
      * Set up listeners for MCP notifications to invalidate cache on changes
      */
     private setupNotificationListeners(): void {
-        // Listen for MCP server connection changes that affect tools
-        this.agentEventBus.on('dexto:mcpServerConnected', async (payload) => {
+        const onServerConnected = async (payload: any) => {
             if (payload.success) {
                 this.logger.debug(
                     `🔄 MCP server connected, invalidating tool cache: ${payload.name}`
                 );
                 this.invalidateCache();
             }
-        });
-
-        this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
+        };
+        const onServerRemoved = async (payload: any) => {
             this.logger.debug(
                 `🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`
             );
             this.invalidateCache();
-        });
+        };
+
+        this.agentEventBus.on('dexto:mcpServerConnected', onServerConnected);
+        this.agentEventBus.on('dexto:mcpServerRemoved', onServerRemoved);
+
+        this.notificationHandlers.push(
+            { event: 'dexto:mcpServerConnected', handler: onServerConnected },
+            { event: 'dexto:mcpServerRemoved', handler: onServerRemoved }
+        );
     }
 
+    /**
+     * Clean up event listeners and child providers.
+     */
+    dispose(): void {
+        this.notificationHandlers.forEach(({ event, handler }) => {
+            this.agentEventBus.off(event as any, handler);
+        });
+        this.notificationHandlers = [];
+
+        if (this.internalToolsProvider && 'dispose' in this.internalToolsProvider) {
+            (this.internalToolsProvider as any).dispose?.();
+        }
+
+        this.logger.debug('ToolManager disposed and event listeners removed');
+    }
+
+    /**
+     * Getter methods for extracting shared infrastructure.
+     * These are needed when creating sub-agent ToolManager instances that share
+     * the parent's infrastructure (MCP, approval, policies) but have custom tool configurations.
+     * Used by ChatSession.applyAgentConfigOverrides() for spawn_agent tool isolation.
+     */
     getMcpManager(): MCPManager {
         return this.mcpManager;
+    }
+
+    getApprovalManager(): ApprovalManager {
+        return this.approvalManager;
+    }
+
+    getAllowedToolsProvider(): IAllowedToolsProvider {
+        return this.allowedToolsProvider;
+    }
+
+    getApprovalMode(): 'event-based' | 'auto-approve' | 'auto-deny' {
+        return this.approvalMode;
+    }
+
+    getToolPolicies(): ToolPolicies | undefined {
+        return this.toolPolicies;
+    }
+
+    getInternalToolsServices(): InternalToolsServices {
+        return this.internalToolsProvider?.getServices() || {};
     }
 
     /**

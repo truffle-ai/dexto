@@ -22,6 +22,7 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
+import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -42,6 +43,7 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
+import { SubAgentCoordinator } from './sub-agent-coordinator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -143,6 +145,9 @@ export class DextoAgent {
     // Search service for conversation search
     private searchService!: SearchService;
 
+    // Sub-agent coordinator for task handoff
+    private subAgentCoordinator!: SubAgentCoordinator;
+
     // Default session for backward compatibility
     private defaultSession: ChatSession | null = null;
 
@@ -228,6 +233,14 @@ export class DextoAgent {
             // Initialize search service from services
             this.searchService = services.searchService;
 
+            // Initialize sub-agent coordinator for task handoff
+            this.subAgentCoordinator = new SubAgentCoordinator(
+                this.sessionManager,
+                this.stateManager,
+                this.agentEventBus,
+                this.logger
+            );
+
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
             const promptManager = new PromptManager(
@@ -240,6 +253,9 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
+
+            // Configure agent reference for internal tools (e.g., spawn_agent)
+            this.toolManager.setAgent(this);
 
             // Note: Telemetry is initialized in createAgentServices() before services are created
             // This ensures decorators work correctly on all services
@@ -604,6 +620,146 @@ export class DextoAgent {
     }
 
     /**
+     * Hand off a task to a sub-agent with specialized capabilities.
+     *
+     * This method encapsulates all complexity around sub-agent spawning:
+     * - Resolves agent configs (built-in names or file paths)
+     * - Validates depth limits
+     * - Sets up event forwarding automatically
+     * - Handles lifecycle management (ephemeral vs persistent)
+     * - Cleans up resources reliably
+     *
+     * @param task - The task description for the sub-agent
+     * @param options - Configuration for the handoff
+     * @returns Result containing the sub-agent's response and metadata
+     *
+     * @example
+     * ```typescript
+     * // Use a built-in agent
+     * const result = await agent.handoff(
+     *     "Review the authentication code in src/auth/",
+     *     { agent: "code-reviewer" }
+     * );
+     *
+     * // Use a custom agent config file
+     * const result = await agent.handoff(
+     *     "Analyze the API endpoints",
+     *     { agent: "./agents/api-analyzer.yml" }
+     * );
+     * ```
+     */
+    public async handoff(
+        task: string,
+        options?: {
+            /** Agent to use (built-in name like "general-purpose" or file path) */
+            agent?: string | AgentConfig;
+
+            /** Task description for logging/tracking */
+            description?: string;
+
+            /** Lifecycle policy (defaults to config) */
+            lifecycle?: 'ephemeral' | 'persistent';
+
+            /** Timeout in milliseconds */
+            timeout?: number;
+
+            /** Parent session ID (auto-detected if called during session.run()) */
+            parentSessionId?: string;
+
+            /** Working directory for resolving relative agent paths */
+            workingDir?: string;
+        }
+    ): Promise<{
+        result: string;
+        sessionId: string;
+        duration: number;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
+        error?: string;
+    }> {
+        this.ensureStarted();
+
+        const startTime = Date.now();
+
+        // Determine parent session
+        const parentSessionId = options?.parentSessionId || this.currentDefaultSessionId;
+
+        this.logger.info(
+            `Handing off task to sub-agent: "${options?.description || task.substring(0, 50)}..." ` +
+                `(agent: ${typeof options?.agent === 'string' ? options.agent : 'custom config'})`
+        );
+
+        try {
+            // Spawn sub-agent
+            const handle = await this.subAgentCoordinator.spawn({
+                parentSessionId,
+                ...(typeof options?.agent === 'string' && { agentReference: options.agent }),
+                ...(typeof options?.agent === 'object' && { agentConfig: options.agent }),
+                ...(options?.lifecycle && { lifecycle: options.lifecycle }),
+                ...(options?.workingDir && { workingDir: options.workingDir }),
+            });
+
+            // Run task (with optional timeout)
+            let result: string;
+            if (options?.timeout) {
+                result = await this.runWithTimeout(handle, task, options.timeout);
+            } else {
+                result = await handle.run(task);
+            }
+
+            // Get metrics
+            const duration = Date.now() - startTime;
+
+            this.logger.info(
+                `Handoff completed successfully in ${duration}ms (session: ${handle.sessionId})`
+            );
+
+            return {
+                result,
+                sessionId: handle.sessionId,
+                duration,
+                // TODO: Add token usage tracking for sub-agents
+            };
+        } catch (error) {
+            const duration = Date.now() - startTime;
+            this.logger.error(
+                `Handoff failed after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`
+            );
+
+            return {
+                result: '',
+                sessionId: '',
+                duration,
+                error: error instanceof Error ? error.message : String(error),
+            };
+        }
+    }
+
+    /**
+     * Run a task with timeout.
+     * @private
+     */
+    private async runWithTimeout(
+        handle: import('./sub-agent-coordinator.js').SubAgentHandle,
+        task: string,
+        timeout: number
+    ): Promise<string> {
+        return Promise.race([
+            handle.run(task),
+            new Promise<string>((_, reject) =>
+                setTimeout(() => {
+                    handle.cancel();
+                    reject(new Error(`Sub-agent timeout after ${timeout}ms`));
+                }, timeout)
+            ),
+        ]);
+    }
+
+    /**
      * Cancels the currently running turn for a session (or the default session).
      * Safe to call even if no run is in progress.
      * @param sessionId Optional session id; defaults to current default session
@@ -629,12 +785,60 @@ export class DextoAgent {
 
     /**
      * Creates a new chat session or returns an existing one.
+     *
      * @param sessionId Optional session ID. If not provided, a UUID will be generated.
+     * @param options Optional session creation options including type, sub-agent metadata, and custom metadata
      * @returns The created or existing ChatSession
+     *
+     * @example
+     * // Create a primary session
+     * await agent.createSession();
+     *
+     * // Create a sub-agent session
+     * await agent.createSession(undefined, {
+     *   type: 'sub-agent',
+     *   subAgent: {
+     *     parentSessionId: 'parent-id',
+     *     depth: 1,
+     *     lifecycle: 'ephemeral'
+     *   }
+     * });
+     *
+     * // Create a custom session type
+     * await agent.createSession('analysis-task', {
+     *   type: 'background-task',
+     *   metadata: { priority: 'high', category: 'analysis' }
+     * });
      */
-    public async createSession(sessionId?: string): Promise<ChatSession> {
+    public async createSession(
+        sessionId?: string,
+        options?: {
+            type?: string;
+            subAgent?: Partial<import('../session/session-manager.js').SubAgentMetadata>;
+            metadata?: Record<string, any>;
+            agentConfig?: import('../agent/schemas.js').AgentConfig;
+            agentIdentifier?: string;
+        }
+    ): Promise<ChatSession> {
         this.ensureStarted();
-        return await this.sessionManager.createSession(sessionId);
+
+        // Validate agentConfig at DextoAgent boundary per CLAUDE.md architecture guidelines
+        let normalizedOptions = options;
+
+        if (options?.agentConfig) {
+            const parsed = AgentConfigSchema.safeParse(options.agentConfig);
+            if (!parsed.success) {
+                const result = fail(zodToIssues(parsed.error, 'error'));
+                throw new DextoValidationError(result.issues);
+            }
+
+            normalizedOptions = {
+                ...options,
+                agentConfig: parsed.data,
+            };
+        }
+
+        return await this.sessionManager.createSession(sessionId, normalizedOptions);
     }
 
     /**
@@ -648,12 +852,24 @@ export class DextoAgent {
     }
 
     /**
-     * Lists all active session IDs.
-     * @returns Array of session IDs
+     * Lists active session IDs, optionally filtered by scope criteria.
+     *
+     * @param filters Optional scope-based filters
+     * @returns Array of session IDs matching the filters
+     *
+     * @example
+     * // Get all primary sessions
+     * await agent.listSessions({ type: 'primary' });
+     *
+     * // Get all sub-agents
+     * await agent.listSessions({ type: 'sub-agent' });
      */
-    public async listSessions(): Promise<string[]> {
+    public async listSessions(filters?: {
+        type?: string;
+        parentSessionId?: string;
+    }): Promise<string[]> {
         this.ensureStarted();
-        return await this.sessionManager.listSessions();
+        return await this.sessionManager.listSessions(filters);
     }
 
     /**
@@ -1059,11 +1275,6 @@ export class DextoAgent {
         if (sessionScope === '*') {
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
-            // Verify session exists before switching LLM
-            const session = await this.sessionManager.getSession(sessionScope);
-            if (!session) {
-                throw SessionError.notFound(sessionScope);
-            }
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             await this.sessionManager.switchLLMForDefaultSession(validatedConfig);

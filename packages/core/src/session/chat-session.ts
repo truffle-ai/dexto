@@ -110,6 +110,22 @@ export class ChatSession {
     private logger: IDextoLogger;
 
     /**
+     * Optional agent configuration for this session.
+     * When provided, overrides system prompts, tools, and LLM settings.
+     * Used primarily for sub-agent sessions with specialized capabilities.
+     */
+    private agentConfig?: import('../agent/schemas.js').AgentConfig | undefined;
+
+    /**
+     * Session-owned services (may be overridden by agentConfig).
+     * These are set once in initializeServices() and used throughout the session lifecycle.
+     */
+    private toolManager!: ToolManager;
+    private systemPromptManager!: SystemPromptManager;
+    private llmConfig!: ValidatedLLMConfig;
+    private customToolManager: ToolManager | null = null;
+
+    /**
      * Creates a new ChatSession instance.
      *
      * Each session creates its own isolated services:
@@ -120,6 +136,7 @@ export class ChatSession {
      * @param services - The shared services from the agent (state manager, prompt, client managers, etc.)
      * @param id - Unique identifier for this session
      * @param logger - Logger instance for dependency injection
+     * @param agentConfig - Optional agent configuration to override default behavior
      */
     constructor(
         private services: {
@@ -134,9 +151,12 @@ export class ChatSession {
             sessionManager: import('./session-manager.js').SessionManager;
         },
         public readonly id: string,
-        logger: IDextoLogger
+        logger: IDextoLogger,
+        agentConfig?: import('../agent/schemas.js').AgentConfig
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
+        this.agentConfig = agentConfig;
+
         // Create session-specific event bus
         this.eventBus = new SessionEventBus();
 
@@ -144,7 +164,8 @@ export class ChatSession {
         this.setupEventForwarding();
 
         // Services will be initialized in init() method due to async requirements
-        this.logger.debug(`ChatSession ${this.id}: Created, awaiting initialization`);
+        const configInfo = agentConfig ? ' with custom agent config' : '';
+        this.logger.debug(`ChatSession ${this.id}: Created${configInfo}, awaiting initialization`);
     }
 
     /**
@@ -189,10 +210,28 @@ export class ChatSession {
 
     /**
      * Initializes session-specific services.
+     * Applies agent config overrides if provided.
      */
     private async initializeServices(): Promise<void> {
-        // Get current effective configuration for this session from state manager
-        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        // Get base configuration from state manager and shared services
+        this.llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        this.toolManager = this.services.toolManager;
+        this.systemPromptManager = this.services.systemPromptManager;
+
+        // Apply agent config overrides if provided
+        if (this.agentConfig) {
+            const overrides = await this.applyAgentConfigOverrides(
+                this.llmConfig,
+                this.services.toolManager,
+                this.systemPromptManager
+            );
+            this.llmConfig = overrides.llmConfig;
+            this.toolManager = overrides.toolManager;
+            this.systemPromptManager = overrides.systemPromptManager;
+            if (this.toolManager !== this.services.toolManager) {
+                this.customToolManager = this.toolManager;
+            }
+        }
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
@@ -205,18 +244,134 @@ export class ChatSession {
         // Create session-specific LLM service
         // The service will create its own properly-typed ContextManager internally
         this.llmService = createLLMService(
-            llmConfig,
-            llmConfig.router,
-            this.services.toolManager,
-            this.services.systemPromptManager,
-            this.historyProvider, // Pass history provider for service to use
-            this.eventBus, // Use session event bus
+            this.llmConfig,
+            this.llmConfig.router,
+            this.toolManager,
+            this.systemPromptManager,
+            this.historyProvider,
+            this.eventBus,
             this.id,
-            this.services.resourceManager, // Pass ResourceManager for blob storage
-            this.logger // Pass logger for dependency injection
+            this.services.resourceManager,
+            this.logger
         );
 
-        this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
+        const configInfo = this.agentConfig ? ' with custom agent config applied' : '';
+        this.logger.debug(`ChatSession ${this.id}: Services initialized with storage${configInfo}`);
+    }
+
+    /**
+     * Apply agent config overrides to session services.
+     * Returns overridden services for LLM, tools, and system prompts.
+     */
+    private async applyAgentConfigOverrides(
+        baseLLMConfig: ValidatedLLMConfig,
+        baseToolManager: ToolManager,
+        baseSystemPromptManager: SystemPromptManager
+    ): Promise<{
+        llmConfig: ValidatedLLMConfig;
+        toolManager: ToolManager;
+        systemPromptManager: SystemPromptManager;
+    }> {
+        if (!this.agentConfig) {
+            return {
+                llmConfig: baseLLMConfig,
+                toolManager: baseToolManager,
+                systemPromptManager: baseSystemPromptManager,
+            };
+        }
+
+        this.logger.info(`Applying agent config overrides for session ${this.id}`);
+
+        // 1. Override LLM if specified in agent config
+        let llmConfig = baseLLMConfig;
+        if (this.agentConfig.llm) {
+            this.logger.debug(`Overriding LLM config from agent config`);
+            // Import and validate LLM schema
+            const { LLMConfigSchema } = await import('../llm/schemas.js');
+            try {
+                const validated = LLMConfigSchema.parse(this.agentConfig.llm);
+                llmConfig = validated;
+                this.logger.info(
+                    `LLM overridden: ${llmConfig.provider}/${llmConfig.model} for session ${this.id}`
+                );
+            } catch (error) {
+                this.logger.warn(
+                    `Invalid LLM config in agent config, using parent config: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        // 2. Apply tool scoping if specified in agent config
+        let toolManager = baseToolManager;
+        if (this.agentConfig.internalTools) {
+            this.logger.debug(
+                `Creating custom ToolManager with ${this.agentConfig.internalTools.length} allowed tools`
+            );
+
+            // Import ToolManager to create a fresh instance with custom config
+            const { ToolManager } = await import('../tools/tool-manager.js');
+
+            // Create fresh ToolManager with shared infrastructure but custom internalToolsConfig
+            toolManager = new ToolManager(
+                baseToolManager.getMcpManager(),
+                baseToolManager.getApprovalManager(),
+                baseToolManager.getAllowedToolsProvider(),
+                baseToolManager.getApprovalMode(),
+                this.services.agentEventBus,
+                baseToolManager.getToolPolicies() || { alwaysAllow: [], alwaysDeny: [] },
+                {
+                    internalToolsServices: baseToolManager.getInternalToolsServices(),
+                    internalToolsConfig: this.agentConfig.internalTools,
+                },
+                this.logger
+            );
+            await toolManager.initialize();
+
+            // Track custom ToolManager for cleanup
+            this.customToolManager = toolManager;
+
+            // Get actual tool names from the ToolManager to verify registration
+            const actualTools = Object.keys(await toolManager.getAllTools());
+            this.logger.info(
+                `Custom ToolManager created with ${actualTools.length} tools: ${actualTools.join(', ')} for session ${this.id}`
+            );
+        }
+
+        // 3. System prompt override
+        let systemPromptManager = baseSystemPromptManager;
+        if (this.agentConfig.systemPrompt) {
+            this.logger.debug(`Overriding system prompt from agent config`);
+            const { SystemPromptManager } = await import('../systemPrompt/manager.js');
+            const { SystemPromptConfigSchema } = await import('../systemPrompt/schemas.js');
+
+            try {
+                // Validate system prompt config
+                const validated = SystemPromptConfigSchema.parse(this.agentConfig.systemPrompt);
+
+                // Create session-specific SystemPromptManager
+                // Note: We don't pass memoryManager since sub-agents shouldn't access parent memories
+                systemPromptManager = new SystemPromptManager(
+                    validated,
+                    process.cwd(), // configDir for file contributors
+                    undefined, // No memory manager for sub-agents
+                    this.logger
+                );
+
+                this.logger.info(
+                    `System prompt overridden with ${validated.contributors.length} contributors for session ${this.id}`
+                );
+            } catch (error) {
+                this.logger.warn(
+                    `Invalid system prompt config in agent config, using parent config: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        return {
+            llmConfig,
+            toolManager,
+            systemPromptManager,
+        };
     }
 
     /**
@@ -258,12 +413,11 @@ export class ChatSession {
         // Emit response event so UI updates immediately on blocked interactions
         // This ensures listeners relying on llmservice:response know a response was added
         // Note: sessionId is automatically added by event forwarding layer
-        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
         this.eventBus.emit('llmservice:response', {
             content: errorContent,
-            provider: llmConfig.provider,
-            model: llmConfig.model,
-            router: llmConfig.router,
+            provider: this.llmConfig.provider,
+            model: this.llmConfig.model,
+            router: this.llmConfig.router,
         });
     }
 
@@ -320,7 +474,7 @@ export class ChatSession {
                 {
                     sessionManager: this.services.sessionManager,
                     mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
+                    toolManager: this.toolManager,
                     stateManager: this.services.stateManager,
                     sessionId: this.id,
                     abortSignal: signal,
@@ -341,12 +495,11 @@ export class ChatSession {
             );
 
             // Execute beforeResponse plugins
-            const llmConfig = this.services.stateManager.getLLMConfig(this.id);
             const beforeResponsePayload: BeforeResponsePayload = {
                 content: response,
-                provider: llmConfig.provider,
-                model: llmConfig.model,
-                router: llmConfig.router,
+                provider: this.llmConfig.provider,
+                model: this.llmConfig.model,
+                router: this.llmConfig.router,
                 sessionId: this.id,
             };
 
@@ -356,7 +509,7 @@ export class ChatSession {
                 {
                     sessionManager: this.services.sessionManager,
                     mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
+                    toolManager: this.toolManager,
                     stateManager: this.services.stateManager,
                     sessionId: this.id,
                     abortSignal: signal,
@@ -518,23 +671,23 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
-            // Create new LLM service with new config but SAME history provider
-            // The service will create its own new ContextManager internally
+            // Create new LLM service with new config but SAME history provider and session services
             const router = newLLMConfig.router;
             const newLLMService = createLLMService(
                 newLLMConfig,
                 router,
-                this.services.toolManager,
-                this.services.systemPromptManager,
+                this.toolManager,
+                this.systemPromptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
-                this.eventBus, // Use session event bus
+                this.eventBus,
                 this.id,
                 this.services.resourceManager,
                 this.logger
             );
 
-            // Replace the LLM service
+            // Replace the LLM service and update session config
             this.llmService = newLLMService;
+            this.llmConfig = newLLMConfig;
 
             this.logger.info(
                 `ChatSession ${this.id}: LLM switched to ${newLLMConfig.provider}/${newLLMConfig.model}`
@@ -586,13 +739,19 @@ export class ChatSession {
     public dispose(): void {
         this.logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
 
-        // Remove all event forwarders from the session event bus
+        // Remove all event forwarders from the session event bus (session → agent forwarding)
         this.forwarders.forEach((forwarder, eventName) => {
             this.eventBus.off(eventName, forwarder);
         });
 
         // Clear the forwarders map
         this.forwarders.clear();
+
+        // Dispose custom ToolManager if present (for sub-agent sessions with custom tools)
+        if (this.customToolManager) {
+            this.customToolManager.dispose();
+            this.customToolManager = null;
+        }
 
         this.logger.debug(`Session ${this.id} disposed successfully`);
     }

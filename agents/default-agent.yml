@@ -111,7 +111,8 @@ elicitation:
 
 # Internal tools - built-in Dexto capabilities
 internalTools:
-  - ask_user  # Allows the agent to ask you questions and collect structured input
+  - ask_user      # Allows the agent to ask you questions and collect structured input
+  - spawn_agent   # Delegate complex tasks to specialized sub-agents
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above
