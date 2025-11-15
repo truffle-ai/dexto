@@ -272,9 +272,7 @@ describe('SessionManager', () => {
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 'mock-uuid-123',
                 mockLogger,
-                undefined, // agentConfig
-                undefined, // parentSessionId
-                undefined // agentType
+                undefined // agentConfig
             );
         });
 
@@ -287,9 +285,7 @@ describe('SessionManager', () => {
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 customId,
                 mockLogger,
-                undefined, // agentConfig
-                undefined, // parentSessionId
-                undefined // agentType
+                undefined // agentConfig
             );
         });
 
@@ -324,9 +320,7 @@ describe('SessionManager', () => {
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 'default',
                 mockLogger,
-                undefined, // agentConfig
-                undefined, // parentSessionId
-                undefined // agentType
+                undefined // agentConfig
             );
         });
     });
@@ -969,9 +963,7 @@ describe('SessionManager', () => {
                 expect.objectContaining({ ...mockServices, sessionManager: expect.anything() }),
                 sessionId,
                 mockLogger,
-                undefined, // agentConfig
-                undefined, // parentSessionId (from scopes)
-                undefined // agentIdentifier (from metadata)
+                undefined // agentConfig
             );
 
             // Session should now be in memory

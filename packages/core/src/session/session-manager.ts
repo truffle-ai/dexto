@@ -14,29 +14,16 @@ import { SessionError } from './errors.js';
 /**
  * Sub-agent-specific metadata structure.
  * Stored in SessionData.metadata.subAgent for sub-agent sessions.
+ *
+ * Note: This is now minimal - only stores parentSessionId for hierarchy tracking.
+ * Other sub-agent tracking (depth, lifecycle, agentIdentifier) is handled by
+ * SubAgentCoordinator in-memory.
  */
 export interface SubAgentMetadata {
     /**
      * Parent session ID for hierarchical sessions
      */
     parentSessionId: string;
-
-    /**
-     * Depth in session hierarchy (1+ for sub-agents, 0 for primary)
-     */
-    depth: number;
-
-    /**
-     * Lifecycle policy - how long should this session persist
-     * - ephemeral: Auto-deleted after completion
-     * - persistent: Kept until manually deleted
-     */
-    lifecycle: 'ephemeral' | 'persistent';
-
-    /**
-     * Agent identifier (e.g., 'built-in:code-reviewer', 'file:/path/to/agent.yml')
-     */
-    agentIdentifier?: string;
 }
 
 /**
@@ -264,47 +251,8 @@ export class SessionManager {
             );
         }
 
-        const parentSession = await this.getSession(parentSessionId);
-        if (!parentSession) {
-            throw SessionError.parentNotFound(parentSessionId);
-        }
-        const parentMetadata = await this.getSessionMetadata(parentSessionId);
-        if (!parentMetadata) {
-            throw SessionError.parentNotFound(parentSessionId);
-        }
-
-        const parentSubAgent = parentMetadata.metadata?.subAgent as SubAgentMetadata | undefined;
-        const parentDepth = parentSubAgent?.depth ?? 0;
-        const depth = options?.subAgent?.depth ?? parentDepth + 1;
-
-        if (depth <= parentDepth) {
-            throw SessionError.invalidMetadata(
-                'subAgent.depth',
-                depth,
-                `Sub-agent depth (${depth}) must be greater than parent depth (${parentDepth})`
-            );
-        }
-
-        if (depth > this.maxSubAgentDepth) {
-            throw SessionError.maxDepthExceeded(depth, this.maxSubAgentDepth);
-        }
-
-        const lifecycle = options?.subAgent?.lifecycle ?? this.subAgentLifecycle;
-        if (!['ephemeral', 'persistent'].includes(lifecycle)) {
-            throw SessionError.invalidMetadata(
-                'subAgent.lifecycle',
-                lifecycle,
-                "must be 'ephemeral' or 'persistent'"
-            );
-        }
-
         const subAgentMetadata: SubAgentMetadata = {
             parentSessionId,
-            depth,
-            lifecycle,
-            ...(options?.subAgent?.agentIdentifier && {
-                agentIdentifier: options.subAgent.agentIdentifier,
-            }),
         };
 
         return { type: 'sub-agent', subAgentMetadata };
@@ -375,9 +323,6 @@ export class SessionManager {
             type,
             metadata,
             ...(options?.agentConfig && { agentConfig: options.agentConfig }),
-            ...(subAgentMetadata?.agentIdentifier && {
-                agentIdentifier: subAgentMetadata.agentIdentifier,
-            }),
         });
         this.pendingCreations.set(id, creationPromise);
 
@@ -424,15 +369,11 @@ export class SessionManager {
             await this.updateSessionActivity(id);
             // Note: Restored sessions use parent agent config, not custom sub-agent configs
             // This is intentional as agentConfig is session-creation-time only
-            const subAgent = this.getSubAgentMetadata(existingData);
             const session = new ChatSession(
                 { ...this.services, sessionManager: this },
-
                 id,
                 this.logger,
-                undefined, // agentConfig - not restored
-                subAgent?.parentSessionId, // parentSessionId - restore for event forwarding
-                subAgent?.agentIdentifier // agentIdentifier - restore from sub-agent metadata
+                undefined // agentConfig - not restored
             );
             await session.init();
             this.sessions.set(id, session);
@@ -475,15 +416,12 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            // Pass agentConfig, parentSessionId, and agentIdentifier to ChatSession
-            const subAgent = this.getSubAgentMetadata(sessionData);
+            // Pass agentConfig to ChatSession
             session = new ChatSession(
                 { ...this.services, sessionManager: this },
                 id,
                 this.logger,
-                options.agentConfig,
-                subAgent?.parentSessionId,
-                subAgent?.agentIdentifier
+                options.agentConfig
             );
             await session.init();
             this.sessions.set(id, session);
@@ -554,15 +492,12 @@ export class SessionManager {
                     await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
                 }
 
-                // Restore session to memory with sub-agent metadata if present
-                const subAgent = this.getSubAgentMetadata(sessionData);
+                // Restore session to memory
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
                     sessionId,
                     this.logger,
-                    undefined, // agentConfig - not restored
-                    subAgent?.parentSessionId, // parentSessionId - restore for event forwarding
-                    subAgent?.agentIdentifier // agentIdentifier - restore from sub-agent metadata
+                    undefined // agentConfig - not restored
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);
@@ -676,15 +611,10 @@ export class SessionManager {
      *
      * // Get all sub-agents of a parent
      * await listSessions({ parentSessionId: 'abc-123' });
-     *
-     * // Get ephemeral sessions
-     * await listSessions({ lifecycle: 'ephemeral' });
      */
     public async listSessions(filters?: {
         type?: string;
         parentSessionId?: string;
-        depth?: number;
-        lifecycle?: 'ephemeral' | 'persistent';
     }): Promise<string[]> {
         await this.ensureInitialized();
 
@@ -711,8 +641,6 @@ export class SessionManager {
             if (filters.type && type !== filters.type) continue;
             if (filters.parentSessionId && subAgent?.parentSessionId !== filters.parentSessionId)
                 continue;
-            if (filters.depth !== undefined && subAgent?.depth !== filters.depth) continue;
-            if (filters.lifecycle && subAgent?.lifecycle !== filters.lifecycle) continue;
 
             // All filters passed
             matchingSessions.push(sessionData.id);

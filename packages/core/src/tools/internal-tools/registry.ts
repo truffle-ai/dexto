@@ -4,6 +4,7 @@ import { ApprovalManager } from '../../approval/manager.js';
 import { FileSystemService } from '../../filesystem/index.js';
 import { ProcessService } from '../../process/index.js';
 import type { SessionManager } from '../../session/index.js';
+import type { DextoAgent } from '../../agent/DextoAgent.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createReadFileTool } from './implementations/read-file-tool.js';
@@ -27,6 +28,7 @@ export interface InternalToolsServices {
     fileSystemService?: FileSystemService;
     processService?: ProcessService;
     sessionManager?: SessionManager;
+    agent?: DextoAgent;
     // Future services can be added here:
     // storageManager?: StorageManager;
     // eventBus?: AgentEventBus;
@@ -97,9 +99,8 @@ export const INTERNAL_TOOL_REGISTRY: Record<
         requiredServices: ['processService'] as const,
     },
     spawn_agent: {
-        factory: (services: InternalToolsServices) =>
-            createSpawnAgentTool(services.sessionManager!, services.processService!),
-        requiredServices: ['sessionManager', 'processService'] as const,
+        factory: (services: InternalToolsServices) => createSpawnAgentTool(services.agent!),
+        requiredServices: ['agent'] as const,
     },
 };
 

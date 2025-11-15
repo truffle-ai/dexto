@@ -43,6 +43,8 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
+import { SubAgentCoordinator } from './sub-agent-coordinator.js';
+import type { SubAgentInfo } from './sub-agent-coordinator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -144,6 +146,9 @@ export class DextoAgent {
     // Search service for conversation search
     private searchService!: SearchService;
 
+    // Sub-agent coordinator for task handoff
+    private subAgentCoordinator!: SubAgentCoordinator;
+
     // Default session for backward compatibility
     private defaultSession: ChatSession | null = null;
 
@@ -229,6 +234,14 @@ export class DextoAgent {
             // Initialize search service from services
             this.searchService = services.searchService;
 
+            // Initialize sub-agent coordinator for task handoff
+            this.subAgentCoordinator = new SubAgentCoordinator(
+                this.sessionManager,
+                this.stateManager,
+                this.agentEventBus,
+                this.logger
+            );
+
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
             const promptManager = new PromptManager(
@@ -241,6 +254,9 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
+
+            // Configure agent reference for internal tools (e.g., spawn_agent)
+            this.toolManager.setAgent(this);
 
             // Note: Telemetry is initialized in createAgentServices() before services are created
             // This ensures decorators work correctly on all services
@@ -602,6 +618,146 @@ export class DextoAgent {
                 throw error;
             }
         });
+    }
+
+    /**
+     * Hand off a task to a sub-agent with specialized capabilities.
+     *
+     * This method encapsulates all complexity around sub-agent spawning:
+     * - Resolves agent configs (built-in names or file paths)
+     * - Validates depth limits
+     * - Sets up event forwarding automatically
+     * - Handles lifecycle management (ephemeral vs persistent)
+     * - Cleans up resources reliably
+     *
+     * @param task - The task description for the sub-agent
+     * @param options - Configuration for the handoff
+     * @returns Result containing the sub-agent's response and metadata
+     *
+     * @example
+     * ```typescript
+     * // Use a built-in agent
+     * const result = await agent.handoff(
+     *     "Review the authentication code in src/auth/",
+     *     { agent: "code-reviewer" }
+     * );
+     *
+     * // Use a custom agent config file
+     * const result = await agent.handoff(
+     *     "Analyze the API endpoints",
+     *     { agent: "./agents/api-analyzer.yml" }
+     * );
+     * ```
+     */
+    public async handoff(
+        task: string,
+        options?: {
+            /** Agent to use (built-in name like "general-purpose" or file path) */
+            agent?: string | AgentConfig;
+
+            /** Task description for logging/tracking */
+            description?: string;
+
+            /** Lifecycle policy (defaults to config) */
+            lifecycle?: 'ephemeral' | 'persistent';
+
+            /** Timeout in milliseconds */
+            timeout?: number;
+
+            /** Parent session ID (auto-detected if called during session.run()) */
+            parentSessionId?: string;
+
+            /** Working directory for resolving relative agent paths */
+            workingDir?: string;
+        }
+    ): Promise<{
+        result: string;
+        sessionId: string;
+        duration: number;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
+        error?: string;
+    }> {
+        this.ensureStarted();
+
+        const startTime = Date.now();
+
+        // Determine parent session
+        const parentSessionId = options?.parentSessionId || this.currentDefaultSessionId;
+
+        this.logger.info(
+            `Handing off task to sub-agent: "${options?.description || task.substring(0, 50)}..." ` +
+                `(agent: ${typeof options?.agent === 'string' ? options.agent : 'custom config'})`
+        );
+
+        try {
+            // Spawn sub-agent
+            const handle = await this.subAgentCoordinator.spawn({
+                parentSessionId,
+                ...(typeof options?.agent === 'string' && { agentReference: options.agent }),
+                ...(typeof options?.agent === 'object' && { agentConfig: options.agent }),
+                ...(options?.lifecycle && { lifecycle: options.lifecycle }),
+                ...(options?.workingDir && { workingDir: options.workingDir }),
+            });
+
+            // Run task (with optional timeout)
+            let result: string;
+            if (options?.timeout) {
+                result = await this.runWithTimeout(handle, task, options.timeout);
+            } else {
+                result = await handle.run(task);
+            }
+
+            // Get metrics
+            const duration = Date.now() - startTime;
+
+            this.logger.info(
+                `Handoff completed successfully in ${duration}ms (session: ${handle.sessionId})`
+            );
+
+            return {
+                result,
+                sessionId: handle.sessionId,
+                duration,
+                // TODO: Add token usage tracking for sub-agents
+            };
+        } catch (error) {
+            const duration = Date.now() - startTime;
+            this.logger.error(
+                `Handoff failed after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`
+            );
+
+            return {
+                result: '',
+                sessionId: '',
+                duration,
+                error: error instanceof Error ? error.message : String(error),
+            };
+        }
+    }
+
+    /**
+     * Run a task with timeout.
+     * @private
+     */
+    private async runWithTimeout(
+        handle: import('./sub-agent-coordinator.js').SubAgentHandle,
+        task: string,
+        timeout: number
+    ): Promise<string> {
+        return Promise.race([
+            handle.run(task),
+            new Promise<string>((_, reject) =>
+                setTimeout(() => {
+                    handle.cancel();
+                    reject(new Error(`Sub-agent timeout after ${timeout}ms`));
+                }, timeout)
+            ),
+        ]);
     }
 
     /**

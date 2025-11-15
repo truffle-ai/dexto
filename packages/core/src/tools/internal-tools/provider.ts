@@ -114,13 +114,21 @@ export class InternalToolsProvider {
      */
     setSessionManager(sessionManager: SessionManager): void {
         this.services.sessionManager = sessionManager;
+        this.logger.debug('SessionManager configured for internal tools');
+    }
 
-        // Re-register tools that depend on sessionManager
+    /**
+     * Set agent for tools that need it (called after DextoAgent is initialized)
+     */
+    setAgent(agent: import('../../agent/DextoAgent.js').DextoAgent): void {
+        this.services.agent = agent;
+
+        // Re-register tools that depend on agent
         if (this.config.includes('spawn_agent')) {
             this.registerTool('spawn_agent');
         }
 
-        this.logger.debug('SessionManager configured for internal tools');
+        this.logger.debug('Agent configured for internal tools');
     }
 
     /**

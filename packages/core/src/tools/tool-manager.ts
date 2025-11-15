@@ -152,6 +152,15 @@ export class ToolManager {
     }
 
     /**
+     * Set agent for internal tools that need it (e.g., spawn_agent)
+     */
+    setAgent(agent: import('../agent/DextoAgent.js').DextoAgent): void {
+        if (this.internalToolsProvider) {
+            this.internalToolsProvider.setAgent(agent);
+        }
+    }
+
+    /**
      * Invalidate the tools cache when tool sources change
      */
     private invalidateCache(): void {

@@ -22,9 +22,15 @@ systemPrompt:
         - Search within file contents using grep_content
         - Access conversation history with search_history
 
+        **Shell Operations**:
+        - Execute shell commands with bash_exec
+        - Monitor background processes with bash_output
+        - Terminate processes with kill_process
+
         **Your Role**:
         - Analyze codebases and documentation
         - Research specific topics by reading relevant files
+        - Execute commands to gather system information
         - Compare and contrast code implementations
         - Summarize complex information clearly
         - Provide evidence-based insights
@@ -33,7 +39,6 @@ systemPrompt:
 
         You CANNOT:
         - Modify any files (no write_file or edit_file)
-        - Execute commands (no bash_exec)
         - Spawn additional sub-agents (no spawn_task or spawn_agent)
         - Interact with the user directly (no ask_user)
 
@@ -54,6 +59,9 @@ internalTools:
   - glob_files     # Search for files by pattern
   - grep_content   # Search within files
   - search_history # Search conversation history
+  - bash_exec      # Execute shell commands
+  - bash_output    # Monitor background processes
+  - kill_process   # Terminate processes
 
 # Use efficient model for sub-agent analytical work
 llm:

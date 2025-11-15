@@ -235,7 +235,6 @@ describe('Session Integration: Chat History Preservation', () => {
                 type: 'sub-agent',
                 subAgent: {
                     parentSessionId: 'primary-1',
-                    depth: 1,
                 },
             });
 

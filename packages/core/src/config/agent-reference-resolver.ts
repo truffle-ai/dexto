@@ -60,10 +60,10 @@ export interface ResolvedAgentConfig {
     /** The fully loaded and validated agent configuration */
     config: AgentConfig;
     /** Source of the config (for logging/debugging) */
-    source: {
-        type: 'built-in' | 'file';
-        identifier: string; // Agent name or file path
-    };
+    source:
+        | { type: 'built-in'; identifier: string }
+        | { type: 'file'; identifier: string; path: string }
+        | { type: 'inline' };
 }
 
 /**
@@ -298,7 +298,7 @@ async function resolveFilePath(
     if (cached) {
         return {
             config: cached,
-            source: { type: 'file', identifier: filePath },
+            source: { type: 'file', identifier: filePath, path: absolutePath },
         };
     }
 
@@ -307,7 +307,7 @@ async function resolveFilePath(
         const config = await loadAgentConfig(absolutePath);
 
         // Cache the result with mtime for future validation
-        const source = { type: 'file' as const, identifier: filePath };
+        const source = { type: 'file' as const, identifier: filePath, path: absolutePath };
         configCache.set(cacheKey, config, source, fileStats.mtimeMs);
 
         logger.info(`Loaded agent config from file: ${filePath}`);

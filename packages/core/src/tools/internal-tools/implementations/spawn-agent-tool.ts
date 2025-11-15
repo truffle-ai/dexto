@@ -10,14 +10,7 @@
 
 import { z } from 'zod';
 import type { InternalTool, ToolExecutionContext } from '../../types.js';
-import type { SessionManager } from '../../../session/index.js';
-import { logger } from '../../../logger/index.js';
-import {
-    resolveAgentConfig,
-    validateSubAgentConfig,
-    type AgentReference,
-    type AgentResolutionContext,
-} from '../../../config/agent-reference-resolver.js';
+import type { DextoAgent } from '../../../agent/DextoAgent.js';
 
 /**
  * Zod schema for spawn_agent tool input
@@ -51,10 +44,7 @@ interface SpawnAgentResult {
 /**
  * Create spawn_agent internal tool
  */
-export function createSpawnAgentTool(
-    sessionManager: SessionManager,
-    processService: import('../../../process/index.js').ProcessService
-): InternalTool {
+export function createSpawnAgentTool(agent: DextoAgent): InternalTool {
     return {
         id: 'spawn_agent',
         description:
@@ -80,133 +70,21 @@ export function createSpawnAgentTool(
             context?: ToolExecutionContext
         ): Promise<SpawnAgentResult> => {
             const validatedInput = SpawnAgentInputSchema.parse(input);
-            const startTime = Date.now();
-            let subAgentSessionId: string | undefined;
 
-            try {
-                const agentReference: AgentReference = validatedInput.agent;
+            // Delegate to DextoAgent.handoff()
+            const result = await agent.handoff(validatedInput.prompt, {
+                agent: validatedInput.agent,
+                ...(validatedInput.description && { description: validatedInput.description }),
+                ...(context?.sessionId && { parentSessionId: context.sessionId }),
+            });
 
-                // Get parent session depth for hierarchy validation
-                const parentSessionId = context?.sessionId || 'unknown';
-                let parentDepth = 0;
-
-                if (parentSessionId && parentSessionId !== 'unknown') {
-                    const parentSession = await sessionManager.getSession(parentSessionId);
-                    if (parentSession) {
-                        const metadata = await sessionManager.getSessionMetadata(parentSessionId);
-                        const subAgent = metadata?.metadata?.subAgent as
-                            | { depth?: number }
-                            | undefined;
-                        parentDepth = subAgent?.depth ?? 0;
-                    }
-                }
-
-                // Resolve agent reference to full config (avoid leaking inline config secrets)
-                logger.debug(`Resolving agent reference`, {
-                    refType: typeof agentReference === 'string' ? 'string' : 'inline-config',
-                    parentSessionId,
-                });
-                const resolutionContext: AgentResolutionContext = {
-                    workingDir: processService.getConfig().workingDirectory || process.cwd(),
-                    parentSessionId,
-                };
-                const resolved = await resolveAgentConfig(agentReference, resolutionContext);
-
-                // Validate sub-agent config (prevent recursion, check constraints)
-                validateSubAgentConfig(resolved.config);
-
-                // Log agent info
-                const agentIdentifier =
-                    resolved.source.type === 'built-in'
-                        ? `built-in:${resolved.source.identifier}`
-                        : resolved.source.type === 'file'
-                          ? `file:${resolved.source.identifier}`
-                          : 'inline';
-
-                logger.info(
-                    `Spawning sub-agent [${agentIdentifier}] for task: ${validatedInput.description || 'unnamed task'}`
-                );
-
-                // Get lifecycle config from session manager
-                const sessionManagerConfig = sessionManager.getConfig();
-                const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'persistent';
-
-                // Create sub-agent session with type + metadata pattern
-                const session = await sessionManager.createSession(undefined, {
-                    type: 'sub-agent',
-                    subAgent: {
-                        parentSessionId,
-                        depth: parentDepth + 1,
-                        lifecycle,
-                        agentIdentifier,
-                    },
-                    agentConfig: resolved.config,
-                });
-                subAgentSessionId = session.id;
-
-                logger.info(
-                    `Sub-agent session created: ${session.id} (depth: ${parentDepth + 1}, agent: ${agentIdentifier})`
-                );
-
-                // Execute the task in the sub-agent session
-                const result = await session.run(validatedInput.prompt);
-
-                // Calculate duration
-                const duration = Date.now() - startTime;
-
-                logger.info(
-                    `Sub-agent task "${validatedInput.description || 'unnamed'}" completed successfully in ${duration}ms`
-                );
-
-                // Return results
-                return {
-                    result,
-                    duration,
-                    agent: agentIdentifier,
-                };
-            } catch (error) {
-                const duration = Date.now() - startTime;
-                const errorMessage =
-                    error instanceof Error ? error.message : 'Unknown error occurred';
-
-                logger.error(
-                    `Sub-agent task "${validatedInput.description || 'unnamed'}" failed after ${duration}ms: ${errorMessage}`
-                );
-
-                // Return error as result (don't throw to allow parent to handle gracefully)
-                return {
-                    result: `Task failed: ${errorMessage}`,
-                    duration,
-                    error: errorMessage,
-                    agent: 'failed-to-resolve',
-                };
-            } finally {
-                // Cleanup sub-agent session based on lifecycle policy
-                if (subAgentSessionId) {
-                    try {
-                        const sessionManagerConfig = sessionManager.getConfig();
-                        const lifecycle = sessionManagerConfig.subAgentLifecycle ?? 'persistent';
-
-                        if (lifecycle === 'ephemeral') {
-                            // Ephemeral: Delete session and history
-                            await sessionManager.deleteSession(subAgentSessionId);
-                            logger.debug(
-                                `Deleted ephemeral sub-agent session: ${subAgentSessionId} (no history preserved)`
-                            );
-                        } else {
-                            // Persistent: Remove from memory, preserve history for review
-                            await sessionManager.endSession(subAgentSessionId);
-                            logger.debug(
-                                `Ended persistent sub-agent session: ${subAgentSessionId} (history preserved)`
-                            );
-                        }
-                    } catch (cleanupError) {
-                        logger.error(
-                            `Failed to cleanup sub-agent session ${subAgentSessionId}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
-                        );
-                    }
-                }
-            }
+            // Map handoff result to tool result format
+            return {
+                result: result.result,
+                duration: result.duration,
+                agent: validatedInput.agent,
+                ...(result.error && { error: result.error }),
+            };
         },
     };
 }

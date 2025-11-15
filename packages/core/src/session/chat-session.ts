@@ -102,12 +102,6 @@ export class ChatSession {
     private forwarders: Map<SessionEventName, (payload?: any) => void> = new Map();
 
     /**
-     * Map of parent event forwarder functions for cleanup (sub-agent → parent forwarding).
-     * These are stored separately because they attach to different event buses.
-     */
-    private parentForwarders: Map<SessionEventName | string, (payload?: any) => void> = new Map();
-
-    /**
      * AbortController for the currently running turn, if any.
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
@@ -121,18 +115,6 @@ export class ChatSession {
      * Used primarily for sub-agent sessions with specialized capabilities.
      */
     private agentConfig?: import('../agent/schemas.js').AgentConfig | undefined;
-
-    /**
-     * Optional parent session ID for sub-agent sessions.
-     * When provided, events from this session are forwarded to the parent session's event bus.
-     */
-    private parentSessionId: string | undefined;
-
-    /**
-     * Optional agent type identifier for sub-agent sessions.
-     * Used to identify the type of agent in event metadata (e.g., "built-in:code-reviewer").
-     */
-    private agentType: string | undefined;
 
     /**
      * Session-owned services (may be overridden by agentConfig).
@@ -155,8 +137,6 @@ export class ChatSession {
      * @param id - Unique identifier for this session
      * @param logger - Logger instance for dependency injection
      * @param agentConfig - Optional agent configuration to override default behavior
-     * @param parentSessionId - Optional parent session ID for sub-agent event forwarding
-     * @param agentType - Optional agent type identifier for sub-agent metadata
      */
     constructor(
         private services: {
@@ -172,14 +152,10 @@ export class ChatSession {
         },
         public readonly id: string,
         logger: IDextoLogger,
-        agentConfig?: import('../agent/schemas.js').AgentConfig,
-        parentSessionId?: string,
-        agentType?: string
+        agentConfig?: import('../agent/schemas.js').AgentConfig
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         this.agentConfig = agentConfig;
-        this.parentSessionId = parentSessionId;
-        this.agentType = agentType;
 
         // Create session-specific event bus
         this.eventBus = new SessionEventBus();
@@ -189,10 +165,7 @@ export class ChatSession {
 
         // Services will be initialized in init() method due to async requirements
         const configInfo = agentConfig ? ' with custom agent config' : '';
-        const parentInfo = parentSessionId ? ` (parent: ${parentSessionId})` : '';
-        this.logger.debug(
-            `ChatSession ${this.id}: Created${configInfo}${parentInfo}, awaiting initialization`
-        );
+        this.logger.debug(`ChatSession ${this.id}: Created${configInfo}, awaiting initialization`);
     }
 
     /**
@@ -201,11 +174,6 @@ export class ChatSession {
      */
     public async init(): Promise<void> {
         await this.initializeServices();
-
-        // Set up parent event forwarding if this is a sub-agent session
-        if (this.parentSessionId) {
-            await this.setupParentEventForwarding();
-        }
     }
 
     /**
@@ -238,129 +206,6 @@ export class ChatSession {
             // Attach the forwarder to the session event bus
             this.eventBus.on(eventName, forwarder);
         });
-    }
-
-    /**
-     * Construct a payload tagged with sub-agent metadata for parent delivery.
-     */
-    private buildParentForwardPayload(
-        payload: any,
-        parentSessionId: string,
-        overrideSessionId?: string
-    ): Record<string, unknown> {
-        const basePayload = {
-            fromSubAgent: true,
-            subAgentSessionId: this.id,
-            subAgentType: this.agentType,
-            parentSessionId,
-        };
-
-        const mergedPayload =
-            payload && typeof payload === 'object' ? { ...payload, ...basePayload } : basePayload;
-
-        return overrideSessionId
-            ? {
-                  ...mergedPayload,
-                  sessionId: overrideSessionId,
-              }
-            : mergedPayload;
-    }
-
-    /**
-     * Register a parent forwarder for the provided event emitter.
-     */
-    private registerParentForwarder(
-        key: string,
-        source: SessionEventBus | AgentEventBus,
-        target: SessionEventBus | AgentEventBus,
-        eventName: SessionEventName | string,
-        parentSessionId: string,
-        options?: { filterBySessionId?: string; overrideSessionId?: string }
-    ): void {
-        const forwarder = (payload?: any) => {
-            if (options?.filterBySessionId && payload?.sessionId !== options.filterBySessionId) {
-                return;
-            }
-
-            const augmentedPayload = this.buildParentForwardPayload(
-                payload,
-                parentSessionId,
-                options?.overrideSessionId
-            );
-
-            this.logger.silly(
-                `Forwarding sub-agent event ${eventName} to parent session ${parentSessionId}: ${JSON.stringify(augmentedPayload, null, 2)}`
-            );
-
-            (target as any).emit(eventName, augmentedPayload);
-        };
-
-        this.parentForwarders.set(key, forwarder);
-        source.on(eventName as any, forwarder);
-    }
-
-    /**
-     * Sets up event forwarding from this sub-agent session to the parent session's event bus.
-     * This allows the parent session to receive real-time updates about sub-agent progress,
-     * including tool calls, thinking events, and approval requests.
-     */
-    private async setupParentEventForwarding(): Promise<void> {
-        const parentSessionId = this.parentSessionId;
-        if (!parentSessionId) {
-            return;
-        }
-
-        try {
-            const parentSession = await this.services.sessionManager.getSession(parentSessionId);
-            if (!parentSession) {
-                this.logger.warn(
-                    `Parent session ${parentSessionId} not found, skipping parent event forwarding`
-                );
-                return;
-            }
-
-            this.logger.debug(
-                `Setting up parent event forwarding from ${this.id} to ${parentSessionId}`
-            );
-
-            SessionEventNames.forEach((eventName) => {
-                this.registerParentForwarder(
-                    `session:${eventName}`,
-                    this.eventBus,
-                    parentSession.eventBus,
-                    eventName,
-                    parentSessionId
-                );
-            });
-
-            const agentEventsToForward = [
-                'dexto:approvalRequest',
-                'dexto:approvalResponse',
-            ] as const;
-
-            agentEventsToForward.forEach((eventName) => {
-                this.registerParentForwarder(
-                    `agent:${eventName}`,
-                    this.services.agentEventBus,
-                    this.services.agentEventBus,
-                    eventName,
-                    parentSessionId,
-                    {
-                        filterBySessionId: this.id,
-                        overrideSessionId: parentSessionId,
-                    }
-                );
-            });
-
-            this.logger.info(
-                `Parent event forwarding configured: ${this.id} → ${parentSessionId} (${SessionEventNames.length} session events + ${agentEventsToForward.length} agent events)`
-            );
-        } catch (error) {
-            this.logger.error(
-                `Failed to set up parent event forwarding: ${error instanceof Error ? error.message : String(error)}`
-            );
-            // Don't throw - parent forwarding is a nice-to-have, not critical
-        }
     }
 
     /**
@@ -482,8 +327,13 @@ export class ChatSession {
             );
             await toolManager.initialize();
 
+            // Track custom ToolManager for cleanup
+            this.customToolManager = toolManager;
+
+            // Get actual tool names from the ToolManager to verify registration
+            const actualTools = Object.keys(await toolManager.getAllTools());
             this.logger.info(
-                `Custom ToolManager created with tools: ${this.agentConfig.internalTools.join(', ')} for session ${this.id}`
+                `Custom ToolManager created with ${actualTools.length} tools: ${actualTools.join(', ')} for session ${this.id}`
             );
         }
 
@@ -896,26 +746,6 @@ export class ChatSession {
 
         // Clear the forwarders map
         this.forwarders.clear();
-
-        // Remove parent event forwarders (sub-agent → parent forwarding)
-        if (this.parentSessionId && this.parentForwarders.size > 0) {
-            this.parentForwarders.forEach((forwarder, key) => {
-                if (key.startsWith('session:')) {
-                    // Session event forwarder - remove from this session's event bus
-                    const eventName = key.replace('session:', '') as SessionEventName;
-                    this.eventBus.off(eventName, forwarder);
-                } else if (key.startsWith('agent:')) {
-                    // Agent event forwarder - remove from global agent event bus
-                    const eventName = key.replace('agent:', '');
-                    this.services.agentEventBus.off(eventName as any, forwarder);
-                }
-            });
-
-            this.parentForwarders.clear();
-            this.logger.debug(
-                `Cleaned up parent event forwarders for sub-agent session ${this.id} → ${this.parentSessionId}`
-            );
-        }
 
         // Dispose custom ToolManager if present (for sub-agent sessions with custom tools)
         if (this.customToolManager) {
