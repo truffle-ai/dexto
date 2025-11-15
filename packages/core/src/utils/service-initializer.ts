@@ -40,6 +40,7 @@ import { PluginManager } from '../plugins/manager.js';
 import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
 import { FileSystemService } from '../filesystem/index.js';
 import { ProcessService } from '../process/index.js';
+import { TodoService } from '../todo/todo-service.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -183,6 +184,11 @@ export async function createAgentServices(
     await processService.initialize();
     logger.debug('ProcessService initialized');
 
+    // 7.5. Initialize TodoService for task management
+    const todoService = new TodoService(storageManager.getDatabase(), agentEventBus);
+    await todoService.initialize();
+    logger.debug('TodoService initialized');
+
     // 8. Initialize tool manager with internal tools options
     // 8.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider(
@@ -206,6 +212,7 @@ export async function createAgentServices(
                 searchService,
                 fileSystemService,
                 processService,
+                todoService,
             },
             internalToolsConfig: config.internalTools,
         },
