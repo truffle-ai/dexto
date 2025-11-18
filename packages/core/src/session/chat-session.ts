@@ -144,7 +144,6 @@ export class ChatSession {
         this.setupEventForwarding();
 
         // Services will be initialized in init() method due to async requirements
-        this.logger.debug(`ChatSession ${this.id}: Created, awaiting initialization`);
     }
 
     /**
@@ -591,8 +590,6 @@ export class ChatSession {
 
         // Clear the forwarders map
         this.forwarders.clear();
-
-        this.logger.debug(`[ChatSession.dispose] Session ${this.id} disposed successfully`);
     }
 
     /**

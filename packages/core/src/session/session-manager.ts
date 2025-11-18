@@ -178,7 +178,6 @@ export class SessionManager {
 
         // Check if session already exists in memory
         if (this.sessions.has(id)) {
-            this.logger.debug(`[SessionManager] Returning existing session from memory: ${id}`);
             await this.updateSessionActivity(id);
             return this.sessions.get(id)!;
         }
@@ -296,7 +295,6 @@ export class SessionManager {
 
         // Check memory first
         if (this.sessions.has(sessionId)) {
-            this.logger.debug(`[SessionManager.getSession] Found session in memory: ${sessionId}`);
             return this.sessions.get(sessionId)!;
         }
 

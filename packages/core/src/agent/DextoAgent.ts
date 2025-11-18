@@ -629,7 +629,6 @@ export class DextoAgent {
         const events: import('./types.js').StreamEvent[] = [];
 
         for await (const event of await this.stream(message, options)) {
-            this.logger.debug(`[generate()] Received event: ${JSON.stringify(event)}`);
             events.push(event);
         }
 
@@ -687,8 +686,6 @@ export class DextoAgent {
         const imageData = options?.imageData;
         const fileData = options?.fileData;
         const signal = options?.signal;
-
-        this.logger.debug(`[stream()] Starting stream for sessionId=${sessionId}`);
 
         // Event queue for aggregation
         const eventQueue: import('./types.js').StreamEvent[] = [];
