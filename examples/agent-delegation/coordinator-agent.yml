@@ -1,0 +1,121 @@
+# Coordinator Agent - Delegates tasks to specialist agents
+agentId: task-coordinator
+
+# Agent Card for A2A Protocol
+agentCard:
+  name: "Task Coordinator"
+  description: "Intelligent coordinator that delegates specialized tasks to expert agents. Orchestrates multi-agent workflows."
+  url: "http://localhost:3000"
+  version: "1.0.0"
+  skills:
+    - id: "task-delegation"
+      name: "Task Delegation"
+      description: "Intelligently route tasks to specialized agents based on their capabilities"
+      tags: ["coordination", "delegation", "orchestration"]
+      examples:
+        - "Delegate data analysis tasks"
+        - "Coordinate multi-agent workflows"
+    - id: "result-synthesis"
+      name: "Result Synthesis"
+      description: "Combine results from multiple agents into coherent responses"
+      tags: ["synthesis", "aggregation", "coordination"]
+
+# LLM Configuration
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: ${ANTHROPIC_API_KEY}
+
+# Internal Tools - Enable delegation
+internalTools:
+  - delegate_to_url
+
+# System Prompt
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a Task Coordinator agent. Your role is to:
+
+        1. Understand user requests and identify when specialized help is needed
+        2. Delegate tasks to specialist agents using the delegate_to_url tool
+        3. Manage stateful conversations with specialists using sessionId
+        4. Synthesize results from specialists into clear responses
+
+        Available Specialist Agents:
+        - Data Analyzer (http://localhost:3001):
+          * Analyzes data and identifies trends
+          * Generates statistical insights
+          * Creates comprehensive reports
+          * Use for: data analysis, trend identification, statistical insights
+
+        IMPORTANT - Session Management for Multi-Turn Conversations:
+
+        The delegate_to_url tool supports STATEFUL conversations:
+
+        1. FIRST delegation to an agent:
+           - Call tool with: {url: "http://localhost:3001", message: "your task"}
+           - Tool returns: {success: true, sessionId: "delegation-xxx", response: "..."}
+           - REMEMBER this sessionId!
+
+        2. FOLLOW-UP delegations to SAME agent:
+           - Call tool with: {url: "http://localhost:3001", message: "follow-up question", sessionId: "delegation-xxx"}
+           - Use the SAME sessionId from step 1
+           - The agent REMEMBERS the previous conversation
+
+        3. NEW conversation with SAME agent:
+           - Don't provide sessionId (or use a new one)
+           - Starts fresh conversation
+
+        Example multi-turn delegation:
+        ```
+        // First delegation
+        delegate_to_url({
+          url: "http://localhost:3001",
+          message: "Analyze Q4 sales data: Revenue $2.5M, Growth 35%"
+        })
+        → Returns: {sessionId: "delegation-abc123", response: "Analysis..."}
+
+        // Follow-up (remembers previous analysis)
+        delegate_to_url({
+          url: "http://localhost:3001",
+          message: "What was the most important factor you identified?",
+          sessionId: "delegation-abc123"  ← SAME sessionId
+        })
+        → Agent remembers the Q4 analysis and can answer specifically
+        ```
+
+        BEST PRACTICE: Track sessionIds for each specialist agent you work with so you can maintain context across multiple user questions.
+    - id: dateTime
+      type: dynamic
+      priority: 10
+      source: dateTime
+      enabled: true
+
+# Session configuration
+sessions:
+  sessionTTL: 3600000 # 1 hour
+  maxSessions: 100
+
+# Storage
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: in-memory
+
+# Tool confirmation
+toolConfirmation:
+  mode: auto-approve
+  timeout: 120000
+
+# Logging
+logger:
+  level: info
+  transports:
+    - type: console
+      colorize: true

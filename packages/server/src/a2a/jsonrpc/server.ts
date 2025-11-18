@@ -1,0 +1,271 @@
+/**
+ * JSON-RPC 2.0 Server
+ *
+ * Handles JSON-RPC 2.0 request parsing, method dispatch, and response formatting.
+ * Implements the full JSON-RPC 2.0 specification including batch requests.
+ */
+
+import type {
+    JsonRpcRequest,
+    JsonRpcResponse,
+    JsonRpcBatchRequest,
+    JsonRpcBatchResponse,
+    JsonRpcError,
+} from './types.js';
+import { JsonRpcErrorCode } from './types.js';
+
+/**
+ * Method handler function type
+ */
+export type JsonRpcMethodHandler = (params: any) => Promise<any>;
+
+/**
+ * JSON-RPC 2.0 Server Options
+ */
+export interface JsonRpcServerOptions {
+    /** Method handlers map */
+    methods: Record<string, JsonRpcMethodHandler>;
+    /** Optional error handler */
+    onError?: (error: Error, request?: JsonRpcRequest) => void;
+}
+
+/**
+ * JSON-RPC 2.0 Server
+ *
+ * Parses JSON-RPC requests, dispatches to handlers, and formats responses.
+ *
+ * Usage:
+ * ```typescript
+ * const server = new JsonRpcServer({
+ *   methods: {
+ *     'agent.createTask': async (params) => { ... },
+ *     'agent.getTask': async (params) => { ... },
+ *   }
+ * });
+ *
+ * const response = await server.handle(request);
+ * ```
+ */
+export class JsonRpcServer {
+    private methods: Record<string, JsonRpcMethodHandler>;
+    private onError: ((error: Error, request?: JsonRpcRequest) => void) | undefined;
+
+    constructor(options: JsonRpcServerOptions) {
+        this.methods = options.methods;
+        this.onError = options.onError;
+    }
+
+    /**
+     * Handle a JSON-RPC request (single or batch).
+     *
+     * @param request Single request or batch array
+     * @returns Single response, batch array, or undefined for notifications
+     */
+    async handle(
+        request: JsonRpcRequest | JsonRpcBatchRequest
+    ): Promise<JsonRpcResponse | JsonRpcBatchResponse | undefined> {
+        // Handle batch requests
+        if (Array.isArray(request)) {
+            return await this.handleBatch(request);
+        }
+
+        // Handle single request
+        return await this.handleSingle(request);
+    }
+
+    /**
+     * Handle a batch of JSON-RPC requests.
+     *
+     * Processes all requests in parallel per JSON-RPC 2.0 spec.
+     *
+     * @param requests Array of requests
+     * @returns Array of responses, or undefined if all were notifications
+     */
+    private async handleBatch(
+        requests: JsonRpcBatchRequest
+    ): Promise<JsonRpcBatchResponse | undefined> {
+        // Empty batch is an error
+        if (requests.length === 0) {
+            return [
+                this.createErrorResponse(null, JsonRpcErrorCode.INVALID_REQUEST, 'Empty batch'),
+            ];
+        }
+
+        // Process all requests in parallel
+        const responses = await Promise.all(requests.map((req) => this.handleSingle(req)));
+
+        // Filter out notification responses (undefined)
+        const validResponses = responses.filter((res): res is JsonRpcResponse => res !== undefined);
+
+        // Per JSON-RPC 2.0 spec: if all requests were notifications, return undefined
+        if (validResponses.length === 0) {
+            return undefined;
+        }
+
+        return validResponses;
+    }
+
+    /**
+     * Handle a single JSON-RPC request.
+     *
+     * @param request JSON-RPC request object
+     * @returns JSON-RPC response object, or undefined for notifications
+     */
+    private async handleSingle(request: JsonRpcRequest): Promise<JsonRpcResponse | undefined> {
+        try {
+            // Validate JSON-RPC version
+            if (request.jsonrpc !== '2.0') {
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return undefined;
+                }
+                return this.createErrorResponse(
+                    request.id ?? null,
+                    JsonRpcErrorCode.INVALID_REQUEST,
+                    'Invalid JSON-RPC version (must be "2.0")'
+                );
+            }
+
+            // Validate method exists
+            if (typeof request.method !== 'string') {
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return undefined;
+                }
+                return this.createErrorResponse(
+                    request.id ?? null,
+                    JsonRpcErrorCode.INVALID_REQUEST,
+                    'Method must be a string'
+                );
+            }
+
+            // Check if method exists
+            const handler = this.methods[request.method];
+            if (!handler) {
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return undefined;
+                }
+                return this.createErrorResponse(
+                    request.id ?? null,
+                    JsonRpcErrorCode.METHOD_NOT_FOUND,
+                    `Method not found: ${request.method}`
+                );
+            }
+
+            // Execute method handler
+            try {
+                const result = await handler(request.params);
+
+                // Notifications (id is undefined) don't get responses
+                if (request.id === undefined) {
+                    return undefined;
+                }
+
+                return this.createSuccessResponse(request.id ?? null, result);
+            } catch (error) {
+                // Call error handler if provided (always log server-side)
+                if (this.onError) {
+                    this.onError(
+                        error instanceof Error ? error : new Error(String(error)),
+                        request
+                    );
+                }
+
+                // Notifications must not receive any response, even on error
+                if (request.id === undefined) {
+                    return undefined;
+                }
+
+                // Method execution error - return error response
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                // Don't leak stack traces to clients (already logged via onError)
+                const errorData = error instanceof Error ? { name: error.name } : undefined;
+
+                return this.createErrorResponse(
+                    request.id ?? null,
+                    JsonRpcErrorCode.INTERNAL_ERROR,
+                    errorMessage,
+                    errorData
+                );
+            }
+        } catch (error) {
+            // Request parsing/validation error - if notification, still no response
+            if (request.id === undefined) {
+                return undefined;
+            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return this.createErrorResponse(null, JsonRpcErrorCode.INVALID_REQUEST, errorMessage);
+        }
+    }
+
+    /**
+     * Create a success response.
+     */
+    private createSuccessResponse(id: string | number | null, result: any): JsonRpcResponse {
+        return {
+            jsonrpc: '2.0',
+            result,
+            id,
+        };
+    }
+
+    /**
+     * Create an error response.
+     */
+    private createErrorResponse(
+        id: string | number | null,
+        code: number,
+        message: string,
+        data?: any
+    ): JsonRpcResponse {
+        const error: JsonRpcError = { code, message };
+        if (data !== undefined) {
+            error.data = data;
+        }
+
+        return {
+            jsonrpc: '2.0',
+            error,
+            id,
+        };
+    }
+
+    /**
+     * Register a new method handler.
+     *
+     * @param method Method name
+     * @param handler Handler function
+     */
+    registerMethod(method: string, handler: JsonRpcMethodHandler): void {
+        this.methods[method] = handler;
+    }
+
+    /**
+     * Unregister a method handler.
+     *
+     * @param method Method name
+     */
+    unregisterMethod(method: string): void {
+        delete this.methods[method];
+    }
+
+    /**
+     * Check if a method is registered.
+     *
+     * @param method Method name
+     * @returns True if method exists
+     */
+    hasMethod(method: string): boolean {
+        return method in this.methods;
+    }
+
+    /**
+     * Get list of registered method names.
+     *
+     * @returns Array of method names
+     */
+    getMethods(): string[] {
+        return Object.keys(this.methods);
+    }
+}

@@ -11,70 +11,26 @@ import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
 
-/**
- * Sub-agent-specific metadata structure.
- * Stored in SessionData.metadata.subAgent for sub-agent sessions.
- *
- * Note: This is now minimal - only stores parentSessionId for hierarchy tracking.
- * Other sub-agent tracking (depth, lifecycle, agentIdentifier) is handled by
- * SubAgentCoordinator in-memory.
- */
-export interface SubAgentMetadata {
-    /**
-     * Parent session ID for hierarchical sessions
-     */
-    parentSessionId: string;
-}
-
-/**
- * Session metadata returned by getSessionMetadata() API
- */
 export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
     messageCount: number;
     title?: string;
-    type: string;
-    metadata?: Record<string, any>;
+    // Additional metadata for session management
 }
 
 export interface SessionManagerConfig {
     maxSessions?: number;
     sessionTTL?: number;
-    maxSubAgentDepth?: number; // Maximum nesting depth for sub-agents (default: 1 - allows one level: parent → child)
-    subAgentLifecycle?: 'ephemeral' | 'persistent'; // Lifecycle policy for sub-agents (default: persistent)
 }
 
-/**
- * Internal session data structure stored in database.
- * - type: Quick filter/identifier ('primary', 'sub-agent', 'scheduled', 'task')
- * - metadata: Type-specific flexible data (e.g., metadata.subAgent for sub-agent sessions)
- */
 export interface SessionData {
     id: string;
-
-    /**
-     * Session type - for quick filtering and identification
-     * Common types: 'primary', 'sub-agent', 'scheduled', 'task'
-     * Extensible to support custom session types from plugins/extensions
-     */
-    type: string;
-
     userId?: string;
-
-    /**
-     * Type-specific flexible metadata (not indexed, not used for filtering)
-     * Examples:
-     * - subAgent: SubAgentMetadata (for sub-agent sessions)
-     * - scheduled: { cronExpression, nextRun } (for scheduled sessions)
-     * - task: { priority, assignee } (for task sessions)
-     */
-    metadata?: Record<string, any>;
-
-    // Standard tracking fields
     createdAt: number;
     lastActivity: number;
     messageCount: number;
+    metadata?: Record<string, any>;
 }
 
 /**
@@ -97,15 +53,12 @@ export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
     private readonly maxSessions: number;
     private readonly sessionTTL: number;
-    private readonly maxSubAgentDepth: number;
-    private readonly subAgentLifecycle: 'ephemeral' | 'persistent';
     private initialized = false;
     private cleanupInterval?: NodeJS.Timeout;
     private initializationPromise!: Promise<void>;
     // Add a Map to track ongoing session creation operations to prevent race conditions
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
     private logger: IDextoLogger;
-    private static readonly DEFAULT_SESSION_TYPE = 'primary';
 
     constructor(
         private services: {
@@ -124,8 +77,6 @@ export class SessionManager {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
         this.logger = logger.createChild(DextoLogComponent.SESSION);
-        this.maxSubAgentDepth = config.maxSubAgentDepth ?? 1; // Default: allows one level (parent 0 → child 1)
-        this.subAgentLifecycle = config.subAgentLifecycle ?? 'persistent'; // Default: persistent for sub-agents
     }
 
     /**
@@ -209,99 +160,16 @@ export class SessionManager {
     }
 
     /**
-     * Helper to extract sub-agent metadata from session data
-     */
-    private getSubAgentMetadata(sessionData: SessionData): SubAgentMetadata | undefined {
-        return sessionData.metadata?.subAgent as SubAgentMetadata | undefined;
-    }
-
-    /**
-     * Helper to normalize session type for legacy session entries
-     */
-    private normalizeType(type?: string): string {
-        const normalized = type?.trim();
-        return normalized && normalized.length > 0
-            ? normalized
-            : SessionManager.DEFAULT_SESSION_TYPE;
-    }
-
-    /**
-     * Determine the session type and compute sub-agent metadata when needed.
-     */
-    private async resolveSessionTypeAndMetadata(options?: {
-        type?: string;
-        subAgent?: Partial<SubAgentMetadata>;
-    }): Promise<{ type: string; subAgentMetadata?: SubAgentMetadata }> {
-        const requestedType = options?.type?.trim();
-        const wantsSubAgent = requestedType === 'sub-agent' || Boolean(options?.subAgent);
-
-        if (!wantsSubAgent) {
-            if (requestedType === '') {
-                throw SessionError.invalidMetadata('type', requestedType, 'type cannot be empty');
-            }
-            return { type: this.normalizeType(requestedType) };
-        }
-
-        const parentSessionId = options?.subAgent?.parentSessionId;
-        if (!parentSessionId) {
-            throw SessionError.invalidMetadata(
-                'subAgent.parentSessionId',
-                undefined,
-                'parentSessionId is required for sub-agent sessions'
-            );
-        }
-
-        const subAgentMetadata: SubAgentMetadata = {
-            parentSessionId,
-        };
-
-        return { type: 'sub-agent', subAgentMetadata };
-    }
-
-    /**
      * Creates a new chat session or returns an existing one.
      *
      * @param sessionId Optional session ID. If not provided, a UUID will be generated.
-     * @param options Optional session creation options
      * @returns The created or existing ChatSession
-     * @throws Error if maximum sessions limit is reached or depth limit exceeded
-     *
-     * @example
-     * // Create a primary session
-     * await createSession();
-     *
-     * // Create a sub-agent session
-     * await createSession(undefined, {
-     *   type: 'sub-agent',
-     *   subAgent: {
-     *     parentSessionId: parentId
-     *   },
-     *   agentConfig: customAgent
-     * });
+     * @throws Error if maximum sessions limit is reached
      */
-    public async createSession(
-        sessionId?: string,
-        options?: {
-            type?: string;
-            subAgent?: Partial<SubAgentMetadata>;
-            metadata?: Record<string, any>;
-            agentConfig?: import('../agent/schemas.js').AgentConfig;
-        }
-    ): Promise<ChatSession> {
+    public async createSession(sessionId?: string): Promise<ChatSession> {
         await this.ensureInitialized();
 
         const id = sessionId ?? randomUUID();
-
-        const { type, subAgentMetadata } = await this.resolveSessionTypeAndMetadata(options);
-
-        // Build metadata structure
-        let metadata = options?.metadata || {};
-        if (subAgentMetadata) {
-            metadata = {
-                ...metadata,
-                subAgent: subAgentMetadata,
-            };
-        }
 
         // Check if there's already a pending creation for this session ID
         if (this.pendingCreations.has(id)) {
@@ -311,17 +179,11 @@ export class SessionManager {
         // Check if session already exists in memory
         if (this.sessions.has(id)) {
             await this.updateSessionActivity(id);
-            // Note: Existing sessions don't get their config updated on retrieval
-            // This is intentional to maintain session consistency
             return this.sessions.get(id)!;
         }
 
         // Create a promise for the session creation and track it to prevent concurrent operations
-        const creationPromise = this.createSessionInternal(id, {
-            type,
-            metadata,
-            ...(options?.agentConfig && { agentConfig: options.agentConfig }),
-        });
+        const creationPromise = this.createSessionInternal(id);
         this.pendingCreations.set(id, creationPromise);
 
         try {
@@ -337,40 +199,22 @@ export class SessionManager {
      * Internal method that handles the actual session creation logic.
      * This method implements atomic session creation to prevent race conditions.
      */
-    private async createSessionInternal(
-        id: string,
-        options: {
-            type: string;
-            metadata?: Record<string, any>;
-            agentConfig?: import('../agent/schemas.js').AgentConfig;
-        }
-    ): Promise<ChatSession> {
+    private async createSessionInternal(id: string): Promise<ChatSession> {
         // Clean up expired sessions first
         await this.cleanupExpiredSessions();
 
         // Check if session exists in storage (could have been created by another process)
         const sessionKey = `session:${id}`;
-        const existingData = await this.services.storageManager
+        const existingMetadata = await this.services.storageManager
             .getDatabase()
             .get<SessionData>(sessionKey);
-        if (existingData) {
-            const type = this.normalizeType(existingData.type);
-
-            // Backfill legacy records that lacked type
-            if (!existingData.type) {
-                existingData.type = type;
-                await this.services.storageManager.getDatabase().set(sessionKey, existingData);
-            }
-
+        if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
-            // Note: Restored sessions use parent agent config, not custom sub-agent configs
-            // This is intentional as agentConfig is session-creation-time only
             const session = new ChatSession(
                 { ...this.services, sessionManager: this },
                 id,
-                this.logger,
-                undefined // agentConfig - not restored
+                this.logger
             );
             await session.init();
             this.sessions.set(id, session);
@@ -385,14 +229,9 @@ export class SessionManager {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
 
-        // Create new session metadata
+        // Create new session metadata first to "reserve" the session slot
         const sessionData: SessionData = {
             id,
-            type: options.type,
-            ...(options.metadata &&
-                Object.keys(options.metadata).length > 0 && {
-                    metadata: options.metadata,
-                }),
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
@@ -403,9 +242,9 @@ export class SessionManager {
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
         } catch (error) {
             // If storage fails, another concurrent creation might have succeeded
-            this.logger.error(
-                `Failed to store session metadata for ${id}: ${error instanceof Error ? error.message : String(error)}`
-            );
+            this.logger.error(`Failed to store session metadata for ${id}:`, {
+                error: error instanceof Error ? error.message : String(error),
+            });
             // Re-throw the original error to maintain test compatibility
             throw error;
         }
@@ -413,13 +252,7 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            // Pass agentConfig to ChatSession
-            session = new ChatSession(
-                { ...this.services, sessionManager: this },
-                id,
-                this.logger,
-                options.agentConfig
-            );
+            session = new ChatSession({ ...this.services, sessionManager: this }, id, this.logger);
             await session.init();
             this.sessions.set(id, session);
 
@@ -428,7 +261,7 @@ export class SessionManager {
                 .getCache()
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
 
-            this.logger.info(`Created new session: ${id} [${options.type}]`);
+            this.logger.info(`Created new session: ${id}`);
             return session;
         } catch (error) {
             // If session creation fails after we've claimed the slot, clean up the metadata
@@ -440,17 +273,6 @@ export class SessionManager {
             const reason = error instanceof Error ? error.message : 'unknown error';
             throw SessionError.initializationFailed(id, reason);
         }
-    }
-
-    /**
-     * Gets or creates the default session.
-     * This is used for backward compatibility with single-session operations.
-     *
-     * @returns The default ChatSession (creates one if it doesn't exist)
-     */
-    public async getDefaultSession(): Promise<ChatSession> {
-        const defaultSessionId = 'default';
-        return await this.createSession(defaultSessionId);
     }
 
     /**
@@ -483,18 +305,11 @@ export class SessionManager {
                 .getDatabase()
                 .get<SessionData>(sessionKey);
             if (sessionData) {
-                const type = this.normalizeType(sessionData.type);
-                if (!sessionData.type) {
-                    sessionData.type = type;
-                    await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-                }
-
                 // Restore session to memory
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
                     sessionId,
-                    this.logger,
-                    undefined // agentConfig - not restored
+                    this.logger
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);
@@ -532,19 +347,12 @@ export class SessionManager {
 
     /**
      * Deletes a session and its conversation history, removing everything from memory and storage.
-     * Also cascades deletion to all child sessions (sub-agents).
      * Used for user-initiated permanent deletion.
      *
      * @param sessionId The session ID to delete
      */
     public async deleteSession(sessionId: string): Promise<void> {
         await this.ensureInitialized();
-
-        // First, recursively delete all child sessions (sub-agents)
-        const childSessionIds = await this.getChildSessions(sessionId);
-        for (const childId of childSessionIds) {
-            await this.deleteSession(childId); // Recursive call
-        }
 
         // Get session (load from storage if not in memory) to clear conversation history
         const session = await this.getSession(sessionId);
@@ -597,53 +405,14 @@ export class SessionManager {
     }
 
     /**
-     * Lists active session IDs, optionally filtered by criteria.
+     * Lists all active session IDs.
      *
-     * @param filters Optional filters to narrow results
-     * @returns Array of session IDs matching the filters
-     *
-     * @example
-     * // Get all primary sessions
-     * await listSessions({ type: 'primary' });
-     *
-     * // Get all sub-agents of a parent
-     * await listSessions({ parentSessionId: 'abc-123' });
+     * @returns Array of active session IDs
      */
-    public async listSessions(filters?: {
-        type?: string;
-        parentSessionId?: string;
-    }): Promise<string[]> {
+    public async listSessions(): Promise<string[]> {
         await this.ensureInitialized();
-
-        // Get all sessions
         const sessionKeys = await this.services.storageManager.getDatabase().list('session:');
-
-        // If no filters, return all
-        if (!filters) {
-            return sessionKeys.map((key) => key.replace('session:', ''));
-        }
-
-        // Filter sessions by criteria
-        const matchingSessions: string[] = [];
-        for (const key of sessionKeys) {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(key);
-            if (!sessionData) continue;
-
-            const type = this.normalizeType(sessionData.type);
-            const subAgent = this.getSubAgentMetadata(sessionData);
-
-            // Apply filters
-            if (filters.type && type !== filters.type) continue;
-            if (filters.parentSessionId && subAgent?.parentSessionId !== filters.parentSessionId)
-                continue;
-
-            // All filters passed
-            matchingSessions.push(sessionData.id);
-        }
-
-        return matchingSessions;
+        return sessionKeys.map((key) => key.replace('session:', ''));
     }
 
     /**
@@ -658,26 +427,14 @@ export class SessionManager {
         const sessionData = await this.services.storageManager
             .getDatabase()
             .get<SessionData>(sessionKey);
-
-        if (!sessionData) {
-            return undefined;
-        }
-
-        const type = this.normalizeType(sessionData.type);
-
-        const result: SessionMetadata = {
-            createdAt: sessionData.createdAt,
-            lastActivity: sessionData.lastActivity,
-            messageCount: sessionData.messageCount,
-            title: sessionData.metadata?.title,
-            type,
-        };
-
-        if (sessionData.metadata) {
-            result.metadata = sessionData.metadata;
-        }
-
-        return result;
+        return sessionData
+            ? {
+                  createdAt: sessionData.createdAt,
+                  lastActivity: sessionData.lastActivity,
+                  messageCount: sessionData.messageCount,
+                  title: sessionData.metadata?.title,
+              }
+            : undefined;
     }
 
     /**
@@ -687,8 +444,6 @@ export class SessionManager {
         return {
             maxSessions: this.maxSessions,
             sessionTTL: this.sessionTTL,
-            maxSubAgentDepth: this.maxSubAgentDepth,
-            subAgentLifecycle: this.subAgentLifecycle,
         };
     }
 
@@ -899,42 +654,6 @@ export class SessionManager {
         const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} using ${newLLMConfig.router} router for session ${sessionId}`;
 
         return { message, warnings: [] };
-    }
-
-    /**
-     * Switch LLM for the default session.
-     * @param newLLMConfig The new LLM configuration to apply
-     * @returns Result object with success message and any warnings
-     */
-    public async switchLLMForDefaultSession(
-        newLLMConfig: ValidatedLLMConfig
-    ): Promise<{ message: string; warnings: string[] }> {
-        const defaultSession = await this.getDefaultSession();
-
-        await defaultSession.switchLLM(newLLMConfig);
-
-        this.services.agentEventBus.emit('dexto:llmSwitched', {
-            newConfig: newLLMConfig,
-            router: newLLMConfig.router,
-            historyRetained: true,
-            sessionIds: [defaultSession.id],
-        });
-
-        const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} using ${newLLMConfig.router} router`;
-
-        return { message, warnings: [] };
-    }
-
-    /**
-     * Get all child sessions for a given parent session ID.
-     * Used for session hierarchy management and cascading operations.
-     *
-     * @param parentSessionId The parent session ID
-     * @returns Array of session IDs that are children of the parent
-     */
-    public async getChildSessions(parentSessionId: string): Promise<string[]> {
-        // Use the filtered listSessions method for consistency
-        return await this.listSessions({ parentSessionId });
     }
 
     /**

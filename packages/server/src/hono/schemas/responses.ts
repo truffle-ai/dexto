@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema } from '@dexto/core';
 
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
@@ -17,7 +18,20 @@ import { z } from 'zod';
 export { MemorySchema } from '@dexto/core';
 
 // LLM schemas
-export { LLMConfigSchema, LLMConfigBaseSchema, type ValidatedLLMConfig } from '@dexto/core';
+export { LLMConfigBaseSchema, type ValidatedLLMConfig } from '@dexto/core';
+
+// LLM config response schema - omits apiKey for security
+// API keys should never be returned in responses
+export const LLMConfigResponseSchema = CoreLLMConfigBaseSchema.omit({ apiKey: true })
+    .extend({
+        hasApiKey: z.boolean().optional().describe('Whether an API key is configured'),
+    })
+    .describe('LLM configuration (apiKey omitted for security)');
+
+// Full LLM config schema for requests (includes apiKey with writeOnly)
+export const LLMConfigSchema = CoreLLMConfigBaseSchema.describe('LLM configuration with API key');
+
+export type LLMConfigResponse = z.output<typeof LLMConfigResponseSchema>;
 
 // Agent schemas
 export { AgentCardSchema, type AgentCard } from '@dexto/core';

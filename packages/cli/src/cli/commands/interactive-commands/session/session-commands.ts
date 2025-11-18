@@ -20,7 +20,7 @@
 
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
-import { CommandDefinition } from '../command-parser.js';
+import { CommandDefinition, getCLISessionId } from '../command-parser.js';
 import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 
@@ -32,12 +32,15 @@ function escapeRegExp(string: string): string {
 }
 
 /**
- * Helper to get current session info
+ * Helper to get current session info from CLI context
  */
 async function getCurrentSessionInfo(
     agent: DextoAgent
-): Promise<{ id: string; metadata: SessionMetadata | undefined }> {
-    const currentId = agent.getCurrentSessionId();
+): Promise<{ id: string; metadata: SessionMetadata | undefined } | null> {
+    const currentId = getCLISessionId(agent);
+    if (!currentId) {
+        return null;
+    }
     const metadata = await agent.getSessionMetadata(currentId);
     return { id: currentId, metadata };
 }
@@ -115,7 +118,7 @@ export const sessionCommand: CommandDefinition = {
                     let displayed = 0;
                     for (const { id, metadata } of entries) {
                         if (!metadata) continue;
-                        const isCurrent = id === current.id;
+                        const isCurrent = current ? id === current.id : false;
                         console.log(`  ${formatSessionInfo(id, metadata, isCurrent)}`);
                         displayed++;
                     }
@@ -137,9 +140,15 @@ export const sessionCommand: CommandDefinition = {
             aliases: ['h'],
             handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
                 try {
-                    // Use provided session ID or current session
-                    const sessionId =
-                        args.length > 0 && args[0] ? args[0] : agent.getCurrentSessionId();
+                    // Use provided session ID or current session from CLI context
+                    const currentSessionId = getCLISessionId(agent);
+                    const sessionId = args.length > 0 && args[0] ? args[0] : currentSessionId;
+
+                    if (!sessionId) {
+                        return CommandOutputHelper.error(
+                            new Error('No session available. Create a session first.')
+                        );
+                    }
 
                     await displaySessionHistory(sessionId, agent);
                     return CommandOutputHelper.noOutput(); // History is displayed by displaySessionHistory
@@ -173,7 +182,7 @@ export const sessionCommand: CommandDefinition = {
                     const current = await getCurrentSessionInfo(agent);
 
                     // Check if trying to delete current session
-                    if (sessionId === current.id) {
+                    if (current && sessionId === current.id) {
                         return CommandOutputHelper.warning(
                             '⚠️  Cannot delete the currently active session.\n   Switch to another session first, then delete this one.'
                         );
@@ -268,8 +277,15 @@ export const historyCommand: CommandDefinition = {
     aliases: ['hist'],
     handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
         try {
-            // Use provided session ID or current session
-            const sessionId = args.length > 0 && args[0] ? args[0] : agent.getCurrentSessionId();
+            // Use provided session ID or current session from CLI context
+            const currentSessionId = getCLISessionId(agent);
+            const sessionId = args.length > 0 && args[0] ? args[0] : currentSessionId;
+
+            if (!sessionId) {
+                return CommandOutputHelper.error(
+                    new Error('No session available. Create a session first.')
+                );
+            }
 
             await displaySessionHistory(sessionId, agent);
             return CommandOutputHelper.noOutput();

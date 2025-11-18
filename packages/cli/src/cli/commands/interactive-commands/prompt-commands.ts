@@ -14,6 +14,7 @@ import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
 import type { CommandDefinition } from './command-parser.js';
+import { getCLISessionId } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
@@ -285,7 +286,13 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 if (finalText.trim()) {
                     // agent.run() will expand @resource mentions automatically
                     // This will trigger the normal message flow in ink-cli
-                    const sessionId = agent.getCurrentSessionId();
+                    const sessionId = getCLISessionId(agent);
+                    if (!sessionId) {
+                        const errorMsg =
+                            '❌ No active session. This should not happen in interactive mode.';
+                        console.error(chalk.red(errorMsg));
+                        return formatForInkCli(errorMsg);
+                    }
                     await agent.run(finalText.trim(), undefined, undefined, sessionId);
                     // Return empty string to indicate command handled (ink-cli will show the message)
                     return '';

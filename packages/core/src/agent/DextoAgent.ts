@@ -22,7 +22,6 @@ import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
-import { DextoValidationError } from '@core/errors/DextoValidationError.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
 import type { McpServerConfig } from '@core/mcp/schemas.js';
 import {
@@ -43,7 +42,6 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
-import { SubAgentCoordinator } from './sub-agent-coordinator.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -145,15 +143,6 @@ export class DextoAgent {
     // Search service for conversation search
     private searchService!: SearchService;
 
-    // Sub-agent coordinator for task handoff
-    private subAgentCoordinator!: SubAgentCoordinator;
-
-    // Default session for backward compatibility
-    private defaultSession: ChatSession | null = null;
-
-    // Current default session ID for loadSession functionality
-    private currentDefaultSessionId: string = 'default';
-
     // Track initialization state
     private _isStarted: boolean = false;
     private _isStopped: boolean = false;
@@ -233,14 +222,6 @@ export class DextoAgent {
             // Initialize search service from services
             this.searchService = services.searchService;
 
-            // Initialize sub-agent coordinator for task handoff
-            this.subAgentCoordinator = new SubAgentCoordinator(
-                this.sessionManager,
-                this.stateManager,
-                this.agentEventBus,
-                this.logger
-            );
-
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
             const promptManager = new PromptManager(
@@ -253,9 +234,6 @@ export class DextoAgent {
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
-
-            // Configure agent reference for internal tools (e.g., spawn_agent)
-            this.toolManager.setAgent(this);
 
             // Note: Telemetry is initialized in createAgentServices() before services are created
             // This ensures decorators work correctly on all services
@@ -439,21 +417,25 @@ export class DextoAgent {
      * @param textInput - The user's text message or query to process
      * @param imageDataInput - Optional image data and MIME type for multimodal input
      * @param fileDataInput - Optional file data and MIME type for file input
-     * @param sessionId - Optional session ID for multi-session scenarios
+     * @param sessionId - Session ID for the conversation (required)
+     * @param stream - Whether to stream the response (default: false)
      * @returns Promise that resolves to the AI's response text, or null if no significant response
      * @throws Error if processing fails
      */
     public async run(
         textInput: string,
-        imageDataInput?: { image: string; mimeType: string },
-        fileDataInput?: { data: string; mimeType: string; filename?: string },
-        sessionId?: string,
+        imageDataInput: { image: string; mimeType: string } | undefined,
+        fileDataInput: { data: string; mimeType: string; filename?: string } | undefined,
+        sessionId: string,
         stream: boolean = false
     ): Promise<string> {
         this.ensureStarted();
 
-        // Determine target session ID for validation
-        const targetSessionId = sessionId || this.currentDefaultSessionId;
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
+        }
+        const targetSessionId: string = sessionId;
 
         // Propagate sessionId through OpenTelemetry context for distributed tracing
         // This ensures all child spans will have access to the sessionId
@@ -620,160 +602,21 @@ export class DextoAgent {
     }
 
     /**
-     * Hand off a task to a sub-agent with specialized capabilities.
-     *
-     * This method encapsulates all complexity around sub-agent spawning:
-     * - Resolves agent configs (built-in names or file paths)
-     * - Validates depth limits
-     * - Sets up event forwarding automatically
-     * - Handles lifecycle management (ephemeral vs persistent)
-     * - Cleans up resources reliably
-     *
-     * @param task - The task description for the sub-agent
-     * @param options - Configuration for the handoff
-     * @returns Result containing the sub-agent's response and metadata
-     *
-     * @example
-     * ```typescript
-     * // Use a built-in agent
-     * const result = await agent.handoff(
-     *     "Review the authentication code in src/auth/",
-     *     { agent: "code-reviewer" }
-     * );
-     *
-     * // Use a custom agent config file
-     * const result = await agent.handoff(
-     *     "Analyze the API endpoints",
-     *     { agent: "./agents/api-analyzer.yml" }
-     * );
-     * ```
-     */
-    public async handoff(
-        task: string,
-        options?: {
-            /** Agent to use (built-in name like "general-purpose" or file path) */
-            agent?: string | AgentConfig;
-
-            /** Task description for logging/tracking */
-            description?: string;
-
-            /** Lifecycle policy (defaults to config) */
-            lifecycle?: 'ephemeral' | 'persistent';
-
-            /** Timeout in milliseconds */
-            timeout?: number;
-
-            /** Parent session ID (auto-detected if called during session.run()) */
-            parentSessionId?: string;
-
-            /** Working directory for resolving relative agent paths */
-            workingDir?: string;
-        }
-    ): Promise<{
-        result: string;
-        sessionId: string;
-        duration: number;
-        tokenUsage?: {
-            inputTokens?: number;
-            outputTokens?: number;
-            reasoningTokens?: number;
-            totalTokens?: number;
-        };
-        error?: string;
-    }> {
-        this.ensureStarted();
-
-        const startTime = Date.now();
-
-        // Determine parent session
-        const parentSessionId = options?.parentSessionId || this.currentDefaultSessionId;
-
-        this.logger.info(
-            `Handing off task to sub-agent: "${options?.description || task.substring(0, 50)}..." ` +
-                `(agent: ${typeof options?.agent === 'string' ? options.agent : 'custom config'})`
-        );
-
-        try {
-            // Spawn sub-agent
-            const handle = await this.subAgentCoordinator.spawn({
-                parentSessionId,
-                ...(typeof options?.agent === 'string' && { agentReference: options.agent }),
-                ...(typeof options?.agent === 'object' && { agentConfig: options.agent }),
-                ...(options?.lifecycle && { lifecycle: options.lifecycle }),
-                ...(options?.workingDir && { workingDir: options.workingDir }),
-            });
-
-            // Run task (with optional timeout)
-            let result: string;
-            if (options?.timeout) {
-                result = await this.runWithTimeout(handle, task, options.timeout);
-            } else {
-                result = await handle.run(task);
-            }
-
-            // Get metrics
-            const duration = Date.now() - startTime;
-
-            this.logger.info(
-                `Handoff completed successfully in ${duration}ms (session: ${handle.sessionId})`
-            );
-
-            return {
-                result,
-                sessionId: handle.sessionId,
-                duration,
-                // TODO: Add token usage tracking for sub-agents
-            };
-        } catch (error) {
-            const duration = Date.now() - startTime;
-            this.logger.error(
-                `Handoff failed after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`
-            );
-
-            return {
-                result: '',
-                sessionId: '',
-                duration,
-                error: error instanceof Error ? error.message : String(error),
-            };
-        }
-    }
-
-    /**
-     * Run a task with timeout.
-     * @private
-     */
-    private async runWithTimeout(
-        handle: import('./sub-agent-coordinator.js').SubAgentHandle,
-        task: string,
-        timeout: number
-    ): Promise<string> {
-        return Promise.race([
-            handle.run(task),
-            new Promise<string>((_, reject) =>
-                setTimeout(() => {
-                    handle.cancel();
-                    reject(new Error(`Sub-agent timeout after ${timeout}ms`));
-                }, timeout)
-            ),
-        ]);
-    }
-
-    /**
-     * Cancels the currently running turn for a session (or the default session).
+     * Cancels the currently running turn for a session.
      * Safe to call even if no run is in progress.
-     * @param sessionId Optional session id; defaults to current default session
+     * @param sessionId Session id (required)
      * @returns true if a run was in progress and was signaled to abort; false otherwise
      */
-    public async cancel(sessionId?: string): Promise<boolean> {
+    public async cancel(sessionId: string): Promise<boolean> {
         this.ensureStarted();
-        const targetSessionId = sessionId || this.currentDefaultSessionId;
-        // Try to use in-memory default session if applicable
-        if (!sessionId && this.defaultSession && this.defaultSession.id === targetSessionId) {
-            return this.defaultSession.cancel();
+
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
         }
-        // If specific session is requested, attempt to fetch from sessionManager cache (memory only)
-        const existing = await this.sessionManager.getSession(targetSessionId, false);
+
+        // Attempt to fetch from sessionManager cache (memory only)
+        const existing = await this.sessionManager.getSession(sessionId, false);
         if (existing) {
             return existing.cancel();
         }
@@ -785,60 +628,12 @@ export class DextoAgent {
 
     /**
      * Creates a new chat session or returns an existing one.
-     *
      * @param sessionId Optional session ID. If not provided, a UUID will be generated.
-     * @param options Optional session creation options including type, sub-agent metadata, and custom metadata
      * @returns The created or existing ChatSession
-     *
-     * @example
-     * // Create a primary session
-     * await agent.createSession();
-     *
-     * // Create a sub-agent session
-     * await agent.createSession(undefined, {
-     *   type: 'sub-agent',
-     *   subAgent: {
-     *     parentSessionId: 'parent-id',
-     *     depth: 1,
-     *     lifecycle: 'ephemeral'
-     *   }
-     * });
-     *
-     * // Create a custom session type
-     * await agent.createSession('analysis-task', {
-     *   type: 'background-task',
-     *   metadata: { priority: 'high', category: 'analysis' }
-     * });
      */
-    public async createSession(
-        sessionId?: string,
-        options?: {
-            type?: string;
-            subAgent?: Partial<import('../session/session-manager.js').SubAgentMetadata>;
-            metadata?: Record<string, any>;
-            agentConfig?: import('../agent/schemas.js').AgentConfig;
-            agentIdentifier?: string;
-        }
-    ): Promise<ChatSession> {
+    public async createSession(sessionId?: string): Promise<ChatSession> {
         this.ensureStarted();
-
-        // Validate agentConfig at DextoAgent boundary per CLAUDE.md architecture guidelines
-        let normalizedOptions = options;
-
-        if (options?.agentConfig) {
-            const parsed = AgentConfigSchema.safeParse(options.agentConfig);
-            if (!parsed.success) {
-                const result = fail(zodToIssues(parsed.error, 'error'));
-                throw new DextoValidationError(result.issues);
-            }
-
-            normalizedOptions = {
-                ...options,
-                agentConfig: parsed.data,
-            };
-        }
-
-        return await this.sessionManager.createSession(sessionId, normalizedOptions);
+        return await this.sessionManager.createSession(sessionId);
     }
 
     /**
@@ -852,24 +647,12 @@ export class DextoAgent {
     }
 
     /**
-     * Lists active session IDs, optionally filtered by scope criteria.
-     *
-     * @param filters Optional scope-based filters
-     * @returns Array of session IDs matching the filters
-     *
-     * @example
-     * // Get all primary sessions
-     * await agent.listSessions({ type: 'primary' });
-     *
-     * // Get all sub-agents
-     * await agent.listSessions({ type: 'sub-agent' });
+     * Lists all active session IDs.
+     * @returns Array of session IDs
      */
-    public async listSessions(filters?: {
-        type?: string;
-        parentSessionId?: string;
-    }): Promise<string[]> {
+    public async listSessions(): Promise<string[]> {
         this.ensureStarted();
-        return await this.sessionManager.listSessions(filters);
+        return await this.sessionManager.listSessions();
     }
 
     /**
@@ -879,10 +662,6 @@ export class DextoAgent {
      */
     public async endSession(sessionId: string): Promise<void> {
         this.ensureStarted();
-        // If ending the currently loaded default session, clear our reference
-        if (sessionId === this.currentDefaultSessionId) {
-            this.defaultSession = null;
-        }
         return this.sessionManager.endSession(sessionId);
     }
 
@@ -893,10 +672,6 @@ export class DextoAgent {
      */
     public async deleteSession(sessionId: string): Promise<void> {
         this.ensureStarted();
-        // If deleting the currently loaded default session, clear our reference
-        if (sessionId === this.currentDefaultSessionId) {
-            this.defaultSession = null;
-        }
         return this.sessionManager.deleteSession(sessionId);
     }
 
@@ -1063,100 +838,25 @@ export class DextoAgent {
     }
 
     /**
-     * Loads a session as the new "default" session for this agent.
-     * All subsequent operations that don't specify a session ID will use this session.
-     * This provides a clean "current working session" pattern for API users.
-     *
-     * @param sessionId The session ID to load as default, or null to reset to original default
-     * @throws Error if session doesn't exist
-     *
-     * @example
-     * ```typescript
-     * // Load a specific session as default
-     * await agent.loadSessionAsDefault('project-alpha');
-     * await agent.run("What's the status?"); // Uses project-alpha session
-     *
-     * // Reset to original default
-     * await agent.loadSessionAsDefault(null);
-     * await agent.run("Hello"); // Uses 'default' session
-     * ```
-     */
-    public async loadSessionAsDefault(sessionId: string | null = null): Promise<void> {
-        this.ensureStarted();
-        if (sessionId === null) {
-            this.currentDefaultSessionId = 'default';
-            this.defaultSession = null; // Clear cached session to force reload
-            this.logger.debug('Agent default session reset to original default');
-            return;
-        }
-
-        // Verify session exists before loading it
-        const session = await this.sessionManager.getSession(sessionId);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-
-        this.currentDefaultSessionId = sessionId;
-        this.defaultSession = null; // Clear cached session to force reload
-        this.logger.info(`Agent default session changed to: ${sessionId}`);
-    }
-
-    /**
-     * Gets the currently loaded default session ID.
-     * This reflects the session loaded via loadSession().
-     *
-     * @returns The current default session ID
-     */
-    public getCurrentSessionId(): string {
-        this.ensureStarted();
-        return this.currentDefaultSessionId;
-    }
-
-    /**
-     * Gets the currently loaded default session.
-     * This respects the session loaded via loadSession().
-     *
-     * @returns The current default ChatSession
-     */
-    public async getDefaultSession(): Promise<ChatSession> {
-        this.ensureStarted();
-        if (!this.defaultSession || this.defaultSession.id !== this.currentDefaultSessionId) {
-            this.defaultSession = await this.sessionManager.createSession(
-                this.currentDefaultSessionId
-            );
-        }
-        return this.defaultSession;
-    }
-
-    /**
-     * Resets the conversation history for a specific session or the default session.
+     * Resets the conversation history for a specific session.
      * Keeps the session alive but the conversation history is cleared.
-     * @param sessionId Optional session ID. If not provided, resets the currently loaded default session.
+     * @param sessionId Session ID (required)
      */
-    public async resetConversation(sessionId?: string): Promise<void> {
+    public async resetConversation(sessionId: string): Promise<void> {
         this.ensureStarted();
+
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
+        }
+
         try {
-            const targetSessionId = sessionId || this.currentDefaultSessionId;
-
-            // Ensure session exists or create loaded default session
-            if (!sessionId) {
-                // Use loaded default session for backward compatibility
-                if (
-                    !this.defaultSession ||
-                    this.defaultSession.id !== this.currentDefaultSessionId
-                ) {
-                    this.defaultSession = await this.sessionManager.createSession(
-                        this.currentDefaultSessionId
-                    );
-                }
-            }
-
             // Use SessionManager's resetSession method for better consistency
-            await this.sessionManager.resetSession(targetSessionId);
+            await this.sessionManager.resetSession(sessionId);
 
-            this.logger.info(`DextoAgent conversation reset for session: ${targetSessionId}`);
+            this.logger.info(`DextoAgent conversation reset for session: ${sessionId}`);
             this.agentEventBus.emit('dexto:conversationReset', {
-                sessionId: targetSessionId,
+                sessionId: sessionId,
             });
         } catch (error) {
             this.logger.error(
@@ -1275,9 +975,16 @@ export class DextoAgent {
         if (sessionScope === '*') {
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
+            // Verify session exists before switching LLM
+            const session = await this.sessionManager.getSession(sessionScope);
+            if (!session) {
+                throw SessionError.notFound(sessionScope);
+            }
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
-            await this.sessionManager.switchLLMForDefaultSession(validatedConfig);
+            // No sessionScope provided - this is a configuration-level switch only
+            // State manager has been updated, individual sessions will pick up changes when created
+            this.logger.debug('LLM config updated at agent level (no active session switches)');
         }
     }
 

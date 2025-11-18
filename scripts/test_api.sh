@@ -245,7 +245,7 @@ main() {
   run_test "GET /api/greeting" GET "/api/greeting" 200 || failures=$((failures+1))
 
   # A2A discovery
-  run_test "GET /.well-known/agent.json" GET "/.well-known/agent.json" 200 || failures=$((failures+1))
+  run_test "GET /.well-known/agent-card.json" GET "/.well-known/agent-card.json" 200 || failures=$((failures+1))
 
   # OpenAPI schema
   run_test "GET /openapi.json" GET "/openapi.json" 200 || failures=$((failures+1))

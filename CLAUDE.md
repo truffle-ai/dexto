@@ -209,7 +209,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 - **MCP integration**: Multiple transport types (stdio, HTTP, SSE) with tool aggregation
 - **WebSocket events**: `thinking`, `chunk`, `toolCall`, `toolResult`, `response`
 - **Session management**: Multi-session support with persistent storage
-- **A2A communication**: Agent-to-Agent via `.well-known/agent.json`
+- **A2A communication**: Agent-to-Agent via `.well-known/agent-card.json`
 
 ### WebUI Layer (`packages/webui/`)
 - **Next.js 14** with App Router, React 18, TypeScript, Tailwind CSS

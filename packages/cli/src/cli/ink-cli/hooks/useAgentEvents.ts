@@ -211,9 +211,24 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             dispatch({ type: 'CONVERSATION_RESET' });
         };
 
+        // Handle session creation (e.g., from /clear command)
+        // This maintains separation of concerns: commands emit events, UI handles state
+        const handleSessionCreated = (payload: { sessionId: string; switchTo: boolean }) => {
+            if (payload.switchTo) {
+                // Clear current messages and switch to new session
+                dispatch({ type: 'SESSION_CLEAR' });
+                dispatch({
+                    type: 'SESSION_SET',
+                    sessionId: payload.sessionId,
+                    hasActiveSession: true,
+                });
+            }
+        };
+
         // Subscribe to events
         bus.on('llmservice:switched', handleModelSwitch);
         bus.on('dexto:conversationReset', handleConversationReset);
+        bus.on('dexto:sessionCreated', handleSessionCreated);
 
         // Cleanup on unmount
         return () => {
@@ -226,6 +241,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             bus.off('dexto:approvalRequest', handleApprovalRequest);
             bus.off('llmservice:switched', handleModelSwitch);
             bus.off('dexto:conversationReset', handleConversationReset);
+            bus.off('dexto:sessionCreated', handleSessionCreated);
         };
     }, [agent, dispatch, isCancelling]);
 }

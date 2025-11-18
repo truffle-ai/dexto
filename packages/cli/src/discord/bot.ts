@@ -89,6 +89,12 @@ export function startDiscordBot(agent: DextoAgent) {
 
     const agentEventBus = agent.agentEventBus;
 
+    // Helper to get or create session for a Discord user
+    // Each Discord user gets their own persistent session
+    function getDiscordSessionId(userId: string): string {
+        return `discord-${userId}`;
+    }
+
     // Create Discord client
     const client = new Client({
         intents: [
@@ -162,8 +168,14 @@ export function startDiscordBot(agent: DextoAgent) {
             agentEventBus.on('llmservice:toolCall', toolCallHandler);
 
             try {
+                const sessionId = getDiscordSessionId(message.author.id);
                 await message.channel.sendTyping();
-                const responseText = await agent.run(userText, imageDataInput);
+                const responseText = await agent.run(
+                    userText,
+                    imageDataInput,
+                    undefined,
+                    sessionId
+                );
                 // Handle Discord's 2000 character limit
                 const MAX_LENGTH = 1900; // Leave some buffer
                 if (responseText && responseText.length <= MAX_LENGTH) {

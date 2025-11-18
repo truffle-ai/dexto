@@ -137,36 +137,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         );
     });
 
-    const currentRoute = createRoute({
-        method: 'get',
-        path: '/sessions/current',
-        summary: 'Get Current Session',
-        description: 'Retrieves the ID of the currently active session',
-        tags: ['sessions'],
-        responses: {
-            200: {
-                description: 'Current active session ID',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                currentSessionId: z
-                                    .string()
-                                    .nullable()
-                                    .describe('ID of the current session, or null if none'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-    app.openapi(currentRoute, (ctx) => {
-        const agent = getAgent();
-        const currentSessionId = agent.getCurrentSessionId();
-        return ctx.json({ currentSessionId });
-    });
-
     const getRoute = createRoute({
         method: 'get',
         path: '/sessions/{sessionId}',
@@ -312,33 +282,35 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     });
 
     const loadRoute = createRoute({
-        method: 'post',
+        method: 'get',
         path: '/sessions/{sessionId}/load',
         summary: 'Load Session',
-        description: 'Sets a session as the current active session',
+        description:
+            'Validates and retrieves session information. The client should track the active session.',
         tags: ['sessions'],
         request: {
             params: z.object({ sessionId: z.string().describe('Session identifier') }),
-            body: {
-                content: { 'application/json': { schema: z.object({}).strict().optional() } },
-            },
         },
         responses: {
             200: {
-                description: 'Session loaded or reset successfully',
+                description: 'Session information retrieved successfully',
                 content: {
                     'application/json': {
                         schema: z
                             .object({
-                                status: z.enum(['loaded', 'reset']).describe('Operation status'),
-                                sessionId: z
-                                    .string()
-                                    .nullable()
-                                    .describe('Loaded session ID or null if reset'),
-                                currentSession: z
-                                    .string()
-                                    .nullable()
-                                    .describe('Current active session ID'),
+                                session: SessionMetadataSchema.describe('Session metadata'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            404: {
+                description: 'Session not found',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                error: z.string().describe('Error message'),
                             })
                             .strict(),
                     },
@@ -349,21 +321,27 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
     app.openapi(loadRoute, async (ctx) => {
         const agent = getAgent();
         const { sessionId } = ctx.req.valid('param');
-        if (sessionId === 'null' || sessionId === 'undefined') {
-            await agent.loadSessionAsDefault(null);
-            return ctx.json({
-                status: 'reset',
-                sessionId: null,
-                currentSession: agent.getCurrentSessionId(),
-            });
+
+        // Validate that session exists
+        const sessionIds = await agent.listSessions();
+        if (!sessionIds.includes(sessionId)) {
+            return ctx.json({ error: `Session not found: ${sessionId}` }, 404);
         }
 
-        await agent.loadSessionAsDefault(sessionId);
-        return ctx.json({
-            status: 'loaded',
-            sessionId,
-            currentSession: agent.getCurrentSessionId(),
-        });
+        // Return session metadata
+        const metadata = await agent.getSessionMetadata(sessionId);
+        return ctx.json(
+            {
+                session: {
+                    id: sessionId,
+                    createdAt: metadata?.createdAt || null,
+                    lastActivity: metadata?.lastActivity || null,
+                    messageCount: metadata?.messageCount || 0,
+                    title: metadata?.title || null,
+                },
+            },
+            200
+        );
     });
 
     const patchRoute = createRoute({
