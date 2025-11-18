@@ -276,17 +276,6 @@ export class SessionManager {
     }
 
     /**
-     * Gets or creates the default session.
-     * This is used for backward compatibility with single-session operations.
-     *
-     * @returns The default ChatSession (creates one if it doesn't exist)
-     */
-    public async getDefaultSession(): Promise<ChatSession> {
-        const defaultSessionId = 'default';
-        return await this.createSession(defaultSessionId);
-    }
-
-    /**
      * Retrieves an existing session by ID.
      *
      * @param sessionId The session ID to retrieve
@@ -663,30 +652,6 @@ export class SessionManager {
         });
 
         const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} using ${newLLMConfig.router} router for session ${sessionId}`;
-
-        return { message, warnings: [] };
-    }
-
-    /**
-     * Switch LLM for the default session.
-     * @param newLLMConfig The new LLM configuration to apply
-     * @returns Result object with success message and any warnings
-     */
-    public async switchLLMForDefaultSession(
-        newLLMConfig: ValidatedLLMConfig
-    ): Promise<{ message: string; warnings: string[] }> {
-        const defaultSession = await this.getDefaultSession();
-
-        await defaultSession.switchLLM(newLLMConfig);
-
-        this.services.agentEventBus.emit('dexto:llmSwitched', {
-            newConfig: newLLMConfig,
-            router: newLLMConfig.router,
-            historyRetained: true,
-            sessionIds: [defaultSession.id],
-        });
-
-        const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} using ${newLLMConfig.router} router`;
 
         return { message, warnings: [] };
     }

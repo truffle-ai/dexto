@@ -129,10 +129,11 @@ console.log(`${stats.total} tools: ${stats.mcp} MCP, ${stats.internal} internal`
 
 ### Key Methods
 - `createSession(sessionId?)` - Create new session
-- `loadSession(sessionId)` - Load existing session
+- `getSession(sessionId)` - Retrieve existing session
 - `listSessions()` - List all sessions
 - `deleteSession(sessionId)` - Delete session
 - `getSessionHistory(sessionId)` - Get conversation history
+- `resetConversation(sessionId)` - Clear session history while keeping session active
 
 ### Session Features
 - Persistent conversation history
@@ -142,14 +143,17 @@ console.log(`${stats.total} tools: ${stats.mcp} MCP, ${stats.internal} internal`
 
 ### Usage Example
 ```typescript
-// Create and switch to new session
-const sessionId = await agent.createSession('work-session');
+// Create new session
+const session = await agent.createSession('work-session');
 
 // List all sessions
 const sessions = await agent.listSessions();
 
 // Get conversation history
 const history = await agent.getSessionHistory('work-session');
+
+// Use session explicitly in conversations
+await agent.run("Hello", undefined, undefined, session.id);
 ```
 
 ## StorageManager

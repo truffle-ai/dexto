@@ -143,12 +143,6 @@ export class DextoAgent {
     // Search service for conversation search
     private searchService!: SearchService;
 
-    // Default session for backward compatibility
-    private defaultSession: ChatSession | null = null;
-
-    // Current default session ID for loadSession functionality
-    private currentDefaultSessionId: string = 'default';
-
     // Track initialization state
     private _isStarted: boolean = false;
     private _isStopped: boolean = false;
@@ -423,21 +417,25 @@ export class DextoAgent {
      * @param textInput - The user's text message or query to process
      * @param imageDataInput - Optional image data and MIME type for multimodal input
      * @param fileDataInput - Optional file data and MIME type for file input
-     * @param sessionId - Optional session ID for multi-session scenarios
+     * @param sessionId - Session ID for the conversation (required)
+     * @param stream - Whether to stream the response (default: false)
      * @returns Promise that resolves to the AI's response text, or null if no significant response
      * @throws Error if processing fails
      */
     public async run(
         textInput: string,
-        imageDataInput?: { image: string; mimeType: string },
-        fileDataInput?: { data: string; mimeType: string; filename?: string },
-        sessionId?: string,
+        imageDataInput: { image: string; mimeType: string } | undefined,
+        fileDataInput: { data: string; mimeType: string; filename?: string } | undefined,
+        sessionId: string,
         stream: boolean = false
     ): Promise<string> {
         this.ensureStarted();
 
-        // Determine target session ID for validation
-        const targetSessionId = sessionId || this.currentDefaultSessionId;
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
+        }
+        const targetSessionId: string = sessionId;
 
         // Propagate sessionId through OpenTelemetry context for distributed tracing
         // This ensures all child spans will have access to the sessionId
@@ -622,6 +620,11 @@ export class DextoAgent {
         message: string,
         options?: import('./types.js').GenerateOptions
     ): Promise<import('./types.js').GenerateResponse> {
+        // Validate sessionId is provided
+        if (!options?.sessionId) {
+            throw new Error('sessionId is required in GenerateOptions');
+        }
+
         // Collect all events from stream
         const events: import('./types.js').StreamEvent[] = [];
 
@@ -635,14 +638,12 @@ export class DextoAgent {
             throw new Error('Stream did not complete successfully');
         }
 
-        const sessionId = options?.sessionId || this.currentDefaultSessionId;
-
         return {
             content: completeEvent.content,
             reasoning: completeEvent.reasoning,
             usage: completeEvent.usage,
             toolCalls: completeEvent.toolCalls,
-            sessionId,
+            sessionId: options.sessionId,
             messageId: completeEvent.messageId,
         };
     }
@@ -676,7 +677,12 @@ export class DextoAgent {
     ): Promise<AsyncIterableIterator<import('./types.js').StreamEvent>> {
         this.ensureStarted();
 
-        const sessionId = options?.sessionId || this.currentDefaultSessionId;
+        // Validate sessionId is provided
+        if (!options?.sessionId) {
+            throw new Error('sessionId is required in StreamOptions');
+        }
+
+        const sessionId = options.sessionId;
         const imageData = options?.imageData;
         const fileData = options?.fileData;
         const signal = options?.signal;
@@ -894,20 +900,21 @@ export class DextoAgent {
     }
 
     /**
-     * Cancels the currently running turn for a session (or the default session).
+     * Cancels the currently running turn for a session.
      * Safe to call even if no run is in progress.
-     * @param sessionId Optional session id; defaults to current default session
+     * @param sessionId Session id (required)
      * @returns true if a run was in progress and was signaled to abort; false otherwise
      */
-    public async cancel(sessionId?: string): Promise<boolean> {
+    public async cancel(sessionId: string): Promise<boolean> {
         this.ensureStarted();
-        const targetSessionId = sessionId || this.currentDefaultSessionId;
-        // Try to use in-memory default session if applicable
-        if (!sessionId && this.defaultSession && this.defaultSession.id === targetSessionId) {
-            return this.defaultSession.cancel();
+
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
         }
-        // If specific session is requested, attempt to fetch from sessionManager cache (memory only)
-        const existing = await this.sessionManager.getSession(targetSessionId, false);
+
+        // Attempt to fetch from sessionManager cache (memory only)
+        const existing = await this.sessionManager.getSession(sessionId, false);
         if (existing) {
             return existing.cancel();
         }
@@ -953,10 +960,6 @@ export class DextoAgent {
      */
     public async endSession(sessionId: string): Promise<void> {
         this.ensureStarted();
-        // If ending the currently loaded default session, clear our reference
-        if (sessionId === this.currentDefaultSessionId) {
-            this.defaultSession = null;
-        }
         return this.sessionManager.endSession(sessionId);
     }
 
@@ -967,10 +970,6 @@ export class DextoAgent {
      */
     public async deleteSession(sessionId: string): Promise<void> {
         this.ensureStarted();
-        // If deleting the currently loaded default session, clear our reference
-        if (sessionId === this.currentDefaultSessionId) {
-            this.defaultSession = null;
-        }
         return this.sessionManager.deleteSession(sessionId);
     }
 
@@ -1137,100 +1136,25 @@ export class DextoAgent {
     }
 
     /**
-     * Loads a session as the new "default" session for this agent.
-     * All subsequent operations that don't specify a session ID will use this session.
-     * This provides a clean "current working session" pattern for API users.
-     *
-     * @param sessionId The session ID to load as default, or null to reset to original default
-     * @throws Error if session doesn't exist
-     *
-     * @example
-     * ```typescript
-     * // Load a specific session as default
-     * await agent.loadSessionAsDefault('project-alpha');
-     * await agent.run("What's the status?"); // Uses project-alpha session
-     *
-     * // Reset to original default
-     * await agent.loadSessionAsDefault(null);
-     * await agent.run("Hello"); // Uses 'default' session
-     * ```
-     */
-    public async loadSessionAsDefault(sessionId: string | null = null): Promise<void> {
-        this.ensureStarted();
-        if (sessionId === null) {
-            this.currentDefaultSessionId = 'default';
-            this.defaultSession = null; // Clear cached session to force reload
-            this.logger.debug('Agent default session reset to original default');
-            return;
-        }
-
-        // Verify session exists before loading it
-        const session = await this.sessionManager.getSession(sessionId);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-
-        this.currentDefaultSessionId = sessionId;
-        this.defaultSession = null; // Clear cached session to force reload
-        this.logger.info(`Agent default session changed to: ${sessionId}`);
-    }
-
-    /**
-     * Gets the currently loaded default session ID.
-     * This reflects the session loaded via loadSession().
-     *
-     * @returns The current default session ID
-     */
-    public getCurrentSessionId(): string {
-        this.ensureStarted();
-        return this.currentDefaultSessionId;
-    }
-
-    /**
-     * Gets the currently loaded default session.
-     * This respects the session loaded via loadSession().
-     *
-     * @returns The current default ChatSession
-     */
-    public async getDefaultSession(): Promise<ChatSession> {
-        this.ensureStarted();
-        if (!this.defaultSession || this.defaultSession.id !== this.currentDefaultSessionId) {
-            this.defaultSession = await this.sessionManager.createSession(
-                this.currentDefaultSessionId
-            );
-        }
-        return this.defaultSession;
-    }
-
-    /**
-     * Resets the conversation history for a specific session or the default session.
+     * Resets the conversation history for a specific session.
      * Keeps the session alive but the conversation history is cleared.
-     * @param sessionId Optional session ID. If not provided, resets the currently loaded default session.
+     * @param sessionId Session ID (required)
      */
-    public async resetConversation(sessionId?: string): Promise<void> {
+    public async resetConversation(sessionId: string): Promise<void> {
         this.ensureStarted();
+
+        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required and must be a non-empty string');
+        }
+
         try {
-            const targetSessionId = sessionId || this.currentDefaultSessionId;
-
-            // Ensure session exists or create loaded default session
-            if (!sessionId) {
-                // Use loaded default session for backward compatibility
-                if (
-                    !this.defaultSession ||
-                    this.defaultSession.id !== this.currentDefaultSessionId
-                ) {
-                    this.defaultSession = await this.sessionManager.createSession(
-                        this.currentDefaultSessionId
-                    );
-                }
-            }
-
             // Use SessionManager's resetSession method for better consistency
-            await this.sessionManager.resetSession(targetSessionId);
+            await this.sessionManager.resetSession(sessionId);
 
-            this.logger.info(`DextoAgent conversation reset for session: ${targetSessionId}`);
+            this.logger.info(`DextoAgent conversation reset for session: ${sessionId}`);
             this.agentEventBus.emit('dexto:conversationReset', {
-                sessionId: targetSessionId,
+                sessionId: sessionId,
             });
         } catch (error) {
             this.logger.error(
@@ -1356,7 +1280,9 @@ export class DextoAgent {
             }
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
-            await this.sessionManager.switchLLMForDefaultSession(validatedConfig);
+            // No sessionScope provided - this is a configuration-level switch only
+            // State manager has been updated, individual sessions will pick up changes when created
+            this.logger.debug('LLM config updated at agent level (no active session switches)');
         }
     }
 

@@ -102,6 +102,2320 @@
         }
       }
     },
+    "/v1/message:send": {
+      "post": {
+        "summary": "Send Message",
+        "description": "Send a message to the agent (A2A message/send)",
+        "tags": [
+          "a2a"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "agent"
+                        ],
+                        "description": "Message role"
+                      },
+                      "parts": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text"
+                                  ],
+                                  "description": "Part type discriminator"
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "Text content"
+                                },
+                                "metadata": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "nullable": true
+                                  },
+                                  "description": "Extension metadata"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "text"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ],
+                                  "description": "Part type discriminator"
+                                },
+                                "file": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "bytes": {
+                                          "type": "string",
+                                          "description": "Base64-encoded file data"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "description": "File name"
+                                        },
+                                        "mimeType": {
+                                          "type": "string",
+                                          "description": "MIME type"
+                                        }
+                                      },
+                                      "required": [
+                                        "bytes"
+                                      ]
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "uri": {
+                                          "type": "string",
+                                          "description": "File URI"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "description": "File name"
+                                        },
+                                        "mimeType": {
+                                          "type": "string",
+                                          "description": "MIME type"
+                                        }
+                                      },
+                                      "required": [
+                                        "uri"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "File data (bytes or URI)"
+                                },
+                                "metadata": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "nullable": true
+                                  },
+                                  "description": "Extension metadata"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "file"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "data"
+                                  ],
+                                  "description": "Part type discriminator"
+                                },
+                                "data": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "nullable": true
+                                  },
+                                  "description": "Structured JSON data"
+                                },
+                                "metadata": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "nullable": true
+                                  },
+                                  "description": "Extension metadata"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "data"
+                              ]
+                            }
+                          ],
+                          "description": "Message part (text, file, or data)"
+                        },
+                        "description": "Message parts"
+                      },
+                      "messageId": {
+                        "type": "string",
+                        "description": "Unique message identifier"
+                      },
+                      "taskId": {
+                        "type": "string",
+                        "description": "Associated task ID"
+                      },
+                      "contextId": {
+                        "type": "string",
+                        "description": "Context identifier"
+                      },
+                      "metadata": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true
+                        },
+                        "description": "Extension metadata"
+                      },
+                      "extensions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Extension identifiers"
+                      },
+                      "referenceTaskIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Referenced task IDs"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "message"
+                        ],
+                        "description": "Object type discriminator"
+                      }
+                    },
+                    "required": [
+                      "role",
+                      "parts",
+                      "messageId",
+                      "kind"
+                    ],
+                    "description": "Message to send to the agent"
+                  },
+                  "configuration": {
+                    "type": "object",
+                    "properties": {
+                      "acceptedOutputModes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Accepted output MIME types"
+                      },
+                      "historyLength": {
+                        "type": "number",
+                        "description": "Limit conversation history length"
+                      },
+                      "pushNotificationConfig": {
+                        "type": "object",
+                        "properties": {
+                          "url": {
+                            "type": "string",
+                            "description": "Push notification webhook URL"
+                          },
+                          "headers": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "description": "HTTP headers for webhook"
+                          }
+                        },
+                        "required": [
+                          "url"
+                        ],
+                        "description": "Push notification configuration"
+                      },
+                      "blocking": {
+                        "type": "boolean",
+                        "description": "Wait for task completion"
+                      }
+                    },
+                    "description": "Optional configuration"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    },
+                    "description": "Optional metadata"
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "description": "Request body for message/send"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task with agent response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique task identifier"
+                    },
+                    "contextId": {
+                      "type": "string",
+                      "description": "Context identifier across related tasks"
+                    },
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "submitted",
+                            "working",
+                            "input-required",
+                            "completed",
+                            "canceled",
+                            "failed",
+                            "rejected",
+                            "auth-required",
+                            "unknown"
+                          ],
+                          "description": "Current task state"
+                        },
+                        "message": {
+                          "type": "object",
+                          "properties": {
+                            "role": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "agent"
+                              ],
+                              "description": "Message role"
+                            },
+                            "parts": {
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "text"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "text": {
+                                        "type": "string",
+                                        "description": "Text content"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "text"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "file"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "file": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "bytes": {
+                                                "type": "string",
+                                                "description": "Base64-encoded file data"
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "description": "File name"
+                                              },
+                                              "mimeType": {
+                                                "type": "string",
+                                                "description": "MIME type"
+                                              }
+                                            },
+                                            "required": [
+                                              "bytes"
+                                            ]
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "uri": {
+                                                "type": "string",
+                                                "description": "File URI"
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "description": "File name"
+                                              },
+                                              "mimeType": {
+                                                "type": "string",
+                                                "description": "MIME type"
+                                              }
+                                            },
+                                            "required": [
+                                              "uri"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "File data (bytes or URI)"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "file"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "data"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "data": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Structured JSON data"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "data"
+                                    ]
+                                  }
+                                ],
+                                "description": "Message part (text, file, or data)"
+                              },
+                              "description": "Message parts"
+                            },
+                            "messageId": {
+                              "type": "string",
+                              "description": "Unique message identifier"
+                            },
+                            "taskId": {
+                              "type": "string",
+                              "description": "Associated task ID"
+                            },
+                            "contextId": {
+                              "type": "string",
+                              "description": "Context identifier"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "nullable": true
+                              },
+                              "description": "Extension metadata"
+                            },
+                            "extensions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Extension identifiers"
+                            },
+                            "referenceTaskIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Referenced task IDs"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "message"
+                              ],
+                              "description": "Object type discriminator"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "parts",
+                            "messageId",
+                            "kind"
+                          ],
+                          "description": "Status message"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "description": "ISO 8601 timestamp"
+                        }
+                      },
+                      "required": [
+                        "state"
+                      ],
+                      "description": "Current task status"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "agent"
+                            ],
+                            "description": "Message role"
+                          },
+                          "parts": {
+                            "type": "array",
+                            "items": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "text": {
+                                      "type": "string",
+                                      "description": "Text content"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "text"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "file"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "file": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "bytes": {
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "description": "File name"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type"
+                                            }
+                                          },
+                                          "required": [
+                                            "bytes"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "File URI"
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "description": "File name"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type"
+                                            }
+                                          },
+                                          "required": [
+                                            "uri"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "File data (bytes or URI)"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "file"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "data"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "data": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Structured JSON data"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "data"
+                                  ]
+                                }
+                              ],
+                              "description": "Message part (text, file, or data)"
+                            },
+                            "description": "Message parts"
+                          },
+                          "messageId": {
+                            "type": "string",
+                            "description": "Unique message identifier"
+                          },
+                          "taskId": {
+                            "type": "string",
+                            "description": "Associated task ID"
+                          },
+                          "contextId": {
+                            "type": "string",
+                            "description": "Context identifier"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Extension metadata"
+                          },
+                          "extensions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Extension identifiers"
+                          },
+                          "referenceTaskIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Referenced task IDs"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "message"
+                            ],
+                            "description": "Object type discriminator"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "parts",
+                          "messageId",
+                          "kind"
+                        ],
+                        "description": "A2A Protocol message"
+                      },
+                      "description": "Conversation history"
+                    },
+                    "artifacts": {
+                      "type": "array",
+                      "items": {
+                        "nullable": true
+                      },
+                      "description": "Task artifacts"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true
+                      },
+                      "description": "Extension metadata"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "task"
+                      ],
+                      "description": "Object type discriminator"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "contextId",
+                    "status",
+                    "kind"
+                  ],
+                  "description": "A2A Protocol task"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks": {
+      "get": {
+        "summary": "List Tasks",
+        "description": "List all A2A tasks with optional filtering (A2A tasks/list)",
+        "tags": [
+          "a2a"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by context ID"
+            },
+            "required": false,
+            "description": "Filter by context ID",
+            "name": "contextId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "submitted",
+                "working",
+                "input-required",
+                "completed",
+                "canceled",
+                "failed",
+                "rejected",
+                "auth-required",
+                "unknown"
+              ],
+              "description": "Filter by task state"
+            },
+            "required": false,
+            "description": "Filter by task state",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Number of results (1-100, default 50)"
+            },
+            "required": false,
+            "description": "Number of results (1-100, default 50)",
+            "name": "pageSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Pagination token (not yet implemented - reserved for future use)"
+            },
+            "required": false,
+            "description": "Pagination token (not yet implemented - reserved for future use)",
+            "name": "pageToken",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Limit history items (not yet implemented - reserved for future use)"
+            },
+            "required": false,
+            "description": "Limit history items (not yet implemented - reserved for future use)",
+            "name": "historyLength",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Unix timestamp filter (not yet implemented - reserved for future use)"
+            },
+            "required": false,
+            "description": "Unix timestamp filter (not yet implemented - reserved for future use)",
+            "name": "lastUpdatedAfter",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Include artifacts in response (not yet implemented - reserved for future use)"
+            },
+            "required": false,
+            "description": "Include artifacts in response (not yet implemented - reserved for future use)",
+            "name": "includeArtifacts",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tasks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Unique task identifier"
+                          },
+                          "contextId": {
+                            "type": "string",
+                            "description": "Context identifier across related tasks"
+                          },
+                          "status": {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "submitted",
+                                  "working",
+                                  "input-required",
+                                  "completed",
+                                  "canceled",
+                                  "failed",
+                                  "rejected",
+                                  "auth-required",
+                                  "unknown"
+                                ],
+                                "description": "Current task state"
+                              },
+                              "message": {
+                                "type": "object",
+                                "properties": {
+                                  "role": {
+                                    "type": "string",
+                                    "enum": [
+                                      "user",
+                                      "agent"
+                                    ],
+                                    "description": "Message role"
+                                  },
+                                  "parts": {
+                                    "type": "array",
+                                    "items": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text"
+                                              ],
+                                              "description": "Part type discriminator"
+                                            },
+                                            "text": {
+                                              "type": "string",
+                                              "description": "Text content"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "nullable": true
+                                              },
+                                              "description": "Extension metadata"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "text"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "file"
+                                              ],
+                                              "description": "Part type discriminator"
+                                            },
+                                            "file": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "bytes": {
+                                                      "type": "string",
+                                                      "description": "Base64-encoded file data"
+                                                    },
+                                                    "name": {
+                                                      "type": "string",
+                                                      "description": "File name"
+                                                    },
+                                                    "mimeType": {
+                                                      "type": "string",
+                                                      "description": "MIME type"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "bytes"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "uri": {
+                                                      "type": "string",
+                                                      "description": "File URI"
+                                                    },
+                                                    "name": {
+                                                      "type": "string",
+                                                      "description": "File name"
+                                                    },
+                                                    "mimeType": {
+                                                      "type": "string",
+                                                      "description": "MIME type"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "uri"
+                                                  ]
+                                                }
+                                              ],
+                                              "description": "File data (bytes or URI)"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "nullable": true
+                                              },
+                                              "description": "Extension metadata"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "file"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "data"
+                                              ],
+                                              "description": "Part type discriminator"
+                                            },
+                                            "data": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "nullable": true
+                                              },
+                                              "description": "Structured JSON data"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "additionalProperties": {
+                                                "nullable": true
+                                              },
+                                              "description": "Extension metadata"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "data"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Message part (text, file, or data)"
+                                    },
+                                    "description": "Message parts"
+                                  },
+                                  "messageId": {
+                                    "type": "string",
+                                    "description": "Unique message identifier"
+                                  },
+                                  "taskId": {
+                                    "type": "string",
+                                    "description": "Associated task ID"
+                                  },
+                                  "contextId": {
+                                    "type": "string",
+                                    "description": "Context identifier"
+                                  },
+                                  "metadata": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "nullable": true
+                                    },
+                                    "description": "Extension metadata"
+                                  },
+                                  "extensions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Extension identifiers"
+                                  },
+                                  "referenceTaskIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Referenced task IDs"
+                                  },
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "message"
+                                    ],
+                                    "description": "Object type discriminator"
+                                  }
+                                },
+                                "required": [
+                                  "role",
+                                  "parts",
+                                  "messageId",
+                                  "kind"
+                                ],
+                                "description": "Status message"
+                              },
+                              "timestamp": {
+                                "type": "string",
+                                "description": "ISO 8601 timestamp"
+                              }
+                            },
+                            "required": [
+                              "state"
+                            ],
+                            "description": "Current task status"
+                          },
+                          "history": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "role": {
+                                  "type": "string",
+                                  "enum": [
+                                    "user",
+                                    "agent"
+                                  ],
+                                  "description": "Message role"
+                                },
+                                "parts": {
+                                  "type": "array",
+                                  "items": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "text"
+                                            ],
+                                            "description": "Part type discriminator"
+                                          },
+                                          "text": {
+                                            "type": "string",
+                                            "description": "Text content"
+                                          },
+                                          "metadata": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                              "nullable": true
+                                            },
+                                            "description": "Extension metadata"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "text"
+                                        ]
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "file"
+                                            ],
+                                            "description": "Part type discriminator"
+                                          },
+                                          "file": {
+                                            "anyOf": [
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "bytes": {
+                                                    "type": "string",
+                                                    "description": "Base64-encoded file data"
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "description": "File name"
+                                                  },
+                                                  "mimeType": {
+                                                    "type": "string",
+                                                    "description": "MIME type"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "bytes"
+                                                ]
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "uri": {
+                                                    "type": "string",
+                                                    "description": "File URI"
+                                                  },
+                                                  "name": {
+                                                    "type": "string",
+                                                    "description": "File name"
+                                                  },
+                                                  "mimeType": {
+                                                    "type": "string",
+                                                    "description": "MIME type"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "uri"
+                                                ]
+                                              }
+                                            ],
+                                            "description": "File data (bytes or URI)"
+                                          },
+                                          "metadata": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                              "nullable": true
+                                            },
+                                            "description": "Extension metadata"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "file"
+                                        ]
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "data"
+                                            ],
+                                            "description": "Part type discriminator"
+                                          },
+                                          "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                              "nullable": true
+                                            },
+                                            "description": "Structured JSON data"
+                                          },
+                                          "metadata": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                              "nullable": true
+                                            },
+                                            "description": "Extension metadata"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "data"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "Message part (text, file, or data)"
+                                  },
+                                  "description": "Message parts"
+                                },
+                                "messageId": {
+                                  "type": "string",
+                                  "description": "Unique message identifier"
+                                },
+                                "taskId": {
+                                  "type": "string",
+                                  "description": "Associated task ID"
+                                },
+                                "contextId": {
+                                  "type": "string",
+                                  "description": "Context identifier"
+                                },
+                                "metadata": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "nullable": true
+                                  },
+                                  "description": "Extension metadata"
+                                },
+                                "extensions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "Extension identifiers"
+                                },
+                                "referenceTaskIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "Referenced task IDs"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "message"
+                                  ],
+                                  "description": "Object type discriminator"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "parts",
+                                "messageId",
+                                "kind"
+                              ],
+                              "description": "A2A Protocol message"
+                            },
+                            "description": "Conversation history"
+                          },
+                          "artifacts": {
+                            "type": "array",
+                            "items": {
+                              "nullable": true
+                            },
+                            "description": "Task artifacts"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Extension metadata"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "task"
+                            ],
+                            "description": "Object type discriminator"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "contextId",
+                          "status",
+                          "kind"
+                        ],
+                        "description": "A2A Protocol task"
+                      },
+                      "description": "Array of tasks"
+                    },
+                    "totalSize": {
+                      "type": "number",
+                      "description": "Total number of tasks"
+                    },
+                    "pageSize": {
+                      "type": "number",
+                      "description": "Number of tasks in this page"
+                    },
+                    "nextPageToken": {
+                      "type": "string",
+                      "description": "Token for next page"
+                    }
+                  },
+                  "required": [
+                    "tasks",
+                    "totalSize",
+                    "pageSize",
+                    "nextPageToken"
+                  ],
+                  "description": "Response body for tasks/list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks/{id}": {
+      "get": {
+        "summary": "Get Task",
+        "description": "Retrieve a specific task by ID (A2A tasks/get)",
+        "tags": [
+          "a2a"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Task ID"
+            },
+            "required": true,
+            "description": "Task ID",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique task identifier"
+                    },
+                    "contextId": {
+                      "type": "string",
+                      "description": "Context identifier across related tasks"
+                    },
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "submitted",
+                            "working",
+                            "input-required",
+                            "completed",
+                            "canceled",
+                            "failed",
+                            "rejected",
+                            "auth-required",
+                            "unknown"
+                          ],
+                          "description": "Current task state"
+                        },
+                        "message": {
+                          "type": "object",
+                          "properties": {
+                            "role": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "agent"
+                              ],
+                              "description": "Message role"
+                            },
+                            "parts": {
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "text"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "text": {
+                                        "type": "string",
+                                        "description": "Text content"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "text"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "file"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "file": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "bytes": {
+                                                "type": "string",
+                                                "description": "Base64-encoded file data"
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "description": "File name"
+                                              },
+                                              "mimeType": {
+                                                "type": "string",
+                                                "description": "MIME type"
+                                              }
+                                            },
+                                            "required": [
+                                              "bytes"
+                                            ]
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "uri": {
+                                                "type": "string",
+                                                "description": "File URI"
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "description": "File name"
+                                              },
+                                              "mimeType": {
+                                                "type": "string",
+                                                "description": "MIME type"
+                                              }
+                                            },
+                                            "required": [
+                                              "uri"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "File data (bytes or URI)"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "file"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "data"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "data": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Structured JSON data"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "data"
+                                    ]
+                                  }
+                                ],
+                                "description": "Message part (text, file, or data)"
+                              },
+                              "description": "Message parts"
+                            },
+                            "messageId": {
+                              "type": "string",
+                              "description": "Unique message identifier"
+                            },
+                            "taskId": {
+                              "type": "string",
+                              "description": "Associated task ID"
+                            },
+                            "contextId": {
+                              "type": "string",
+                              "description": "Context identifier"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "nullable": true
+                              },
+                              "description": "Extension metadata"
+                            },
+                            "extensions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Extension identifiers"
+                            },
+                            "referenceTaskIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Referenced task IDs"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "message"
+                              ],
+                              "description": "Object type discriminator"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "parts",
+                            "messageId",
+                            "kind"
+                          ],
+                          "description": "Status message"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "description": "ISO 8601 timestamp"
+                        }
+                      },
+                      "required": [
+                        "state"
+                      ],
+                      "description": "Current task status"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "agent"
+                            ],
+                            "description": "Message role"
+                          },
+                          "parts": {
+                            "type": "array",
+                            "items": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "text": {
+                                      "type": "string",
+                                      "description": "Text content"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "text"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "file"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "file": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "bytes": {
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "description": "File name"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type"
+                                            }
+                                          },
+                                          "required": [
+                                            "bytes"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "File URI"
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "description": "File name"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type"
+                                            }
+                                          },
+                                          "required": [
+                                            "uri"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "File data (bytes or URI)"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "file"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "data"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "data": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Structured JSON data"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "data"
+                                  ]
+                                }
+                              ],
+                              "description": "Message part (text, file, or data)"
+                            },
+                            "description": "Message parts"
+                          },
+                          "messageId": {
+                            "type": "string",
+                            "description": "Unique message identifier"
+                          },
+                          "taskId": {
+                            "type": "string",
+                            "description": "Associated task ID"
+                          },
+                          "contextId": {
+                            "type": "string",
+                            "description": "Context identifier"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Extension metadata"
+                          },
+                          "extensions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Extension identifiers"
+                          },
+                          "referenceTaskIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Referenced task IDs"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "message"
+                            ],
+                            "description": "Object type discriminator"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "parts",
+                          "messageId",
+                          "kind"
+                        ],
+                        "description": "A2A Protocol message"
+                      },
+                      "description": "Conversation history"
+                    },
+                    "artifacts": {
+                      "type": "array",
+                      "items": {
+                        "nullable": true
+                      },
+                      "description": "Task artifacts"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true
+                      },
+                      "description": "Extension metadata"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "task"
+                      ],
+                      "description": "Object type discriminator"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "contextId",
+                    "status",
+                    "kind"
+                  ],
+                  "description": "A2A Protocol task"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        }
+      }
+    },
+    "/v1/tasks/{id}:cancel": {
+      "post": {
+        "summary": "Cancel Task",
+        "description": "Cancel a running task (A2A tasks/cancel)",
+        "tags": [
+          "a2a"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Task ID"
+            },
+            "required": true,
+            "description": "Task ID",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique task identifier"
+                    },
+                    "contextId": {
+                      "type": "string",
+                      "description": "Context identifier across related tasks"
+                    },
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "submitted",
+                            "working",
+                            "input-required",
+                            "completed",
+                            "canceled",
+                            "failed",
+                            "rejected",
+                            "auth-required",
+                            "unknown"
+                          ],
+                          "description": "Current task state"
+                        },
+                        "message": {
+                          "type": "object",
+                          "properties": {
+                            "role": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "agent"
+                              ],
+                              "description": "Message role"
+                            },
+                            "parts": {
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "text"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "text": {
+                                        "type": "string",
+                                        "description": "Text content"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "text"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "file"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "file": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "bytes": {
+                                                "type": "string",
+                                                "description": "Base64-encoded file data"
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "description": "File name"
+                                              },
+                                              "mimeType": {
+                                                "type": "string",
+                                                "description": "MIME type"
+                                              }
+                                            },
+                                            "required": [
+                                              "bytes"
+                                            ]
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "uri": {
+                                                "type": "string",
+                                                "description": "File URI"
+                                              },
+                                              "name": {
+                                                "type": "string",
+                                                "description": "File name"
+                                              },
+                                              "mimeType": {
+                                                "type": "string",
+                                                "description": "MIME type"
+                                              }
+                                            },
+                                            "required": [
+                                              "uri"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "File data (bytes or URI)"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "file"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "data"
+                                        ],
+                                        "description": "Part type discriminator"
+                                      },
+                                      "data": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Structured JSON data"
+                                      },
+                                      "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                          "nullable": true
+                                        },
+                                        "description": "Extension metadata"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "data"
+                                    ]
+                                  }
+                                ],
+                                "description": "Message part (text, file, or data)"
+                              },
+                              "description": "Message parts"
+                            },
+                            "messageId": {
+                              "type": "string",
+                              "description": "Unique message identifier"
+                            },
+                            "taskId": {
+                              "type": "string",
+                              "description": "Associated task ID"
+                            },
+                            "contextId": {
+                              "type": "string",
+                              "description": "Context identifier"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "nullable": true
+                              },
+                              "description": "Extension metadata"
+                            },
+                            "extensions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Extension identifiers"
+                            },
+                            "referenceTaskIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Referenced task IDs"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "message"
+                              ],
+                              "description": "Object type discriminator"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "parts",
+                            "messageId",
+                            "kind"
+                          ],
+                          "description": "Status message"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "description": "ISO 8601 timestamp"
+                        }
+                      },
+                      "required": [
+                        "state"
+                      ],
+                      "description": "Current task status"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "agent"
+                            ],
+                            "description": "Message role"
+                          },
+                          "parts": {
+                            "type": "array",
+                            "items": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "text": {
+                                      "type": "string",
+                                      "description": "Text content"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "text"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "file"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "file": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "bytes": {
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "description": "File name"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type"
+                                            }
+                                          },
+                                          "required": [
+                                            "bytes"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "File URI"
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "description": "File name"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type"
+                                            }
+                                          },
+                                          "required": [
+                                            "uri"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "File data (bytes or URI)"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "file"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "data"
+                                      ],
+                                      "description": "Part type discriminator"
+                                    },
+                                    "data": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Structured JSON data"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "nullable": true
+                                      },
+                                      "description": "Extension metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "data"
+                                  ]
+                                }
+                              ],
+                              "description": "Message part (text, file, or data)"
+                            },
+                            "description": "Message parts"
+                          },
+                          "messageId": {
+                            "type": "string",
+                            "description": "Unique message identifier"
+                          },
+                          "taskId": {
+                            "type": "string",
+                            "description": "Associated task ID"
+                          },
+                          "contextId": {
+                            "type": "string",
+                            "description": "Context identifier"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Extension metadata"
+                          },
+                          "extensions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Extension identifiers"
+                          },
+                          "referenceTaskIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Referenced task IDs"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "message"
+                            ],
+                            "description": "Object type discriminator"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "parts",
+                          "messageId",
+                          "kind"
+                        ],
+                        "description": "A2A Protocol message"
+                      },
+                      "description": "Conversation history"
+                    },
+                    "artifacts": {
+                      "type": "array",
+                      "items": {
+                        "nullable": true
+                      },
+                      "description": "Task artifacts"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true
+                      },
+                      "description": "Extension metadata"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "task"
+                      ],
+                      "description": "Object type discriminator"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "contextId",
+                    "status",
+                    "kind"
+                  ],
+                  "description": "A2A Protocol task"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        }
+      }
+    },
     "/api/greeting": {
       "get": {
         "summary": "Get Greeting Message",
@@ -161,6 +2475,7 @@
                   },
                   "sessionId": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "The session to use for this message"
                   },
                   "stream": {
@@ -208,6 +2523,9 @@
                     "description": "Optional file data to include with the message"
                   }
                 },
+                "required": [
+                  "sessionId"
+                ],
                 "description": "Request body for sending a message to the agent"
               }
             }
@@ -264,6 +2582,7 @@
                   },
                   "sessionId": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "The session to use for this message"
                   },
                   "stream": {
@@ -311,6 +2630,9 @@
                     "description": "Optional file data to include with the message"
                   }
                 },
+                "required": [
+                  "sessionId"
+                ],
                 "description": "Request body for sending a message to the agent"
               }
             }
@@ -363,9 +2685,13 @@
                 "properties": {
                   "sessionId": {
                     "type": "string",
+                    "minLength": 1,
                     "description": "The ID of the session to reset"
                   }
                 },
+                "required": [
+                  "sessionId"
+                ],
                 "description": "Request body for resetting a conversation"
               }
             }
@@ -385,11 +2711,12 @@
                     },
                     "sessionId": {
                       "type": "string",
-                      "description": "Session ID that was reset (if specified)"
+                      "description": "Session ID that was reset"
                     }
                   },
                   "required": [
-                    "status"
+                    "status",
+                    "sessionId"
                   ],
                   "additionalProperties": false
                 }
@@ -446,10 +2773,6 @@
                           "type": "string",
                           "description": "Specific model name for the selected provider"
                         },
-                        "apiKey": {
-                          "type": "string",
-                          "description": "API key for provider; can be given directly or via $ENV reference"
-                        },
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
@@ -494,6 +2817,10 @@
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                         },
+                        "hasApiKey": {
+                          "type": "boolean",
+                          "description": "Whether an API key is configured"
+                        },
                         "displayName": {
                           "type": "string",
                           "description": "Human-readable model display name"
@@ -501,11 +2828,10 @@
                       },
                       "required": [
                         "provider",
-                        "model",
-                        "apiKey"
+                        "model"
                       ],
                       "additionalProperties": false,
-                      "description": "Current LLM configuration"
+                      "description": "LLM configuration (apiKey omitted for security)"
                     }
                   },
                   "required": [
@@ -985,7 +3311,8 @@
                   "apiKey": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "API key for the provider"
+                    "description": "API key for the provider (writeOnly - never returned in responses)",
+                    "writeOnly": true
                   }
                 },
                 "required": [
@@ -1170,10 +3497,6 @@
                           "type": "string",
                           "description": "Specific model name for the selected provider"
                         },
-                        "apiKey": {
-                          "type": "string",
-                          "description": "API key for provider; can be given directly or via $ENV reference"
-                        },
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
@@ -1217,15 +3540,18 @@
                             "type": "string"
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
+                        },
+                        "hasApiKey": {
+                          "type": "boolean",
+                          "description": "Whether an API key is configured"
                         }
                       },
                       "required": [
                         "provider",
-                        "model",
-                        "apiKey"
+                        "model"
                       ],
                       "additionalProperties": false,
-                      "description": "New LLM configuration with all defaults applied"
+                      "description": "New LLM configuration with all defaults applied (apiKey omitted)"
                     },
                     "sessionId": {
                       "type": "string",
@@ -1388,38 +3714,6 @@
                   },
                   "required": [
                     "session"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/current": {
-      "get": {
-        "summary": "Get Current Session",
-        "description": "Retrieves the ID of the currently active session",
-        "tags": [
-          "sessions"
-        ],
-        "responses": {
-          "200": {
-            "description": "Current active session ID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "currentSessionId": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "ID of the current session, or null if none"
-                    }
-                  },
-                  "required": [
-                    "currentSessionId"
                   ],
                   "additionalProperties": false
                 }
@@ -1977,9 +4271,9 @@
       }
     },
     "/api/sessions/{sessionId}/load": {
-      "post": {
+      "get": {
         "summary": "Load Session",
-        "description": "Sets a session as the current active session",
+        "description": "Validates and retrieves session information. The client should track the active session.",
         "tags": [
           "sessions"
         ],
@@ -1995,48 +4289,78 @@
             "in": "path"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": false
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Session loaded or reset successfully",
+            "description": "Session information retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "loaded",
-                        "reset"
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique session identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "nullable": true,
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms, null if unavailable)"
+                        },
+                        "lastActivity": {
+                          "type": "integer",
+                          "nullable": true,
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last activity timestamp (Unix ms, null if unavailable)"
+                        },
+                        "messageCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total number of messages in session"
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional session title"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "createdAt",
+                        "lastActivity",
+                        "messageCount"
                       ],
-                      "description": "Operation status"
-                    },
-                    "sessionId": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "Loaded session ID or null if reset"
-                    },
-                    "currentSession": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "Current active session ID"
+                      "additionalProperties": false,
+                      "description": "Session metadata"
                     }
                   },
                   "required": [
-                    "status",
-                    "sessionId",
-                    "currentSession"
+                    "session"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message"
+                    }
+                  },
+                  "required": [
+                    "error"
                   ],
                   "additionalProperties": false
                 }
@@ -6609,8 +8933,9 @@
                                       },
                                       "email": {
                                         "type": "string",
+                                        "maxLength": 254,
                                         "format": "email",
-                                        "description": "Optional user email"
+                                        "description": "Optional user email (WARNING: publicly readable via .well-known/agent.json if provided)"
                                       }
                                     },
                                     "required": [
@@ -6873,7 +9198,8 @@
                             "edit_file",
                             "bash_exec",
                             "bash_output",
-                            "kill_process"
+                            "kill_process",
+                            "delegate_to_url"
                           ],
                           "description": "Available internal tool names"
                         },

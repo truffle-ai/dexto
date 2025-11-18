@@ -173,7 +173,7 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBe(404);
         });
 
-        it('POST /api/sessions/:id/load loads session as default', async () => {
+        it('GET /api/sessions/:id/load validates and returns session info', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             // Create session first
             await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
@@ -182,17 +182,12 @@ describe('Hono API Integration Tests', () => {
 
             const res = await httpRequest(
                 testServer.baseUrl,
-                'POST',
-                '/api/sessions/test-session-load/load',
-                {}
+                'GET',
+                '/api/sessions/test-session-load/load'
             );
             expect(res.status).toBe(200);
-        });
-
-        it('GET /api/sessions/current returns current session', async () => {
-            if (!testServer) throw new Error('Test server not initialized');
-            const res = await httpRequest(testServer.baseUrl, 'GET', '/api/sessions/current');
-            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('session');
+            expect((res.body as { session: { id: string } }).session.id).toBe('test-session-load');
         });
 
         it('GET /api/sessions/:id/history returns session history', async () => {
@@ -445,9 +440,13 @@ describe('Hono API Integration Tests', () => {
     });
 
     describe('A2A Routes', () => {
-        it('GET /.well-known/agent.json returns agent card', async () => {
+        it('GET /.well-known/agent-card.json returns agent card', async () => {
             if (!testServer) throw new Error('Test server not initialized');
-            const res = await httpRequest(testServer.baseUrl, 'GET', '/.well-known/agent.json');
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/.well-known/agent-card.json'
+            );
             expect(res.status).toBe(200);
             expect((res.body as { name: unknown }).name).toBeDefined();
         });
@@ -468,7 +467,13 @@ describe('Hono API Integration Tests', () => {
 
         it('POST /api/reset resets conversation', async () => {
             if (!testServer) throw new Error('Test server not initialized');
-            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/reset', {});
+            // Create session first
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId: 'test-session-reset',
+            });
+            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/reset', {
+                sessionId: 'test-session-reset',
+            });
             expect(res.status).toBe(200);
         });
     });

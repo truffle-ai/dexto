@@ -13,6 +13,7 @@ import { createEditFileTool } from './implementations/edit-file-tool.js';
 import { createBashExecTool } from './implementations/bash-exec-tool.js';
 import { createBashOutputTool } from './implementations/bash-output-tool.js';
 import { createKillProcessTool } from './implementations/kill-process-tool.js';
+import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
 /**
@@ -93,6 +94,10 @@ export const INTERNAL_TOOL_REGISTRY: Record<
         factory: (services: InternalToolsServices) =>
             createKillProcessTool(services.processService!),
         requiredServices: ['processService'] as const,
+    },
+    delegate_to_url: {
+        factory: (_services: InternalToolsServices) => createDelegateToUrlTool(),
+        requiredServices: [] as const,
     },
 };
 

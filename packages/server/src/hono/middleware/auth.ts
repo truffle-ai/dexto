@@ -19,7 +19,7 @@ import { logger } from '@dexto/core';
  *   Clients must send: Authorization: Bearer <DEXTO_SERVER_API_KEY>
  */
 
-const PUBLIC_ROUTES = ['/health', '/.well-known/agent.json', '/openapi.json'];
+const PUBLIC_ROUTES = ['/health', '/.well-known/agent-card.json', '/openapi.json'];
 
 export function createAuthMiddleware(): MiddlewareHandler {
     const apiKey = process.env.DEXTO_SERVER_API_KEY;
