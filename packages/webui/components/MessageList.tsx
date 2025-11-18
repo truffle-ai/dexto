@@ -690,7 +690,8 @@ export default function MessageList({
                                                             Tool: {msg.toolName}
                                                         </span>
                                                         {msg.toolResult ? (
-                                                            isToolResultError(msg.toolResult) ? (
+                                                            isToolResultError(msg.toolResult) ||
+                                                            msg.toolResultSuccess === false ? (
                                                                 <AlertTriangle className="mx-2 h-4 w-4 text-red-500" />
                                                             ) : (
                                                                 <CheckCircle className="mx-2 h-4 w-4 text-green-500" />

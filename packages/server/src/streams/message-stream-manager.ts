@@ -181,6 +181,14 @@ export class MessageStreamManager {
                 eventName = 'tool-result';
                 Object.assign(data, event);
                 break;
+            case 'approval-request':
+                eventName = 'approval-request';
+                Object.assign(data, event);
+                break;
+            case 'approval-response':
+                eventName = 'approval-response';
+                Object.assign(data, event);
+                break;
             case 'message-complete':
                 eventName = 'message-complete';
                 Object.assign(data, event);
