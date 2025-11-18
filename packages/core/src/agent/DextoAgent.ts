@@ -629,6 +629,7 @@ export class DextoAgent {
         const events: import('./types.js').StreamEvent[] = [];
 
         for await (const event of await this.stream(message, options)) {
+            this.logger.debug(`[generate()] Received event: ${JSON.stringify(event)}`);
             events.push(event);
         }
 
@@ -708,6 +709,19 @@ export class DextoAgent {
         const cleanupSignal = controller.signal;
 
         this.logger.debug(`[stream()] Attaching event listeners for sessionId=${sessionId}`);
+
+        // Debug: Log ALL llmservice events on agentEventBus
+        const debugListener =
+            (eventName: string) =>
+            (...args: any[]) => {
+                this.logger.debug(`[stream()] agentEventBus received: ${eventName}`, args);
+            };
+        this.agentEventBus.on('llmservice:response', debugListener('llmservice:response'), {
+            signal: cleanupSignal,
+        });
+        this.agentEventBus.on('llmservice:chunk', debugListener('llmservice:chunk'), {
+            signal: cleanupSignal,
+        });
 
         // Subscribe to AgentEventBus (not session bus - events have sessionId)
         this.agentEventBus.on(

@@ -76,6 +76,10 @@ export const TestConfigs = {
                 maxSessions: 10,
                 sessionTTL: 100, // 100ms for fast testing
             },
+            logger: {
+                level: 'debug',
+                transports: [{ type: 'console' }],
+            },
         };
     },
 
@@ -110,6 +114,10 @@ export const TestConfigs = {
             sessions: {
                 maxSessions: 10,
                 sessionTTL: 100,
+            },
+            logger: {
+                level: 'debug',
+                transports: [{ type: 'console' }],
             },
         };
     },
@@ -156,6 +164,10 @@ export const TestConfigs = {
             sessions: {
                 maxSessions: 10,
                 sessionTTL: 100,
+            },
+            logger: {
+                level: 'debug',
+                transports: [{ type: 'console' }],
             },
         };
     },
