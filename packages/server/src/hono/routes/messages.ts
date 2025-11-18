@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import type { MessageStreamManager } from '../../streams/message-stream-manager.js';
 
 const MessageBodySchema = z
     .object({
@@ -46,7 +47,10 @@ const ResetBodySchema = z
     })
     .describe('Request body for resetting a conversation');
 
-export function createMessagesRouter(getAgent: () => DextoAgent) {
+export function createMessagesRouter(
+    getAgent: () => DextoAgent,
+    messageStreamManager?: MessageStreamManager
+) {
     const app = new OpenAPIHono();
 
     // TODO: Deprecate this endpoint - this async pattern is problematic and should be replaced
@@ -206,6 +210,110 @@ export function createMessagesRouter(getAgent: () => DextoAgent) {
         await agent.resetConversation(sessionId);
         return ctx.json({ status: 'reset initiated', sessionId });
     });
+
+    if (messageStreamManager) {
+        const messageStreamRoute = createRoute({
+            method: 'post',
+            path: '/message-stream',
+            summary: 'Start streaming message',
+            description: 'Starts a streaming turn and returns the SSE endpoint URL',
+            tags: ['messages'],
+            request: {
+                body: {
+                    content: { 'application/json': { schema: MessageBodySchema } },
+                },
+            },
+            responses: {
+                200: {
+                    description: 'Streaming endpoint information',
+                    content: {
+                        'application/json': {
+                            schema: z
+                                .object({
+                                    streamUrl: z
+                                        .string()
+                                        .describe('URL to consume SSE events for this session'),
+                                })
+                                .strict(),
+                        },
+                    },
+                },
+                503: {
+                    description: 'Streaming not available',
+                },
+            },
+        });
+
+        app.openapi(messageStreamRoute, async (ctx) => {
+            const agent = getAgent();
+            const body = ctx.req.valid('json');
+
+            const { message = '', sessionId, imageData, fileData } = body;
+
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
+                : undefined;
+
+            const fileDataInput = fileData
+                ? {
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      ...(fileData.filename && { filename: fileData.filename }),
+                  }
+                : undefined;
+
+            const iterator = await agent.stream(message, {
+                sessionId,
+                imageData: imageDataInput,
+                fileData: fileDataInput,
+            });
+
+            messageStreamManager.startStreaming(sessionId, iterator);
+
+            return ctx.json({
+                streamUrl: `/api/message-stream/${encodeURIComponent(sessionId)}`,
+            });
+        });
+
+        const messageStreamGetRoute = createRoute({
+            method: 'get',
+            path: '/message-stream/{sessionId}',
+            summary: 'Consume streaming events',
+            description: 'Streams SSE events for an active message session',
+            tags: ['messages'],
+            request: {
+                params: z.object({
+                    sessionId: z.string().describe('Session identifier'),
+                }),
+            },
+            responses: {
+                200: {
+                    description: 'SSE stream',
+                },
+                404: {
+                    description: 'Session stream not found',
+                },
+            },
+        });
+
+        app.openapi(messageStreamGetRoute, async (ctx) => {
+            const { sessionId } = ctx.req.valid('param');
+
+            try {
+                const stream = messageStreamManager.createReadableStream(sessionId);
+                return new Response(stream as any, {
+                    headers: {
+                        'Content-Type': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        Connection: 'keep-alive',
+                        'X-Accel-Buffering': 'no',
+                    },
+                });
+            } catch {
+                return ctx.json({ error: 'Stream not found' }, 404);
+            }
+        });
+    }
 
     return app;
 }

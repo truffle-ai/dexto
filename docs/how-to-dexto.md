@@ -228,6 +228,28 @@ dexto --mode server
   - Body: `{ "message": "your prompt here" }`
 - `POST /api/message-sync`: Send a prompt and wait for the complete response.
   - Body: `{ "message": "your prompt here" }`
+- `POST /api/message-stream`: Start a streaming response over Server-Sent Events (SSE). Returns `{ "streamUrl": "/api/message-stream/{sessionId}" }`, which you can consume with `fetch` + `ReadableStream`.
+
+```ts
+// Start the streaming turn
+const res = await fetch('http://localhost:3001/api/message-stream', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ sessionId: 'demo-session', message: 'Summarize the news' })
+});
+const { streamUrl } = await res.json();
+
+// Connect to the SSE endpoint using fetch for proper Authorization header support
+const streamResponse = await fetch(`http://localhost:3001${streamUrl}`);
+const reader = streamResponse.body!.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  console.log(decoder.decode(value));
+}
+```
 - `POST /api/reset`: Resets the current conversation session.
 - `GET /api/mcp/servers`: Lists the connected MCP tool servers.
 

@@ -690,7 +690,7 @@ export class DextoAgent {
         // Event queue for aggregation
         const eventQueue: import('./types.js').StreamEvent[] = [];
         let completed = false;
-        let streamError: Error | null = null;
+        let _streamError: Error | null = null;
 
         // Generate unique message ID
         const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -816,7 +816,7 @@ export class DextoAgent {
             'llmservice:error',
             (data) => {
                 if (data.sessionId === sessionId) {
-                    streamError = data.error;
+                    _streamError = data.error;
                     eventQueue.push({
                         type: 'error',
                         error: data.error,
@@ -852,7 +852,7 @@ export class DextoAgent {
             : undefined;
 
         this.run(message, imageDataForRun, fileData as any, sessionId, true).catch((error) => {
-            streamError = error;
+            _streamError = error;
             completed = true;
             eventQueue.push({
                 type: 'error',
@@ -867,7 +867,7 @@ export class DextoAgent {
             async next(): Promise<IteratorResult<import('./types.js').StreamEvent>> {
                 // Wait for events
                 while (!completed && eventQueue.length === 0) {
-                    await new Promise((resolve) => setImmediate(resolve));
+                    await new Promise((resolve) => setTimeout(resolve, 0));
 
                     // Check for abort
                     if (signal?.aborted) {

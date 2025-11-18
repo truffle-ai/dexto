@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { TextDecoder } from 'node:util';
+import type { StreamEvent } from '@dexto/core';
 import {
     createTestAgent,
     startTestServer,
@@ -475,6 +477,92 @@ describe('Hono API Integration Tests', () => {
                 sessionId: 'test-session-reset',
             });
             expect(res.status).toBe(200);
+        });
+
+        it('POST /api/message-stream starts SSE flow and GET returns events', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+            const agent = testServer.agent;
+            const originalStream = agent.stream;
+            const messageId = 'msg_test_stream';
+            const fakeEvents: StreamEvent[] = [
+                {
+                    type: 'message-start',
+                    messageId,
+                    sessionId,
+                    timestamp: Date.now(),
+                },
+                { type: 'thinking' },
+                {
+                    type: 'content-chunk',
+                    delta: 'hello',
+                    chunkType: 'text',
+                },
+                {
+                    type: 'message-complete',
+                    messageId,
+                    content: 'hello',
+                    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    toolCalls: [],
+                },
+            ];
+
+            agent.stream = async function (
+                _message: string,
+                _options
+            ): Promise<AsyncIterableIterator<StreamEvent>> {
+                async function* generator() {
+                    for (const event of fakeEvents) {
+                        yield event;
+                    }
+                }
+                return generator();
+            } as typeof agent.stream;
+
+            try {
+                const startRes = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    '/api/message-stream',
+                    {
+                        sessionId,
+                        message: 'Say hello',
+                    }
+                );
+                expect(startRes.status).toBe(200);
+                const streamUrl = (startRes.body as { streamUrl: string }).streamUrl;
+                expect(streamUrl).toContain(`/api/message-stream/${sessionId}`);
+
+                const response = await fetch(`${testServer.baseUrl}${streamUrl}`);
+                expect(response.status).toBe(200);
+                const reader = response.body?.getReader();
+                if (!reader) throw new Error('Response does not contain a readable body');
+
+                const decoder = new TextDecoder();
+                let received = '';
+                let chunks = 0;
+                while (chunks < 50) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    chunks++;
+                    received += decoder.decode(value, { stream: true });
+                    if (received.includes('event: message-complete')) {
+                        break;
+                    }
+                }
+
+                await reader.cancel();
+
+                expect(received).toContain('event: message-start');
+                expect(received).toContain('event: message-complete');
+            } finally {
+                agent.stream = originalStream;
+            }
         });
     });
 

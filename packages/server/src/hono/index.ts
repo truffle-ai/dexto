@@ -22,6 +22,7 @@ import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 import { createCorsMiddleware } from './middleware/cors.js';
 import { createAuthMiddleware } from './middleware/auth.js';
+import { MessageStreamManager } from '../streams/message-stream-manager.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -50,6 +51,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     const app = new OpenAPIHono({ strict: false }) as DextoApp;
     const webhookSubscriber = new WebhookEventSubscriber();
     const sseSubscriber = new A2ASseEventSubscriber();
+    const messageStreamManager = new MessageStreamManager();
 
     // Subscribe to agent's event bus (will be updated when agent switches)
     const agent = getAgent();
@@ -80,7 +82,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     api.use('*', prettyJsonMiddleware);
     api.use('*', redactionMiddleware);
     api.route('/', createGreetingRouter(getAgent));
-    api.route('/', createMessagesRouter(getAgent));
+    api.route('/', createMessagesRouter(getAgent, messageStreamManager));
     api.route('/', createLlmRouter(getAgent));
     api.route('/', createSessionsRouter(getAgent));
     api.route('/', createSearchRouter(getAgent));

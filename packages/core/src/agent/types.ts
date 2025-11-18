@@ -6,7 +6,6 @@
 
 import type { ImageData, FileData } from '../context/types.js';
 import type { LLMTokenUsage } from '../llm/services/types.js';
-import type { SessionEventMap } from '../events/index.js';
 
 /**
  * Re-export existing types for convenience
