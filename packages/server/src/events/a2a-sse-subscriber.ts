@@ -1,7 +1,7 @@
 /**
- * SSE (Server-Sent Events) Event Subscriber
+ * A2A SSE (Server-Sent Events) Event Subscriber
  *
- * Subscribes to agent events and streams them to SSE clients.
+ * Subscribes to agent events and streams them to SSE clients for A2A tasks.
  * Uses standard SSE protocol (text/event-stream) instead of WebSocket.
  *
  * Design:
@@ -31,13 +31,13 @@ interface SSEConnection {
 }
 
 /**
- * SSE Event Subscriber
+ * A2A SSE Event Subscriber
  *
  * Manages Server-Sent Events connections for A2A Protocol task streaming.
  *
  * Usage:
  * ```typescript
- * const sseSubscriber = new SSEEventSubscriber();
+ * const sseSubscriber = new A2ASseEventSubscriber();
  * sseSubscriber.subscribe(agent.agentEventBus);
  *
  * // In route handler
@@ -51,7 +51,7 @@ interface SSEConnection {
  * });
  * ```
  */
-export class SSEEventSubscriber {
+export class A2ASseEventSubscriber {
     private connections: Map<string, SSEConnection> = new Map();
     private eventBus?: AgentEventBus;
     private globalAbortController?: AbortController;
@@ -173,7 +173,7 @@ export class SSEEventSubscriber {
             { signal }
         );
 
-        logger.debug('SSEEventSubscriber subscribed to agent events');
+        logger.debug('A2ASseEventSubscriber subscribed to agent events');
     }
 
     /**

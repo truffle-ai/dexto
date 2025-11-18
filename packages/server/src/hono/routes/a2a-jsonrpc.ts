@@ -10,7 +10,7 @@ import type { DextoAgent } from '@dexto/core';
 import { JsonRpcServer } from '../../a2a/jsonrpc/server.js';
 import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
-import type { SSEEventSubscriber } from '../../events/sse-subscriber.js';
+import type { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
 import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
 
 /**
@@ -50,7 +50,7 @@ import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
  */
 export function createA2AJsonRpcRouter(
     getAgent: () => DextoAgent,
-    sseSubscriber: SSEEventSubscriber
+    sseSubscriber: A2ASseEventSubscriber
 ) {
     const app = new Hono();
 

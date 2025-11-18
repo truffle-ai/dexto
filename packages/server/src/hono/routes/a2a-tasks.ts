@@ -15,7 +15,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
-import type { SSEEventSubscriber } from '../../events/sse-subscriber.js';
+import type { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
 import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
 
 // Request/Response Schemas for OpenAPI (using A2A-compliant schema)
@@ -205,7 +205,7 @@ const TaskListQuerySchema = z
  */
 export function createA2ATasksRouter(
     getAgent: () => DextoAgent,
-    sseSubscriber: SSEEventSubscriber
+    sseSubscriber: A2ASseEventSubscriber
 ) {
     const app = new OpenAPIHono();
 

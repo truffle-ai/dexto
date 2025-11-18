@@ -17,7 +17,7 @@ import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
 import { createAgentsRouter } from './routes/agents.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
-import { SSEEventSubscriber } from '../events/sse-subscriber.js';
+import { A2ASseEventSubscriber } from '../events/a2a-sse-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 import { createCorsMiddleware } from './middleware/cors.js';
@@ -49,7 +49,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     const { getAgent, getAgentCard, agentsContext } = options;
     const app = new OpenAPIHono({ strict: false }) as DextoApp;
     const webhookSubscriber = new WebhookEventSubscriber();
-    const sseSubscriber = new SSEEventSubscriber();
+    const sseSubscriber = new A2ASseEventSubscriber();
 
     // Subscribe to agent's event bus (will be updated when agent switches)
     const agent = getAgent();
