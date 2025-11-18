@@ -604,6 +604,296 @@ export class DextoAgent {
     }
 
     /**
+     * Generate a complete response (waits for full completion).
+     * This is the recommended method for non-streaming use cases.
+     *
+     * @param message The user's message
+     * @param options Optional configuration (sessionId, imageData, fileData, signal)
+     * @returns Promise that resolves to the complete response
+     *
+     * @example
+     * ```typescript
+     * const response = await agent.generate("What is 2+2?");
+     * console.log(response.content); // "4"
+     * console.log(response.usage.totalTokens); // 50
+     * ```
+     */
+    public async generate(
+        message: string,
+        options?: import('./types.js').GenerateOptions
+    ): Promise<import('./types.js').GenerateResponse> {
+        // Collect all events from stream
+        const events: import('./types.js').StreamEvent[] = [];
+
+        for await (const event of await this.stream(message, options)) {
+            events.push(event);
+        }
+
+        // Find the message-complete event
+        const completeEvent = events.find((e) => e.type === 'message-complete');
+        if (!completeEvent || completeEvent.type !== 'message-complete') {
+            throw new Error('Stream did not complete successfully');
+        }
+
+        const sessionId = options?.sessionId || this.currentDefaultSessionId;
+
+        return {
+            content: completeEvent.content,
+            reasoning: completeEvent.reasoning,
+            usage: completeEvent.usage,
+            toolCalls: completeEvent.toolCalls,
+            sessionId,
+            messageId: completeEvent.messageId,
+        };
+    }
+
+    /**
+     * Stream a response (yields events as they arrive).
+     * This is the recommended method for real-time streaming UI updates.
+     *
+     * TODO: Refactor to move AsyncIterator down to LLM service level (Option 1).
+     * Currently aggregates EventBus events at top level (Option 2) for faster implementation.
+     *
+     * @param message The user's message
+     * @param options Optional configuration (sessionId, imageData, fileData, signal)
+     * @returns AsyncIterator that yields StreamEvent objects
+     *
+     * @example
+     * ```typescript
+     * for await (const event of await agent.stream("Write a poem")) {
+     *   if (event.type === 'content-chunk') {
+     *     process.stdout.write(event.delta);
+     *   }
+     *   if (event.type === 'tool-use') {
+     *     console.log(`\n[Using ${event.toolName}]\n`);
+     *   }
+     * }
+     * ```
+     */
+    public async stream(
+        message: string,
+        options?: import('./types.js').StreamOptions
+    ): Promise<AsyncIterableIterator<import('./types.js').StreamEvent>> {
+        this.ensureStarted();
+
+        const sessionId = options?.sessionId || this.currentDefaultSessionId;
+        const imageData = options?.imageData;
+        const fileData = options?.fileData;
+        const signal = options?.signal;
+
+        // Event queue for aggregation
+        const eventQueue: import('./types.js').StreamEvent[] = [];
+        let completed = false;
+        let streamError: Error | null = null;
+
+        // Generate unique message ID
+        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+        // Track tool calls for final complete event
+        const toolCalls: import('./types.js').AgentToolCall[] = [];
+        let finalContent = '';
+        let finalReasoning: string | undefined;
+        let finalUsage: import('./types.js').TokenUsage | undefined;
+
+        // Create AbortController for cleanup
+        const controller = new AbortController();
+        const cleanupSignal = controller.signal;
+
+        // Subscribe to AgentEventBus (not session bus - events have sessionId)
+        this.agentEventBus.on(
+            'llmservice:thinking',
+            (data) => {
+                if (data.sessionId === sessionId) {
+                    eventQueue.push({ type: 'thinking' });
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
+        this.agentEventBus.on(
+            'llmservice:chunk',
+            (data) => {
+                if (data.sessionId === sessionId) {
+                    eventQueue.push({
+                        type: 'content-chunk',
+                        delta: data.content,
+                        chunkType: data.type,
+                        isComplete: data.isComplete,
+                    });
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
+        this.agentEventBus.on(
+            'llmservice:toolCall',
+            (data) => {
+                if (data.sessionId === sessionId) {
+                    const toolCall: import('./types.js').AgentToolCall = {
+                        toolName: data.toolName,
+                        args: data.args,
+                        callId: data.callId || `tool_${Date.now()}`,
+                    };
+                    toolCalls.push(toolCall);
+
+                    eventQueue.push({
+                        type: 'tool-use',
+                        toolName: toolCall.toolName,
+                        args: toolCall.args,
+                        callId: toolCall.callId,
+                    });
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
+        this.agentEventBus.on(
+            'llmservice:toolResult',
+            (data) => {
+                if (data.sessionId === sessionId) {
+                    // Update tool call with result
+                    const toolCall = toolCalls.find((tc) => tc.callId === data.callId);
+                    if (toolCall) {
+                        toolCall.result = {
+                            success: data.success,
+                            data: data.sanitized,
+                        };
+                    }
+
+                    eventQueue.push({
+                        type: 'tool-result',
+                        callId: data.callId || '',
+                        success: data.success,
+                        result: data.sanitized,
+                    });
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
+        this.agentEventBus.on(
+            'llmservice:response',
+            (data) => {
+                if (data.sessionId === sessionId) {
+                    finalContent = data.content;
+                    finalReasoning = data.reasoning;
+                    if (data.tokenUsage) {
+                        const usage: import('./types.js').TokenUsage = {
+                            inputTokens: data.tokenUsage.inputTokens || 0,
+                            outputTokens: data.tokenUsage.outputTokens || 0,
+                            totalTokens: data.tokenUsage.totalTokens || 0,
+                        };
+                        // Only set reasoningTokens if it exists
+                        if (data.tokenUsage.reasoningTokens !== undefined) {
+                            usage.reasoningTokens = data.tokenUsage.reasoningTokens;
+                        }
+                        finalUsage = usage;
+                    } else {
+                        finalUsage = undefined;
+                    }
+
+                    eventQueue.push({
+                        type: 'message-complete',
+                        messageId,
+                        content: finalContent,
+                        reasoning: finalReasoning,
+                        usage: finalUsage || { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+                        toolCalls,
+                    });
+                    completed = true;
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
+        this.agentEventBus.on(
+            'llmservice:error',
+            (data) => {
+                if (data.sessionId === sessionId) {
+                    streamError = data.error;
+                    eventQueue.push({
+                        type: 'error',
+                        error: data.error,
+                        recoverable: data.recoverable || false,
+                        context: data.context,
+                    });
+                    if (!data.recoverable) {
+                        completed = true;
+                    }
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
+        // Emit message-start event
+        eventQueue.push({
+            type: 'message-start',
+            messageId,
+            sessionId,
+            timestamp: Date.now(),
+        });
+
+        // Start run in background (fire-and-forget)
+        // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
+        const imageDataForRun = imageData
+            ? {
+                  image:
+                      typeof imageData.image === 'string'
+                          ? imageData.image
+                          : imageData.image.toString(),
+                  mimeType: imageData.mimeType || 'image/png',
+              }
+            : undefined;
+
+        this.run(message, imageDataForRun, fileData as any, sessionId, true).catch((error) => {
+            streamError = error;
+            completed = true;
+            eventQueue.push({
+                type: 'error',
+                error,
+                recoverable: false,
+                context: 'run_failed',
+            });
+        });
+
+        // Return async iterable iterator
+        const iterator: AsyncIterableIterator<import('./types.js').StreamEvent> = {
+            async next(): Promise<IteratorResult<import('./types.js').StreamEvent>> {
+                // Wait for events
+                while (!completed && eventQueue.length === 0) {
+                    await new Promise((resolve) => setImmediate(resolve));
+
+                    // Check for abort
+                    if (signal?.aborted) {
+                        controller.abort(); // Cleanup listeners
+                        return { done: true, value: undefined };
+                    }
+                }
+
+                // Return queued events
+                if (eventQueue.length > 0) {
+                    return { done: false, value: eventQueue.shift()! };
+                }
+
+                // Stream completed
+                if (completed) {
+                    controller.abort(); // Cleanup listeners
+                    return { done: true, value: undefined };
+                }
+
+                // Shouldn't reach here
+                return { done: true, value: undefined };
+            },
+
+            [Symbol.asyncIterator]() {
+                return iterator;
+            },
+        };
+
+        return iterator;
+    }
+
+    /**
      * Cancels the currently running turn for a session (or the default session).
      * Safe to call even if no run is in progress.
      * @param sessionId Optional session id; defaults to current default session
