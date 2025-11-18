@@ -14,7 +14,9 @@ import { createBashExecTool } from './implementations/bash-exec-tool.js';
 import { createBashOutputTool } from './implementations/bash-output-tool.js';
 import { createKillProcessTool } from './implementations/kill-process-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
+import { createSpawnAgentTool } from './implementations/spawn-agent-tool.js';
 import type { KnownInternalTool } from './constants.js';
+import type { DextoAgent } from '../../agent/DextoAgent.js';
 
 /**
  * Services available to internal tools
@@ -25,8 +27,8 @@ export interface InternalToolsServices {
     approvalManager?: ApprovalManager;
     fileSystemService?: FileSystemService;
     processService?: ProcessService;
+    agent?: DextoAgent;
     // Future services can be added here:
-    // sessionManager?: SessionManager;
     // storageManager?: StorageManager;
     // eventBus?: AgentEventBus;
 }
@@ -98,6 +100,10 @@ export const INTERNAL_TOOL_REGISTRY: Record<
     delegate_to_url: {
         factory: (_services: InternalToolsServices) => createDelegateToUrlTool(),
         requiredServices: [] as const,
+    },
+    spawn_agent: {
+        factory: (services: InternalToolsServices) => createSpawnAgentTool(services.agent!),
+        requiredServices: ['agent'] as const,
     },
 };
 

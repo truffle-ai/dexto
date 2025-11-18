@@ -5,7 +5,7 @@ import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
 import type { ApprovalManager } from '../../approval/manager.js';
-import type { SessionManager } from '../../session/index.js';
+import type { DextoAgent } from '../../agent/DextoAgent.js';
 
 /**
  * Provider for built-in internal tools that are part of the core system
@@ -110,17 +110,9 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Set session manager for tools that need it (called after SessionManager is created)
-     */
-    setSessionManager(sessionManager: SessionManager): void {
-        this.services.sessionManager = sessionManager;
-        this.logger.debug('SessionManager configured for internal tools');
-    }
-
-    /**
      * Set agent for tools that need it (called after DextoAgent is initialized)
      */
-    setAgent(agent: import('../../agent/DextoAgent.js').DextoAgent): void {
+    setAgent(agent: DextoAgent): void {
         this.services.agent = agent;
 
         // Re-register tools that depend on agent

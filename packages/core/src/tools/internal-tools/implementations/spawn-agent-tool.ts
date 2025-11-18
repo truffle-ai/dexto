@@ -84,13 +84,17 @@ export function createSpawnAgentTool(agent: DextoAgent): InternalTool {
 
             const agentConfig = getBuiltInAgent(validatedInput.agent as BuiltInAgentName);
 
+            // Validate session context
+            if (!context?.sessionId) {
+                throw new Error('Session context is required for spawn_agent tool');
+            }
+
             // Delegate to DextoAgent.handoff()
             // Pass agent config directly - coordinator will create DextoAgent internally
             const result = await agent.handoff(validatedInput.prompt, {
                 agent: agentConfig,
-                agentIdentifier: `built-in:${validatedInput.agent}`,
                 ...(validatedInput.description && { description: validatedInput.description }),
-                ...(context?.sessionId && { parentSessionId: context.sessionId }),
+                parentSessionId: context.sessionId,
             });
 
             // Map handoff result to tool result format

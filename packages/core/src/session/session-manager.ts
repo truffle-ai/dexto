@@ -71,7 +71,7 @@ export interface SessionData {
 
     /**
      * Consolidated metadata with type and extensible fields
-     * - metadata.type: Session type for categorization ('default', 'sub-agent', 'scheduled', 'task')
+     * - metadata.type: Session type for categorization ('primary', 'sub-agent', 'scheduled', 'task')
      * - metadata.subAgent: Sub-agent specific data (only for sub-agent sessions)
      * - Additional fields can be added for custom session types
      */
@@ -112,7 +112,7 @@ export class SessionManager {
     // Add a Map to track ongoing session creation operations to prevent race conditions
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
     private logger: IDextoLogger;
-    private static readonly DEFAULT_SESSION_TYPE: SessionType = 'default';
+    private static readonly DEFAULT_SESSION_TYPE: SessionType = 'primary';
 
     constructor(
         private services: {

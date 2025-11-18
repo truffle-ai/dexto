@@ -31,8 +31,8 @@ export interface SubAgentSpawnOptions {
     /** Lifecycle policy (defaults to config) */
     lifecycle?: 'ephemeral' | 'persistent';
 
-    /** Agent identifier for logging/tracking (optional, inferred if DextoAgent provided) */
-    agentIdentifier?: string;
+    /** Task description for tracking what the sub-agent is working on */
+    description?: string;
 }
 
 /**
@@ -45,7 +45,6 @@ interface SubAgentContext {
     parentSessionId: string;
     depth: number;
     lifecycle: 'ephemeral' | 'persistent';
-    agentIdentifier: string;
     startTime: number;
 }
 
@@ -56,7 +55,6 @@ export interface SubAgentInfo {
     agentId: string;
     sessionId: string; // Default session ID of the sub-agent
     depth: number;
-    agentIdentifier: string;
     duration: number;
 }
 
@@ -72,8 +70,16 @@ export class SubAgentHandle {
     /**
      * Run a task on the sub-agent.
      * Automatically cleans up after completion.
+     * @param task The task to execute
+     * @param options Optional execution options
      */
-    async run(task: string): Promise<string> {
+    async run(
+        task: string,
+        options?: {
+            /** Timeout in milliseconds. If exceeded, the task will be cancelled. */
+            timeout?: number;
+        }
+    ): Promise<string> {
         try {
             // Use the explicit execution session created during spawn
             const session = await this.context.agent.getSession(this.context.executionSessionId);
@@ -82,6 +88,20 @@ export class SubAgentHandle {
                     `Sub-agent execution session ${this.context.executionSessionId} not found`
                 );
             }
+
+            // If timeout is specified, race the execution with timeout
+            if (options?.timeout) {
+                return await Promise.race([
+                    session.run(task),
+                    new Promise<string>((_, reject) =>
+                        setTimeout(() => {
+                            this.cancel();
+                            reject(new Error(`Sub-agent timeout after ${options.timeout}ms`));
+                        }, options.timeout)
+                    ),
+                ]);
+            }
+
             return await session.run(task);
         } finally {
             // Auto-cleanup on completion
@@ -122,7 +142,6 @@ export class SubAgentHandle {
             agentId: this.context.agentId,
             sessionId: this.context.executionSessionId,
             depth: this.context.depth,
-            agentIdentifier: this.context.agentIdentifier,
             duration: Date.now() - this.context.startTime,
         };
     }
@@ -154,7 +173,7 @@ export class SubAgentCoordinator {
      * @throws {SessionError} if depth limit exceeded or validation fails
      */
     async spawn(options: SubAgentSpawnOptions): Promise<SubAgentHandle> {
-        const { parentSessionId, agent, lifecycle, agentIdentifier } = options;
+        const { parentSessionId, agent, lifecycle, description } = options;
 
         // 1. Determine if we have an agent or need to create one
         const isAgentInstance = 'sendMessage' in agent; // Duck typing to avoid circular import
@@ -196,17 +215,12 @@ export class SubAgentCoordinator {
             throw SessionError.parentNotFound(parentSessionId);
         }
 
-        // 5. Build agent identifier for tracking
-        const identifier = agentIdentifier || 'custom-agent';
-
-        // 6. Generate unique agent ID
+        // 5. Generate unique agent ID
         const agentId = `sub-agent-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-        this.logger.info(
-            `Spawned sub-agent ${agentId} (depth: ${depth + 1}, identifier: ${identifier})`
-        );
+        this.logger.info(`Spawned sub-agent ${subAgent.agentId} (depth: ${depth + 1})`);
 
-        // 7. Create explicit execution session for sub-agent
+        // 6. Create explicit execution session for sub-agent
         // This avoids using default session logic which is being deprecated
         const executionSessionId = `sub-agent-exec-${agentId}`;
         const executionSession = await subAgent.createSession(executionSessionId, {
@@ -215,25 +229,20 @@ export class SubAgentCoordinator {
                 parentSessionId, // Link to parent session
             },
             metadata: {
-                agentIdentifier: identifier,
+                agentId: subAgent.agentId,
                 depth: depth + 1,
+                ...(description && { description }),
             },
         });
 
         this.logger.debug(
-            `Created execution session ${executionSessionId} for sub-agent ${agentId}`
+            `Created execution session ${executionSessionId} for sub-agent ${subAgent.agentId}`
         );
 
-        // 8. Set up event forwarding (agent-to-agent, using explicit session)
-        await this.setupEventForwarding(
-            subAgent,
-            executionSessionId,
-            parentSessionId,
-            depth + 1,
-            identifier
-        );
+        // 7. Set up event forwarding (agent-to-agent, using explicit session)
+        await this.setupEventForwarding(subAgent, executionSessionId, parentSessionId, depth + 1);
 
-        // 9. Track active sub-agent in-memory
+        // 8. Track active sub-agent in-memory
         const context: SubAgentContext = {
             agent: subAgent,
             agentId,
@@ -241,18 +250,17 @@ export class SubAgentCoordinator {
             parentSessionId,
             depth: depth + 1,
             lifecycle: lifecycle ?? this.getDefaultLifecycle(),
-            agentIdentifier: identifier,
             startTime: Date.now(),
         };
         this.activeSubAgents.set(agentId, context);
 
-        this.logger.debug(`Tracking sub-agent ${agentId} in-memory`, {
+        this.logger.debug(`Tracking sub-agent ${subAgent.agentId} in-memory`, {
             agentId,
+            configuredAgentId: subAgent.agentId,
             depth: depth + 1,
-            identifier,
         } as Record<string, unknown>);
 
-        // 10. Return handle
+        // 9. Return handle
         return new SubAgentHandle(context, this);
     }
 
@@ -264,8 +272,7 @@ export class SubAgentCoordinator {
         subAgent: DextoAgent,
         subAgentSessionId: string,
         parentSessionId: string,
-        depth: number,
-        agentIdentifier: string
+        depth: number
     ): Promise<void> {
         try {
             const parentSession = await this.sessionManager.getSession(parentSessionId);
@@ -304,7 +311,7 @@ export class SubAgentCoordinator {
                             ...base,
                             fromSubAgent: true,
                             subAgentSessionId,
-                            subAgentType: agentIdentifier,
+                            subAgentType: subAgent.agentId,
                             depth,
                         };
                     },
@@ -336,7 +343,7 @@ export class SubAgentCoordinator {
             this.forwarders.set(`${subAgentSessionId}:approval`, approvalForwarder);
 
             this.logger.debug(
-                `Event forwarding configured for sub-agent ${agentIdentifier} → parent session ${parentSessionId}`
+                `Event forwarding configured for sub-agent ${subAgent.agentId} → parent session ${parentSessionId}`
             );
         } catch (error) {
             this.logger.error(
@@ -407,7 +414,6 @@ export class SubAgentCoordinator {
                     agentId: ctx.agentId,
                     sessionId: ctx.executionSessionId,
                     depth: ctx.depth,
-                    agentIdentifier: ctx.agentIdentifier,
                     duration: Date.now() - ctx.startTime,
                 });
             }

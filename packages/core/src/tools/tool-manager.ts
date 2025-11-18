@@ -15,6 +15,7 @@ import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
+import type { DextoAgent } from '../agent/DextoAgent.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -142,19 +143,9 @@ export class ToolManager {
     }
 
     /**
-     * Set session manager for internal tools that need it (e.g., spawn_agent)
-     */
-    setSessionManager(sessionManager: SessionManager): void {
-        this.sessionManager = sessionManager;
-        if (this.internalToolsProvider) {
-            this.internalToolsProvider.setSessionManager(sessionManager);
-        }
-    }
-
-    /**
      * Set agent for internal tools that need it (e.g., spawn_agent)
      */
-    setAgent(agent: import('../agent/DextoAgent.js').DextoAgent): void {
+    setAgent(agent: DextoAgent): void {
         if (this.internalToolsProvider) {
             this.internalToolsProvider.setAgent(agent);
         }

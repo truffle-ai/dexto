@@ -258,10 +258,10 @@ describe('Session Integration: Chat History Preservation', () => {
             // Create session using old API (without explicit type)
             const _session = await agent.createSession('backward-compat');
 
-            // Verify default type was applied
+            // Verify default type was applied (now 'primary' instead of 'default')
             const metadata = await agent.getSessionMetadata('backward-compat');
             expect(metadata).toBeDefined();
-            expect(metadata?.metadata.type).toBe('default');
+            expect(metadata?.metadata.type).toBe('primary');
         });
 
         test('should support custom session types', async () => {

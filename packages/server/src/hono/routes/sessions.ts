@@ -72,7 +72,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lastActivity: metadata?.lastActivity || null,
                         messageCount: metadata?.messageCount || 0,
                         title: metadata?.title || null,
-                        type: metadata?.metadata.type || 'default',
+                        type: metadata?.metadata.type || 'primary',
                         metadata: metadata?.metadata,
                     };
                 } catch {
@@ -83,7 +83,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lastActivity: null,
                         messageCount: 0,
                         title: null,
-                        type: 'default',
+                        type: 'primary',
                         metadata: undefined,
                     };
                 }
@@ -338,6 +338,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
+                    type: metadata?.metadata.type || 'default',
+                    metadata: metadata?.metadata,
                 },
             },
             200
