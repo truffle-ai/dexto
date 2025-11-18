@@ -32,8 +32,6 @@ function resolveBaseUrl(port: number): string {
 export type HonoInitializationResult = {
     app: ReturnType<typeof createDextoApp>;
     server: ReturnType<typeof createNodeServer>['server'];
-    websocketServer: ReturnType<typeof createNodeServer>['websocketServer'];
-    webSubscriber: ReturnType<typeof createNodeServer>['webSubscriber'];
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
     agentCard: AgentCard;
     mcpTransport?: Transport;
@@ -67,7 +65,7 @@ export async function initializeHonoApi(
             defaultName: overrides.name ?? activeAgentId,
             defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
             defaultBaseUrl: baseApiUrl,
-            webSubscriber: true, // Will be updated after bridge creation
+            // webSubscriber: true, // Removed in SSE migration
         },
         overrides
     );
@@ -116,7 +114,6 @@ export async function initializeHonoApi(
     ) {
         // Register event subscribers with new agent before starting
         logger.info('Registering event subscribers with new agent...');
-        newAgent.registerSubscriber(bridge.webSubscriber);
         if (bridge.webhookSubscriber) {
             newAgent.registerSubscriber(bridge.webhookSubscriber);
         }
@@ -135,7 +132,7 @@ export async function initializeHonoApi(
                 defaultName: agentId,
                 defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
                 defaultBaseUrl: baseApiUrl,
-                webSubscriber: bridge.webSubscriber,
+                // webSubscriber removed in SSE migration
             },
             overrides
         );
@@ -294,7 +291,7 @@ export async function initializeHonoApi(
         mcpTransport = undefined;
     }
 
-    // Create bridge with app - bridge will create webSubscriber
+    // Create bridge with app
     bridgeRef = createNodeServer(app, {
         getAgent,
         mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
@@ -302,18 +299,17 @@ export async function initializeHonoApi(
 
     // Register subscribers with initial agent
     logger.info('Registering event subscribers with agent...');
-    activeAgent.registerSubscriber(bridgeRef.webSubscriber);
     if (bridgeRef.webhookSubscriber) {
         activeAgent.registerSubscriber(bridgeRef.webhookSubscriber);
     }
 
-    // Update agent card with actual webSubscriber
+    // Update agent card
     agentCardData = createAgentCard(
         {
             defaultName: overrides.name ?? activeAgentId,
             defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
             defaultBaseUrl: baseApiUrl,
-            webSubscriber: bridgeRef.webSubscriber,
+            // webSubscriber removed in SSE migration
         },
         overrides
     );
@@ -340,8 +336,6 @@ export async function initializeHonoApi(
     return {
         app,
         server: bridgeRef.server,
-        websocketServer: bridgeRef.websocketServer,
-        webSubscriber: bridgeRef.webSubscriber,
         ...(bridgeRef.webhookSubscriber ? { webhookSubscriber: bridgeRef.webhookSubscriber } : {}),
         agentCard: agentCardData,
         ...(mcpTransport ? { mcpTransport } : {}),
@@ -361,11 +355,9 @@ export async function startHonoApiServer(
     agentId?: string
 ): Promise<{
     server: ReturnType<typeof createNodeServer>['server'];
-    wss: ReturnType<typeof createNodeServer>['websocketServer'];
-    webSubscriber: ReturnType<typeof createNodeServer>['webSubscriber'];
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
 }> {
-    const { server, websocketServer, webSubscriber, webhookSubscriber } = await initializeHonoApi(
+    const { server, webhookSubscriber } = await initializeHonoApi(
         agent,
         agentCardOverride,
         port,
@@ -392,8 +384,6 @@ export async function startHonoApiServer(
 
     return {
         server,
-        wss: websocketServer,
-        webSubscriber,
         ...(webhookSubscriber ? { webhookSubscriber } : {}),
     };
 }

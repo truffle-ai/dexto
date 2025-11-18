@@ -20,9 +20,7 @@ const DEFAULT_DELIVERY_OPTIONS: Required<WebhookDeliveryOptions> = {
 };
 
 /**
- * TODO: temporarily DUPE OF cli
  * Webhook event subscriber that delivers agent events via HTTP POST
- * Mirrors WebSocketEventSubscriber but sends HTTP requests to registered webhook URLs
  */
 export class WebhookEventSubscriber implements EventSubscriber {
     private webhooks: Map<string, WebhookConfig> = new Map();
@@ -56,7 +54,7 @@ export class WebhookEventSubscriber implements EventSubscriber {
         const MAX_SHARED_SIGNAL_LISTENERS = 20;
         setMaxListeners(MAX_SHARED_SIGNAL_LISTENERS, signal);
 
-        // Subscribe to all relevant events with abort signal (same as WebSocket subscriber)
+        // Subscribe to all relevant events with abort signal
         const eventNames: AgentEventName[] = [
             'llmservice:thinking',
             'llmservice:chunk',
