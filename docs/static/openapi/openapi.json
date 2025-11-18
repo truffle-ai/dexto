@@ -2726,6 +2726,137 @@
         }
       }
     },
+    "/api/message-stream": {
+      "post": {
+        "summary": "Start streaming message",
+        "description": "Starts a streaming turn and returns the SSE endpoint URL",
+        "tags": [
+          "messages"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "The user message text"
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The session to use for this message"
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "description": "Set to true to receive streaming chunks over WebSocket"
+                  },
+                  "imageData": {
+                    "type": "object",
+                    "properties": {
+                      "base64": {
+                        "type": "string",
+                        "description": "Base64-encoded image data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "The MIME type of the image (e.g., image/png)"
+                      }
+                    },
+                    "required": [
+                      "base64",
+                      "mimeType"
+                    ],
+                    "description": "Optional image data to include with the message"
+                  },
+                  "fileData": {
+                    "type": "object",
+                    "properties": {
+                      "base64": {
+                        "type": "string",
+                        "description": "Base64-encoded file data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "The MIME type of the file (e.g., application/pdf)"
+                      },
+                      "filename": {
+                        "type": "string",
+                        "description": "The filename"
+                      }
+                    },
+                    "required": [
+                      "base64",
+                      "mimeType"
+                    ],
+                    "description": "Optional file data to include with the message"
+                  }
+                },
+                "required": [
+                  "sessionId"
+                ],
+                "description": "Request body for sending a message to the agent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Streaming endpoint information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "streamUrl": {
+                      "type": "string",
+                      "description": "URL to consume SSE events for this session"
+                    }
+                  },
+                  "required": [
+                    "streamUrl"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Streaming not available"
+          }
+        }
+      }
+    },
+    "/api/message-stream/{sessionId}": {
+      "get": {
+        "summary": "Consume streaming events",
+        "description": "Streams SSE events for an active message session",
+        "tags": [
+          "messages"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream"
+          },
+          "404": {
+            "description": "Session stream not found"
+          }
+        }
+      }
+    },
     "/api/llm/current": {
       "get": {
         "summary": "Get Current LLM Config",
@@ -7425,6 +7556,113 @@
         }
       }
     },
+    "/api/approvals/{approvalId}": {
+      "post": {
+        "summary": "Submit Approval Decision",
+        "description": "Submit a user decision for a pending approval request",
+        "tags": [
+          "approvals"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID of the approval request"
+            },
+            "required": true,
+            "description": "The ID of the approval request",
+            "name": "approvalId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Optional key to ensure idempotent processing"
+            },
+            "required": false,
+            "description": "Optional key to ensure idempotent processing",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "denied"
+                    ],
+                    "description": "The user decision"
+                  },
+                  "formData": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    },
+                    "description": "Optional form data provided by the user (for elicitation)"
+                  },
+                  "rememberChoice": {
+                    "type": "boolean",
+                    "description": "Whether to remember this choice for future requests"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "description": "Request body for submitting an approval decision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approval processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Whether the approval was successfully processed"
+                    },
+                    "approvalId": {
+                      "type": "string",
+                      "description": "The ID of the processed approval"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "denied"
+                      ],
+                      "description": "The final status"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "approvalId",
+                    "status"
+                  ],
+                  "description": "Response after processing approval"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Approval request not found or expired"
+          }
+        }
+      }
+    },
     "/api/agents": {
       "get": {
         "summary": "List Agents",
@@ -10440,7 +10678,6 @@
                 "properties": {
                   "yaml": {
                     "type": "string",
-                    "minLength": 1,
                     "description": "YAML agent configuration content to validate"
                   }
                 },
