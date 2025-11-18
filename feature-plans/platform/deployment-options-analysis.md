@@ -7,93 +7,74 @@
 | “WebSocket transport is production-ready; we’ll just swap transports later.” | `packages/server/src/hono/node/index.ts` contains the HTTP server + `WebSocketEventSubscriber`, matching the plan’s assumption. | ✅ |
 | “EventBus already cleans itself up so scale-to-zero is safe.” | `packages/core/src/events/index.ts:394-431` shows the `AbortSignal` logic the plan cites. | ✅ |
 | “MessageStreamManager + server-side buffering already exist.” | `rg -n "MessageStreamManager" packages` returns nothing. | ⚠️ Net-new server module. |
-| “UserScopedStorage is already wired up.” | No references to `UserScopedStorage` in the repo. | ⚠️ Needs to be implemented alongside the planned PostgreSQL RLS work. |
-| “GatewayLLMService / hosted billing client already exist.” | Gateway logic exists only in `dexto-web/apps/api`; no client shim in this repo. | ⚠️ Need SDK + config wiring. |
+| “UserScopedStorage is already wired up.” | No references to `UserScopedStorage` in the repo. | ⚠️ Needs to be implemented alongside PostgreSQL RLS. |
+| “GatewayLLMService / hosted billing client already exist.” | Billing logic lives in `dexto-web/apps/api`, but no client shim exists here. | ⚠️ SDK + config work required. |
 | “CostEstimator + ConcurrencyLimiter are ready.” | `rg` for both names returns nothing. | ⚠️ Entire throttling subsystem is future work. |
-| “HIL redesign is just integration work.” | Only the plan file exists; zero runtime code. | ⚠️ Track as a parallel epic. |
+| “HIL redesign is just integration work.” | Only the spec file exists; no runtime code. | ⚠️ Parallel epic. |
 
-**Takeaway:** The plan’s architecture is sound, but almost every “new” module remains unimplemented. Treat these as blockers before onboarding paying tenants.
+**Takeaway:** The architecture is sound, but most critical modules remain unimplemented. Treat these as blockers before onboarding multi-tenant customers.
 
 ## 2. Hosting Capability Matrix
 
 | Provider | WebSockets | Scale-to-Zero / Suspend | Compute Model | Built-in Observability | Notes |
 | --- | --- | --- | --- | --- | --- |
-| **Railway** | Standard Node templates (e.g., Soketi WebSockets) run without extra config, so WS is supported. citeturn18open0 | Apps can auto-sleep after 15 minutes idle when enabled. citeturn3search2 | Docker or Nix deploy; pricing is per vCPU-second + GB-second. citeturn16open0 | CPU/RAM/Network graphs plus deploy history out of the box. citeturn17open0 | Best for our OSS stack; SSE plan assumes Railway as the baseline. |
-| **Fly.io** | WebSockets are explicitly supported in Fly’s “Deploy Your Own” guidance. citeturn4open0 | Machines can `auto_stop` and hibernate, rehydrating on demand. citeturn0search5 | Every app is a Docker container; shared-cpu-1x/2x/8x sizes. citeturn4open0 | Exposes Prometheus endpoints + autoscaler blueprints. citeturn0search6 | Strong fit for pooled runtimes; global Anycast LBs keep latency low. |
-| **AWS ECS (Fargate)** | Put services behind an ALB; ALB natively supports WebSocket upgrades. citeturn6open0 | Target-tracking auto scaling can reduce desired tasks to 0 (cold-starts handled by ALB). citeturn8search9 | Docker images scheduled onto serverless Fargate. citeturn5open0 | CloudWatch Container Insights dashboards + alarms. citeturn3search5 | Best option for enterprise isolation or AWS data residency. |
-| **AWS EC2 (raw)** | Same ALB/WebSocket support as ECS; you manage the OS yourself. citeturn6open0 | No native scale-to-zero—instances bill while `running`. citeturn12search4 | Full VM control (Docker, custom kernels, GPUs). | Instance + VPC metrics via CloudWatch. citeturn12search6 | Cheapest when workloads are fully saturated and stable. |
-| **Render** | Web services explicitly support WebSockets. citeturn9open0 | Free tier hibernates after 15 min idle; paid tiers stay warm but you can use the Hibernate (scale-to-zero) stack. citeturn5search0turn5search7 | Build from repo or deploy Docker images. citeturn10open0 | Built-in dashboards showing CPU/RAM, deploys, and logs. citeturn6search2turn6search4 | Great DX, but compute is pricier than Fly/Railway. |
-| **Heroku** | Official docs cover ActionCable / Socket.IO deployments. citeturn11open0 | Eco dynos sleep after 30 min; paid dynos stay on. citeturn12open0 | Buildpacks or container stack. | Metrics + log drains (Datadog, New Relic). | Still easiest for small teams, but expensive at scale. |
-| **Cloudflare Workers / Workers for Platforms** | Workers support fetch upgrades and Durable Objects, so WebSockets + SSE are first-class. citeturn14open0 | Containers hibernate automatically; billing pauses when the Worker is idle. citeturn13open0turn15open0 | Serverless JavaScript/TypeScript (or `workers-for-platforms` containers) instead of Docker VMs. citeturn19open0 | Workers for Platforms expose per-tenant analytics via existing Cloudflare dashboards. citeturn13open0 | Excellent for per-tenant isolation, but no traditional container runtime. |
+| **Railway** | Templates (Node + Socket.IO, Soketi, etc.) deploy WS servers out of the box. citeturn6search0 | “Serverless” / App Sleeping pauses services after ~10 minutes idle and wakes on demand. citeturn6search2 | Deploy via Docker/Nixpacks with per-second CPU+RAM billing. citeturn6search1 | New observability view exposes CPU/RAM/network graphs + deploy history. citeturn8search1 | Ideal baseline for the SSE plan; sleep only works once sockets disappear. |
+| **Fly.io** | Docs explicitly show WebSocket apps running on Fly Machines. citeturn7search2 | `auto_stop_machines` and the autoscaler blueprint suspend idle Machines. citeturn7search4 | Every app is a Docker-based Machine size (shared-cpu-1x, 2x, 8x, etc.). citeturn7search0 | Prometheus/metrics endpoints ship by default. citeturn7search3 | Great for pooled runtimes with optional per-agent Machines when customers pay for isolation. |
+| **Cloudflare Workers / Workers for Platforms** | Workers + Durable Objects accept WebSocket upgrades via `fetch`/`serverws`. citeturn9search3 | Billing is per-request and per-CPU millisecond; idle time is free so workloads inherently scale to zero. citeturn9search1 | Event-driven JS/TS Workers plus Workers for Platforms routing tenants to their own Workers. citeturn9search2 | Workers dashboard exposes per-tenant metrics (requests, CPU, errors). citeturn9search2 | Best for per-user/agent isolation when stdio MCP isn’t required. |
+| **AWS ECS (Fargate)** | ALB in front of ECS services supports WebSocket upgrades. citeturn10search2 | Application Auto Scaling can set desired count to 0, letting services scale to zero and spin back up on demand. citeturn10search1 | Docker images scheduled onto serverless Fargate with per-second CPU/RAM billing. citeturn10search0 | CloudWatch Container Insights provides dashboards + alarms. citeturn10search3 | Strong fit for enterprise isolation + VPC networking. |
+| **AWS EC2** | Same ALB/WebSocket model; you manage the OS yourself. citeturn10search2 | No native scale-to-zero—instances bill while `running`. citeturn12search4 | Full VM control (Docker, GPUs, custom kernels). | CloudWatch metrics/logs per instance. citeturn12search6 | Cheapest when boxes stay fully utilized. |
+| **Render** | Render documents WebSocket deployments for long-lived connections. citeturn11search0 | Free tier hibernates after 15 min; Starter/Standard stay warm, while “Render Hibernate” option lets paid services scale down. citeturn11search1 | Build from repo or Docker; billed per-instance. citeturn11search0 | Dashboard shows CPU/RAM/time-series and billing per service. citeturn11search2 | Best DX, but pricier for sustained loads. |
+| **Heroku** | Official docs cover WebSockets (Action Cable, Socket.IO). citeturn12search0 | Eco dynos sleep after 30 min; Basic/Standard stay on 24/7. citeturn12search1 | Buildpacks or container stack. | Runtime metrics + log drains on paid tiers. citeturn12search1 | Simple developer experience but expensive at high agent counts. |
 
 ## 3. Cost & Pricing Analysis
 
 ### 3.1 Modeling Assumptions
+- Per active agent: **0.25 vCPU + 0.5 GB RAM** (current WebSocket footprint).
+- **10 %** of defined agents are active simultaneously to size shared runtimes.
+- Month = **730 hours** (Render’s billing convention). citeturn11search0
 
-- **Resource envelope per active agent:** 0.25 vCPU + 0.5 GB RAM (matches our WebSocket runtime footprint).
-- **Concurrency:** At any moment ~10% of defined agents are active (the rest idle waiting on inbound requests). This keeps shared runtimes from being sized for worst-case.
-- **Month length:** 730 hours (Render bills this way). citeturn10open0
-- **Cloudflare usage model:** Assume each agent handles 50k Worker requests/month with 5 ms CPU time (lightweight chat relays).
+### 3.2 Scenario Resource Targets
+| Scenario | Defined Agents | Active Agents (10 %) | Aggregate CPU | Aggregate RAM |
+| --- | --- | --- | --- | --- |
+| S1 | 200 (100 users × 2 agents) | 20 | 5 vCPU | 10 GB |
+| S2 | 10,000 (1k × 10) | 1,000 | 250 vCPU | 500 GB |
+| S3 | 100,000 (10k × 10) | 10,000 | 2,500 vCPU | 5 TB |
 
-### 3.2 Scenario Costs (Monthly)
-
-| Provider | Architecture | S1: 100 users / 2 agents | S2: 1k users / 10 agents | S3: 10k users / 10 agents | Source |
+### 3.3 Monthly Infrastructure Cost Estimates
+| Provider | Architecture | S1 | S2 | S3 | Pricing Source |
 | --- | --- | --- | --- | --- | --- |
-| **Railway** | Mega-service (always-on) | $200 (5 vCPU + 10 GB at per-second rates) | $10,005 | $100,051 | Rates $0.00000772/vCPU-s + $0.00000386/GB-s. citeturn16open0 |
-|  | Per-agent container | $2,001 (200 × $10) | $100,050 | $1,000,500 | Same rate applied per agent. |
-| **Fly.io** | Mega-service (2 GB shared-cpu-1x nodes) | $53.50 (5 nodes × $10.70) | $2,675 (250 nodes) | $26,750 (2,500 nodes) | Shared-cpu pricing. citeturn4open0 |
-|  | Per-agent (512 MB shared-cpu-1x) | $638 (200 × $3.19) | $31,900 | $319,000 | |
-| **AWS ECS (Fargate)** | Mega-service (resource pricing) | $178 (5 vCPU/10 GB) | $8,887 | $88,867 | CPU $0.000011244/vCPU-s, RAM $0.000001235/GB-s. citeturn5open0 |
-|  | Per-agent task | $1,777 (per agent ≈ $8.89) | $88,867 | $888,672 | Same rate applied per task. |
-| **AWS EC2 (t3.small instances)** | Mega-service | $75.90 (5 × $15.18) | $3,795 | $37,950 | t3.small price. citeturn8open0 |
-|  | Per-agent (t3.nano) | $760 (200 × $3.80) | $38,000 | $380,000 | t3.nano price. citeturn8open0 |
-| **Render** | Mega-service (Standard 2 GB) | $125 (5 × $25) | $6,250 | $62,500 | Pricing tiers. citeturn10open0 |
-|  | Per-agent (Starter 512 MB) | $1,400 (200 × $7) | $70,000 | $700,000 | |
-| **Heroku** | Mega-service (Standard-1X dynos) | $500 (20 × $25) | $25,000 | $250,000 | Dyno pricing. citeturn12open0 |
-|  | Per-agent (Basic dyno) | $1,400 (200 × $7) | $70,000 | $700,000 | |
-| **Cloudflare Workers for Platforms** | Per-request (50k req/agent) | $25 (covered by 20 M included requests) | $218 (extra 480 M req + CPU ms) | $2,018 (extra 4.98 B req + CPU ms) | Pricing & included quotas. citeturn13open0 |
+| **Railway** | Mega-service (always-on) | CPU: 5 vCPU × $0.00000772 × 2.592e6 s = $100.1; RAM: 10 GB × $0.00000386 × 2.592e6 s = $100.1 → **$200.2** | **$10,005** | **$100,051** | Per-second CPU/RAM pricing. citeturn6search1 |
+|  | Per-agent container | $8.89/agent → **$1,778** | **$88,867** | **$888,675** | citeturn6search1 |
+| **Fly.io** | Mega-service (shared-cpu presets) | 5 × shared-cpu-1x 2 GB ($10.70) = **$53.5** | 32 × shared-cpu-8x 16 GB ($85.59) = **$2,739** | 313 × $85.59 = **$26,793** | Machine pricing. citeturn7search0 |
+|  | Per-agent (512 MB shared-cpu-1x) | 200 × $3.19 = **$638** | **$31,900** | **$319,000** | citeturn7search0 |
+| **Cloudflare Workers / Workers for Platforms** | Request/CPU usage (assume 1 request/sec per active agent, 5 ms CPU/req). | S1: 51.8 M req → (51.8M−20M)/1M×$0.30 ≈ $9.5; CPU overage (259 M ms−60 M)/1M×$0.02 ≈ $4.0 + $25 base = **$38.5** | S2: 2.592 B req → $774.6 (requests) + $258.6 (CPU) + $25 = **$1.06 M** | S3: 25.92 B req → $7.77 M + $2.59 M + $25 = **$10.36 M** | Workers/Workers for Platforms pricing. citeturn9search1turn9search2 |
+| **AWS ECS (Fargate)** | Mega-service (resource-based) | 0.24685 $/h × 730 = **$180** | 12.3425 $/h × 730 = **$9,007** | 123.425 $/h × 730 = **$90,099** | Fargate vCPU/GB pricing. citeturn10search0 |
+|  | Per-agent task (0.25 vCPU/0.5 GB) | $0.0123425 $/h × 730 = **$9/agent** (→ $1,800 / $90k / $900k) | | | citeturn10search0 |
+| **AWS EC2 (t3.small)** | Mega-service (t3.small 2 GB nodes) | 5 × $15.18 = **$75.9** | 250 × $15.18 = **$3,795** | 2,500 × $15.18 = **$37,950** | On-demand pricing. citeturn6search2 |
+|  | Per-agent (t3.nano) | 200 × $3.80 ≈ **$760** | **$38,000** | **$380,000** | On-demand pricing. citeturn6search6 |
+| **Render** | Mega-service (Standard 2 GB) | 5 × $25 = **$125** | 250 × $25 = **$6,250** | 2,500 × $25 = **$62,500** | Instance pricing. citeturn11search0 |
+|  | Per-agent (Starter 512 MB) | 200 × $7 = **$1,400** | **$70,000** | **$700,000** | citeturn11search0 |
+| **Heroku** | Mega-service (Standard-1X 512 MB dynos) | Need 20 dynos → **$500** | 1,000 dynos → **$25,000** | 10,000 → **$250,000** | Dyno pricing. citeturn12search1 |
+|  | Per-agent (Basic dyno) | 200 × $7 = **$1,400** | **$70,000** | **$700,000** | citeturn12search1 |
 
-### 3.3 Per-Agent Infrastructure Cost & Suggested Pass-Through
+> Cloudflare costs scale with traffic rather than agent count; if agents stream less than 1 req/sec the totals drop proportionally.
 
-| Provider | Infra Cost / Agent / Month | Suggested Customer Price* | Rationale |
-| --- | --- | --- | --- |
-| Railway | ~$10 (0.25 vCPU + 0.5 GB always-on). citeturn16open0 | $15–$20 | Covers infra + platform support margin. |
-| Fly.io | $3.19 (512 MB shared-cpu-1x). citeturn4open0 | $10–$12 | Add bandwidth + support overhead. |
-| AWS ECS (Fargate) | ~$8.89 (continuous). citeturn5open0 | $15 | Aligns with enterprise expectations + AWS networking. |
-| AWS EC2 (t3.nano) | ~$3.80. citeturn8open0 | $10 | Account for AMI maintenance + Elastic IPs. |
-| Render | $7 (Starter). citeturn10open0 | $15 | PaaS premium + support. |
-| Heroku | $7 (Basic dyno). citeturn12open0 | $18 | Heroku network egress + paid support. |
-| Cloudflare Workers | ~$0.02 (with 50k req/agent) due to pay-per-use model. citeturn13open0 | $5+ | Charge for bundled analytics + storage even if infra cost is tiny. |
+### 3.4 Per-Agent Price Guidance
+- **Railway Dedicated Agent:** Infra ≈ $9/agent-month; charge $15–$18 to cover observability + credit card fees. citeturn6search1
+- **Fly Machine:** 512 MB shared-cpu-1x = $3.19; after bandwidth/support overhead, $12/agent leaves margin. citeturn7search0
+- **Cloudflare Edge Agent:** 10k req/month stays within Workers included quota, so a $5 SKU is mostly margin; publish throttles for heavy use. citeturn9search1turn9search2
+- **Fargate / EC2 Premium Isolation:** $9 (Fargate) or $15 (t3.small) raw cost justifies $100–$250 enterprise SKUs with VPC isolation + SLAs. citeturn10search0turn6search2
+- **Render/Heroku:** Starter/Basic is $7, so reselling below $15 erodes margin; reserve for customers paying for DX rather than low cost. citeturn11search0turn12search1
 
-\*Suggested price = infra cost × ~1.5–3× to fund support, observability, and LLM usage buffers.
-
-### 3.4 Railway vs SSE Migration Plan
-
-The WebSocket-to-SSE migration plan (`../core-migration/websocket-to-sse-migration-2.md`) models Railway costs at **$513/mo (WebSocket)** vs **$9/mo (SSE)** for 100 users because SSE allows scale-to-zero: Railway only bills while containers are actively handling HTTP requests. Our tables above assume “always-on” containers for apples-to-apples comparisons; once the SSE migration is complete and the runtime is request/response based, Railway’s effective cost drops to the SSE plan’s numbers because idle containers sleep. That makes Railway + SSE the cheapest option by far for free/pro tiers, while AWS/Fly remain better fits for high-value tenants who need constant uptime.
-
-## 4. Architecture Trade-offs
-
-1. **Mega-Service vs Per-Agent Containers**  
-   - Mega-service keeps infra simple but demands robust multi-tenant isolation (RLS, buffer limits, throttling). Fits Fly, Railway (post-SSE), and ECS with horizontal autoscaling.  
-   - Per-agent containers make isolation trivial yet explode cost (linear in agent count). Only Cloudflare Workers (pay-per-use) or Fly Machines with aggressive auto-stop avoid runaway bills.
-
-2. **Provider Alignment with SSE Plan**  
-   - SSE unlocks Railway’s scale-to-zero billing, matching the 57–153× savings cited in the migration plan.  
-   - Cloudflare Workers already behave like SSE (request-scoped, no persistent sockets), so costs resemble the “after” scenario today.  
-   - AWS ECS/Fargate also benefit from SSE: you can terminate idle tasks without dropping connections, but WebSockets require warm tasks, raising baseline cost.
-
-3. **Monitoring & Tooling**  
-   - Railway/Fly provide app-level dashboards but still require Honeycomb/Grafana for tenant-level observability.  
-   - AWS (ECS/EC2) integrates with CloudWatch/Container Insights, which aligns with the platform plan’s Section 7 requirements.  
-   - Cloudflare Workers offers per-tenant analytics automatically; however, debugging long-lived flows (e.g., MCP stdio) is harder because you lack container shells.
+## 4. Alignment with the SSE Migration Plan
+- The SSE migration plan (`../core-migration/websocket-to-sse-migration-2.md`, Section 6) projects Railway dropping from **$513/mo** (WebSockets) to **$9/mo** for 100 users once connections become request/response; our analysis shows the same per-second pricing pressure—Railway/Fly only realize savings when idle services can sleep. citeturn6search1turn7search4
+- Cloudflare Workers already bills on request/CPU units, so adopting SSE mainly improves developer ergonomics (fetch + ReadableStream) while avoiding the Workers Unbound gotcha of paying wall-clock duration for long WebSockets. citeturn9search3turn9search1
+- On ECS/Fargate, SSE lets you terminate tasks between messages and rely on target tracking (min capacity 0) instead of keeping 24/7 WebSocket workers alive. citeturn10search1turn10search2
 
 ## 5. Recommendations
-
-1. **Ship the hardening backlog before choosing a host.** Missing modules (MessageStreamManager, storage wrapper, throttling, gateway client) are required regardless of platform.
-2. **Use Railway + WebSockets for MVP, but budget using the “always-on” numbers above so there are no surprises.** Once the SSE migration lands, you can immediately realize the SSE plan’s 57–153× savings.
-3. **Pilot Fly.io and AWS ECS in parallel.**  
-   - Fly for cost-effective shared runtimes with optional auto-stop.  
-   - ECS for enterprise tenants who need per-tenant isolation, VPC peering, or private networking.
-4. **Offer per-agent pricing tiers based on the table in §3.3.** For example, “Dedicated Fly agent = $12/mo”, “Dedicated ECS agent = $25/mo”, “Cloudflare serverless agent = $5/mo”. This keeps customer pricing grounded in real infrastructure costs plus a predictable margin.
-5. **Document when to prefer Cloudflare Workers.** They’re ideal for users demanding one-agent-per-customer isolation with built-in analytics, but the absence of arbitrary containers limits MCP stdio and filesystem access.
-6. **Revisit hosting choices after SSE rollout.** If Railway truly hits $9/mo for 100 users post-SSE (per the migration plan), we can keep free/pro users there and reserve premium providers for enterprise deals.
+1. **Finish the open platform work items first.** MessageStreamManager, UserScopedStorage/RLS, gateway client, throttling, and HIL redesign are required before adding tenants.
+2. **Use Railway for the MVP but budget using the “always-on” numbers above** until SSE ships; once SSE lands you can lean on the migration plan’s $9/month expectation.
+3. **Pilot Fly.io and ECS in parallel.** Fly gives the cheapest shared runtime with optional auto-stop Machines; ECS validates per-tenant isolation and AWS residency for enterprise deals.
+4. **Offer priced tiers per provider.** Example: “Shared Railway agent = $15/mo”, “Dedicated Fly Machine = $12/mo”, “Edge Workers agent = $5/mo”, “Isolated AWS agent = $150/mo”.
+5. **Document when to choose Cloudflare Workers.** They’re ideal for per-tenant isolation without containers but lack stdio MCP/filesystem access.
+6. **Revisit hosting once SSE is live.** After the SSE migration, re-run this analysis with real telemetry to verify the promised 57–153× savings before removing WebSockets entirely.
