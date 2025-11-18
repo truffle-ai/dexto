@@ -287,8 +287,7 @@ export class SessionManager {
      *   type: 'sub-agent',
      *   subAgent: {
      *     parentSessionId: parentId
-     *   },
-     *   agentConfig: customAgent
+     *   }
      * });
      */
     public async createSession(
@@ -297,7 +296,6 @@ export class SessionManager {
             type?: string;
             subAgent?: Partial<SubAgentMetadata>;
             metadata?: Record<string, any>;
-            agentConfig?: import('../agent/schemas.js').AgentConfig;
         }
     ): Promise<ChatSession> {
         await this.ensureInitialized();
@@ -321,10 +319,7 @@ export class SessionManager {
         }
 
         // Create a promise for the session creation and track it to prevent concurrent operations
-        const creationPromise = this.createSessionInternal(id, {
-            metadata,
-            ...(options?.agentConfig && { agentConfig: options.agentConfig }),
-        });
+        const creationPromise = this.createSessionInternal(id, { metadata });
         this.pendingCreations.set(id, creationPromise);
 
         try {
@@ -344,7 +339,6 @@ export class SessionManager {
         id: string,
         options: {
             metadata: SessionMetadataFields;
-            agentConfig?: import('../agent/schemas.js').AgentConfig;
         }
     ): Promise<ChatSession> {
         // Clean up expired sessions first
@@ -358,13 +352,10 @@ export class SessionManager {
         if (existingData) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
-            // Note: Restored sessions use parent agent config, not custom sub-agent configs
-            // This is intentional as agentConfig is session-creation-time only
             const session = new ChatSession(
                 { ...this.services, sessionManager: this },
                 id,
-                this.logger,
-                undefined // agentConfig - not restored
+                this.logger
             );
             await session.init();
             this.sessions.set(id, session);
@@ -403,13 +394,7 @@ export class SessionManager {
         // Now create the actual session object
         let session: ChatSession;
         try {
-            // Pass agentConfig to ChatSession
-            session = new ChatSession(
-                { ...this.services, sessionManager: this },
-                id,
-                this.logger,
-                options.agentConfig
-            );
+            session = new ChatSession({ ...this.services, sessionManager: this }, id, this.logger);
             await session.init();
             this.sessions.set(id, session);
 
@@ -477,8 +462,7 @@ export class SessionManager {
                 const session = new ChatSession(
                     { ...this.services, sessionManager: this },
                     sessionId,
-                    this.logger,
-                    undefined // agentConfig - not restored
+                    this.logger
                 );
                 await session.init();
                 this.sessions.set(sessionId, session);
