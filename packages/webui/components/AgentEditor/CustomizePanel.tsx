@@ -151,7 +151,7 @@ export default function CustomizePanel({
                 }
             }
         },
-        [validateMutation]
+        [validateMutation.mutateAsync]
     );
 
     // Initialize state when config data loads

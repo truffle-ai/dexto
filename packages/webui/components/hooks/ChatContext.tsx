@@ -53,7 +53,7 @@ interface ChatContextType {
     greeting: string | null;
 }
 
-import { getWsUrl } from '@/lib/api-url';
+import { getApiUrl } from '@/lib/api-url';
 
 // Helper function to fetch and convert session history to UI messages
 async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
@@ -226,8 +226,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
-    // Calculate WebSocket URL at runtime based on frontend port
-    const wsUrl = getWsUrl();
+    // Calculate API URL at runtime based on frontend port
+    const apiUrl = getApiUrl();
 
     // Start with no session - pure welcome state
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -246,7 +246,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         clearError,
         processing,
         cancel,
-    } = useChat(wsUrl, () => currentSessionId);
+    } = useChat(apiUrl, () => currentSessionId);
 
     // Fetch current LLM config using TanStack Query
     const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery<

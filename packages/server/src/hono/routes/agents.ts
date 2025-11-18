@@ -105,10 +105,7 @@ const CustomAgentCreateSchema = z
 
 const AgentConfigValidateSchema = z
     .object({
-        yaml: z
-            .string()
-            .min(1, 'YAML content is required')
-            .describe('YAML agent configuration content to validate'),
+        yaml: z.string().describe('YAML agent configuration content to validate'),
     })
     .describe('Request body for validating agent configuration YAML');
 
