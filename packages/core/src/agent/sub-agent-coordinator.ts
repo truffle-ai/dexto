@@ -14,16 +14,9 @@ import type { AgentEventBus } from '../events/index.js';
 import { SessionEventNames } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import type { AgentConfig } from './schemas.js';
-import type { ChatSession } from '../session/chat-session.js';
 import { EventForwarder } from './event-forwarder.js';
 import { SessionError } from '../session/errors.js';
-import {
-    resolveAgentConfig,
-    validateSubAgentConfig,
-    type AgentReference,
-    type AgentResolutionContext,
-    type ResolvedAgentConfig,
-} from '../config/agent-reference-resolver.js';
+import type { DextoAgent } from './DextoAgent.js';
 
 /**
  * Options for spawning a sub-agent
@@ -32,24 +25,23 @@ export interface SubAgentSpawnOptions {
     /** Parent session ID */
     parentSessionId: string;
 
-    /** Agent reference (built-in name or file path) */
-    agentReference?: AgentReference;
-
-    /** Or provide agent config directly */
-    agentConfig?: AgentConfig;
+    /** Sub-agent instance (if already created) or config to create one */
+    agent: DextoAgent | AgentConfig;
 
     /** Lifecycle policy (defaults to config) */
     lifecycle?: 'ephemeral' | 'persistent';
 
-    /** Working directory for resolving agent references */
-    workingDir?: string;
+    /** Agent identifier for logging/tracking (optional, inferred if DextoAgent provided) */
+    agentIdentifier?: string;
 }
 
 /**
  * Internal context tracked for each active sub-agent
  */
 interface SubAgentContext {
-    sessionId: string;
+    agent: DextoAgent;
+    agentId: string; // Unique ID for tracking
+    executionSessionId: string; // Explicit session created for sub-agent execution
     parentSessionId: string;
     depth: number;
     lifecycle: 'ephemeral' | 'persistent';
@@ -61,7 +53,8 @@ interface SubAgentContext {
  * Public info about a sub-agent
  */
 export interface SubAgentInfo {
-    sessionId: string;
+    agentId: string;
+    sessionId: string; // Default session ID of the sub-agent
     depth: number;
     agentIdentifier: string;
     duration: number;
@@ -72,7 +65,6 @@ export interface SubAgentInfo {
  */
 export class SubAgentHandle {
     constructor(
-        private session: ChatSession,
         private context: SubAgentContext,
         private coordinator: SubAgentCoordinator
     ) {}
@@ -83,10 +75,17 @@ export class SubAgentHandle {
      */
     async run(task: string): Promise<string> {
         try {
-            return await this.session.run(task);
+            // Use the explicit execution session created during spawn
+            const session = await this.context.agent.getSession(this.context.executionSessionId);
+            if (!session) {
+                throw new Error(
+                    `Sub-agent execution session ${this.context.executionSessionId} not found`
+                );
+            }
+            return await session.run(task);
         } finally {
             // Auto-cleanup on completion
-            await this.coordinator.cleanup(this.session.id);
+            await this.coordinator.cleanup(this.context.agentId);
         }
     }
 
@@ -94,14 +93,25 @@ export class SubAgentHandle {
      * Cancel the currently running task.
      */
     async cancel(): Promise<boolean> {
-        return this.session.cancel();
+        const session = await this.context.agent.getSession(this.context.executionSessionId);
+        if (!session) {
+            return false;
+        }
+        return session.cancel();
     }
 
     /**
-     * Get the sub-agent's session ID.
+     * Get the sub-agent's execution session ID.
      */
     get sessionId(): string {
-        return this.session.id;
+        return this.context.executionSessionId;
+    }
+
+    /**
+     * Get the sub-agent instance.
+     */
+    get agent(): DextoAgent {
+        return this.context.agent;
     }
 
     /**
@@ -109,7 +119,8 @@ export class SubAgentHandle {
      */
     get info(): SubAgentInfo {
         return {
-            sessionId: this.context.sessionId,
+            agentId: this.context.agentId,
+            sessionId: this.context.executionSessionId,
             depth: this.context.depth,
             agentIdentifier: this.context.agentIdentifier,
             duration: Date.now() - this.context.startTime,
@@ -118,13 +129,13 @@ export class SubAgentHandle {
 }
 
 /**
- * SubAgentCoordinator manages the lifecycle of sub-agent sessions.
+ * SubAgentCoordinator manages the lifecycle of sub-agent DextoAgent instances.
  */
 export class SubAgentCoordinator {
-    // Track active sub-agents in-memory
+    // Track active sub-agents in-memory (keyed by agentId)
     private activeSubAgents = new Map<string, SubAgentContext>();
 
-    // Track event forwarders for cleanup
+    // Track event forwarders for cleanup (keyed by agentId)
     private forwarders = new Map<string, EventForwarder>();
 
     constructor(
@@ -135,47 +146,48 @@ export class SubAgentCoordinator {
     ) {}
 
     /**
-     * Spawn a sub-agent session with automatic wiring.
+     * Spawn a sub-agent with automatic wiring.
+     * Accepts either a DextoAgent instance or AgentConfig to create one.
      *
      * @param options - Spawn configuration
      * @returns Handle for interacting with the sub-agent
      * @throws {SessionError} if depth limit exceeded or validation fails
      */
     async spawn(options: SubAgentSpawnOptions): Promise<SubAgentHandle> {
-        const { parentSessionId, agentReference, agentConfig, lifecycle } = options;
+        const { parentSessionId, agent, lifecycle, agentIdentifier } = options;
 
-        // 1. Calculate current depth
+        // 1. Determine if we have an agent or need to create one
+        const isAgentInstance = 'sendMessage' in agent; // Duck typing to avoid circular import
+        let subAgent: DextoAgent;
+        let agentConfig: AgentConfig | undefined;
+
+        if (isAgentInstance) {
+            subAgent = agent as DextoAgent;
+            // Agent already exists, ensure it's started
+            if (!subAgent.isStarted) {
+                await subAgent.start();
+            }
+        } else {
+            // agent is AgentConfig, create DextoAgent
+            agentConfig = agent as AgentConfig;
+
+            // Validate sub-agent config before creating
+            this.validateSubAgentConfig(agentConfig);
+
+            // Import DextoAgent class dynamically to avoid circular dependency
+            const { DextoAgent: DextoAgentClass } = await import('./DextoAgent.js');
+            subAgent = new DextoAgentClass(agentConfig);
+            await subAgent.start();
+        }
+
+        // 2. Calculate current depth
         const depth = await this.getDepth(parentSessionId);
         this.logger.debug(`Current depth for parent ${parentSessionId}: ${depth}`);
 
-        // 2. Check depth limit
+        // 3. Check depth limit
         const maxDepth = this.stateManager.getRuntimeConfig().sessions?.maxSubAgentDepth ?? 1;
         if (depth >= maxDepth) {
             throw SessionError.maxDepthExceeded(depth, maxDepth);
-        }
-
-        // 3. Resolve agent config
-        let resolvedConfig: ResolvedAgentConfig;
-        if (agentReference) {
-            const resolutionContext: AgentResolutionContext = {
-                workingDir: options.workingDir || process.cwd(),
-                parentSessionId,
-            };
-            resolvedConfig = await resolveAgentConfig(agentReference, resolutionContext);
-            this.logger.debug(`Resolved agent reference:`, {
-                type: resolvedConfig.source.type,
-                identifier:
-                    resolvedConfig.source.type !== 'inline'
-                        ? resolvedConfig.source.identifier
-                        : 'inline',
-            });
-        } else if (agentConfig) {
-            resolvedConfig = {
-                config: agentConfig,
-                source: { type: 'inline' },
-            };
-        } else {
-            throw new Error('Must provide either agentReference or agentConfig');
         }
 
         // 4. Validate parent session exists
@@ -184,53 +196,73 @@ export class SubAgentCoordinator {
             throw SessionError.parentNotFound(parentSessionId);
         }
 
-        // 5. Validate sub-agent config
-        validateSubAgentConfig(resolvedConfig.config);
+        // 5. Build agent identifier for tracking
+        const identifier = agentIdentifier || 'custom-agent';
 
-        // 6. Build agent identifier for tracking
-        const agentIdentifier = this.buildAgentIdentifier(resolvedConfig.source);
-
-        // 7. Create session with minimal metadata (only parentSessionId)
-        const session = await this.sessionManager.createSession(undefined, {
-            type: 'sub-agent',
-            subAgent: {
-                parentSessionId, // Only field we persist
-            },
-            agentConfig: resolvedConfig.config,
-        });
+        // 6. Generate unique agent ID
+        const agentId = `sub-agent-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
         this.logger.info(
-            `Created sub-agent session ${session.id} (depth: ${depth + 1}, agent: ${agentIdentifier})`
+            `Spawned sub-agent ${agentId} (depth: ${depth + 1}, identifier: ${identifier})`
         );
 
-        // 8. Set up event forwarding
-        await this.setupEventForwarding(session, parentSessionId, depth + 1, agentIdentifier);
+        // 7. Create explicit execution session for sub-agent
+        // This avoids using default session logic which is being deprecated
+        const executionSessionId = `sub-agent-exec-${agentId}`;
+        const executionSession = await subAgent.createSession(executionSessionId, {
+            type: 'sub-agent',
+            subAgent: {
+                parentSessionId, // Link to parent session
+            },
+            metadata: {
+                agentIdentifier: identifier,
+                depth: depth + 1,
+            },
+        });
+
+        this.logger.debug(
+            `Created execution session ${executionSessionId} for sub-agent ${agentId}`
+        );
+
+        // 8. Set up event forwarding (agent-to-agent, using explicit session)
+        await this.setupEventForwarding(
+            subAgent,
+            executionSessionId,
+            parentSessionId,
+            depth + 1,
+            identifier
+        );
 
         // 9. Track active sub-agent in-memory
         const context: SubAgentContext = {
-            sessionId: session.id,
+            agent: subAgent,
+            agentId,
+            executionSessionId,
             parentSessionId,
             depth: depth + 1,
             lifecycle: lifecycle ?? this.getDefaultLifecycle(),
-            agentIdentifier,
+            agentIdentifier: identifier,
             startTime: Date.now(),
         };
-        this.activeSubAgents.set(session.id, context);
+        this.activeSubAgents.set(agentId, context);
 
-        this.logger.debug(
-            `Tracking sub-agent ${session.id} in-memory`,
-            context as unknown as Record<string, unknown>
-        );
+        this.logger.debug(`Tracking sub-agent ${agentId} in-memory`, {
+            agentId,
+            depth: depth + 1,
+            identifier,
+        } as Record<string, unknown>);
 
         // 10. Return handle
-        return new SubAgentHandle(session, context, this);
+        return new SubAgentHandle(context, this);
     }
 
     /**
-     * Set up event forwarding from sub-agent to parent session.
+     * Set up event forwarding from sub-agent to parent agent.
+     * Forwards events from the sub-agent's event bus to the parent agent's event bus.
      */
     private async setupEventForwarding(
-        subSession: ChatSession,
+        subAgent: DextoAgent,
+        subAgentSessionId: string,
         parentSessionId: string,
         depth: number,
         agentIdentifier: string
@@ -244,23 +276,34 @@ export class SubAgentCoordinator {
                 return;
             }
 
-            // Create forwarder for session events (sub-agent → parent session)
+            // Get sub-agent's event bus
+            const subAgentEventBus = subAgent.agentEventBus;
+            if (!subAgentEventBus) {
+                this.logger.warn(`Sub-agent has no event bus, skipping event forwarding`);
+                return;
+            }
+
+            // Forward sub-agent's session events to parent session
+            // This allows the parent to see what the sub-agent is doing
             const sessionForwarder = new EventForwarder(
-                subSession.eventBus,
+                subAgentEventBus,
                 parentSession.eventBus,
                 this.logger
             );
 
-            // Forward all session events with metadata
+            // Forward all session events with sub-agent metadata
             SessionEventNames.forEach((eventName) => {
                 sessionForwarder.forward(eventName, {
+                    // Filter to only forward events from sub-agent's execution session
+                    filter: (payload) => {
+                        return payload?.sessionId === subAgentSessionId;
+                    },
                     augmentPayload: (payload) => {
                         const base = payload && typeof payload === 'object' ? payload : {};
-
                         return {
                             ...base,
                             fromSubAgent: true,
-                            subAgentSessionId: subSession.id,
+                            subAgentSessionId,
                             subAgentType: agentIdentifier,
                             depth,
                         };
@@ -268,93 +311,85 @@ export class SubAgentCoordinator {
                 });
             });
 
-            // Create forwarder for agent events (approval requests/responses)
-            const agentForwarder = new EventForwarder(
-                this.agentEventBus,
+            // Forward approval events from sub-agent to parent agent
+            const approvalForwarder = new EventForwarder(
+                subAgentEventBus,
                 this.agentEventBus,
                 this.logger
             );
 
-            // Forward approval events, filtering by session and overriding sessionId to parent
             const approvalEvents = ['dexto:approvalRequest', 'dexto:approvalResponse'] as const;
             approvalEvents.forEach((eventName) => {
-                agentForwarder.forward(eventName, {
-                    filter: (payload) => payload?.sessionId === subSession.id,
+                approvalForwarder.forward(eventName, {
+                    filter: (payload) => payload?.sessionId === subAgentSessionId,
                     augmentPayload: (payload) => ({
                         ...payload,
                         fromSubAgent: true,
-                        subAgentSessionId: subSession.id,
-                        sessionId: parentSessionId, // Override to parent
+                        subAgentSessionId,
+                        sessionId: parentSessionId, // Route to parent session
                     }),
                 });
             });
 
             // Store forwarders for cleanup
-            const forwarderId = `sub-agent:${subSession.id}`;
-            this.forwarders.set(forwarderId, sessionForwarder);
-            this.forwarders.set(`${forwarderId}:agent`, agentForwarder);
+            this.forwarders.set(`${subAgentSessionId}:session`, sessionForwarder);
+            this.forwarders.set(`${subAgentSessionId}:approval`, approvalForwarder);
 
             this.logger.debug(
-                `Event forwarding configured: ${subSession.id} → ${parentSessionId} ` +
-                    `(${sessionForwarder.count} session events, ${agentForwarder.count} agent events)`
+                `Event forwarding configured for sub-agent ${agentIdentifier} → parent session ${parentSessionId}`
             );
         } catch (error) {
             this.logger.error(
-                `Failed to set up event forwarding for sub-agent ${subSession.id}: ${error instanceof Error ? error.message : String(error)}`
+                `Failed to set up event forwarding for sub-agent: ${error instanceof Error ? error.message : String(error)}`
             );
             // Don't throw - forwarding is nice-to-have, not critical
         }
     }
 
     /**
-     * Clean up a sub-agent session.
+     * Clean up a sub-agent.
      * Handles event forwarder disposal and lifecycle-based cleanup.
      */
-    async cleanup(subAgentSessionId: string): Promise<void> {
-        const context = this.activeSubAgents.get(subAgentSessionId);
+    async cleanup(agentId: string): Promise<void> {
+        const context = this.activeSubAgents.get(agentId);
         if (!context) {
-            this.logger.debug(
-                `Sub-agent ${subAgentSessionId} not in active tracking, skipping cleanup`
-            );
+            this.logger.debug(`Sub-agent ${agentId} not in active tracking, skipping cleanup`);
             return;
         }
 
         try {
-            this.logger.debug(`Cleaning up sub-agent ${subAgentSessionId}`, {
+            this.logger.debug(`Cleaning up sub-agent ${agentId}`, {
                 lifecycle: context.lifecycle,
                 duration: Date.now() - context.startTime,
             });
 
             // 1. Dispose event forwarders
-            const forwarderId = `sub-agent:${subAgentSessionId}`;
-            this.forwarders.get(forwarderId)?.dispose();
-            this.forwarders.get(`${forwarderId}:agent`)?.dispose();
-            this.forwarders.delete(forwarderId);
-            this.forwarders.delete(`${forwarderId}:agent`);
+            const sessionId = context.executionSessionId;
+            this.forwarders.get(`${sessionId}:session`)?.dispose();
+            this.forwarders.get(`${sessionId}:approval`)?.dispose();
+            this.forwarders.delete(`${sessionId}:session`);
+            this.forwarders.delete(`${sessionId}:approval`);
 
             // 2. Handle lifecycle policy
             if (context.lifecycle === 'ephemeral') {
-                // Ephemeral: delete session entirely (removes from memory and storage)
-                await this.sessionManager.deleteSession(subAgentSessionId);
-                this.logger.info(`Ephemeral sub-agent session deleted: ${subAgentSessionId}`);
+                // Ephemeral: stop the agent entirely (which stops all its sessions)
+                await context.agent.stop();
+                this.logger.info(`Ephemeral sub-agent stopped: ${agentId}`);
             } else {
-                // Persistent: just cleanup memory (keep storage for later review)
-                const session = await this.sessionManager.getSession(subAgentSessionId);
-                if (session) {
-                    await session.cleanup();
-                }
+                // Persistent: end the execution session but keep agent running
+                await context.agent.endSession(sessionId);
                 this.logger.info(
-                    `Persistent sub-agent session memory cleaned: ${subAgentSessionId}`
+                    `Persistent sub-agent execution session ended: ${sessionId}, agent kept running`
                 );
             }
 
             // 3. Remove from tracking
-            this.activeSubAgents.delete(subAgentSessionId);
+            this.activeSubAgents.delete(agentId);
 
-            this.logger.debug(`Sub-agent cleanup completed: ${subAgentSessionId}`);
+            this.logger.debug(`Sub-agent cleanup completed: ${agentId}`);
         } catch (error) {
             this.logger.error(
-                `Error cleaning up sub-agent ${subAgentSessionId}: ${error instanceof Error ? error.message : String(error)}`
+                `Error cleaning up sub-agent ${agentId}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
         }
@@ -364,26 +399,33 @@ export class SubAgentCoordinator {
      * Get active sub-agents for a parent session.
      */
     getActiveSubAgents(parentSessionId: string): SubAgentInfo[] {
-        return Array.from(this.activeSubAgents.values())
-            .filter((ctx) => ctx.parentSessionId === parentSessionId)
-            .map((ctx) => ({
-                sessionId: ctx.sessionId,
-                depth: ctx.depth,
-                agentIdentifier: ctx.agentIdentifier,
-                duration: Date.now() - ctx.startTime,
-            }));
+        const results: SubAgentInfo[] = [];
+
+        for (const ctx of Array.from(this.activeSubAgents.values())) {
+            if (ctx.parentSessionId === parentSessionId) {
+                results.push({
+                    agentId: ctx.agentId,
+                    sessionId: ctx.executionSessionId,
+                    depth: ctx.depth,
+                    agentIdentifier: ctx.agentIdentifier,
+                    duration: Date.now() - ctx.startTime,
+                });
+            }
+        }
+
+        return results;
     }
 
     /**
      * Cancel a running sub-agent.
      */
-    async cancel(subAgentSessionId: string): Promise<boolean> {
-        const context = this.activeSubAgents.get(subAgentSessionId);
+    async cancel(agentId: string): Promise<boolean> {
+        const context = this.activeSubAgents.get(agentId);
         if (!context) {
             return false;
         }
 
-        const session = await this.sessionManager.getSession(subAgentSessionId);
+        const session = await context.agent.getSession(context.executionSessionId);
         if (!session) {
             return false;
         }
@@ -423,15 +465,26 @@ export class SubAgentCoordinator {
     }
 
     /**
-     * Build agent identifier string for tracking.
+     * Validate that an agent config is suitable for sub-agent spawning.
+     * Enforces security constraints.
      */
-    private buildAgentIdentifier(source: ResolvedAgentConfig['source']): string {
-        if (source.type === 'built-in') {
-            return `built-in:${source.identifier}`;
-        } else if (source.type === 'file') {
-            return `file:${source.path}`;
-        } else {
-            return 'inline:custom-config';
+    private validateSubAgentConfig(config: AgentConfig): void {
+        // Ensure spawn_agent is not in the tool list (prevent recursion)
+        if (config.internalTools?.includes('spawn_agent')) {
+            throw SessionError.invalidSubAgentConfig(
+                'Sub-agents cannot have spawn_agent tool enabled to prevent infinite recursion'
+            );
         }
+
+        // Ensure ask_user is not enabled (sub-agents should work autonomously)
+        // TODO: Add elicitation support to propagate ask_user requests from sub-agents to parent agent,
+        // allowing sub-agents to request clarification from the user through the parent agent
+        if (config.internalTools?.includes('ask_user')) {
+            throw SessionError.invalidSubAgentConfig(
+                'Sub-agents cannot have ask_user tool enabled - sub-agents must work autonomously without user interaction'
+            );
+        }
+
+        this.logger.debug('Sub-agent config validation passed');
     }
 }

@@ -221,7 +221,7 @@ describe('Session Integration: Chat History Preservation', () => {
             // Verify type was stored
             const metadata = await agent.getSessionMetadata('scope-test');
             expect(metadata).toBeDefined();
-            expect(metadata?.type).toBe('custom-type');
+            expect(metadata?.metadata.type).toBe('custom-type');
         });
 
         test('should filter sessions by type', async () => {
@@ -261,7 +261,7 @@ describe('Session Integration: Chat History Preservation', () => {
             // Verify default type was applied
             const metadata = await agent.getSessionMetadata('backward-compat');
             expect(metadata).toBeDefined();
-            expect(metadata?.type).toBe('primary');
+            expect(metadata?.metadata.type).toBe('default');
         });
 
         test('should support custom session types', async () => {

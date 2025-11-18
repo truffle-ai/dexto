@@ -90,6 +90,20 @@ export class SessionError {
     }
 
     /**
+     * Invalid sub-agent configuration
+     */
+    static invalidSubAgentConfig(reason: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_INVALID_SUB_AGENT_CONFIG,
+            ErrorScope.SESSION,
+            ErrorType.USER,
+            `Invalid sub-agent configuration: ${reason}`,
+            { reason },
+            'Ensure sub-agent config does not include spawn_agent or ask_user tools'
+        );
+    }
+
+    /**
      * Session storage failed
      */
     static storageFailed(sessionId: string, operation: string, reason: string) {

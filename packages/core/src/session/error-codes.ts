@@ -12,6 +12,7 @@ export enum SessionErrorCode {
     // Session validation
     SESSION_INVALID_SCOPE = 'session_invalid_scope',
     SESSION_PARENT_NOT_FOUND = 'session_parent_not_found',
+    SESSION_INVALID_SUB_AGENT_CONFIG = 'session_invalid_sub_agent_config',
 
     // Session storage
     SESSION_STORAGE_FAILED = 'session_storage_failed',

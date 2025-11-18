@@ -3,14 +3,18 @@
  *
  * Spawns sub-agent tasks with config-driven capabilities.
  *
- * Supports two types of agent references:
- * 1. Built-in agents: 'general-purpose', 'code-reviewer'
- * 2. File paths: './my-agent.yml' or '/absolute/path/agent.yml'
+ * Currently supports built-in agents only:
+ * - 'general-purpose': For analysis and research tasks
+ * - 'code-reviewer': For code review and quality analysis
+ *
+ * File path support is not available in core to avoid filesystem dependencies.
+ * For custom agents, use the CLI layer or agent-management package.
  */
 
 import { z } from 'zod';
 import type { InternalTool, ToolExecutionContext } from '../../types.js';
 import type { DextoAgent } from '../../../agent/DextoAgent.js';
+import { isBuiltInAgent, getBuiltInAgent, type BuiltInAgentName } from './built-in-agents.js';
 
 /**
  * Zod schema for spawn_agent tool input
@@ -20,7 +24,7 @@ const SpawnAgentInputSchema = z
         agent: z
             .string()
             .describe(
-                'Agent to spawn: built-in name ("general-purpose", "code-reviewer") or file path ("./agent.yml")'
+                'Built-in agent name: "general-purpose" (for analysis/research) or "code-reviewer" (for code reviews)'
             ),
         prompt: z.string().min(1).describe('Detailed task instructions for the spawned sub-agent'),
         description: z
@@ -50,9 +54,9 @@ export function createSpawnAgentTool(agent: DextoAgent): InternalTool {
         description:
             'Spawn a sub-agent to handle complex analysis, research, or specialized tasks. ' +
             'Sub-agents can have custom system prompts, tool access, and LLM configurations.\n\n' +
-            '**Agent Types:**\n' +
-            '- Built-in: "general-purpose" (analysis), "code-reviewer" (code review)\n' +
-            '- Custom: "./path/to/agent.yml" (file path to custom agent config)\n\n' +
+            '**Available Built-in Agents:**\n' +
+            '- "general-purpose": General analysis and research (reads files, runs commands, searches)\n' +
+            '- "code-reviewer": Code review specialist (thorough analysis, security checks)\n\n' +
             '**Usage:**\n' +
             '```typescript\n' +
             'spawn_agent({\n' +
@@ -71,9 +75,20 @@ export function createSpawnAgentTool(agent: DextoAgent): InternalTool {
         ): Promise<SpawnAgentResult> => {
             const validatedInput = SpawnAgentInputSchema.parse(input);
 
+            // Resolve built-in agent name to config
+            if (!isBuiltInAgent(validatedInput.agent)) {
+                throw new Error(
+                    `Unknown agent: "${validatedInput.agent}". Available built-in agents: "general-purpose", "code-reviewer"`
+                );
+            }
+
+            const agentConfig = getBuiltInAgent(validatedInput.agent as BuiltInAgentName);
+
             // Delegate to DextoAgent.handoff()
+            // Pass agent config directly - coordinator will create DextoAgent internally
             const result = await agent.handoff(validatedInput.prompt, {
-                agent: validatedInput.agent,
+                agent: agentConfig,
+                agentIdentifier: `built-in:${validatedInput.agent}`,
                 ...(validatedInput.description && { description: validatedInput.description }),
                 ...(context?.sessionId && { parentSessionId: context.sessionId }),
             });

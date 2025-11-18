@@ -72,7 +72,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lastActivity: metadata?.lastActivity || null,
                         messageCount: metadata?.messageCount || 0,
                         title: metadata?.title || null,
-                        type: metadata?.type || 'primary',
+                        type: metadata?.metadata.type || 'default',
                         metadata: metadata?.metadata,
                     };
                 } catch {
@@ -83,7 +83,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lastActivity: null,
                         messageCount: 0,
                         title: null,
-                        type: 'primary',
+                        type: 'default',
                         metadata: undefined,
                     };
                 }
@@ -129,7 +129,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     lastActivity: metadata?.lastActivity || Date.now(),
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
-                    type: metadata?.type || 'primary',
+                    type: metadata?.metadata.type || 'default',
                     metadata: metadata?.metadata,
                 },
             },
@@ -179,7 +179,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 lastActivity: metadata?.lastActivity || null,
                 messageCount: metadata?.messageCount || 0,
                 title: metadata?.title || null,
-                type: metadata?.type || 'primary',
+                type: metadata?.metadata.type || 'default',
                 metadata: metadata?.metadata,
                 history: history.length,
             },
@@ -394,7 +394,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 lastActivity: metadata?.lastActivity || null,
                 messageCount: metadata?.messageCount || 0,
                 title: metadata?.title || title,
-                type: metadata?.type || 'primary',
+                type: metadata?.metadata.type || 'default',
                 metadata: metadata?.metadata,
             },
         });

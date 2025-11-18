@@ -602,6 +602,157 @@ export class DextoAgent {
     }
 
     /**
+     * Hand off a task to a sub-agent with specialized capabilities.
+     *
+     * This method encapsulates all complexity around sub-agent spawning:
+     * - Accepts either a DextoAgent instance or AgentConfig to create one
+     * - Validates depth limits
+     * - Sets up event forwarding automatically
+     * - Handles lifecycle management (ephemeral vs persistent)
+     * - Cleans up resources reliably
+     *
+     * @param task - The task description for the sub-agent
+     * @param options - Configuration for the handoff
+     * @returns Result containing the sub-agent's response and metadata
+     *
+     * @example
+     * ```typescript
+     * // Using an agent config
+     * const result = await agent.handoff(
+     *     "Review the authentication code in src/auth/",
+     *     { agent: myAgentConfig, agentIdentifier: "code-reviewer", parentSessionId: sessionId }
+     * );
+     *
+     * // Using a DextoAgent instance
+     * const subAgent = new DextoAgent(config);
+     * await subAgent.start();
+     * const result = await agent.handoff(
+     *     "Analyze the API endpoints",
+     *     { agent: subAgent, parentSessionId: sessionId }
+     * );
+     * ```
+     */
+    public async handoff(
+        task: string,
+        options?: {
+            /** Sub-agent instance or configuration */
+            agent?: DextoAgent | AgentConfig;
+
+            /** Agent identifier for logging/tracking (optional, inferred from DextoAgent) */
+            agentIdentifier?: string;
+
+            /** Task description for logging/tracking */
+            description?: string;
+
+            /** Lifecycle policy (defaults to config) */
+            lifecycle?: 'ephemeral' | 'persistent';
+
+            /** Timeout in milliseconds */
+            timeout?: number;
+
+            /** Parent session ID (required for sub-agents) */
+            parentSessionId?: string;
+        }
+    ): Promise<{
+        result: string;
+        sessionId: string;
+        duration: number;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
+        error?: string;
+    }> {
+        this.ensureStarted();
+
+        const startTime = Date.now();
+
+        // Require agent
+        if (!options?.agent) {
+            throw new Error('agent (DextoAgent or AgentConfig) is required for handoff');
+        }
+
+        // Require parentSessionId
+        if (!options?.parentSessionId) {
+            throw new Error('parentSessionId is required for handoff');
+        }
+
+        const isAgentInstance = 'sendMessage' in options.agent;
+        const agentType = isAgentInstance ? 'instance' : 'config';
+
+        this.logger.info(
+            `Handing off task to sub-agent (${agentType}): "${options?.description || task.substring(0, 50)}..." ` +
+                `(identifier: ${options?.agentIdentifier || 'custom'})`
+        );
+
+        try {
+            // Spawn sub-agent (coordinator handles both DextoAgent and AgentConfig)
+            const handle = await this.subAgentCoordinator.spawn({
+                parentSessionId: options.parentSessionId,
+                agent: options.agent,
+                ...(options?.lifecycle && { lifecycle: options.lifecycle }),
+                ...(options?.agentIdentifier && { agentIdentifier: options.agentIdentifier }),
+            });
+
+            // Run task (with optional timeout)
+            let result: string;
+            if (options?.timeout) {
+                result = await this.runWithTimeout(handle, task, options.timeout);
+            } else {
+                result = await handle.run(task);
+            }
+
+            // Get metrics
+            const duration = Date.now() - startTime;
+
+            this.logger.info(
+                `Handoff completed successfully in ${duration}ms (session: ${handle.sessionId})`
+            );
+
+            return {
+                result,
+                sessionId: handle.sessionId,
+                duration,
+                // TODO: Add token usage tracking for sub-agents
+            };
+        } catch (error) {
+            const duration = Date.now() - startTime;
+            this.logger.error(
+                `Handoff failed after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`
+            );
+
+            return {
+                result: '',
+                sessionId: '',
+                duration,
+                error: error instanceof Error ? error.message : String(error),
+            };
+        }
+    }
+
+    /**
+     * Run a task with timeout.
+     * @private
+     */
+    private async runWithTimeout(
+        handle: import('./sub-agent-coordinator.js').SubAgentHandle,
+        task: string,
+        timeout: number
+    ): Promise<string> {
+        return Promise.race([
+            handle.run(task),
+            new Promise<string>((_, reject) =>
+                setTimeout(() => {
+                    handle.cancel();
+                    reject(new Error(`Sub-agent timeout after ${timeout}ms`));
+                }, timeout)
+            ),
+        ]);
+    }
+
+    /**
      * Cancels the currently running turn for a session.
      * Safe to call even if no run is in progress.
      * @param sessionId Session id (required)
