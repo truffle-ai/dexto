@@ -68,7 +68,20 @@ This yields the following aggregate resource targets:
 
 > Cloudflare costs scale with traffic rather than agent count. If an agent emits fewer than ~10 k requests per month it effectively fits inside the Workers for Platforms free allocation.
 
-### 3.4 Per-Agent Price Guidance
+### 3.4 SSE-Enabled Cost Projection
+
+The SSE migration (`../core-migration/websocket-to-sse-migration-2.md`, Section 6) demonstrated a 57× reduction on Railway: **$513 → $9** per 100-user cohort by letting the service sleep whenever no messages stream (≈1.75 % duty cycle). Applying that same duty cycle to other providers that truly hibernate idle workloads yields the following directional estimates:
+
+| Provider (SSE-capable) | S1 (100 users × 2 agents) | S2 (1k users × 10 agents) | S3 (10k users × 10 agents) | Notes |
+| --- | --- | --- | --- | --- |
+| **Railway** | **$9/mo** | **$33/mo** | **$330/mo** | Directly from the SSE migration plan’s table—scale-to-zero billing once WebSockets are removed. |
+| **Fly.io** | $53.5 × 0.0175 ≈ **$0.94/mo** | $2,739 × 0.0175 ≈ **$48/mo** | $26,793 × 0.0175 ≈ **$470/mo** | Machines autostop, so you only pay for short SSE bursts. |
+| **AWS ECS (Fargate)** | $180 × 0.0175 ≈ **$3.2/mo** | $9,007 × 0.0175 ≈ **$158/mo** | $90,099 × 0.0175 ≈ **$1.58k/mo** | Tasks can scale to zero between SSE requests. |
+| **Cloudflare Workers** | No change (already ~$38/mo at 1 req/s). | No change | No change | Workers are already priced per request/CPU millisecond. |
+
+> These numbers assume the same message volume as the WebSocket scenarios, but the services bill only during active SSE streams. Actual savings will depend on how long each response streams, yet any host that stops billing while idle inherits the 50‑100× drop quantified in the SSE plan.
+
+### 3.5 Per-Agent Price Guidance
 
 - **Railway dedicated agent** – Infra ≈ $9/agent-month; charge **$15–$18** to cover observability + support overhead. (Source: [Railway pricing](https://railway.com/pricing))
 - **Fly Machine** – 512 MB shared-cpu-1x = $3.19; after bandwidth/support, price at **≈$12**. ([Fly pricing](https://fly.io/docs/reference/pricing/))
