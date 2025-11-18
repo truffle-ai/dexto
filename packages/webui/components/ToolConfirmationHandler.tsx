@@ -2,10 +2,12 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useChatContext } from './hooks/ChatContext';
+import { apiFetch } from '@/lib/api-client';
 import type { ApprovalEvent } from '../types/approval.js';
 
 interface ToolConfirmationHandlerProps {
-    websocket?: WebSocket | null;
+    // websocket prop removed as we use SSE/HTTP now
+    websocket?: WebSocket | null; // Kept for compatibility but unused
     onApprovalRequest?: (approval: ApprovalEvent | null) => void;
     onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny?: () => void;
@@ -22,10 +24,9 @@ export type { ApprovalEvent } from '../types/approval.js';
 
 /**
  * WebUI component for handling approval requests
- * Manages approval state and sends responses back through WebSocket
+ * Manages approval state and sends responses back through API
  */
 export function ToolConfirmationHandler({
-    websocket,
     onApprovalRequest,
     onApprove: externalOnApprove,
     onDeny: externalOnDeny,
@@ -42,221 +43,110 @@ export function ToolConfirmationHandler({
         onApprovalRequest?.(pendingConfirmation);
     }, [pendingConfirmation, onApprovalRequest]);
 
-    // Handle incoming WebSocket messages
+    // Handle incoming approval requests via DOM event (dispatched by useChat)
     useEffect(() => {
-        if (!websocket) return;
-
-        const handleMessage = (event: MessageEvent) => {
+        const handleApprovalRequest = (event: any) => {
             try {
-                const message = JSON.parse(event.data);
+                // Event detail structure: { approvalId, type, metadata, timestamp, sessionId }
+                // This matches what useChat dispatches for 'approval-request' SSE event
+                const data = event.detail;
 
-                if (message.event === 'approvalRequest') {
-                    // Validate message.data exists and is an object
-                    if (!message?.data || typeof message.data !== 'object') {
-                        console.error(
-                            '[WebUI] Invalid approvalRequest: message.data is missing or not an object'
-                        );
-                        return;
-                    }
+                if (!data) {
+                    console.error('[WebUI] Invalid approval request event: missing detail');
+                    return;
+                }
 
-                    // Skip only if sessionId is present and doesn't match current session
-                    // Allow messages with no sessionId (global/legacy approvals)
-                    const sid = message.data.sessionId as string | undefined;
-                    if (sid && sid !== currentSessionId) return;
+                // Skip if sessionId doesn't match (if provided)
+                if (data.sessionId && currentSessionId && data.sessionId !== currentSessionId) {
+                    return;
+                }
 
-                    // Handle tool confirmation, command confirmation, and elicitation types
-                    const messageType = message.data.type;
-                    if (
-                        messageType !== 'tool_confirmation' &&
-                        messageType !== 'command_confirmation' &&
-                        messageType !== 'elicitation'
-                    ) {
-                        console.debug(`[WebUI] Ignoring unsupported approval type: ${messageType}`);
-                        return;
-                    }
+                // Construct standard ApprovalEvent
+                // Note: The server might send different shapes depending on type.
+                // We normalize here.
 
-                    // Validate approvalId and timestamp before constructing events
-                    const approvalId = message.data.approvalId;
-                    const timestamp = message.data.timestamp;
-                    if (typeof approvalId !== 'string' || typeof timestamp !== 'string') {
-                        console.error(
-                            '[WebUI] Invalid approvalRequest: approvalId and timestamp must be strings'
-                        );
-                        return;
-                    }
+                let approvalEvent: ApprovalEvent;
+                const { approvalId, type, timestamp, metadata = {}, sessionId } = data;
 
-                    let approvalEvent: ApprovalEvent;
+                if (type === 'tool_confirmation') {
+                    // Metadata should contain toolName, args
+                    approvalEvent = {
+                        approvalId,
+                        type,
+                        toolName: metadata.toolName || 'unknown',
+                        args: metadata.args || {},
+                        description: metadata.description,
+                        timestamp: timestamp || new Date().toISOString(),
+                        sessionId,
+                        metadata,
+                    };
+                } else if (type === 'command_confirmation') {
+                    approvalEvent = {
+                        approvalId,
+                        type,
+                        toolName: metadata.toolName || 'unknown',
+                        command: metadata.command || '',
+                        originalCommand: metadata.originalCommand,
+                        timestamp: timestamp || new Date().toISOString(),
+                        sessionId,
+                        metadata,
+                    };
+                } else {
+                    // Generic/Elicitation
+                    approvalEvent = {
+                        approvalId,
+                        type: type || 'elicitation',
+                        timestamp: timestamp || new Date().toISOString(),
+                        sessionId,
+                        metadata,
+                    };
+                }
 
-                    if (messageType === 'tool_confirmation') {
-                        // Validate metadata exists and has required properties
-                        const metadata = message.data.metadata;
-                        if (!metadata || typeof metadata !== 'object') {
-                            console.error(
-                                '[WebUI] Invalid tool_confirmation: metadata is missing or not an object'
-                            );
-                            return;
-                        }
+                console.debug(
+                    `[WebUI] Received approvalRequest via Event: ${JSON.stringify(approvalEvent)}`
+                );
 
-                        const toolName = metadata.toolName;
-                        const args = metadata.args;
-
-                        if (typeof toolName !== 'string') {
-                            console.error(
-                                '[WebUI] Invalid tool_confirmation: metadata.toolName must be a string'
-                            );
-                            return;
-                        }
-
-                        if (!args || typeof args !== 'object') {
-                            console.error(
-                                '[WebUI] Invalid tool_confirmation: metadata.args must be an object'
-                            );
-                            return;
-                        }
-
-                        approvalEvent = {
-                            approvalId,
-                            type: messageType,
-                            toolName: toolName,
-                            args: args,
-                            description:
-                                typeof metadata.description === 'string'
-                                    ? metadata.description
-                                    : undefined,
-                            timestamp,
-                            sessionId: message.data.sessionId,
-                            metadata: metadata,
-                        };
-                    } else if (messageType === 'command_confirmation') {
-                        // Validate metadata exists and has required properties
-                        const metadata = message.data.metadata;
-                        if (!metadata || typeof metadata !== 'object') {
-                            console.error(
-                                '[WebUI] Invalid command_confirmation: metadata is missing or not an object'
-                            );
-                            return;
-                        }
-
-                        const toolName = metadata.toolName;
-                        const command = metadata.command;
-
-                        if (typeof toolName !== 'string') {
-                            console.error(
-                                '[WebUI] Invalid command_confirmation: metadata.toolName must be a string'
-                            );
-                            return;
-                        }
-
-                        if (typeof command !== 'string') {
-                            console.error(
-                                '[WebUI] Invalid command_confirmation: metadata.command must be a string'
-                            );
-                            return;
-                        }
-
-                        approvalEvent = {
-                            approvalId,
-                            type: messageType,
-                            toolName: toolName,
-                            command: command,
-                            originalCommand:
-                                typeof metadata.originalCommand === 'string'
-                                    ? metadata.originalCommand
-                                    : undefined,
-                            timestamp,
-                            sessionId: message.data.sessionId,
-                            metadata: metadata,
-                        };
-                    } else {
-                        // Elicitation request
-                        approvalEvent = {
-                            approvalId,
-                            type: messageType,
-                            timestamp,
-                            sessionId: message.data.sessionId,
-                            metadata: message.data.metadata || {},
-                        };
-                    }
-
-                    console.debug(
-                        `[WebUI] Received approvalRequest: ${JSON.stringify(approvalEvent)}`
-                    );
-
-                    if (pendingConfirmation) {
-                        // Buffer the request to be shown later
-                        queuedRequestsRef.current.push(approvalEvent);
-                    } else {
-                        setPendingConfirmation(approvalEvent);
-                    }
+                if (pendingConfirmation) {
+                    queuedRequestsRef.current.push(approvalEvent);
+                } else {
+                    setPendingConfirmation(approvalEvent);
                 }
             } catch (error) {
-                console.error(
-                    `[WebUI] Error handling approvalRequest message: ${error instanceof Error ? error.message : String(error)}`
-                );
+                console.error('[WebUI] Error handling approval request event:', error);
             }
         };
 
-        websocket.addEventListener('message', handleMessage);
-
+        window.addEventListener('dexto:approvalRequest', handleApprovalRequest);
         return () => {
-            websocket.removeEventListener('message', handleMessage);
+            window.removeEventListener('dexto:approvalRequest', handleApprovalRequest);
         };
-    }, [websocket, pendingConfirmation, currentSessionId]);
+    }, [pendingConfirmation, currentSessionId]);
 
-    // Send confirmation response
+    // Send confirmation response via API
     const sendResponse = useCallback(
-        (approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {
-            if (!pendingConfirmation || !websocket) return;
+        async (approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {
+            if (!pendingConfirmation) return;
 
-            const isElicitation = pendingConfirmation.type === 'elicitation';
-            const isCommandConfirmation = pendingConfirmation.type === 'command_confirmation';
+            const { approvalId } = pendingConfirmation;
 
-            // For elicitation: only include data when approved AND formData exists
-            // For tool confirmation: include rememberChoice
-            // For command confirmation: no data needed (per-command approval, no remember)
-            const responseData = isElicitation
-                ? approved && formData
-                    ? { formData }
-                    : undefined
-                : isCommandConfirmation
-                  ? undefined
-                  : { rememberChoice: rememberChoice ?? false };
-
-            const response = {
-                type: 'approvalResponse',
-                data: {
-                    approvalId: pendingConfirmation.approvalId,
-                    status: approved ? 'approved' : 'denied',
-                    sessionId: pendingConfirmation.sessionId,
-                    ...(responseData ? { data: responseData } : {}),
-                    // Add reason and message when denied
-                    ...(!approved
-                        ? {
-                              reason: 'user_denied' as const,
-                              message: isElicitation
-                                  ? `User denied the elicitation request`
-                                  : `User denied the tool execution`,
-                          }
-                        : {}),
-                },
-            };
-
-            console.debug(`[WebUI] Sending approvalResponse: ${JSON.stringify(response)}`);
-
-            // Check websocket is open before sending
-            if (websocket.readyState !== WebSocket.OPEN) {
-                console.warn(
-                    `[WebUI] WebSocket not open (readyState: ${websocket.readyState}), cannot send approval response for ${pendingConfirmation.approvalId}`
-                );
-                return;
-            }
+            console.debug(
+                `[WebUI] Sending approval response for ${approvalId}: ${approved ? 'approved' : 'denied'}`
+            );
 
             try {
-                websocket.send(JSON.stringify(response));
+                await apiFetch(`/api/approvals/${approvalId}`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        status: approved ? 'approved' : 'denied',
+                        ...(approved && formData ? { formData } : {}),
+                        ...(approved && rememberChoice !== undefined ? { rememberChoice } : {}),
+                    }),
+                });
             } catch (error) {
                 console.error(
                     `[WebUI] Failed to send approval response: ${error instanceof Error ? error.message : String(error)}`
                 );
+                // TODO: Show toast?
                 return;
             }
 
@@ -271,7 +161,7 @@ export function ToolConfirmationHandler({
                 }, 100);
             }
         },
-        [pendingConfirmation, websocket]
+        [pendingConfirmation]
     );
 
     const handleApprove = useCallback(

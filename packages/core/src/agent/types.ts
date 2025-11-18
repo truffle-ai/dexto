@@ -67,6 +67,8 @@ export type StreamEvent =
     | ContentChunkEvent
     | ToolUseEvent
     | ToolResultEvent
+    | ApprovalRequestEvent
+    | ApprovalResponseEvent
     | MessageCompleteEvent
     | ErrorEvent;
 
@@ -116,6 +118,28 @@ export interface ToolResultEvent {
     success: boolean;
     result: any;
     error?: string;
+}
+
+/**
+ * Approval requested (Human-in-the-loop)
+ */
+export interface ApprovalRequestEvent {
+    type: 'approval-request';
+    approvalId: string;
+    approvalType: string; // e.g. 'tool_confirmation', 'command_confirmation', 'elicitation'
+    timestamp: string;
+    metadata?: Record<string, any>;
+    sessionId: string;
+}
+
+/**
+ * Approval response received/processed
+ */
+export interface ApprovalResponseEvent {
+    type: 'approval-response';
+    approvalId: string;
+    status: 'approved' | 'denied';
+    sessionId: string;
 }
 
 /**

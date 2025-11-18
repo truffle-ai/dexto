@@ -15,7 +15,8 @@ import { createWebhooksRouter } from './routes/webhooks.js';
 import { createPromptsRouter } from './routes/prompts.js';
 import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
-import { createAgentsRouter } from './routes/agents.js';
+import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
+import { createApprovalsRouter } from './routes/approvals.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { A2ASseEventSubscriber } from '../events/a2a-sse-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
@@ -33,20 +34,29 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'
     version: string;
 };
 
+// Dummy context for type inference and runtime fallback
+const dummyAgentsContext: AgentsRouterContext = {
+    switchAgentById: async () => {
+        throw new Error('Not implemented');
+    },
+    switchAgentByPath: async () => {
+        throw new Error('Not implemented');
+    },
+    resolveAgentInfo: async () => {
+        throw new Error('Not implemented');
+    },
+    ensureAgentAvailable: () => {},
+    getActiveAgentId: () => undefined,
+};
+
 export type CreateDextoAppOptions = {
     apiPrefix?: string;
     getAgent: () => DextoAgent;
     getAgentCard: () => AgentCard;
-    agentsContext?: {
-        switchAgentById: (agentId: string) => Promise<{ id: string; name: string }>;
-        switchAgentByPath: (filePath: string) => Promise<{ id: string; name: string }>;
-        resolveAgentInfo: (agentId: string) => Promise<{ id: string; name: string }>;
-        ensureAgentAvailable: () => void;
-        getActiveAgentId: () => string | undefined;
-    };
+    agentsContext?: AgentsRouterContext;
 };
 
-export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
+export function createDextoApp(options: CreateDextoAppOptions) {
     const { getAgent, getAgentCard, agentsContext } = options;
     const app = new OpenAPIHono({ strict: false }) as DextoApp;
     const webhookSubscriber = new WebhookEventSubscriber();
@@ -67,47 +77,36 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
 
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
-    app.route('/health', createHealthRouter(getAgent));
 
-    // A2A routes use getter for agent card (updated on agent switch)
-    app.route('/', createA2aRouter(getAgentCard));
+    // Create API router using fluent chaining to ensure correct type inference
+    const api = new OpenAPIHono()
+        .use('*', prettyJsonMiddleware)
+        .use('*', redactionMiddleware)
+        .route('/', createGreetingRouter(getAgent))
+        .route('/', createMessagesRouter(getAgent, messageStreamManager))
+        .route('/', createLlmRouter(getAgent))
+        .route('/', createSessionsRouter(getAgent))
+        .route('/', createSearchRouter(getAgent))
+        .route('/', createMcpRouter(getAgent))
+        .route('/', createWebhooksRouter(getAgent, webhookSubscriber))
+        .route('/', createPromptsRouter(getAgent))
+        .route('/', createResourcesRouter(getAgent))
+        .route('/', createMemoryRouter(getAgent))
+        .route('/', createApprovalsRouter(getAgent, messageStreamManager))
+        // Always mount agents router for consistent type signature
+        // Use dummy context if real context is missing
+        .route('/', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext));
 
-    // A2A JSON-RPC endpoint (protocol transport, supports message/stream with SSE)
-    app.route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber));
+    // Construct the full application
+    const fullApp = app
+        .route('/health', createHealthRouter(getAgent))
+        .route('/', createA2aRouter(getAgentCard))
+        .route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber))
+        .route('/', createA2ATasksRouter(getAgent, sseSubscriber))
+        .route(options.apiPrefix ?? '/api', api);
 
-    // A2A REST task endpoints (HTTP+JSON alternative to JSON-RPC, includes message:stream)
-    app.route('/', createA2ATasksRouter(getAgent, sseSubscriber));
-
-    const api = new OpenAPIHono();
-    api.use('*', prettyJsonMiddleware);
-    api.use('*', redactionMiddleware);
-    api.route('/', createGreetingRouter(getAgent));
-    api.route('/', createMessagesRouter(getAgent, messageStreamManager));
-    api.route('/', createLlmRouter(getAgent));
-    api.route('/', createSessionsRouter(getAgent));
-    api.route('/', createSearchRouter(getAgent));
-    api.route('/', createMcpRouter(getAgent));
-    api.route('/', createWebhooksRouter(getAgent, webhookSubscriber));
-    api.route('/', createPromptsRouter(getAgent));
-    api.route('/', createResourcesRouter(getAgent));
-    api.route('/', createMemoryRouter(getAgent));
-
-    // Add agents router if context is provided
-    if (agentsContext) {
-        api.route('/', createAgentsRouter(getAgent, agentsContext));
-    }
-
-    // Apply prefix to all API routes if provided
-    const apiPrefix = options.apiPrefix ?? '/api';
-    app.route(apiPrefix, api);
-
-    // Expose OpenAPI document at the root path for the entire app
-    // TODO: Add securitySchemes and global security to OpenAPI spec
-    // The server requires Bearer auth (DEXTO_SERVER_API_KEY) when auth is enabled via createAuthMiddleware,
-    // but the OpenAPI spec doesn't document this requirement. This misleads integrators and security scanners.
-    // Need to add components.securitySchemes.dextoBearerAuth and global security array.
-    // See: https://github.com/truffle-ai/dexto/pull/438#discussion_r2480537579
-    app.doc('/openapi.json', {
+    // Expose OpenAPI document
+    fullApp.doc('/openapi.json', {
         openapi: '3.0.0',
         info: {
             title: 'Dexto API',
@@ -186,5 +185,8 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         ],
     });
 
-    return app;
+    return fullApp;
 }
+
+// Export inferred AppType
+export type AppType = ReturnType<typeof createDextoApp>;

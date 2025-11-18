@@ -831,6 +831,41 @@ export class DextoAgent {
             { signal: cleanupSignal }
         );
 
+        // Subscribe to approval events
+        this.agentEventBus.on(
+            'dexto:approvalRequest',
+            (data) => {
+                if (data.sessionId === sessionId || (!data.sessionId && !sessionId)) {
+                    eventQueue.push({
+                        type: 'approval-request',
+                        approvalId: data.approvalId,
+                        approvalType: data.type,
+                        timestamp: data.timestamp
+                            ? new Date(data.timestamp).toISOString()
+                            : new Date().toISOString(),
+                        metadata: data.metadata,
+                        sessionId: data.sessionId || sessionId,
+                    });
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
+        this.agentEventBus.on(
+            'dexto:approvalResponse',
+            (data) => {
+                if (data.sessionId === sessionId || (!data.sessionId && !sessionId)) {
+                    eventQueue.push({
+                        type: 'approval-response',
+                        approvalId: data.approvalId,
+                        status: data.status as 'approved' | 'denied',
+                        sessionId: data.sessionId || sessionId,
+                    });
+                }
+            },
+            { signal: cleanupSignal }
+        );
+
         // Emit message-start event
         eventQueue.push({
             type: 'message-start',

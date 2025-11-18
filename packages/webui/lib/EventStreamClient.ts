@@ -1,0 +1,128 @@
+export interface SSEEvent {
+    event?: string;
+    data?: string;
+    id?: string;
+    retry?: number;
+}
+
+export class SSEError extends Error {
+    constructor(
+        public status: number,
+        public body: any
+    ) {
+        super(`SSE Error: ${status}`);
+        this.name = 'SSEError';
+    }
+}
+
+export class EventStreamClient {
+    async connect(url: string, options?: RequestInit): Promise<AsyncIterableIterator<SSEEvent>> {
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                ...options?.headers,
+                Accept: 'text/event-stream',
+            },
+        });
+
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type');
+            let errorBody;
+            try {
+                if (contentType && contentType.includes('application/json')) {
+                    errorBody = await response.json();
+                } else {
+                    errorBody = await response.text();
+                }
+            } catch (e) {
+                errorBody = 'Unknown error';
+            }
+            throw new SSEError(response.status, errorBody);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('Response body is null');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        // Create async iterable iterator
+        const iterator: AsyncIterableIterator<SSEEvent> = {
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            async next() {
+                // Loop until we have a full event to yield
+                while (true) {
+                    // Check if we have a double newline in buffer
+                    const parts = buffer.split('\n\n');
+                    if (parts.length > 1) {
+                        // We have at least one complete event
+                        const eventString = parts.shift()!;
+                        buffer = parts.join('\n\n');
+
+                        const event = parseSSE(eventString);
+                        if (event) {
+                            return { value: event, done: false };
+                        }
+                        // If parseSSE returned null (e.g. only comments), loop again
+                        continue;
+                    }
+
+                    // Need more data
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        if (buffer.trim()) {
+                            // Process remaining buffer
+                            const event = parseSSE(buffer);
+                            buffer = '';
+                            if (event) {
+                                return { value: event, done: false };
+                            }
+                        }
+                        return { value: undefined, done: true };
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                }
+            },
+            async return() {
+                reader.cancel();
+                return { value: undefined, done: true };
+            },
+            async throw(e?: any) {
+                reader.cancel();
+                throw e;
+            },
+        };
+
+        return iterator;
+    }
+}
+
+function parseSSE(raw: string): SSEEvent | null {
+    const lines = raw.split('\n');
+    const event: SSEEvent = {};
+    let hasData = false;
+
+    for (const line of lines) {
+        if (line.startsWith(':')) continue; // Comment
+
+        if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            event.data = event.data ? event.data + '\n' + data : data;
+            hasData = true;
+        } else if (line.startsWith('event: ')) {
+            event.event = line.slice(7);
+        } else if (line.startsWith('id: ')) {
+            event.id = line.slice(4);
+        } else if (line.startsWith('retry: ')) {
+            event.retry = parseInt(line.slice(7), 10);
+        }
+    }
+
+    if (!hasData && !event.event && !event.id) return null;
+    return event;
+}
