@@ -105,7 +105,7 @@ export async function startTestServer(
         defaultName: 'test-agent',
         defaultVersion: '1.0.0',
         defaultBaseUrl: `http://localhost:${serverPort}`,
-        webSubscriber: bridge.webSubscriber,
+        // webSubscriber: bridge.webSubscriber, // Removed in SSE migration
     });
 
     // Start the server
