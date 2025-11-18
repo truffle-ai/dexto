@@ -172,9 +172,6 @@ export class ChatSession {
                     payload && typeof payload === 'object'
                         ? { ...payload, sessionId: this.id }
                         : { sessionId: this.id };
-                this.logger.silly(
-                    `Forwarding session event ${eventName} to agent bus with session context: ${JSON.stringify(payloadWithSession, null, 2)}`
-                );
                 // Forward to agent bus with session context
                 this.services.agentEventBus.emit(eventName as any, payloadWithSession);
             };
@@ -185,6 +182,9 @@ export class ChatSession {
             // Attach the forwarder to the session event bus
             this.eventBus.on(eventName, forwarder);
         });
+        this.logger.debug(
+            `[setupEventForwarding] Event forwarding setup complete for session=${this.id}`
+        );
     }
 
     /**
@@ -584,8 +584,6 @@ export class ChatSession {
      * Without this cleanup, sessions would remain in memory due to listener references.
      */
     public dispose(): void {
-        this.logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
-
         // Remove all event forwarders from the session event bus
         this.forwarders.forEach((forwarder, eventName) => {
             this.eventBus.off(eventName, forwarder);
@@ -594,7 +592,7 @@ export class ChatSession {
         // Clear the forwarders map
         this.forwarders.clear();
 
-        this.logger.debug(`Session ${this.id} disposed successfully`);
+        this.logger.debug(`[ChatSession.dispose] Session ${this.id} disposed successfully`);
     }
 
     /**

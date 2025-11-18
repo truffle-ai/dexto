@@ -151,7 +151,7 @@ describe('DextoAgent.stream() API', () => {
             try {
                 const chunkEvents: StreamEvent[] = [];
 
-                for await (const event of await env.agent.stream('Write a haiku', {
+                for await (const event of await env.agent.stream('Say hello', {
                     sessionId: env.sessionId,
                 })) {
                     if (event.type === 'content-chunk') {

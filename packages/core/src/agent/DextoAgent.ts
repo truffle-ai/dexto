@@ -499,9 +499,9 @@ export class DextoAgent {
                 ensureOk(validation, this.logger);
 
                 // Resolve the concrete ChatSession for the target session id
-                const existingSession = await this.sessionManager.getSession(targetSessionId);
                 const session: ChatSession =
-                    existingSession || (await this.sessionManager.createSession(targetSessionId));
+                    (await this.sessionManager.getSession(targetSessionId)) ||
+                    (await this.sessionManager.createSession(targetSessionId));
 
                 this.logger.debug(
                     `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
@@ -708,21 +708,6 @@ export class DextoAgent {
         const controller = new AbortController();
         const cleanupSignal = controller.signal;
 
-        this.logger.debug(`[stream()] Attaching event listeners for sessionId=${sessionId}`);
-
-        // Debug: Log ALL llmservice events on agentEventBus
-        const debugListener =
-            (eventName: string) =>
-            (...args: any[]) => {
-                this.logger.debug(`[stream()] agentEventBus received: ${eventName}`, args);
-            };
-        this.agentEventBus.on('llmservice:response', debugListener('llmservice:response'), {
-            signal: cleanupSignal,
-        });
-        this.agentEventBus.on('llmservice:chunk', debugListener('llmservice:chunk'), {
-            signal: cleanupSignal,
-        });
-
         // Subscribe to AgentEventBus (not session bus - events have sessionId)
         this.agentEventBus.on(
             'llmservice:thinking',
@@ -798,11 +783,7 @@ export class DextoAgent {
         this.agentEventBus.on(
             'llmservice:response',
             (data) => {
-                this.logger.debug(
-                    `[stream()] Received llmservice:response event for session=${data.sessionId}, looking for session=${sessionId}`
-                );
                 if (data.sessionId === sessionId) {
-                    this.logger.debug(`[stream()] Session ID matches! Setting completed=true`);
                     finalContent = data.content;
                     finalReasoning = data.reasoning;
                     if (data.tokenUsage) {

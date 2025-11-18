@@ -321,11 +321,6 @@ export class VercelLLMService implements ILLMService {
         // Execute rest of method in updated context
         return await context.with(updatedContext, async () => {
             // Add user message, with optional image and file data
-            this.logger.debug(
-                `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
-                    imageData
-                )}, file=${Boolean(fileData)})`
-            );
             await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
             // Get all tools
