@@ -687,6 +687,8 @@ export class DextoAgent {
         const fileData = options?.fileData;
         const signal = options?.signal;
 
+        this.logger.debug(`[stream()] Starting stream for sessionId=${sessionId}`);
+
         // Event queue for aggregation
         const eventQueue: import('./types.js').StreamEvent[] = [];
         let completed = false;
@@ -704,6 +706,8 @@ export class DextoAgent {
         // Create AbortController for cleanup
         const controller = new AbortController();
         const cleanupSignal = controller.signal;
+
+        this.logger.debug(`[stream()] Attaching event listeners for sessionId=${sessionId}`);
 
         // Subscribe to AgentEventBus (not session bus - events have sessionId)
         this.agentEventBus.on(
@@ -780,7 +784,11 @@ export class DextoAgent {
         this.agentEventBus.on(
             'llmservice:response',
             (data) => {
+                this.logger.debug(
+                    `[stream()] Received llmservice:response event for session=${data.sessionId}, looking for session=${sessionId}`
+                );
                 if (data.sessionId === sessionId) {
+                    this.logger.debug(`[stream()] Session ID matches! Setting completed=true`);
                     finalContent = data.content;
                     finalReasoning = data.reasoning;
                     if (data.tokenUsage) {
