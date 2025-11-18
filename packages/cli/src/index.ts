@@ -34,7 +34,7 @@ import {
     loadAgentConfig,
     globalPreferencesExist,
     loadGlobalPreferences,
-    DefaultAgentResolver,
+    DefaultAgentConfigProvider,
 } from '@dexto/agent-management';
 import type { AgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
@@ -335,8 +335,8 @@ async function bootstrapAgentFromGlobalOpts() {
     const agent = new DextoAgent(enrichedConfig, resolvedPath);
     await agent.start();
 
-    // Initialize CLI dependencies (agent resolver for spawn_agent tool)
-    agent.toolManager.setAgentResolver(new DefaultAgentResolver());
+    // Initialize CLI dependencies (agent config provider for spawn_agent tool)
+    agent.toolManager.setAgentConfigProvider(new DefaultAgentConfigProvider());
     agent.toolManager.setAgent(agent);
 
     // Register graceful shutdown
@@ -862,8 +862,8 @@ program
                     // Start the agent (initialize async services)
                     await agent.start();
 
-                    // Initialize CLI dependencies (agent resolver for spawn_agent tool)
-                    agent.toolManager.setAgentResolver(new DefaultAgentResolver());
+                    // Initialize CLI dependencies (agent config provider for spawn_agent tool)
+                    agent.toolManager.setAgentConfigProvider(new DefaultAgentConfigProvider());
                     agent.toolManager.setAgent(agent);
 
                     // Derive a concise agent ID for display purposes (used by API/UI)

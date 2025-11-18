@@ -124,12 +124,14 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Set agent resolver for tools that need it (e.g., spawn_agent)
+     * Set agent config provider for tools that need it (e.g., spawn_agent)
      */
-    setAgentResolver(agentResolver: NonNullable<InternalToolsServices['agentResolver']>): void {
-        this.services.agentResolver = agentResolver;
+    setAgentConfigProvider(
+        agentConfigProvider: NonNullable<InternalToolsServices['agentConfigProvider']>
+    ): void {
+        this.services.agentConfigProvider = agentConfigProvider;
 
-        // Re-register tools that depend on agentResolver
+        // Re-register tools that depend on agentConfigProvider
         if (this.config.includes('spawn_agent')) {
             this.registerTool('spawn_agent');
         }

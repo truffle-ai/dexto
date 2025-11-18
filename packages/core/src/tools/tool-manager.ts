@@ -152,11 +152,13 @@ export class ToolManager {
     }
 
     /**
-     * Set agent resolver for internal tools that need it (e.g., spawn_agent)
+     * Set agent config provider for internal tools that need it (e.g., spawn_agent)
      */
-    setAgentResolver(agentResolver: NonNullable<InternalToolsServices['agentResolver']>): void {
+    setAgentConfigProvider(
+        agentConfigProvider: NonNullable<InternalToolsServices['agentConfigProvider']>
+    ): void {
         if (this.internalToolsProvider) {
-            this.internalToolsProvider.setAgentResolver(agentResolver);
+            this.internalToolsProvider.setAgentConfigProvider(agentConfigProvider);
         }
     }
 

@@ -12,7 +12,7 @@
 import { z } from 'zod';
 import type { InternalTool, ToolExecutionContext } from '../../types.js';
 import type { DextoAgent } from '../../../agent/DextoAgent.js';
-import type { AgentResolver } from '../registry.js';
+import type { AgentConfigProvider } from '../registry.js';
 
 /**
  * Zod schema for spawn_agent tool input
@@ -48,7 +48,7 @@ interface SpawnAgentResult {
  */
 export function createSpawnAgentTool(
     agent: DextoAgent,
-    agentResolver: AgentResolver
+    agentConfigProvider: AgentConfigProvider
 ): InternalTool {
     return {
         id: 'spawn_agent',
@@ -81,10 +81,10 @@ export function createSpawnAgentTool(
                 throw new Error('Session context is required for spawn_agent tool');
             }
 
-            // Resolve agent identifier to config via injected resolver
+            // Resolve agent identifier to config via injected provider
             let agentConfig;
             try {
-                agentConfig = await agentResolver.resolveAgentConfig(validatedInput.agent);
+                agentConfig = await agentConfigProvider.resolveAgentConfig(validatedInput.agent);
             } catch (error) {
                 throw new Error(
                     `Failed to resolve agent "${validatedInput.agent}": ${error instanceof Error ? error.message : String(error)}`

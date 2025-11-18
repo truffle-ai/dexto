@@ -9,6 +9,16 @@
 import type { SessionEventBus, AgentEventBus } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
+/**
+ * Common interface for event buses that can be used with EventForwarder.
+ * Both SessionEventBus and AgentEventBus implement this interface.
+ */
+interface EventBusLike {
+    on(event: string, listener: (payload?: any) => void): this;
+    off(event: string, listener: (payload?: any) => void): this;
+    emit(event: string, ...args: any[]): boolean;
+}
+
 export interface ForwardOptions {
     /**
      * Transform the payload before forwarding.
@@ -71,7 +81,7 @@ export class EventForwarder {
                 });
 
                 // Forward to target
-                (this.target as any).emit(eventName, augmented);
+                (this.target as EventBusLike).emit(eventName, augmented);
             } catch (error) {
                 this.logger.error(
                     `Error forwarding event ${eventName}: ${error instanceof Error ? error.message : String(error)}`
@@ -83,7 +93,7 @@ export class EventForwarder {
         this.forwarders.set(eventName, forwarder);
 
         // Attach to source
-        (this.source as any).on(eventName, forwarder);
+        (this.source as EventBusLike).on(eventName, forwarder);
 
         this.logger.debug(`Event forwarder registered for: ${eventName}`);
     }
@@ -93,7 +103,7 @@ export class EventForwarder {
      */
     dispose(): void {
         this.forwarders.forEach((forwarder, eventName) => {
-            (this.source as any).off(eventName, forwarder);
+            (this.source as EventBusLike).off(eventName, forwarder);
         });
 
         this.logger.debug(`Disposed ${this.forwarders.size} event forwarders`);

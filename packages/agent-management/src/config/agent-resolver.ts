@@ -1,24 +1,34 @@
 /**
- * Default Agent Resolver
+ * Default Agent Config Provider
  *
- * Provides a default implementation of AgentResolver that uses LocalAgentRegistry
+ * Provides a default implementation of AgentConfigProvider that uses LocalAgentRegistry
  * to resolve agent identifiers to AgentConfig objects.
  *
- * This resolver:
- * - Uses the local agent registry to find agents
- * - Handles auto-installation if the agent is in the registry but not installed
- * - Loads and parses agent config files from the filesystem
+ * This is the CLI/server layer implementation that handles:
+ * - Local agent registry lookups
+ * - Auto-installation of agents from the registry
+ * - Filesystem access to load agent config YAML files
+ * - Path resolution for custom agent configs
+ *
+ * This implementation is injected into core's DextoAgent via dependency inversion,
+ * keeping core free of filesystem dependencies.
  */
 
-import type { AgentConfig, AgentResolver } from '@dexto/core';
+import type { AgentConfig, AgentConfigProvider } from '@dexto/core';
 import { getAgentRegistry } from '../registry/registry.js';
 import { loadAgentConfig } from '../config/index.js';
 
 /**
- * Default implementation of AgentResolver
- * Resolves agent identifiers using LocalAgentRegistry and loads configs from filesystem
+ * Default implementation of AgentConfigProvider.
+ * Resolves agent identifiers using LocalAgentRegistry and loads configs from filesystem.
+ *
+ * @example
+ * ```typescript
+ * const provider = new DefaultAgentConfigProvider();
+ * agent.toolManager.setAgentConfigProvider(provider);
+ * ```
  */
-export class DefaultAgentResolver implements AgentResolver {
+export class DefaultAgentConfigProvider implements AgentConfigProvider {
     private registry = getAgentRegistry();
 
     /**

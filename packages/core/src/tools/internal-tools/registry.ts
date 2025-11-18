@@ -17,21 +17,10 @@ import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.
 import { createSpawnAgentTool } from './implementations/spawn-agent-tool.js';
 import type { KnownInternalTool } from './constants.js';
 import type { DextoAgent } from '../../agent/DextoAgent.js';
-import type { AgentConfig } from '../../agent/schemas.js';
+import type { AgentConfigProvider } from '../../agent/types.js';
 
-/**
- * Agent resolver interface for spawn_agent tool
- * Resolves agent identifiers to AgentConfig objects
- */
-export interface AgentResolver {
-    /**
-     * Resolve an agent identifier to an AgentConfig
-     * @param agentId - Agent identifier (e.g., 'general-purpose', 'code-reviewer')
-     * @returns Promise resolving to the agent configuration
-     * @throws Error if agent cannot be resolved
-     */
-    resolveAgentConfig(agentId: string): Promise<AgentConfig>;
-}
+// Re-export for convenience
+export type { AgentConfigProvider };
 
 /**
  * Services available to internal tools
@@ -43,7 +32,7 @@ export interface InternalToolsServices {
     fileSystemService?: FileSystemService;
     processService?: ProcessService;
     agent?: DextoAgent;
-    agentResolver?: AgentResolver;
+    agentConfigProvider?: AgentConfigProvider;
     // Future services can be added here:
     // storageManager?: StorageManager;
     // eventBus?: AgentEventBus;
@@ -119,8 +108,8 @@ export const INTERNAL_TOOL_REGISTRY: Record<
     },
     spawn_agent: {
         factory: (services: InternalToolsServices) =>
-            createSpawnAgentTool(services.agent!, services.agentResolver!),
-        requiredServices: ['agent', 'agentResolver'] as const,
+            createSpawnAgentTool(services.agent!, services.agentConfigProvider!),
+        requiredServices: ['agent', 'agentConfigProvider'] as const,
     },
 };
 

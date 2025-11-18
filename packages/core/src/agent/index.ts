@@ -8,5 +8,6 @@ export {
 } from './schemas.js';
 export { type ValidatedAgentConfig, type AgentConfig } from './schemas.js';
 export { createAgentCard } from './agentCard.js';
+export { type AgentConfigProvider } from './types.js';
 export * from './errors.js';
 export * from './error-codes.js';
