@@ -22,9 +22,9 @@ export class MessageStreamManager {
     constructor(private options: { idleTimeoutMs?: number } = {}) {}
 
     public startStreaming(sessionId: string, iterator: AsyncIterableIterator<StreamEvent>): void {
-        const state = this.ensureState(sessionId, { reset: true, allowCreate: true });
-
-        if (!state.closed && state.controller) {
+        // Check for existing state before resetting
+        const existingState = this.sessions.get(sessionId);
+        if (existingState && !existingState.closed && existingState.controller) {
             logger.warn(
                 `[MessageStreamManager] Overwriting active stream for session ${sessionId}`
             );
@@ -161,49 +161,19 @@ export class MessageStreamManager {
         const data: Record<string, unknown> = { sessionId };
         let eventName: string;
 
-        switch (event.type) {
-            case 'message-start':
-                eventName = 'message-start';
-                Object.assign(data, event);
-                break;
-            case 'thinking':
-                eventName = 'thinking';
-                break;
-            case 'content-chunk':
-                eventName = 'content-chunk';
-                Object.assign(data, event);
-                break;
-            case 'tool-use':
-                eventName = 'tool-use';
-                Object.assign(data, event);
-                break;
-            case 'tool-result':
-                eventName = 'tool-result';
-                Object.assign(data, event);
-                break;
-            case 'approval-request':
-                eventName = 'approval-request';
-                Object.assign(data, event);
-                break;
-            case 'approval-response':
-                eventName = 'approval-response';
-                Object.assign(data, event);
-                break;
-            case 'message-complete':
-                eventName = 'message-complete';
-                Object.assign(data, event);
-                break;
-            case 'error':
-                eventName = 'error';
-                Object.assign(data, {
-                    message: event.error?.message ?? 'Unknown error',
-                    stack: event.error?.stack,
-                    recoverable: event.recoverable,
-                    context: event.context,
-                });
-                break;
-            default:
-                return null;
+        // Handle special case for error events
+        if (event.type === 'error') {
+            eventName = 'error';
+            Object.assign(data, {
+                message: event.error?.message ?? 'Unknown error',
+                stack: event.error?.stack,
+                recoverable: event.recoverable,
+                context: event.context,
+            });
+        } else {
+            // Default case: event name matches event type, spread all event data
+            eventName = event.type;
+            Object.assign(data, event);
         }
 
         return `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
