@@ -11,8 +11,8 @@
  */
 
 import type { AgentConfig, AgentResolver } from '@dexto/core';
-import { getAgentRegistry } from './registry/registry.js';
-import { loadAgentConfig } from './config/index.js';
+import { getAgentRegistry } from '../registry/registry.js';
+import { loadAgentConfig } from '../config/index.js';
 
 /**
  * Default implementation of AgentResolver

@@ -20,7 +20,6 @@ export { PreferenceError, PreferenceErrorCode } from './preferences/errors.js';
 
 // Agent resolver
 export { resolveAgentPath, updateDefaultAgentPreference } from './resolver.js';
-export { DefaultAgentResolver } from './agent-resolver.js';
 
 // Config writer
 export {
@@ -65,6 +64,7 @@ export {
     deriveAgentId,
     ConfigError,
     ConfigErrorCode,
+    DefaultAgentResolver,
 } from './config/index.js';
 
 // API Key utilities
