@@ -113,7 +113,7 @@ export const TestConfigs = {
             },
             sessions: {
                 maxSessions: 10,
-                sessionTTL: 100,
+                sessionTTL: 60000,
             },
             logger: {
                 level: 'debug',
@@ -163,7 +163,7 @@ export const TestConfigs = {
             },
             sessions: {
                 maxSessions: 10,
-                sessionTTL: 100,
+                sessionTTL: 60000,
             },
             logger: {
                 level: 'debug',

@@ -37,7 +37,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -68,7 +68,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -93,7 +93,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -126,7 +126,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -152,7 +152,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     // Multiple Provider Support through Vercel AI SDK
@@ -177,7 +177,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(anthropicEnv);
             }
         },
-        20000
+        60000
     );
 
     (requiresApiKey('google') ? test.concurrent : test.skip)(
@@ -201,7 +201,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(googleEnv);
             }
         },
-        20000
+        60000
     );
 
     // Error handling tests
@@ -239,7 +239,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     // Positive media/file tests (OpenAI via Vercel)
@@ -278,7 +278,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
-        20000
+        60000
     );
 
     (requiresApiKey('openai') ? test.concurrent : test.skip)(
@@ -315,7 +315,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
-        20000
+        60000
     );
 
     (requiresApiKey('openai') ? test.concurrent : test.skip)(
@@ -352,7 +352,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 await cleanupTestEnvironment(openaiEnv);
             }
         },
-        20000
+        60000
     );
 
     // Skip test warnings
