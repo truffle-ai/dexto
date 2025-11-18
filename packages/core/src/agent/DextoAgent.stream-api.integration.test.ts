@@ -15,13 +15,13 @@ import type { StreamEvent } from './types.js';
  */
 
 describe('DextoAgent.generate() API', () => {
-    const skipTests = !requiresApiKey('anthropic');
+    const skipTests = !requiresApiKey('openai');
     const t = skipTests ? test.skip : test.concurrent;
 
     t(
         'generate() returns complete response with usage stats',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 const response = await env.agent.generate('What is 2+2?', {
                     sessionId: env.sessionId,
@@ -53,7 +53,7 @@ describe('DextoAgent.generate() API', () => {
     t(
         'generate() maintains conversation context across turns',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 const response1 = await env.agent.generate('My name is Alice', {
                     sessionId: env.sessionId,
@@ -75,10 +75,7 @@ describe('DextoAgent.generate() API', () => {
     t(
         'generate() works with different providers',
         async () => {
-            const providers = [
-                { name: 'anthropic', config: TestConfigs.createAnthropicConfig() },
-                { name: 'openai', config: TestConfigs.createOpenAIConfig() },
-            ];
+            const providers = [{ name: 'openai', config: TestConfigs.createOpenAIConfig() }];
 
             for (const { name, config } of providers) {
                 if (!requiresApiKey(name as any)) continue;
@@ -101,13 +98,13 @@ describe('DextoAgent.generate() API', () => {
 });
 
 describe('DextoAgent.stream() API', () => {
-    const skipTests = !requiresApiKey('anthropic');
+    const skipTests = !requiresApiKey('openai');
     const t = skipTests ? test.skip : test.concurrent;
 
     t(
         'stream() yields events in correct order',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 const events: StreamEvent[] = [];
 
@@ -150,7 +147,7 @@ describe('DextoAgent.stream() API', () => {
     t(
         'stream() yields content-chunk events',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 const chunkEvents: StreamEvent[] = [];
 
@@ -191,7 +188,7 @@ describe('DextoAgent.stream() API', () => {
     t(
         'stream() can be consumed multiple times via AsyncIterator',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 const stream = await env.agent.stream('Say hello', {
                     sessionId: env.sessionId,
@@ -217,7 +214,7 @@ describe('DextoAgent.stream() API', () => {
     t(
         'stream() maintains conversation context',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 // First message
                 const events1: StreamEvent[] = [];
@@ -249,10 +246,7 @@ describe('DextoAgent.stream() API', () => {
     t(
         'stream() works with different providers',
         async () => {
-            const providers = [
-                { name: 'anthropic', config: TestConfigs.createAnthropicConfig() },
-                { name: 'openai', config: TestConfigs.createOpenAIConfig() },
-            ];
+            const providers = [{ name: 'openai', config: TestConfigs.createOpenAIConfig() }];
 
             for (const { name, config } of providers) {
                 if (!requiresApiKey(name as any)) continue;
@@ -282,13 +276,13 @@ describe('DextoAgent.stream() API', () => {
 });
 
 describe('DextoAgent API Compatibility', () => {
-    const skipTests = !requiresApiKey('anthropic');
+    const skipTests = !requiresApiKey('openai');
     const t = skipTests ? test.skip : test.concurrent;
 
     t(
         'generate() produces same content as run() without streaming',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 const prompt = 'What is 2+2? Answer with just the number.';
 
@@ -325,7 +319,7 @@ describe('DextoAgent API Compatibility', () => {
     t(
         'stream() works alongside old run() API',
         async () => {
-            const env = await createTestEnvironment(TestConfigs.createAnthropicConfig());
+            const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 // Use old run() API
                 const runResponse = await env.agent.run(
