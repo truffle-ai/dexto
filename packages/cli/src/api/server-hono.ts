@@ -79,8 +79,9 @@ export async function initializeHonoApi(
     const messageStreamManager = new MessageStreamManager();
 
     /**
-     * Wire services (SSE subscribers, approval handler) to an agent.
-     * Called before agent.start() for both initial setup and agent switching.
+     * Wire services (SSE subscribers) to an agent.
+     * Called for agent switching to re-subscribe to the new agent's event bus.
+     * Note: Approval handler is set in CLI before agent.start(), not here.
      */
     async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
         logger.debug('Wiring services to agent...');
@@ -89,15 +90,6 @@ export async function initializeHonoApi(
         webhookSubscriber.subscribe(agent.agentEventBus);
         sseSubscriber.subscribe(agent.agentEventBus);
         messageStreamManager.subscribeToEventBus(agent.agentEventBus);
-
-        // Set approval handler if manual mode
-        const config = agent.getEffectiveConfig();
-        if (config.toolConfirmation?.mode === 'manual') {
-            logger.debug('Setting up manual approval handler...');
-            const timeoutMs = config.toolConfirmation?.timeout ?? 120_000;
-            const handler = createManualApprovalHandler(agent.agentEventBus, timeoutMs);
-            agent.setApprovalHandler(handler);
-        }
     }
 
     /**
@@ -154,8 +146,17 @@ export async function initializeHonoApi(
         activeAgent = newAgent;
         activeAgentId = agentId;
 
-        // Wire SSE subscribers and approval handler BEFORE starting
-        // This is critical - validation in start() requires handler if manual mode
+        // Set approval handler if manual mode (before start() for validation)
+        if (newAgent.config.toolConfirmation?.mode === 'manual') {
+            logger.debug('Setting up manual approval handler for new agent...');
+            const handler = createManualApprovalHandler(
+                newAgent.agentEventBus,
+                newAgent.config.toolConfirmation.timeout
+            );
+            newAgent.setApprovalHandler(handler);
+        }
+
+        // Wire SSE subscribers BEFORE starting
         logger.info('Wiring services to new agent...');
         await wireServicesToAgent(newAgent);
 
@@ -353,16 +354,23 @@ export async function initializeHonoApi(
         overrides
     );
 
-    // Wire services to initial agent before starting
-    if (!activeAgent.isStarted() && !activeAgent.isStopped()) {
-        logger.info('Wiring services to initial agent...');
-        await wireServicesToAgent(activeAgent);
-
-        logger.info('Starting initial agent...');
-        await activeAgent.start();
-    } else if (activeAgent.isStopped()) {
-        logger.warn('Initial agent is stopped, this may cause issues');
+    // Set approval handler for initial agent if manual mode (before start() for validation)
+    if (activeAgent.config.toolConfirmation?.mode === 'manual') {
+        logger.debug('Setting up manual approval handler for initial agent...');
+        const handler = createManualApprovalHandler(
+            activeAgent.agentEventBus,
+            activeAgent.config.toolConfirmation.timeout
+        );
+        activeAgent.setApprovalHandler(handler);
     }
+
+    // Wire SSE subscribers to initial agent
+    logger.info('Wiring SSE subscribers to initial agent...');
+    await wireServicesToAgent(activeAgent);
+
+    // Start the initial agent now that approval handler is set and subscribers are wired
+    logger.info('Starting initial agent...');
+    await activeAgent.start();
 
     // Initialize MCP server after agent has started
     if (mcpTransport) {

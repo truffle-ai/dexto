@@ -152,8 +152,8 @@ export class DextoAgent {
     private _isStarted: boolean = false;
     private _isStopped: boolean = false;
 
-    // Store config for async initialization
-    private config: ValidatedAgentConfig;
+    // Store config for async initialization (accessible before start() for setup)
+    public config: ValidatedAgentConfig;
 
     // Event subscribers (e.g., SSE, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
@@ -164,9 +164,17 @@ export class DextoAgent {
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
+    /**
+     * Creates a DextoAgent instance.
+     *
+     * @param config - Agent configuration (validated and enriched)
+     * @param configPath - Optional path to config file (for relative path resolution)
+     * @param approvalHandler - Optional approval handler (required if toolConfirmation.mode is 'manual')
+     */
     constructor(
         config: AgentConfig,
-        private configPath?: string
+        private configPath?: string,
+        private approvalHandler?: import('../approval/types.js').ApprovalHandler
     ) {
         // Validate and transform the input config
         this.config = AgentConfigSchema.parse(config);
@@ -178,6 +186,10 @@ export class DextoAgent {
             agentId: this.config.agentId,
             component: DextoLogComponent.AGENT,
         });
+
+        // Create event bus early so it's available for approval handler creation
+        const eventBus = new AgentEventBus();
+        Object.assign(this, { agentEventBus: eventBus });
 
         // call start() to initialize services
         this.logger.info('DextoAgent created.');
@@ -199,8 +211,13 @@ export class DextoAgent {
             this.logger.info('Starting DextoAgent...');
 
             // Initialize all services asynchronously
-            // Pass logger to services for dependency injection
-            const services = await createAgentServices(this.config, this.configPath, this.logger);
+            // Pass logger and eventBus to services for dependency injection
+            const services = await createAgentServices(
+                this.config,
+                this.configPath,
+                this.logger,
+                this.agentEventBus
+            );
 
             // Validate all required services are provided
             for (const service of requiredServices) {
@@ -211,13 +228,27 @@ export class DextoAgent {
                 }
             }
 
+            // Validate approval configuration BEFORE setting handler
+            if (this.config.toolConfirmation.mode === 'manual') {
+                if (!this.approvalHandler && !services.approvalManager.hasHandler()) {
+                    throw AgentError.initializationFailed(
+                        'Tool confirmation mode is "manual" but no approval handler is configured. ' +
+                            'Pass an approval handler to the DextoAgent constructor, or call agent.setApprovalHandler() before starting.'
+                    );
+                }
+            }
+
+            // Set approval handler if provided in constructor
+            if (this.approvalHandler) {
+                services.approvalManager.setHandler(this.approvalHandler);
+            }
+
             // Use Object.assign to set readonly properties
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
                 resourceManager: services.resourceManager,
                 systemPromptManager: services.systemPromptManager,
-                agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
                 memoryManager: services.memoryManager,
@@ -242,16 +273,6 @@ export class DextoAgent {
 
             // Note: Telemetry is initialized in createAgentServices() before services are created
             // This ensures decorators work correctly on all services
-
-            // Validate approval configuration before marking as started
-            if (this.config.toolConfirmation.mode === 'manual') {
-                if (!services.approvalManager.hasHandler()) {
-                    throw AgentError.initializationFailed(
-                        'Tool confirmation mode is "manual" but no approval handler is configured. ' +
-                            'Call agent.setApprovalHandler(...) before starting the agent.'
-                    );
-                }
-            }
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -1690,9 +1711,10 @@ export class DextoAgent {
     /**
      * Gets the effective configuration for a session or the default configuration.
      * @param sessionId Optional session ID. If not provided, returns default config.
-     * @returns The effective configuration object
+     * @returns The effective configuration object (validated with defaults applied)
+     * @remarks Requires agent to be started. Use `agent.config` for pre-start access.
      */
-    public getEffectiveConfig(sessionId?: string): Readonly<AgentConfig> {
+    public getEffectiveConfig(sessionId?: string): Readonly<ValidatedAgentConfig> {
         this.ensureStarted();
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
@@ -1851,7 +1873,14 @@ export class DextoAgent {
      * ```
      */
     public setApprovalHandler(handler: import('../approval/types.js').ApprovalHandler): void {
-        this.services.approvalManager.setHandler(handler);
+        // Store handler for use during start() if not yet started
+        this.approvalHandler = handler;
+
+        // If agent is already started, also set it on the service immediately
+        if (this._isStarted && this.services) {
+            this.services.approvalManager.setHandler(handler);
+        }
+
         this.logger.debug('Approval handler registered');
     }
 
@@ -1861,7 +1890,14 @@ export class DextoAgent {
      * After calling this, manual approval mode will fail if a tool requires approval.
      */
     public clearApprovalHandler(): void {
-        this.services.approvalManager.clearHandler();
+        // Clear stored handler
+        this.approvalHandler = undefined;
+
+        // If agent is already started, also clear it on the service
+        if (this._isStarted && this.services) {
+            this.services.approvalManager.clearHandler();
+        }
+
         this.logger.debug('Approval handler cleared');
     }
 
