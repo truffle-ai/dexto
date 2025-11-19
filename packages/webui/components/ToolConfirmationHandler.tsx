@@ -122,6 +122,55 @@ export function ToolConfirmationHandler({
         };
     }, [pendingConfirmation, currentSessionId]);
 
+    // Handle approval responses (timeout, cancellation) via DOM event
+    useEffect(() => {
+        const handleApprovalResponse = (event: any) => {
+            try {
+                const data = event.detail;
+
+                if (!data || !data.approvalId) {
+                    console.error('[WebUI] Invalid approval response event: missing detail');
+                    return;
+                }
+
+                // Skip if sessionId doesn't match (if provided)
+                if (data.sessionId && currentSessionId && data.sessionId !== currentSessionId) {
+                    return;
+                }
+
+                console.debug(
+                    `[WebUI] Received approvalResponse: ${data.approvalId}, status: ${data.status}, reason: ${data.reason}`
+                );
+
+                // If this response is for the current pending approval, clear it
+                if (pendingConfirmation && pendingConfirmation.approvalId === data.approvalId) {
+                    // Check if it's a timeout or cancellation (status: 'cancelled')
+                    if (data.status === 'cancelled') {
+                        console.info(
+                            `[WebUI] Approval ${data.approvalId} timed out or was cancelled (${data.reason})`
+                        );
+                        setPendingConfirmation(null);
+
+                        // Process next queued request if any
+                        if (queuedRequestsRef.current.length > 0) {
+                            const next = queuedRequestsRef.current.shift()!;
+                            setTimeout(() => {
+                                setPendingConfirmation(next);
+                            }, 100);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('[WebUI] Error handling approval response event:', error);
+            }
+        };
+
+        window.addEventListener('dexto:approvalResponse', handleApprovalResponse);
+        return () => {
+            window.removeEventListener('dexto:approvalResponse', handleApprovalResponse);
+        };
+    }, [pendingConfirmation, currentSessionId]);
+
     // Send confirmation response via API
     const sendResponse = useCallback(
         async (approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {

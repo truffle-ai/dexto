@@ -382,6 +382,24 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
+                case 'approval-response': {
+                    // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:approvalResponse', {
+                                detail: {
+                                    approvalId: payload.approvalId,
+                                    status: payload.status,
+                                    reason: payload.reason,
+                                    message: payload.message,
+                                    sessionId: payload.sessionId,
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+
                 case 'error': {
                     if (suppressNextErrorRef.current) {
                         suppressNextErrorRef.current = false;

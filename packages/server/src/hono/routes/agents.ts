@@ -5,6 +5,7 @@ import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
     reloadAgentConfigFromFile,
+    enrichAgentConfig,
 } from '@dexto/agent-management';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
@@ -691,8 +692,12 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             });
         }
 
+        // Enrich config with defaults/paths to satisfy schema requirements
+        // Use a temporary path to derive agentId if needed, or just let it use default
+        const enriched = enrichAgentConfig(parsed, '/tmp/validate-agent.yml');
+
         // Validate against schema
-        const result = AgentConfigSchema.safeParse(parsed);
+        const result = AgentConfigSchema.safeParse(enriched);
 
         if (!result.success) {
             const errors = result.error.errors.map((err) => ({
@@ -800,8 +805,11 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             // Load from file (agent-management's job)
             const newConfig = await reloadAgentConfigFromFile(agentPath);
 
+            // Enrich config before reloading into agent (core expects enriched config with paths)
+            const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
+
             // Reload into agent (core's job - handles restart automatically)
-            const reloadResult = await agent.reload(newConfig);
+            const reloadResult = await agent.reload(enrichedConfig);
 
             if (reloadResult.restarted) {
                 logger.info(
