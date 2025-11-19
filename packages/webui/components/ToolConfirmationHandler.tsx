@@ -116,9 +116,9 @@ export function ToolConfirmationHandler({
             }
         };
 
-        window.addEventListener('dexto:approvalRequest', handleApprovalRequest);
+        window.addEventListener('approval:request', handleApprovalRequest);
         return () => {
-            window.removeEventListener('dexto:approvalRequest', handleApprovalRequest);
+            window.removeEventListener('approval:request', handleApprovalRequest);
         };
     }, [pendingConfirmation, currentSessionId]);
 
@@ -165,9 +165,9 @@ export function ToolConfirmationHandler({
             }
         };
 
-        window.addEventListener('dexto:approvalResponse', handleApprovalResponse);
+        window.addEventListener('approval:response', handleApprovalResponse);
         return () => {
-            window.removeEventListener('dexto:approvalResponse', handleApprovalResponse);
+            window.removeEventListener('approval:response', handleApprovalResponse);
         };
     }, [pendingConfirmation, currentSessionId]);
 

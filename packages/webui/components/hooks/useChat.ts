@@ -368,7 +368,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     // Dispatch event for ToolConfirmationHandler
                     if (typeof window !== 'undefined') {
                         window.dispatchEvent(
-                            new CustomEvent('dexto:approvalRequest', {
+                            new CustomEvent('approval:request', {
                                 detail: {
                                     approvalId: payload.approvalId,
                                     type: payload.approvalType, // StreamEvent uses approvalType, not type
@@ -386,7 +386,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
                     if (typeof window !== 'undefined') {
                         window.dispatchEvent(
-                            new CustomEvent('dexto:approvalResponse', {
+                            new CustomEvent('approval:response', {
                                 detail: {
                                     approvalId: payload.approvalId,
                                     status: payload.status,
@@ -472,7 +472,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             // Emit DOM event
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(
-                    new CustomEvent('dexto:message', {
+                    new CustomEvent('message', {
                         detail: { content, sessionId, timestamp: Date.now() },
                     })
                 );

@@ -50,15 +50,12 @@ export function useResources() {
 
         // Listen for our custom WebSocket event that gets dispatched when resources change
         if (typeof window !== 'undefined') {
-            window.addEventListener(
-                'dexto:resourceCacheInvalidated',
-                handleResourceCacheInvalidated
-            );
+            window.addEventListener('resource:cache-invalidated', handleResourceCacheInvalidated);
             window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
 
             return () => {
                 window.removeEventListener(
-                    'dexto:resourceCacheInvalidated',
+                    'resource:cache-invalidated',
                     handleResourceCacheInvalidated
                 );
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);

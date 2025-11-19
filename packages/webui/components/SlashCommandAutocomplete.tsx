@@ -197,9 +197,9 @@ export default function SlashCommandAutocomplete({
 
         // Listen for WebSocket events that indicate prompts changes
         if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
+            window.addEventListener('mcp:prompts-list-changed', handlePromptsListChanged);
             return () => {
-                window.removeEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
+                window.removeEventListener('mcp:prompts-list-changed', handlePromptsListChanged);
             };
         }
     }, [isVisible, refetch]);

@@ -190,15 +190,15 @@ export default function SessionPanel({
         };
 
         if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:message', handleMessage);
+            window.addEventListener('message', handleMessage);
             window.addEventListener('dexto:response', handleResponse);
-            window.addEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+            window.addEventListener('session:title-updated', handleTitleUpdated);
             window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
 
             return () => {
-                window.removeEventListener('dexto:message', handleMessage);
+                window.removeEventListener('message', handleMessage);
                 window.removeEventListener('dexto:response', handleResponse);
-                window.removeEventListener('dexto:sessionTitleUpdated', handleTitleUpdated);
+                window.removeEventListener('session:title-updated', handleTitleUpdated);
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }

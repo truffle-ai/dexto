@@ -386,10 +386,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     useEffect(() => {
         const onStart = () => setFollowStreaming(true);
         const onEnd = () => setFollowStreaming(false);
-        window.addEventListener('dexto:message', onStart as EventListener);
+        window.addEventListener('message', onStart as EventListener);
         window.addEventListener('dexto:response', onEnd as EventListener);
         return () => {
-            window.removeEventListener('dexto:message', onStart as EventListener);
+            window.removeEventListener('message', onStart as EventListener);
             window.removeEventListener('dexto:response', onEnd as EventListener);
         };
     }, []);
