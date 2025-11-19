@@ -1,5 +1,8 @@
 # Approval Handler Validation - Implementation Plan
 
+**Status**: ✅ Implemented  
+**Commit**: `a767162c`
+
 ## Problem Statement
 Currently, agents configured with `toolConfirmation.mode: 'manual'` can start without an approval handler, leading to runtime failures when tools are actually executed. This is poor DX.
 
