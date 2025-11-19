@@ -792,8 +792,27 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             ]);
         }
 
+        // Check that parsed content is a valid object (not null, array, or primitive)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new DextoValidationError([
+                {
+                    code: AgentErrorCode.INVALID_CONFIG,
+                    message: 'Configuration must be a valid YAML object',
+                    scope: ErrorScope.AGENT,
+                    type: ErrorType.USER,
+                    severity: 'error',
+                },
+            ]);
+        }
+
+        // Get target file path for enrichment
+        const agentPath = agent.getAgentFilePath();
+
+        // Enrich config with defaults/paths before validation (same as validation endpoint)
+        const enriched = enrichAgentConfig(parsed, agentPath);
+
         // Validate schema
-        const validationResult = AgentConfigSchema.safeParse(parsed);
+        const validationResult = AgentConfigSchema.safeParse(enriched);
 
         if (!validationResult.success) {
             throw new DextoValidationError(
@@ -806,9 +825,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 }))
             );
         }
-
-        // Get target file path
-        const agentPath = agent.getAgentFilePath();
 
         // Create backup
         const backupPath = `${agentPath}.backup`;
