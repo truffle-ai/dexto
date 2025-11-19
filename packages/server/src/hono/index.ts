@@ -106,6 +106,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(options.apiPrefix ?? '/api', api);
 
     // Expose OpenAPI document
+    // TODO: check if we should use import { openAPIRouteHandler } from "hono-openapi"; - https://honohub.dev/docs/openapi/zod#generating-the-openapi-spec
     fullApp.doc('/openapi.json', {
         openapi: '3.0.0',
         info: {
