@@ -466,7 +466,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             // Emit DOM event
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(
-                    new CustomEvent('message', {
+                    new CustomEvent('dexto:message', {
                         detail: { content, sessionId, timestamp: Date.now() },
                     })
                 );
