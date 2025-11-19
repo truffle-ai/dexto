@@ -89,13 +89,13 @@ toolConfirmation:
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
   # Optional: Static tool policies for fine-grained allow/deny control
-  toolPolicies:
-    # Tools that never require approval (low-risk, common operations)
-    alwaysAllow:
-      - internal--ask_user
-      - mcp--read_file
-      - mcp--list_directory
-      - mcp--list_allowed_directories
+  # toolPolicies:
+  #   # Tools that never require approval (low-risk, common operations)
+  #   alwaysAllow:
+  #     - internal--ask_user
+  #     - mcp--read_file
+  #     - mcp--list_directory
+  #     - mcp--list_allowed_directories
   #
   #   # Tools that are always denied (high-risk, destructive operations)
   #   # Deny list takes precedence over allow list

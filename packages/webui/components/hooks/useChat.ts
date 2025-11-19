@@ -371,7 +371,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                             new CustomEvent('dexto:approvalRequest', {
                                 detail: {
                                     approvalId: payload.approvalId,
-                                    type: payload.type,
+                                    type: payload.approvalType, // StreamEvent uses approvalType, not type
                                     timestamp: payload.timestamp,
                                     metadata: payload.metadata,
                                     sessionId: payload.sessionId,
