@@ -140,7 +140,7 @@ export default function CustomizePanel({
                     setWarnings(data.warnings || []);
                 }
             } catch (err: any) {
-                console.error(
+                console.warn(
                     `Validation error: ${err instanceof Error ? err.message : String(err)}`
                 );
                 if (latestValidationRequestRef.current === requestId) {
@@ -187,7 +187,7 @@ export default function CustomizePanel({
 
             // Check for parse errors
             if (document.errors && document.errors.length > 0) {
-                console.error('[parseYamlToConfig] Parse errors:', document.errors);
+                console.debug('[parseYamlToConfig] Parse errors:', document.errors);
                 const message = document.errors.map((e) => e.message).join('; ');
                 return { config: null, document: null, error: message };
             }
@@ -196,7 +196,7 @@ export default function CustomizePanel({
             console.log('[parseYamlToConfig] Config parsed successfully:', config);
             return { config, document, error: null };
         } catch (err: unknown) {
-            console.error('[parseYamlToConfig] Exception:', err);
+            console.debug('[parseYamlToConfig] Exception:', err);
             const message = err instanceof Error ? err.message : 'Failed to parse YAML';
             return { config: null, document: null, error: message };
         }
