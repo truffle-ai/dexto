@@ -307,7 +307,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 injectPreferences
             );
             return ctx.json(
-                { installed: true, id, name: displayName, type: 'custom' as const },
+                { installed: true as const, id, name: displayName, type: 'custom' as const },
                 201
             );
         } else {
@@ -317,7 +317,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             const agentInfo = await resolveAgentInfo(id);
             return ctx.json(
                 {
-                    installed: true,
+                    installed: true as const,
                     ...agentInfo,
                     type: 'builtin' as const,
                 },
