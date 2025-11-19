@@ -1,7 +1,7 @@
 import { TextEncoder } from 'node:util';
 import { ReadableStream } from 'node:stream/web';
 import type { ReadableStreamDefaultController } from 'node:stream/web';
-import type { StreamingEvent } from '@dexto/core';
+import type { StreamingEvent, AgentEventBus } from '@dexto/core';
 import { logger } from '@dexto/core';
 
 type SessionId = string;
@@ -19,8 +19,51 @@ const FINAL_EVENT_TYPES: StreamingEvent['type'][] = ['llm:response'];
 export class MessageStreamManager {
     private sessions = new Map<SessionId, SessionStreamState>();
     private encoder = new TextEncoder();
+    private eventBus?: AgentEventBus;
+    private globalAbortController?: AbortController;
 
     constructor(private options: { idleTimeoutMs?: number } = {}) {}
+
+    /**
+     * Subscribe to agent event bus for approval events.
+     * This allows approval requests to be forwarded through the SSE stream.
+     */
+    public subscribeToEventBus(eventBus: AgentEventBus): void {
+        // Abort any previous subscription
+        this.globalAbortController?.abort();
+
+        // Create new AbortController for this subscription
+        this.globalAbortController = new AbortController();
+        const { signal } = this.globalAbortController;
+
+        this.eventBus = eventBus;
+
+        // Subscribe to approval:request events
+        eventBus.on(
+            'approval:request',
+            (payload) => {
+                const sessionId = payload.sessionId;
+                if (sessionId) {
+                    this.pushApprovalEvent(sessionId, 'approval:request', payload);
+                }
+            },
+            { signal }
+        );
+
+        // Subscribe to approval:response events
+        eventBus.on(
+            'approval:response',
+            (payload) => {
+                const sessionId = payload.sessionId;
+                if (sessionId) {
+                    this.pushApprovalEvent(sessionId, 'approval:response', payload);
+                }
+            },
+            { signal }
+        );
+
+        logger.debug('MessageStreamManager subscribed to approval events on event bus');
+    }
 
     public startStreaming(
         sessionId: string,
@@ -102,6 +145,40 @@ export class MessageStreamManager {
 
         if (FINAL_EVENT_TYPES.includes(event.type) || this.isTerminalError(event)) {
             this.close(sessionId);
+        }
+    }
+
+    /**
+     * Push an approval event through the SSE stream.
+     * This is separate from pushEvent because approval events come from the event bus,
+     * not from the streaming iterator.
+     */
+    private pushApprovalEvent(
+        sessionId: string,
+        eventName: string,
+        data: Record<string, unknown>
+    ): void {
+        // Try to get existing state, but don't create if it doesn't exist
+        // (approval might come before stream is established)
+        const state = this.sessions.get(sessionId);
+        if (!state || state.closed) {
+            logger.debug(
+                `[MessageStreamManager] Approval event ${eventName} for session ${sessionId} - no active stream`
+            );
+            return;
+        }
+
+        const payload = `event: ${eventName}\ndata: ${JSON.stringify({ sessionId, ...data })}\n\n`;
+        const encoded = this.encoder.encode(payload);
+
+        if (state.controller) {
+            state.controller.enqueue(encoded);
+            logger.debug(
+                `[MessageStreamManager] Forwarded ${eventName} to SSE stream for session ${sessionId}`
+            );
+        } else {
+            state.buffer.push(encoded);
+            logger.debug(`[MessageStreamManager] Buffered ${eventName} for session ${sessionId}`);
         }
     }
 

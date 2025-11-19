@@ -358,14 +358,14 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
-                case 'approval-request': {
+                case 'approval:request': {
                     // Dispatch event for ToolConfirmationHandler
                     if (typeof window !== 'undefined') {
                         window.dispatchEvent(
                             new CustomEvent('approval:request', {
                                 detail: {
                                     approvalId: payload.approvalId,
-                                    type: payload.approvalType, // StreamEvent uses approvalType, not type
+                                    type: payload.type, // Use 'type' field from event bus
                                     timestamp: payload.timestamp,
                                     metadata: payload.metadata,
                                     sessionId: payload.sessionId,
@@ -376,7 +376,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
-                case 'approval-response': {
+                case 'approval:response': {
                     // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
                     if (typeof window !== 'undefined') {
                         window.dispatchEvent(

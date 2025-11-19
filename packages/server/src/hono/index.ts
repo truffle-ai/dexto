@@ -68,6 +68,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     const agent = getAgent();
     webhookSubscriber.subscribe(agent.agentEventBus);
     sseSubscriber.subscribe(agent.agentEventBus);
+    messageStreamManager.subscribeToEventBus(agent.agentEventBus); // Subscribe to approval events
     app.webhookSubscriber = webhookSubscriber;
 
     // Wire up approval handler for manual approval mode
