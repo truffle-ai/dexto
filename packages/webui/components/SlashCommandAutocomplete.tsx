@@ -167,6 +167,26 @@ export default function SlashCommandAutocomplete({
         }
     }, [isVisible, refreshKey, refetch]);
 
+    // Filter prompts based on search query - memoized to avoid infinite loops
+    const filteredPrompts = React.useMemo(() => {
+        if (!searchQuery.trim() || searchQuery === '/') {
+            return prompts;
+        }
+
+        // Extract just the command name (first word after /) for filtering
+        // E.g., "/summarize technical 100 'text'" -> "summarize"
+        const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+        const commandName = withoutSlash.split(/\s+/)[0] || '';
+
+        return prompts.filter(
+            (prompt) =>
+                prompt.name.toLowerCase().includes(commandName.toLowerCase()) ||
+                (prompt.description &&
+                    prompt.description.toLowerCase().includes(commandName.toLowerCase())) ||
+                (prompt.title && prompt.title.toLowerCase().includes(commandName.toLowerCase()))
+        );
+    }, [searchQuery, prompts]);
+
     const showCreateOption = React.useMemo(() => {
         const trimmed = searchQuery.trim();
         if (!trimmed) return false;
@@ -204,34 +224,12 @@ export default function SlashCommandAutocomplete({
         }
     }, [isVisible, refetch]);
 
-    // Filter prompts based on search query from parent input
+    // Reset selected index when filtered results change
     useEffect(() => {
-        if (!searchQuery.trim() || searchQuery === '/') {
-            setFilteredPrompts(prompts);
-            // Calculate index based on prompts we're setting, not current state
-            const shouldShowCreate = searchQuery === '/';
-            const defaultIndex = shouldShowCreate && prompts.length > 0 ? 1 : 0;
-            setSelectedIndex(defaultIndex);
-            return;
-        }
-
-        // Extract just the command name (first word after /) for filtering
-        // E.g., "/summarize technical 100 'text'" -> "summarize"
-        const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
-        const commandName = withoutSlash.split(/\s+/)[0] || '';
-
-        const filtered = prompts.filter(
-            (prompt) =>
-                prompt.name.toLowerCase().includes(commandName.toLowerCase()) ||
-                (prompt.description &&
-                    prompt.description.toLowerCase().includes(commandName.toLowerCase())) ||
-                (prompt.title && prompt.title.toLowerCase().includes(commandName.toLowerCase()))
-        );
-
-        setFilteredPrompts(filtered);
-        // Reset to first item (create option takes index 0 if shown)
-        setSelectedIndex(0);
-    }, [searchQuery, prompts]);
+        const shouldShowCreate = searchQuery === '/';
+        const defaultIndex = shouldShowCreate && filteredPrompts.length > 0 ? 1 : 0;
+        setSelectedIndex(defaultIndex);
+    }, [searchQuery, filteredPrompts.length]);
 
     const itemsLength = combinedItems.length;
 

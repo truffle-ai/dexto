@@ -855,7 +855,10 @@ program
                     agent = new DextoAgent(validatedConfig, resolvedPath);
 
                     // Start the agent (initialize async services)
-                    await agent.start();
+                    // EXCEPT for server mode - initializeHonoApi will wire approval handler and start it
+                    if (opts.mode !== 'server') {
+                        await agent.start();
+                    }
 
                     // Derive a concise agent ID for display purposes (used by API/UI)
                     // Prefer agentCard.name, otherwise extract from filename
