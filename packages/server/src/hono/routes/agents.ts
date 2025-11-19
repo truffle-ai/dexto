@@ -692,6 +692,22 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             });
         }
 
+        // Check that parsed content is a valid object (not null, array, or primitive)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return ctx.json({
+                valid: false,
+                errors: [
+                    {
+                        line: 1,
+                        column: 1,
+                        message: 'Configuration must be a valid YAML object',
+                        code: 'INVALID_CONFIG_TYPE',
+                    },
+                ],
+                warnings: [],
+            });
+        }
+
         // Enrich config with defaults/paths to satisfy schema requirements
         // Use a temporary path to derive agentId if needed, or just let it use default
         const enriched = enrichAgentConfig(parsed, '/tmp/validate-agent.yml');
