@@ -76,6 +76,9 @@ export const TestConfigs = {
                 maxSessions: 10,
                 sessionTTL: 60000, // 60s for tests
             },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't need manual approval
+            },
             logger: {
                 level: 'debug',
                 transports: [{ type: 'console' }],
@@ -114,6 +117,9 @@ export const TestConfigs = {
             sessions: {
                 maxSessions: 10,
                 sessionTTL: 60000,
+            },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't need manual approval
             },
             logger: {
                 level: 'debug',
@@ -164,6 +170,9 @@ export const TestConfigs = {
             sessions: {
                 maxSessions: 10,
                 sessionTTL: 60000,
+            },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't need manual approval
             },
             logger: {
                 level: 'debug',

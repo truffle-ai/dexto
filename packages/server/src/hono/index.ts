@@ -24,7 +24,6 @@ import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redactio
 import { createCorsMiddleware } from './middleware/cors.js';
 import { createAuthMiddleware } from './middleware/auth.js';
 import { MessageStreamManager } from '../streams/message-stream-manager.js';
-import { createManualApprovalHandler } from '../approval/manual-approval-handler.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -54,30 +53,26 @@ export type CreateDextoAppOptions = {
     apiPrefix?: string;
     getAgent: () => DextoAgent;
     getAgentCard: () => AgentCard;
+    messageStreamManager: MessageStreamManager;
+    webhookSubscriber: WebhookEventSubscriber;
+    sseSubscriber: A2ASseEventSubscriber;
     agentsContext?: AgentsRouterContext;
 };
 
 export function createDextoApp(options: CreateDextoAppOptions) {
-    const { getAgent, getAgentCard, agentsContext } = options;
+    const {
+        getAgent,
+        getAgentCard,
+        messageStreamManager,
+        webhookSubscriber,
+        sseSubscriber,
+        agentsContext,
+    } = options;
     const app = new OpenAPIHono({ strict: false }) as DextoApp;
-    const webhookSubscriber = new WebhookEventSubscriber();
-    const sseSubscriber = new A2ASseEventSubscriber();
-    const messageStreamManager = new MessageStreamManager();
 
-    // Subscribe to agent's event bus (will be updated when agent switches)
-    const agent = getAgent();
-    webhookSubscriber.subscribe(agent.agentEventBus);
-    sseSubscriber.subscribe(agent.agentEventBus);
-    messageStreamManager.subscribeToEventBus(agent.agentEventBus); // Subscribe to approval events
+    // NOTE: Subscribers and approval handler are wired in CLI layer before agent.start()
+    // This ensures proper initialization order and validation
     app.webhookSubscriber = webhookSubscriber;
-
-    // Wire up approval handler for manual approval mode
-    const config = agent.getEffectiveConfig();
-    if (config.toolConfirmation?.mode === 'manual') {
-        const timeoutMs = config.toolConfirmation?.timeout ?? 120_000;
-        const approvalHandler = createManualApprovalHandler(agent.agentEventBus, timeoutMs);
-        agent.setApprovalHandler(approvalHandler);
-    }
 
     // Global CORS middleware for cross-origin requests (must be first)
     app.use('*', createCorsMiddleware());

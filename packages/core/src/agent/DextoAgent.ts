@@ -243,6 +243,16 @@ export class DextoAgent {
             // Note: Telemetry is initialized in createAgentServices() before services are created
             // This ensures decorators work correctly on all services
 
+            // Validate approval configuration before marking as started
+            if (this.config.toolConfirmation.mode === 'manual') {
+                if (!services.approvalManager.hasHandler()) {
+                    throw AgentError.initializationFailed(
+                        'Tool confirmation mode is "manual" but no approval handler is configured. ' +
+                            'Call agent.setApprovalHandler(...) before starting the agent.'
+                    );
+                }
+            }
+
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
             this.logger.info('DextoAgent started successfully.');

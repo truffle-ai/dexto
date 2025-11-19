@@ -38,6 +38,9 @@ describe('DextoAgent Lifecycle Management', () => {
                 maxSessions: 10,
                 sessionTTL: 3600,
             },
+            toolConfirmation: {
+                mode: 'auto-approve', // Lifecycle tests don't test approval functionality
+            },
         };
 
         // Create the validated config that DextoAgent actually uses

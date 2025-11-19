@@ -355,8 +355,8 @@ export class ApprovalManager {
     /**
      * Check if an approval handler is registered
      */
-    hasHandler(): boolean {
-        return !!this.handler;
+    public hasHandler(): boolean {
+        return this.handler !== undefined;
     }
 
     /**

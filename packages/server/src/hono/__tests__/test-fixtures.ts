@@ -30,6 +30,9 @@ export function createTestAgentConfig(): AgentConfig {
             maxSessions: 10,
             sessionTTL: 3600,
         },
+        toolConfirmation: {
+            mode: 'auto-approve', // Server tests don't test approval functionality
+        },
     };
 }
 
@@ -87,10 +90,22 @@ export async function startTestServer(
     const getAgent = () => agent;
     const getAgentCard = () => agentCard;
 
+    // Create event subscribers for test
+    const { WebhookEventSubscriber } = await import('../../events/webhook-subscriber.js');
+    const { A2ASseEventSubscriber } = await import('../../events/a2a-sse-subscriber.js');
+    const { MessageStreamManager } = await import('../../streams/message-stream-manager.js');
+
+    const webhookSubscriber = new WebhookEventSubscriber();
+    const sseSubscriber = new A2ASseEventSubscriber();
+    const messageStreamManager = new MessageStreamManager();
+
     // Create Hono app
     const app = createDextoApp({
         getAgent,
         getAgentCard,
+        messageStreamManager,
+        webhookSubscriber,
+        sseSubscriber,
         ...(agentsContext ? { agentsContext } : {}), // Include agentsContext only if provided
     });
 
