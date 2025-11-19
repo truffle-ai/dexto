@@ -360,7 +360,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
 
                 case 'approval:request': {
                     // Dispatch event for ToolConfirmationHandler
-                    if (typeof window !== 'undefined') {
+                    if (typeof window !== 'undefined' && payload) {
                         window.dispatchEvent(
                             new CustomEvent('approval:request', {
                                 detail: {
@@ -378,7 +378,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
 
                 case 'approval:response': {
                     // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
-                    if (typeof window !== 'undefined') {
+                    if (typeof window !== 'undefined' && payload) {
                         window.dispatchEvent(
                             new CustomEvent('approval:response', {
                                 detail: {
