@@ -1806,6 +1806,55 @@ export class DextoAgent {
         return changes;
     }
 
+    // ============= APPROVAL HANDLER API =============
+
+    /**
+     * Set a custom approval handler for manual approval mode.
+     *
+     * When `toolConfirmation.mode` is set to 'manual', an approval handler must be
+     * provided to process tool confirmation requests. The handler will be called
+     * whenever a tool execution requires user approval.
+     *
+     * The handler receives an approval request and must return a promise that resolves
+     * to an approval response with the user's decision (approved/denied/cancelled).
+     *
+     * @param handler The approval handler function
+     *
+     * @example
+     * ```typescript
+     * import { ApprovalStatus } from '@dexto/core';
+     *
+     * agent.setApprovalHandler(async (request) => {
+     *   // Present approval request to user (CLI, UI, webhook, etc.)
+     *   console.log(`Approve tool: ${request.metadata.toolName}?`);
+     *   console.log(`Args: ${JSON.stringify(request.metadata.args)}`);
+     *
+     *   // Collect user's decision (this is just an example)
+     *   const approved = await getUserInput();
+     *
+     *   return {
+     *     approvalId: request.approvalId,
+     *     status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
+     *     sessionId: request.sessionId,
+     *   };
+     * });
+     * ```
+     */
+    public setApprovalHandler(handler: import('../approval/types.js').ApprovalHandler): void {
+        this.services.approvalManager.setHandler(handler);
+        this.logger.debug('Approval handler registered');
+    }
+
+    /**
+     * Clear the current approval handler.
+     *
+     * After calling this, manual approval mode will fail if a tool requires approval.
+     */
+    public clearApprovalHandler(): void {
+        this.services.approvalManager.clearHandler();
+        this.logger.debug('Approval handler cleared');
+    }
+
     // ============= AGENT MANAGEMENT =============
     // Note: Agent management methods have been moved to the Dexto orchestrator class.
     // See: /packages/core/src/Dexto.ts

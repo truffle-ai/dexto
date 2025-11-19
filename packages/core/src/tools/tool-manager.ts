@@ -64,7 +64,7 @@ export class ToolManager {
     private internalToolsProvider?: InternalToolsProvider;
     private approvalManager: ApprovalManager;
     private allowedToolsProvider: IAllowedToolsProvider;
-    private approvalMode: 'event-based' | 'auto-approve' | 'auto-deny';
+    private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
 
@@ -86,7 +86,7 @@ export class ToolManager {
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
         allowedToolsProvider: IAllowedToolsProvider,
-        approvalMode: 'event-based' | 'auto-approve' | 'auto-deny',
+        approvalMode: 'manual' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
         options: InternalToolsOptions,
@@ -617,7 +617,7 @@ export class ToolManager {
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
-        // Event-based mode - request approval
+        // Manual mode - request approval
         this.logger.info(
             `Tool confirmation requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );

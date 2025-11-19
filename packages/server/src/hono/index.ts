@@ -24,6 +24,7 @@ import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redactio
 import { createCorsMiddleware } from './middleware/cors.js';
 import { createAuthMiddleware } from './middleware/auth.js';
 import { MessageStreamManager } from '../streams/message-stream-manager.js';
+import { createManualApprovalHandler } from '../approval/event-based-handler.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -68,6 +69,13 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     webhookSubscriber.subscribe(agent.agentEventBus);
     sseSubscriber.subscribe(agent.agentEventBus);
     app.webhookSubscriber = webhookSubscriber;
+
+    // Wire up approval handler for manual approval mode
+    if (agent.config.toolConfirmation?.mode === 'manual') {
+        const timeoutMs = agent.config.toolConfirmation?.timeout ?? 120_000;
+        const approvalHandler = createManualApprovalHandler(agent.agentEventBus, timeoutMs);
+        agent.setApprovalHandler(approvalHandler);
+    }
 
     // Global CORS middleware for cross-origin requests (must be first)
     app.use('*', createCorsMiddleware());

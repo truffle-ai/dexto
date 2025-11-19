@@ -4,6 +4,7 @@
 
 // Types
 export type {
+    ApprovalHandler,
     ApprovalProvider,
     ApprovalRequest,
     ApprovalResponse,
