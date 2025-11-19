@@ -306,7 +306,10 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 },
                 injectPreferences
             );
-            return ctx.json({ installed: true, id, name: displayName, type: 'custom' }, 201);
+            return ctx.json(
+                { installed: true, id, name: displayName, type: 'custom' as const },
+                201
+            );
         } else {
             // Registry agent installation
             const { id } = body as z.output<typeof AgentIdentifierSchema>;
@@ -316,7 +319,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 {
                     installed: true,
                     ...agentInfo,
-                    type: 'builtin',
+                    type: 'builtin' as const,
                 },
                 201
             );
@@ -351,7 +354,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         // Route based on presence of path parameter
         const result = filePath ? await switchAgentByPath(filePath) : await switchAgentById(id);
 
-        return ctx.json({ switched: true, ...result });
+        return ctx.json({ switched: true as const, ...result });
     });
 
     const validateNameRoute = createRoute({
@@ -429,7 +432,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     app.openapi(uninstallRoute, async (ctx) => {
         const { id, force } = ctx.req.valid('json');
         await Dexto.uninstallAgent(id, force);
-        return ctx.json({ uninstalled: true, id });
+        return ctx.json({ uninstalled: true as const, id });
     });
 
     const customCreateRoute = createRoute({
@@ -522,7 +525,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             // Clean up temp file
             await fs.unlink(tmpFile).catch(() => {});
 
-            return ctx.json({ created: true, id, name }, 201);
+            return ctx.json({ created: true as const, id, name }, 201);
         } catch (installError) {
             // Clean up temp file on error
             await fs.unlink(tmpFile).catch(() => {});
@@ -859,7 +862,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             logger.info(`Agent configuration saved and applied: ${agentPath}`);
 
             return ctx.json({
-                ok: true,
+                ok: true as const,
                 path: agentPath,
                 reloaded: true,
                 restarted: reloadResult.restarted,
