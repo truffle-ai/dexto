@@ -487,7 +487,6 @@ describe('Hono API Integration Tests', () => {
 
             const agent = testServer.agent;
             const originalStream = agent.stream;
-            const messageId = 'msg_test_stream';
             const fakeEvents: StreamingEvent[] = [
                 {
                     type: 'llm:thinking',

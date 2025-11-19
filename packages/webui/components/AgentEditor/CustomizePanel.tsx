@@ -151,6 +151,7 @@ export default function CustomizePanel({
                 }
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [validateMutation.mutateAsync]
     );
 

@@ -13,7 +13,6 @@ import {
     type McpTransportType,
 } from '@dexto/server';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
-import path from 'path';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
