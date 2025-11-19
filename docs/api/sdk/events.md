@@ -12,13 +12,56 @@ The Dexto SDK provides a comprehensive event system through two main event buses
 - **AgentEventBus**: Agent-level events that occur across the entire agent instance
 - **SessionEventBus**: Session-specific events that occur within individual conversation sessions
 
+### Event Naming Convention
+
+All events follow the `namespace:kebab-case` format:
+- **LLM events**: `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`
+- **Session events**: `session:created`, `session:reset`, `session:title-updated`
+- **MCP events**: `mcp:server-connected`, `mcp:resource-updated`
+- **Approval events**: `approval:request`, `approval:response`
+- **State events**: `state:changed`, `state:exported`
+- **Tool events**: `tools:available-updated`
+
+### Event Visibility Tiers
+
+Events are organized into three tiers based on their intended audience:
+
+#### **Tier 1: Streaming Events** (`STREAMING_EVENTS`)
+Exposed via `DextoAgent.stream()` for real-time chat UIs. These are the most commonly used events for building interactive applications.
+
+**Events:** `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`, `llm:tool-result`, `llm:error`, `llm:unsupported-input`, `approval:request`, `approval:response`, `session:title-updated`
+
+**Use cases:**
+- Real-time chat interfaces
+- Progress indicators
+- Streaming responses
+- User approval flows
+
+#### **Tier 2: Integration Events** (`INTEGRATION_EVENTS`)
+Exposed via webhooks, A2A subscriptions, and monitoring systems. Includes all streaming events plus lifecycle and state management events.
+
+**Additional events:** `session:created`, `session:reset`, `mcp:server-connected`, `mcp:server-restarted`, `mcp:tools-list-changed`, `mcp:prompts-list-changed`, `tools:available-updated`, `llm:switched`, `state:changed`
+
+**Use cases:**
+- External system integrations
+- Monitoring and observability
+- Analytics and logging
+- Multi-agent coordination (A2A)
+
+#### **Tier 3: Internal Events**
+Only available via direct `AgentEventBus` access for advanced use cases. These are implementation details that may change between versions.
+
+**Examples:** `resource:cache-invalidated`, `state:exported`, `state:reset`, `mcp:server-added`, `mcp:server-removed`, `session:override-set`
+
+---
+
 ## Agent-Level Events
 
 These events are emitted by the `AgentEventBus` and provide insight into agent-wide operations.
 
-### Conversation Events
+### Session Events
 
-#### `dexto:conversationReset`
+#### `session:reset`
 
 Fired when a conversation history is reset for a session.
 
@@ -28,10 +71,52 @@ Fired when a conversation history is reset for a session.
 }
 ```
 
+#### `session:created`
+
+Fired when a new session is created and should become active.
+
+```typescript
+{
+  sessionId: string;
+  switchTo: boolean; // Whether UI should switch to this session
+}
+```
+
+#### `session:title-updated`
+
+Fired when a session's human-friendly title is updated.
+
+```typescript
+{
+  sessionId: string;
+  title: string;
+}
+```
+
+#### `session:override-set`
+
+Fired when session-specific configuration is set.
+
+```typescript
+{
+  sessionId: string;
+  override: SessionOverride;
+}
+```
+
+#### `session:override-cleared`
+
+Fired when session-specific configuration is cleared.
+
+```typescript
+{
+  sessionId: string;
+}
+```
 
 ### MCP Server Events
 
-#### `dexto:mcpServerConnected`
+#### `mcp:server-connected`
 
 Fired when an MCP server connection attempt completes (success or failure).
 
@@ -43,7 +128,7 @@ Fired when an MCP server connection attempt completes (success or failure).
 }
 ```
 
-#### `dexto:mcpServerAdded`
+#### `mcp:server-added`
 
 Fired when an MCP server is added to the runtime state.
 
@@ -54,7 +139,7 @@ Fired when an MCP server is added to the runtime state.
 }
 ```
 
-#### `dexto:mcpServerRemoved`
+#### `mcp:server-removed`
 
 Fired when an MCP server is removed from the runtime state.
 
@@ -64,7 +149,7 @@ Fired when an MCP server is removed from the runtime state.
 }
 ```
 
-#### `dexto:mcpServerUpdated`
+#### `mcp:server-updated`
 
 Fired when an MCP server configuration is updated.
 
@@ -75,7 +160,7 @@ Fired when an MCP server configuration is updated.
 }
 ```
 
-#### `dexto:mcpServerRestarted`
+#### `mcp:server-restarted`
 
 Fired when an MCP server is restarted.
 
@@ -85,7 +170,7 @@ Fired when an MCP server is restarted.
 }
 ```
 
-#### `dexto:mcpResourceUpdated`
+#### `mcp:resource-updated`
 
 Fired when an MCP server resource is updated.
 
@@ -96,7 +181,7 @@ Fired when an MCP server resource is updated.
 }
 ```
 
-#### `dexto:mcpPromptsListChanged`
+#### `mcp:prompts-list-changed`
 
 Fired when available prompts from MCP servers change.
 
@@ -107,7 +192,7 @@ Fired when available prompts from MCP servers change.
 }
 ```
 
-#### `dexto:mcpToolsListChanged`
+#### `mcp:tools-list-changed`
 
 Fired when available tools from MCP servers change.
 
@@ -118,7 +203,7 @@ Fired when available tools from MCP servers change.
 }
 ```
 
-#### `dexto:resourceCacheInvalidated`
+#### `resource:cache-invalidated`
 
 Fired when resource cache is invalidated.
 
@@ -130,18 +215,7 @@ Fired when resource cache is invalidated.
 }
 ```
 
-#### `dexto:sessionTitleUpdated`
-
-Fired when a session title is updated.
-
-```typescript
-{
-  sessionId: string;
-  title: string;
-}
-```
-
-#### `dexto:availableToolsUpdated`
+#### `tools:available-updated`
 
 Fired when the available tools list is updated.
 
@@ -154,7 +228,7 @@ Fired when the available tools list is updated.
 
 ### Configuration Events
 
-#### `dexto:llmSwitched`
+#### `llm:switched`
 
 Fired when the LLM configuration is changed.
 
@@ -163,11 +237,11 @@ Fired when the LLM configuration is changed.
   newConfig: LLMConfig;
   router?: string;
   historyRetained?: boolean;
-  sessionIds: string[];
+  sessionIds: string[]; // Array of affected session IDs
 }
 ```
 
-#### `dexto:stateChanged`
+#### `state:changed`
 
 Fired when agent runtime state changes.
 
@@ -180,7 +254,7 @@ Fired when agent runtime state changes.
 }
 ```
 
-#### `dexto:stateExported`
+#### `state:exported`
 
 Fired when agent state is exported as configuration.
 
@@ -190,7 +264,7 @@ Fired when agent state is exported as configuration.
 }
 ```
 
-#### `dexto:stateReset`
+#### `state:reset`
 
 Fired when agent state is reset to baseline.
 
@@ -200,41 +274,18 @@ Fired when agent state is reset to baseline.
 }
 ```
 
-### Session Override Events
-
-#### `dexto:sessionOverrideSet`
-
-Fired when session-specific configuration is set.
-
-```typescript
-{
-  sessionId: string;
-  override: SessionOverride;
-}
-```
-
-#### `dexto:sessionOverrideCleared`
-
-Fired when session-specific configuration is cleared.
-
-```typescript
-{
-  sessionId: string;
-}
-```
-
 ### User Approval Events
 
 Dexto's generalized approval system handles various types of user input requests, including tool confirmations and form-based input (elicitation).
 
-#### `dexto:approvalRequest`
+#### `approval:request`
 
-Fired when user approval or input is requested. This event supports multiple approval types through a discriminated union based on the `type` field.
+Fired when user approval or input is requested. This event supports multiple approval types through a discriminated union based on the `approvalType` field.
 
 ```typescript
 {
   approvalId: string;           // Unique identifier for this approval request
-  type: string;                 // 'tool_confirmation' | 'elicitation' | 'custom'
+  approvalType: string;         // 'tool_confirmation' | 'elicitation' | 'custom'
   sessionId?: string;           // Optional session scope
   timeout?: number;             // Request timeout in milliseconds
   timestamp: Date;              // When the request was created
@@ -258,7 +309,7 @@ Fired when user approval or input is requested. This event supports multiple app
 - **`custom`**: Extensible approval type for custom use cases
   - `metadata`: Custom structure defined by the consumer
 
-#### `dexto:approvalResponse`
+#### `approval:response`
 
 Fired when a user approval response is received from the UI layer.
 
@@ -266,6 +317,8 @@ Fired when a user approval response is received from the UI layer.
 {
   approvalId: string;                               // Must match the request approvalId
   status: 'approved' | 'denied' | 'cancelled';     // Approval status
+  reason?: DenialReason;                           // Reason for denial/cancellation
+  message?: string;                                // Optional user message
   sessionId?: string;                              // Session identifier (if scoped)
   data?: Record<string, any>;                      // Type-specific response data
 }
@@ -289,11 +342,11 @@ Fired when a user approval response is received from the UI layer.
 
 ## Session-Level Events
 
-These events are emitted by the `SessionEventBus` and provide insight into LLM service operations within sessions.
+These events are emitted by the `SessionEventBus` and provide insight into LLM service operations within sessions. They are automatically forwarded to the `AgentEventBus` with a `sessionId` property.
 
 ### LLM Processing Events
 
-#### `llmservice:thinking`
+#### `llm:thinking`
 
 Fired when the LLM service starts processing a request.
 
@@ -303,7 +356,7 @@ Fired when the LLM service starts processing a request.
 }
 ```
 
-#### `llmservice:response`
+#### `llm:response`
 
 Fired when the LLM service completes a response.
 
@@ -326,22 +379,22 @@ Fired when the LLM service completes a response.
 
 **Note:** The `reasoning` field contains extended thinking output for models that support reasoning (e.g., o1, o3-mini). This is separate from the main `content` response.
 
-#### `llmservice:chunk`
+#### `llm:chunk`
 
 Fired when a streaming response chunk is received.
 
 ```typescript
 {
-  type: 'text' | 'reasoning';  // Indicates whether chunk is reasoning or main response
+  chunkType: 'text' | 'reasoning';  // Indicates whether chunk is reasoning or main response
   content: string;
   isComplete?: boolean;
   sessionId: string;
 }
 ```
 
-**Note:** The `type` field distinguishes between reasoning output (`reasoning`) and the main response text (`text`). For reasoning models, you'll receive reasoning chunks followed by text chunks.
+**Note:** The `chunkType` field distinguishes between reasoning output (`reasoning`) and the main response text (`text`). For reasoning models, you'll receive reasoning chunks followed by text chunks.
 
-#### `llmservice:error`
+#### `llm:error`
 
 Fired when the LLM service encounters an error.
 
@@ -354,7 +407,7 @@ Fired when the LLM service encounters an error.
 }
 ```
 
-#### `llmservice:switched`
+#### `llm:switched`
 
 Fired when session LLM configuration is changed.
 
@@ -363,11 +416,11 @@ Fired when session LLM configuration is changed.
   newConfig: LLMConfig;
   router?: string;
   historyRetained?: boolean;
-  sessionId: string;
+  sessionIds: string[]; // Array of affected session IDs
 }
 ```
 
-#### `llmservice:unsupportedInput`
+#### `llm:unsupported-input`
 
 Fired when the LLM service receives unsupported input.
 
@@ -384,7 +437,7 @@ Fired when the LLM service receives unsupported input.
 
 ### Tool Execution Events
 
-#### `llmservice:toolCall`
+#### `llm:tool-call`
 
 Fired when the LLM service requests a tool execution.
 
@@ -397,7 +450,7 @@ Fired when the LLM service requests a tool execution.
 }
 ```
 
-#### `llmservice:toolResult`
+#### `llm:tool-result`
 
 Fired when a tool execution completes.
 
@@ -414,50 +467,113 @@ Fired when a tool execution completes.
 
 ---
 
+## Usage Examples
+
+### Listening to Streaming Events
+
+```typescript
+import { DextoAgent } from '@dexto/core';
+
+const agent = new DextoAgent(config);
+await agent.start();
+
+// Use the stream() API to get streaming events
+for await (const event of await agent.stream('Hello!', { sessionId: 'session-1' })) {
+  switch (event.type) {
+    case 'llm:thinking':
+      console.log('Agent is thinking...');
+      break;
+    case 'llm:chunk':
+      process.stdout.write(event.content);
+      break;
+    case 'llm:response':
+      console.log('\nFull response:', event.content);
+      console.log('Tokens used:', event.tokenUsage);
+      break;
+    case 'llm:tool-call':
+      console.log(`Calling tool: ${event.toolName}`);
+      break;
+    case 'approval:request':
+      // Handle user approval request
+      console.log('Approval needed:', event.metadata);
+      break;
+  }
+}
+```
+
+### Listening to Integration Events
+
+```typescript
+import { DextoAgent, INTEGRATION_EVENTS } from '@dexto/core';
+
+const agent = new DextoAgent(config);
+await agent.start();
+
+// Listen to all integration events via the event bus
+INTEGRATION_EVENTS.forEach((eventName) => {
+  agent.agentEventBus.on(eventName, (payload) => {
+    console.log(`[${eventName}]`, payload);
+    
+    // Send to your monitoring/analytics system
+    sendToMonitoring(eventName, payload);
+  });
+});
+```
+
+### Listening to Internal Events
+
+```typescript
+import { DextoAgent } from '@dexto/core';
+
+const agent = new DextoAgent(config);
+await agent.start();
+
+// Listen to internal events for advanced debugging
+agent.agentEventBus.on('resource:cache-invalidated', (payload) => {
+  console.log('Cache invalidated:', payload);
+});
+
+agent.agentEventBus.on('state:exported', (payload) => {
+  console.log('State exported:', payload.config);
+});
+```
 
 ---
 
-## Event Data Types
+## Migration from Old Event Names
 
-### Core Types
+If you're upgrading from an older version of Dexto, here's the mapping of old to new event names:
 
-```typescript
-interface AgentEventMap {
-  'dexto:conversationReset': { sessionId: string };
-  'dexto:mcpServerConnected': { name: string; success: boolean; error?: string };
-  'dexto:availableToolsUpdated': { tools: string[]; source: string };
-  'dexto:llmSwitched': { newConfig: LLMConfig; router?: string; historyRetained?: boolean; sessionIds: string[] };
-  'dexto:approvalRequest': {
-    approvalId: string;
-    type: 'tool_confirmation' | 'elicitation' | 'custom';
-    sessionId?: string;
-    timeout?: number;
-    timestamp: Date;
-    metadata: Record<string, any>;
-  };
-  'dexto:approvalResponse': {
-    approvalId: string;
-    status: 'approved' | 'denied' | 'cancelled';
-    sessionId?: string;
-    data?: Record<string, any>;
-  };
-  // ... other events
-}
+| Old Event Name | New Event Name |
+|---|---|
+| `dexto:conversationReset` | `session:reset` |
+| `dexto:sessionCreated` | `session:created` |
+| `dexto:sessionTitleUpdated` | `session:title-updated` |
+| `dexto:sessionOverrideSet` | `session:override-set` |
+| `dexto:sessionOverrideCleared` | `session:override-cleared` |
+| `dexto:mcpServerConnected` | `mcp:server-connected` |
+| `dexto:mcpServerAdded` | `mcp:server-added` |
+| `dexto:mcpServerRemoved` | `mcp:server-removed` |
+| `dexto:mcpServerUpdated` | `mcp:server-updated` |
+| `dexto:mcpServerRestarted` | `mcp:server-restarted` |
+| `dexto:mcpResourceUpdated` | `mcp:resource-updated` |
+| `dexto:mcpPromptsListChanged` | `mcp:prompts-list-changed` |
+| `dexto:mcpToolsListChanged` | `mcp:tools-list-changed` |
+| `dexto:resourceCacheInvalidated` | `resource:cache-invalidated` |
+| `dexto:availableToolsUpdated` | `tools:available-updated` |
+| `dexto:llmSwitched` | `llm:switched` |
+| `dexto:stateChanged` | `state:changed` |
+| `dexto:stateExported` | `state:exported` |
+| `dexto:stateReset` | `state:reset` |
+| `dexto:approvalRequest` | `approval:request` |
+| `dexto:approvalResponse` | `approval:response` |
+| `llmservice:thinking` | `llm:thinking` |
+| `llmservice:response` | `llm:response` |
+| `llmservice:chunk` | `llm:chunk` |
+| `llmservice:toolCall` | `llm:tool-call` |
+| `llmservice:toolResult` | `llm:tool-result` |
+| `llmservice:error` | `llm:error` |
+| `llmservice:switched` | `llm:switched` |
+| `llmservice:unsupportedInput` | `llm:unsupported-input` |
 
-interface SessionEventMap {
-  'llmservice:thinking': { sessionId: string };
-  'llmservice:response': { content: string; tokenCount?: number; model?: string; sessionId: string };
-  'llmservice:chunk': { content: string; isComplete?: boolean; sessionId: string };
-  'llmservice:toolCall': { toolName: string; args: Record<string, any>; callId?: string; sessionId: string };
-  'llmservice:toolResult': {
-    toolName: string;
-    sanitized: SanitizedToolResult;
-    rawResult?: unknown;
-    callId?: string;
-    success: boolean;
-    sessionId: string;
-  };
-  'llmservice:error': { error: Error; context?: string; recoverable?: boolean; sessionId: string };
-  // ... other events
-}
-``` 
+**Note:** The `llm:chunk` event's `type` property has been renamed to `chunkType` to avoid conflicts with the event discriminator.
