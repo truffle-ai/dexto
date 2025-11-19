@@ -1,6 +1,11 @@
 import crypto from 'crypto';
 import { setMaxListeners } from 'events';
-import { AgentEventBus, type AgentEventName, type AgentEventMap } from '@dexto/core';
+import {
+    AgentEventBus,
+    INTEGRATION_EVENTS,
+    type AgentEventMap,
+    type AgentEventName,
+} from '@dexto/core';
 import { logger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 import {
@@ -54,24 +59,9 @@ export class WebhookEventSubscriber implements EventSubscriber {
         const MAX_SHARED_SIGNAL_LISTENERS = 20;
         setMaxListeners(MAX_SHARED_SIGNAL_LISTENERS, signal);
 
-        // Subscribe to all relevant events with abort signal
-        const eventNames: AgentEventName[] = [
-            'llm:thinking',
-            'llm:chunk',
-            'llm:tool-call',
-            'llm:tool-result',
-            'llm:response',
-            'llm:error',
-            'session:reset',
-            'mcp:server-connected',
-            'tools:available-updated',
-            'approval:request',
-            'approval:response',
-            'llm:switched',
-            'state:changed',
-        ];
-
-        eventNames.forEach((eventName) => {
+        // Subscribe to all INTEGRATION_EVENTS (tier 2 visibility)
+        // This includes streaming events + lifecycle/state events
+        INTEGRATION_EVENTS.forEach((eventName) => {
             eventBus.on(
                 eventName,
                 (payload) => {

@@ -599,13 +599,13 @@ export class VercelLLMService implements ILLMService {
                 this.logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
                     this.sessionEventBus.emit('llm:chunk', {
-                        type: 'text',
+                        chunkType: 'text',
                         content: chunk.chunk.text,
                         isComplete: false,
                     });
                 } else if (chunk.chunk.type === 'reasoning-delta') {
                     this.sessionEventBus.emit('llm:chunk', {
-                        type: 'reasoning',
+                        chunkType: 'reasoning',
                         content: chunk.chunk.text,
                         isComplete: false,
                     });

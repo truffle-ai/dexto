@@ -245,7 +245,7 @@ describe('WebhookEventSubscriber', () => {
                 'https://example.com/webhook',
                 expect.objectContaining({
                     method: 'POST',
-                    body: expect.stringContaining('"type":"dexto:availableToolsUpdated"'),
+                    body: expect.stringContaining('"type":"tools:available-updated"'),
                 })
             );
         });

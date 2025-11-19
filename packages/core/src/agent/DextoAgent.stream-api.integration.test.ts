@@ -5,7 +5,7 @@ import {
     requiresApiKey,
     cleanupTestEnvironment,
 } from '../llm/services/test-utils.integration.js';
-import type { StreamEvent } from './types.js';
+import type { StreamingEvent } from '../events/index.js';
 
 /**
  * DextoAgent Stream API Integration Tests
@@ -126,7 +126,7 @@ describe('DextoAgent.stream() API', () => {
         async () => {
             const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
-                const events: StreamEvent[] = [];
+                const events: StreamingEvent[] = [];
 
                 for await (const event of await env.agent.stream('Say hello', {
                     sessionId: env.sessionId,
@@ -138,24 +138,21 @@ describe('DextoAgent.stream() API', () => {
                 expect(events.length).toBeGreaterThan(0);
                 expect(events[0]).toBeDefined();
                 expect(events[events.length - 1]).toBeDefined();
-                expect(events[0]!.type).toBe('message-start');
-                expect(events[events.length - 1]!.type).toBe('message-complete');
+                expect(events[0]!.type).toBe('llm:thinking');
+                expect(events[events.length - 1]!.type).toBe('llm:response');
 
                 // Validate message-start event
+                // First event is typically llm:thinking
                 const startEvent = events[0];
                 expect(startEvent).toBeDefined();
-                if (startEvent && startEvent.type === 'message-start') {
-                    expect(startEvent.messageId).toBeTruthy();
-                    expect(startEvent.sessionId).toBe(env.sessionId);
-                    expect(startEvent.timestamp).toBeGreaterThan(0);
-                }
+                expect(startEvent?.sessionId).toBe(env.sessionId);
 
-                // Validate message-complete event
+                // Final event should be llm:response with usage stats
                 const completeEvent = events[events.length - 1];
                 expect(completeEvent).toBeDefined();
-                if (completeEvent && completeEvent.type === 'message-complete') {
+                if (completeEvent && completeEvent.type === 'llm:response') {
                     expect(completeEvent.content).toBeTruthy();
-                    expect(completeEvent.usage.totalTokens).toBeGreaterThan(0);
+                    expect(completeEvent.tokenUsage?.totalTokens).toBeGreaterThan(0);
                 }
             } finally {
                 await cleanupTestEnvironment(env);
@@ -169,12 +166,12 @@ describe('DextoAgent.stream() API', () => {
         async () => {
             const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
-                const chunkEvents: StreamEvent[] = [];
+                const chunkEvents: StreamingEvent[] = [];
 
                 for await (const event of await env.agent.stream('Say hello', {
                     sessionId: env.sessionId,
                 })) {
-                    if (event.type === 'content-chunk') {
+                    if (event.type === 'llm:chunk') {
                         chunkEvents.push(event);
                     }
                 }
@@ -184,17 +181,17 @@ describe('DextoAgent.stream() API', () => {
 
                 // Validate chunk structure
                 for (const event of chunkEvents) {
-                    if (event.type === 'content-chunk') {
-                        expect(event.delta).toBeDefined();
-                        expect(typeof event.delta).toBe('string');
+                    if (event.type === 'llm:chunk') {
+                        expect(event.content).toBeDefined();
+                        expect(typeof event.content).toBe('string');
                         expect(event.chunkType).toMatch(/^(text|reasoning)$/);
                     }
                 }
 
                 // Reconstruct full content from chunks
                 const fullContent = chunkEvents
-                    .filter((e) => e.type === 'content-chunk')
-                    .map((e) => (e.type === 'content-chunk' ? e.delta : ''))
+                    .filter((e) => e.type === 'llm:chunk')
+                    .map((e) => (e.type === 'llm:chunk' ? e.content : ''))
                     .join('');
 
                 expect(fullContent.length).toBeGreaterThan(0);
@@ -214,7 +211,7 @@ describe('DextoAgent.stream() API', () => {
                     sessionId: env.sessionId,
                 });
 
-                const events: StreamEvent[] = [];
+                const events: StreamingEvent[] = [];
                 for await (const event of stream) {
                     events.push(event);
                 }
@@ -222,8 +219,8 @@ describe('DextoAgent.stream() API', () => {
                 expect(events.length).toBeGreaterThan(0);
                 expect(events[0]).toBeDefined();
                 expect(events[events.length - 1]).toBeDefined();
-                expect(events[0]!.type).toBe('message-start');
-                expect(events[events.length - 1]!.type).toBe('message-complete');
+                expect(events[0]!.type).toBe('llm:thinking');
+                expect(events[events.length - 1]!.type).toBe('llm:response');
             } finally {
                 await cleanupTestEnvironment(env);
             }
@@ -237,7 +234,7 @@ describe('DextoAgent.stream() API', () => {
             const env = await createTestEnvironment(TestConfigs.createOpenAIConfig());
             try {
                 // First message
-                const events1: StreamEvent[] = [];
+                const events1: StreamingEvent[] = [];
                 for await (const event of await env.agent.stream('My favorite color is blue', {
                     sessionId: env.sessionId,
                 })) {
@@ -245,15 +242,15 @@ describe('DextoAgent.stream() API', () => {
                 }
 
                 // Second message should remember context
-                const events2: StreamEvent[] = [];
+                const events2: StreamingEvent[] = [];
                 for await (const event of await env.agent.stream('What is my favorite color?', {
                     sessionId: env.sessionId,
                 })) {
                     events2.push(event);
                 }
 
-                const completeEvent2 = events2.find((e) => e.type === 'message-complete');
-                if (completeEvent2 && completeEvent2.type === 'message-complete') {
+                const completeEvent2 = events2.find((e) => e.type === 'llm:response');
+                if (completeEvent2 && completeEvent2.type === 'llm:response') {
                     expect(completeEvent2.content.toLowerCase()).toContain('blue');
                 }
             } finally {
@@ -273,7 +270,7 @@ describe('DextoAgent.stream() API', () => {
 
                 const env = await createTestEnvironment(config);
                 try {
-                    const events: StreamEvent[] = [];
+                    const events: StreamingEvent[] = [];
 
                     for await (const event of await env.agent.stream('Say hello', {
                         sessionId: env.sessionId,
@@ -284,8 +281,8 @@ describe('DextoAgent.stream() API', () => {
                     expect(events.length).toBeGreaterThan(0);
                     expect(events[0]).toBeDefined();
                     expect(events[events.length - 1]).toBeDefined();
-                    expect(events[0]!.type).toBe('message-start');
-                    expect(events[events.length - 1]!.type).toBe('message-complete');
+                    expect(events[0]!.type).toBe('llm:thinking');
+                    expect(events[events.length - 1]!.type).toBe('llm:response');
                 } finally {
                     await cleanupTestEnvironment(env);
                 }
@@ -351,15 +348,15 @@ describe('DextoAgent API Compatibility', () => {
                 expect(runResponse).toBeTruthy();
 
                 // Use new stream() API - should maintain same context
-                const events: StreamEvent[] = [];
+                const events: StreamingEvent[] = [];
                 for await (const event of await env.agent.stream('What is my name?', {
                     sessionId: env.sessionId,
                 })) {
                     events.push(event);
                 }
 
-                const completeEvent = events.find((e) => e.type === 'message-complete');
-                if (completeEvent && completeEvent.type === 'message-complete') {
+                const completeEvent = events.find((e) => e.type === 'llm:response');
+                if (completeEvent && completeEvent.type === 'llm:response') {
                     expect(completeEvent.content.toLowerCase()).toContain('bob');
                 }
             } finally {

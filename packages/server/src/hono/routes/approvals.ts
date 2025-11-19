@@ -30,7 +30,7 @@ const ApprovalResponseSchema = z
 
 export function createApprovalsRouter(
     getAgent: () => DextoAgent,
-    messageStreamManager?: MessageStreamManager
+    _messageStreamManager?: MessageStreamManager
 ) {
     const app = new OpenAPIHono();
 

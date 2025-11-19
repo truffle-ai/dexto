@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TextDecoder } from 'node:util';
-import type { StreamEvent } from '@dexto/core';
+import type { StreamingEvent } from '@dexto/core';
 import {
     createTestAgent,
     startTestServer,
@@ -488,32 +488,32 @@ describe('Hono API Integration Tests', () => {
             const agent = testServer.agent;
             const originalStream = agent.stream;
             const messageId = 'msg_test_stream';
-            const fakeEvents: StreamEvent[] = [
+            const fakeEvents: StreamingEvent[] = [
                 {
-                    type: 'message-start',
-                    messageId,
+                    type: 'llm:thinking',
                     sessionId,
-                    timestamp: Date.now(),
-                },
-                { type: 'thinking' },
-                {
-                    type: 'content-chunk',
-                    delta: 'hello',
-                    chunkType: 'text',
                 },
                 {
-                    type: 'message-complete',
-                    messageId,
+                    type: 'llm:chunk',
                     content: 'hello',
-                    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-                    toolCalls: [],
+                    chunkType: 'text',
+                    isComplete: false,
+                    sessionId,
+                },
+                {
+                    type: 'llm:response',
+                    content: 'hello',
+                    tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    sessionId,
+                    provider: 'openai',
+                    model: 'test-model',
                 },
             ];
 
             agent.stream = async function (
                 _message: string,
                 _options
-            ): Promise<AsyncIterableIterator<StreamEvent>> {
+            ): Promise<AsyncIterableIterator<StreamingEvent>> {
                 async function* generator() {
                     for (const event of fakeEvents) {
                         yield event;
@@ -551,15 +551,15 @@ describe('Hono API Integration Tests', () => {
                     }
                     chunks++;
                     received += decoder.decode(value, { stream: true });
-                    if (received.includes('event: message-complete')) {
+                    if (received.includes('event: llm:response')) {
                         break;
                     }
                 }
 
                 await reader.cancel();
 
-                expect(received).toContain('event: message-start');
-                expect(received).toContain('event: message-complete');
+                expect(received).toContain('event: llm:thinking');
+                expect(received).toContain('event: llm:response');
             } finally {
                 agent.stream = originalStream;
             }

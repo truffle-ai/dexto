@@ -534,7 +534,7 @@ export class AnthropicService implements ILLMService {
                     textAccumulator += chunk.delta.text;
                     // Emit chunk event for real-time streaming
                     this.sessionEventBus.emit('llm:chunk', {
-                        type: 'text',
+                        chunkType: 'text',
                         content: chunk.delta.text,
                         isComplete: false,
                     });
@@ -588,7 +588,7 @@ export class AnthropicService implements ILLMService {
         // Emit completion chunk
         if (textAccumulator) {
             this.sessionEventBus.emit('llm:chunk', {
-                type: 'text',
+                chunkType: 'text',
                 content: '',
                 isComplete: true,
             });

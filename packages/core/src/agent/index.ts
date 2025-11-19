@@ -16,17 +16,12 @@ export type {
     GenerateOptions,
     GenerateResponse,
     StreamOptions,
-    StreamEvent,
-    MessageStartEvent,
-    ThinkingEvent,
-    ContentChunkEvent,
-    ToolUseEvent,
-    ToolResultEvent,
-    MessageCompleteEvent,
-    ErrorEvent,
     AgentToolCall,
     // Re-exported from other modules for convenience
     ImageInput,
     FileInput,
     TokenUsage,
 } from './types.js';
+
+// Stream events are now core AgentEvents (exported from events module)
+export type { StreamingEvent, StreamingEventName, STREAMING_EVENTS } from '../events/index.js';

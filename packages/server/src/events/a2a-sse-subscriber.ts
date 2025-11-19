@@ -92,7 +92,7 @@ export class A2ASseEventSubscriber {
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.chunk', {
                     taskId: payload.sessionId,
-                    type: payload.type,
+                    type: payload.chunkType,
                     content: payload.content,
                     isComplete: payload.isComplete,
                 });

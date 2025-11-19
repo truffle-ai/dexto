@@ -1,7 +1,7 @@
 import { TextEncoder } from 'node:util';
 import { ReadableStream } from 'node:stream/web';
 import type { ReadableStreamDefaultController } from 'node:stream/web';
-import type { StreamEvent } from '@dexto/core';
+import type { StreamingEvent } from '@dexto/core';
 import { logger } from '@dexto/core';
 
 type SessionId = string;
@@ -13,7 +13,8 @@ interface SessionStreamState {
     closed: boolean;
 }
 
-const FINAL_EVENT_TYPES: StreamEvent['type'][] = ['message-complete'];
+// Final events that signal stream completion (using core event names)
+const FINAL_EVENT_TYPES: StreamingEvent['type'][] = ['llm:response'];
 
 export class MessageStreamManager {
     private sessions = new Map<SessionId, SessionStreamState>();
@@ -21,7 +22,10 @@ export class MessageStreamManager {
 
     constructor(private options: { idleTimeoutMs?: number } = {}) {}
 
-    public startStreaming(sessionId: string, iterator: AsyncIterableIterator<StreamEvent>): void {
+    public startStreaming(
+        sessionId: string,
+        iterator: AsyncIterableIterator<StreamingEvent>
+    ): void {
         // Check for existing state before resetting
         const existingState = this.sessions.get(sessionId);
         if (existingState && !existingState.closed && existingState.controller) {
@@ -55,7 +59,7 @@ export class MessageStreamManager {
 
     private async consumeIterator(
         sessionId: string,
-        iterator: AsyncIterableIterator<StreamEvent>
+        iterator: AsyncIterableIterator<StreamingEvent>
     ): Promise<void> {
         try {
             for await (const event of iterator) {
@@ -68,16 +72,17 @@ export class MessageStreamManager {
                 }`
             );
             this.pushEvent(sessionId, {
-                type: 'error',
+                type: 'llm:error',
                 error: error instanceof Error ? error : new Error(String(error)),
                 recoverable: false,
+                sessionId,
             });
         } finally {
             this.close(sessionId);
         }
     }
 
-    private pushEvent(sessionId: string, event: StreamEvent): void {
+    private pushEvent(sessionId: string, event: StreamingEvent): void {
         const state = this.ensureState(sessionId, { allowCreate: false });
         if (state.closed) {
             return;
@@ -153,17 +158,19 @@ export class MessageStreamManager {
         }, timeoutMs);
     }
 
-    private isTerminalError(event: StreamEvent): event is Extract<StreamEvent, { type: 'error' }> {
-        return event.type === 'error' && event.recoverable === false;
+    private isTerminalError(
+        event: StreamingEvent
+    ): event is Extract<StreamingEvent, { type: 'llm:error' }> {
+        return event.type === 'llm:error' && event.recoverable === false;
     }
 
-    private formatEvent(sessionId: string, event: StreamEvent): string | null {
+    private formatEvent(sessionId: string, event: StreamingEvent): string | null {
         const data: Record<string, unknown> = { sessionId };
         let eventName: string;
 
         // Handle special case for error events
-        if (event.type === 'error') {
-            eventName = 'error';
+        if (event.type === 'llm:error') {
+            eventName = 'llm:error';
             Object.assign(data, {
                 message: event.error?.message ?? 'Unknown error',
                 stack: event.error?.stack,

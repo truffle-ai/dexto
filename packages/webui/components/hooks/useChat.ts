@@ -197,19 +197,14 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             }
 
             switch (eventType) {
-                case 'message-start':
-                    // Can be used to set status or init state
+                case 'llm:thinking':
+                    // LLM started thinking - can update UI status
                     setProcessing(true);
                     setStatus('open');
                     break;
 
-                case 'thinking':
-                    // Handled by content-chunk with chunkType='reasoning' usually,
-                    // but we might get explicit thinking event
-                    break;
-
-                case 'content-chunk': {
-                    const text = payload.delta || '';
+                case 'llm:chunk': {
+                    const text = payload.content || '';
                     const chunkType = payload.chunkType;
 
                     setMessages((ms) => {
@@ -260,10 +255,10 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
-                case 'message-complete': {
+                case 'llm:response': {
                     setProcessing(false);
                     const text = payload.content || '';
-                    const usage = payload.usage;
+                    const usage = payload.tokenUsage;
 
                     setMessages((ms) => {
                         const lastMsg = ms[ms.length - 1];
@@ -296,7 +291,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
-                case 'tool-use': {
+                case 'llm:tool-call': {
                     const { toolName, args, callId } = payload;
                     setMessages((ms) => {
                         const newIndex = ms.length;
@@ -320,10 +315,9 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
-                case 'tool-result': {
-                    const { callId, success, result, toolName } = payload;
-                    // result might be sanitized or raw
-                    // For now assuming standard sanitized structure if coming from agent
+                case 'llm:tool-result': {
+                    const { callId, success, sanitized, toolName } = payload;
+                    const result = sanitized; // Core events use 'sanitized' field
 
                     // Track tool call completion
                     if (toolName) {
@@ -400,7 +394,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
-                case 'error': {
+                case 'llm:error': {
                     if (suppressNextErrorRef.current) {
                         suppressNextErrorRef.current = false;
                         break;

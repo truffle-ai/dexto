@@ -29,7 +29,7 @@ export type NodeBridgeResult = {
 };
 
 export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): NodeBridgeResult {
-    const { getAgent } = options;
+    const { getAgent: _getAgent } = options;
     const webhookSubscriber = app.webhookSubscriber;
 
     const server = createServer(async (req, res) => {

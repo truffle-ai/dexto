@@ -642,7 +642,7 @@ export class OpenAIService implements ILLMService {
                         content += delta.content;
                         // Emit chunk event for real-time streaming
                         this.sessionEventBus.emit('llm:chunk', {
-                            type: 'text',
+                            chunkType: 'text',
                             content: delta.content,
                             isComplete: false,
                         });
@@ -699,7 +699,7 @@ export class OpenAIService implements ILLMService {
                 // Emit completion chunk
                 if (content) {
                     this.sessionEventBus.emit('llm:chunk', {
-                        type: 'text',
+                        chunkType: 'text',
                         content: '',
                         isComplete: true,
                     });

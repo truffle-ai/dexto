@@ -51,6 +51,130 @@ export const SESSION_EVENT_NAMES = [
 export const EVENT_NAMES = [...AGENT_EVENT_NAMES, ...SESSION_EVENT_NAMES] as const;
 
 /**
+ * Event Visibility Tiers
+ *
+ * These define which events are exposed through different APIs:
+ * - STREAMING_EVENTS: Exposed via DextoAgent.stream() for real-time chat UIs
+ * - INTEGRATION_EVENTS: Exposed via webhooks, A2A, and monitoring systems
+ * - Internal events: Only available via direct EventBus access
+ */
+
+/**
+ * Tier 1: Streaming Events
+ *
+ * Events exposed via DextoAgent.stream() for real-time streaming.
+ * These are the most commonly used events for building chat UIs and
+ * represent the core user-facing event stream.
+ */
+export const STREAMING_EVENTS = [
+    // LLM events (session-scoped, forwarded to agent bus with sessionId)
+    'llm:thinking',
+    'llm:chunk',
+    'llm:response',
+    'llm:tool-call',
+    'llm:tool-result',
+    'llm:error',
+    'llm:unsupported-input',
+
+    // Approval events
+    'approval:request',
+    'approval:response',
+
+    // Session metadata
+    'session:title-updated',
+] as const;
+
+/**
+ * Tier 2: Integration Events
+ *
+ * Events exposed via webhooks, A2A subscriptions, and monitoring systems.
+ * Includes all streaming events plus lifecycle and state management events
+ * useful for external integrations.
+ */
+export const INTEGRATION_EVENTS = [
+    ...STREAMING_EVENTS,
+
+    // Session lifecycle
+    'session:created',
+    'session:reset',
+
+    // MCP lifecycle
+    'mcp:server-connected',
+    'mcp:server-restarted',
+    'mcp:tools-list-changed',
+    'mcp:prompts-list-changed',
+
+    // Tools
+    'tools:available-updated',
+
+    // LLM provider switching
+    'llm:switched',
+
+    // State management
+    'state:changed',
+] as const;
+
+/**
+ * Tier 3: Internal Events
+ *
+ * Events only exposed via direct AgentEventBus access for advanced use cases.
+ * These are implementation details that may change between versions.
+ *
+ * Internal events include:
+ * - resource:cache-invalidated
+ * - state:exported
+ * - state:reset
+ * - mcp:server-added
+ * - mcp:server-removed
+ * - mcp:server-updated
+ * - mcp:resource-updated
+ * - session:override-set
+ * - session:override-cleared
+ */
+
+export type StreamingEventName = (typeof STREAMING_EVENTS)[number];
+export type IntegrationEventName = (typeof INTEGRATION_EVENTS)[number];
+export type InternalEventName = Exclude<AgentEventName, IntegrationEventName>;
+
+/**
+ * Type helper to extract events by name from AgentEventMap
+ */
+export type AgentEventByName<T extends AgentEventName> = {
+    type: T;
+} & AgentEventMap[T];
+
+/**
+ * Union type of all streaming events with their payloads
+ * Maps each event name to its payload from AgentEventMap, adding a type property
+ */
+export type StreamingEvent =
+    | ({ type: 'llm:thinking' } & AgentEventMap['llm:thinking'])
+    | ({ type: 'llm:chunk' } & AgentEventMap['llm:chunk'])
+    | ({ type: 'llm:response' } & AgentEventMap['llm:response'])
+    | ({ type: 'llm:tool-call' } & AgentEventMap['llm:tool-call'])
+    | ({ type: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
+    | ({ type: 'llm:error' } & AgentEventMap['llm:error'])
+    | ({ type: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
+    | ({ type: 'approval:request' } & AgentEventMap['approval:request'])
+    | ({ type: 'approval:response' } & AgentEventMap['approval:response'])
+    | ({ type: 'session:title-updated' } & AgentEventMap['session:title-updated']);
+
+/**
+ * Union type of all integration events with their payloads
+ */
+export type IntegrationEvent =
+    | StreamingEvent
+    | ({ type: 'session:created' } & AgentEventMap['session:created'])
+    | ({ type: 'session:reset' } & AgentEventMap['session:reset'])
+    | ({ type: 'mcp:server-connected' } & AgentEventMap['mcp:server-connected'])
+    | ({ type: 'mcp:server-restarted' } & AgentEventMap['mcp:server-restarted'])
+    | ({ type: 'mcp:tools-list-changed' } & AgentEventMap['mcp:tools-list-changed'])
+    | ({ type: 'mcp:prompts-list-changed' } & AgentEventMap['mcp:prompts-list-changed'])
+    | ({ type: 'tools:available-updated' } & AgentEventMap['tools:available-updated'])
+    | ({ type: 'llm:switched' } & AgentEventMap['llm:switched'])
+    | ({ type: 'state:changed' } & AgentEventMap['state:changed']);
+
+/**
  * Combined event map for the agent bus - includes agent events and session events with sessionId
  * This is what the global agent event bus uses to aggregate all events
  */
@@ -147,7 +271,7 @@ export interface AgentEventMap {
 
     /** LLM service sent a streaming chunk */
     'llm:chunk': {
-        type: 'text' | 'reasoning';
+        chunkType: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
         sessionId: string;
@@ -272,7 +396,7 @@ export interface SessionEventMap {
 
     /** LLM service sent a streaming chunk */
     'llm:chunk': {
-        type: 'text' | 'reasoning';
+        chunkType: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
     };
