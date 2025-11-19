@@ -265,7 +265,7 @@ dexto --agent ./agents/examples/email_slack.yml
 |------|---------|----------|
 | **Web UI** | `dexto` | Friendly chat interface w/ image support (default) |
 | **CLI** | `dexto --mode cli` | Modern terminal interface with autocomplete & streaming |
-| **Headless Server** | `dexto --mode server` | REST & WebSocket APIs for agent interaction |
+| **Headless Server** | `dexto --mode server` | REST & SSE streaming APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
 | **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](https://github.com/truffle-ai/dexto/blob/HEAD/packages/cli/src/discord/README.md)) |
@@ -571,7 +571,7 @@ See [CLI.md](./CLI.md) for detailed CLI documentation and [docs.dexto.ai](https:
 * **[Quick Start](https://docs.dexto.ai/docs/getting-started/intro/)** – Get up and running in minutes.
 * **[Configuration Guide](https://docs.dexto.ai/docs/category/guides/)** – Configure agents, LLMs, and tools.
 * **[Building with Dexto](https://docs.dexto.ai/docs/category/tutorials/)** – Developer guides and patterns.
-* **[API Reference](https://docs.dexto.ai/api/)** – REST APIs, WebSocket, and SDKs.
+* **[API Reference](https://docs.dexto.ai/api/)** – REST APIs, SSE streaming, and SDKs.
 
 ---
 

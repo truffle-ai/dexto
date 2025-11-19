@@ -31,7 +31,7 @@ Deploy Dexto agents using Docker for local or production environments.
 Your Dexto server will be available at `http://localhost:3001` with:
 - ✅ SQLite database connected
 - ✅ MCP servers (filesystem & puppeteer) connected
-- ✅ REST API + WebSocket endpoints available
+- ✅ REST API + SSE streaming endpoints available
 
 ### Port Configuration
 

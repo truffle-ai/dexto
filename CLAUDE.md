@@ -204,24 +204,24 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 ## Application Architecture
 
 ### API Layer (`packages/cli/src/api/`)
-- **Express.js REST API** with WebSocket support for real-time communication
+- **Hono REST API** with Server-Sent Events (SSE) for real-time streaming
 - **Key endpoints**: `/api/message`, `/api/mcp/servers`, `/api/sessions`, `/api/llm/switch`
 - **MCP integration**: Multiple transport types (stdio, HTTP, SSE) with tool aggregation
-- **WebSocket events**: `thinking`, `chunk`, `toolCall`, `toolResult`, `response`
+- **SSE events**: `llm:thinking`, `llm:chunk`, `llm:tool-call`, `llm:tool-result`, `llm:response`
 - **Session management**: Multi-session support with persistent storage
 - **A2A communication**: Agent-to-Agent via `.well-known/agent-card.json`
 
 ### WebUI Layer (`packages/webui/`)
 - **Next.js 14** with App Router, React 18, TypeScript, Tailwind CSS
 - **Key components**: `ChatApp`, `MessageList`, `InputArea`, `ServersPanel`, `SessionPanel`
-- **State management**: React Context + custom hooks for WebSocket communication
-- **Communication**: WebSocket for real-time events, REST API for operations
+- **State management**: React Context + custom hooks for SSE communication
+- **Communication**: SSE for real-time streaming, REST API for operations
 - **Multi-mode operation**: CLI, Web, Server, Discord, Telegram, MCP modes
 
 ### Layer Interaction Flow
 ```
-User Input → WebUI → WebSocket/REST → API → DextoAgent → Core Services
-                ← WebSocket Events ← Agent Event Bus ← Core Services
+User Input → WebUI → SSE/REST → API → DextoAgent → Core Services
+                ← SSE Events ← Agent Event Bus ← Core Services
 ```
 
 ## Documentation

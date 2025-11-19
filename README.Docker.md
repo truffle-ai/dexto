@@ -1,6 +1,6 @@
 # Running Dexto with Docker
 
-This image runs the Dexto CLI in server mode (API + WebSocket). It uses pnpm workspaces and builds from the current repo (no published packages required).
+This image runs the Dexto CLI in server mode (API + SSE streaming). It uses pnpm workspaces and builds from the current repo (no published packages required).
 
 ## Build the image
 
@@ -30,7 +30,7 @@ docker run --rm \
 ```
 
 What it does:
-- Starts REST + WebSocket server on `API_PORT` (default 3001)
+- Starts REST + SSE streaming server on `API_PORT` (default 3001)
 - Uses Chromium inside the image for Puppeteer tools
 - Stores runtime data under `/app/.dexto` (in‑container)
 

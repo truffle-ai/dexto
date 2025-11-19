@@ -78,7 +78,7 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 
 - [Getting Started](https://docs.dexto.ai/api/): API Getting Started Guide
 - [REST API Reference](https://docs.dexto.ai/api/rest/): Complete REST API documentation (OpenAPI)
-- [WebSocket API](https://docs.dexto.ai/api/websocket): WebSocket API
+- [SDK Events](https://docs.dexto.ai/api/sdk/events): SSE streaming events
 - [DextoAgent SDK](https://docs.dexto.ai/api/sdk/dexto-agent): DextoAgent API
 - [MCPManager SDK](https://docs.dexto.ai/api/sdk/mcp-manager): MCPManager
 - [Events Reference](https://docs.dexto.ai/api/sdk/events): Events Reference

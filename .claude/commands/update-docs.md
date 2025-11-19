@@ -32,7 +32,7 @@ Use sub-agents to comprehensively check all documentation in the project:
 - `docs/` - Main Docusaurus documentation site
   - Explanatory docs (concepts, guides)
   - Configuration docs (agent.yml, settings)
-  - API reference docs (SDK, REST API, WebSocket)
+  - API reference docs (SDK, REST API, SSE streaming)
   - Tutorials and examples
   - Getting started guides
 - `README.md` - Project root README
@@ -43,7 +43,7 @@ Use sub-agents to comprehensively check all documentation in the project:
 **Documentation Categories to Check:**
 1. **Explanatory Docs** - Concepts, architecture, how things work
 2. **Configuration Docs** - agent.yml, preferences, settings
-3. **API Reference Docs** - SDK methods, REST endpoints, WebSocket events
+3. **API Reference Docs** - SDK methods, REST endpoints, SSE events
 4. **Tutorials** - Step-by-step guides and walkthroughs
 5. **Getting Started** - Installation, quickstart, first steps
 6. **Examples & Demos** - Code examples and demo projects

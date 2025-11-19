@@ -165,7 +165,7 @@ dexto
 |------------|-------------------------------|-------------------------------------------|
 | `web`      | `dexto`                       | Starts a web UI (default mode, port: 3000).|
 | `cli`      | `dexto --mode cli`            | Interactive or one-shot terminal commands.|
-| `server`   | `dexto --mode server`         | Starts a REST/WebSocket server (port: 3001).|
+| `server`   | `dexto --mode server`         | Starts a REST/SSE streaming server (port: 3001).|
 | `mcp`      | `dexto --mode mcp`            | Exposes the agent as a tool via MCP/stdio.|
 | `discord`  | `dexto --mode discord`        | Runs the agent as a Discord bot.          |
 | `telegram` | `dexto --mode telegram`       | Runs the agent as a Telegram bot.         |
@@ -224,7 +224,7 @@ dexto --mode server
 ```
 
 **Key API Endpoints:**
-- `POST /api/message`: Send a prompt asynchronously. The agent will process it and you can receive events via WebSocket.
+- `POST /api/message-stream`: Send a prompt and receive streaming events via SSE.
   - Body: `{ "message": "your prompt here" }`
 - `POST /api/message-sync`: Send a prompt and wait for the complete response.
   - Body: `{ "message": "your prompt here" }`

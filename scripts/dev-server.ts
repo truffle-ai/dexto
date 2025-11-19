@@ -106,7 +106,7 @@ apiProcess.on('error', (err) => {
     cleanup();
 });
 
-// WebSocket URL uses root path for both Express and Hono
+// SSE streaming available via /api/message-stream for both Express and Hono
 const wsUrl = 'ws://localhost:3001/';
 
 // Give API server time to start

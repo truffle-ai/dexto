@@ -2459,7 +2459,7 @@
     "/api/message": {
       "post": {
         "summary": "Send Message (async)",
-        "description": "Sends a message and returns immediately. The full response will be sent over WebSocket",
+        "description": "Sends a message and returns immediately. The full response will be sent over SSE",
         "tags": [
           "messages"
         ],
@@ -2480,7 +2480,7 @@
                   },
                   "stream": {
                     "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over WebSocket"
+                    "description": "Set to true to receive streaming chunks over SSE"
                   },
                   "imageData": {
                     "type": "object",
@@ -2587,7 +2587,7 @@
                   },
                   "stream": {
                     "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over WebSocket"
+                    "description": "Set to true to receive streaming chunks over SSE"
                   },
                   "imageData": {
                     "type": "object",
@@ -2750,7 +2750,7 @@
                   },
                   "stream": {
                     "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over WebSocket"
+                    "description": "Set to true to receive streaming chunks over SSE"
                   },
                   "imageData": {
                     "type": "object",

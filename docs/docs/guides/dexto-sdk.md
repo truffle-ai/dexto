@@ -220,7 +220,7 @@ class ChatApplication {
   }
 
   private broadcastToUser(sessionId: string, message: string) {
-    // Find user and send response via WebSocket, etc.
+    // Find user and send response via SSE, etc.
   }
 }
 ```

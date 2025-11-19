@@ -9,7 +9,7 @@ Welcome to the Dexto API. This guide will walk you through the essential first s
 
 ## 1. Starting the API Server
 
-Before you can make any API calls, you must start the Dexto server. This single command enables both the REST and WebSocket APIs.
+Before you can make any API calls, you must start the Dexto server. This single command enables both the REST and SSE streaming APIs.
 
 Run the following command in your terminal:
 
