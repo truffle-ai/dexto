@@ -2,10 +2,9 @@
  * A2A SSE (Server-Sent Events) Event Subscriber
  *
  * Subscribes to agent events and streams them to SSE clients for A2A tasks.
- * Uses standard SSE protocol (text/event-stream) instead of WebSocket.
+ * Uses standard SSE protocol (text/event-stream).
  *
  * Design:
- * - Similar to WebSocketEventSubscriber but for SSE
  * - Filters events by taskId/sessionId for targeted streaming
  * - Uses standard SSE format: event: name\ndata: json\n\n
  * - Supports multiple concurrent SSE connections

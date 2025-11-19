@@ -6,8 +6,6 @@ import { apiFetch } from '@/lib/api-client';
 import type { ApprovalEvent } from '../types/approval.js';
 
 interface ToolConfirmationHandlerProps {
-    // websocket prop removed as we use SSE/HTTP now
-    websocket?: WebSocket | null; // Kept for compatibility but unused
     onApprovalRequest?: (approval: ApprovalEvent | null) => void;
     onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny?: () => void;

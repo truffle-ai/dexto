@@ -37,15 +37,6 @@ curl -H "Authorization: Bearer your-api-key" \
      http://localhost:3000/api/llm/current
 ```
 
-**WebSocket Connections:**
-```javascript
-const ws = new WebSocket('ws://localhost:3000/', {
-  headers: {
-    'Authorization': 'Bearer your-api-key'
-  }
-});
-```
-
 **JavaScript Fetch:**
 ```javascript
 fetch('http://localhost:3000/api/message', {
@@ -223,8 +214,8 @@ A: Currently no. For multi-tenant scenarios, implement token-based auth with JWT
 **Q: What if my API key is compromised?**
 A: Generate a new key immediately and update all clients.
 
-**Q: Does WebSocket need authentication too?**
-A: Yes, pass `Authorization: Bearer <key>` header when connecting.
+**Q: Does SSE need authentication too?**
+A: Yes, pass `Authorization: Bearer <key>` header when connecting to the event stream.
 
 **Q: Can I disable auth for specific routes?**
 A: Public routes (/health, /.well-known/agent-card.json) are always accessible. To add more, modify `PUBLIC_ROUTES` in `middleware/auth.ts`.

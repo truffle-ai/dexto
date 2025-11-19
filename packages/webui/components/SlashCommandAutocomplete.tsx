@@ -195,7 +195,7 @@ export default function SlashCommandAutocomplete({
             refetch();
         };
 
-        // Listen for WebSocket events that indicate prompts changes
+        // Listen for events that indicate prompts changes
         if (typeof window !== 'undefined') {
             window.addEventListener('mcp:prompts-list-changed', handlePromptsListChanged);
             return () => {

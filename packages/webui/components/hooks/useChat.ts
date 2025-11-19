@@ -580,7 +580,6 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
         sendMessage,
         reset,
         setMessages,
-        websocket: null, // Deprecated
         processing,
         cancel,
         activeError,

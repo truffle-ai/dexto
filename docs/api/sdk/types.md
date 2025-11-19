@@ -92,7 +92,7 @@ Configuration for Model Context Protocol servers.
 
 ```typescript
 interface McpServerConfig {
-  type: 'stdio' | 'sse' | 'websocket';
+  type: 'stdio' | 'sse';
   command?: string;
   args?: string[];
   env?: Record<string, string>;

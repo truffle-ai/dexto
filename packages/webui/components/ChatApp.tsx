@@ -87,7 +87,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         switchSession,
         isWelcomeState,
         returnToWelcome,
-        websocket,
         activeError,
         clearError,
         processing,
@@ -1579,7 +1578,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
             {/* Tool Confirmation Handler */}
             <ToolConfirmationHandler
-                websocket={websocket}
                 onApprovalRequest={setPendingApproval}
                 onHandlersReady={setApprovalHandlers}
             />

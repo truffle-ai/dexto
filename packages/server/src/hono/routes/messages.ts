@@ -9,10 +9,7 @@ const MessageBodySchema = z
             .string()
             .min(1, 'Session ID is required')
             .describe('The session to use for this message'),
-        stream: z
-            .boolean()
-            .optional()
-            .describe('Set to true to receive streaming chunks over WebSocket'),
+        stream: z.boolean().optional().describe('Set to true to receive streaming chunks over SSE'),
         imageData: z
             .object({
                 base64: z.string().describe('Base64-encoded image data'),
@@ -55,13 +52,13 @@ export function createMessagesRouter(
 
     // TODO: Deprecate this endpoint - this async pattern is problematic and should be replaced
     // with a proper job queue or streaming-only approach. Consider removing in next major version.
-    // Users should use /message/sync for synchronous responses or WebSocket for streaming.
+    // Users should use /message/sync for synchronous responses or SSE for streaming.
     const messageRoute = createRoute({
         method: 'post',
         path: '/message',
         summary: 'Send Message (async)',
         description:
-            'Sends a message and returns immediately. The full response will be sent over WebSocket',
+            'Sends a message and returns immediately. The full response will be sent over SSE',
         tags: ['messages'],
         request: {
             body: {
@@ -107,7 +104,7 @@ export function createMessagesRouter(
         agent.logger.info(`Message for session: ${sessionId}`);
 
         // Fire and forget - start processing asynchronously
-        // Results will be delivered via WebSocket
+        // Results will be delivered via SSE
         agent
             .run(message || '', imageDataInput, fileDataInput, sessionId, stream || false)
             .catch((error) => {

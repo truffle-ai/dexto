@@ -1,9 +1,9 @@
 /**
  * WebUI Approval Types
  *
- * These types represent approval events as they come over WebSocket.
+ * These types represent approval events as they come over SSE.
  * They are derived from but separate from the core approval types,
- * as they represent the serialized WebSocket payload format.
+ * as they represent the serialized payload format.
  *
  * TODO: Consolidate these types from core/typed payloads later
  */
@@ -15,7 +15,7 @@ import type { JSONSchema7 } from 'json-schema';
  */
 type ApprovalEventBase = {
     approvalId: string;
-    timestamp: string; // ISO 8601 format from WebSocket
+    timestamp: string; // ISO 8601 format from SSE
     sessionId?: string;
     metadata: Record<string, unknown>;
 };

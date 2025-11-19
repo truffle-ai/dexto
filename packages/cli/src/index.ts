@@ -1096,17 +1096,17 @@ program
                         break;
                     }
 
-                    // Start server with REST APIs and WebSockets on port 3001
+                    // Start server with REST APIs and SSE on port 3001
                     // This also enables dexto to be used as a remote mcp server at localhost:3001/mcp
                     case 'server': {
-                        // Start server with REST APIs and WebSockets only
+                        // Start server with REST APIs and SSE only
                         const agentCard = agent.getEffectiveConfig().agentCard ?? {};
                         // Use explicit --api-port if provided, otherwise default to 3001
                         const defaultApiPort = opts.apiPort ? parseInt(opts.apiPort, 10) : 3001;
                         const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
-                        console.log('🌐 Starting server (REST APIs + WebSockets)...');
+                        console.log('🌐 Starting server (REST APIs + SSE)...');
                         await startHonoApiServer(agent, apiPort, agentCard, derivedAgentId);
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
@@ -1114,7 +1114,7 @@ program
                         console.log('  POST /api/message-sync - Send sync message');
                         console.log('  POST /api/reset - Reset conversation');
                         console.log('  GET  /api/mcp/servers - List MCP servers');
-                        console.log('  WebSocket support available for real-time events');
+                        console.log('  SSE support available for real-time events');
                         break;
                     }
 

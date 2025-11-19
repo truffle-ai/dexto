@@ -1,6 +1,6 @@
 # Webhook API Documentation
 
-The Dexto webhook system provides HTTP-based event delivery for agent events, offering an alternative to WebSocket subscriptions for cloud integrations.
+The Dexto webhook system provides HTTP-based event delivery for agent events, offering an alternative to SSE streams for cloud integrations.
 
 ## Overview
 
@@ -216,15 +216,15 @@ app.post('/webhooks/dexto', async (c) => {
 });
 ```
 
-## Differences from WebSockets
+## Differences from SSE
 
-| Feature | WebSockets | Webhooks |
-|---------|------------|----------|
+| Feature | SSE | Webhooks |
+|---------|-----|----------|
 | Connection | Persistent connection required | Stateless HTTP requests |
 | Delivery | Real-time | Near real-time with retries |
 | Scalability | Limited by connection count | Scales with HTTP infrastructure |
 | Reliability | Connection can drop | Built-in retry mechanism |
-| Development | Requires WebSocket client | Standard HTTP endpoint |
+| Development | Requires EventSource client | Standard HTTP endpoint |
 | Cloud-friendly | Requires persistent connections | Works with serverless functions |
 
 ## Server Mode Requirement

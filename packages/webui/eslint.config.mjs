@@ -18,7 +18,6 @@ export default [
         console: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
-        WebSocket: 'readonly',
       },
     },
     plugins: {

@@ -61,7 +61,7 @@ const requiredServices: (keyof AgentServices)[] = [
 
 /**
  * Interface for objects that can subscribe to the agent's event bus.
- * Typically used by API layer subscribers (WebSocket, Webhooks, etc.)
+ * Typically used by API layer subscribers (SSE, Webhooks, etc.)
  */
 export interface AgentEventSubscriber {
     subscribe(eventBus: AgentEventBus): void;
@@ -155,7 +155,7 @@ export class DextoAgent {
     // Store config for async initialization
     private config: ValidatedAgentConfig;
 
-    // Event subscribers (e.g., WebSocket, Webhook handlers)
+    // Event subscribers (e.g., SSE, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
 
     // Telemetry instance for distributed tracing
@@ -357,7 +357,7 @@ export class DextoAgent {
 
     /**
      * Register an event subscriber that will be automatically re-subscribed on agent restart.
-     * Subscribers are typically API layer components (WebSocket, Webhook handlers) that need
+     * Subscribers are typically API layer components (SSE, Webhook handlers) that need
      * to receive agent events. If the agent is already started, the subscriber is immediately subscribed.
      *
      * @param subscriber - Object implementing AgentEventSubscriber interface

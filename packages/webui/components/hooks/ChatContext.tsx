@@ -43,7 +43,6 @@ interface ChatContextType {
     returnToWelcome: () => void;
     isStreaming: boolean;
     setStreaming: (streaming: boolean) => void;
-    websocket: WebSocket | null;
     processing: boolean;
     cancel: (sessionId?: string) => void;
     // Error state
@@ -241,7 +240,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         status,
         reset: originalReset,
         setMessages,
-        websocket,
         activeError,
         clearError,
         processing,
@@ -486,7 +484,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Note: currentLLM will automatically refetch when currentSessionId changes to null
     }, [setMessages]);
 
-    // Listen for config-related WebSocket events via DOM events
+    // Listen for config-related events via DOM events
     useEffect(() => {
         const handleConfigChange = (event: any) => {
             // Attempt to update current LLM from event if payload includes it
@@ -543,7 +541,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 returnToWelcome,
                 isStreaming,
                 setStreaming: setIsStreaming,
-                websocket,
                 currentLLM,
                 refreshCurrentLLM: async () => {
                     await refetchCurrentLLM();

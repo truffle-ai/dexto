@@ -655,12 +655,12 @@ export class VercelLLMService implements ILLMService {
         // If streaming reported an error, return early since we already emitted llm:error event
         if (streamErr) {
             // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?
-            // Current approach: emit llm:error event for subscribers (WebSocket, CLI, webhooks)
+            // Current approach: emit llm:error event for subscribers (SSE, CLI, webhooks)
             // Alternative: throw error and let generic handlers deal with it
             // Trade-offs: event-driven (flexible, multiple subscribers) vs exception-based (simpler, single path)
 
             // Error was already handled via llm:error event in onError callback
-            // Don't re-throw to prevent duplicate error messages in WebSocket
+            // Don't re-throw to prevent duplicate error messages in SSE stream
             return '';
         }
         // Emit final response with reasoning and full token usage (authoritative)

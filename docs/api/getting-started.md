@@ -38,17 +38,17 @@ Use the **REST API** for synchronous, request-response actions where you want to
 
 **Base URL**: `http://localhost:3001`
 
-### When to use the WebSocket API?
-Use the **WebSocket API** for building interactive, real-time applications that require a persistent connection. It's the best choice for:
+### When to use Server-Sent Events (SSE)?
+Use **Server-Sent Events (SSE)** for building interactive, real-time applications. It's the best choice for:
 -   Streaming agent responses (`chunk` events) as they are generated.
 -   Receiving real-time events from the agent's core, such as `toolCall` and `toolResult`.
 -   Creating chat-like user interfaces.
 
-**Connection URL**: `ws://localhost:3001/`
+**Stream URL**: `http://localhost:3001/api/message-stream`
 
 ## 3. What's Next?
 
 Now that your server is running and you know which API to use, you can dive into the specifics:
 
 -   Explore the **[REST API Reference](/api/rest)** - comprehensive documentation of all HTTP endpoints.
--   Learn about the **[WebSocket API](./websocket.md)** events and messages. 
+-   Learn about the **[SDK Events Reference](/api/sdk/events)**. 

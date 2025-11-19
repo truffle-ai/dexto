@@ -48,7 +48,7 @@ export function useResources() {
             queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
         };
 
-        // Listen for our custom WebSocket event that gets dispatched when resources change
+        // Listen for our custom event that gets dispatched when resources change
         if (typeof window !== 'undefined') {
             window.addEventListener('resource:cache-invalidated', handleResourceCacheInvalidated);
             window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
