@@ -190,13 +190,13 @@ export default function SessionPanel({
         };
 
         if (typeof window !== 'undefined') {
-            window.addEventListener('message', handleMessage);
+            window.addEventListener('dexto:message', handleMessage);
             window.addEventListener('dexto:response', handleResponse);
             window.addEventListener('session:title-updated', handleTitleUpdated);
             window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
 
             return () => {
-                window.removeEventListener('message', handleMessage);
+                window.removeEventListener('dexto:message', handleMessage);
                 window.removeEventListener('dexto:response', handleResponse);
                 window.removeEventListener('session:title-updated', handleTitleUpdated);
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
