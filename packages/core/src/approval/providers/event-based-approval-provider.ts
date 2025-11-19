@@ -38,7 +38,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 
         // Listen for approval responses from application layers
-        this.agentEventBus.on('dexto:approvalResponse', this.handleApprovalResponse.bind(this));
+        this.agentEventBus.on('approval:response', this.handleApprovalResponse.bind(this));
     }
 
     /**
@@ -78,7 +78,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                 this.pendingApprovals.delete(request.approvalId);
 
                 // Notify application layers
-                this.agentEventBus.emit('dexto:approvalResponse', timeoutResponse);
+                this.agentEventBus.emit('approval:response', timeoutResponse);
 
                 reject(
                     ApprovalError.timeout(
@@ -127,7 +127,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
                 eventPayload.timeout = request.timeout;
             }
 
-            this.agentEventBus.emit('dexto:approvalRequest', eventPayload);
+            this.agentEventBus.emit('approval:request', eventPayload);
         });
     }
 
@@ -173,7 +173,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
             this.pendingApprovals.delete(approvalId);
 
             // Emit cancellation event so UI listeners can dismiss the prompt
-            this.agentEventBus.emit('dexto:approvalResponse', {
+            this.agentEventBus.emit('approval:response', {
                 approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: pending.request.sessionId,
@@ -191,7 +191,7 @@ export class EventBasedApprovalProvider implements ApprovalProvider {
             pending.reject(ApprovalError.cancelledAll('all requests cancelled'));
 
             // Emit cancellation event for each approval so UI listeners can dismiss the prompts
-            this.agentEventBus.emit('dexto:approvalResponse', {
+            this.agentEventBus.emit('approval:response', {
                 approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: pending.request.sessionId,

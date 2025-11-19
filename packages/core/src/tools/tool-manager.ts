@@ -153,7 +153,7 @@ export class ToolManager {
      */
     private setupNotificationListeners(): void {
         // Listen for MCP server connection changes that affect tools
-        this.agentEventBus.on('dexto:mcpServerConnected', async (payload) => {
+        this.agentEventBus.on('mcp:server-connected', async (payload) => {
             if (payload.success) {
                 this.logger.debug(
                     `🔄 MCP server connected, invalidating tool cache: ${payload.name}`
@@ -162,7 +162,7 @@ export class ToolManager {
             }
         });
 
-        this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
+        this.agentEventBus.on('mcp:server-removed', async (payload) => {
             this.logger.debug(
                 `🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`
             );

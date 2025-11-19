@@ -223,7 +223,7 @@ export class ContextManager<TMessage = unknown> {
                 );
 
                 // Emit event to invalidate resource cache so uploaded images appear in @ autocomplete
-                eventBus.emit('dexto:resourceCacheInvalidated', {
+                eventBus.emit('resource:cache-invalidated', {
                     resourceUri: blobRef.uri,
                     serverName: 'internal',
                     action: 'blob_stored',

@@ -240,10 +240,10 @@ describe('ChatSession', () => {
             await chatSession.init();
 
             // Emit a session event
-            chatSession.eventBus.emit('llmservice:thinking');
+            chatSession.eventBus.emit('llm:thinking');
 
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
-                'llmservice:thinking',
+                'llm:thinking',
                 expect.objectContaining({
                     sessionId,
                 })
@@ -253,10 +253,10 @@ describe('ChatSession', () => {
         test('should handle events with no payload by adding session context', async () => {
             await chatSession.init();
 
-            // Emit event without payload (using llmservice:thinking as example)
-            chatSession.eventBus.emit('llmservice:thinking');
+            // Emit event without payload (using llm:thinking as example)
+            chatSession.eventBus.emit('llm:thinking');
 
-            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llmservice:thinking', {
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llm:thinking', {
                 sessionId,
             });
         });
@@ -270,10 +270,9 @@ describe('ChatSession', () => {
             expect(mockHistoryProvider.clearHistory).toHaveBeenCalled();
 
             // Should emit dexto:conversationReset event with session context
-            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
-                'dexto:conversationReset',
-                { sessionId }
-            );
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('session:reset', {
+                sessionId,
+            });
         });
     });
 
@@ -345,7 +344,7 @@ describe('ChatSession', () => {
             await chatSession.switchLLM(newConfig);
 
             expect(eventSpy).toHaveBeenCalledWith(
-                'llmservice:switched',
+                'llm:switched',
                 expect.objectContaining({
                     newConfig,
                     router: newConfig.router,

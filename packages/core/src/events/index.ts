@@ -8,43 +8,41 @@ import type { SanitizedToolResult } from '../context/types.js';
  * Agent-level event names - events that occur at the agent/global level
  */
 export const AGENT_EVENT_NAMES = [
-    'dexto:conversationReset',
-    'dexto:mcpServerConnected',
-    'dexto:availableToolsUpdated',
-    'dexto:llmSwitched',
-    // Agent state manager events
-    'dexto:stateChanged',
-    'dexto:stateExported',
-    'dexto:stateReset',
-    'dexto:sessionOverrideSet',
-    'dexto:sessionOverrideCleared',
-    'dexto:mcpServerAdded',
-    'dexto:mcpServerRemoved',
-    'dexto:mcpServerRestarted',
-    'dexto:mcpServerUpdated',
-    'dexto:mcpResourceUpdated',
-    'dexto:mcpPromptsListChanged',
-    'dexto:mcpToolsListChanged',
-    'dexto:resourceCacheInvalidated',
-    'dexto:sessionTitleUpdated',
-    'dexto:sessionCreated',
-    // User approval events (generalized approval system)
-    'dexto:approvalRequest',
-    'dexto:approvalResponse',
+    'session:reset',
+    'session:created',
+    'session:title-updated',
+    'session:override-set',
+    'session:override-cleared',
+    'mcp:server-connected',
+    'mcp:server-added',
+    'mcp:server-removed',
+    'mcp:server-restarted',
+    'mcp:server-updated',
+    'mcp:resource-updated',
+    'mcp:prompts-list-changed',
+    'mcp:tools-list-changed',
+    'tools:available-updated',
+    'llm:switched',
+    'state:changed',
+    'state:exported',
+    'state:reset',
+    'resource:cache-invalidated',
+    'approval:request',
+    'approval:response',
 ] as const;
 
 /**
  * Session-level event names - events that occur within individual sessions
  */
 export const SESSION_EVENT_NAMES = [
-    'llmservice:thinking',
-    'llmservice:chunk',
-    'llmservice:response',
-    'llmservice:toolCall',
-    'llmservice:toolResult',
-    'llmservice:error',
-    'llmservice:switched',
-    'llmservice:unsupportedInput',
+    'llm:thinking',
+    'llm:chunk',
+    'llm:response',
+    'llm:tool-call',
+    'llm:tool-result',
+    'llm:error',
+    'llm:switched',
+    'llm:unsupported-input',
 ] as const;
 
 /**
@@ -57,41 +55,98 @@ export const EVENT_NAMES = [...AGENT_EVENT_NAMES, ...SESSION_EVENT_NAMES] as con
  * This is what the global agent event bus uses to aggregate all events
  */
 export interface AgentEventMap {
-    // Agent-level events
-    /** Fired when Dexto conversation is reset */
-    'dexto:conversationReset': {
+    // Session events
+    /** Fired when session conversation is reset */
+    'session:reset': {
         sessionId: string;
     };
 
+    /** Fired when a new session is created and should become active */
+    'session:created': {
+        sessionId: string;
+        switchTo: boolean; // Whether UI should switch to this session
+    };
+
+    /** Fired when a session's human-friendly title is updated */
+    'session:title-updated': {
+        sessionId: string;
+        title: string;
+    };
+
+    /** Fired when session override is set */
+    'session:override-set': {
+        sessionId: string;
+        override: any; // SessionOverride type
+    };
+
+    /** Fired when session override is cleared */
+    'session:override-cleared': {
+        sessionId: string;
+    };
+
+    // MCP events
     /** Fired when MCP server connection succeeds or fails */
-    'dexto:mcpServerConnected': {
+    'mcp:server-connected': {
         name: string;
         success: boolean;
         error?: string;
     };
 
+    /** Fired when MCP server is added to runtime state */
+    'mcp:server-added': {
+        serverName: string;
+        config: any; // McpServerConfig type
+    };
+
+    /** Fired when MCP server is removed from runtime state */
+    'mcp:server-removed': {
+        serverName: string;
+    };
+
+    /** Fired when MCP server is restarted */
+    'mcp:server-restarted': {
+        serverName: string;
+    };
+
+    /** Fired when MCP server is updated in runtime state */
+    'mcp:server-updated': {
+        serverName: string;
+        config: any; // McpServerConfig type
+    };
+
+    /** Fired when MCP server resource is updated */
+    'mcp:resource-updated': {
+        serverName: string;
+        resourceUri: string;
+    };
+
+    /** Fired when MCP server prompts list changes */
+    'mcp:prompts-list-changed': {
+        serverName: string;
+        prompts: string[];
+    };
+
+    /** Fired when MCP server tools list changes */
+    'mcp:tools-list-changed': {
+        serverName: string;
+        tools: string[];
+    };
+
+    // Tools events
     /** Fired when available tools list updates */
-    'dexto:availableToolsUpdated': {
+    'tools:available-updated': {
         tools: string[];
         source: 'mcp' | 'builtin';
     };
 
-    /** Fired when LLM service switched */
-    'dexto:llmSwitched': {
-        newConfig: any; // LLMConfig type
-        router?: string;
-        historyRetained?: boolean;
-        sessionIds: string[];
-    };
-
-    // Session events forwarded to agent bus (with sessionId added)
+    // LLM events (forwarded from session bus with sessionId added)
     /** LLM service started thinking */
-    'llmservice:thinking': {
+    'llm:thinking': {
         sessionId: string;
     };
 
     /** LLM service sent a streaming chunk */
-    'llmservice:chunk': {
+    'llm:chunk': {
         type: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
@@ -99,7 +154,7 @@ export interface AgentEventMap {
     };
 
     /** LLM service final response */
-    'llmservice:response': {
+    'llm:response': {
         content: string;
         reasoning?: string;
         provider?: LLMProvider;
@@ -115,7 +170,7 @@ export interface AgentEventMap {
     };
 
     /** LLM service requested a tool call */
-    'llmservice:toolCall': {
+    'llm:tool-call': {
         toolName: string;
         args: Record<string, any>;
         callId?: string;
@@ -123,7 +178,7 @@ export interface AgentEventMap {
     };
 
     /** LLM service returned a tool result */
-    'llmservice:toolResult': {
+    'llm:tool-result': {
         toolName: string;
         callId?: string;
         success: boolean;
@@ -133,7 +188,7 @@ export interface AgentEventMap {
     };
 
     /** LLM service error */
-    'llmservice:error': {
+    'llm:error': {
         error: Error;
         context?: string;
         recoverable?: boolean;
@@ -141,15 +196,15 @@ export interface AgentEventMap {
     };
 
     /** LLM service switched */
-    'llmservice:switched': {
+    'llm:switched': {
         newConfig: any; // LLMConfig type
         router?: string;
         historyRetained?: boolean;
-        sessionId: string;
+        sessionIds: string[]; // Array of affected session IDs
     };
 
     /** LLM service unsupported input */
-    'llmservice:unsupportedInput': {
+    'llm:unsupported-input': {
         errors: string[];
         provider: LLMProvider;
         model?: string;
@@ -158,9 +213,9 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
-    // Agent state manager events
+    // State events
     /** Fired when agent runtime state changes */
-    'dexto:stateChanged': {
+    'state:changed': {
         field: string; // keyof AgentRuntimeState
         oldValue: any;
         newValue: any;
@@ -168,50 +223,26 @@ export interface AgentEventMap {
     };
 
     /** Fired when agent state is exported as config */
-    'dexto:stateExported': {
+    'state:exported': {
         config: ValidatedAgentConfig;
     };
 
     /** Fired when agent state is reset to baseline */
-    'dexto:stateReset': {
+    'state:reset': {
         toConfig: any; // AgentConfig type
     };
 
-    /** Fired when session override is set */
-    'dexto:sessionOverrideSet': {
-        sessionId: string;
-        override: any; // SessionOverride type
-    };
-
-    /** Fired when session override is cleared */
-    'dexto:sessionOverrideCleared': {
-        sessionId: string;
-    };
-
-    /** Fired when MCP server is added to runtime state */
-    'dexto:mcpServerAdded': {
+    // Resource events
+    /** Fired when resource cache should be invalidated */
+    'resource:cache-invalidated': {
+        resourceUri?: string;
         serverName: string;
-        config: any; // McpServerConfig type
+        action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
     };
 
-    /** Fired when MCP server is removed from runtime state */
-    'dexto:mcpServerRemoved': {
-        serverName: string;
-    };
-
-    /** Fired when MCP server is restarted */
-    'dexto:mcpServerRestarted': {
-        serverName: string;
-    };
-
-    /** Fired when MCP server is updated in runtime state */
-    'dexto:mcpServerUpdated': {
-        serverName: string;
-        config: any; // McpServerConfig type
-    };
-
+    // Approval events
     /** Fired when user approval is requested (generalized approval system) */
-    'dexto:approvalRequest': {
+    'approval:request': {
         approvalId: string;
         type: string; // ApprovalType enum as string
         sessionId?: string;
@@ -221,50 +252,13 @@ export interface AgentEventMap {
     };
 
     /** Fired when user approval response is received */
-    'dexto:approvalResponse': {
+    'approval:response': {
         approvalId: string;
         status: ApprovalStatus;
         sessionId?: string | undefined;
         data?: Record<string, any> | undefined;
         reason?: DenialReason | undefined;
         message?: string | undefined;
-    };
-
-    /** Fired when MCP server resource is updated */
-    'dexto:mcpResourceUpdated': {
-        serverName: string;
-        resourceUri: string;
-    };
-
-    /** Fired when MCP server prompts list changes */
-    'dexto:mcpPromptsListChanged': {
-        serverName: string;
-        prompts: string[];
-    };
-
-    /** Fired when MCP server tools list changes */
-    'dexto:mcpToolsListChanged': {
-        serverName: string;
-        tools: string[];
-    };
-
-    /** Fired when resource cache should be invalidated */
-    'dexto:resourceCacheInvalidated': {
-        resourceUri?: string;
-        serverName: string;
-        action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
-    };
-
-    /** Fired when a session's human-friendly title is updated */
-    'dexto:sessionTitleUpdated': {
-        sessionId: string;
-        title: string;
-    };
-
-    /** Fired when a new session is created and should become active */
-    'dexto:sessionCreated': {
-        sessionId: string;
-        switchTo: boolean; // Whether UI should switch to this session
     };
 }
 
@@ -274,17 +268,17 @@ export interface AgentEventMap {
  */
 export interface SessionEventMap {
     /** LLM service started thinking */
-    'llmservice:thinking': void;
+    'llm:thinking': void;
 
     /** LLM service sent a streaming chunk */
-    'llmservice:chunk': {
+    'llm:chunk': {
         type: 'text' | 'reasoning';
         content: string;
         isComplete?: boolean;
     };
 
     /** LLM service final response */
-    'llmservice:response': {
+    'llm:response': {
         content: string;
         reasoning?: string;
         provider?: LLMProvider;
@@ -299,14 +293,14 @@ export interface SessionEventMap {
     };
 
     /** LLM service requested a tool call */
-    'llmservice:toolCall': {
+    'llm:tool-call': {
         toolName: string;
         args: Record<string, any>;
         callId?: string;
     };
 
     /** LLM service returned a tool result */
-    'llmservice:toolResult': {
+    'llm:tool-result': {
         toolName: string;
         callId?: string;
         success: boolean;
@@ -315,21 +309,21 @@ export interface SessionEventMap {
     };
 
     /** LLM service error */
-    'llmservice:error': {
+    'llm:error': {
         error: Error;
         context?: string;
         recoverable?: boolean;
     };
 
     /** LLM service switched */
-    'llmservice:switched': {
+    'llm:switched': {
         newConfig: any; // LLMConfig type
         router?: string;
         historyRetained?: boolean;
     };
 
     /** LLM service unsupported input */
-    'llmservice:unsupportedInput': {
+    'llm:unsupported-input': {
         errors: string[];
         provider: LLMProvider;
         model?: string;

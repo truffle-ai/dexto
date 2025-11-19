@@ -57,20 +57,20 @@ export class PromptManager {
             await this.refresh();
         };
 
-        this.eventBus.on('dexto:mcpServerConnected', async (p) => {
+        this.eventBus.on('mcp:server-connected', async (p) => {
             if (p.success) {
                 await refresh(`mcpServerConnected:${p.name}`);
             }
         });
-        this.eventBus.on('dexto:mcpServerRemoved', async (p) => {
+        this.eventBus.on('mcp:server-removed', async (p) => {
             await refresh(`mcpServerRemoved:${p.serverName}`);
         });
-        this.eventBus.on('dexto:mcpServerUpdated', async (p) => {
+        this.eventBus.on('mcp:server-updated', async (p) => {
             await refresh(`mcpServerUpdated:${p.serverName}`);
         });
 
         // Listen for MCP notifications for surgical updates
-        this.eventBus.on('dexto:mcpPromptsListChanged', async (p) => {
+        this.eventBus.on('mcp:prompts-list-changed', async (p) => {
             await this.updatePromptsForServer(p.serverName, p.prompts);
             this.logger.debug(
                 `🔄 Surgically updated prompts for server '${p.serverName}': [${p.prompts.join(', ')}]`

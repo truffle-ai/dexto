@@ -157,7 +157,7 @@ export class YourProviderService implements ILLMService {
         const formattedTools = this.formatToolsForProvider(rawTools); 
         
         // Emit standardized event
-        this.eventEmitter.emit('llmservice:thinking'); 
+        this.eventEmitter.emit('llm:thinking'); 
         logger.debug('Starting completeTask loop');
 
         let iterationCount = 0;
@@ -203,7 +203,7 @@ export class YourProviderService implements ILLMService {
                 if (!toolCalls || toolCalls.length === 0) {
                     logger.debug('No tool calls. Task complete.');
                     finalResponseText = textContent || ''; 
-                    this.eventEmitter.emit('llmservice:response', finalResponseText); // Emit final response
+                    this.eventEmitter.emit('llm:response', finalResponseText); // Emit final response
                     return finalResponseText; // Exit loop and return
                 }
                 
@@ -227,30 +227,30 @@ export class YourProviderService implements ILLMService {
                         logger.error(`Failed to parse arguments for tool ${toolName}: ${toolCall.function.arguments}`, e);
                         // Add error result via ContextManager
                         this.contextManager.addToolResult(toolCallId, toolName, { error: errorMsg });
-                        this.eventEmitter.emit('llmservice:toolResult', toolName, { error: errorMsg });
+                        this.eventEmitter.emit('llm:toolResult', toolName, { error: errorMsg });
                         continue; // Skip execution
                     }
 
-                    this.eventEmitter.emit('llmservice:toolCall', toolName, args);
+                    this.eventEmitter.emit('llm:toolCall', toolName, args);
                     let result: any;
                     try {
                         result = await this.mcpManager.executeTool(toolName, args);
                         logger.debug(`Tool ${toolName} executed successfully.`);
                         // Add success result via ContextManager
                         this.contextManager.addToolResult(toolCallId, toolName, result);
-                        this.eventEmitter.emit('llmservice:toolResult', toolName, result);
+                        this.eventEmitter.emit('llm:toolResult', toolName, result);
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : String(error);
                         logger.error(`Tool execution error for ${toolName}: ${errorMessage}`);
                         result = { error: errorMessage }; 
                         // Add error result via ContextManager
                         this.contextManager.addToolResult(toolCallId, toolName, result);
-                        this.eventEmitter.emit('llmservice:toolResult', toolName, result);
+                        this.eventEmitter.emit('llm:toolResult', toolName, result);
                     }
                 }
                 
                 // Prepare for next iteration
-                this.eventEmitter.emit('llmservice:thinking'); 
+                this.eventEmitter.emit('llm:thinking'); 
 
             } // End while loop
 
@@ -261,13 +261,13 @@ export class YourProviderService implements ILLMService {
             if (!finalResponseText) {
                  this.contextManager.addAssistantMessage(maxIterResponse);
             }
-            this.eventEmitter.emit('llmservice:response', maxIterResponse);
+            this.eventEmitter.emit('llm:response', maxIterResponse);
             return maxIterResponse;
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error during completeTask execution: ${errorMessage}`, { error });
-            this.eventEmitter.emit('llmservice:error', error instanceof Error ? error : new Error(errorMessage));
+            this.eventEmitter.emit('llm:error', error instanceof Error ? error : new Error(errorMessage));
             // Optionally add an error message to history via ContextManager if desired
             // this.contextManager.addAssistantMessage(`Error processing request: ${errorMessage}`);
             return `Error processing request: ${errorMessage}`;

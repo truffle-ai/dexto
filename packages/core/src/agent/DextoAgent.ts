@@ -707,7 +707,7 @@ export class DextoAgent {
 
         // Subscribe to AgentEventBus (not session bus - events have sessionId)
         this.agentEventBus.on(
-            'llmservice:thinking',
+            'llm:thinking',
             (data) => {
                 if (data.sessionId === sessionId) {
                     eventQueue.push({ type: 'thinking' });
@@ -717,7 +717,7 @@ export class DextoAgent {
         );
 
         this.agentEventBus.on(
-            'llmservice:chunk',
+            'llm:chunk',
             (data) => {
                 if (data.sessionId === sessionId) {
                     eventQueue.push({
@@ -732,7 +732,7 @@ export class DextoAgent {
         );
 
         this.agentEventBus.on(
-            'llmservice:toolCall',
+            'llm:tool-call',
             (data) => {
                 if (data.sessionId === sessionId) {
                     const toolCall: import('./types.js').AgentToolCall = {
@@ -754,7 +754,7 @@ export class DextoAgent {
         );
 
         this.agentEventBus.on(
-            'llmservice:toolResult',
+            'llm:tool-result',
             (data) => {
                 if (data.sessionId === sessionId) {
                     // Update tool call with result
@@ -778,7 +778,7 @@ export class DextoAgent {
         );
 
         this.agentEventBus.on(
-            'llmservice:response',
+            'llm:response',
             (data) => {
                 if (data.sessionId === sessionId) {
                     finalContent = data.content;
@@ -813,7 +813,7 @@ export class DextoAgent {
         );
 
         this.agentEventBus.on(
-            'llmservice:error',
+            'llm:error',
             (data) => {
                 if (data.sessionId === sessionId) {
                     _streamError = data.error;
@@ -833,7 +833,7 @@ export class DextoAgent {
 
         // Subscribe to approval events
         this.agentEventBus.on(
-            'dexto:approvalRequest',
+            'approval:request',
             (data) => {
                 if (data.sessionId === sessionId || (!data.sessionId && !sessionId)) {
                     eventQueue.push({
@@ -852,7 +852,7 @@ export class DextoAgent {
         );
 
         this.agentEventBus.on(
-            'dexto:approvalResponse',
+            'approval:response',
             (data) => {
                 if (data.sessionId === sessionId || (!data.sessionId && !sessionId)) {
                     eventQueue.push({
@@ -1103,7 +1103,7 @@ export class DextoAgent {
             }
 
             await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
-            this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });
+            this.agentEventBus.emit('session:title-updated', { sessionId, title });
         } catch (err) {
             // Swallow background errors – never impact main flow
             this.logger.debug(`Title generation skipped/failed for ${sessionId}: ${String(err)}`);
@@ -1188,7 +1188,7 @@ export class DextoAgent {
             await this.sessionManager.resetSession(sessionId);
 
             this.logger.info(`DextoAgent conversation reset for session: ${sessionId}`);
-            this.agentEventBus.emit('dexto:conversationReset', {
+            this.agentEventBus.emit('session:reset', {
                 sessionId: sessionId,
             });
         } catch (error) {
@@ -1457,11 +1457,11 @@ export class DextoAgent {
             // Ensure tool cache reflects the newly connected server before notifying listeners
             await this.toolManager.refresh();
 
-            this.agentEventBus.emit('dexto:mcpServerConnected', {
+            this.agentEventBus.emit('mcp:server-connected', {
                 name,
                 success: true,
             });
-            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+            this.agentEventBus.emit('tools:available-updated', {
                 tools: Object.keys(await this.toolManager.getAllTools()),
                 source: 'mcp',
             });
@@ -1488,7 +1488,7 @@ export class DextoAgent {
             // Clean up state if connection failed
             this.stateManager.removeMcpServer(name);
 
-            this.agentEventBus.emit('dexto:mcpServerConnected', {
+            this.agentEventBus.emit('mcp:server-connected', {
                 name,
                 success: false,
                 error: errorMessage,
@@ -1532,10 +1532,10 @@ export class DextoAgent {
             // Refresh tool cache after restart so the LLM sees updated toolset
             await this.toolManager.refresh();
 
-            this.agentEventBus.emit('dexto:mcpServerRestarted', {
+            this.agentEventBus.emit('mcp:server-restarted', {
                 serverName: name,
             });
-            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+            this.agentEventBus.emit('tools:available-updated', {
                 tools: Object.keys(await this.toolManager.getAllTools()),
                 source: 'mcp',
             });

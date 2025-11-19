@@ -462,7 +462,7 @@ describe('ApprovalManager', () => {
 
             // Simulate user denying via event
             setTimeout(() => {
-                agentEventBus.emit('dexto:approvalResponse', {
+                agentEventBus.emit('approval:response', {
                     approvalId: expect.any(String),
                     status: ApprovalStatus.DENIED,
                     reason: DenialReason.USER_DENIED,

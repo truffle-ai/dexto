@@ -253,7 +253,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 errorSeen = true;
             };
             try {
-                openaiEnv.agent.agentEventBus.on('llmservice:error', onError);
+                openaiEnv.agent.agentEventBus.on('llm:error', onError);
                 // 1x1 PNG (red pixel) base64 (no data URI), minimal cost
                 const imgBase64 =
                     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
@@ -271,7 +271,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
             } finally {
                 // cleanup listener
                 try {
-                    openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
+                    openaiEnv.agent.agentEventBus.off('llm:error', onError);
                 } catch (_e) {
                     void 0; // ignore
                 }
@@ -291,7 +291,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 errorSeen = true;
             };
             try {
-                openaiEnv.agent.agentEventBus.on('llmservice:error', onError);
+                openaiEnv.agent.agentEventBus.on('llm:error', onError);
                 // Valid tiny PDF (Hello World) base64 from OpenAI tests
                 const pdfBase64 =
                     'JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAgMCA2MTIgNzkyXQovQ29udGVudHMgNCAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL0xlbmd0aCA0NAo+PgpzdHJlYW0KQlQKL0YxIDEyIFRmCjcyIDcyMCBUZAooSGVsbG8gV29ybGQpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDUKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDEwIDAwMDAwIG4gCjAwMDAwMDAwNzkgMDAwMDAgbiAKMDAwMDAwMDE3MyAwMDAwMCBuIAowMDAwMDAwMzAxIDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgNQovUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKMzgwCiUlRU9G';
@@ -308,7 +308,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 expect(errorSeen).toBe(false);
             } finally {
                 try {
-                    openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
+                    openaiEnv.agent.agentEventBus.off('llm:error', onError);
                 } catch (_e) {
                     void 0; // ignore
                 }
@@ -328,7 +328,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 errorSeen = true;
             };
             try {
-                openaiEnv.agent.agentEventBus.on('llmservice:error', onError);
+                openaiEnv.agent.agentEventBus.on('llm:error', onError);
                 const imgBase64 =
                     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
 
@@ -345,7 +345,7 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                 expect(errorSeen).toBe(false);
             } finally {
                 try {
-                    openaiEnv.agent.agentEventBus.off('llmservice:error', onError);
+                    openaiEnv.agent.agentEventBus.off('llm:error', onError);
                 } catch (_e) {
                     void 0; // ignore
                 }
