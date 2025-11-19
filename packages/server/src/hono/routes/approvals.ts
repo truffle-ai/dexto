@@ -102,7 +102,7 @@ export function createApprovalsRouter(
             };
 
             // Emit to agent's event bus which ApprovalManager listens to
-            agent.agentEventBus.emit('dexto:approvalResponse', responsePayload);
+            agent.agentEventBus.emit('approval:response', responsePayload);
 
             return ctx.json({
                 ok: true,

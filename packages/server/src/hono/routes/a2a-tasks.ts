@@ -279,7 +279,7 @@ export function createA2ATasksRouter(
             const stream = sseSubscriber.createStream(session.id);
 
             // Start agent processing in background
-            // Note: Errors are automatically broadcast via the event bus (llmservice:error event)
+            // Note: Errors are automatically broadcast via the event bus (llm:error event)
             const { text, image, file } = a2aToInternalMessage(validatedBody.message as any);
             agent.run(text, image, file, session.id).catch((error) => {
                 logger.error(`Error in streaming task ${session.id}: ${error}`);

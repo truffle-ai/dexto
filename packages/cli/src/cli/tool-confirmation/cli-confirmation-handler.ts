@@ -21,7 +21,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
      */
     subscribe(eventBus: AgentEventBus): void {
         this.agentEventBus = eventBus;
-        this.agentEventBus.on('dexto:approvalRequest', this.handleApprovalRequest.bind(this));
+        this.agentEventBus.on('approval:request', this.handleApprovalRequest.bind(this));
     }
 
     /**
@@ -498,7 +498,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
         logger.debug(
             `CLI sending approvalResponse for approvalId ${response.approvalId}, status=${response.status}, sessionId=${response.sessionId ?? 'global'}`
         );
-        this.agentEventBus.emit('dexto:approvalResponse', response);
+        this.agentEventBus.emit('approval:response', response);
     }
 
     /**
@@ -620,7 +620,7 @@ export class CLIToolConfirmationSubscriber implements EventSubscriber {
      */
     cleanup(): void {
         if (this.agentEventBus) {
-            this.agentEventBus.removeAllListeners('dexto:approvalRequest');
+            this.agentEventBus.removeAllListeners('approval:request');
         }
     }
 }

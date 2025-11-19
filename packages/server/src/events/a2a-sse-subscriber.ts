@@ -78,7 +78,7 @@ export class A2ASseEventSubscriber {
 
         // Subscribe to agent events
         eventBus.on(
-            'llmservice:thinking',
+            'llm:thinking',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.thinking', {
                     taskId: payload.sessionId,
@@ -88,7 +88,7 @@ export class A2ASseEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:chunk',
+            'llm:chunk',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.chunk', {
                     taskId: payload.sessionId,
@@ -101,7 +101,7 @@ export class A2ASseEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:toolCall',
+            'llm:tool-call',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.toolCall', {
                     taskId: payload.sessionId,
@@ -114,7 +114,7 @@ export class A2ASseEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:toolResult',
+            'llm:tool-result',
             (payload) => {
                 const data: Record<string, unknown> = {
                     taskId: payload.sessionId,
@@ -132,7 +132,7 @@ export class A2ASseEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:response',
+            'llm:response',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.message', {
                     taskId: payload.sessionId,
@@ -150,7 +150,7 @@ export class A2ASseEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:error',
+            'llm:error',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.error', {
                     taskId: payload.sessionId,
@@ -164,7 +164,7 @@ export class A2ASseEventSubscriber {
         );
 
         eventBus.on(
-            'dexto:conversationReset',
+            'session:reset',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.reset', {
                     taskId: payload.sessionId,

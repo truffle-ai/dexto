@@ -194,7 +194,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         bus.on('llmservice:error', handleError);
         bus.on('llmservice:toolCall', handleToolCall);
         bus.on('llmservice:toolResult', handleToolResult);
-        bus.on('dexto:approvalRequest', handleApprovalRequest);
+        bus.on('approval:request', handleApprovalRequest);
 
         // Handle model switch
         const handleModelSwitch = (payload: any) => {
@@ -228,7 +228,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         // Subscribe to events
         bus.on('llmservice:switched', handleModelSwitch);
         bus.on('dexto:conversationReset', handleConversationReset);
-        bus.on('dexto:sessionCreated', handleSessionCreated);
+        bus.on('session:created', handleSessionCreated);
 
         // Cleanup on unmount
         return () => {
@@ -238,10 +238,10 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             bus.off('llmservice:error', handleError);
             bus.off('llmservice:toolCall', handleToolCall);
             bus.off('llmservice:toolResult', handleToolResult);
-            bus.off('dexto:approvalRequest', handleApprovalRequest);
+            bus.off('approval:request', handleApprovalRequest);
             bus.off('llmservice:switched', handleModelSwitch);
             bus.off('dexto:conversationReset', handleConversationReset);
-            bus.off('dexto:sessionCreated', handleSessionCreated);
+            bus.off('session:created', handleSessionCreated);
         };
     }, [agent, dispatch, isCancelling]);
 }

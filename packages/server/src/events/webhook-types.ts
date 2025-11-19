@@ -66,7 +66,7 @@ export interface WebhookRegistrationRequest {
 /**
  * Webhook test event payload
  */
-export interface WebhookTestEvent extends DextoWebhookEvent<'dexto:availableToolsUpdated'> {
+export interface WebhookTestEvent extends DextoWebhookEvent<'tools:available-updated'> {
     /** Indicates this is a test event */
     test: true;
 }

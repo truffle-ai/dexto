@@ -43,7 +43,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
         (rememberChoice: boolean) => {
             if (!approval || !eventBus) return;
 
-            eventBus.emit('dexto:approvalResponse', {
+            eventBus.emit('approval:response', {
                 approvalId: approval.approvalId,
                 status: ApprovalStatus.APPROVED,
                 sessionId: approval.sessionId,
@@ -58,7 +58,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
     const handleDeny = useCallback(() => {
         if (!approval || !eventBus) return;
 
-        eventBus.emit('dexto:approvalResponse', {
+        eventBus.emit('approval:response', {
             approvalId: approval.approvalId,
             status: ApprovalStatus.DENIED,
             sessionId: approval.sessionId,
@@ -72,7 +72,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
     const handleCancelApproval = useCallback(() => {
         if (!approval || !eventBus) return;
 
-        eventBus.emit('dexto:approvalResponse', {
+        eventBus.emit('approval:response', {
             approvalId: approval.approvalId,
             status: ApprovalStatus.CANCELLED,
             sessionId: approval.sessionId,

@@ -56,19 +56,19 @@ export class WebhookEventSubscriber implements EventSubscriber {
 
         // Subscribe to all relevant events with abort signal
         const eventNames: AgentEventName[] = [
-            'llmservice:thinking',
-            'llmservice:chunk',
-            'llmservice:toolCall',
-            'llmservice:toolResult',
-            'llmservice:response',
-            'llmservice:error',
-            'dexto:conversationReset',
-            'dexto:mcpServerConnected',
-            'dexto:availableToolsUpdated',
-            'dexto:approvalRequest',
-            'dexto:approvalResponse',
-            'dexto:llmSwitched',
-            'dexto:stateChanged',
+            'llm:thinking',
+            'llm:chunk',
+            'llm:tool-call',
+            'llm:tool-result',
+            'llm:response',
+            'llm:error',
+            'session:reset',
+            'mcp:server-connected',
+            'tools:available-updated',
+            'approval:request',
+            'approval:response',
+            'llm:switched',
+            'state:changed',
         ];
 
         eventNames.forEach((eventName) => {
@@ -128,9 +128,9 @@ export class WebhookEventSubscriber implements EventSubscriber {
             throw new Error(`Webhook not found: ${webhookId}`);
         }
 
-        const testEvent: DextoWebhookEvent<'dexto:availableToolsUpdated'> = {
+        const testEvent: DextoWebhookEvent<'tools:available-updated'> = {
             id: `evt_test_${Date.now()}`,
-            type: 'dexto:availableToolsUpdated',
+            type: 'tools:available-updated',
             data: {
                 tools: ['test-tool'],
                 source: 'mcp',

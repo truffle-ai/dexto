@@ -189,7 +189,7 @@ export const generalCommands: CommandDefinition[] = [
 
                 // Emit event for UI layers to handle session switching
                 // This maintains separation: command does business logic, UI handles state
-                agent.agentEventBus.emit('dexto:sessionCreated', {
+                agent.agentEventBus.emit('session:created', {
                     sessionId: newSession.id,
                     switchTo: true, // Signal that UI should switch to this session
                 });
