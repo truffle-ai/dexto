@@ -7,6 +7,12 @@ export enum SessionErrorCode {
     SESSION_NOT_FOUND = 'session_not_found',
     SESSION_INITIALIZATION_FAILED = 'session_initialization_failed',
     SESSION_MAX_SESSIONS_EXCEEDED = 'session_max_sessions_exceeded',
+    SESSION_MAX_DEPTH_EXCEEDED = 'session_max_depth_exceeded',
+
+    // Session validation
+    SESSION_INVALID_SCOPE = 'session_invalid_scope',
+    SESSION_PARENT_NOT_FOUND = 'session_parent_not_found',
+    SESSION_INVALID_SUB_AGENT_CONFIG = 'session_invalid_sub_agent_config',
 
     // Session storage
     SESSION_STORAGE_FAILED = 'session_storage_failed',

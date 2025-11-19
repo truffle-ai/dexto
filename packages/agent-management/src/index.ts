@@ -64,6 +64,7 @@ export {
     deriveAgentId,
     ConfigError,
     ConfigErrorCode,
+    DefaultAgentConfigProvider,
 } from './config/index.js';
 
 // API Key utilities

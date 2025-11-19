@@ -206,6 +206,7 @@ export async function createAgentServices(
                 searchService,
                 fileSystemService,
                 processService,
+                // sessionManager will be set after SessionManager is created
             },
             internalToolsConfig: config.internalTools,
         },
@@ -267,6 +268,8 @@ export async function createAgentServices(
         {
             maxSessions: config.sessions?.maxSessions,
             sessionTTL: config.sessions?.sessionTTL,
+            maxSubAgentDepth: config.sessions?.maxSubAgentDepth,
+            subAgentLifecycle: config.sessions?.subAgentLifecycle,
         },
         logger
     );

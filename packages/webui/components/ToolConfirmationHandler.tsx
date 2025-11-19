@@ -126,6 +126,10 @@ export function ToolConfirmationHandler({
                             timestamp,
                             sessionId: message.data.sessionId,
                             metadata: metadata,
+                            // Extract sub-agent metadata if present
+                            fromSubAgent: message.data.fromSubAgent === true,
+                            subAgentSessionId: message.data.subAgentSessionId,
+                            subAgentType: message.data.subAgentType,
                         };
                     } else if (messageType === 'command_confirmation') {
                         // Validate metadata exists and has required properties
@@ -175,6 +179,10 @@ export function ToolConfirmationHandler({
                             timestamp,
                             sessionId: message.data.sessionId,
                             metadata: message.data.metadata || {},
+                            // Extract sub-agent metadata if present
+                            fromSubAgent: message.data.fromSubAgent === true,
+                            subAgentSessionId: message.data.subAgentSessionId,
+                            subAgentType: message.data.subAgentType,
                         };
                     }
 

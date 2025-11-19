@@ -42,6 +42,17 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
+import type { MemoryManager } from '../memory/index.js';
+import type { SubAgentCoordinator } from './sub-agent-coordinator.js';
+import type { SubAgentMetadata } from '../session/index.js';
+import type { ResourceSet } from '../resources/index.js';
+import type {
+    PromptSet,
+    PromptDefinition,
+    CreateCustomPromptInput,
+    PromptInfo,
+} from '../prompts/index.js';
+import type { ReadResourceResult, GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -137,11 +148,14 @@ export class DextoAgent {
     public readonly sessionManager!: SessionManager;
     public readonly toolManager!: ToolManager;
     public readonly resourceManager!: ResourceManager;
-    public readonly memoryManager!: import('../memory/index.js').MemoryManager;
+    public readonly memoryManager!: MemoryManager;
     public readonly services!: AgentServices;
 
     // Search service for conversation search
     private searchService!: SearchService;
+
+    // Sub-agent coordinator for spawning and managing sub-agents
+    private subAgentCoordinator!: SubAgentCoordinator;
 
     // Track initialization state
     private _isStarted: boolean = false;
@@ -221,6 +235,15 @@ export class DextoAgent {
 
             // Initialize search service from services
             this.searchService = services.searchService;
+
+            // Initialize sub-agent coordinator
+            const { SubAgentCoordinator } = await import('./sub-agent-coordinator.js');
+            this.subAgentCoordinator = new SubAgentCoordinator(
+                this.sessionManager,
+                this.stateManager,
+                this.agentEventBus,
+                this.logger
+            );
 
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
@@ -383,6 +406,14 @@ export class DextoAgent {
      */
     public isStarted(): boolean {
         return this._isStarted;
+    }
+
+    /**
+     * Gets the agent's ID from configuration.
+     * @returns The agent ID
+     */
+    public get agentId(): string {
+        return this.config.agentId;
     }
 
     /**
@@ -602,6 +633,131 @@ export class DextoAgent {
     }
 
     /**
+     * Hand off a task to a sub-agent with specialized capabilities.
+     *
+     * This method encapsulates all complexity around sub-agent spawning:
+     * - Accepts either a DextoAgent instance or AgentConfig to create one
+     * - Validates depth limits
+     * - Sets up event forwarding automatically
+     * - Handles lifecycle management (ephemeral vs persistent)
+     * - Cleans up resources reliably
+     *
+     * @param task - The task description for the sub-agent
+     * @param options - Configuration for the handoff
+     * @returns Result containing the sub-agent's response and metadata
+     *
+     * @example
+     * ```typescript
+     * // Using an agent config
+     * const result = await agent.handoff(
+     *     "Review the authentication code in src/auth/",
+     *     { agent: myAgentConfig, agentIdentifier: "code-reviewer", parentSessionId: sessionId }
+     * );
+     *
+     * // Using a DextoAgent instance
+     * const subAgent = new DextoAgent(config);
+     * await subAgent.start();
+     * const result = await agent.handoff(
+     *     "Analyze the API endpoints",
+     *     { agent: subAgent, parentSessionId: sessionId }
+     * );
+     * ```
+     */
+    public async handoff(
+        task: string,
+        options?: {
+            /** Parent session ID (required for sub-agents) */
+            parentSessionId?: string;
+
+            /** Sub-agent instance or configuration */
+            agent?: DextoAgent | AgentConfig;
+
+            /** Lifecycle policy (defaults to config) */
+            lifecycle?: 'ephemeral' | 'persistent';
+
+            /** Task description for tracking what the sub-agent is working on */
+            description?: string;
+
+            /** Timeout in milliseconds */
+            timeout?: number;
+        }
+    ): Promise<{
+        result: string;
+        sessionId: string;
+        duration: number;
+        tokenUsage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            reasoningTokens?: number;
+            totalTokens?: number;
+        };
+        error?: string;
+    }> {
+        this.ensureStarted();
+
+        const startTime = Date.now();
+
+        // Require agent
+        if (!options?.agent) {
+            throw new Error('agent (DextoAgent or AgentConfig) is required for handoff');
+        }
+
+        // Require parentSessionId
+        if (!options?.parentSessionId) {
+            throw new Error('parentSessionId is required for handoff');
+        }
+
+        const isAgentInstance = 'sendMessage' in options.agent;
+        const agentType = isAgentInstance ? 'instance' : 'config';
+
+        this.logger.info(
+            `Handing off task to sub-agent (${agentType}): "${options?.description || task.substring(0, 50)}..."`
+        );
+
+        try {
+            // Spawn sub-agent (coordinator handles both DextoAgent and AgentConfig)
+            const handle = await this.subAgentCoordinator.spawn({
+                parentSessionId: options.parentSessionId,
+                agent: options.agent,
+                ...(options?.lifecycle && { lifecycle: options.lifecycle }),
+                ...(options?.description && { description: options.description }),
+            });
+
+            // Run task (timeout is handled by SubAgentHandle.run)
+            const result = await handle.run(
+                task,
+                options?.timeout ? { timeout: options.timeout } : undefined
+            );
+
+            // Get metrics
+            const duration = Date.now() - startTime;
+
+            this.logger.info(
+                `Handoff completed successfully in ${duration}ms (session: ${handle.sessionId})`
+            );
+
+            return {
+                result,
+                sessionId: handle.sessionId,
+                duration,
+                // TODO: Add token usage tracking for sub-agents
+            };
+        } catch (error) {
+            const duration = Date.now() - startTime;
+            this.logger.error(
+                `Handoff failed after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`
+            );
+
+            return {
+                result: '',
+                sessionId: '',
+                duration,
+                error: error instanceof Error ? error.message : String(error),
+            };
+        }
+    }
+
+    /**
      * Cancels the currently running turn for a session.
      * Safe to call even if no run is in progress.
      * @param sessionId Session id (required)
@@ -629,11 +785,20 @@ export class DextoAgent {
     /**
      * Creates a new chat session or returns an existing one.
      * @param sessionId Optional session ID. If not provided, a UUID will be generated.
+     * @param options Optional session creation options
      * @returns The created or existing ChatSession
      */
-    public async createSession(sessionId?: string): Promise<ChatSession> {
+    public async createSession(
+        sessionId?: string,
+        options?: {
+            type?: string;
+            subAgent?: Partial<SubAgentMetadata>;
+            metadata?: Record<string, any>;
+            agentConfig?: AgentConfig;
+        }
+    ): Promise<ChatSession> {
         this.ensureStarted();
-        return await this.sessionManager.createSession(sessionId);
+        return await this.sessionManager.createSession(sessionId, options);
     }
 
     /**
@@ -647,12 +812,16 @@ export class DextoAgent {
     }
 
     /**
-     * Lists all active session IDs.
-     * @returns Array of session IDs
+     * Lists all active session IDs, optionally filtered by criteria.
+     * @param filters Optional filters to narrow results
+     * @returns Array of session IDs matching the filters
      */
-    public async listSessions(): Promise<string[]> {
+    public async listSessions(filters?: {
+        type?: string;
+        parentSessionId?: string;
+    }): Promise<string[]> {
         this.ensureStarted();
-        return await this.sessionManager.listSessions();
+        return await this.sessionManager.listSessions(filters);
     }
 
     /**
@@ -1279,7 +1448,7 @@ export class DextoAgent {
      * Lists all available resources with their info.
      * This includes resources from MCP servers and any custom resource providers.
      */
-    public async listResources(): Promise<import('../resources/index.js').ResourceSet> {
+    public async listResources(): Promise<ResourceSet> {
         this.ensureStarted();
         return await this.resourceManager.list();
     }
@@ -1295,9 +1464,7 @@ export class DextoAgent {
     /**
      * Reads the content of a specific resource by URI.
      */
-    public async readResource(
-        uri: string
-    ): Promise<import('@modelcontextprotocol/sdk/types.js').ReadResourceResult> {
+    public async readResource(uri: string): Promise<ReadResourceResult> {
         this.ensureStarted();
         return await this.resourceManager.read(uri);
     }
@@ -1364,7 +1531,7 @@ export class DextoAgent {
      * Lists all available prompts from all providers (MCP, internal, starter, custom).
      * @returns Promise resolving to a PromptSet with all available prompts
      */
-    public async listPrompts(): Promise<import('../prompts/index.js').PromptSet> {
+    public async listPrompts(): Promise<PromptSet> {
         this.ensureStarted();
         return await this.promptManager.list();
     }
@@ -1410,9 +1577,7 @@ export class DextoAgent {
      * @param input The prompt creation input
      * @returns Promise resolving to the created prompt info
      */
-    public async createCustomPrompt(
-        input: import('../prompts/index.js').CreateCustomPromptInput
-    ): Promise<import('../prompts/index.js').PromptInfo> {
+    public async createCustomPrompt(input: CreateCustomPromptInput): Promise<PromptInfo> {
         this.ensureStarted();
         return await this.promptManager.createCustomPrompt(input);
     }

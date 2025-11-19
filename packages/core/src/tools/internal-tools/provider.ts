@@ -5,6 +5,7 @@ import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
 import type { ApprovalManager } from '../../approval/manager.js';
+import type { DextoAgent } from '../../agent/DextoAgent.js';
 
 /**
  * Provider for built-in internal tools that are part of the core system
@@ -64,41 +65,78 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Register all available internal tools based on available services and configuration
+     * Register a single internal tool
      */
-    private registerInternalTools(): void {
+    private registerTool(toolName: (typeof this.config)[number]): void {
+        const toolInfo = getInternalToolInfo(toolName);
+
         // Augment services with approvalManager
         const servicesWithApproval = {
             ...this.services,
             approvalManager: this.approvalManager,
         };
 
-        for (const toolName of this.config) {
-            const toolInfo = getInternalToolInfo(toolName);
+        // Check if all required services are available
+        const missingServices = toolInfo.requiredServices.filter(
+            (serviceKey) => !servicesWithApproval[serviceKey]
+        );
 
-            // Check if all required services are available
-            const missingServices = toolInfo.requiredServices.filter(
-                (serviceKey) => !servicesWithApproval[serviceKey]
+        if (missingServices.length > 0) {
+            this.logger.debug(
+                `Skipping ${toolName} internal tool - missing services: ${missingServices.join(', ')}`
             );
-
-            if (missingServices.length > 0) {
-                this.logger.debug(
-                    `Skipping ${toolName} internal tool - missing services: ${missingServices.join(', ')}`
-                );
-                continue;
-            }
-
-            try {
-                // Create the tool using its factory and store directly
-                const tool = toolInfo.factory(servicesWithApproval);
-                this.tools.set(toolName, tool); // ← Store original InternalTool directly
-                this.logger.debug(`Registered ${toolName} internal tool`);
-            } catch (error) {
-                this.logger.error(
-                    `Failed to register ${toolName} internal tool: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
+            return;
         }
+
+        try {
+            // Create the tool using its factory and store directly
+            const tool = toolInfo.factory(servicesWithApproval);
+            this.tools.set(toolName, tool); // ← Store original InternalTool directly
+            this.logger.debug(`Registered ${toolName} internal tool`);
+        } catch (error) {
+            this.logger.error(
+                `Failed to register ${toolName} internal tool: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    /**
+     * Register all available internal tools based on available services and configuration
+     */
+    private registerInternalTools(): void {
+        for (const toolName of this.config) {
+            this.registerTool(toolName);
+        }
+    }
+
+    /**
+     * Set agent for tools that need it (called after DextoAgent is initialized)
+     */
+    setAgent(agent: DextoAgent): void {
+        this.services.agent = agent;
+
+        // Re-register tools that depend on agent
+        if (this.config.includes('spawn_agent')) {
+            this.registerTool('spawn_agent');
+        }
+
+        this.logger.debug('Agent configured for internal tools');
+    }
+
+    /**
+     * Set agent config provider for tools that need it (e.g., spawn_agent)
+     */
+    setAgentConfigProvider(
+        agentConfigProvider: NonNullable<InternalToolsServices['agentConfigProvider']>
+    ): void {
+        this.services.agentConfigProvider = agentConfigProvider;
+
+        // Re-register tools that depend on agentConfigProvider
+        if (this.config.includes('spawn_agent')) {
+            this.registerTool('spawn_agent');
+        }
+
+        this.logger.debug('Agent resolver configured for internal tools');
     }
 
     /**
@@ -178,5 +216,14 @@ export class InternalToolsProvider {
      */
     getToolCount(): number {
         return this.tools.size;
+    }
+
+    getServices(): InternalToolsServices {
+        return this.services;
+    }
+
+    dispose(): void {
+        this.tools.clear();
+        this.logger.debug('InternalToolsProvider disposed');
     }
 }

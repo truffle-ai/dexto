@@ -107,4 +107,55 @@ export class ConfigError {
             'This is an internal error - please report it'
         );
     }
+
+    // Validation errors
+    static invalidSubAgent(reason: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.INVALID_SUB_AGENT,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Sub-agent configuration is invalid: ${reason}`,
+            { reason },
+            'Ensure sub-agent configuration follows security constraints'
+        );
+    }
+
+    // Built-in agent errors
+    static builtInAgentNotFound(agentName: string, searchPath?: string) {
+        const message = searchPath
+            ? `Built-in agent '${agentName}' not found at: ${searchPath}`
+            : `Built-in agent '${agentName}' not found`;
+        const availableAgents = ['general-purpose', 'code-reviewer'].join(', ');
+
+        return new DextoRuntimeError(
+            ConfigErrorCode.FILE_NOT_FOUND,
+            ErrorScope.CONFIG,
+            ErrorType.NOT_FOUND,
+            message,
+            { agentName, searchPath },
+            `Available built-in agents: ${availableAgents}`
+        );
+    }
+
+    static builtInAgentLoadFailed(agentName: string, cause: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.FILE_READ_ERROR,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to load built-in agent '${agentName}': ${cause}`,
+            { agentName, cause },
+            'This may indicate a corrupted installation. Try reinstalling Dexto.'
+        );
+    }
+
+    static loadFailed(configPath: string, cause: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.FILE_READ_ERROR,
+            ErrorScope.CONFIG,
+            ErrorType.SYSTEM,
+            `Failed to load agent config from '${configPath}': ${cause}`,
+            { configPath, cause },
+            'Check file permissions and ensure the file contains valid YAML'
+        );
+    }
 }

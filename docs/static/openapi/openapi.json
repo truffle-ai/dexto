@@ -76,7 +76,39 @@
     }
   ],
   "components": {
-    "schemas": {},
+    "schemas": {
+      "SessionScopes": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+          },
+          "parentSessionId": {
+            "type": "string",
+            "description": "Parent session ID for hierarchical sessions"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Depth in session hierarchy"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "ephemeral",
+              "persistent"
+            ],
+            "description": "Lifecycle policy for the session"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false,
+        "description": "Session scopes for filtering and organization"
+      }
+    },
     "parameters": {}
   },
   "paths": {
@@ -3572,13 +3604,35 @@
     "/api/sessions": {
       "get": {
         "summary": "List Sessions",
-        "description": "Retrieves a list of all active sessions",
+        "description": "Retrieves a list of active sessions, optionally filtered by scope criteria",
         "tags": [
           "sessions"
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by session type"
+            },
+            "required": false,
+            "description": "Filter by session type",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by parent session ID"
+            },
+            "required": false,
+            "description": "Filter by parent session ID",
+            "name": "parentSessionId",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "List of all active sessions",
+            "description": "List of sessions matching filters",
             "content": {
               "application/json": {
                 "schema": {
@@ -3616,13 +3670,25 @@
                             "type": "string",
                             "nullable": true,
                             "description": "Optional session title"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                           }
                         },
                         "required": [
                           "id",
                           "createdAt",
                           "lastActivity",
-                          "messageCount"
+                          "messageCount",
+                          "type"
                         ],
                         "additionalProperties": false,
                         "description": "Session metadata"
@@ -3700,13 +3766,25 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "type": {
+                          "type": "string",
+                          "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                         }
                       },
                       "required": [
                         "id",
                         "createdAt",
                         "lastActivity",
-                        "messageCount"
+                        "messageCount",
+                        "type"
                       ],
                       "additionalProperties": false,
                       "description": "Newly created session metadata"
@@ -3781,6 +3859,17 @@
                           "nullable": true,
                           "description": "Optional session title"
                         },
+                        "type": {
+                          "type": "string",
+                          "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
+                        },
                         "history": {
                           "type": "integer",
                           "minimum": 0,
@@ -3792,6 +3881,7 @@
                         "createdAt",
                         "lastActivity",
                         "messageCount",
+                        "type",
                         "history"
                       ],
                       "additionalProperties": false,
@@ -3933,13 +4023,25 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "type": {
+                          "type": "string",
+                          "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                         }
                       },
                       "required": [
                         "id",
                         "createdAt",
                         "lastActivity",
-                        "messageCount"
+                        "messageCount",
+                        "type"
                       ],
                       "additionalProperties": false,
                       "description": "Updated session metadata"
@@ -4327,13 +4429,25 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "type": {
+                          "type": "string",
+                          "description": "Session type (primary, sub-agent, scheduled, task, or custom)"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "nullable": true
+                          },
+                          "description": "Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)"
                         }
                       },
                       "required": [
                         "id",
                         "createdAt",
                         "lastActivity",
-                        "messageCount"
+                        "messageCount",
+                        "type"
                       ],
                       "additionalProperties": false,
                       "description": "Session metadata"
@@ -9199,7 +9313,8 @@
                             "bash_exec",
                             "bash_output",
                             "kill_process",
-                            "delegate_to_url"
+                            "delegate_to_url",
+                            "spawn_agent"
                           ],
                           "description": "Available internal tool names"
                         },
@@ -9731,6 +9846,21 @@
                             "exclusiveMinimum": true,
                             "default": 3600000,
                             "description": "Session time-to-live in milliseconds, defaults to 3600000ms (1 hour)"
+                          },
+                          "maxSubAgentDepth": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 1,
+                            "description": "Maximum nesting depth for spawned sub-agents. 0 disables sub-agents; 1 allows parent → child; increase for deeper hierarchies."
+                          },
+                          "subAgentLifecycle": {
+                            "type": "string",
+                            "enum": [
+                              "ephemeral",
+                              "persistent"
+                            ],
+                            "default": "persistent",
+                            "description": "Lifecycle policy for spawned sub-agents. ephemeral: auto-deleted after completion (saves storage). persistent: kept for review/observability (uses storage)."
                           }
                         },
                         "default": {},

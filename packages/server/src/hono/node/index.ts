@@ -308,7 +308,9 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                     );
                     return;
                 }
-                agent.logger.info(`Processing reset command from WebSocket for session: ${sessionId}`);
+                agent.logger.info(
+                    `Processing reset command from WebSocket for session: ${sessionId}`
+                );
 
                 // Check agent availability before processing reset
                 if (!agent.isStarted() || agent.isStopped()) {
@@ -337,7 +339,9 @@ function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
                     );
                     return;
                 }
-                agent.logger.info(`Processing cancel command from WebSocket for session: ${sessionId}`);
+                agent.logger.info(
+                    `Processing cancel command from WebSocket for session: ${sessionId}`
+                );
 
                 // Check agent availability before processing cancel
                 if (!agent.isStarted() || agent.isStopped()) {

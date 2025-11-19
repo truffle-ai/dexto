@@ -23,11 +23,11 @@ export class SystemPromptManager {
     constructor(
         config: ValidatedSystemPromptConfig,
         configDir: string,
-        memoryManager: MemoryManager,
+        memoryManager: MemoryManager | undefined,
         logger: IDextoLogger
     ) {
         this.configDir = configDir;
-        this.memoryManager = memoryManager;
+        this.memoryManager = memoryManager as MemoryManager;
         this.logger = logger.createChild(DextoLogComponent.SYSTEM_PROMPT);
         this.logger.debug(`[SystemPromptManager] Initializing with configDir: ${configDir}`);
 

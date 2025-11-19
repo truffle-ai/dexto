@@ -86,6 +86,21 @@ const BinaryDataSchema = z.custom<string | unknown>(
 
 // --- Session Schemas ---
 
+export const SubAgentMetadataSchema = z
+    .object({
+        parentSessionId: z.string().describe('Parent session ID'),
+        depth: z.number().int().positive().describe('Depth in session hierarchy (1+)'),
+        lifecycle: z.enum(['ephemeral', 'persistent']).describe('Lifecycle policy for the session'),
+        agentIdentifier: z
+            .string()
+            .optional()
+            .describe('Agent identifier (e.g., built-in:code-reviewer)'),
+    })
+    .strict()
+    .describe('Sub-agent specific metadata');
+
+export type SubAgentMetadata = z.output<typeof SubAgentMetadataSchema>;
+
 export const SessionMetadataSchema = z
     .object({
         id: z.string().describe('Unique session identifier'),
@@ -107,6 +122,11 @@ export const SessionMetadataSchema = z
             .nonnegative()
             .describe('Total number of messages in session'),
         title: z.string().optional().nullable().describe('Optional session title'),
+        type: z.string().describe('Session type (primary, sub-agent, scheduled, task, or custom)'),
+        metadata: z
+            .record(z.unknown())
+            .optional()
+            .describe('Type-specific flexible metadata (e.g., subAgent for sub-agent sessions)'),
     })
     .strict()
     .describe('Session metadata');
