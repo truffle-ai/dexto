@@ -27,7 +27,7 @@ Internally the manager:
 
 1. Validates the patch against `LLMConfigSchema`.
 2. Stores the override under `sessionOverrides`.
-3. Emits `dexto:stateChanged` and `dexto:sessionOverrideSet` events.
+3. Emits `state:changed` and `session:override-set` events.
 
 ## Example – add MCP server at runtime
 
@@ -38,7 +38,7 @@ await stateManager.addMcpServer('git', {
 });
 ```
 
-This triggers `dexto:mcpServerAdded`, after which `MCPManager` connects and refreshes its capability cache.
+This triggers `mcp:server-added`, after which `MCPManager` connects and refreshes its capability cache.
 
 ## See Also
 

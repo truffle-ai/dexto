@@ -185,10 +185,10 @@ toolConfirmation:
 In event-based mode, confirmation uses an event-driven architecture:
 
 1. Agent requests tool execution
-2. System emits `dexto:toolConfirmationRequest` event
+2. System emits `approval:request` event
 3. UI layer shows confirmation dialog
 4. User approves/denies
-5. UI emits `dexto:toolConfirmationResponse` event
+5. UI emits `approval:response` event
 6. Tool executes or is denied
 
 **Timeout:** Auto-denies if no response within configured timeout.

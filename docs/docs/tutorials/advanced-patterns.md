@@ -265,23 +265,23 @@ class SmartAgent extends EventEmitter {
   
   setupEventHandlers() {
     // Track when tools are used
-    this.agent.agentEventBus.on('llmservice:toolCall', (toolInfo: any) => {
+    this.agent.agentEventBus.on('llm:tool-call', (toolInfo: any) => {
       console.log(`🔧 Used tool: ${toolInfo.toolName}`);
       this.emit('toolUsed', toolInfo);
     });
     
     // Handle conversation resets
-    this.agent.agentEventBus.on('dexto:conversationReset', () => {
+    this.agent.agentEventBus.on('session:reset', () => {
       console.log('🔄 Conversation reset');
       this.emit('conversationReset');
     });
     
     // Track token usage
-    this.agent.agentEventBus.on('llmservice:completion', (data: any) => {
+    this.agent.agentEventBus.on('llm:response', (data: any) => {
       this.emit('tokensUsed', {
-        inputTokens: data.usage?.prompt_tokens || 0,
-        outputTokens: data.usage?.completion_tokens || 0,
-        totalTokens: data.usage?.total_tokens || 0
+        inputTokens: data.tokenUsage?.inputTokens || 0,
+        outputTokens: data.tokenUsage?.outputTokens || 0,
+        totalTokens: data.tokenUsage?.totalTokens || 0
       });
     });
   }

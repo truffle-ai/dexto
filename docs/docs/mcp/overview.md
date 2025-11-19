@@ -113,7 +113,7 @@ The `connectionMode` field controls how Dexto handles connection failures:
 ## Runtime Changes
 
 - Add/update/remove servers dynamically via the SDK or REST APIs
-- Events: `dexto:mcpServerAdded`, `dexto:mcpServerUpdated`, `dexto:mcpServerRemoved`
+- Events: `mcp:server-added`, `mcp:server-updated`, `mcp:server-removed`
 
 See: [MCP Manager](./mcp-manager.md)
 
