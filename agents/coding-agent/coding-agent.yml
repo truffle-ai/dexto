@@ -59,7 +59,7 @@ storage:
     cleanupAfterDays: 30
 
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 120000
   allowedToolsStorage: storage  # Persist allowed tools across sessions
 

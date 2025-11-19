@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto';
-import type { ApprovalRequest, ApprovalRequestDetails } from '../types.js';
+import type { ApprovalRequest, ApprovalRequestDetails } from './types.js';
 
 /**
  * Factory function to create an approval request with generated ID and timestamp.
  *
- * This is a generic helper used by all approval providers to create properly
+ * This is a generic helper used by ApprovalManager to create properly
  * formatted approval requests from simplified details.
  *
  * @param details - Simplified approval request details without ID and timestamp

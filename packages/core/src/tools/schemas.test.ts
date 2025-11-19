@@ -55,7 +55,7 @@ describe('InternalToolsSchema', () => {
 describe('ToolConfirmationConfigSchema', () => {
     describe('Field Validation', () => {
         it('should validate mode enum values', () => {
-            const validModes = ['event-based', 'auto-approve', 'auto-deny'];
+            const validModes = ['manual', 'auto-approve', 'auto-deny'];
 
             validModes.forEach((mode) => {
                 const result = ToolConfirmationConfigSchema.parse({ mode });
@@ -117,7 +117,7 @@ describe('ToolConfirmationConfigSchema', () => {
             const result = ToolConfirmationConfigSchema.parse({});
 
             expect(result).toEqual({
-                mode: 'event-based',
+                mode: 'manual',
                 timeout: 120000,
                 allowedToolsStorage: 'storage',
                 toolPolicies: {
@@ -141,7 +141,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
             const result2 = ToolConfirmationConfigSchema.parse({ timeout: 15000 });
             expect(result2).toEqual({
-                mode: 'event-based',
+                mode: 'manual',
                 timeout: 15000,
                 allowedToolsStorage: 'storage',
                 toolPolicies: {
@@ -152,7 +152,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
             const result3 = ToolConfirmationConfigSchema.parse({ allowedToolsStorage: 'memory' });
             expect(result3).toEqual({
-                mode: 'event-based',
+                mode: 'manual',
                 timeout: 120000,
                 allowedToolsStorage: 'memory',
                 toolPolicies: {
@@ -219,7 +219,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
         it('should reject extra fields with strict validation', () => {
             const configWithExtra = {
-                mode: 'event-based',
+                mode: 'manual',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
                 unknownField: 'should fail',
@@ -237,7 +237,7 @@ describe('ToolConfirmationConfigSchema', () => {
             const input: ToolConfirmationConfig = {};
             const inputPartial: ToolConfirmationConfig = { mode: 'auto-approve' };
             const inputFull: ToolConfirmationConfig = {
-                mode: 'event-based',
+                mode: 'manual',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
             };
@@ -261,7 +261,7 @@ describe('ToolConfirmationConfigSchema', () => {
     describe('Real-world Scenarios', () => {
         it('should handle interactive mode configuration', () => {
             const interactiveConfig = {
-                mode: 'event-based' as const,
+                mode: 'manual' as const,
                 timeout: 30000,
                 allowedToolsStorage: 'storage' as const,
                 toolPolicies: {
@@ -306,7 +306,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
         it('should handle configuration with tool policies', () => {
             const configWithPolicies = {
-                mode: 'event-based' as const,
+                mode: 'manual' as const,
                 timeout: 30000,
                 allowedToolsStorage: 'storage' as const,
                 toolPolicies: {

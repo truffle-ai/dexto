@@ -632,7 +632,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory'); // Storage schema default
             expect(result.sessions.maxSessions).toBe(100); // Session schema default
-            expect(result.toolConfirmation.mode).toBe('event-based'); // Tool schema default
+            expect(result.toolConfirmation.mode).toBe('manual'); // Tool schema default
         });
     });
 
@@ -748,7 +748,7 @@ describe('AgentConfigSchema', () => {
                     sessionTTL: 7200,
                 },
                 toolConfirmation: {
-                    mode: 'event-based',
+                    mode: 'manual',
                     timeout: 45000,
                     allowedToolsStorage: 'storage',
                 },
@@ -786,7 +786,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage.database.type).toBe('in-memory');
             expect(result.storage.blob.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
-            expect(result.toolConfirmation.mode).toBe('event-based');
+            expect(result.toolConfirmation.mode).toBe('manual');
             expect(result.llm.maxIterations).toBe(50);
             expect(result.llm.router).toBe('vercel');
         });

@@ -152,7 +152,7 @@ internalTools:
   - ask_user
 
 toolConfirmation:
-  mode: event-based
+  mode: manual
   toolPolicies:
     alwaysAllow:
       - internal--read_file
@@ -172,7 +172,7 @@ internalTools:
   - kill_process
 
 toolConfirmation:
-  mode: event-based
+  mode: manual
   toolPolicies:
     alwaysAllow:
       - internal--read_file
@@ -188,7 +188,7 @@ Configure which tools require approval:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   toolPolicies:
     # Safe, read-only operations
     alwaysAllow:

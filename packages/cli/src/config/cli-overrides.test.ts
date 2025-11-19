@@ -23,7 +23,7 @@ describe('CLI Overrides', () => {
             router: 'vercel', // Add router field so test expectations work
         },
         toolConfirmation: {
-            mode: 'event-based',
+            mode: 'manual',
             timeout: 120000,
             allowedToolsStorage: 'storage',
         },

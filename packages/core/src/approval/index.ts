@@ -5,7 +5,6 @@
 // Types
 export type {
     ApprovalHandler,
-    ApprovalProvider,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
@@ -72,6 +71,5 @@ export type {
 export { ApprovalManager } from './manager.js';
 export type { ApprovalManagerConfig } from './manager.js';
 
-// Providers
-export { EventBasedApprovalProvider } from './providers/event-based-approval-provider.js';
-export { NoOpApprovalProvider } from './providers/noop-approval-provider.js';
+// Note: ApprovalProvider classes are internal implementation details
+// External consumers should use ApprovalHandler instead

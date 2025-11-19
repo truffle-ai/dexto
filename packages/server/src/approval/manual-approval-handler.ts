@@ -116,14 +116,28 @@ export function createManualApprovalHandler(
 
             // Emit the approval:request event
             // SSE subscribers will pick this up and forward to clients
-            eventBus.emit('approval:request', {
+            const eventData: {
+                approvalId: string;
+                type: string;
+                timestamp: Date;
+                metadata: Record<string, unknown>;
+                sessionId?: string;
+                timeout?: number;
+            } = {
                 approvalId: request.approvalId,
                 type: request.type,
                 timestamp: request.timestamp,
                 metadata: request.metadata,
-                sessionId: request.sessionId,
-                timeout: request.timeout,
-            });
+            };
+
+            if (request.sessionId !== undefined) {
+                eventData.sessionId = request.sessionId;
+            }
+            if (request.timeout !== undefined) {
+                eventData.timeout = request.timeout;
+            }
+
+            eventBus.emit('approval:request', eventData);
         });
     };
 

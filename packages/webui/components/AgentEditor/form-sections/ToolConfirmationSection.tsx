@@ -67,10 +67,7 @@ export function ToolConfirmationSection({
                         value={value.mode || DEFAULT_TOOL_CONFIRMATION_MODE}
                         onChange={(e) =>
                             handleChange({
-                                mode: e.target.value as
-                                    | 'auto-approve'
-                                    | 'event-based'
-                                    | 'auto-deny',
+                                mode: e.target.value as 'auto-approve' | 'manual' | 'auto-deny',
                             })
                         }
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -79,14 +76,14 @@ export function ToolConfirmationSection({
                             <option key={mode} value={mode}>
                                 {mode === 'auto-approve'
                                     ? 'Auto-approve'
-                                    : mode === 'event-based'
-                                      ? 'Event-based'
+                                    : mode === 'manual'
+                                      ? 'Manual'
                                       : 'Auto-deny'}
                             </option>
                         ))}
                     </select>
                     <p className="text-xs text-muted-foreground mt-1">
-                        {value.mode === 'event-based'
+                        {value.mode === 'manual'
                             ? 'Require explicit approval before executing tools'
                             : value.mode === 'auto-deny'
                               ? 'Automatically deny all tool executions'
@@ -95,7 +92,7 @@ export function ToolConfirmationSection({
                 </div>
 
                 {/* Timeout */}
-                {value.mode === 'event-based' && (
+                {value.mode === 'manual' && (
                     <div>
                         <LabelWithTooltip
                             htmlFor="confirmation-timeout"

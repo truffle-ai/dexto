@@ -236,60 +236,58 @@ export type ApprovalResponse = z.output<typeof ApprovalResponseSchema>;
 export type ApprovalRequestDetails = z.output<typeof ApprovalRequestDetailsSchema>;
 
 /**
- * Handler function for processing approval requests.
+ * Handler interface for processing approval requests.
  *
  * This is the core abstraction for approval handling in Dexto. When tool confirmation
  * mode is 'manual', a handler must be provided to process approval requests.
  *
- * The handler receives an approval request and must return a promise that resolves
- * to an approval response. The handler is responsible for:
- * - Presenting the approval request to the user (CLI, UI, webhook, etc.)
- * - Collecting the user's decision
- * - Returning an appropriate response with approved/denied/cancelled status
- *
- * @param request The approval request to handle
- * @returns Promise resolving to the approval response
+ * The handler is a callable interface that:
+ * - Processes approval requests and returns responses
+ * - Manages pending approval state (for cancellation)
+ * - Provides lifecycle management methods
  *
  * @example
  * ```typescript
- * const handler: ApprovalHandler = async (request) => {
- *   console.log(`Approve tool: ${request.metadata.toolName}?`);
- *   // In real implementation, wait for user input
- *   return {
- *     approvalId: request.approvalId,
- *     status: ApprovalStatus.APPROVED,
- *     sessionId: request.sessionId,
- *   };
- * };
+ * const handler: ApprovalHandler = Object.assign(
+ *   async (request: ApprovalRequest) => {
+ *     console.log(`Approve tool: ${request.metadata.toolName}?`);
+ *     // In real implementation, wait for user input
+ *     return {
+ *       approvalId: request.approvalId,
+ *       status: ApprovalStatus.APPROVED,
+ *       sessionId: request.sessionId,
+ *     };
+ *   },
+ *   {
+ *     cancel: (id: string) => { },
+ *     cancelAll: () => { },
+ *     getPending: () => [] as string[],
+ *   }
+ * );
  * ```
  */
-export type ApprovalHandler = (request: ApprovalRequest) => Promise<ApprovalResponse>;
-
-/**
- * Interface for approval providers
- * @deprecated Will be removed in favor of ApprovalHandler
- */
-export interface ApprovalProvider {
+export interface ApprovalHandler {
     /**
-     * Request approval from the user
-     * @param request The approval request details
+     * Process an approval request
+     * @param request The approval request to handle
      * @returns Promise resolving to the approval response
      */
-    requestApproval(request: ApprovalRequest): Promise<ApprovalResponse>;
+    (request: ApprovalRequest): Promise<ApprovalResponse>;
 
     /**
-     * Cancel a pending approval request
+     * Cancel a specific pending approval request
      * @param approvalId The ID of the approval to cancel
      */
-    cancelApproval(approvalId: string): void;
+    cancel(approvalId: string): void;
 
     /**
      * Cancel all pending approval requests
      */
-    cancelAllApprovals(): void;
+    cancelAll(): void;
 
     /**
      * Get list of pending approval request IDs
+     * @returns Array of approval IDs currently pending
      */
-    getPendingApprovals(): string[];
+    getPending(): string[];
 }

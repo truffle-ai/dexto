@@ -85,7 +85,7 @@ mcpServers:
 
 # Tool Confirmation
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 120000
   allowedToolsStorage: storage
   toolPolicies:
@@ -358,7 +358,7 @@ Tool approval and confirmation behavior.
 
 ```yaml
 toolConfirmation:
-  mode: event-based | auto-approve | auto-deny  # Default: event-based
+  mode: manual | auto-approve | auto-deny  # Default: manual
   timeout: number               # Default: 120000ms
   allowedToolsStorage: memory | storage  # Default: storage
   toolPolicies:                 # Optional
@@ -375,7 +375,7 @@ toolConfirmation:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   toolPolicies:
     alwaysAllow:
       - internal--ask_user

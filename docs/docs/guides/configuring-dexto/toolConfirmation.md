@@ -25,17 +25,17 @@ The tool confirmation system provides security and oversight by controlling whic
 
 | Mode | Behavior | Use Case |
 |------|----------|----------|
-| **event-based** | Interactive prompts via CLI/WebUI | Production with oversight |
+| **manual** | Interactive prompts via CLI/WebUI | Production with oversight |
 | **auto-approve** | Automatically approve all tools | Development/testing |
 | **auto-deny** | Block all tool execution | Read-only/high-security |
 
-### event-based (Default)
+### manual (Default)
 
 Interactive confirmation via CLI prompts or WebUI dialogs:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 30000               # 30 seconds
   allowedToolsStorage: storage # Persist across sessions
 ```
@@ -81,7 +81,7 @@ Fine-grained control over specific tools:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   toolPolicies:
     alwaysAllow:
       - internal--ask_user
@@ -154,7 +154,7 @@ toolConfirmation:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 60000
   allowedToolsStorage: storage
   toolPolicies:
@@ -170,7 +170,7 @@ toolConfirmation:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   allowedToolsStorage: memory
   toolPolicies:
     alwaysAllow: []
@@ -180,9 +180,9 @@ toolConfirmation:
       - internal--bash_exec
 ```
 
-## Event-Based Flow
+## Manual Mode Flow
 
-In event-based mode, confirmation uses an event-driven architecture:
+In manual mode, confirmation uses an event-driven architecture:
 
 1. Agent requests tool execution
 2. System emits `approval:request` event
@@ -195,7 +195,7 @@ In event-based mode, confirmation uses an event-driven architecture:
 
 ## Best Practices
 
-1. **Use event-based in production** - Maintain oversight and control
+1. **Use manual mode in production** - Maintain oversight and control
 2. **Set reasonable timeouts** - Balance security with user experience
 3. **Enable read-only tools** - Allow safe operations without confirmation
 4. **Block destructive operations** - Use `alwaysDeny` for dangerous tools
@@ -207,10 +207,10 @@ In event-based mode, confirmation uses an event-driven architecture:
 | Scenario | Configuration |
 |----------|--------------|
 | **Development** | auto-approve + memory storage |
-| **Production** | event-based + storage + policies |
+| **Production** | manual + storage + policies |
 | **CI/CD** | auto-deny (no tool execution) |
-| **Read-only** | event-based + alwaysAllow read operations |
-| **High-security** | event-based + memory storage + strict deny list |
+| **Read-only** | manual + alwaysAllow read operations |
+| **High-security** | manual + memory storage + strict deny list |
 
 ## See Also
 

@@ -1,16 +1,14 @@
 import type {
     ApprovalHandler,
-    ApprovalProvider,
+    ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
     ToolConfirmationMetadata,
     CommandConfirmationMetadata,
     ElicitationMetadata,
 } from './types.js';
-import { ApprovalType, ApprovalStatus } from './types.js';
-import { EventBasedApprovalProvider } from './providers/event-based-approval-provider.js';
-import { NoOpApprovalProvider } from './providers/noop-approval-provider.js';
-import { createApprovalRequest } from './providers/factory.js';
+import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+import { createApprovalRequest } from './factory.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -42,11 +40,11 @@ export interface ApprovalManagerConfig {
  * - Route approvals to appropriate providers
  * - Provide convenience methods for specific approval types
  * - Handle approval responses and errors
- * - Support multiple approval modes (event-based, auto-approve, auto-deny)
+ * - Support multiple approval modes (manual, auto-approve, auto-deny)
  *
  * @example
  * ```typescript
- * const manager = new ApprovalManager(eventBus, { mode: 'event-based' });
+ * const manager = new ApprovalManager(eventBus, { mode: 'manual' });
  *
  * // Request tool confirmation
  * const response = await manager.requestToolConfirmation({
@@ -61,30 +59,17 @@ export interface ApprovalManagerConfig {
  * ```
  */
 export class ApprovalManager {
-    private handler?: ApprovalHandler & {
-        cancel?: (approvalId: string) => void;
-        cancelAll?: () => void;
-        getPending?: () => string[];
-    };
-    private elicitationProvider: ApprovalProvider | null;
+    private handler: ApprovalHandler | undefined;
     private config: ApprovalManagerConfig;
     private logger: IDextoLogger;
 
-    constructor(agentEventBus: AgentEventBus, config: ApprovalManagerConfig, logger: IDextoLogger) {
+    constructor(
+        _agentEventBus: AgentEventBus,
+        config: ApprovalManagerConfig,
+        logger: IDextoLogger
+    ) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
-
-        // Create provider for elicitation (or null if disabled)
-        // TODO: Convert elicitation to handler-based approach as well
-        this.elicitationProvider = config.elicitation.enabled
-            ? new EventBasedApprovalProvider(
-                  agentEventBus,
-                  {
-                      defaultTimeout: config.elicitation.timeout,
-                  },
-                  this.logger
-              )
-            : null;
 
         this.logger.debug(
             `ApprovalManager initialized with toolConfirmation.mode: ${config.toolConfirmation.mode}, elicitation.enabled: ${config.elicitation.enabled}`
@@ -97,26 +82,32 @@ export class ApprovalManager {
     async requestApproval(details: ApprovalRequestDetails): Promise<ApprovalResponse> {
         const request = createApprovalRequest(details);
 
-        // Route based on approval type
-        if (request.type === ApprovalType.ELICITATION) {
-            // Elicitation uses the provider (for now)
-            if (this.elicitationProvider === null) {
-                throw ApprovalError.invalidConfig(
-                    'Elicitation is disabled. Enable elicitation in your agent configuration to use the ask_user tool or MCP server elicitations.'
-                );
-            }
-            return this.elicitationProvider.requestApproval(request);
+        // Check elicitation config if this is an elicitation request
+        if (request.type === ApprovalType.ELICITATION && !this.config.elicitation.enabled) {
+            throw ApprovalError.invalidConfig(
+                'Elicitation is disabled. Enable elicitation in your agent configuration to use the ask_user tool or MCP server elicitations.'
+            );
         }
 
-        // Tool/command/custom confirmations use the handler-based approach
-        return this.handleToolConfirmation(request);
+        // Handle all approval types uniformly
+        return this.handleApproval(request);
     }
 
     /**
-     * Handle tool/command/custom confirmation requests
+     * Handle approval requests (tool confirmation, elicitation, command confirmation, custom)
      * @private
      */
-    private async handleToolConfirmation(request: ApprovalRequest): Promise<ApprovalResponse> {
+    private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
+        // Elicitation always uses manual mode (requires handler)
+        if (request.type === ApprovalType.ELICITATION) {
+            const handler = this.ensureHandler();
+            this.logger.info(
+                `Elicitation requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
+            );
+            return handler(request);
+        }
+
+        // Tool/command/custom confirmations respect the configured mode
         const mode = this.config.toolConfirmation.mode;
 
         // Auto-approve mode
@@ -280,7 +271,7 @@ export class ApprovalManager {
 
         if (response.status === ApprovalStatus.APPROVED) {
             // Handle auto-approve mode where data might be missing
-            // Return empty formData object for approved-without-data case (e.g., NoOpApprovalProvider)
+            // Return empty formData object for approved-without-data case (e.g., auto-approve mode)
             if (
                 response.data &&
                 typeof response.data === 'object' &&
@@ -312,31 +303,21 @@ export class ApprovalManager {
      * Cancel a specific approval request
      */
     cancelApproval(approvalId: string): void {
-        // Try to cancel in handler if it supports cancellation
         this.handler?.cancel?.(approvalId);
-        // Also cancel in elicitation provider
-        this.elicitationProvider?.cancelApproval(approvalId);
     }
 
     /**
      * Cancel all pending approval requests
      */
     cancelAllApprovals(): void {
-        // Cancel all in handler if it supports cancellation
         this.handler?.cancelAll?.();
-        // Also cancel all in elicitation provider
-        this.elicitationProvider?.cancelAllApprovals();
     }
 
     /**
      * Get list of pending approval IDs
      */
     getPendingApprovals(): string[] {
-        // Get pending from handler if it supports it
-        const handlerPending = this.handler?.getPending?.() ?? [];
-        // Get pending from elicitation provider
-        const elicitationPending = this.elicitationProvider?.getPendingApprovals() ?? [];
-        return [...handlerPending, ...elicitationPending];
+        return this.handler?.getPending?.() ?? [];
     }
 
     /**
@@ -355,7 +336,11 @@ export class ApprovalManager {
      * @param handler The approval handler function, or null to clear
      */
     setHandler(handler: ApprovalHandler | null): void {
-        this.handler = handler ?? undefined;
+        if (handler === null) {
+            this.handler = undefined;
+        } else {
+            this.handler = handler;
+        }
         this.logger.debug(`Approval handler ${handler ? 'registered' : 'cleared'}`);
     }
 

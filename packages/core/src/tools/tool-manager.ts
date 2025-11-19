@@ -570,7 +570,7 @@ export class ToolManager {
 
     /**
      * Handle tool approval/confirmation flow
-     * Checks allowed list, manages approval modes (event-based, auto-approve, auto-deny),
+     * Checks allowed list, manages approval modes (manual, auto-approve, auto-deny),
      * and handles remember choice logic
      */
     private async handleToolApproval(

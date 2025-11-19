@@ -9981,12 +9981,12 @@
                           "mode": {
                             "type": "string",
                             "enum": [
-                              "event-based",
+                              "manual",
                               "auto-approve",
                               "auto-deny"
                             ],
-                            "default": "event-based",
-                            "description": "Tool confirmation mode: event-based (interactive), auto-approve (all tools), auto-deny (no tools)"
+                            "default": "manual",
+                            "description": "Tool confirmation mode: manual (interactive), auto-approve (all tools), auto-deny (no tools)"
                           },
                           "timeout": {
                             "type": "integer",

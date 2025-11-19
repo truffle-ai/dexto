@@ -51,7 +51,7 @@ describe('AgentStateManager Events', () => {
                 sessionTTL: 3600000,
             },
             toolConfirmation: {
-                mode: 'event-based',
+                mode: 'manual',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
             },

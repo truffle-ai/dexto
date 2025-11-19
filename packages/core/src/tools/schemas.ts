@@ -49,7 +49,7 @@ export const ToolConfirmationConfigSchema = z
             .enum(TOOL_CONFIRMATION_MODES)
             .default(DEFAULT_TOOL_CONFIRMATION_MODE)
             .describe(
-                'Tool confirmation mode: event-based (interactive), auto-approve (all tools), auto-deny (no tools)'
+                'Tool confirmation mode: manual (interactive), auto-approve (all tools), auto-deny (no tools)'
             ),
         timeout: z
             .number()

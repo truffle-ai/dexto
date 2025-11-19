@@ -84,7 +84,7 @@ storage:
     # storePath: (automatically provided by CLI as ~/.dexto/blobs/<agent-id>)
 
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 120000          # Time to wait for approval (ms)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 

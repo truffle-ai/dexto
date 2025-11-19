@@ -122,7 +122,7 @@ describe('ApprovalManager', () => {
                 agentEventBus,
                 {
                     toolConfirmation: {
-                        mode: 'event-based',
+                        mode: 'manual',
                         timeout: 60000,
                     },
                     elicitation: {
@@ -205,7 +205,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            // Elicitation should not be auto-denied (uses event-based provider)
+            // Elicitation should not be auto-denied (uses manual handler)
             // We'll timeout immediately to avoid hanging tests
             await expect(
                 manager.requestElicitation({
@@ -229,7 +229,7 @@ describe('ApprovalManager', () => {
                 agentEventBus,
                 {
                     toolConfirmation: {
-                        mode: 'event-based',
+                        mode: 'manual',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -252,7 +252,7 @@ describe('ApprovalManager', () => {
                 agentEventBus,
                 {
                     toolConfirmation: {
-                        mode: 'event-based',
+                        mode: 'manual',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -337,12 +337,12 @@ describe('ApprovalManager', () => {
     });
 
     describe('Backward compatibility', () => {
-        it('should work with event-based mode for both tools and elicitation', () => {
+        it('should work with manual mode for both tools and elicitation', () => {
             const manager = new ApprovalManager(
                 agentEventBus,
                 {
                     toolConfirmation: {
-                        mode: 'event-based',
+                        mode: 'manual',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -355,7 +355,7 @@ describe('ApprovalManager', () => {
 
             expect(manager.getConfig()).toEqual({
                 toolConfirmation: {
-                    mode: 'event-based',
+                    mode: 'manual',
                     timeout: 120000,
                 },
                 elicitation: {
@@ -370,7 +370,7 @@ describe('ApprovalManager', () => {
                 agentEventBus,
                 {
                     toolConfirmation: {
-                        mode: 'event-based',
+                        mode: 'manual',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -449,7 +449,7 @@ describe('ApprovalManager', () => {
                 agentEventBus,
                 {
                     toolConfirmation: {
-                        mode: 'event-based',
+                        mode: 'manual',
                         timeout: 1, // Quick timeout for test
                     },
                     elicitation: {
