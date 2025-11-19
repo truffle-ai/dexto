@@ -365,6 +365,7 @@ export class ApprovalManager {
      */
     private ensureHandler(): ApprovalHandler {
         if (!this.handler) {
+            // TODO: add an example for usage here for users
             throw ApprovalError.invalidConfig(
                 'Tool confirmation mode is "manual" but no approval handler is configured.\n' +
                     'Either:\n' +
