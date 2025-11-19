@@ -1,13 +1,13 @@
 # Dexto Client SDK
 
-A ultra-lightweight, zero-dependency HTTP/WebSocket client SDK for the Dexto API.
+A ultra-lightweight, zero-dependency HTTP client SDK for the Dexto API.
 
 ## Features
 
 - 🚀 **Ultra-lightweight**: Only 80KB bundle size
 - 🔌 **Zero dependencies**: No external libraries
 - 🌐 **Universal**: Works in Node.js, browsers, and React Native
-- 📡 **HTTP + WebSocket**: Full REST API and real-time support
+- 📡 **HTTP + SSE**: Full REST API and real-time SSE streaming support
 - 🛡️ **TypeScript**: Full type safety
 - 🔄 **Auto-retry**: Built-in retry logic with exponential backoff
 - ⚡ **Fast**: Server-side validation, client-side pass-through
@@ -48,7 +48,6 @@ const client = new DextoClient({
   timeout: 30000,                           // Optional: Request timeout (ms)
   retries: 3,                              // Optional: Retry attempts
 }, {
-  enableWebSocket: true,                    // Optional: Enable WebSocket
   reconnect: true,                         // Optional: Auto-reconnect
   reconnectInterval: 5000,                 // Optional: Reconnect delay (ms)
   debug: false                             // Optional: Debug logging
@@ -64,7 +63,7 @@ const client = new DextoClient({
 
 ### Messaging
 - `sendMessage(input)` - Send message (HTTP)
-- `sendMessageStream(input)` - Send message (WebSocket)
+- SSE streaming available via `/api/message-stream` endpoint
 
 ### Session Management
 - `listSessions()` - List all sessions

@@ -52,9 +52,6 @@ export interface ClientConfig {
 }
 
 export interface ClientOptions {
-    enableWebSocket?: boolean | undefined;
-    reconnect?: boolean | undefined;
-    reconnectInterval?: number | undefined;
     debug?: boolean | undefined;
 }
 
