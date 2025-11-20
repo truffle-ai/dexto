@@ -144,6 +144,7 @@ export class ChatSession {
         this.setupEventForwarding();
 
         // Services will be initialized in init() method due to async requirements
+        this.logger.debug(`ChatSession ${this.id}: Created, awaiting initialization`);
     }
 
     /**
@@ -583,6 +584,8 @@ export class ChatSession {
      * Without this cleanup, sessions would remain in memory due to listener references.
      */
     public dispose(): void {
+        this.logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
+
         // Remove all event forwarders from the session event bus
         this.forwarders.forEach((forwarder, eventName) => {
             this.eventBus.off(eventName, forwarder);
@@ -590,6 +593,8 @@ export class ChatSession {
 
         // Clear the forwarders map
         this.forwarders.clear();
+
+        this.logger.debug(`Session ${this.id} disposed successfully`);
     }
 
     /**

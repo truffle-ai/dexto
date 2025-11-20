@@ -62,7 +62,7 @@ export const TestConfigs = {
                 provider,
                 model: 'gpt-5-nano', // Use cheapest model for testing
                 apiKey,
-                maxOutputTokens: 500, // Increased from 100 to avoid empty responses
+                maxOutputTokens: 100, // Keep costs low
                 temperature: 0, // Deterministic responses
                 maxIterations: 1, // Minimal tool iterations
             },
@@ -77,7 +77,7 @@ export const TestConfigs = {
                 sessionTTL: 60000, // 60s for tests
             },
             logger: {
-                level: 'debug',
+                level: 'info',
                 transports: [{ type: 'console' }],
             },
         };
@@ -101,7 +101,7 @@ export const TestConfigs = {
                 provider,
                 model: 'claude-haiku-4-5-20251001', // Use cheapest model for testing
                 apiKey,
-                maxOutputTokens: 500, // Increased from 100 to avoid empty responses
+                maxOutputTokens: 100,
                 temperature: 0,
                 maxIterations: 1,
             },
@@ -116,7 +116,7 @@ export const TestConfigs = {
                 sessionTTL: 60000,
             },
             logger: {
-                level: 'debug',
+                level: 'info',
                 transports: [{ type: 'console' }],
             },
         };
@@ -151,7 +151,7 @@ export const TestConfigs = {
                 provider,
                 model: model || defaultModels[provider],
                 apiKey,
-                maxOutputTokens: 500, // Increased from 100 to avoid empty responses
+                maxOutputTokens: 100,
                 temperature: 0,
                 maxIterations: 1,
             },
@@ -166,7 +166,7 @@ export const TestConfigs = {
                 sessionTTL: 60000,
             },
             logger: {
-                level: 'debug',
+                level: 'info',
                 transports: [{ type: 'console' }],
             },
         };

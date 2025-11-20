@@ -106,9 +106,6 @@ apiProcess.on('error', (err) => {
     cleanup();
 });
 
-// SSE streaming available via /api/message-stream for both Express and Hono
-const wsUrl = 'ws://localhost:3001/';
-
 // Give API server time to start
 setTimeout(() => {
     console.log('\n🎨 Starting WebUI dev server on port 3000...');
@@ -121,7 +118,6 @@ setTimeout(() => {
             PORT: '3000',
             API_PORT: '3001',
             NEXT_PUBLIC_API_URL: 'http://localhost:3001',
-            NEXT_PUBLIC_WS_URL: wsUrl,
             NEXT_PUBLIC_FRONTEND_URL: 'http://localhost:3000',
         },
     });
