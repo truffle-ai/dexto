@@ -357,7 +357,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     app.openapi(saveKeyRoute, async (ctx) => {
         const { provider, apiKey } = ctx.req.valid('json');
         const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
-        return ctx.json({ ok: true, provider, envVar: meta.envVar });
+        return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
     });
 
     const switchRoute = createRoute({
