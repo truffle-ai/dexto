@@ -136,7 +136,7 @@ export class DextoAgent {
      */
     public readonly mcpManager!: MCPManager;
     public readonly systemPromptManager!: SystemPromptManager;
-    public agentEventBus!: AgentEventBus;
+    public readonly agentEventBus!: AgentEventBus;
     public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
