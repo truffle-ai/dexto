@@ -280,12 +280,12 @@ Dexto's generalized approval system handles various types of user input requests
 
 #### `approval:request`
 
-Fired when user approval or input is requested. This event supports multiple approval types through a discriminated union based on the `approvalType` field.
+Fired when user approval or input is requested. This event supports multiple approval types through a discriminated union based on the `type` field.
 
 ```typescript
 {
   approvalId: string;           // Unique identifier for this approval request
-  approvalType: string;         // 'tool_confirmation' | 'elicitation' | 'custom'
+  type: string;                 // 'tool_confirmation' | 'command_confirmation' | 'elicitation'
   sessionId?: string;           // Optional session scope
   timeout?: number;             // Request timeout in milliseconds
   timestamp: Date;              // When the request was created
@@ -538,42 +538,3 @@ agent.agentEventBus.on('state:exported', (payload) => {
 });
 ```
 
----
-
-## Migration from Old Event Names
-
-If you're upgrading from an older version of Dexto, here's the mapping of old to new event names:
-
-| Old Event Name | New Event Name |
-|---|---|
-| `dexto:conversationReset` | `session:reset` |
-| `dexto:sessionCreated` | `session:created` |
-| `dexto:sessionTitleUpdated` | `session:title-updated` |
-| `dexto:sessionOverrideSet` | `session:override-set` |
-| `dexto:sessionOverrideCleared` | `session:override-cleared` |
-| `dexto:mcpServerConnected` | `mcp:server-connected` |
-| `dexto:mcpServerAdded` | `mcp:server-added` |
-| `dexto:mcpServerRemoved` | `mcp:server-removed` |
-| `dexto:mcpServerUpdated` | `mcp:server-updated` |
-| `dexto:mcpServerRestarted` | `mcp:server-restarted` |
-| `dexto:mcpResourceUpdated` | `mcp:resource-updated` |
-| `dexto:mcpPromptsListChanged` | `mcp:prompts-list-changed` |
-| `dexto:mcpToolsListChanged` | `mcp:tools-list-changed` |
-| `dexto:resourceCacheInvalidated` | `resource:cache-invalidated` |
-| `dexto:availableToolsUpdated` | `tools:available-updated` |
-| `dexto:llmSwitched` | `llm:switched` |
-| `dexto:stateChanged` | `state:changed` |
-| `dexto:stateExported` | `state:exported` |
-| `dexto:stateReset` | `state:reset` |
-| `dexto:approvalRequest` | `approval:request` |
-| `dexto:approvalResponse` | `approval:response` |
-| `llmservice:thinking` | `llm:thinking` |
-| `llmservice:response` | `llm:response` |
-| `llmservice:chunk` | `llm:chunk` |
-| `llmservice:toolCall` | `llm:tool-call` |
-| `llmservice:toolResult` | `llm:tool-result` |
-| `llmservice:error` | `llm:error` |
-| `llmservice:switched` | `llm:switched` |
-| `llmservice:unsupportedInput` | `llm:unsupported-input` |
-
-**Note:** The `llm:chunk` event's `type` property has been renamed to `chunkType` to avoid conflicts with the event discriminator.
