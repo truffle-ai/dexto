@@ -136,7 +136,7 @@ export class DextoAgent {
      */
     public readonly mcpManager!: MCPManager;
     public readonly systemPromptManager!: SystemPromptManager;
-    public readonly agentEventBus!: AgentEventBus;
+    public agentEventBus!: AgentEventBus;
     public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
@@ -188,8 +188,7 @@ export class DextoAgent {
         });
 
         // Create event bus early so it's available for approval handler creation
-        const eventBus = new AgentEventBus();
-        Object.assign(this, { agentEventBus: eventBus });
+        this.agentEventBus = new AgentEventBus();
 
         // call start() to initialize services
         this.logger.info('DextoAgent created.');
