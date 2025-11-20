@@ -698,7 +698,12 @@ export class DextoAgent {
             })
             .filter(Boolean);
 
-        // Generate message ID (or extract from events if needed)
+        // TODO: Message ID infrastructure exists but not fully utilized yet
+        // Future enhancements:
+        // - Persist messageId in conversation history for tracking
+        // - Use for idempotency (prevent duplicate processing)
+        // - Enable message-level operations (edit, regenerate, etc.)
+        // - Correlate with tool calls and approval requests
         const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
         // Ensure usage matches LLMTokenUsage type with all required fields
