@@ -230,6 +230,7 @@ dexto --mode server
 - `POST /api/message-sync`: Send a prompt and wait for the complete response.
   - Body: `{ "sessionId": "your-session-id", "message": "your prompt here" }`
   - Response: JSON with complete text
+- `POST /api/message`: ⚠️ **Deprecated** - Send asynchronously (use `/api/message-stream` instead)
 
 ```ts
 // POST to /api/message-stream - response IS the SSE stream

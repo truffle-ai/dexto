@@ -20,6 +20,7 @@ When Dexto runs in web mode, it provides these endpoints:
 
 - **`POST /api/message-sync`** - Send message and get complete response
 - **`POST /api/message-stream`** - Send message and stream response via SSE (response IS the stream)
+- **`POST /api/message`** - ⚠️ Deprecated: Send message asynchronously (use `/api/message-stream` for SSE instead)
 - **`POST /api/reset`** - Reset conversation history
 - **`POST /api/mcp/servers`** - Dynamically add new MCP servers
 - **`GET /api/mcp/servers`** - List connected servers
