@@ -500,11 +500,6 @@ for await (const event of await agent.stream('Hello!', { sessionId: 'session-1' 
     case 'llm:tool-call':
       console.log(`Calling tool: ${event.toolName}`);
       break;
-    case 'approval:request':
-      // Note: Only available when using server/API mode with manual approval handler
-      // For custom handlers, handle approvals in your handler implementation instead
-      console.log('Approval needed:', event.metadata);
-      break;
   }
 }
 ```

@@ -76,10 +76,6 @@ export const STREAMING_EVENTS = [
     'llm:error',
     'llm:unsupported-input',
 
-    // Approval events
-    'approval:request',
-    'approval:response',
-
     // Session metadata
     'session:title-updated',
 ] as const;
@@ -155,8 +151,6 @@ export type StreamingEvent =
     | ({ type: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
     | ({ type: 'llm:error' } & AgentEventMap['llm:error'])
     | ({ type: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
-    | ({ type: 'approval:request' } & AgentEventMap['approval:request'])
-    | ({ type: 'approval:response' } & AgentEventMap['approval:response'])
     | ({ type: 'session:title-updated' } & AgentEventMap['session:title-updated']);
 
 /**
