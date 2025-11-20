@@ -2653,6 +2653,40 @@
                     "sessionId": {
                       "type": "string",
                       "description": "Session ID used for this message"
+                    },
+                    "tokenUsage": {
+                      "type": "object",
+                      "properties": {
+                        "inputTokens": {
+                          "type": "number"
+                        },
+                        "outputTokens": {
+                          "type": "number"
+                        },
+                        "totalTokens": {
+                          "type": "number"
+                        },
+                        "reasoningTokens": {
+                          "type": "number"
+                        }
+                      },
+                      "description": "Token usage statistics"
+                    },
+                    "reasoning": {
+                      "type": "string",
+                      "description": "Extended thinking (o1/o3 models)"
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "Model used for this response"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "description": "LLM provider"
+                    },
+                    "router": {
+                      "type": "string",
+                      "description": "Router used (e.g., vercel)"
                     }
                   },
                   "required": [
