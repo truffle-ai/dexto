@@ -98,7 +98,9 @@ export class EventStreamClient {
                         return { value: undefined, done: true };
                     }
 
-                    buffer += decoder.decode(value, { stream: true });
+                    // Normalize CRLF to LF for spec-compliance
+                    // SSE spec allows CRLF, LF, or CR as line endings
+                    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
                 }
             },
             async return() {
@@ -116,7 +118,8 @@ export class EventStreamClient {
 }
 
 function parseSSE(raw: string): SSEEvent | null {
-    const lines = raw.split('\n');
+    // Split on LF and trim any trailing CR from each line
+    const lines = raw.split('\n').map((line) => line.replace(/\r$/, ''));
     const event: SSEEvent = {};
     let hasData = false;
 
