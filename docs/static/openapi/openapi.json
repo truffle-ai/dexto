@@ -2478,10 +2478,6 @@
                     "minLength": 1,
                     "description": "The session to use for this message"
                   },
-                  "stream": {
-                    "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over SSE"
-                  },
                   "imageData": {
                     "type": "object",
                     "properties": {
@@ -2533,15 +2529,18 @@
         },
         "responses": {
           "202": {
-            "description": "Message queued",
+            "description": "Message accepted for async processing; subscribe to SSE for results",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "response": {
-                      "type": "string",
-                      "description": "Agent response text"
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates request was accepted"
                     },
                     "sessionId": {
                       "type": "string",
@@ -2549,7 +2548,7 @@
                     }
                   },
                   "required": [
-                    "response",
+                    "accepted",
                     "sessionId"
                   ],
                   "additionalProperties": false
@@ -2584,10 +2583,6 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "The session to use for this message"
-                  },
-                  "stream": {
-                    "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over SSE"
                   },
                   "imageData": {
                     "type": "object",
@@ -2658,23 +2653,27 @@
                       "type": "object",
                       "properties": {
                         "inputTokens": {
-                          "type": "number"
+                          "type": "number",
+                          "description": "Number of input tokens"
                         },
                         "outputTokens": {
-                          "type": "number"
+                          "type": "number",
+                          "description": "Number of output tokens"
                         },
                         "totalTokens": {
-                          "type": "number"
+                          "type": "number",
+                          "description": "Total number of tokens"
                         },
                         "reasoningTokens": {
-                          "type": "number"
+                          "type": "number",
+                          "description": "Number of reasoning tokens (for reasoning models)"
                         }
                       },
                       "description": "Token usage statistics"
                     },
                     "reasoning": {
                       "type": "string",
-                      "description": "Extended thinking (o1/o3 models)"
+                      "description": "Extended thinking content from reasoning models"
                     },
                     "model": {
                       "type": "string",
@@ -4448,6 +4447,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Session not found"
           }
         }
       }

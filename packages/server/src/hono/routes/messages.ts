@@ -10,7 +10,6 @@ const MessageBodySchema = z
             .string()
             .min(1, 'Session ID is required')
             .describe('The session to use for this message'),
-        stream: z.boolean().optional().describe('Set to true to receive streaming chunks over SSE'),
         imageData: z
             .object({
                 base64: z.string().describe('Base64-encoded image data'),
@@ -68,12 +67,14 @@ export function createMessagesRouter(
         },
         responses: {
             202: {
-                description: 'Message queued',
+                description: 'Message accepted for async processing; subscribe to SSE for results',
                 content: {
                     'application/json': {
                         schema: z
                             .object({
-                                response: z.string().describe('Agent response text'),
+                                accepted: z
+                                    .literal(true)
+                                    .describe('Indicates request was accepted'),
                                 sessionId: z.string().describe('Session ID used for this message'),
                             })
                             .strict(),
@@ -86,7 +87,7 @@ export function createMessagesRouter(
     app.openapi(messageRoute, async (ctx) => {
         const agent = getAgent();
         agent.logger.info('Received message via POST /api/message');
-        const { message, sessionId, stream, imageData, fileData } = ctx.req.valid('json');
+        const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
 
         const imageDataInput = imageData
             ? { image: imageData.base64, mimeType: imageData.mimeType }
@@ -106,15 +107,13 @@ export function createMessagesRouter(
 
         // Fire and forget - start processing asynchronously
         // Results will be delivered via SSE
-        agent
-            .run(message || '', imageDataInput, fileDataInput, sessionId, stream || false)
-            .catch((error) => {
-                agent.logger.error(
-                    `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
-                );
-            });
+        agent.run(message || '', imageDataInput, fileDataInput, sessionId, false).catch((error) => {
+            agent.logger.error(
+                `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
+            );
+        });
 
-        return ctx.json({ response: 'Processing', sessionId }, 202);
+        return ctx.json({ accepted: true, sessionId }, 202);
     });
 
     const messageSyncRoute = createRoute({
