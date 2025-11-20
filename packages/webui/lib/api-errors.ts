@@ -5,13 +5,15 @@
  * 1. DextoRuntimeError: { code, message, scope, type, context?, recovery?, traceId }
  * 2. DextoValidationError: { name, message, issues[], traceId }
  * 3. Wrapped errors: { message, context: { issues: [...] }, ... }
+ * 4. Hono OpenAPI errors: { success: false, error: { issues: [...] } }
  *
  * Priority order for extraction:
  * 1. context.issues[0].message (wrapped validation errors)
  * 2. issues[0].message (direct validation errors)
- * 3. error (some routes use this)
- * 4. message (standard field)
- * 5. Fallback message
+ * 3. error.issues[0].message (Hono OpenAPI validation errors)
+ * 4. error (some routes use this as a string)
+ * 5. message (standard field)
+ * 6. Fallback message
  */
 
 /** Shape of a single validation issue from core */
@@ -37,6 +39,8 @@ export interface DextoRuntimeErrorResponse {
     };
     recovery?: string | string[];
     traceId: string;
+    endpoint?: string;
+    method?: string;
 }
 
 /** DextoValidationError response shape */
@@ -47,6 +51,8 @@ export interface DextoValidationErrorResponse {
     traceId: string;
     errorCount: number;
     warningCount: number;
+    endpoint?: string;
+    method?: string;
 }
 
 /** Union of possible error response shapes */
@@ -96,18 +102,27 @@ export function extractErrorMessage(
         }
     }
 
-    // Priority 3: Check for generic error field (some routes use this)
-    const error = (errorData as any).error;
-    if (typeof error === 'string' && error.length > 0) {
-        return error;
+    // Priority 3: Check for Hono OpenAPI validation errors (error.issues[0].message)
+    // Hono's Zod validation returns { success: false, error: { issues: [...] } }
+    const honoError = (errorData as any).error;
+    if (honoError && typeof honoError === 'object' && Array.isArray(honoError.issues)) {
+        const firstIssue = honoError.issues[0];
+        if (firstIssue?.message) {
+            return firstIssue.message;
+        }
     }
 
-    // Priority 4: Check for message field (standard field on all error types)
+    // Priority 4: Check for generic error field as string (some routes use this)
+    if (typeof honoError === 'string' && honoError.length > 0) {
+        return honoError;
+    }
+
+    // Priority 5: Check for message field (standard field on all error types)
     if (typeof errorData.message === 'string' && errorData.message.length > 0) {
         return errorData.message;
     }
 
-    // Priority 5: Fallback
+    // Priority 6: Fallback
     return fallback;
 }
 
@@ -125,20 +140,28 @@ export function extractErrorDetails(errorData: Partial<DextoErrorResponse>): {
     traceId?: string;
     recovery?: string | string[];
     issues?: DextoIssue[];
+    endpoint?: string;
+    method?: string;
 } {
     const code = (errorData as DextoRuntimeErrorResponse).code;
     const scope = (errorData as DextoRuntimeErrorResponse).scope;
     const type = (errorData as DextoRuntimeErrorResponse).type;
     const traceId = (errorData as DextoRuntimeErrorResponse | DextoValidationErrorResponse).traceId;
     const recovery = (errorData as DextoRuntimeErrorResponse).recovery;
+    const endpoint = (errorData as DextoRuntimeErrorResponse | DextoValidationErrorResponse)
+        .endpoint;
+    const method = (errorData as DextoRuntimeErrorResponse | DextoValidationErrorResponse).method;
 
-    // Get issues from either wrapped or direct validation errors
+    // Get issues from either wrapped or direct validation errors or Hono OpenAPI errors
     let issues: DextoIssue[] | undefined;
     const runtimeErr = errorData as Partial<DextoRuntimeErrorResponse>;
     if (runtimeErr.context?.issues) {
         issues = runtimeErr.context.issues;
     } else if ((errorData as DextoValidationErrorResponse).issues) {
         issues = (errorData as DextoValidationErrorResponse).issues;
+    } else if ((errorData as any).error?.issues) {
+        // Handle Hono OpenAPI validation errors
+        issues = (errorData as any).error.issues;
     }
 
     return {
@@ -149,5 +172,7 @@ export function extractErrorDetails(errorData: Partial<DextoErrorResponse>): {
         traceId,
         recovery,
         issues,
+        endpoint,
+        method,
     };
 }

@@ -96,8 +96,8 @@ const SessionIdEnvelopeSchema = z
     })
     .describe('Envelope schema for extracting sessionId');
 
-// Intersect LLMUpdatesSchema with sessionId for LLM switch endpoint
-// This avoids duplicating all LLM config fields while providing proper OpenAPI documentation
+// Combine LLM updates schema with sessionId for API requests
+// LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
 const SwitchLLMBodySchema = LLMUpdatesSchema.and(
     z.object({
         sessionId: z
@@ -398,13 +398,10 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(switchRoute, async (ctx) => {
         const agent = getAgent();
-        // Parse body: extract sessionId and validate LLM fields
-        // Schema validates all fields at OpenAPI level for proper type safety
         const raw = ctx.req.valid('json');
-        const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
-        const { sessionId: _omit, ...llmCandidate } = raw as Record<string, unknown>;
-        const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
-        const config = await agent.switchLLM(llmConfig, sessionId);
+        const { sessionId, ...llmUpdates } = raw;
+
+        const config = await agent.switchLLM(llmUpdates, sessionId);
 
         // Omit apiKey from response for security
         const { apiKey, ...configWithoutKey } = config;

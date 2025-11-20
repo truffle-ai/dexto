@@ -232,7 +232,6 @@ export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 export const LLMUpdatesSchema = z
     .object({ ...LLMConfigFields })
     .partial()
-    .strict()
     .superRefine((data, ctx) => {
         // Require at least one meaningful change field: model, provider, or router
         if (!data.model && !data.provider && !data.router) {
