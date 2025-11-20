@@ -4449,55 +4449,7 @@
             }
           },
           "404": {
-            "description": "Session not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "string",
-                      "description": "Error code"
-                    },
-                    "message": {
-                      "type": "string",
-                      "description": "Error message"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "description": "Error scope"
-                    },
-                    "type": {
-                      "type": "string",
-                      "description": "Error type"
-                    },
-                    "severity": {
-                      "type": "string",
-                      "enum": [
-                        "error"
-                      ],
-                      "description": "Error severity"
-                    },
-                    "endpoint": {
-                      "type": "string",
-                      "description": "API endpoint"
-                    },
-                    "method": {
-                      "type": "string",
-                      "description": "HTTP method"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "scope",
-                    "type",
-                    "severity"
-                  ],
-                  "description": "Error response format"
-                }
-              }
-            }
+            "description": "Session not found (error format handled by middleware)"
           }
         }
       }
