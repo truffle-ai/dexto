@@ -73,6 +73,10 @@ export function createApprovalsRouter(
             400: {
                 description: 'Validation error',
             },
+            503: {
+                description:
+                    'Approval coordinator unavailable (server not initialized for approvals)',
+            },
         },
     });
 

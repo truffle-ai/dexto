@@ -261,7 +261,7 @@ export function createMessagesRouter(
             path: '/message-stream',
             summary: 'Stream message response',
             description:
-                'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response.',
+                'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error.',
             tags: ['messages'],
             request: {
                 body: {
@@ -270,10 +270,33 @@ export function createMessagesRouter(
             },
             responses: {
                 200: {
-                    description: 'SSE stream of agent events',
+                    description:
+                        'SSE stream of agent events. Standard SSE format with event type and JSON data.',
+                    headers: {
+                        'Content-Type': {
+                            description: 'SSE content type',
+                            schema: { type: 'string', example: 'text/event-stream' },
+                        },
+                        'Cache-Control': {
+                            description: 'Disable caching for stream',
+                            schema: { type: 'string', example: 'no-cache' },
+                        },
+                        Connection: {
+                            description: 'Keep connection alive for streaming',
+                            schema: { type: 'string', example: 'keep-alive' },
+                        },
+                        'X-Accel-Buffering': {
+                            description: 'Disable nginx buffering',
+                            schema: { type: 'string', example: 'no' },
+                        },
+                    },
                     content: {
                         'text/event-stream': {
-                            schema: z.string(),
+                            schema: z
+                                .string()
+                                .describe(
+                                    'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)'
+                                ),
                         },
                     },
                 },

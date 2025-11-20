@@ -392,7 +392,9 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     },
                 },
             },
-            404: { description: 'Session not found' },
+            404: {
+                description: 'Session not found (error format handled by middleware)',
+            },
         },
     });
     app.openapi(generateTitleRoute, async (ctx) => {
