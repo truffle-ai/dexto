@@ -9,7 +9,6 @@ import type {
 } from './types.js';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 import { createApprovalRequest } from './factory.js';
-import type { AgentEventBus } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
@@ -44,7 +43,10 @@ export interface ApprovalManagerConfig {
  *
  * @example
  * ```typescript
- * const manager = new ApprovalManager(eventBus, { mode: 'manual' });
+ * const manager = new ApprovalManager(
+ *   { toolConfirmation: { mode: 'manual', timeout: 60000 }, elicitation: { enabled: true, timeout: 60000 } },
+ *   logger
+ * );
  *
  * // Request tool confirmation
  * const response = await manager.requestToolConfirmation({
@@ -63,11 +65,7 @@ export class ApprovalManager {
     private config: ApprovalManagerConfig;
     private logger: IDextoLogger;
 
-    constructor(
-        _agentEventBus: AgentEventBus,
-        config: ApprovalManagerConfig,
-        logger: IDextoLogger
-    ) {
+    constructor(config: ApprovalManagerConfig, logger: IDextoLogger) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 

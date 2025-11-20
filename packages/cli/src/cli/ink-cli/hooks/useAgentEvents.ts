@@ -229,7 +229,6 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
                 });
             }
         };
-
         // Subscribe to events
         bus.on('llm:switched', handleModelSwitch);
         bus.on('session:reset', handleConversationReset);

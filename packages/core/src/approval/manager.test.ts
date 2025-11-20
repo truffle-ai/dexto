@@ -25,7 +25,6 @@ describe('ApprovalManager', () => {
     describe('Configuration - Separate tool and elicitation control', () => {
         it('should allow auto-approve for tools while elicitation is enabled', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-approve',
@@ -50,7 +49,6 @@ describe('ApprovalManager', () => {
 
         it('should reject elicitation when disabled, even if tools are auto-approved', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-approve',
@@ -94,7 +92,6 @@ describe('ApprovalManager', () => {
 
         it('should auto-deny tools while elicitation is enabled', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-deny',
@@ -119,7 +116,6 @@ describe('ApprovalManager', () => {
 
         it('should use separate timeouts for tools and elicitation', () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'manual',
@@ -142,7 +138,6 @@ describe('ApprovalManager', () => {
     describe('Approval routing by type', () => {
         it('should route tool confirmations to tool provider', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-approve',
@@ -166,7 +161,6 @@ describe('ApprovalManager', () => {
 
         it('should route command confirmations to tool provider', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-approve',
@@ -191,7 +185,6 @@ describe('ApprovalManager', () => {
 
         it('should route elicitation to elicitation provider when enabled', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-deny', // Different mode for tools
@@ -226,7 +219,6 @@ describe('ApprovalManager', () => {
     describe('Pending approvals tracking', () => {
         it('should track pending approvals across both providers', () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'manual',
@@ -249,7 +241,6 @@ describe('ApprovalManager', () => {
 
         it('should cancel approvals in both providers', () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'manual',
@@ -272,7 +263,6 @@ describe('ApprovalManager', () => {
     describe('Error handling', () => {
         it('should throw clear error when elicitation is disabled', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-approve',
@@ -302,7 +292,6 @@ describe('ApprovalManager', () => {
 
         it('should provide helpful error message about enabling elicitation', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-approve',
@@ -339,7 +328,6 @@ describe('ApprovalManager', () => {
     describe('Backward compatibility', () => {
         it('should work with manual mode for both tools and elicitation', () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'manual',
@@ -367,7 +355,6 @@ describe('ApprovalManager', () => {
 
         it('should respect elicitation enabled:true as default', () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'manual',
@@ -388,7 +375,6 @@ describe('ApprovalManager', () => {
     describe('Denial Reasons', () => {
         it('should include system_denied reason in auto-deny mode', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-deny',
@@ -414,7 +400,6 @@ describe('ApprovalManager', () => {
 
         it('should throw error with specific reason when tool is denied', async () => {
             const manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-deny',
@@ -446,7 +431,6 @@ describe('ApprovalManager', () => {
 
         it('should handle user_denied reason in error message', async () => {
             const _manager = new ApprovalManager(
-                agentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'manual',
