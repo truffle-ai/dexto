@@ -34,14 +34,16 @@ export interface ManualApprovalHandler extends ApprovalHandler {
  * The returned handler includes cancellation methods (cancel, cancelAll, getPending)
  * for managing pending approval requests.
  *
+ * Timeouts are handled per-request using the timeout value from ApprovalRequest, which
+ * is set by ApprovalManager based on the request type (tool confirmation vs elicitation).
+ *
  * @param coordinator The approval coordinator for request/response communication
- * @param timeoutMs Timeout in milliseconds for waiting for approval response
  * @returns ManualApprovalHandler with cancellation support
  *
  * @example
  * ```typescript
  * const coordinator = new ApprovalCoordinator();
- * const handler = createManualApprovalHandler(coordinator, 120_000);
+ * const handler = createManualApprovalHandler(coordinator);
  * agent.setApprovalHandler(handler);
  *
  * // Later, cancel a specific approval
@@ -49,8 +51,7 @@ export interface ManualApprovalHandler extends ApprovalHandler {
  * ```
  */
 export function createManualApprovalHandler(
-    coordinator: ApprovalCoordinator,
-    timeoutMs: number
+    coordinator: ApprovalCoordinator
 ): ManualApprovalHandler {
     // Track pending approvals for cancellation support
     const pendingApprovals = new Map<
@@ -64,6 +65,11 @@ export function createManualApprovalHandler(
 
     const handleApproval = (request: ApprovalRequest): Promise<ApprovalResponse> => {
         return new Promise<ApprovalResponse>((resolve, reject) => {
+            // Use per-request timeout (always set by ApprovalManager based on request type)
+            // - Tool confirmations use config.toolConfirmation.timeout
+            // - Elicitations use config.elicitation.timeout
+            const effectiveTimeout = request.timeout;
+
             // Set timeout timer
             const timer = setTimeout(() => {
                 cleanup();
@@ -75,12 +81,12 @@ export function createManualApprovalHandler(
                     status: ApprovalStatus.CANCELLED,
                     sessionId: request.sessionId,
                     reason: DenialReason.TIMEOUT,
-                    message: `Approval request timed out after ${timeoutMs}ms`,
+                    message: `Approval request timed out after ${effectiveTimeout}ms`,
                 };
                 coordinator.emitResponse(timeoutResponse);
 
-                reject(new Error(`Approval request timed out after ${timeoutMs}ms`));
-            }, timeoutMs);
+                reject(new Error(`Approval request timed out after ${effectiveTimeout}ms`));
+            }, effectiveTimeout);
 
             // Cleanup function to remove listener and clear timeout
             let cleanupListener: (() => void) | null = null;

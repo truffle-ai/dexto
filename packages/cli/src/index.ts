@@ -906,18 +906,20 @@ program
                 // ——— Dispatch based on --mode ———
                 switch (opts.mode) {
                     case 'cli': {
-                        // Set up approval handler for interactive CLI if manual mode
+                        // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
                         // Note: Headless CLI with manual mode is blocked by validation above
                         // Ink CLI uses ApprovalCoordinator (same as server/web mode) to coordinate
                         // approval requests with React UI components
-                        if (!headlessInput && validatedConfig.toolConfirmation?.mode === 'manual') {
+                        const needsHandler =
+                            !headlessInput &&
+                            (validatedConfig.toolConfirmation?.mode === 'manual' ||
+                                validatedConfig.elicitation.enabled);
+
+                        if (needsHandler) {
                             const { createManualApprovalHandler, ApprovalCoordinator } =
                                 await import('@dexto/server');
                             const approvalCoordinator = new ApprovalCoordinator();
-                            const handler = createManualApprovalHandler(
-                                approvalCoordinator,
-                                validatedConfig.toolConfirmation.timeout
-                            );
+                            const handler = createManualApprovalHandler(approvalCoordinator);
                             agent.setApprovalHandler(handler);
                             logger.debug('Event-based approval handler configured for Ink CLI');
                         }
