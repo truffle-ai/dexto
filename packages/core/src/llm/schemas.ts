@@ -229,6 +229,7 @@ export type LLMConfig = z.input<typeof LLMConfigSchema>;
 export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 // PATCH-like schema for updates (switch flows)
 
+// TODO: when moving to zod v4 we might be able to set this as strict
 export const LLMUpdatesSchema = z
     .object({ ...LLMConfigFields })
     .partial()
