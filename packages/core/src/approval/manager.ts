@@ -327,8 +327,13 @@ export class ApprovalManager {
     /**
      * Set the approval handler for manual approval mode.
      *
-     * The handler will be called whenever a tool/elicitation requires user approval
-     * and toolConfirmation.mode is 'manual'. This must be set if using manual mode.
+     * The handler will be called for:
+     * - Tool confirmation requests when toolConfirmation.mode is 'manual'
+     * - All elicitation requests (when elicitation is enabled, regardless of toolConfirmation.mode)
+     *
+     * A handler must be set before processing requests if:
+     * - toolConfirmation.mode is 'manual', or
+     * - elicitation is enabled (elicitation.enabled is true)
      *
      * @param handler The approval handler function, or null to clear
      */
