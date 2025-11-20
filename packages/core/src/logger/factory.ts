@@ -6,7 +6,7 @@
  */
 
 import type { LoggerConfig } from './v2/schemas.js';
-import type { IDextoLogger } from './v2/types.js';
+import type { IDextoLogger, LogLevel } from './v2/types.js';
 import { DextoLogComponent } from './v2/types.js';
 import { DextoLogger } from './v2/dexto-logger.js';
 import { createTransport } from './v2/transport-factory.js';
@@ -18,6 +18,22 @@ export interface CreateLoggerOptions {
     agentId: string;
     /** Component identifier (defaults to AGENT) */
     component?: DextoLogComponent;
+}
+
+/**
+ * Helper to get effective log level from environment or config
+ * DEXTO_LOG_LEVEL environment variable takes precedence over config
+ */
+function getEffectiveLogLevel(configLevel: LogLevel): LogLevel {
+    const envLevel = process.env.DEXTO_LOG_LEVEL;
+    if (envLevel) {
+        const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error', 'silly'];
+        const normalizedLevel = envLevel.toLowerCase() as LogLevel;
+        if (validLevels.includes(normalizedLevel)) {
+            return normalizedLevel;
+        }
+    }
+    return configLevel;
 }
 
 /**
@@ -40,6 +56,9 @@ export interface CreateLoggerOptions {
 export function createLogger(options: CreateLoggerOptions): IDextoLogger {
     const { config, agentId, component = DextoLogComponent.AGENT } = options;
 
+    // Override log level with DEXTO_LOG_LEVEL environment variable if present
+    const effectiveLevel = getEffectiveLogLevel(config.level);
+
     // Create transport instances from configs
     const transports = config.transports.map((transportConfig) => {
         return createTransport(transportConfig);
@@ -47,7 +66,7 @@ export function createLogger(options: CreateLoggerOptions): IDextoLogger {
 
     // Create and return logger instance
     return new DextoLogger({
-        level: config.level,
+        level: effectiveLevel,
         component,
         agentId,
         transports,
