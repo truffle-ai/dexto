@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { type DextoAgent, DenialReason, ApprovalStatus } from '@dexto/core';
+import { type DextoAgent, DenialReason, ApprovalStatus, ApprovalError } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 
 const ApprovalBodySchema = z
@@ -34,6 +34,10 @@ export function createApprovalsRouter(
 ) {
     const app = new OpenAPIHono();
 
+    // TODO: Consider adding auth & idempotency for production deployments
+    // See: https://github.com/truffle-ai/dexto/pull/450#discussion_r2545039760
+    // - Auth: Open-source framework should allow flexible auth (reverse proxy, API gateway, etc.)
+    // - Idempotency: Already documented in schema; platform can add tracking separately
     const submitApprovalRoute = createRoute({
         method: 'post',
         path: '/approvals/{approvalId}',
@@ -82,6 +86,12 @@ export function createApprovalsRouter(
         if (!approvalCoordinator) {
             agent.logger.error('ApprovalCoordinator not available');
             return ctx.json({ ok: false as const, approvalId, status }, 503);
+        }
+
+        // Validate that the approval exists
+        const pendingApprovals = agent.services.approvalManager.getPendingApprovals();
+        if (!pendingApprovals.includes(approvalId)) {
+            throw ApprovalError.notFound(approvalId);
         }
 
         try {
