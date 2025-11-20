@@ -136,9 +136,6 @@ export class OpenAIService implements ILLMService {
             this.logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
 
             // Notify thinking
-            this.logger.debug(
-                `[OpenAIService.completeTask] Emitting llm:thinking on sessionEventBus for session=${this.sessionId}`
-            );
             this.sessionEventBus.emit('llm:thinking');
 
             let iterationCount = 0;
@@ -199,9 +196,6 @@ export class OpenAIService implements ILLMService {
                         }
 
                         // Always emit token usage
-                        this.logger.debug(
-                            `[OpenAIService.completeTask] Emitting llm:response on sessionEventBus for session=${this.sessionId}, totalTokens=${totalTokens}`
-                        );
                         this.sessionEventBus.emit('llm:response', {
                             content: finalContent,
                             provider: this.config.provider,
@@ -209,9 +203,6 @@ export class OpenAIService implements ILLMService {
                             router: 'in-built',
                             tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
                         });
-                        this.logger.debug(
-                            `[OpenAIService.completeTask] Emitted llm:response successfully`
-                        );
 
                         // Add token usage to active span (if telemetry is enabled)
                         // Note: llm.provider and llm.model are already set at the start of completeTask

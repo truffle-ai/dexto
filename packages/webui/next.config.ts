@@ -54,12 +54,13 @@ const nextConfig: NextConfig = {
             (warning: any) => {
                 const message = warning.message || '';
                 const module = warning.module?.resource || '';
+                const isOTelModule =
+                    module.includes('opentelemetry') || module.includes('require-in-the-middle');
                 return (
                     message.includes('opentelemetry') ||
                     message.includes('require-in-the-middle') ||
-                    message.includes('Critical dependency') ||
-                    module.includes('opentelemetry') ||
-                    module.includes('require-in-the-middle')
+                    (message.includes('Critical dependency') && isOTelModule) ||
+                    isOTelModule
                 );
             },
         ];
