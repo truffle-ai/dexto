@@ -135,6 +135,28 @@ export function createMessagesRouter(
                             .object({
                                 response: z.string().describe('Agent response text'),
                                 sessionId: z.string().describe('Session ID used for this message'),
+                                tokenUsage: z
+                                    .object({
+                                        inputTokens: z.number().optional(),
+                                        outputTokens: z.number().optional(),
+                                        totalTokens: z.number().optional(),
+                                        reasoningTokens: z.number().optional(),
+                                    })
+                                    .optional()
+                                    .describe('Token usage statistics'),
+                                reasoning: z
+                                    .string()
+                                    .optional()
+                                    .describe('Extended thinking (o1/o3 models)'),
+                                model: z
+                                    .string()
+                                    .optional()
+                                    .describe('Model used for this response'),
+                                provider: z.string().optional().describe('LLM provider'),
+                                router: z
+                                    .string()
+                                    .optional()
+                                    .describe('Router used (e.g., vercel)'),
                             })
                             .strict(),
                     },
@@ -164,14 +186,25 @@ export function createMessagesRouter(
         if (fileDataInput) agent.logger.info('File data included in message.');
         agent.logger.info(`Message for session: ${sessionId}`);
 
-        const response = await agent.run(
-            message || '',
-            imageDataInput,
-            fileDataInput,
+        // Use generate() instead of run() to get metadata
+        const result = await agent.generate(message || '', {
             sessionId,
-            false
-        );
-        return ctx.json({ response, sessionId });
+            imageData: imageDataInput,
+            fileData: fileDataInput,
+        });
+
+        // Get the session's current LLM config to include model/provider/router info
+        const llmConfig = agent.stateManager.getLLMConfig(sessionId);
+
+        return ctx.json({
+            response: result.content,
+            sessionId: result.sessionId,
+            tokenUsage: result.usage,
+            reasoning: result.reasoning,
+            model: llmConfig.model,
+            provider: llmConfig.provider,
+            router: 'vercel', // Hardcoded for now since we only use Vercel AI SDK
+        });
     });
 
     const resetRoute = createRoute({

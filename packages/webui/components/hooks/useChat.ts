@@ -259,6 +259,9 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     setProcessing(false);
                     const text = payload.content || '';
                     const usage = payload.tokenUsage;
+                    const model = payload.model;
+                    const provider = payload.provider;
+                    const router = payload.router;
 
                     setMessages((ms) => {
                         const lastMsg = ms[ms.length - 1];
@@ -268,6 +271,9 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                                 ...lastMsg,
                                 content: finalContent,
                                 tokenUsage: usage,
+                                ...(model && { model }),
+                                ...(provider && { provider }),
+                                ...(router && { router }),
                                 createdAt: Date.now(),
                             };
                             return [...ms.slice(0, -1), updatedMsg];
@@ -473,40 +479,97 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             }
 
             try {
-                const client = new EventStreamClient();
+                if (stream) {
+                    // Streaming mode: use /api/message-stream with SSE
+                    const client = new EventStreamClient();
 
-                // POST to /api/message-stream - response IS the SSE stream
-                const response = await fetch(`${apiUrl}/api/message-stream`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: content,
-                        sessionId,
-                        imageData,
-                        fileData,
-                        stream: true,
-                    }),
-                    signal: abortController.signal,
-                });
+                    const response = await fetch(`${apiUrl}/api/message-stream`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: content,
+                            sessionId,
+                            imageData,
+                            fileData,
+                            stream: true,
+                        }),
+                        signal: abortController.signal,
+                    });
 
-                if (!response.ok) {
-                    throw new Error(`Failed to send message: ${response.statusText}`);
+                    if (!response.ok) {
+                        throw new Error(`Failed to send message: ${response.statusText}`);
+                    }
+
+                    // Response body is the SSE stream - connect to it directly
+                    const iterator = await client.connectFromResponse(response, {
+                        signal: abortController.signal,
+                    });
+
+                    setStatus('open');
+
+                    for await (const event of iterator) {
+                        processEvent(event);
+                    }
+
+                    setStatus('closed');
+                } else {
+                    // Non-streaming mode: use /api/message-sync and wait for full response
+                    const response = await fetch(`${apiUrl}/api/message-sync`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: content,
+                            sessionId,
+                            imageData,
+                            fileData,
+                        }),
+                        signal: abortController.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to send message: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+
+                    // Add assistant response as a complete message with metadata
+                    setMessages((ms) => [
+                        ...ms,
+                        {
+                            id: generateUniqueId(),
+                            role: 'assistant',
+                            content: data.response || '',
+                            createdAt: Date.now(),
+                            sessionId,
+                            ...(data.tokenUsage && { tokenUsage: data.tokenUsage }),
+                            ...(data.reasoning && { reasoning: data.reasoning }),
+                            ...(data.model && { model: data.model }),
+                            ...(data.provider && { provider: data.provider }),
+                            ...(data.router && { router: data.router }),
+                        },
+                    ]);
+
+                    setStatus('closed');
+                    setProcessing(false);
+
+                    // Emit DOM event with metadata
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:response', {
+                                detail: {
+                                    text: data.response,
+                                    sessionId,
+                                    tokenUsage: data.tokenUsage,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
                 }
-
-                // Response body is the SSE stream - connect to it directly
-                const iterator = await client.connectFromResponse(response, {
-                    signal: abortController.signal,
-                });
-
-                setStatus('open');
-
-                for await (const event of iterator) {
-                    processEvent(event);
-                }
-
-                setStatus('closed');
             } catch (error: any) {
                 if (error.name === 'AbortError') {
                     console.log('Stream aborted by user');
