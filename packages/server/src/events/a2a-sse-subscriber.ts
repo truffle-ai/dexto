@@ -172,6 +172,17 @@ export class A2ASseEventSubscriber {
             { signal }
         );
 
+        eventBus.on(
+            'session:title-updated',
+            (payload) => {
+                this.broadcastToTask(payload.sessionId, 'session:title-updated', {
+                    taskId: payload.sessionId,
+                    title: payload.title,
+                });
+            },
+            { signal }
+        );
+
         logger.debug('A2ASseEventSubscriber subscribed to agent events');
     }
 
