@@ -87,15 +87,6 @@ const SaveKeySchema = z
     })
     .describe('Request body for saving a provider API key');
 
-const SessionIdEnvelopeSchema = z
-    .object({
-        sessionId: z
-            .string()
-            .optional()
-            .describe('Session identifier for session-specific LLM configuration'),
-    })
-    .describe('Envelope schema for extracting sessionId');
-
 // Combine LLM updates schema with sessionId for API requests
 // LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
 const SwitchLLMBodySchema = LLMUpdatesSchema.and(

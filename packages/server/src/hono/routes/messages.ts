@@ -137,17 +137,31 @@ export function createMessagesRouter(
                                 sessionId: z.string().describe('Session ID used for this message'),
                                 tokenUsage: z
                                     .object({
-                                        inputTokens: z.number().optional(),
-                                        outputTokens: z.number().optional(),
-                                        totalTokens: z.number().optional(),
-                                        reasoningTokens: z.number().optional(),
+                                        inputTokens: z
+                                            .number()
+                                            .optional()
+                                            .describe('Number of input tokens'),
+                                        outputTokens: z
+                                            .number()
+                                            .optional()
+                                            .describe('Number of output tokens'),
+                                        totalTokens: z
+                                            .number()
+                                            .optional()
+                                            .describe('Total number of tokens'),
+                                        reasoningTokens: z
+                                            .number()
+                                            .optional()
+                                            .describe(
+                                                'Number of reasoning tokens (for reasoning models)'
+                                            ),
                                     })
                                     .optional()
                                     .describe('Token usage statistics'),
                                 reasoning: z
                                     .string()
                                     .optional()
-                                    .describe('Extended thinking (o1/o3 models)'),
+                                    .describe('Extended thinking content from reasoning models'),
                                 model: z
                                     .string()
                                     .optional()
