@@ -30,6 +30,14 @@ export function createTestAgentConfig(): AgentConfig {
             maxSessions: 10,
             sessionTTL: 3600,
         },
+        toolConfirmation: {
+            mode: 'auto-approve',
+            timeout: 120000,
+        },
+        elicitation: {
+            enabled: false,
+            timeout: 120000,
+        },
     };
 }
 
