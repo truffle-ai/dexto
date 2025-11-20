@@ -97,7 +97,7 @@ const SessionIdEnvelopeSchema = z
     .describe('Envelope schema for extracting sessionId');
 
 // Combine LLM updates schema with sessionId for API requests
-// LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
+// Make the API schema strict to enforce clear contract at API boundary
 const SwitchLLMBodySchema = LLMUpdatesSchema.and(
     z.object({
         sessionId: z
@@ -105,7 +105,9 @@ const SwitchLLMBodySchema = LLMUpdatesSchema.and(
             .optional()
             .describe('Session identifier for session-specific LLM configuration'),
     })
-).describe('LLM switch request body with optional session ID and LLM fields');
+)
+    .strict()
+    .describe('LLM switch request body with optional session ID and LLM fields');
 
 export function createLlmRouter(getAgent: () => DextoAgent) {
     const app = new OpenAPIHono();
