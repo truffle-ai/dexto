@@ -33,7 +33,7 @@ export interface AgentToolCall {
  * Options for generate() method
  */
 export interface GenerateOptions {
-    sessionId?: string | undefined;
+    sessionId: string;
     imageData?: ImageData | undefined;
     fileData?: FileData | undefined;
     signal?: AbortSignal | undefined; // For cancellation

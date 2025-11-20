@@ -669,13 +669,8 @@ export class DextoAgent {
      */
     public async generate(
         message: string,
-        options?: import('./types.js').GenerateOptions
+        options: import('./types.js').GenerateOptions
     ): Promise<import('./types.js').GenerateResponse> {
-        // Validate sessionId is provided
-        if (!options?.sessionId) {
-            throw new Error('sessionId is required in GenerateOptions');
-        }
-
         // Collect all events from stream
         const events: StreamingEvent[] = [];
 
@@ -690,29 +685,29 @@ export class DextoAgent {
         }
 
         // Collect tool calls from llm:tool-call events
-        const toolCallEvents = events.filter((e) => e.type === 'llm:tool-call');
-        const toolResultEvents = events.filter((e) => e.type === 'llm:tool-result');
+        const toolCallEvents = events.filter(
+            (e): e is Extract<StreamingEvent, { type: 'llm:tool-call' }> =>
+                e.type === 'llm:tool-call'
+        );
+        const toolResultEvents = events.filter(
+            (e): e is Extract<StreamingEvent, { type: 'llm:tool-result' }> =>
+                e.type === 'llm:tool-result'
+        );
 
-        const toolCalls: import('./types.js').AgentToolCall[] = toolCallEvents
-            .map((tc) => {
-                if (tc.type !== 'llm:tool-call') return null as any; // Type guard
-                const toolResult = toolResultEvents.find(
-                    (tr) => tr.type === 'llm:tool-result' && tr.callId === tc.callId
-                );
-                return {
-                    toolName: tc.toolName,
-                    args: tc.args,
-                    callId: tc.callId || `tool_${Date.now()}`,
-                    result:
-                        toolResult && toolResult.type === 'llm:tool-result'
-                            ? {
-                                  success: toolResult.success,
-                                  data: toolResult.sanitized,
-                              }
-                            : undefined,
-                };
-            })
-            .filter(Boolean);
+        const toolCalls: import('./types.js').AgentToolCall[] = toolCallEvents.map((tc) => {
+            const toolResult = toolResultEvents.find((tr) => tr.callId === tc.callId);
+            return {
+                toolName: tc.toolName,
+                args: tc.args,
+                callId: tc.callId || `tool_${Date.now()}`,
+                result: toolResult
+                    ? {
+                          success: toolResult.success,
+                          data: toolResult.sanitized,
+                      }
+                    : undefined,
+            };
+        });
 
         // TODO: Message ID infrastructure exists but not fully utilized yet
         // Future enhancements:
@@ -857,7 +852,17 @@ export class DextoAgent {
               }
             : undefined;
 
-        this.run(message, imageDataForRun, fileData as any, sessionId, true).catch((error) => {
+        // Convert fileData to format expected by run() (data must be string)
+        const fileDataForRun = fileData
+            ? {
+                  data:
+                      typeof fileData.data === 'string' ? fileData.data : fileData.data.toString(),
+                  mimeType: fileData.mimeType,
+                  ...(fileData.filename && { filename: fileData.filename }),
+              }
+            : undefined;
+
+        this.run(message, imageDataForRun, fileDataForRun, sessionId, true).catch((error) => {
             _streamError = error;
             completed = true;
             eventQueue.push({
