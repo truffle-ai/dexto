@@ -78,7 +78,6 @@ export async function startTestServer(
         defaultName: 'test-agent',
         defaultVersion: '1.0.0',
         defaultBaseUrl: `http://localhost:${serverPort}`,
-        webSubscriber: false, // Will be updated after bridge creation
     });
 
     // Create getter functions
@@ -112,12 +111,11 @@ export async function startTestServer(
         port: serverPort,
     });
 
-    // Update agent card with web subscriber
+    // Agent card (no updates needed after bridge creation in SSE migration)
     const updatedAgentCard = createAgentCard({
         defaultName: 'test-agent',
         defaultVersion: '1.0.0',
         defaultBaseUrl: `http://localhost:${serverPort}`,
-        // webSubscriber: bridge.webSubscriber, // Removed in SSE migration
     });
 
     // Start the server

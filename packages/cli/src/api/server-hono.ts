@@ -68,7 +68,6 @@ export async function initializeHonoApi(
             defaultName: overrides.name ?? activeAgentId,
             defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
             defaultBaseUrl: baseApiUrl,
-            // webSubscriber: true, // Removed in SSE migration
         },
         overrides
     );
@@ -170,7 +169,6 @@ export async function initializeHonoApi(
                 defaultName: agentId,
                 defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
                 defaultBaseUrl: baseApiUrl,
-                // webSubscriber removed in SSE migration
             },
             overrides
         );
@@ -350,7 +348,6 @@ export async function initializeHonoApi(
             defaultName: overrides.name ?? activeAgentId,
             defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
             defaultBaseUrl: baseApiUrl,
-            // webSubscriber removed in SSE migration
         },
         overrides
     );

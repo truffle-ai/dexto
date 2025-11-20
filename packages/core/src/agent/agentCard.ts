@@ -15,7 +15,6 @@ export interface MinimalAgentCardContext {
     defaultName: string; // Ultimate fallback name if not in overrides
     defaultVersion: string; // Ultimate fallback version if not in overrides
     defaultBaseUrl: string; // Used to construct default URL if not in overrides
-    webSubscriber?: unknown; // To determine default pushNotification capability
 }
 
 /**
@@ -26,7 +25,7 @@ export function createAgentCard(
     context: MinimalAgentCardContext,
     overrides?: Partial<AgentCard> // Updated type from AgentCardOverride to Partial<AgentCard>
 ): AgentCard {
-    const { defaultName, defaultVersion, defaultBaseUrl, webSubscriber } = context;
+    const { defaultName, defaultVersion, defaultBaseUrl } = context;
 
     // Start with overrides (which are now Partial<AgentCard> or {})
     const effectiveInput: Record<string, any> = { ...(overrides || {}) };
@@ -37,11 +36,11 @@ export function createAgentCard(
     effectiveInput.url = overrides?.url ?? `${defaultBaseUrl}/mcp`;
     effectiveInput.description = overrides?.description ?? DEFAULT_AGENT_DESCRIPTION;
 
-    // Handle context-dependent capabilities.pushNotifications.
+    // Handle capabilities - pushNotifications defaults to false (no WebSocket support)
     const capsFromInput = effectiveInput.capabilities;
     effectiveInput.capabilities = {
         ...(capsFromInput ?? {}),
-        pushNotifications: capsFromInput?.pushNotifications ?? !!webSubscriber,
+        pushNotifications: capsFromInput?.pushNotifications ?? false,
     };
 
     // If input specifies an empty skills array, this means "use schema default skills".
