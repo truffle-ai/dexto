@@ -228,11 +228,27 @@ export class DextoAgent {
             }
 
             // Validate approval configuration BEFORE setting handler
-            if (this.config.toolConfirmation.mode === 'manual') {
+            // Handler is required for manual tool confirmation OR when elicitation is enabled
+            const needsHandler =
+                this.config.toolConfirmation.mode === 'manual' || this.config.elicitation.enabled;
+
+            if (needsHandler) {
                 if (!this.approvalHandler && !services.approvalManager.hasHandler()) {
+                    const reasons = [];
+                    if (this.config.toolConfirmation.mode === 'manual') {
+                        reasons.push('tool confirmation mode is "manual"');
+                    }
+                    if (this.config.elicitation.enabled) {
+                        reasons.push('elicitation is enabled');
+                    }
+
                     throw AgentError.initializationFailed(
-                        'Tool confirmation mode is "manual" but no approval handler is configured. ' +
-                            'Pass an approval handler to the DextoAgent constructor, or call agent.setApprovalHandler() before starting.'
+                        `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
+                            'Either:\n' +
+                            '  • Pass an approval handler to the DextoAgent constructor\n' +
+                            '  • Call agent.setApprovalHandler() before starting\n' +
+                            '  • Set toolConfirmation.mode to "auto-approve" or "auto-deny"\n' +
+                            '  • Disable elicitation (set elicitation.enabled: false)'
                     );
                 }
             }

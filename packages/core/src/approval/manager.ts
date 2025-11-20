@@ -268,8 +268,7 @@ export class ApprovalManager {
         const response = await this.requestElicitation(metadata);
 
         if (response.status === ApprovalStatus.APPROVED) {
-            // Handle auto-approve mode where data might be missing
-            // Return empty formData object for approved-without-data case (e.g., auto-approve mode)
+            // Extract formData from response (handler always provides formData for elicitation)
             if (
                 response.data &&
                 typeof response.data === 'object' &&
@@ -279,7 +278,7 @@ export class ApprovalManager {
             ) {
                 return (response.data as { formData: Record<string, unknown> }).formData;
             }
-            // Auto-approve without data returns empty form
+            // Fallback to empty form if data is missing (edge case)
             return {};
         } else if (response.status === ApprovalStatus.DENIED) {
             throw ApprovalError.elicitationDenied(
@@ -365,9 +364,13 @@ export class ApprovalManager {
         if (!this.handler) {
             // TODO: add an example for usage here for users
             throw ApprovalError.invalidConfig(
-                'Tool confirmation mode is "manual" but no approval handler is configured.\n' +
+                'An approval handler is required but not configured.\n' +
+                    'Handlers are required for:\n' +
+                    '  • manual tool confirmation mode\n' +
+                    '  • all elicitation requests (when elicitation is enabled)\n' +
                     'Either:\n' +
-                    '  • set mode to "auto-approve" or "auto-deny", or\n' +
+                    '  • set toolConfirmation.mode to "auto-approve" or "auto-deny", or\n' +
+                    '  • disable elicitation (set elicitation.enabled: false), or\n' +
                     '  • call agent.setApprovalHandler(...) before processing requests.'
             );
         }
