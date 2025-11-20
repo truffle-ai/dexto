@@ -479,7 +479,7 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBe(200);
         });
 
-        it('POST /api/message-stream starts SSE flow and GET returns events', async () => {
+        it('POST /api/message-stream returns SSE stream directly', async () => {
             if (!testServer) throw new Error('Test server not initialized');
 
             const sessionId = 'stream-session';
@@ -522,21 +522,19 @@ describe('Hono API Integration Tests', () => {
             } as typeof agent.stream;
 
             try {
-                const startRes = await httpRequest(
-                    testServer.baseUrl,
-                    'POST',
-                    '/api/message-stream',
-                    {
+                // POST to /api/message-stream - response IS the SSE stream
+                const response = await fetch(`${testServer.baseUrl}/api/message-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
                         sessionId,
                         message: 'Say hello',
-                    }
-                );
-                expect(startRes.status).toBe(200);
-                const streamUrl = (startRes.body as { streamUrl: string }).streamUrl;
-                expect(streamUrl).toContain(`/api/message-stream/${sessionId}`);
+                    }),
+                });
 
-                const response = await fetch(`${testServer.baseUrl}${streamUrl}`);
                 expect(response.status).toBe(200);
+                expect(response.headers.get('content-type')).toBe('text/event-stream');
+
                 const reader = response.body?.getReader();
                 if (!reader) throw new Error('Response does not contain a readable body');
 

@@ -908,12 +908,14 @@ program
                     case 'cli': {
                         // Set up approval handler for interactive CLI if manual mode
                         // Note: Headless CLI with manual mode is blocked by validation above
-                        // Ink CLI uses event bus pattern (same as server/web mode) to coordinate
+                        // Ink CLI uses ApprovalCoordinator (same as server/web mode) to coordinate
                         // approval requests with React UI components
                         if (!headlessInput && validatedConfig.toolConfirmation?.mode === 'manual') {
-                            const { createManualApprovalHandler } = await import('@dexto/server');
+                            const { createManualApprovalHandler, ApprovalCoordinator } =
+                                await import('@dexto/server');
+                            const approvalCoordinator = new ApprovalCoordinator();
                             const handler = createManualApprovalHandler(
-                                agent.agentEventBus,
+                                approvalCoordinator,
                                 validatedConfig.toolConfirmation.timeout
                             );
                             agent.setApprovalHandler(handler);

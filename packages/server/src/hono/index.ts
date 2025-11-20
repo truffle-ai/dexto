@@ -23,7 +23,7 @@ import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 import { createCorsMiddleware } from './middleware/cors.js';
 import { createAuthMiddleware } from './middleware/auth.js';
-import { MessageStreamManager } from '../streams/message-stream-manager.js';
+import { ApprovalCoordinator } from '../approval/approval-coordinator.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -53,7 +53,7 @@ export type CreateDextoAppOptions = {
     apiPrefix?: string;
     getAgent: () => DextoAgent;
     getAgentCard: () => AgentCard;
-    messageStreamManager: MessageStreamManager;
+    approvalCoordinator: ApprovalCoordinator;
     webhookSubscriber: WebhookEventSubscriber;
     sseSubscriber: A2ASseEventSubscriber;
     agentsContext?: AgentsRouterContext;
@@ -63,7 +63,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     const {
         getAgent,
         getAgentCard,
-        messageStreamManager,
+        approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
         agentsContext,
@@ -88,7 +88,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .use('*', prettyJsonMiddleware)
         .use('*', redactionMiddleware)
         .route('/', createGreetingRouter(getAgent))
-        .route('/', createMessagesRouter(getAgent, messageStreamManager))
+        .route('/', createMessagesRouter(getAgent, approvalCoordinator))
         .route('/', createLlmRouter(getAgent))
         .route('/', createSessionsRouter(getAgent))
         .route('/', createSearchRouter(getAgent))
@@ -97,7 +97,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route('/', createPromptsRouter(getAgent))
         .route('/', createResourcesRouter(getAgent))
         .route('/', createMemoryRouter(getAgent))
-        .route('/', createApprovalsRouter(getAgent, messageStreamManager))
+        .route('/', createApprovalsRouter(getAgent, approvalCoordinator))
         // Always mount agents router for consistent type signature
         // Use dummy context if real context is missing
         .route('/', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext));

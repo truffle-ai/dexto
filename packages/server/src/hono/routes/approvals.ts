@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { type DextoAgent, DenialReason, ApprovalStatus } from '@dexto/core';
-import type { MessageStreamManager } from '../../streams/message-stream-manager.js';
+import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 
 const ApprovalBodySchema = z
     .object({
@@ -30,7 +30,7 @@ const ApprovalResponseSchema = z
 
 export function createApprovalsRouter(
     getAgent: () => DextoAgent,
-    _messageStreamManager?: MessageStreamManager
+    approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
 
@@ -79,16 +79,17 @@ export function createApprovalsRouter(
 
         agent.logger.info(`Received approval decision for ${approvalId}: ${status}`);
 
+        if (!approvalCoordinator) {
+            agent.logger.error('ApprovalCoordinator not available');
+            return ctx.json({ ok: false, approvalId, status } as any, 503);
+        }
+
         try {
-            // Construct payload for event bus
+            // Construct response payload
             const responsePayload = {
                 approvalId,
                 status,
-                // Note: sessionId is not passed by client in body, but needed by ApprovalManager?
-                // Actually ApprovalManager maps approvalId -> request, so it knows the session.
-                // However, the event bus might need sessionId to route if using SessionEventBus?
-                // But here we emit to agent.agentEventBus.
-                sessionId: undefined,
+                sessionId: undefined, // ApprovalManager maps approvalId -> request internally
                 ...(status === ApprovalStatus.DENIED
                     ? {
                           reason: DenialReason.USER_DENIED,
@@ -101,8 +102,8 @@ export function createApprovalsRouter(
                     : {}),
             };
 
-            // Emit to agent's event bus which ApprovalManager listens to
-            agent.agentEventBus.emit('approval:response', responsePayload);
+            // Emit via approval coordinator which ManualApprovalHandler listens to
+            approvalCoordinator.emitResponse(responsePayload);
 
             return ctx.json({
                 ok: true,
@@ -111,7 +112,6 @@ export function createApprovalsRouter(
             });
         } catch (error) {
             agent.logger.error(`Error processing approval ${approvalId}: ${error}`);
-            // Return 500 via context
             return ctx.json({ ok: false, approvalId, status } as any, 500);
         }
     });

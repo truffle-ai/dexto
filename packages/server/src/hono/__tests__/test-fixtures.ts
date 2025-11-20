@@ -87,20 +87,20 @@ export async function startTestServer(
     const getAgent = () => agent;
     const getAgentCard = () => agentCard;
 
-    // Create event subscribers for test
+    // Create event subscribers and approval coordinator for test
     const { WebhookEventSubscriber } = await import('../../events/webhook-subscriber.js');
     const { A2ASseEventSubscriber } = await import('../../events/a2a-sse-subscriber.js');
-    const { MessageStreamManager } = await import('../../streams/message-stream-manager.js');
+    const { ApprovalCoordinator } = await import('../../approval/approval-coordinator.js');
 
     const webhookSubscriber = new WebhookEventSubscriber();
     const sseSubscriber = new A2ASseEventSubscriber();
-    const messageStreamManager = new MessageStreamManager();
+    const approvalCoordinator = new ApprovalCoordinator();
 
     // Create Hono app
     const app = createDextoApp({
         getAgent,
         getAgentCard,
-        messageStreamManager,
+        approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
         ...(agentsContext ? { agentsContext } : {}), // Include agentsContext only if provided

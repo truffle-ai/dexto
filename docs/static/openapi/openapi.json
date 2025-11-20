@@ -3451,8 +3451,7 @@
                         },
                         "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                       }
-                    },
-                    "additionalProperties": false
+                    }
                   },
                   {
                     "type": "object",
@@ -4361,6 +4360,55 @@
                   },
                   "required": [
                     "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/generate-title": {
+      "post": {
+        "summary": "Generate Session Title",
+        "description": "Generates a descriptive title for the session using the first user message. Returns existing title if already set.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Title generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Generated title, or null if generation failed"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "sessionId"
                   ],
                   "additionalProperties": false
                 }

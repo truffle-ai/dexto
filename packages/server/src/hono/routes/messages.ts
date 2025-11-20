@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import type { MessageStreamManager } from '../../streams/message-stream-manager.js';
+import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
+import { TextEncoder } from 'node:util';
+import { ReadableStream } from 'node:stream/web';
 
 const MessageBodySchema = z
     .object({
@@ -46,7 +48,7 @@ const ResetBodySchema = z
 
 export function createMessagesRouter(
     getAgent: () => DextoAgent,
-    messageStreamManager?: MessageStreamManager
+    approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
 
@@ -208,12 +210,13 @@ export function createMessagesRouter(
         return ctx.json({ status: 'reset initiated', sessionId });
     });
 
-    if (messageStreamManager) {
+    if (approvalCoordinator) {
         const messageStreamRoute = createRoute({
             method: 'post',
             path: '/message-stream',
-            summary: 'Start streaming message',
-            description: 'Starts a streaming turn and returns the SSE endpoint URL',
+            summary: 'Stream message response',
+            description:
+                'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response.',
             tags: ['messages'],
             request: {
                 body: {
@@ -222,22 +225,14 @@ export function createMessagesRouter(
             },
             responses: {
                 200: {
-                    description: 'Streaming endpoint information',
+                    description: 'SSE stream of agent events',
                     content: {
-                        'application/json': {
-                            schema: z
-                                .object({
-                                    streamUrl: z
-                                        .string()
-                                        .describe('URL to consume SSE events for this session'),
-                                })
-                                .strict(),
+                        'text/event-stream': {
+                            schema: z.string(),
                         },
                     },
                 },
-                503: {
-                    description: 'Streaming not available',
-                },
+                400: { description: 'Validation error' },
             },
         });
 
@@ -259,56 +254,89 @@ export function createMessagesRouter(
                   }
                 : undefined;
 
+            // Create abort controller for cleanup
+            const abortController = new AbortController();
+            const { signal } = abortController;
+
+            // Start agent streaming
             const iterator = await agent.stream(message, {
                 sessionId,
                 imageData: imageDataInput,
                 fileData: fileDataInput,
+                signal,
             });
 
-            messageStreamManager.startStreaming(sessionId, iterator);
+            const encoder = new TextEncoder();
 
-            return ctx.json({
-                streamUrl: `/api/message-stream/${encodeURIComponent(sessionId)}`,
+            // Create SSE stream
+            const stream = new ReadableStream({
+                async start(controller) {
+                    let closed = false;
+
+                    // Helper to format SSE events
+                    const formatSSE = (eventName: string, data: unknown): Uint8Array => {
+                        const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
+                        return encoder.encode(payload);
+                    };
+
+                    // Subscribe to approval events from coordinator
+                    approvalCoordinator.onRequest(
+                        (request) => {
+                            if (!closed && request.sessionId === sessionId) {
+                                controller.enqueue(formatSSE('approval:request', request));
+                            }
+                        },
+                        { signal }
+                    );
+
+                    approvalCoordinator.onResponse(
+                        (response) => {
+                            if (!closed && response.sessionId === sessionId) {
+                                controller.enqueue(formatSSE('approval:response', response));
+                            }
+                        },
+                        { signal }
+                    );
+
+                    try {
+                        // Stream LLM/tool events from iterator
+                        for await (const event of iterator) {
+                            if (closed) break;
+                            controller.enqueue(formatSSE(event.type, event));
+                        }
+                    } catch (error) {
+                        if (!closed) {
+                            controller.enqueue(
+                                formatSSE('llm:error', {
+                                    error: {
+                                        message:
+                                            error instanceof Error ? error.message : String(error),
+                                    },
+                                    recoverable: false,
+                                    sessionId,
+                                })
+                            );
+                        }
+                    } finally {
+                        abortController.abort(); // Cleanup subscriptions
+                        if (!closed) {
+                            controller.close();
+                        }
+                    }
+                },
+                cancel() {
+                    abortController.abort();
+                },
             });
-        });
 
-        const messageStreamGetRoute = createRoute({
-            method: 'get',
-            path: '/message-stream/{sessionId}',
-            summary: 'Consume streaming events',
-            description: 'Streams SSE events for an active message session',
-            tags: ['messages'],
-            request: {
-                params: z.object({
-                    sessionId: z.string().describe('Session identifier'),
-                }),
-            },
-            responses: {
-                200: {
-                    description: 'SSE stream',
+            return new Response(stream as any, {
+                headers: {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    Connection: 'keep-alive',
+                    'X-Accel-Buffering': 'no',
                 },
-                404: {
-                    description: 'Session stream not found',
-                },
-            },
-        });
-
-        app.openapi(messageStreamGetRoute, async (ctx) => {
-            const { sessionId } = ctx.req.valid('param');
-
-            try {
-                const stream = messageStreamManager.createReadableStream(sessionId);
-                return new Response(stream as any, {
-                    headers: {
-                        'Content-Type': 'text/event-stream',
-                        'Cache-Control': 'no-cache',
-                        Connection: 'keep-alive',
-                        'X-Accel-Buffering': 'no',
-                    },
-                });
-            } catch {
-                return ctx.json({ error: 'Stream not found' }, 404);
-            }
+            });
         });
     }
 

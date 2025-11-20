@@ -1,10 +1,6 @@
-import type {
-    ApprovalHandler,
-    ApprovalRequest,
-    ApprovalResponse,
-    AgentEventBus,
-} from '@dexto/core';
+import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '@dexto/core';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
+import type { ApprovalCoordinator } from './approval-coordinator.js';
 
 /**
  * Extended approval handler with cancellation support
@@ -27,27 +23,25 @@ export interface ManualApprovalHandler extends ApprovalHandler {
 }
 
 /**
- * Creates a manual approval handler that uses the AgentEventBus for communication.
+ * Creates a manual approval handler that uses ApprovalCoordinator for server communication.
  *
- * This handler emits `approval:request` events and waits for `approval:response` events,
+ * This handler emits `approval:request` and waits for `approval:response` via the coordinator,
  * enabling SSE-based approval flows where:
- * 1. Server emits approval:request → SSE subscriber forwards to client
+ * 1. Handler emits approval:request → Coordinator → SSE endpoint forwards to client
  * 2. Client sends decision via POST /api/approvals/{approvalId}
- * 3. Server emits approval:response → this handler resolves
+ * 3. API route emits approval:response → Coordinator → Handler resolves
  *
  * The returned handler includes cancellation methods (cancel, cancelAll, getPending)
  * for managing pending approval requests.
  *
- * @param eventBus The agent's event bus for emitting and listening to events
+ * @param coordinator The approval coordinator for request/response communication
  * @param timeoutMs Timeout in milliseconds for waiting for approval response
  * @returns ManualApprovalHandler with cancellation support
  *
  * @example
  * ```typescript
- * const handler = createManualApprovalHandler(
- *   agent.agentEventBus,
- *   120_000 // 2 minutes
- * );
+ * const coordinator = new ApprovalCoordinator();
+ * const handler = createManualApprovalHandler(coordinator, 120_000);
  * agent.setApprovalHandler(handler);
  *
  * // Later, cancel a specific approval
@@ -55,7 +49,7 @@ export interface ManualApprovalHandler extends ApprovalHandler {
  * ```
  */
 export function createManualApprovalHandler(
-    eventBus: AgentEventBus,
+    coordinator: ApprovalCoordinator,
     timeoutMs: number
 ): ManualApprovalHandler {
     // Track pending approvals for cancellation support
@@ -83,15 +77,19 @@ export function createManualApprovalHandler(
                     reason: DenialReason.TIMEOUT,
                     message: `Approval request timed out after ${timeoutMs}ms`,
                 };
-                eventBus.emit('approval:response', timeoutResponse);
+                coordinator.emitResponse(timeoutResponse);
 
                 reject(new Error(`Approval request timed out after ${timeoutMs}ms`));
             }, timeoutMs);
 
             // Cleanup function to remove listener and clear timeout
+            let cleanupListener: (() => void) | null = null;
             const cleanup = () => {
                 clearTimeout(timer);
-                eventBus.off('approval:response', listener);
+                if (cleanupListener) {
+                    cleanupListener();
+                    cleanupListener = null;
+                }
             };
 
             // Listen for approval:response events
@@ -105,7 +103,8 @@ export function createManualApprovalHandler(
             };
 
             // Register listener
-            eventBus.on('approval:response', listener);
+            coordinator.on('approval:response', listener);
+            cleanupListener = () => coordinator.off('approval:response', listener);
 
             // Store for cancellation support
             pendingApprovals.set(request.approvalId, {
@@ -114,30 +113,9 @@ export function createManualApprovalHandler(
                 request,
             });
 
-            // Emit the approval:request event
-            // SSE subscribers will pick this up and forward to clients
-            const eventData: {
-                approvalId: string;
-                type: string;
-                timestamp: Date;
-                metadata: Record<string, unknown>;
-                sessionId?: string;
-                timeout?: number;
-            } = {
-                approvalId: request.approvalId,
-                type: request.type,
-                timestamp: request.timestamp,
-                metadata: request.metadata,
-            };
-
-            if (request.sessionId !== undefined) {
-                eventData.sessionId = request.sessionId;
-            }
-            if (request.timeout !== undefined) {
-                eventData.timeout = request.timeout;
-            }
-
-            eventBus.emit('approval:request', eventData);
+            // Emit the approval:request event via coordinator
+            // SSE endpoints will subscribe to coordinator and forward to clients
+            coordinator.emitRequest(request);
         });
     };
 
@@ -150,7 +128,7 @@ export function createManualApprovalHandler(
                 pendingApprovals.delete(approvalId);
 
                 // Emit cancellation event so UI listeners can dismiss the prompt
-                eventBus.emit('approval:response', {
+                coordinator.emitResponse({
                     approvalId,
                     status: ApprovalStatus.CANCELLED,
                     sessionId: pending.request.sessionId,

@@ -224,24 +224,23 @@ dexto --mode server
 ```
 
 **Key API Endpoints:**
-- `POST /api/message-stream`: Send a prompt and receive streaming events via SSE.
-  - Body: `{ "message": "your prompt here" }`
+- `POST /api/message-stream`: Send a prompt and stream the response via SSE.
+  - Body: `{ "sessionId": "your-session-id", "message": "your prompt here" }`
+  - Response: SSE stream (text/event-stream)
 - `POST /api/message-sync`: Send a prompt and wait for the complete response.
-  - Body: `{ "message": "your prompt here" }`
-- `POST /api/message-stream`: Start a streaming response over Server-Sent Events (SSE). Returns `{ "streamUrl": "/api/message-stream/{sessionId}" }`, which you can consume with `fetch` + `ReadableStream`.
+  - Body: `{ "sessionId": "your-session-id", "message": "your prompt here" }`
+  - Response: JSON with complete text
 
 ```ts
-// Start the streaming turn
-const res = await fetch('http://localhost:3001/api/message-stream', {
+// POST to /api/message-stream - response IS the SSE stream
+const response = await fetch('http://localhost:3001/api/message-stream', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ sessionId: 'demo-session', message: 'Summarize the news' })
 });
-const { streamUrl } = await res.json();
 
-// Connect to the SSE endpoint using fetch for proper Authorization header support
-const streamResponse = await fetch(`http://localhost:3001${streamUrl}`);
-const reader = streamResponse.body!.getReader();
+// Response body is the SSE stream
+const reader = response.body!.getReader();
 const decoder = new TextDecoder();
 
 while (true) {

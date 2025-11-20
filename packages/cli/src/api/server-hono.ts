@@ -13,7 +13,7 @@ import {
     createManualApprovalHandler,
     WebhookEventSubscriber,
     A2ASseEventSubscriber,
-    MessageStreamManager,
+    ApprovalCoordinator,
     type McpTransportType,
 } from '@dexto/server';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
@@ -73,15 +73,15 @@ export async function initializeHonoApi(
         overrides
     );
 
-    // Create event subscribers (shared across agent switches)
+    // Create event subscribers and approval coordinator (shared across agent switches)
     const webhookSubscriber = new WebhookEventSubscriber();
     const sseSubscriber = new A2ASseEventSubscriber();
-    const messageStreamManager = new MessageStreamManager();
+    const approvalCoordinator = new ApprovalCoordinator();
 
     /**
      * Wire services (SSE subscribers) to an agent.
      * Called for agent switching to re-subscribe to the new agent's event bus.
-     * Note: Approval handler is set in CLI before agent.start(), not here.
+     * Note: Approval handler and coordinator are set before agent.start() for each agent.
      */
     async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
         logger.debug('Wiring services to agent...');
@@ -89,7 +89,8 @@ export async function initializeHonoApi(
         // Subscribe to event bus (methods handle aborting previous subscriptions)
         webhookSubscriber.subscribe(agent.agentEventBus);
         sseSubscriber.subscribe(agent.agentEventBus);
-        messageStreamManager.subscribeToEventBus(agent.agentEventBus);
+        // Note: ApprovalCoordinator doesn't subscribe to agent event bus
+        // It's a separate coordination channel between handler and server
     }
 
     /**
@@ -150,7 +151,7 @@ export async function initializeHonoApi(
         if (newAgent.config.toolConfirmation?.mode === 'manual') {
             logger.debug('Setting up manual approval handler for new agent...');
             const handler = createManualApprovalHandler(
-                newAgent.agentEventBus,
+                approvalCoordinator,
                 newAgent.config.toolConfirmation.timeout
             );
             newAgent.setApprovalHandler(handler);
@@ -303,7 +304,7 @@ export async function initializeHonoApi(
         apiPrefix: '/api',
         getAgent,
         getAgentCard,
-        messageStreamManager,
+        approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
         agentsContext: {
@@ -358,7 +359,7 @@ export async function initializeHonoApi(
     if (activeAgent.config.toolConfirmation?.mode === 'manual') {
         logger.debug('Setting up manual approval handler for initial agent...');
         const handler = createManualApprovalHandler(
-            activeAgent.agentEventBus,
+            approvalCoordinator,
             activeAgent.config.toolConfirmation.timeout
         );
         activeAgent.setApprovalHandler(handler);

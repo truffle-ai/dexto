@@ -40,6 +40,19 @@ export class EventStreamClient {
             throw new SSEError(response.status, errorBody);
         }
 
+        // Extract signal and handle null case
+        const signal = options?.signal ?? undefined;
+        return this.connectFromResponse(response, signal ? { signal } : undefined);
+    }
+
+    /**
+     * Connect to an SSE stream from an existing Response object.
+     * Useful when the POST request returns the SSE stream directly.
+     */
+    async connectFromResponse(
+        response: Response,
+        options?: { signal?: AbortSignal }
+    ): Promise<AsyncIterableIterator<SSEEvent>> {
         const reader = response.body?.getReader();
         if (!reader) {
             throw new Error('Response body is null');

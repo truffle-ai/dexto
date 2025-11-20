@@ -5,6 +5,6 @@ export * from './events/webhook-subscriber.js';
 export * from './events/a2a-sse-subscriber.js';
 export * from './events/webhook-types.js';
 export * from './events/types.js';
-export * from './streams/message-stream-manager.js';
 export * from './mcp/mcp-handler.js';
 export * from './approval/manual-approval-handler.js';
+export * from './approval/approval-coordinator.js';

@@ -475,7 +475,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             try {
                 const client = new EventStreamClient();
 
-                // 1. POST to get stream URL
+                // POST to /api/message-stream - response IS the SSE stream
                 const response = await fetch(`${apiUrl}/api/message-stream`, {
                     method: 'POST',
                     headers: {
@@ -495,12 +495,8 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     throw new Error(`Failed to send message: ${response.statusText}`);
                 }
 
-                const { streamUrl } = await response.json();
-                // streamUrl is relative, e.g., /api/message-stream/xyz
-                const fullStreamUrl = `${apiUrl}${streamUrl}`;
-
-                // 2. Connect to SSE stream
-                const iterator = await client.connect(fullStreamUrl, {
+                // Response body is the SSE stream - connect to it directly
+                const iterator = await client.connectFromResponse(response, {
                     signal: abortController.signal,
                 });
 
