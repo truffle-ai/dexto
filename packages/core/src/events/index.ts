@@ -490,41 +490,41 @@ export const SessionEventNames: readonly SessionEventName[] = Object.freeze([
 export const EventNames: readonly EventName[] = Object.freeze([...EVENT_NAMES]);
 
 /**
- * Generic typed EventEmitter base class
+ * Generic typed EventEmitter base class using composition instead of inheritance
+ * This provides full compile-time type safety by not extending EventEmitter
  */
-class BaseTypedEventEmitter<TEventMap extends Record<string, any>> extends EventEmitter {
+class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
+    // Wrapped EventEmitter instance
+    private _emitter = new EventEmitter();
+
     // Store listeners with their abort controllers for cleanup
     private _abortListeners = new WeakMap<AbortSignal, Set<{ event: any; listener: any }>>();
 
-    // Strict typed overload - will match first for known event types
-    override emit<K extends keyof TEventMap>(
+    /**
+     * Emit an event with type-safe payload
+     */
+    emit<K extends keyof TEventMap>(
         event: K,
         ...args: TEventMap[K] extends void ? [] : [TEventMap[K]]
-    ): boolean;
-    // Fallback for unknown events - this creates a compile error for known events with wrong payload
-    override emit(event: string, ...args: never[]): boolean;
-    // Implementation
-    override emit(event: any, ...args: any[]): boolean {
-        return super.emit(event, ...args);
+    ): boolean {
+        return this._emitter.emit(event as string, ...args);
     }
 
-    // Strict typed overload for known events
-    override on<K extends keyof TEventMap>(
+    /**
+     * Subscribe to an event with type-safe listener
+     */
+    on<K extends keyof TEventMap>(
         event: K,
         listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void,
         options?: { signal?: AbortSignal }
-    ): this;
-    // Compatibility overload for unknown events
-    override on(event: string | symbol, listener: (...args: any[]) => void): this;
-    // Implementation
-    override on(event: any, listener: any, options?: { signal?: AbortSignal }): this {
+    ): this {
         // If signal is already aborted, don't add the listener
         if (options?.signal?.aborted) {
             return this;
         }
 
         // Add the listener
-        super.on(event, listener);
+        this._emitter.on(event as string, listener);
 
         // Set up abort handling if signal is provided
         if (options?.signal) {
@@ -556,16 +556,14 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> extends Event
         return this;
     }
 
-    // Strict typed overload for known events
-    override once<K extends keyof TEventMap>(
+    /**
+     * Subscribe to an event once with type-safe listener
+     */
+    once<K extends keyof TEventMap>(
         event: K,
         listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void,
         options?: { signal?: AbortSignal }
-    ): this;
-    // Compatibility overload for unknown events
-    override once(event: string | symbol, listener: (...args: any[]) => void): this;
-    // Implementation
-    override once(event: any, listener: any, options?: { signal?: AbortSignal }): this {
+    ): this {
         // If signal is already aborted, don't add the listener
         if (options?.signal?.aborted) {
             return this;
@@ -583,11 +581,11 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> extends Event
                     }
                 }
             }
-            listener(...args);
+            (listener as any)(...args);
         };
 
         // Add the wrapped listener
-        super.once(event, onceWrapper);
+        this._emitter.once(event as string, onceWrapper);
 
         // Set up abort handling if signal is provided
         if (options?.signal) {
@@ -619,16 +617,15 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> extends Event
         return this;
     }
 
-    // Strict typed overload for known events
-    override off<K extends keyof TEventMap>(
+    /**
+     * Unsubscribe from an event
+     */
+    off<K extends keyof TEventMap>(
         event: K,
         listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void
-    ): this;
-    // Compatibility overload for unknown events
-    override off(event: string | symbol, listener: (...args: any[]) => void): this;
-    // Implementation
-    override off(event: any, listener: any): this {
-        return super.off(event, listener);
+    ): this {
+        this._emitter.off(event as string, listener);
+        return this;
     }
 }
 

@@ -253,7 +253,7 @@ export function startTelegramBot(agent: DextoAgent) {
                 parse_mode: 'Markdown',
             });
         };
-        agentEventBus.on('llmservice:toolCall', toolCallHandler);
+        agentEventBus.on('llm:tool-call', toolCallHandler);
 
         try {
             await ctx.replyWithChatAction('typing');
@@ -269,7 +269,7 @@ export function startTelegramBot(agent: DextoAgent) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             await ctx.reply(`Error: ${errorMessage}`);
         } finally {
-            agentEventBus.off('llmservice:toolCall', toolCallHandler);
+            agentEventBus.off('llm:tool-call', toolCallHandler);
         }
     });
 
