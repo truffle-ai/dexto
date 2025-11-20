@@ -14,8 +14,6 @@ import type { LLMRouter, LLMProvider } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { EventStreamClient, SSEEvent } from '../../lib/EventStreamClient';
 import { getApiUrl } from '../../lib/api-url';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/queryKeys.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -145,7 +143,6 @@ const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).s
 export function useChat(apiUrl: string, getActiveSessionId?: () => string | null) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
-    const queryClient = useQueryClient();
 
     // Ref for aborting current stream
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -419,17 +416,11 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     break;
                 }
 
-                case 'session:title-updated': {
-                    // Invalidate sessions query to trigger refetch with updated title
-                    queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
-                    break;
-                }
-
                 // Handle legacy events if server still sends them or mapped differently?
                 // No, we are using new SSE stream.
             }
         },
-        [isForActiveSession, queryClient]
+        [isForActiveSession]
     );
 
     const sendMessage = useCallback(

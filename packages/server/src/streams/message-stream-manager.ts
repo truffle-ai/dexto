@@ -62,19 +62,7 @@ export class MessageStreamManager {
             { signal }
         );
 
-        // Subscribe to session:title-updated events
-        eventBus.on(
-            'session:title-updated',
-            (payload) => {
-                const sessionId = payload.sessionId;
-                if (sessionId) {
-                    this.pushApprovalEvent(sessionId, 'session:title-updated', payload);
-                }
-            },
-            { signal }
-        );
-
-        logger.debug('MessageStreamManager subscribed to approval and session events on event bus');
+        logger.debug('MessageStreamManager subscribed to approval events on event bus');
     }
 
     public startStreaming(
