@@ -87,6 +87,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 requestElicitation: vi.fn(),
                 cancelApproval: vi.fn(),
                 cancelAllApprovals: vi.fn(),
+                hasHandler: vi.fn().mockReturnValue(false),
             } as any,
             memoryManager: {} as any,
             pluginManager: {

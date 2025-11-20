@@ -80,6 +80,14 @@ export const TestConfigs = {
                 level: 'info',
                 transports: [{ type: 'console' }],
             },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't have interactive approval
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: false, // Tests don't handle elicitation
+                timeout: 120000,
+            },
         };
     },
 
@@ -118,6 +126,14 @@ export const TestConfigs = {
             logger: {
                 level: 'info',
                 transports: [{ type: 'console' }],
+            },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't have interactive approval
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: false, // Tests don't handle elicitation
+                timeout: 120000,
             },
         };
     },
@@ -168,6 +184,14 @@ export const TestConfigs = {
             logger: {
                 level: 'info',
                 transports: [{ type: 'console' }],
+            },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't have interactive approval
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: false, // Tests don't handle elicitation
+                timeout: 120000,
             },
         };
     },
