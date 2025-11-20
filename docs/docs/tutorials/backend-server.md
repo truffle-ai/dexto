@@ -189,58 +189,6 @@ export const StreamingChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentInput, setCurrentInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
-
-  // Helper to connect to SSE stream
-  const connectToStream = (streamUrl: string) => {
-    const eventSource = new EventSource(streamUrl);
-    eventSourceRef.current = eventSource;
-
-    eventSource.addEventListener('llm:thinking', () => {
-      setIsStreaming(true);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          content: '🤔 Thinking...',
-          sender: 'agent',
-          timestamp: new Date(),
-          isStreaming: true
-        }
-      ]);
-    });
-
-    eventSource.addEventListener('llm:chunk', (event) => {
-      const data = JSON.parse(event.data);
-      handleStreamChunk(data);
-    });
-
-    eventSource.addEventListener('llm:response', (event) => {
-      const data = JSON.parse(event.data);
-      setIsStreaming(false);
-      // Mark the last message as complete
-      setMessages(prev => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last && last.isStreaming) {
-          last.isStreaming = false;
-        }
-        return updated;
-      });
-    });
-
-    eventSource.addEventListener('llm:error', (event) => {
-      const data = JSON.parse(event.data);
-      console.error('Stream error:', data);
-      setIsStreaming(false);
-      eventSource.close();
-    });
-
-    eventSource.onerror = () => {
-      setIsStreaming(false);
-      eventSource.close();
-    };
-  };
 
   const handleStreamChunk = (data: any) => {
     const content = data.content || '';
@@ -287,21 +235,76 @@ export const StreamingChat: React.FC = () => {
     setCurrentInput('');
 
     try {
-      // Send message and get stream URL
+      // POST to /api/message-stream - response IS the SSE stream
       const response = await fetch('http://localhost:3001/api/message-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageToSend, stream: true })
+        body: JSON.stringify({
+          message: messageToSend,
+          sessionId: 'default-session'
+        })
       });
 
-      if (response.ok) {
-        const { streamUrl } = await response.json();
-        connectToStream(`http://localhost:3001${streamUrl}`);
-      } else {
+      if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Response body is the SSE stream - process it directly
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      setIsStreaming(true);
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          setIsStreaming(false);
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          const eventMatch = line.match(/^event: (.+)$/m);
+          const dataMatch = line.match(/^data: (.+)$/m);
+
+          if (eventMatch && dataMatch) {
+            const eventType = eventMatch[1];
+            const data = JSON.parse(dataMatch[1]);
+
+            if (eventType === 'llm:thinking') {
+              setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                content: '🤔 Thinking...',
+                sender: 'agent',
+                timestamp: new Date(),
+                isStreaming: true
+              }]);
+            } else if (eventType === 'llm:chunk') {
+              handleStreamChunk(data);
+            } else if (eventType === 'llm:response') {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.isStreaming) {
+                  last.isStreaming = false;
+                }
+                return updated;
+              });
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      setIsStreaming(false);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         content: `❌ Error: ${error.message}`,
@@ -354,17 +357,17 @@ export const StreamingChat: React.FC = () => {
           type="text"
           value={currentInput}
           onChange={(e) => setCurrentInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          onKeyPress={(e) => e.key === 'Enter' && !isStreaming && sendMessage()}
           placeholder="Type your message..."
           className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={!isConnected}
+          disabled={isStreaming}
         />
         <button
           onClick={sendMessage}
-          disabled={!isConnected || !currentInput.trim()}
+          disabled={isStreaming || !currentInput.trim()}
           className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
         >
-          Send
+          {isStreaming ? '...' : 'Send'}
         </button>
       </div>
     </div>
@@ -373,10 +376,10 @@ export const StreamingChat: React.FC = () => {
 ```
 
 **What we've added:**
-- Server-Sent Events (SSE) for streaming
-- Real-time streaming responses  
+- Server-Sent Events (SSE) for streaming via POST response
+- Real-time chunk-by-chunk response streaming
 - Stream status indicator
-- Auto-reconnection logic
+- Manual SSE parsing with ReadableStream
 
 ## Layer 3: Add Server Management
 
@@ -406,32 +409,17 @@ export const ServerManagementChat: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [servers, setServers] = useState<Server[]>([]);
   const [showServerPanel, setShowServerPanel] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   // Load servers on mount
   useEffect(() => {
     fetchServers();
   }, []);
 
-  // SSE stream connection helper (same as Layer 2)
-  const connectToStream = (streamUrl: string) => {
-    const eventSource = new EventSource(streamUrl);
-    eventSourceRef.current = eventSource;
-
-    eventSource.addEventListener('llm:thinking', () => setIsStreaming(true));
-    eventSource.addEventListener('llm:chunk', (event) => {
-      const data = JSON.parse(event.data);
-      handleStreamChunk(data);
-    });
-    eventSource.addEventListener('llm:response', () => setIsStreaming(false));
-    eventSource.onerror = () => {
-      setIsStreaming(false);
-      eventSource.close();
-    };
-  };
+  // Note: Use the same sendMessage implementation from Layer 2
+  // for SSE streaming. We'll skip repeating it here for brevity.
 
   const handleStreamChunk = (data: any) => {
-    // Same implementation as Layer 2
+    // Same chunk handling as Layer 2
     const content = data.content || '';
     setMessages(prev => {
       const last = prev[prev.length - 1];
@@ -498,77 +486,8 @@ export const ServerManagementChat: React.FC = () => {
     }
   };
 
-  const handleDextoEvent = (data: any) => {
-    switch (data.event) {
-      case 'thinking':
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          content: '🤔 Thinking...',
-          sender: 'agent',
-          timestamp: new Date(),
-          isStreaming: true
-        }]);
-        break;
-
-      case 'chunk':
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          
-          if (lastMessage && lastMessage.sender === 'agent' && lastMessage.isStreaming) {
-            if (lastMessage.content === '🤔 Thinking...') {
-              lastMessage.content = data.data.content;
-            } else {
-              lastMessage.content += data.data.content;
-            }
-          }
-          return newMessages;
-        });
-        break;
-
-      case 'toolCall':
-        // Show when agent uses a tool
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          content: `🔧 Using tool: ${data.data.toolName}`,
-          sender: 'agent',
-          timestamp: new Date()
-        }]);
-        break;
-
-      case 'response':
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          
-          if (lastMessage && lastMessage.sender === 'agent' && lastMessage.isStreaming) {
-            lastMessage.isStreaming = false;
-            lastMessage.content = data.data.content;
-          }
-          return newMessages;
-        });
-        break;
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!currentInput.trim() || !isConnected) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: currentInput,
-      sender: 'user',
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
-
-    wsRef.current?.send(JSON.stringify({
-      type: 'message',
-      content: currentInput
-    }));
-
-    setCurrentInput('');
-  };
+  // Use the same sendMessage implementation from Layer 2 for streaming
+  // (omitted here for brevity - refer to Layer 2 code above)
 
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto p-4">
@@ -577,12 +496,7 @@ export const ServerManagementChat: React.FC = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">Dexto Chat - With Server Management</h1>
-            <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
-              <span className="text-sm text-gray-600">
-                {isConnected ? 'Connected to Dexto' : 'Connecting...'}
-              </span>
-            </div>
+            <p className="text-sm text-gray-600">Using SSE streaming + server management</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -659,17 +573,17 @@ export const ServerManagementChat: React.FC = () => {
           type="text"
           value={currentInput}
           onChange={(e) => setCurrentInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          onKeyPress={(e) => e.key === 'Enter' && !isStreaming && sendMessage()}
           placeholder="Type your message..."
           className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={!isConnected}
+          disabled={isStreaming}
         />
         <button
           onClick={sendMessage}
-          disabled={!isConnected || !currentInput.trim()}
+          disabled={isStreaming || !currentInput.trim()}
           className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
         >
-          Send
+          {isStreaming ? '...' : 'Send'}
         </button>
       </div>
     </div>
