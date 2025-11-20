@@ -331,6 +331,18 @@ async function bootstrapAgentFromGlobalOpts() {
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
     const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath);
+
+    // Override approval config for read-only commands (never run conversations)
+    // This avoids needing to set up unused approval handlers
+    enrichedConfig.toolConfirmation = {
+        mode: 'auto-approve',
+        timeout: enrichedConfig.toolConfirmation?.timeout ?? 120000,
+    };
+    enrichedConfig.elicitation = {
+        enabled: false,
+        timeout: enrichedConfig.elicitation?.timeout ?? 120000,
+    };
+
     const agent = new DextoAgent(enrichedConfig, resolvedPath);
     await agent.start();
 
@@ -832,31 +844,44 @@ program
                 }
 
                 // ——— VALIDATE APPROVAL MODE COMPATIBILITY ———
-                if (validatedConfig.toolConfirmation?.mode === 'manual') {
+                // Check if approval handler is needed (manual mode OR elicitation enabled)
+                const needsHandler =
+                    validatedConfig.toolConfirmation?.mode === 'manual' ||
+                    validatedConfig.elicitation.enabled;
+
+                if (needsHandler) {
                     // Headless CLI cannot do interactive approval
                     if (opts.mode === 'cli' && headlessInput) {
                         console.error(
-                            '❌ Manual approval mode is not supported in headless CLI mode (pipes/scripts).'
+                            '❌ Manual approval and elicitation are not supported in headless CLI mode (pipes/scripts).'
                         );
+                        console.error('💡 Use interactive CLI mode, or update your config:');
                         console.error(
-                            '💡 Use interactive CLI mode or set toolConfirmation.mode to "auto-approve" in your config.'
+                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
                         );
-                        safeExit('main', 1, 'manual-approval-unsupported-headless');
+                        console.error('   - Set elicitation.enabled to false');
+                        safeExit('main', 1, 'approval-unsupported-headless');
                     }
 
-                    // Only web, server, and interactive CLI support manual mode
+                    // Only web, server, and interactive CLI support approval handlers
+                    // TODO: Add approval support for other modes:
+                    // - Discord: Could use Discord message buttons/reactions for approval UI
+                    // - Telegram: Could use Telegram inline keyboards for approval prompts
+                    // - MCP: Could implement callback-based approval mechanism in MCP protocol
                     const supportedModes = ['web', 'server', 'cli'];
                     if (!supportedModes.includes(opts.mode)) {
                         console.error(
-                            `❌ Manual approval mode is not supported in "${opts.mode}" mode.`
+                            `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`
                         );
                         console.error(
-                            `💡 Manual approval is only supported in: ${supportedModes.join(', ')}`
+                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(', ')}`
                         );
+                        console.error('   Update your config:');
                         console.error(
-                            '   Set toolConfirmation.mode to "auto-approve" or "auto-deny" in your config.'
+                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
                         );
-                        safeExit('main', 1, 'manual-approval-unsupported-mode');
+                        console.error('   - Set elicitation.enabled to false');
+                        safeExit('main', 1, 'approval-unsupported-mode');
                     }
                 }
 
