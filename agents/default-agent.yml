@@ -89,19 +89,19 @@ toolConfirmation:
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
   # Optional: Static tool policies for fine-grained allow/deny control
-  # toolPolicies:
-  #   # Tools that never require approval (low-risk, common operations)
-  #   alwaysAllow:
-  #     - internal--ask_user
-  #     - mcp--read_file
-  #     - mcp--list_directory
-  #     - mcp--list_allowed_directories
-  #
-  #   # Tools that are always denied (high-risk, destructive operations)
-  #   # Deny list takes precedence over allow list
-  #   alwaysDeny:
-  #     - mcp--filesystem--delete_file
-  #     - mcp--playwright--execute_script
+  toolPolicies:
+    # Tools that never require approval (low-risk, common operations)
+    alwaysAllow:
+      - internal--ask_user
+      - mcp--read_file
+      - mcp--list_directory
+      - mcp--list_allowed_directories
+  
+    # Tools that are always denied (high-risk, destructive operations)
+    # Deny list takes precedence over allow list
+    alwaysDeny:
+      - mcp--filesystem--delete_file
+      - mcp--playwright--execute_script
 
 # Elicitation configuration - separate from tool confirmation
 # Allows auto-approve for tools while still supporting user input requests
