@@ -81,7 +81,7 @@ export function createApprovalsRouter(
 
         if (!approvalCoordinator) {
             agent.logger.error('ApprovalCoordinator not available');
-            return ctx.json({ ok: false, approvalId, status } as any, 503);
+            return ctx.json({ ok: false as const, approvalId, status }, 503);
         }
 
         try {
@@ -119,8 +119,8 @@ export function createApprovalsRouter(
                 status,
             });
         } catch (error) {
-            agent.logger.error(`Error processing approval ${approvalId}: ${error}`);
-            return ctx.json({ ok: false, approvalId, status } as any, 500);
+            agent.logger.error('Error processing approval', { approvalId, error });
+            return ctx.json({ ok: false as const, approvalId, status }, 500);
         }
     });
 

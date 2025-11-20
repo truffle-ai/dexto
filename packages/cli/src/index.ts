@@ -35,7 +35,7 @@ import {
     globalPreferencesExist,
     loadGlobalPreferences,
 } from '@dexto/agent-management';
-import type { AgentConfig, ValidatedAgentConfig } from '@dexto/core';
+import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
