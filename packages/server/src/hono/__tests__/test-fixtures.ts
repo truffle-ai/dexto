@@ -103,6 +103,10 @@ export async function startTestServer(
     const sseSubscriber = new A2ASseEventSubscriber();
     const approvalCoordinator = new ApprovalCoordinator();
 
+    // Subscribe to agent's event bus
+    webhookSubscriber.subscribe(agent.agentEventBus);
+    sseSubscriber.subscribe(agent.agentEventBus);
+
     // Create Hono app
     const app = createDextoApp({
         getAgent,

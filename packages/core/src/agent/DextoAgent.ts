@@ -792,30 +792,57 @@ export class DextoAgent {
         const controller = new AbortController();
         const cleanupSignal = controller.signal;
 
+        // Track listener references for manual cleanup
+        const listeners: Array<{
+            event: StreamingEventName;
+            listener: (payload: any) => void;
+        }> = [];
+
+        // Cleanup function to remove all listeners
+        const cleanupListeners = () => {
+            if (listeners.length === 0) {
+                return; // Already cleaned up
+            }
+            for (const { event, listener } of listeners) {
+                this.agentEventBus.off(event, listener);
+            }
+            listeners.length = 0;
+        };
+
+        // Wire external signal to trigger cleanup
+        if (signal) {
+            const abortHandler = () => {
+                cleanupListeners();
+                controller.abort();
+            };
+            signal.addEventListener('abort', abortHandler, { once: true });
+        }
+
         // Subscribe to all STREAMING_EVENTS on AgentEventBus
         // Core events are forwarded directly with no mapping
         for (const eventName of STREAMING_EVENTS) {
-            this.agentEventBus.on(
-                eventName as StreamingEventName,
-                (data: any) => {
-                    // Filter to this session's events (if sessionId is present in event)
-                    if (data.sessionId !== undefined && data.sessionId !== sessionId) {
-                        return;
-                    }
+            const listener = (data: any) => {
+                // Filter to this session's events (if sessionId is present in event)
+                if (data.sessionId !== undefined && data.sessionId !== sessionId) {
+                    return;
+                }
 
-                    // Forward core event directly with type property
-                    eventQueue.push({ type: eventName, ...data } as StreamingEvent);
+                // Forward core event directly with type property
+                eventQueue.push({ type: eventName, ...data } as StreamingEvent);
 
-                    // Mark stream as completed when we receive final events
-                    if (
-                        eventName === 'llm:response' ||
-                        (eventName === 'llm:error' && !data.recoverable)
-                    ) {
-                        completed = true;
-                    }
-                },
-                { signal: cleanupSignal }
-            );
+                // Mark stream as completed when we receive final events
+                if (
+                    eventName === 'llm:response' ||
+                    (eventName === 'llm:error' && !data.recoverable)
+                ) {
+                    completed = true;
+                }
+            };
+
+            this.agentEventBus.on(eventName as StreamingEventName, listener, {
+                signal: cleanupSignal,
+            });
+            listeners.push({ event: eventName as StreamingEventName, listener });
         }
 
         // Start run in background (fire-and-forget)
@@ -851,7 +878,8 @@ export class DextoAgent {
 
                     // Check for abort
                     if (signal?.aborted) {
-                        controller.abort(); // Cleanup listeners
+                        cleanupListeners();
+                        controller.abort();
                         return { done: true, value: undefined };
                     }
                 }
@@ -863,11 +891,20 @@ export class DextoAgent {
 
                 // Stream completed
                 if (completed) {
-                    controller.abort(); // Cleanup listeners
+                    cleanupListeners();
+                    controller.abort();
                     return { done: true, value: undefined };
                 }
 
                 // Shouldn't reach here
+                cleanupListeners();
+                return { done: true, value: undefined };
+            },
+
+            async return(): Promise<IteratorResult<StreamingEvent>> {
+                // Called when consumer breaks out early or explicitly calls return()
+                cleanupListeners();
+                controller.abort();
                 return { done: true, value: undefined };
             },
 
