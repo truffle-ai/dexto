@@ -275,19 +275,22 @@ export interface ApprovalHandler {
     (request: ApprovalRequest): Promise<ApprovalResponse>;
 
     /**
-     * Cancel a specific pending approval request
+     * Cancel a specific pending approval request (optional)
      * @param approvalId The ID of the approval to cancel
+     * @remarks Not all handlers support cancellation (e.g., auto-approve handlers)
      */
-    cancel(approvalId: string): void;
+    cancel?(approvalId: string): void;
 
     /**
-     * Cancel all pending approval requests
+     * Cancel all pending approval requests (optional)
+     * @remarks Not all handlers support cancellation (e.g., auto-approve handlers)
      */
-    cancelAll(): void;
+    cancelAll?(): void;
 
     /**
-     * Get list of pending approval request IDs
+     * Get list of pending approval request IDs (optional)
      * @returns Array of approval IDs currently pending
+     * @remarks Not all handlers track pending requests (e.g., auto-approve handlers)
      */
-    getPending(): string[];
+    getPending?(): string[];
 }

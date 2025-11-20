@@ -3,26 +3,6 @@ import { ApprovalStatus, DenialReason } from '@dexto/core';
 import type { ApprovalCoordinator } from './approval-coordinator.js';
 
 /**
- * Extended approval handler with cancellation support
- */
-export interface ManualApprovalHandler extends ApprovalHandler {
-    /**
-     * Cancel a specific approval request
-     */
-    cancel: (approvalId: string) => void;
-
-    /**
-     * Cancel all pending approval requests
-     */
-    cancelAll: () => void;
-
-    /**
-     * Get list of pending approval request IDs
-     */
-    getPending: () => string[];
-}
-
-/**
  * Creates a manual approval handler that uses ApprovalCoordinator for server communication.
  *
  * This handler emits `approval:request` and waits for `approval:response` via the coordinator,
@@ -31,14 +11,14 @@ export interface ManualApprovalHandler extends ApprovalHandler {
  * 2. Client sends decision via POST /api/approvals/{approvalId}
  * 3. API route emits approval:response → Coordinator → Handler resolves
  *
- * The returned handler includes cancellation methods (cancel, cancelAll, getPending)
+ * The returned handler implements the optional cancellation methods (cancel, cancelAll, getPending)
  * for managing pending approval requests.
  *
  * Timeouts are handled per-request using the timeout value from ApprovalRequest, which
  * is set by ApprovalManager based on the request type (tool confirmation vs elicitation).
  *
  * @param coordinator The approval coordinator for request/response communication
- * @returns ManualApprovalHandler with cancellation support
+ * @returns ApprovalHandler with cancellation support
  *
  * @example
  * ```typescript
@@ -46,13 +26,11 @@ export interface ManualApprovalHandler extends ApprovalHandler {
  * const handler = createManualApprovalHandler(coordinator);
  * agent.setApprovalHandler(handler);
  *
- * // Later, cancel a specific approval
- * handler.cancel('approval-id-123');
+ * // Later, cancel a specific approval (if handler supports it)
+ * handler.cancel?.('approval-id-123');
  * ```
  */
-export function createManualApprovalHandler(
-    coordinator: ApprovalCoordinator
-): ManualApprovalHandler {
+export function createManualApprovalHandler(coordinator: ApprovalCoordinator): ApprovalHandler {
     // Track pending approvals for cancellation support
     const pendingApprovals = new Map<
         string,
@@ -125,7 +103,7 @@ export function createManualApprovalHandler(
         });
     };
 
-    const handler: ManualApprovalHandler = Object.assign(handleApproval, {
+    const handler: ApprovalHandler = Object.assign(handleApproval, {
         cancel: (approvalId: string): void => {
             const pending = pendingApprovals.get(approvalId);
             if (pending) {
@@ -146,7 +124,7 @@ export function createManualApprovalHandler(
 
         cancelAll: (): void => {
             for (const [approvalId] of pendingApprovals) {
-                handler.cancel(approvalId);
+                handler.cancel?.(approvalId);
             }
         },
 
