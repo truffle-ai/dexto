@@ -26,7 +26,7 @@ The webhook system provides full TypeScript autocomplete support for event types
 
 ```typescript
 // Your IDE will autocomplete available event types
-if (event.type === "llmservice:response") {
+if (event.type === "llm:response") {
     // TypeScript knows event.data has response-specific fields
     console.log(event.data.content);
     console.log(event.data.tokenUsage?.totalTokens);
@@ -35,21 +35,34 @@ if (event.type === "llmservice:response") {
 
 ## Available Event Types
 
-The webhook system supports all agent events:
+The webhook system supports all integration events (Tier 2 events):
 
-- `llmservice:thinking` - AI model is processing
-- `llmservice:chunk` - Streaming response chunk received
-- `llmservice:toolCall` - Tool execution requested
-- `llmservice:toolResult` - Tool execution completed
-- `llmservice:response` - Final AI response received
-- `llmservice:error` - Error during AI processing
-- `llmservice:unsupportedInput` - Input type not supported by selected model
-- `dexto:conversationReset` - Conversation history cleared
-- `dexto:mcpServerConnected` - MCP server connection established
-- `dexto:availableToolsUpdated` - Available tools changed
-- `dexto:approvalRequest` - User approval required (tool confirmation, elicitation, etc.)
-- `dexto:llmSwitched` - LLM model switched
-- `dexto:stateChanged` - Agent state updated
+**LLM Events:**
+- `llm:thinking` - AI model is processing
+- `llm:chunk` - Streaming response chunk received
+- `llm:tool-call` - Tool execution requested
+- `llm:tool-result` - Tool execution completed
+- `llm:response` - Final AI response received
+- `llm:error` - Error during AI processing
+- `llm:unsupported-input` - Input type not supported by selected model
+- `llm:switched` - LLM provider or model switched
+
+**Session Events:**
+- `session:title-updated` - Session title was automatically updated
+- `session:created` - New conversation session created
+- `session:reset` - Conversation history cleared
+
+**MCP Events:**
+- `mcp:server-connected` - MCP server connection established
+- `mcp:server-restarted` - MCP server was restarted
+- `mcp:tools-list-changed` - MCP server tools changed
+- `mcp:prompts-list-changed` - MCP server prompts changed
+
+**Tool Events:**
+- `tools:available-updated` - Available tools changed (MCP + built-in)
+
+**State Events:**
+- `state:changed` - Agent state updated
 
 ## Webhook Management API
 
@@ -102,7 +115,7 @@ DELETE /api/webhooks/{webhook_id}
 POST /api/webhooks/{webhook_id}/test
 ```
 
-This sends a test `dexto:availableToolsUpdated` event to verify your endpoint is working.
+This sends a test `tools:available-updated` event to verify your endpoint is working.
 
 ## Security & Signature Verification
 
@@ -192,15 +205,15 @@ app.post('/webhooks/dexto', async (c) => {
 
     try {
         switch (event.type) {
-            case 'llmservice:response':
+            case 'llm:response':
                 console.log('AI Response:', event.data.content);
                 break;
 
-            case 'llmservice:toolCall':
+            case 'llm:tool-call':
                 console.log('Tool Called:', event.data.toolName);
                 break;
 
-            case 'dexto:conversationReset':
+            case 'session:reset':
                 console.log('Conversation reset for session:', event.data.sessionId);
                 break;
 
