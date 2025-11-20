@@ -117,7 +117,7 @@ describe('ToolConfirmationConfigSchema', () => {
             const result = ToolConfirmationConfigSchema.parse({});
 
             expect(result).toEqual({
-                mode: 'manual',
+                mode: 'auto-approve',
                 timeout: 120000,
                 allowedToolsStorage: 'storage',
                 toolPolicies: {
@@ -141,7 +141,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
             const result2 = ToolConfirmationConfigSchema.parse({ timeout: 15000 });
             expect(result2).toEqual({
-                mode: 'manual',
+                mode: 'auto-approve',
                 timeout: 15000,
                 allowedToolsStorage: 'storage',
                 toolPolicies: {
@@ -152,7 +152,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
             const result3 = ToolConfirmationConfigSchema.parse({ allowedToolsStorage: 'memory' });
             expect(result3).toEqual({
-                mode: 'manual',
+                mode: 'auto-approve',
                 timeout: 120000,
                 allowedToolsStorage: 'memory',
                 toolPolicies: {

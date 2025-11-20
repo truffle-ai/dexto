@@ -632,7 +632,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory'); // Storage schema default
             expect(result.sessions.maxSessions).toBe(100); // Session schema default
-            expect(result.toolConfirmation.mode).toBe('manual'); // Tool schema default
+            expect(result.toolConfirmation.mode).toBe('auto-approve'); // Tool schema default
         });
     });
 
@@ -786,7 +786,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage.database.type).toBe('in-memory');
             expect(result.storage.blob.type).toBe('in-memory');
             expect(result.sessions).toBeDefined();
-            expect(result.toolConfirmation.mode).toBe('manual');
+            expect(result.toolConfirmation.mode).toBe('auto-approve');
             expect(result.llm.maxIterations).toBe(50);
             expect(result.llm.router).toBe('vercel');
         });

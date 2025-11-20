@@ -2726,137 +2726,6 @@
         }
       }
     },
-    "/api/message-stream": {
-      "post": {
-        "summary": "Start streaming message",
-        "description": "Starts a streaming turn and returns the SSE endpoint URL",
-        "tags": [
-          "messages"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "message": {
-                    "type": "string",
-                    "description": "The user message text"
-                  },
-                  "sessionId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "The session to use for this message"
-                  },
-                  "stream": {
-                    "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over SSE"
-                  },
-                  "imageData": {
-                    "type": "object",
-                    "properties": {
-                      "base64": {
-                        "type": "string",
-                        "description": "Base64-encoded image data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the image (e.g., image/png)"
-                      }
-                    },
-                    "required": [
-                      "base64",
-                      "mimeType"
-                    ],
-                    "description": "Optional image data to include with the message"
-                  },
-                  "fileData": {
-                    "type": "object",
-                    "properties": {
-                      "base64": {
-                        "type": "string",
-                        "description": "Base64-encoded file data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the file (e.g., application/pdf)"
-                      },
-                      "filename": {
-                        "type": "string",
-                        "description": "The filename"
-                      }
-                    },
-                    "required": [
-                      "base64",
-                      "mimeType"
-                    ],
-                    "description": "Optional file data to include with the message"
-                  }
-                },
-                "required": [
-                  "sessionId"
-                ],
-                "description": "Request body for sending a message to the agent"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Streaming endpoint information",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "streamUrl": {
-                      "type": "string",
-                      "description": "URL to consume SSE events for this session"
-                    }
-                  },
-                  "required": [
-                    "streamUrl"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Streaming not available"
-          }
-        }
-      }
-    },
-    "/api/message-stream/{sessionId}": {
-      "get": {
-        "summary": "Consume streaming events",
-        "description": "Streams SSE events for an active message session",
-        "tags": [
-          "messages"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "description": "Session identifier"
-            },
-            "required": true,
-            "description": "Session identifier",
-            "name": "sessionId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "SSE stream"
-          },
-          "404": {
-            "description": "Session stream not found"
-          }
-        }
-      }
-    },
     "/api/llm/current": {
       "get": {
         "summary": "Get Current LLM Config",
@@ -9985,7 +9854,7 @@
                               "auto-approve",
                               "auto-deny"
                             ],
-                            "default": "manual",
+                            "default": "auto-approve",
                             "description": "Tool confirmation mode: manual (interactive), auto-approve (all tools), auto-deny (no tools)"
                           },
                           "timeout": {

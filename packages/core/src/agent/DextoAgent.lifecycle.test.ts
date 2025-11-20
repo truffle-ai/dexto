@@ -38,9 +38,6 @@ describe('DextoAgent Lifecycle Management', () => {
                 maxSessions: 10,
                 sessionTTL: 3600,
             },
-            toolConfirmation: {
-                mode: 'auto-approve', // Lifecycle tests don't test approval functionality
-            },
         };
 
         // Create the validated config that DextoAgent actually uses
@@ -125,7 +122,8 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockCreateAgentServices).toHaveBeenCalledWith(
                 mockValidatedConfig,
                 undefined,
-                expect.anything() // logger instance
+                expect.anything(), // logger instance
+                expect.anything() // eventBus instance
             );
         });
 
@@ -151,7 +149,8 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockCreateAgentServices).toHaveBeenCalledWith(
                 validatedConfigWithServerModes,
                 undefined,
-                expect.anything() // logger instance
+                expect.anything(), // logger instance
+                expect.anything() // eventBus instance
             );
         });
 

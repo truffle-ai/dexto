@@ -144,7 +144,6 @@ export default function SlashCommandAutocomplete({
     onCreatePrompt,
     refreshKey,
 }: SlashCommandAutocompleteProps) {
-    const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([]);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const selectedIndexRef = useRef(0);
     const containerRef = useRef<HTMLDivElement>(null);

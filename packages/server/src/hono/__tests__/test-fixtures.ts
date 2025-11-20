@@ -30,9 +30,6 @@ export function createTestAgentConfig(): AgentConfig {
             maxSessions: 10,
             sessionTTL: 3600,
         },
-        toolConfirmation: {
-            mode: 'auto-approve', // Server tests don't test approval functionality
-        },
     };
 }
 

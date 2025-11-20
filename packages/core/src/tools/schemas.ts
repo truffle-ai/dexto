@@ -7,7 +7,7 @@ export type ToolConfirmationMode = (typeof TOOL_CONFIRMATION_MODES)[number];
 export const ALLOWED_TOOLS_STORAGE_TYPES = ['memory', 'storage'] as const;
 export type AllowedToolsStorageType = (typeof ALLOWED_TOOLS_STORAGE_TYPES)[number];
 
-export const DEFAULT_TOOL_CONFIRMATION_MODE: ToolConfirmationMode = 'manual';
+export const DEFAULT_TOOL_CONFIRMATION_MODE: ToolConfirmationMode = 'auto-approve';
 export const DEFAULT_ALLOWED_TOOLS_STORAGE: AllowedToolsStorageType = 'storage';
 
 // Internal tools schema - separate for type derivation
