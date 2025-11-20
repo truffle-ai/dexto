@@ -180,18 +180,15 @@ toolConfirmation:
       - internal--bash_exec
 ```
 
-## Manual Mode Flow
+## Manual Mode Requirements
 
-In manual mode, confirmation uses an event-driven architecture:
+Manual mode requires UI integration to prompt the user for approvals:
 
-1. Agent requests tool execution
-2. System emits `approval:request` event
-3. UI layer shows confirmation dialog
-4. User approves/denies
-5. UI emits `approval:response` event
-6. Tool executes or is denied
+- **CLI Mode**: Interactive prompts in the terminal
+- **Web/Server Mode**: Approval dialogs in the WebUI
+- **Custom Integration**: Implement your own approval handler via `agent.setApprovalHandler()`
 
-**Timeout:** Auto-denies if no response within configured timeout.
+The system will wait for user input up to the configured timeout, then auto-deny if no response is received.
 
 ## Best Practices
 

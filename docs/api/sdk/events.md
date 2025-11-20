@@ -276,6 +276,12 @@ Fired when agent state is reset to baseline.
 
 ### User Approval Events
 
+:::warning Server/API Mode Only
+These events are only emitted when using server/API mode with the manual approval handler (`createManualApprovalHandler`).
+
+For direct `DextoAgent` usage, implement a custom approval handler via `agent.setApprovalHandler()` instead of listening to these events.
+:::
+
 Dexto's generalized approval system handles various types of user input requests, including tool confirmations and form-based input (elicitation).
 
 #### `approval:request`
@@ -300,14 +306,15 @@ Fired when user approval or input is requested. This event supports multiple app
   - `metadata.args`: Tool arguments
   - `metadata.description`: Optional tool description
 
+- **`command_confirmation`**: Binary approval for command execution (e.g., bash commands)
+  - `metadata.command`: Command requiring confirmation
+  - `metadata.args`: Command arguments
+
 - **`elicitation`**: Schema-based form input (typically from MCP servers or ask_user tool)
   - `metadata.schema`: JSON Schema defining expected input structure
   - `metadata.prompt`: Prompt text to display to user
   - `metadata.serverName`: Name of requesting entity (MCP server or 'Dexto Agent')
   - `metadata.context`: Optional additional context
-
-- **`custom`**: Extensible approval type for custom use cases
-  - `metadata`: Custom structure defined by the consumer
 
 #### `approval:response`
 
@@ -327,8 +334,8 @@ Fired when a user approval response is received from the UI layer.
 **Response Data by Type:**
 
 - **Tool confirmation**: `{ rememberChoice?: boolean }`
+- **Command confirmation**: `{ rememberChoice?: boolean }`
 - **Elicitation**: `{ formData: Record<string, unknown> }`
-- **Custom**: Defined by consumer
 
 **Usage Notes:**
 
@@ -494,7 +501,8 @@ for await (const event of await agent.stream('Hello!', { sessionId: 'session-1' 
       console.log(`Calling tool: ${event.toolName}`);
       break;
     case 'approval:request':
-      // Handle user approval request
+      // Note: Only available when using server/API mode with manual approval handler
+      // For custom handlers, handle approvals in your handler implementation instead
       console.log('Approval needed:', event.metadata);
       break;
   }
