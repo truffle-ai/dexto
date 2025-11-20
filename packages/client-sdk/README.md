@@ -1,6 +1,6 @@
 # Dexto Client SDK
 
-A ultra-lightweight, zero-dependency HTTP client SDK for the Dexto API.
+An ultra-lightweight, zero-dependency HTTP client SDK for the Dexto API.
 
 ## Features
 

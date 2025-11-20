@@ -219,7 +219,7 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 - **Multi-mode operation**: CLI, Web, Server, Discord, Telegram, MCP modes
 
 ### Layer Interaction Flow
-```
+```text
 User Input → WebUI → SSE/REST → API → DextoAgent → Core Services
                 ← SSE Events ← Agent Event Bus ← Core Services
 ```

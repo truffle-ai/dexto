@@ -889,7 +889,7 @@ describe('Tool notification handling', () => {
         expect(manager['toolCache'].has('tool2')).toBe(false); // tool2 removed
     });
 
-    it('should emit dexto:mcpToolsListChanged event with correct payload', async () => {
+    it('should emit mcp:tools-list-changed event with correct payload', async () => {
         const eventSpy = vi.fn();
         eventBus.on('mcp:tools-list-changed', eventSpy);
 

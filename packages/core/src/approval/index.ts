@@ -70,6 +70,3 @@ export type {
 // Manager
 export { ApprovalManager } from './manager.js';
 export type { ApprovalManagerConfig } from './manager.js';
-
-// Note: ApprovalProvider classes are internal implementation details
-// External consumers should use ApprovalHandler instead

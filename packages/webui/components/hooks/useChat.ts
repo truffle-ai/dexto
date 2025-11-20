@@ -562,6 +562,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             abortControllerRef.current = null;
         }
         setProcessing(false);
+        setStatus('closed');
         pendingToolCallsRef.current.clear();
         suppressNextErrorRef.current = true;
     }, []);
