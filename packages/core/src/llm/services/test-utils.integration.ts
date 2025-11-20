@@ -62,7 +62,7 @@ export const TestConfigs = {
                 provider,
                 model: 'gpt-5-nano', // Use cheapest model for testing
                 apiKey,
-                maxOutputTokens: 100, // Keep costs low
+                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
                 temperature: 0, // Deterministic responses
                 maxIterations: 1, // Minimal tool iterations
             },
@@ -109,7 +109,7 @@ export const TestConfigs = {
                 provider,
                 model: 'claude-haiku-4-5-20251001', // Use cheapest model for testing
                 apiKey,
-                maxOutputTokens: 100,
+                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
             },
@@ -167,7 +167,7 @@ export const TestConfigs = {
                 provider,
                 model: model || defaultModels[provider],
                 apiKey,
-                maxOutputTokens: 100,
+                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
             },
