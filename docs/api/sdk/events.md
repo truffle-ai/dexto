@@ -29,13 +29,19 @@ Events are organized into three tiers based on their intended audience:
 #### **Tier 1: Streaming Events** (`STREAMING_EVENTS`)
 Exposed via `DextoAgent.stream()` for real-time chat UIs. These are the most commonly used events for building interactive applications.
 
-**Events:** `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`, `llm:tool-result`, `llm:error`, `llm:unsupported-input`, `approval:request`, `approval:response`, `session:title-updated`
+**Events:** `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`, `llm:tool-result`, `llm:error`, `llm:unsupported-input`, `session:title-updated`
 
 **Use cases:**
 - Real-time chat interfaces
 - Progress indicators
 - Streaming responses
-- User approval flows
+
+:::note Server SSE Extensions
+The server's `/message-stream` SSE endpoint extends core streaming with additional events:
+- `approval:request` and `approval:response` (when manual approval handler is configured)
+
+These events are NOT available via `DextoAgent.stream()` directly. See [User Approval Events](#user-approval-events) for details.
+:::
 
 #### **Tier 2: Integration Events** (`INTEGRATION_EVENTS`)
 Exposed via webhooks, A2A subscriptions, and monitoring systems. Includes all streaming events plus lifecycle and state management events.
