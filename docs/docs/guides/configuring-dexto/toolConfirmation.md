@@ -190,6 +190,55 @@ Manual mode requires UI integration to prompt the user for approvals:
 
 The system will wait for user input up to the configured timeout, then auto-deny if no response is received.
 
+## Approval Handlers
+
+Approval handlers control how your application prompts for and receives user decisions about tool execution.
+
+### Built-in Options
+
+**Auto modes**: No handler needed - `auto-approve` and `auto-deny` modes handle approvals automatically without requiring a handler implementation.
+
+**Manual handler for server/API mode**: Use `createManualApprovalHandler` from `@dexto/server` when building web applications. This handler coordinates approvals between backend and frontend via event bus:
+
+```typescript
+import { createManualApprovalHandler } from '@dexto/server';
+
+const handler = createManualApprovalHandler(
+  agent.agentEventBus,
+  60000 // timeout in ms
+);
+agent.setApprovalHandler(handler);
+```
+
+### Custom Handlers
+
+For CLI tools, desktop apps, or custom integrations, implement your own handler:
+
+```typescript
+import { ApprovalStatus, DenialReason } from '@dexto/core';
+
+agent.setApprovalHandler(async (request) => {
+  // request contains: approvalId, type, metadata (toolName, args, etc.)
+
+  const userChoice = await promptUser(
+    `Allow ${request.metadata.toolName}?`
+  );
+
+  return {
+    approvalId: request.approvalId,
+    status: userChoice ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
+    reason: userChoice ? undefined : DenialReason.USER_DENIED,
+  };
+});
+```
+
+**Common use cases for custom handlers:**
+- CLI tools (readline, inquirer, prompts)
+- Desktop apps (native dialogs, Electron)
+- Policy-based approval (check against rules)
+- External integrations (Slack, PagerDuty)
+- Audit logging wrappers
+
 ## Best Practices
 
 1. **Use manual mode in production** - Maintain oversight and control
