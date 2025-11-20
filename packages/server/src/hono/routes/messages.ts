@@ -1,8 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { streamSSE } from 'hono/streaming';
 import type { DextoAgent } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
-import { TextEncoder } from 'node:util';
-import { ReadableStream } from 'node:stream/web';
 
 const MessageBodySchema = z
     .object({
@@ -266,76 +265,77 @@ export function createMessagesRouter(
                 signal,
             });
 
-            const encoder = new TextEncoder();
+            // Use Hono's streamSSE helper which handles backpressure correctly
+            return streamSSE(ctx, async (stream) => {
+                // Store pending approval events to be written to stream
+                const pendingApprovalEvents: Array<{ event: string; data: unknown }> = [];
 
-            // Create SSE stream
-            const stream = new ReadableStream({
-                async start(controller) {
-                    let closed = false;
-
-                    // Helper to format SSE events
-                    const formatSSE = (eventName: string, data: unknown): Uint8Array => {
-                        const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
-                        return encoder.encode(payload);
-                    };
-
-                    // Subscribe to approval events from coordinator
-                    approvalCoordinator.onRequest(
-                        (request) => {
-                            if (!closed && request.sessionId === sessionId) {
-                                controller.enqueue(formatSSE('approval:request', request));
-                            }
-                        },
-                        { signal }
-                    );
-
-                    approvalCoordinator.onResponse(
-                        (response) => {
-                            if (!closed && response.sessionId === sessionId) {
-                                controller.enqueue(formatSSE('approval:response', response));
-                            }
-                        },
-                        { signal }
-                    );
-
-                    try {
-                        // Stream LLM/tool events from iterator
-                        for await (const event of iterator) {
-                            if (closed) break;
-                            controller.enqueue(formatSSE(event.type, event));
+                // Subscribe to approval events from coordinator
+                approvalCoordinator.onRequest(
+                    (request) => {
+                        if (request.sessionId === sessionId) {
+                            pendingApprovalEvents.push({
+                                event: 'approval:request',
+                                data: request,
+                            });
                         }
-                    } catch (error) {
-                        if (!closed) {
-                            controller.enqueue(
-                                formatSSE('llm:error', {
-                                    error: {
-                                        message:
-                                            error instanceof Error ? error.message : String(error),
-                                    },
-                                    recoverable: false,
-                                    sessionId,
-                                })
-                            );
+                    },
+                    { signal }
+                );
+
+                approvalCoordinator.onResponse(
+                    (response) => {
+                        if (response.sessionId === sessionId) {
+                            pendingApprovalEvents.push({
+                                event: 'approval:response',
+                                data: response,
+                            });
                         }
-                    } finally {
-                        abortController.abort(); // Cleanup subscriptions
-                        if (!closed) {
-                            controller.close();
+                    },
+                    { signal }
+                );
+
+                try {
+                    // Stream LLM/tool events from iterator
+                    for await (const event of iterator) {
+                        // First, write any pending approval events
+                        while (pendingApprovalEvents.length > 0) {
+                            const approvalEvent = pendingApprovalEvents.shift()!;
+                            await stream.writeSSE({
+                                event: approvalEvent.event,
+                                data: JSON.stringify(approvalEvent.data),
+                            });
                         }
+
+                        // Then write the LLM/tool event
+                        await stream.writeSSE({
+                            event: event.type,
+                            data: JSON.stringify(event),
+                        });
                     }
-                },
-                cancel() {
-                    abortController.abort();
-                },
-            });
 
-            return new Response(stream as any, {
-                headers: {
-                    'Content-Type': 'text/event-stream',
-                    'Cache-Control': 'no-cache',
-                    Connection: 'keep-alive',
-                    'X-Accel-Buffering': 'no',
-                },
+                    // Write any remaining approval events
+                    while (pendingApprovalEvents.length > 0) {
+                        const approvalEvent = pendingApprovalEvents.shift()!;
+                        await stream.writeSSE({
+                            event: approvalEvent.event,
+                            data: JSON.stringify(approvalEvent.data),
+                        });
+                    }
+                } catch (error) {
+                    await stream.writeSSE({
+                        event: 'llm:error',
+                        data: JSON.stringify({
+                            error: {
+                                message: error instanceof Error ? error.message : String(error),
+                            },
+                            recoverable: false,
+                            sessionId,
+                        }),
+                    });
+                } finally {
+                    abortController.abort(); // Cleanup subscriptions
+                }
             });
         });
     }
