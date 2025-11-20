@@ -85,6 +85,17 @@ export function createApprovalsRouter(
         }
 
         try {
+            // Build data object for approved requests
+            const data: Record<string, unknown> = {};
+            if (status === ApprovalStatus.APPROVED) {
+                if (formData !== undefined) {
+                    data.formData = formData;
+                }
+                if (rememberChoice !== undefined) {
+                    data.rememberChoice = rememberChoice;
+                }
+            }
+
             // Construct response payload
             const responsePayload = {
                 approvalId,
@@ -96,10 +107,7 @@ export function createApprovalsRouter(
                           message: 'User denied the request via API',
                       }
                     : {}),
-                ...(status === ApprovalStatus.APPROVED && formData ? { data: { formData } } : {}),
-                ...(status === ApprovalStatus.APPROVED && rememberChoice !== undefined
-                    ? { data: { rememberChoice } }
-                    : {}),
+                ...(Object.keys(data).length > 0 ? { data } : {}),
             };
 
             // Emit via approval coordinator which ManualApprovalHandler listens to

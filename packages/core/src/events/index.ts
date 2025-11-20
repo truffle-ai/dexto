@@ -492,7 +492,8 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     private _emitter = new EventEmitter();
 
     // Store listeners with their abort controllers for cleanup
-    private _abortListeners = new WeakMap<AbortSignal, Set<{ event: any; listener: any }>>();
+    // Maps AbortSignal -> Event Name -> Set of listener functions
+    private _abortListeners = new WeakMap<AbortSignal, Map<keyof TEventMap, Set<Function>>>();
 
     /**
      * Emit an event with type-safe payload
@@ -524,21 +525,31 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
         if (options?.signal) {
             const signal = options.signal;
 
-            // Track this listener for cleanup
+            // Track this listener for cleanup using Map -> Set structure
             if (!this._abortListeners.has(signal)) {
-                this._abortListeners.set(signal, new Set());
+                this._abortListeners.set(signal, new Map());
             }
-            this._abortListeners.get(signal)!.add({ event, listener });
+            const eventMap = this._abortListeners.get(signal)!;
+            if (!eventMap.has(event)) {
+                eventMap.set(event, new Set());
+            }
+            eventMap.get(event)!.add(listener as Function);
 
             // Set up abort handler
             const abortHandler = () => {
                 this.off(event, listener);
 
                 // Clean up tracking
-                const listeners = this._abortListeners.get(signal);
-                if (listeners) {
-                    listeners.delete({ event, listener });
-                    if (listeners.size === 0) {
+                const eventMap = this._abortListeners.get(signal);
+                if (eventMap) {
+                    const listenerSet = eventMap.get(event);
+                    if (listenerSet) {
+                        listenerSet.delete(listener as Function);
+                        if (listenerSet.size === 0) {
+                            eventMap.delete(event);
+                        }
+                    }
+                    if (eventMap.size === 0) {
                         this._abortListeners.delete(signal);
                     }
                 }
@@ -567,10 +578,16 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
         const onceWrapper = (...args: any[]) => {
             // Clean up abort tracking before calling the original listener
             if (options?.signal) {
-                const listeners = this._abortListeners.get(options.signal);
-                if (listeners) {
-                    listeners.delete({ event, listener: onceWrapper });
-                    if (listeners.size === 0) {
+                const eventMap = this._abortListeners.get(options.signal);
+                if (eventMap) {
+                    const listenerSet = eventMap.get(event);
+                    if (listenerSet) {
+                        listenerSet.delete(onceWrapper);
+                        if (listenerSet.size === 0) {
+                            eventMap.delete(event);
+                        }
+                    }
+                    if (eventMap.size === 0) {
                         this._abortListeners.delete(options.signal);
                     }
                 }
@@ -585,21 +602,31 @@ class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
         if (options?.signal) {
             const signal = options.signal;
 
-            // Track this listener for cleanup
+            // Track this listener for cleanup using Map -> Set structure
             if (!this._abortListeners.has(signal)) {
-                this._abortListeners.set(signal, new Set());
+                this._abortListeners.set(signal, new Map());
             }
-            this._abortListeners.get(signal)!.add({ event, listener: onceWrapper });
+            const eventMap = this._abortListeners.get(signal)!;
+            if (!eventMap.has(event)) {
+                eventMap.set(event, new Set());
+            }
+            eventMap.get(event)!.add(onceWrapper);
 
             // Set up abort handler
             const abortHandler = () => {
                 this.off(event, onceWrapper);
 
                 // Clean up tracking
-                const listeners = this._abortListeners.get(signal);
-                if (listeners) {
-                    listeners.delete({ event, listener: onceWrapper });
-                    if (listeners.size === 0) {
+                const eventMap = this._abortListeners.get(signal);
+                if (eventMap) {
+                    const listenerSet = eventMap.get(event);
+                    if (listenerSet) {
+                        listenerSet.delete(onceWrapper);
+                        if (listenerSet.size === 0) {
+                            eventMap.delete(event);
+                        }
+                    }
+                    if (eventMap.size === 0) {
                         this._abortListeners.delete(signal);
                     }
                 }
