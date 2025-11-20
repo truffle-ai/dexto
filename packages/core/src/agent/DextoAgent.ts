@@ -607,8 +607,8 @@ export class DextoAgent {
                     finalText = textInput;
                 }
 
-                // Kick off background title generation for first turn if needed
-                void this.maybeGenerateTitle(targetSessionId, finalText, llmConfig);
+                // Title generation moved to on-demand API endpoint
+                // Users can call generateSessionTitle() explicitly
 
                 const response = await session.run(
                     finalText,
@@ -960,9 +960,92 @@ export class DextoAgent {
     }
 
     /**
+     * Generate a title for a session on-demand.
+     * Uses the first user message content to generate a descriptive title.
+     *
+     * @param sessionId Session ID to generate title for
+     * @returns Promise that resolves to the generated title, or null if generation failed
+     */
+    public async generateSessionTitle(sessionId: string): Promise<string | null> {
+        this.ensureStarted();
+
+        // Get session metadata to check if title already exists
+        const metadata = await this.sessionManager.getSessionMetadata(sessionId);
+        if (!metadata) {
+            throw SessionError.notFound(sessionId);
+        }
+        if (metadata.title) {
+            this.logger.debug(
+                `[SessionTitle] Session ${sessionId} already has title '${metadata.title}'`
+            );
+            return metadata.title;
+        }
+
+        // Get first user message
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        const history = await session.getHistory();
+        const firstUserMsg = history.find((m) => m.role === 'user');
+        if (!firstUserMsg) {
+            this.logger.debug(`[SessionTitle] No user message found for session ${sessionId}`);
+            return null;
+        }
+
+        const userText =
+            typeof firstUserMsg.content === 'string'
+                ? firstUserMsg.content
+                : firstUserMsg.content
+                      ?.filter((p) => p.type === 'text')
+                      .map((p: { type: string; text: string }) => p.text)
+                      .join(' ');
+
+        if (!userText || !userText.trim()) {
+            this.logger.debug(`[SessionTitle] Empty user text for session ${sessionId}`);
+            return null;
+        }
+
+        // Get LLM config for the session
+        const llmConfig = this.getEffectiveConfig(sessionId).llm;
+
+        // Generate title
+        const result = await generateSessionTitle(
+            llmConfig,
+            llmConfig.router,
+            this.toolManager,
+            this.systemPromptManager,
+            this.resourceManager,
+            userText,
+            this.logger
+        );
+
+        let title = result.title;
+        if (!title) {
+            // Fallback to heuristic
+            title = deriveHeuristicTitle(userText);
+            if (title) {
+                this.logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+            } else {
+                this.logger.debug(`[SessionTitle] No suitable title derived for ${sessionId}`);
+                return null;
+            }
+        } else {
+            this.logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
+        }
+
+        // Save title
+        await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
+
+        return title;
+    }
+
+    /**
      * Background task: generate and persist a session title using the same LLM.
      * Runs only for the first user message (messageCount === 0 and no existing title).
      * Never throws; timeboxed in the generator.
+     *
+     * @deprecated No longer called automatically. Use generateSessionTitle() instead.
      */
     private async maybeGenerateTitle(
         sessionId: string,

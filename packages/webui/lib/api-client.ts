@@ -151,6 +151,8 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
         throw new ApiError(
             `Failed to parse JSON response: ${error instanceof Error ? error.message : 'Unknown error'}`,
             response.status,
+            endpoint,
+            method,
             text
         );
     }

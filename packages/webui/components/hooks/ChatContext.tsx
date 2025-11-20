@@ -17,6 +17,7 @@ import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
+import { useMutation } from '@tanstack/react-query';
 
 interface ChatContextType {
     messages: Message[];
@@ -288,6 +289,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Get greeting from API
     const { greeting } = useGreeting(currentSessionId);
 
+    // Mutation for generating session title
+    const generateTitleMutation = useMutation({
+        mutationFn: async (sessionId: string) => {
+            const data = await apiFetch<{ title: string | null }>(
+                `/api/sessions/${sessionId}/generate-title`,
+                {
+                    method: 'POST',
+                }
+            );
+            return data.title;
+        },
+        onSuccess: (_title, sessionId) => {
+            // Invalidate sessions query to show the new title
+            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+            // Also invalidate the specific session query if needed
+            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.detail(sessionId) });
+        },
+    });
+
     // Auto-create session on first message with random UUID
     const createAutoSession = useCallback(async (): Promise<string> => {
         const data = await apiFetch<{ session: { id: string } }>('/api/sessions', {
@@ -318,6 +338,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             fileData?: { base64: string; mimeType: string; filename?: string }
         ) => {
             let sessionId = currentSessionId;
+            let isNewSession = false;
 
             // Auto-create session on first message and wait for it to complete
             if (!sessionId && isWelcomeState) {
@@ -325,6 +346,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 try {
                     setIsCreatingSession(true);
                     sessionId = await createAutoSession();
+                    isNewSession = true;
 
                     // Update state before sending message
                     setCurrentSessionId(sessionId);
@@ -345,6 +367,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Only send after session is confirmed ready
             if (sessionId) {
                 originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+
+                // Generate title for newly created sessions after first message
+                if (isNewSession) {
+                    generateTitleMutation.mutate(sessionId);
+                }
 
                 // Track message sent
                 const provider = currentLLM?.provider || 'unknown';
@@ -371,6 +398,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             router,
             analytics,
             currentLLM,
+            generateTitleMutation,
         ]
     );
 
