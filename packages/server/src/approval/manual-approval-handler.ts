@@ -36,7 +36,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
         string,
         {
             cleanup: () => void;
-            reject: (error: Error) => void;
+            resolve: (response: ApprovalResponse) => void;
             request: ApprovalRequest;
         }
     >();
@@ -63,7 +63,9 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                 };
                 coordinator.emitResponse(timeoutResponse);
 
-                reject(new Error(`Approval request timed out after ${effectiveTimeout}ms`));
+                // Resolve with CANCELLED response (not reject) to match auto-approve/deny behavior
+                // Callers can uniformly check response.status instead of handling exceptions
+                resolve(timeoutResponse);
             }, effectiveTimeout);
 
             // Cleanup function to remove listener and clear timeout
@@ -93,7 +95,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
             // Store for cancellation support
             pendingApprovals.set(request.approvalId, {
                 cleanup,
-                reject,
+                resolve,
                 request,
             });
 
@@ -108,17 +110,23 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
             const pending = pendingApprovals.get(approvalId);
             if (pending) {
                 pending.cleanup();
-                pending.reject(new Error('Approval request was cancelled'));
                 pendingApprovals.delete(approvalId);
 
-                // Emit cancellation event so UI listeners can dismiss the prompt
-                coordinator.emitResponse({
+                // Create cancellation response
+                const cancelResponse: ApprovalResponse = {
                     approvalId,
                     status: ApprovalStatus.CANCELLED,
                     sessionId: pending.request.sessionId,
                     reason: DenialReason.SYSTEM_CANCELLED,
                     message: 'Approval request was cancelled',
-                });
+                };
+
+                // Emit cancellation event so UI listeners can dismiss the prompt
+                coordinator.emitResponse(cancelResponse);
+
+                // Resolve with CANCELLED response (not reject) to match auto-approve/deny behavior
+                // Callers can uniformly check response.status instead of handling exceptions
+                pending.resolve(cancelResponse);
             }
         },
 

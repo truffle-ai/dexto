@@ -60,6 +60,25 @@ export class EventStreamClient {
 
         const decoder = new TextDecoder();
         let buffer = '';
+        const signal = options?.signal;
+
+        // Handle abort signal
+        let aborted = false;
+        const abortHandler = () => {
+            aborted = true;
+            reader.cancel().catch(() => {
+                // Ignore errors during cancel
+            });
+        };
+
+        if (signal) {
+            if (signal.aborted) {
+                // Already aborted before we started
+                reader.cancel().catch(() => {});
+            } else {
+                signal.addEventListener('abort', abortHandler);
+            }
+        }
 
         // Create async iterable iterator
         const iterator: AsyncIterableIterator<SSEEvent> = {
@@ -67,6 +86,15 @@ export class EventStreamClient {
                 return this;
             },
             async next() {
+                // Check if already aborted
+                if (aborted || signal?.aborted) {
+                    // Remove abort listener when done
+                    if (signal) {
+                        signal.removeEventListener('abort', abortHandler);
+                    }
+                    return { value: undefined, done: true };
+                }
+
                 // Loop until we have a full event to yield
                 while (true) {
                     // Check if we have a double newline in buffer
@@ -87,6 +115,10 @@ export class EventStreamClient {
                     // Need more data
                     const { done, value } = await reader.read();
                     if (done) {
+                        // Remove abort listener on normal completion
+                        if (signal) {
+                            signal.removeEventListener('abort', abortHandler);
+                        }
                         if (buffer.trim()) {
                             // Process remaining buffer
                             const event = parseSSE(buffer);
@@ -104,10 +136,18 @@ export class EventStreamClient {
                 }
             },
             async return() {
+                // Remove abort listener to prevent memory leak
+                if (signal) {
+                    signal.removeEventListener('abort', abortHandler);
+                }
                 reader.cancel();
                 return { value: undefined, done: true };
             },
             async throw(e?: any) {
+                // Remove abort listener to prevent memory leak
+                if (signal) {
+                    signal.removeEventListener('abort', abortHandler);
+                }
                 reader.cancel();
                 throw e;
             },

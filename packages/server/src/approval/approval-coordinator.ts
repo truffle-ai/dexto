@@ -13,11 +13,16 @@ import type { ApprovalRequest, ApprovalResponse } from '@dexto/core';
  * - Approval routes: Emits responses from client submissions
  */
 export class ApprovalCoordinator extends EventEmitter {
+    // Track approvalId -> sessionId mapping for multi-client SSE routing
+    private approvalSessions = new Map<string, string | undefined>();
+
     /**
      * Emit an approval request.
      * Called by ManualApprovalHandler when tool/command needs approval.
      */
     public emitRequest(request: ApprovalRequest): void {
+        // Store sessionId mapping for later lookup when client submits response
+        this.approvalSessions.set(request.approvalId, request.sessionId);
         this.emit('approval:request', request);
     }
 
@@ -27,6 +32,16 @@ export class ApprovalCoordinator extends EventEmitter {
      */
     public emitResponse(response: ApprovalResponse): void {
         this.emit('approval:response', response);
+        // Clean up the mapping after response is emitted
+        this.approvalSessions.delete(response.approvalId);
+    }
+
+    /**
+     * Get the sessionId associated with an approval request.
+     * Used by API routes to attach sessionId to responses for SSE routing.
+     */
+    public getSessionId(approvalId: string): string | undefined {
+        return this.approvalSessions.get(approvalId);
     }
 
     /**
