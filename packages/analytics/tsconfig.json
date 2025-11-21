@@ -10,5 +10,5 @@
     "emitDeclarationOnly": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/*.integration.test.ts", "dist", "node_modules"]
 }
