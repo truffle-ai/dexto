@@ -657,12 +657,12 @@ export class DextoAgent {
      * This is the recommended method for non-streaming use cases.
      *
      * @param message The user's message
-     * @param options Optional configuration (sessionId, imageData, fileData, signal)
+     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
      * @returns Promise that resolves to the complete response
      *
      * @example
      * ```typescript
-     * const response = await agent.generate("What is 2+2?");
+     * const response = await agent.generate("What is 2+2?", { sessionId: "default" });
      * console.log(response.content); // "4"
      * console.log(response.usage.totalTokens); // 50
      * ```
@@ -747,12 +747,12 @@ export class DextoAgent {
      * providing a unified event system across all API layers.
      *
      * @param message The user's message
-     * @param options Optional configuration (sessionId, imageData, fileData, signal)
+     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
      * @returns AsyncIterator that yields StreamingEvent objects (core events with type property)
      *
      * @example
      * ```typescript
-     * for await (const event of await agent.stream("Write a poem")) {
+     * for await (const event of await agent.stream("Write a poem", { sessionId: "default" })) {
      *   if (event.type === 'llm:chunk') {
      *     process.stdout.write(event.content);
      *   }
@@ -764,19 +764,19 @@ export class DextoAgent {
      */
     public async stream(
         message: string,
-        options?: import('./types.js').StreamOptions
+        options: import('./types.js').StreamOptions
     ): Promise<AsyncIterableIterator<StreamingEvent>> {
         this.ensureStarted();
 
         // Validate sessionId is provided
-        if (!options?.sessionId) {
+        if (!options.sessionId) {
             throw new Error('sessionId is required in StreamOptions');
         }
 
         const sessionId = options.sessionId;
-        const imageData = options?.imageData;
-        const fileData = options?.fileData;
-        const signal = options?.signal;
+        const imageData = options.imageData;
+        const fileData = options.fileData;
+        const signal = options.signal;
 
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
