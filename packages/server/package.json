@@ -35,7 +35,7 @@
     "@modelcontextprotocol/sdk": "^1.17.2"
   },
   "scripts": {
-    "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsup",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsup && cross-env NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.json --emitDeclarationOnly",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts",
     "test": "vitest run"

@@ -4,7 +4,7 @@ export default defineConfig({
     entry: ['src/index.ts'],
     format: ['cjs', 'esm'],
     outDir: 'dist',
-    dts: { resolve: true },
+    dts: false, // Disable DTS generation in tsup to avoid worker memory issues
     shims: true,
     bundle: true,
     platform: 'neutral',
