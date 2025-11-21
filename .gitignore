@@ -50,6 +50,9 @@ logs/
 # TypeScript cache
 *.tsbuildinfo
 
+# tsup bundled config cache
+tsup.config.bundled_*.mjs
+
 # Transient TypeScript emits inside source folders (should only be in dist/)
 packages/*/src/**/*.js
 packages/*/src/**/*.d.ts
