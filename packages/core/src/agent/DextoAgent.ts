@@ -47,7 +47,7 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
-import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '../approval/types.js';
+import type { ApprovalHandler } from '../approval/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
