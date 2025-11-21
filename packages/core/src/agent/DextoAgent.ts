@@ -164,7 +164,7 @@ export class DextoAgent {
 
     // Approval handler for manual tool confirmation and elicitation
     // Set via setApprovalHandler() before start() if needed
-    private approvalHandler?: ApprovalHandler;
+    private approvalHandler?: ApprovalHandler | undefined;
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;

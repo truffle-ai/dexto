@@ -151,18 +151,24 @@ export class ApprovalManager {
     /**
      * Request tool confirmation approval
      * Convenience method for tool execution confirmation
+     *
+     * TODO: Make sessionId required once all callers are updated to pass it
+     * Tool confirmations always happen in session context during LLM execution
      */
     async requestToolConfirmation(
-        metadata: ToolConfirmationMetadata & { sessionId: string; timeout?: number }
+        metadata: ToolConfirmationMetadata & { sessionId?: string; timeout?: number }
     ): Promise<ApprovalResponse> {
         const { sessionId, timeout, ...toolMetadata } = metadata;
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_CONFIRMATION,
             timeout: timeout ?? this.config.toolConfirmation.timeout,
-            sessionId,
             metadata: toolMetadata,
         };
+
+        if (sessionId !== undefined) {
+            details.sessionId = sessionId;
+        }
 
         return this.requestApproval(details);
     }
@@ -173,6 +179,9 @@ export class ApprovalManager {
      *
      * This is different from tool confirmation - it's for per-command approval
      * of dangerous operations (like rm, git push) within tools that are already approved.
+     *
+     * TODO: Make sessionId required once all callers are updated to pass it
+     * Command confirmations always happen during tool execution which has session context
      *
      * @example
      * ```typescript
@@ -186,16 +195,19 @@ export class ApprovalManager {
      * ```
      */
     async requestCommandConfirmation(
-        metadata: CommandConfirmationMetadata & { sessionId: string; timeout?: number }
+        metadata: CommandConfirmationMetadata & { sessionId?: string; timeout?: number }
     ): Promise<ApprovalResponse> {
         const { sessionId, timeout, ...commandMetadata } = metadata;
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.COMMAND_CONFIRMATION,
             timeout: timeout ?? this.config.toolConfirmation.timeout,
-            sessionId,
             metadata: commandMetadata,
         };
+
+        if (sessionId !== undefined) {
+            details.sessionId = sessionId;
+        }
 
         return this.requestApproval(details);
     }
