@@ -47,6 +47,7 @@ import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
+import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -161,6 +162,10 @@ export class DextoAgent {
     // Telemetry instance for distributed tracing
     private telemetry?: Telemetry;
 
+    // Approval handler for manual tool confirmation and elicitation
+    // Set via setApprovalHandler() before start() if needed
+    private approvalHandler?: ApprovalHandler;
+
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
@@ -169,12 +174,10 @@ export class DextoAgent {
      *
      * @param config - Agent configuration (validated and enriched)
      * @param configPath - Optional path to config file (for relative path resolution)
-     * @param approvalHandler - Optional approval handler (required if toolConfirmation.mode is 'manual')
      */
     constructor(
         config: AgentConfig,
-        private configPath?: string,
-        private approvalHandler?: import('../approval/types.js').ApprovalHandler
+        private configPath?: string
     ) {
         // Validate and transform the input config
         this.config = AgentConfigSchema.parse(config);
@@ -227,33 +230,30 @@ export class DextoAgent {
                 }
             }
 
-            // Validate approval configuration BEFORE setting handler
+            // Validate approval configuration
             // Handler is required for manual tool confirmation OR when elicitation is enabled
             const needsHandler =
                 this.config.toolConfirmation.mode === 'manual' || this.config.elicitation.enabled;
 
-            if (needsHandler) {
-                if (!this.approvalHandler && !services.approvalManager.hasHandler()) {
-                    const reasons = [];
-                    if (this.config.toolConfirmation.mode === 'manual') {
-                        reasons.push('tool confirmation mode is "manual"');
-                    }
-                    if (this.config.elicitation.enabled) {
-                        reasons.push('elicitation is enabled');
-                    }
-
-                    throw AgentError.initializationFailed(
-                        `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
-                            'Either:\n' +
-                            '  • Pass an approval handler to the DextoAgent constructor\n' +
-                            '  • Call agent.setApprovalHandler() before starting\n' +
-                            '  • Set toolConfirmation.mode to "auto-approve" or "auto-deny"\n' +
-                            '  • Disable elicitation (set elicitation.enabled: false)'
-                    );
+            if (needsHandler && !this.approvalHandler) {
+                const reasons = [];
+                if (this.config.toolConfirmation.mode === 'manual') {
+                    reasons.push('tool confirmation mode is "manual"');
                 }
+                if (this.config.elicitation.enabled) {
+                    reasons.push('elicitation is enabled');
+                }
+
+                throw AgentError.initializationFailed(
+                    `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
+                        'Either:\n' +
+                        '  • Call agent.setApprovalHandler() before starting\n' +
+                        '  • Set toolConfirmation: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
+                        '  • Disable elicitation: { enabled: false }'
+                );
             }
 
-            // Set approval handler if provided in constructor
+            // Set approval handler if provided via setApprovalHandler() before start()
             if (this.approvalHandler) {
                 services.approvalManager.setHandler(this.approvalHandler);
             }
@@ -1939,7 +1939,7 @@ export class DextoAgent {
      * });
      * ```
      */
-    public setApprovalHandler(handler: import('../approval/types.js').ApprovalHandler): void {
+    public setApprovalHandler(handler: ApprovalHandler): void {
         // Store handler for use during start() if not yet started
         this.approvalHandler = handler;
 
