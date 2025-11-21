@@ -7,10 +7,11 @@ import React, {
     useEffect,
     useState,
     useCallback,
+    useRef,
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useChat, Message, ErrorMessage } from './useChat';
+import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
 import { useGreeting } from './useGreeting';
 import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
@@ -26,7 +27,7 @@ interface ChatContextType {
         imageData?: { base64: string; mimeType: string },
         fileData?: { base64: string; mimeType: string; filename?: string }
     ) => void;
-    status: 'connecting' | 'open' | 'closed';
+    status: StreamStatus;
     reset: () => void;
     currentSessionId: string | null;
     switchSession: (sessionId: string) => void;
@@ -235,17 +236,82 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
     const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
     const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
+
+    // Session-scoped state (survives navigation)
+    const [sessionErrors, setSessionErrors] = useState<Map<string, ErrorMessage>>(new Map());
+    const [processingSessions, setProcessingSessions] = useState<Set<string>>(new Set());
+    const [sessionStatuses, setSessionStatuses] = useState<Map<string, StreamStatus>>(new Map());
+    const sessionAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
+
+    // Helper functions for session-scoped state
+    const setSessionError = useCallback((sessionId: string, error: ErrorMessage | null) => {
+        setSessionErrors((prev) => {
+            const next = new Map(prev);
+            if (error) {
+                next.set(sessionId, error);
+            } else {
+                next.delete(sessionId);
+            }
+            return next;
+        });
+    }, []);
+
+    const setSessionProcessing = useCallback((sessionId: string, isProcessing: boolean) => {
+        setProcessingSessions((prev) => {
+            const next = new Set(prev);
+            if (isProcessing) {
+                next.add(sessionId);
+            } else {
+                next.delete(sessionId);
+            }
+            return next;
+        });
+    }, []);
+
+    const setSessionStatus = useCallback((sessionId: string, status: StreamStatus) => {
+        setSessionStatuses((prev) => {
+            const next = new Map(prev);
+            next.set(sessionId, status);
+            return next;
+        });
+    }, []);
+
+    const getSessionAbortController = useCallback((sessionId: string): AbortController => {
+        const existing = sessionAbortControllersRef.current.get(sessionId);
+        if (existing) {
+            return existing;
+        }
+        const controller = new AbortController();
+        sessionAbortControllersRef.current.set(sessionId, controller);
+        return controller;
+    }, []);
+
+    const abortSession = useCallback((sessionId: string) => {
+        const controller = sessionAbortControllersRef.current.get(sessionId);
+        if (controller) {
+            controller.abort();
+            sessionAbortControllersRef.current.delete(sessionId);
+        }
+    }, []);
+
+    // Get current session's state
+    const activeError = currentSessionId ? sessionErrors.get(currentSessionId) || null : null;
+    const processing = currentSessionId ? processingSessions.has(currentSessionId) : false;
+    const status = currentSessionId ? sessionStatuses.get(currentSessionId) || 'idle' : 'idle';
+
     const {
         messages,
         sendMessage: originalSendMessage,
-        status,
         reset: originalReset,
         setMessages,
-        activeError,
-        clearError,
-        processing,
         cancel,
-    } = useChat(apiUrl, () => currentSessionId);
+    } = useChat(apiUrl, () => currentSessionId, {
+        setSessionError,
+        setSessionProcessing,
+        setSessionStatus,
+        getSessionAbortController,
+        abortSession,
+    });
 
     // Fetch current LLM config using TanStack Query
     const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery<
@@ -415,6 +481,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             originalReset(currentSessionId);
         }
     }, [originalReset, currentSessionId, analytics, messages]);
+
+    // Clear error for current session
+    const clearError = useCallback(() => {
+        if (currentSessionId) {
+            setSessionError(currentSessionId, null);
+        }
+    }, [currentSessionId, setSessionError]);
 
     // Load session history when switching sessions
     const { data: sessionHistoryData, refetch: refetchSessionHistory } = useQuery<Message[], Error>(
