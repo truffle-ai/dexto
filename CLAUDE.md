@@ -157,6 +157,18 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 ### Import Requirements
 - **All imports must end with `.js`** in core repository only for ES module compatibility
 
+### OpenAPI Documentation
+- **NEVER directly modify `docs/static/openapi/openapi.json`** - This file is auto-generated
+- **Generated from server APIs** - OpenAPI spec is extracted from Hono route definitions in `packages/server/src/hono/routes/*.ts`
+- **Update process**:
+  1. Modify the route definition in `packages/server/src/hono/routes/*.ts` (add/update response schemas, parameters, etc.)
+  2. Run `pnpm run sync-openapi-docs` to regenerate `docs/static/openapi/openapi.json`
+  3. Verify the generated file includes your changes
+- **Route definitions use Zod schemas** - Use `createRoute()` from `@hono/zod-openapi` with Zod schemas for type-safe OpenAPI generation
+- **Error responses** - Follow the standard error format from `packages/server/src/hono/middleware/error.ts`:
+  - DextoRuntimeError returns: `{code, message, scope, type, context, recovery, traceId, endpoint, method}`
+  - 404 responses should document this structure in the route definition
+
 ### Module Organization
 - **Selective index.ts strategy** - Only create index.ts files at logical module boundaries that represent cohesive public APIs
 - **✅ DO**: Add index.ts for main entry points and modules that export types/interfaces used by external consumers
