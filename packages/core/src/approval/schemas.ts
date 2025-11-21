@@ -81,17 +81,21 @@ export const BaseApprovalRequestSchema = z
 
 /**
  * Tool confirmation request schema
+ * sessionId is required for tool confirmations (happens during LLM-driven execution)
  */
 export const ToolConfirmationRequestSchema = BaseApprovalRequestSchema.extend({
     type: z.literal(ApprovalType.TOOL_CONFIRMATION),
+    sessionId: z.string().describe('Session identifier (required for tool confirmations)'),
     metadata: ToolConfirmationMetadataSchema,
 }).strict();
 
 /**
  * Command confirmation request schema
+ * sessionId is required for command confirmations (happens during tool execution)
  */
 export const CommandConfirmationRequestSchema = BaseApprovalRequestSchema.extend({
     type: z.literal(ApprovalType.COMMAND_CONFIRMATION),
+    sessionId: z.string().describe('Session identifier (required for command confirmations)'),
     metadata: CommandConfirmationMetadataSchema,
 }).strict();
 
@@ -166,7 +170,7 @@ export const BaseApprovalResponseSchema = z
     .object({
         approvalId: z.string().uuid().describe('Must match request approvalId'),
         status: ApprovalStatusSchema.describe('Approval status'),
-        sessionId: z.string().optional().describe('Session identifier'),
+        sessionId: z.string().describe('Session identifier'),
         reason: DenialReasonSchema.optional().describe(
             'Reason for denial/cancellation (only present when status is denied or cancelled)'
         ),

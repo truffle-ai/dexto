@@ -153,19 +153,16 @@ export class ApprovalManager {
      * Convenience method for tool execution confirmation
      */
     async requestToolConfirmation(
-        metadata: ToolConfirmationMetadata & { sessionId?: string; timeout?: number }
+        metadata: ToolConfirmationMetadata & { sessionId: string; timeout?: number }
     ): Promise<ApprovalResponse> {
         const { sessionId, timeout, ...toolMetadata } = metadata;
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_CONFIRMATION,
             timeout: timeout ?? this.config.toolConfirmation.timeout,
+            sessionId,
             metadata: toolMetadata,
         };
-
-        if (sessionId !== undefined) {
-            details.sessionId = sessionId;
-        }
 
         return this.requestApproval(details);
     }
@@ -189,19 +186,16 @@ export class ApprovalManager {
      * ```
      */
     async requestCommandConfirmation(
-        metadata: CommandConfirmationMetadata & { sessionId?: string; timeout?: number }
+        metadata: CommandConfirmationMetadata & { sessionId: string; timeout?: number }
     ): Promise<ApprovalResponse> {
         const { sessionId, timeout, ...commandMetadata } = metadata;
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.COMMAND_CONFIRMATION,
             timeout: timeout ?? this.config.toolConfirmation.timeout,
+            sessionId,
             metadata: commandMetadata,
         };
-
-        if (sessionId !== undefined) {
-            details.sessionId = sessionId;
-        }
 
         return this.requestApproval(details);
     }
