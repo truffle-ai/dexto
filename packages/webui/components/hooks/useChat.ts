@@ -416,6 +416,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                         id: generateUniqueId(),
                         message,
                         timestamp: Date.now(),
+                        context: payload.context,
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
@@ -502,7 +503,24 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Failed to send message: ${response.statusText}`);
+                        // Parse error response body to get actual error details
+                        const errorData = await response.json();
+                        const errorMessage =
+                            errorData.message || `Failed to send message: ${response.statusText}`;
+
+                        setActiveError({
+                            id: generateUniqueId(),
+                            message: errorMessage,
+                            timestamp: Date.now(),
+                            context: 'stream', // Backend returns context as object, we need string
+                            recoverable: false,
+                            sessionId,
+                            anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        });
+
+                        setStatus('closed');
+                        setProcessing(false);
+                        return;
                     }
 
                     // Response body is the SSE stream - connect to it directly
@@ -534,7 +552,24 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Failed to send message: ${response.statusText}`);
+                        // Parse error response body to get actual error details
+                        const errorData = await response.json();
+                        const errorMessage =
+                            errorData.message || `Failed to send message: ${response.statusText}`;
+
+                        setActiveError({
+                            id: generateUniqueId(),
+                            message: errorMessage,
+                            timestamp: Date.now(),
+                            context: 'message-sync', // Backend returns context as object, we need string
+                            recoverable: false,
+                            sessionId,
+                            anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        });
+
+                        setStatus('closed');
+                        setProcessing(false);
+                        return;
                     }
 
                     const data = await response.json();

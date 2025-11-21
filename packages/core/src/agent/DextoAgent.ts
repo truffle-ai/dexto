@@ -18,8 +18,10 @@ import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/a
 import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
+import { LLMError } from '../llm/errors.js';
 import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
@@ -678,10 +680,34 @@ export class DextoAgent {
             events.push(event);
         }
 
+        // Check for error events first - if generation failed, throw the actual error
+        const errorEvent = events.find(
+            (e): e is Extract<StreamingEvent, { type: 'llm:error' }> => e.type === 'llm:error'
+        );
+        if (errorEvent) {
+            // If it's already a DextoRuntimeError, throw it directly
+            if (errorEvent.error instanceof DextoRuntimeError) {
+                throw errorEvent.error;
+            }
+            // Otherwise wrap plain Error in DextoRuntimeError for proper HTTP status handling
+            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            throw LLMError.generationFailed(
+                errorEvent.error.message,
+                llmConfig.provider,
+                llmConfig.model
+            );
+        }
+
         // Find the llm:response event (final response)
         const responseEvent = events.find((e) => e.type === 'llm:response');
         if (!responseEvent || responseEvent.type !== 'llm:response') {
-            throw new Error('Stream did not complete successfully');
+            // Get current LLM config for error context
+            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            throw LLMError.generationFailed(
+                'Stream did not complete successfully - no response received',
+                llmConfig.provider,
+                llmConfig.model
+            );
         }
 
         // Collect tool calls from llm:tool-call events
