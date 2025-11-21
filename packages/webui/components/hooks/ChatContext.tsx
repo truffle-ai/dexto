@@ -236,6 +236,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const [isStreaming, setIsStreaming] = useState(true); // Default to streaming enabled
     const [isSwitchingSession, setIsSwitchingSession] = useState(false); // Guard against rapid session switches
     const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
+    const lastSwitchedSessionRef = useRef<string | null>(null); // Track last switched session to prevent duplicate switches
+    const newSessionWithMessageRef = useRef<string | null>(null); // Track new sessions that already have first message sent
 
     // Session-scoped state (survives navigation)
     const [sessionErrors, setSessionErrors] = useState<Map<string, ErrorMessage>>(new Map());
@@ -414,12 +416,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     sessionId = await createAutoSession();
                     isNewSession = true;
 
-                    // Update state before sending message
-                    setCurrentSessionId(sessionId);
-                    setIsWelcomeState(false);
+                    // Mark this session as a new session before navigation
+                    // This allows switchSession to run but skip history load
+                    newSessionWithMessageRef.current = sessionId;
 
-                    // Navigate using Next.js router to properly handle client-side routing
+                    // Send message BEFORE navigating
+                    originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+
+                    // Navigate using Next.js router - this will trigger switchSession via ChatApp useEffect
                     router.replace(`/chat/${sessionId}`);
+
+                    // Generate title for newly created session after first message
+                    generateTitleMutation.mutate(sessionId);
 
                     // Note: currentLLM will automatically refetch when currentSessionId changes
                 } catch (error) {
@@ -430,16 +438,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
             }
 
-            // Only send after session is confirmed ready
-            if (sessionId) {
+            // Only send if we're using an existing session (not a newly created one)
+            if (sessionId && !isNewSession) {
                 originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+            }
 
-                // Generate title for newly created sessions after first message
-                if (isNewSession) {
-                    generateTitleMutation.mutate(sessionId);
-                }
-
-                // Track message sent
+            // Track message sent
+            if (sessionId) {
                 const provider = currentLLM?.provider || 'unknown';
                 const model = currentLLM?.model || 'unknown';
                 analytics.trackMessageSent({
@@ -551,9 +556,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const switchSession = useCallback(
         async (sessionId: string) => {
             // Guard against switching to same session or rapid successive switches
-            if (sessionId === currentSessionId || isSwitchingSession) {
+            // Use ref for immediate check (state updates are async)
+            if (
+                sessionId === currentSessionId ||
+                sessionId === lastSwitchedSessionRef.current ||
+                isSwitchingSession
+            ) {
                 return;
             }
+
+            // Mark this session as being switched to immediately
+            lastSwitchedSessionRef.current = sessionId;
             setIsSwitchingSession(true);
             try {
                 // Track session switch
@@ -562,9 +575,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     toSessionId: sessionId,
                 });
 
+                // Skip history load for newly created sessions with first message already sent
+                // This prevents replacing message IDs and breaking error anchoring
+                // TODO: Long-term fix - backend should generate and persist message IDs
+                // so history reload doesn't cause ID mismatches
+                const skipHistoryLoad = newSessionWithMessageRef.current === sessionId;
+                if (skipHistoryLoad) {
+                    // Clear the ref after using it once
+                    newSessionWithMessageRef.current = null;
+                }
+
                 setCurrentSessionId(sessionId);
                 setIsWelcomeState(false); // No longer in welcome state
-                await loadSessionHistory(sessionId);
+
+                if (!skipHistoryLoad) {
+                    await loadSessionHistory(sessionId);
+                }
                 // Note: currentLLM will automatically refetch when currentSessionId changes via useQuery
             } catch (error) {
                 console.error('Error switching session:', error);
