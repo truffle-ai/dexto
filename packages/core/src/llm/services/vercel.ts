@@ -5,8 +5,6 @@ import {
     type ModelMessage,
     APICallError,
     stepCountIs,
-    NoOutputGeneratedError,
-    AISDKError,
 } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ILLMService, LLMServiceConfig } from './types.js';
@@ -683,7 +681,7 @@ export class VercelLLMService implements ILLMService {
                 response.totalUsage,
                 response.reasoningText,
             ]);
-        } catch (error) {
+        } catch (_error) {
             /* nov 21 2025 - this is the error we get when model generation fails here
              * [API] 7:50:02 PM [ERROR] [llm:default-agent] ${JSON.stringify(error, null, 2): {
              * [API]   "name": "AI_NoOutputGeneratedError"
