@@ -658,8 +658,20 @@ export class ToolManager {
             const approved = response.status === ApprovalStatus.APPROVED;
 
             if (!approved) {
+                // Distinguish between timeout, cancellation, and actual denial
+                if (response.status === ApprovalStatus.CANCELLED && response.reason === 'timeout') {
+                    this.logger.info(
+                        `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                    );
+                    this.logger.debug(`⏱️ Tool execution timed out: ${toolName}`);
+                    // Use default timeout from config if not specified in response
+                    const timeoutMs = this.config.toolConfirmation.timeout;
+                    throw ToolError.executionTimeout(toolName, timeoutMs, sessionId);
+                }
+
+                // All other non-approved statuses (denied, cancelled for other reasons)
                 this.logger.info(
-                    `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                    `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
                 );
                 this.logger.debug(`🚫 Tool execution denied: ${toolName}`);
                 throw ToolError.executionDenied(toolName, sessionId);
