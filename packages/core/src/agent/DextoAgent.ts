@@ -865,6 +865,9 @@ export class DextoAgent {
         this.run(message, imageDataForRun, fileDataForRun, sessionId, true).catch((error) => {
             _streamError = error;
             completed = true;
+            this.logger.error(
+                `Error in DextoAgent.stream: ${error instanceof Error ? error.message : String(error)}`
+            );
             eventQueue.push({
                 type: 'llm:error',
                 error,

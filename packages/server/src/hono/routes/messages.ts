@@ -359,9 +359,21 @@ export function createMessagesRouter(
                     }
 
                     // Then write the LLM/tool event
+                    // Serialize errors properly since Error objects don't JSON.stringify well
+                    const eventData =
+                        event.type === 'llm:error' && event.error instanceof Error
+                            ? {
+                                  ...event,
+                                  error: {
+                                      message: event.error.message,
+                                      name: event.error.name,
+                                      stack: event.error.stack,
+                                  },
+                              }
+                            : event;
                     await stream.writeSSE({
                         event: event.type,
-                        data: JSON.stringify(event),
+                        data: JSON.stringify(eventData),
                     });
                 }
 

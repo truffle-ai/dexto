@@ -415,6 +415,10 @@ export class ChatSession {
 
             // TODO: Currently this only applies for OpenAI, Anthropic services, because Vercel works differently.
             // We should remove this error handling when we handle partial responses properly in all services.
+            const errortype = error instanceof Error ? 'object' : 'string';
+            this.logger.error(
+                `Error in ChatSession.run: errortype=${errortype}: ${error instanceof Error ? error.message : String(error)}`
+            );
             throw error;
         } finally {
             // Clear controller after run completes or is cancelled

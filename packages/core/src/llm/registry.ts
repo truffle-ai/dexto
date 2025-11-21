@@ -84,6 +84,84 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
             {
+                name: 'gpt-5.1-instant',
+                displayName: 'GPT-5.1 Instant',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.125,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5.1-thinking',
+                displayName: 'GPT-5.1 Thinking',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.125,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5.1-codex',
+                displayName: 'GPT-5.1 Codex',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.125,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5.1-codex-mini',
+                displayName: 'GPT-5.1 Codex Mini',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 0.25,
+                    outputPerM: 2.0,
+                    cacheReadPerM: 0.025,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5.1-codex-max',
+                displayName: 'GPT-5.1 Codex Max',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 1.25,
+                    outputPerM: 10.0,
+                    cacheReadPerM: 0.125,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gpt-5-pro',
+                displayName: 'GPT-5 Pro',
+                maxInputTokens: 400000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 15.0,
+                    outputPerM: 120.0,
+                    cacheReadPerM: 1.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'gpt-5',
                 displayName: 'GPT-5',
                 maxInputTokens: 400000,
@@ -398,6 +476,30 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     },
     google: {
         models: [
+            {
+                name: 'gemini-3-pro-preview',
+                displayName: 'Gemini 3 Pro Preview',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 12.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
+                name: 'gemini-3-pro-image-preview',
+                displayName: 'Gemini 3 Pro Image Preview',
+                maxInputTokens: 1048576,
+                supportedFileTypes: ['image'],
+                pricing: {
+                    inputPerM: 2.0,
+                    outputPerM: 120.0,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
             {
                 name: 'gemini-2.5-pro',
                 displayName: 'Gemini 2.5 Pro',
