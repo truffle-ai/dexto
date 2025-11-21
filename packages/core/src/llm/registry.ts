@@ -84,7 +84,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openai: {
         models: [
             {
-                name: 'gpt-5.1-instant',
+                name: 'gpt-5.1-chat-latest',
                 displayName: 'GPT-5.1 Instant',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf', 'image'],
@@ -97,7 +97,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
             {
-                name: 'gpt-5.1-thinking',
+                name: 'gpt-5.1',
                 displayName: 'GPT-5.1 Thinking',
                 maxInputTokens: 400000,
                 supportedFileTypes: ['pdf', 'image'],
