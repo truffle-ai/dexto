@@ -135,19 +135,19 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                     unit: 'per_million_tokens',
                 },
             },
-            {
-                name: 'gpt-5.1-codex-max',
-                displayName: 'GPT-5.1 Codex Max',
-                maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
-                pricing: {
-                    inputPerM: 1.25,
-                    outputPerM: 10.0,
-                    cacheReadPerM: 0.125,
-                    currency: 'USD',
-                    unit: 'per_million_tokens',
-                },
-            },
+            // {
+            //     name: 'gpt-5.1-codex-max',
+            //     displayName: 'GPT-5.1 Codex Max',
+            //     maxInputTokens: 400000,
+            //     supportedFileTypes: ['pdf', 'image'],
+            //     pricing: {
+            //         inputPerM: 1.25,
+            //         outputPerM: 10.0,
+            //         cacheReadPerM: 0.125,
+            //         currency: 'USD',
+            //         unit: 'per_million_tokens',
+            //     },
+            // },
             {
                 name: 'gpt-5-pro',
                 displayName: 'GPT-5 Pro',
