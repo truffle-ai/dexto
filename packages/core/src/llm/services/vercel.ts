@@ -603,78 +603,60 @@ export class VercelLLMService implements ILLMService {
         const includeMaxOutputTokens = typeof maxOutputTokens === 'number';
 
         let response;
-        try {
-            response = streamText({
-                model: this.model,
-                messages,
-                tools: effectiveTools,
-                ...(signal ? { abortSignal: signal } : {}),
-                onChunk: (chunk) => {
-                    this.logger.debug(`Chunk type: ${chunk.chunk.type}`);
-                    if (chunk.chunk.type === 'text-delta') {
-                        this.sessionEventBus.emit('llm:chunk', {
-                            chunkType: 'text',
-                            content: chunk.chunk.text,
-                            isComplete: false,
-                        });
-                    } else if (chunk.chunk.type === 'reasoning-delta') {
-                        this.sessionEventBus.emit('llm:chunk', {
-                            chunkType: 'reasoning',
-                            content: chunk.chunk.text,
-                            isComplete: false,
-                        });
-                    }
-                },
-                // TODO: Add onAbort handler when we implement partial response handling.
-                // Vercel triggers onAbort instead of onError for cancelled streams.
-                // This is where cancellation logic should be handled properly.
-                onError: (error) => {
-                    const err = this.mapProviderError(error, 'stream');
-                    this.logger.error(`Error in streamText after parsing: ${err.toString()}`);
-
-                    this.sessionEventBus.emit('llm:error', {
-                        error: err,
-                        context: 'streamText',
-                        recoverable: false,
+        response = streamText({
+            model: this.model,
+            messages,
+            tools: effectiveTools,
+            ...(signal ? { abortSignal: signal } : {}),
+            onChunk: (chunk) => {
+                this.logger.debug(`Chunk type: ${chunk.chunk.type}`);
+                if (chunk.chunk.type === 'text-delta') {
+                    this.sessionEventBus.emit('llm:chunk', {
+                        chunkType: 'text',
+                        content: chunk.chunk.text,
+                        isComplete: false,
                     });
-                    streamErr = error;
-                },
-                onStepFinish: async (step) => {
-                    this.logger.debug(`Step iteration: ${stepIteration}`);
-                    stepIteration++;
-                    this.logger.debug(`Step finished, text: ${step.text}`);
-                    this.logger.debug(
-                        `Step finished, step tool calls: ${JSON.stringify(step.toolCalls, null, 2)}`
-                    );
-                    this.logger.debug(
-                        `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
-                    );
+                } else if (chunk.chunk.type === 'reasoning-delta') {
+                    this.sessionEventBus.emit('llm:chunk', {
+                        chunkType: 'reasoning',
+                        content: chunk.chunk.text,
+                        isComplete: false,
+                    });
+                }
+            },
+            // TODO: Add onAbort handler when we implement partial response handling.
+            // Vercel triggers onAbort instead of onError for cancelled streams.
+            // This is where cancellation logic should be handled properly.
+            onError: (error) => {
+                const err = this.mapProviderError(error, 'stream');
+                this.logger.error(`Error in streamText after parsing: ${err.toString()}`);
 
-                    // Do not emit intermediate llm:response; chunks update the UI during streaming.
-                    // toolCall and toolResult events are now emitted immediately in execute() function
-                },
-                // No onFinish: we finalize after the stream completes below.
-                stopWhen: stepCountIs(maxSteps),
-                ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
-                ...(temperature !== undefined && { temperature }),
-            });
-        } catch (error) {
-            // Vercel SDK throws even after calling onError for some error conditions
-            // If onError already handled it, streamErr will be set
-            //this.logger.debug(`caught error in streamText: ${JSON.stringify(error, null, 2)}`);
-            if (streamErr) {
-                return '';
-            }
-            // Otherwise, handle the error here
-            const err = toError(error, this.logger);
-            //this.logger.error(`Error from streamText call: ${err.message}`);
-            this.sessionEventBus.emit('llm:error', {
-                error: err,
-                context: 'streamText_call',
-                recoverable: false,
-            });
-            return '';
-        }
+                this.sessionEventBus.emit('llm:error', {
+                    error: err,
+                    context: 'streamText',
+                    recoverable: false,
+                });
+                streamErr = error;
+            },
+            onStepFinish: async (step) => {
+                this.logger.debug(`Step iteration: ${stepIteration}`);
+                stepIteration++;
+                this.logger.debug(`Step finished, text: ${step.text}`);
+                this.logger.debug(
+                    `Step finished, step tool calls: ${JSON.stringify(step.toolCalls, null, 2)}`
+                );
+                this.logger.debug(
+                    `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
+                );
+
+                // Do not emit intermediate llm:response; chunks update the UI during streaming.
+                // toolCall and toolResult events are now emitted immediately in execute() function
+            },
+            // No onFinish: we finalize after the stream completes below.
+            stopWhen: stepCountIs(maxSteps),
+            ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
+            ...(temperature !== undefined && { temperature }),
+        });
 
         // Check for streaming errors BEFORE consuming response promises
         //this.logger.debug(`streamText streamErr: ${JSON.stringify(streamErr, null, 2)}`);
@@ -721,20 +703,6 @@ export class VercelLLMService implements ILLMService {
              * [API]     at writableStreamDefaultWriterClose (node:internal/webstreams/writablestream:1082:10)
              * [API] 7:50:02 PM [ERROR] [llm:default-agent] error.toString: AI_NoOutputGeneratedError: No output generated. Check the stream for errors.
              */
-            // this.logger.error(`Error before mapping provider error is: ${JSON.stringify(error, null, 2)}`);
-            // const err = this.mapProviderError(error, 'stream');
-            // this.logger.error(`Full raw error consuming response promises: ${JSON.stringify(error, null, 2)}`);
-            // this.logger.error(`Error consuming response promises: ${err.message}`);
-            // this.logger.error(`Error consuming response promises cause: ${err.cause}`);
-            // this.logger.error(`Error consuming response promises name: ${err.name}`);
-            // this.logger.error(`Error consuming response promises stack: ${err.stack}`);
-            // this.logger.error(`Error consuming response promises toString: ${err.toString()}`);
-            // //this.logger.error(`Error consuming response promises: ${err.responseBody}`);
-            // this.sessionEventBus.emit('llm:error', {
-            //     error: err,
-            //     context: 'streamText',
-            //     recoverable: false,
-            // });
             return '';
         }
 
