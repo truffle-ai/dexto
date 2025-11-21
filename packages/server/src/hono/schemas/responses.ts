@@ -163,7 +163,7 @@ const ToolCallSchema = z
     .strict()
     .describe('Tool call made by the assistant');
 
-const TokenUsageSchema = z
+export const TokenUsageSchema = z
     .object({
         inputTokens: z.number().int().nonnegative().optional().describe('Number of input tokens'),
         outputTokens: z.number().int().nonnegative().optional().describe('Number of output tokens'),

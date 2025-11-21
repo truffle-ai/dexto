@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import type { DextoAgent } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
+import { TokenUsageSchema } from '../schemas/responses.js';
 
 const MessageBodySchema = z
     .object({
@@ -134,29 +135,8 @@ export function createMessagesRouter(
                             .object({
                                 response: z.string().describe('Agent response text'),
                                 sessionId: z.string().describe('Session ID used for this message'),
-                                tokenUsage: z
-                                    .object({
-                                        inputTokens: z
-                                            .number()
-                                            .optional()
-                                            .describe('Number of input tokens'),
-                                        outputTokens: z
-                                            .number()
-                                            .optional()
-                                            .describe('Number of output tokens'),
-                                        totalTokens: z
-                                            .number()
-                                            .optional()
-                                            .describe('Total number of tokens'),
-                                        reasoningTokens: z
-                                            .number()
-                                            .optional()
-                                            .describe(
-                                                'Number of reasoning tokens (for reasoning models)'
-                                            ),
-                                    })
-                                    .optional()
-                                    .describe('Token usage statistics'),
+                                tokenUsage:
+                                    TokenUsageSchema.optional().describe('Token usage statistics'),
                                 reasoning: z
                                     .string()
                                     .optional()
@@ -255,91 +235,92 @@ export function createMessagesRouter(
         return ctx.json({ status: 'reset initiated', sessionId });
     });
 
-    if (approvalCoordinator) {
-        const messageStreamRoute = createRoute({
-            method: 'post',
-            path: '/message-stream',
-            summary: 'Stream message response',
-            description:
-                'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error.',
-            tags: ['messages'],
-            request: {
-                body: {
-                    content: { 'application/json': { schema: MessageBodySchema } },
-                },
+    // Register message-stream route (always registered for OpenAPI documentation)
+    const messageStreamRoute = createRoute({
+        method: 'post',
+        path: '/message-stream',
+        summary: 'Stream message response',
+        description:
+            'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error.',
+        tags: ['messages'],
+        request: {
+            body: {
+                content: { 'application/json': { schema: MessageBodySchema } },
             },
-            responses: {
-                200: {
-                    description:
-                        'SSE stream of agent events. Standard SSE format with event type and JSON data.',
-                    headers: {
-                        'Content-Type': {
-                            description: 'SSE content type',
-                            schema: { type: 'string', example: 'text/event-stream' },
-                        },
-                        'Cache-Control': {
-                            description: 'Disable caching for stream',
-                            schema: { type: 'string', example: 'no-cache' },
-                        },
-                        Connection: {
-                            description: 'Keep connection alive for streaming',
-                            schema: { type: 'string', example: 'keep-alive' },
-                        },
-                        'X-Accel-Buffering': {
-                            description: 'Disable nginx buffering',
-                            schema: { type: 'string', example: 'no' },
-                        },
+        },
+        responses: {
+            200: {
+                description:
+                    'SSE stream of agent events. Standard SSE format with event type and JSON data.',
+                headers: {
+                    'Content-Type': {
+                        description: 'SSE content type',
+                        schema: { type: 'string', example: 'text/event-stream' },
                     },
-                    content: {
-                        'text/event-stream': {
-                            schema: z
-                                .string()
-                                .describe(
-                                    'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)'
-                                ),
-                        },
+                    'Cache-Control': {
+                        description: 'Disable caching for stream',
+                        schema: { type: 'string', example: 'no-cache' },
+                    },
+                    Connection: {
+                        description: 'Keep connection alive for streaming',
+                        schema: { type: 'string', example: 'keep-alive' },
+                    },
+                    'X-Accel-Buffering': {
+                        description: 'Disable nginx buffering',
+                        schema: { type: 'string', example: 'no' },
                     },
                 },
-                400: { description: 'Validation error' },
+                content: {
+                    'text/event-stream': {
+                        schema: z
+                            .string()
+                            .describe(
+                                'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)'
+                            ),
+                    },
+                },
             },
+            400: { description: 'Validation error' },
+        },
+    });
+
+    app.openapi(messageStreamRoute, async (ctx) => {
+        const agent = getAgent();
+        const body = ctx.req.valid('json');
+
+        const { message = '', sessionId, imageData, fileData } = body;
+
+        const imageDataInput = imageData
+            ? { image: imageData.base64, mimeType: imageData.mimeType }
+            : undefined;
+
+        const fileDataInput = fileData
+            ? {
+                  data: fileData.base64,
+                  mimeType: fileData.mimeType,
+                  ...(fileData.filename && { filename: fileData.filename }),
+              }
+            : undefined;
+
+        // Create abort controller for cleanup
+        const abortController = new AbortController();
+        const { signal } = abortController;
+
+        // Start agent streaming
+        const iterator = await agent.stream(message, {
+            sessionId,
+            imageData: imageDataInput,
+            fileData: fileDataInput,
+            signal,
         });
 
-        app.openapi(messageStreamRoute, async (ctx) => {
-            const agent = getAgent();
-            const body = ctx.req.valid('json');
+        // Use Hono's streamSSE helper which handles backpressure correctly
+        return streamSSE(ctx, async (stream) => {
+            // Store pending approval events to be written to stream (only if coordinator available)
+            const pendingApprovalEvents: Array<{ event: string; data: unknown }> = [];
 
-            const { message = '', sessionId, imageData, fileData } = body;
-
-            const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
-                : undefined;
-
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.base64,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
-
-            // Create abort controller for cleanup
-            const abortController = new AbortController();
-            const { signal } = abortController;
-
-            // Start agent streaming
-            const iterator = await agent.stream(message, {
-                sessionId,
-                imageData: imageDataInput,
-                fileData: fileDataInput,
-                signal,
-            });
-
-            // Use Hono's streamSSE helper which handles backpressure correctly
-            return streamSSE(ctx, async (stream) => {
-                // Store pending approval events to be written to stream
-                const pendingApprovalEvents: Array<{ event: string; data: unknown }> = [];
-
-                // Subscribe to approval events from coordinator
+            // Subscribe to approval events from coordinator (if available)
+            if (approvalCoordinator) {
                 approvalCoordinator.onRequest(
                     (request) => {
                         if (request.sessionId === sessionId) {
@@ -363,27 +344,12 @@ export function createMessagesRouter(
                     },
                     { signal }
                 );
+            }
 
-                try {
-                    // Stream LLM/tool events from iterator
-                    for await (const event of iterator) {
-                        // First, write any pending approval events
-                        while (pendingApprovalEvents.length > 0) {
-                            const approvalEvent = pendingApprovalEvents.shift()!;
-                            await stream.writeSSE({
-                                event: approvalEvent.event,
-                                data: JSON.stringify(approvalEvent.data),
-                            });
-                        }
-
-                        // Then write the LLM/tool event
-                        await stream.writeSSE({
-                            event: event.type,
-                            data: JSON.stringify(event),
-                        });
-                    }
-
-                    // Write any remaining approval events
+            try {
+                // Stream LLM/tool events from iterator
+                for await (const event of iterator) {
+                    // First, write any pending approval events
                     while (pendingApprovalEvents.length > 0) {
                         const approvalEvent = pendingApprovalEvents.shift()!;
                         await stream.writeSSE({
@@ -391,23 +357,38 @@ export function createMessagesRouter(
                             data: JSON.stringify(approvalEvent.data),
                         });
                     }
-                } catch (error) {
+
+                    // Then write the LLM/tool event
                     await stream.writeSSE({
-                        event: 'llm:error',
-                        data: JSON.stringify({
-                            error: {
-                                message: error instanceof Error ? error.message : String(error),
-                            },
-                            recoverable: false,
-                            sessionId,
-                        }),
+                        event: event.type,
+                        data: JSON.stringify(event),
                     });
-                } finally {
-                    abortController.abort(); // Cleanup subscriptions
                 }
-            });
+
+                // Write any remaining approval events
+                while (pendingApprovalEvents.length > 0) {
+                    const approvalEvent = pendingApprovalEvents.shift()!;
+                    await stream.writeSSE({
+                        event: approvalEvent.event,
+                        data: JSON.stringify(approvalEvent.data),
+                    });
+                }
+            } catch (error) {
+                await stream.writeSSE({
+                    event: 'llm:error',
+                    data: JSON.stringify({
+                        error: {
+                            message: error instanceof Error ? error.message : String(error),
+                        },
+                        recoverable: false,
+                        sessionId,
+                    }),
+                });
+            } finally {
+                abortController.abort(); // Cleanup subscriptions
+            }
         });
-    }
+    });
 
     return app;
 }

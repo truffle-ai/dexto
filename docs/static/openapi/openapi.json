@@ -2653,22 +2653,27 @@
                       "type": "object",
                       "properties": {
                         "inputTokens": {
-                          "type": "number",
+                          "type": "integer",
+                          "minimum": 0,
                           "description": "Number of input tokens"
                         },
                         "outputTokens": {
-                          "type": "number",
+                          "type": "integer",
+                          "minimum": 0,
                           "description": "Number of output tokens"
                         },
-                        "totalTokens": {
-                          "type": "number",
-                          "description": "Total number of tokens"
-                        },
                         "reasoningTokens": {
-                          "type": "number",
-                          "description": "Number of reasoning tokens (for reasoning models)"
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of reasoning tokens"
+                        },
+                        "totalTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total tokens used"
                         }
                       },
+                      "additionalProperties": false,
                       "description": "Token usage statistics"
                     },
                     "reasoning": {
@@ -2755,6 +2760,125 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/message-stream": {
+      "post": {
+        "summary": "Stream message response",
+        "description": "Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error.",
+        "tags": [
+          "messages"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "The user message text"
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The session to use for this message"
+                  },
+                  "imageData": {
+                    "type": "object",
+                    "properties": {
+                      "base64": {
+                        "type": "string",
+                        "description": "Base64-encoded image data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "The MIME type of the image (e.g., image/png)"
+                      }
+                    },
+                    "required": [
+                      "base64",
+                      "mimeType"
+                    ],
+                    "description": "Optional image data to include with the message"
+                  },
+                  "fileData": {
+                    "type": "object",
+                    "properties": {
+                      "base64": {
+                        "type": "string",
+                        "description": "Base64-encoded file data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "The MIME type of the file (e.g., application/pdf)"
+                      },
+                      "filename": {
+                        "type": "string",
+                        "description": "The filename"
+                      }
+                    },
+                    "required": [
+                      "base64",
+                      "mimeType"
+                    ],
+                    "description": "Optional file data to include with the message"
+                  }
+                },
+                "required": [
+                  "sessionId"
+                ],
+                "description": "Request body for sending a message to the agent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream of agent events. Standard SSE format with event type and JSON data.",
+            "headers": {
+              "Content-Type": {
+                "description": "SSE content type",
+                "schema": {
+                  "type": "string",
+                  "example": "text/event-stream"
+                }
+              },
+              "Cache-Control": {
+                "description": "Disable caching for stream",
+                "schema": {
+                  "type": "string",
+                  "example": "no-cache"
+                }
+              },
+              "Connection": {
+                "description": "Keep connection alive for streaming",
+                "schema": {
+                  "type": "string",
+                  "example": "keep-alive"
+                }
+              },
+              "X-Accel-Buffering": {
+                "description": "Disable nginx buffering",
+                "schema": {
+                  "type": "string",
+                  "example": "no"
+                }
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
           }
         }
       }
