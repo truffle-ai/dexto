@@ -181,6 +181,9 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
         (event: SSEEvent) => {
             if (!event.data) return;
 
+            // TODO: Replace with proper discriminated union types after Hono HC client SDK migration
+            // Hono HC will generate types from API routes for type-safe SSE event payloads
+            // See PR 450 comment: https://github.com/truffle-ai/dexto/pull/450#discussion_r2546398874
             let payload: any;
             try {
                 payload = JSON.parse(event.data);

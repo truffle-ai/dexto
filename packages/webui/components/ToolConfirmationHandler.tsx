@@ -43,6 +43,9 @@ export function ToolConfirmationHandler({
 
     // Handle incoming approval requests via DOM event (dispatched by useChat)
     useEffect(() => {
+        // TODO: Replace with proper types after Hono HC client SDK migration
+        // Hono HC will provide type-safe API client that eliminates need for DOM events
+        // See PR 450 comment: https://github.com/truffle-ai/dexto/pull/450#discussion_r2546390679
         const handleApprovalRequest = (event: any) => {
             try {
                 // Event detail structure: { approvalId, type, metadata, timestamp, sessionId }
@@ -122,6 +125,8 @@ export function ToolConfirmationHandler({
 
     // Handle approval responses (timeout, cancellation) via DOM event
     useEffect(() => {
+        // TODO: Replace with proper types after Hono HC client SDK migration
+        // Hono HC will provide type-safe API client that eliminates need for DOM events
         const handleApprovalResponse = (event: any) => {
             try {
                 const data = event.detail;
