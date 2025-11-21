@@ -60,6 +60,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                     sessionId: request.sessionId,
                     reason: DenialReason.TIMEOUT,
                     message: `Approval request timed out after ${effectiveTimeout}ms`,
+                    timeoutMs: effectiveTimeout,
                 };
                 coordinator.emitResponse(timeoutResponse);
 

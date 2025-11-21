@@ -664,7 +664,9 @@ export class ToolManager {
                         `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
                     );
                     this.logger.debug(`⏱️ Tool execution timed out: ${toolName}`);
-                    throw ToolError.executionTimeout(toolName, 0, sessionId);
+                    // Use timeout value from response if available, otherwise fallback to 0
+                    const timeoutMs = response.timeoutMs ?? 0;
+                    throw ToolError.executionTimeout(toolName, timeoutMs, sessionId);
                 }
 
                 // All other non-approved statuses (denied, cancelled for other reasons)
