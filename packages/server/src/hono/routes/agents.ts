@@ -712,8 +712,9 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         }
 
         // Enrich config with defaults/paths to satisfy schema requirements
-        // Use a temporary path to derive agentId if needed, or just let it use default
-        const enriched = enrichAgentConfig(parsed, '/tmp/validate-agent.yml');
+        // Pass undefined for validation-only (no real file path)
+        // AgentId will be derived from agentCard.name or fall back to 'default-agent'
+        const enriched = enrichAgentConfig(parsed, undefined);
 
         // Validate against schema
         const result = AgentConfigSchema.safeParse(enriched);

@@ -149,6 +149,11 @@ export async function startTestServer(
         baseUrl,
         port: serverPort,
         cleanup: async () => {
+            // Cleanup subscribers to prevent memory leaks
+            webhookSubscriber.cleanup();
+            sseSubscriber.cleanup();
+            approvalCoordinator.removeAllListeners();
+
             await new Promise<void>((resolve, reject) => {
                 bridge.server.close((err) => {
                     if (err) reject(err);

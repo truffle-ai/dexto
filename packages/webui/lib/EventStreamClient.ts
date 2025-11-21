@@ -5,10 +5,12 @@ export interface SSEEvent {
     retry?: number;
 }
 
+// SSEError is currently unused (connect() method not used in codebase)
+// Kept for potential future use or external consumers
 export class SSEError extends Error {
     constructor(
         public status: number,
-        public body: any
+        public body: any // Error response body from failed SSE connection
     ) {
         super(`SSE Error: ${status}`);
         this.name = 'SSEError';

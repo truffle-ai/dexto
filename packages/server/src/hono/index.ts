@@ -35,15 +35,19 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'
 };
 
 // Dummy context for type inference and runtime fallback
+// Used when running in single-agent mode (CLI, Docker, etc.) where multi-agent
+// features aren't available. Agents router is always mounted for consistent API
+// structure, but will return clear errors if multi-agent endpoints are called.
+// This ensures type safety across different deployment modes.
 const dummyAgentsContext: AgentsRouterContext = {
     switchAgentById: async () => {
-        throw new Error('Not implemented');
+        throw new Error('Multi-agent features not available in single-agent mode');
     },
     switchAgentByPath: async () => {
-        throw new Error('Not implemented');
+        throw new Error('Multi-agent features not available in single-agent mode');
     },
     resolveAgentInfo: async () => {
-        throw new Error('Not implemented');
+        throw new Error('Multi-agent features not available in single-agent mode');
     },
     ensureAgentAvailable: () => {},
     getActiveAgentId: () => undefined,
@@ -111,7 +115,13 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(options.apiPrefix ?? '/api', api);
 
     // Expose OpenAPI document
-    // TODO: check if we should use import { openAPIRouteHandler } from "hono-openapi"; - https://honohub.dev/docs/openapi/zod#generating-the-openapi-spec
+    // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
+    // Alternative: Use openAPIRouteHandler from hono-openapi (third-party) for auto-generation
+    // Keeping current approach since:
+    // 1. @hono/zod-openapi is official Hono package with first-class support
+    // 2. We already generate spec via scripts/generate-openapi-spec.ts to docs/
+    // 3. Switching would require adding hono-openapi dependency and migration effort
+    // See: https://honohub.dev/docs/openapi/zod#generating-the-openapi-spec
     fullApp.doc('/openapi.json', {
         openapi: '3.0.0',
         info: {
