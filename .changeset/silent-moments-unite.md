@@ -11,8 +11,8 @@ Migrate from WebSocket to Server-Sent Events (SSE) for real-time streaming
 
 - Replace WebSocket with SSE for message streaming via new `/api/message-stream` endpoint
 - Refactor approval system from event-based providers to simpler handler pattern
+- Add new APIs for session approval
+- Move session title generation to a separate API
 - Add `ApprovalCoordinator` for multi-client SSE routing with sessionId mapping
-- Fix approval flow consistency: timeout/cancel now resolve instead of reject
-- Add 404/503 error responses to OpenAPI documentation
-- Update JSDoc examples to include required sessionId parameter
-- Improve abort signal handling in EventStreamClient
+- Add stream and generate methods to DextoAgent and integ tests for itq=
+
