@@ -50,11 +50,15 @@ export class ToolError {
      * Tool execution timeout
      */
     static executionTimeout(toolName: string, timeoutMs: number, sessionId?: string) {
+        const message =
+            timeoutMs > 0
+                ? `Tool '${toolName}' execution timed out after ${timeoutMs}ms`
+                : `Tool '${toolName}' execution timed out`;
         return new DextoRuntimeError(
             ToolErrorCode.EXECUTION_TIMEOUT,
             ErrorScope.TOOLS,
             ErrorType.TIMEOUT,
-            `Tool '${toolName}' execution timed out after ${timeoutMs}ms`,
+            message,
             { toolName, timeoutMs, sessionId }
         );
     }

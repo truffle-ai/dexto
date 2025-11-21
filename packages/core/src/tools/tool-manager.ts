@@ -664,9 +664,7 @@ export class ToolManager {
                         `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
                     );
                     this.logger.debug(`⏱️ Tool execution timed out: ${toolName}`);
-                    // Use default timeout from config if not specified in response
-                    const timeoutMs = this.config.toolConfirmation.timeout;
-                    throw ToolError.executionTimeout(toolName, timeoutMs, sessionId);
+                    throw ToolError.executionTimeout(toolName, 0, sessionId);
                 }
 
                 // All other non-approved statuses (denied, cancelled for other reasons)
