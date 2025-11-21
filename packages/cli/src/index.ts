@@ -929,6 +929,11 @@ program
                 }
 
                 // ——— Dispatch based on --mode ———
+                // TODO: Refactor mode-specific logic into separate handler files
+                // This switch statement has grown large with nested if-else chains for each mode.
+                // Consider breaking down into mode-specific handlers (e.g., cli/modes/cli.ts, cli/modes/web.ts)
+                // to improve maintainability and reduce complexity in this entry point file.
+                // See PR 450 comment: https://github.com/truffle-ai/dexto/pull/450#discussion_r2546242983
                 switch (opts.mode) {
                     case 'cli': {
                         // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
