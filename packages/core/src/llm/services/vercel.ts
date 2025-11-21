@@ -124,7 +124,7 @@ export class VercelLLMService implements ILLMService {
                             this.logger.debug(
                                 `[vercel] Emitting toolCall event for ${toolName} with callId ${callId}`
                             );
-                            this.sessionEventBus.emit('llmservice:toolCall', {
+                            this.sessionEventBus.emit('llm:tool-call', {
                                 toolName,
                                 args: args as Record<string, unknown>,
                                 callId,
@@ -148,7 +148,7 @@ export class VercelLLMService implements ILLMService {
                             this.logger.debug(
                                 `[vercel] Emitting toolResult event for ${toolName} with callId ${callId}`
                             );
-                            this.sessionEventBus.emit('llmservice:toolResult', {
+                            this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
                                 callId,
                                 success: true,
@@ -192,7 +192,7 @@ export class VercelLLMService implements ILLMService {
                                     { success: false }
                                 );
 
-                                this.sessionEventBus.emit('llmservice:toolResult', {
+                                this.sessionEventBus.emit('llm:tool-result', {
                                     toolName,
                                     callId,
                                     success: false,
@@ -321,11 +321,6 @@ export class VercelLLMService implements ILLMService {
         // Execute rest of method in updated context
         return await context.with(updatedContext, async () => {
             // Add user message, with optional image and file data
-            this.logger.debug(
-                `[VercelLLMService] addUserMessage(text ~${textInput.length} chars, image=${Boolean(
-                    imageData
-                )}, file=${Boolean(fileData)})`
-            );
             await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
             // Get all tools
@@ -342,7 +337,7 @@ export class VercelLLMService implements ILLMService {
 
             let fullResponse = '';
 
-            this.sessionEventBus.emit('llmservice:thinking');
+            this.sessionEventBus.emit('llm:thinking');
             const prepared = await this.contextManager.getFormattedMessagesWithCompression(
                 { mcpManager: this.toolManager.getMcpManager() },
                 { provider: this.config.provider, model: this.getModelId() }
@@ -435,7 +430,7 @@ export class VercelLLMService implements ILLMService {
                         `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
                     );
 
-                    // Do not emit intermediate llmservice:response; generateText is non-stream so we only emit once after completion.
+                    // Do not emit intermediate llm:response; generateText is non-stream so we only emit once after completion.
                     // toolCall and toolResult events are now emitted immediately in execute() function
                     // Clean up any remaining raw results from the queue
                 },
@@ -444,7 +439,7 @@ export class VercelLLMService implements ILLMService {
                 ...(temperature !== undefined && { temperature }),
             });
             // Emit final response with reasoning and token usage (authoritative)
-            this.sessionEventBus.emit('llmservice:response', {
+            this.sessionEventBus.emit('llm:response', {
                 content: response.text,
                 ...(response.reasoningText && { reasoning: response.reasoningText }),
                 provider: this.config.provider,
@@ -603,14 +598,14 @@ export class VercelLLMService implements ILLMService {
             onChunk: (chunk) => {
                 this.logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {
-                    this.sessionEventBus.emit('llmservice:chunk', {
-                        type: 'text',
+                    this.sessionEventBus.emit('llm:chunk', {
+                        chunkType: 'text',
                         content: chunk.chunk.text,
                         isComplete: false,
                     });
                 } else if (chunk.chunk.type === 'reasoning-delta') {
-                    this.sessionEventBus.emit('llmservice:chunk', {
-                        type: 'reasoning',
+                    this.sessionEventBus.emit('llm:chunk', {
+                        chunkType: 'reasoning',
                         content: chunk.chunk.text,
                         isComplete: false,
                     });
@@ -622,7 +617,7 @@ export class VercelLLMService implements ILLMService {
             onError: (error) => {
                 const err = toError(error);
                 this.logger.error(`Error in streamText: ${err?.stack ?? err}`);
-                this.sessionEventBus.emit('llmservice:error', {
+                this.sessionEventBus.emit('llm:error', {
                     error: err,
                     context: 'streamText',
                     recoverable: false,
@@ -640,7 +635,7 @@ export class VercelLLMService implements ILLMService {
                     `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
                 );
 
-                // Do not emit intermediate llmservice:response; chunks update the UI during streaming.
+                // Do not emit intermediate llm:response; chunks update the UI during streaming.
                 // toolCall and toolResult events are now emitted immediately in execute() function
             },
             // No onFinish: we finalize after the stream completes below.
@@ -657,19 +652,19 @@ export class VercelLLMService implements ILLMService {
 
         response.totalUsage;
 
-        // If streaming reported an error, return early since we already emitted llmservice:error event
+        // If streaming reported an error, return early since we already emitted llm:error event
         if (streamErr) {
             // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?
-            // Current approach: emit llmservice:error event for subscribers (WebSocket, CLI, webhooks)
+            // Current approach: emit llm:error event for subscribers (SSE, CLI, webhooks)
             // Alternative: throw error and let generic handlers deal with it
             // Trade-offs: event-driven (flexible, multiple subscribers) vs exception-based (simpler, single path)
 
-            // Error was already handled via llmservice:error event in onError callback
-            // Don't re-throw to prevent duplicate error messages in WebSocket
+            // Error was already handled via llm:error event in onError callback
+            // Don't re-throw to prevent duplicate error messages in SSE stream
             return '';
         }
         // Emit final response with reasoning and full token usage (authoritative)
-        this.sessionEventBus.emit('llmservice:response', {
+        this.sessionEventBus.emit('llm:response', {
             content: finalText,
             ...(reasoningText && { reasoning: reasoningText }),
             provider: this.config.provider,

@@ -55,16 +55,7 @@ describe('InternalToolsProvider', () => {
         };
 
         // Create ApprovalManager in auto-approve mode for tests
-        const mockAgentEventBus = {
-            on: vi.fn(),
-            emit: vi.fn(),
-            off: vi.fn(),
-            once: vi.fn(),
-            removeAllListeners: vi.fn(),
-        } as any;
-
         approvalManager = new ApprovalManager(
-            mockAgentEventBus,
             {
                 toolConfirmation: {
                     mode: 'auto-approve',

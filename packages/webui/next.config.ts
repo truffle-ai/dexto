@@ -45,6 +45,26 @@ const nextConfig: NextConfig = {
             '.js': ['.ts', '.tsx', '.js'],
             '.mjs': ['.mts', '.mjs'],
         };
+
+        // Suppress OpenTelemetry warnings from @dexto/core
+        // These are safe to ignore - OTel uses dynamic requires that webpack can't statically analyze
+        // The packages work fine at runtime, these are just build-time warnings about intentional patterns
+        config.ignoreWarnings = [
+            ...(config.ignoreWarnings || []),
+            (warning: any) => {
+                const message = warning.message || '';
+                const module = warning.module?.resource || '';
+                const isOTelModule =
+                    module.includes('opentelemetry') || module.includes('require-in-the-middle');
+                return (
+                    message.includes('opentelemetry') ||
+                    message.includes('require-in-the-middle') ||
+                    (message.includes('Critical dependency') && isOTelModule) ||
+                    isOTelModule
+                );
+            },
+        ];
+
         return config;
     },
     // Allow static asset requests from these origins in dev mode

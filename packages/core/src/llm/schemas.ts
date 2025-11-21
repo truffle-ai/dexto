@@ -229,10 +229,10 @@ export type LLMConfig = z.input<typeof LLMConfigSchema>;
 export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 // PATCH-like schema for updates (switch flows)
 
+// TODO: when moving to zod v4 we might be able to set this as strict
 export const LLMUpdatesSchema = z
     .object({ ...LLMConfigFields })
     .partial()
-    .strict()
     .superRefine((data, ctx) => {
         // Require at least one meaningful change field: model, provider, or router
         if (!data.model && !data.provider && !data.router) {

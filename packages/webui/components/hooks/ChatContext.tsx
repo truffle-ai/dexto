@@ -17,6 +17,7 @@ import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { apiFetch } from '@/lib/api-client.js';
+import { useMutation } from '@tanstack/react-query';
 
 interface ChatContextType {
     messages: Message[];
@@ -43,7 +44,6 @@ interface ChatContextType {
     returnToWelcome: () => void;
     isStreaming: boolean;
     setStreaming: (streaming: boolean) => void;
-    websocket: WebSocket | null;
     processing: boolean;
     cancel: (sessionId?: string) => void;
     // Error state
@@ -53,7 +53,7 @@ interface ChatContextType {
     greeting: string | null;
 }
 
-import { getWsUrl } from '@/lib/api-url';
+import { getApiUrl } from '@/lib/api-url';
 
 // Helper function to fetch and convert session history to UI messages
 async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
@@ -226,8 +226,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
-    // Calculate WebSocket URL at runtime based on frontend port
-    const wsUrl = getWsUrl();
+    // Calculate API URL at runtime based on frontend port
+    const apiUrl = getApiUrl();
 
     // Start with no session - pure welcome state
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -241,12 +241,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         status,
         reset: originalReset,
         setMessages,
-        websocket,
         activeError,
         clearError,
         processing,
         cancel,
-    } = useChat(wsUrl, () => currentSessionId);
+    } = useChat(apiUrl, () => currentSessionId);
 
     // Fetch current LLM config using TanStack Query
     const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery<
@@ -290,6 +289,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Get greeting from API
     const { greeting } = useGreeting(currentSessionId);
 
+    // Mutation for generating session title
+    const generateTitleMutation = useMutation({
+        mutationFn: async (sessionId: string) => {
+            const data = await apiFetch<{ title: string | null }>(
+                `/api/sessions/${sessionId}/generate-title`,
+                {
+                    method: 'POST',
+                }
+            );
+            return data.title;
+        },
+        onSuccess: (_title, sessionId) => {
+            // Invalidate sessions query to show the new title
+            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+            // Also invalidate the specific session query if needed
+            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.detail(sessionId) });
+        },
+    });
+
     // Auto-create session on first message with random UUID
     const createAutoSession = useCallback(async (): Promise<string> => {
         const data = await apiFetch<{ session: { id: string } }>('/api/sessions', {
@@ -320,6 +338,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             fileData?: { base64: string; mimeType: string; filename?: string }
         ) => {
             let sessionId = currentSessionId;
+            let isNewSession = false;
 
             // Auto-create session on first message and wait for it to complete
             if (!sessionId && isWelcomeState) {
@@ -327,6 +346,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 try {
                     setIsCreatingSession(true);
                     sessionId = await createAutoSession();
+                    isNewSession = true;
 
                     // Update state before sending message
                     setCurrentSessionId(sessionId);
@@ -347,6 +367,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Only send after session is confirmed ready
             if (sessionId) {
                 originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
+
+                // Generate title for newly created sessions after first message
+                if (isNewSession) {
+                    generateTitleMutation.mutate(sessionId);
+                }
 
                 // Track message sent
                 const provider = currentLLM?.provider || 'unknown';
@@ -373,6 +398,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             router,
             analytics,
             currentLLM,
+            generateTitleMutation,
         ]
     );
 
@@ -486,7 +512,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Note: currentLLM will automatically refetch when currentSessionId changes to null
     }, [setMessages]);
 
-    // Listen for config-related WebSocket events via DOM events
+    // Listen for config-related events via DOM events
     useEffect(() => {
         const handleConfigChange = (event: any) => {
             // Attempt to update current LLM from event if payload includes it
@@ -543,7 +569,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 returnToWelcome,
                 isStreaming,
                 setStreaming: setIsStreaming,
-                websocket,
                 currentLLM,
                 refreshCurrentLLM: async () => {
                     await refetchCurrentLLM();

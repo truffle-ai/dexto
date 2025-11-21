@@ -2459,7 +2459,7 @@
     "/api/message": {
       "post": {
         "summary": "Send Message (async)",
-        "description": "Sends a message and returns immediately. The full response will be sent over WebSocket",
+        "description": "Sends a message and returns immediately. The full response will be sent over SSE",
         "tags": [
           "messages"
         ],
@@ -2477,10 +2477,6 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "The session to use for this message"
-                  },
-                  "stream": {
-                    "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over WebSocket"
                   },
                   "imageData": {
                     "type": "object",
@@ -2533,15 +2529,18 @@
         },
         "responses": {
           "202": {
-            "description": "Message queued",
+            "description": "Message accepted for async processing; subscribe to SSE for results",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "response": {
-                      "type": "string",
-                      "description": "Agent response text"
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates request was accepted"
                     },
                     "sessionId": {
                       "type": "string",
@@ -2549,7 +2548,7 @@
                     }
                   },
                   "required": [
-                    "response",
+                    "accepted",
                     "sessionId"
                   ],
                   "additionalProperties": false
@@ -2584,10 +2583,6 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "The session to use for this message"
-                  },
-                  "stream": {
-                    "type": "boolean",
-                    "description": "Set to true to receive streaming chunks over WebSocket"
                   },
                   "imageData": {
                     "type": "object",
@@ -2653,6 +2648,49 @@
                     "sessionId": {
                       "type": "string",
                       "description": "Session ID used for this message"
+                    },
+                    "tokenUsage": {
+                      "type": "object",
+                      "properties": {
+                        "inputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of input tokens"
+                        },
+                        "outputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of output tokens"
+                        },
+                        "reasoningTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of reasoning tokens"
+                        },
+                        "totalTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total tokens used"
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "Token usage statistics"
+                    },
+                    "reasoning": {
+                      "type": "string",
+                      "description": "Extended thinking content from reasoning models"
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "Model used for this response"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "description": "LLM provider"
+                    },
+                    "router": {
+                      "type": "string",
+                      "description": "Router used (e.g., vercel)"
                     }
                   },
                   "required": [
@@ -2722,6 +2760,125 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/message-stream": {
+      "post": {
+        "summary": "Stream message response",
+        "description": "Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error.",
+        "tags": [
+          "messages"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "The user message text"
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The session to use for this message"
+                  },
+                  "imageData": {
+                    "type": "object",
+                    "properties": {
+                      "base64": {
+                        "type": "string",
+                        "description": "Base64-encoded image data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "The MIME type of the image (e.g., image/png)"
+                      }
+                    },
+                    "required": [
+                      "base64",
+                      "mimeType"
+                    ],
+                    "description": "Optional image data to include with the message"
+                  },
+                  "fileData": {
+                    "type": "object",
+                    "properties": {
+                      "base64": {
+                        "type": "string",
+                        "description": "Base64-encoded file data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "The MIME type of the file (e.g., application/pdf)"
+                      },
+                      "filename": {
+                        "type": "string",
+                        "description": "The filename"
+                      }
+                    },
+                    "required": [
+                      "base64",
+                      "mimeType"
+                    ],
+                    "description": "Optional file data to include with the message"
+                  }
+                },
+                "required": [
+                  "sessionId"
+                ],
+                "description": "Request body for sending a message to the agent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream of agent events. Standard SSE format with event type and JSON data.",
+            "headers": {
+              "Content-Type": {
+                "description": "SSE content type",
+                "schema": {
+                  "type": "string",
+                  "example": "text/event-stream"
+                }
+              },
+              "Cache-Control": {
+                "description": "Disable caching for stream",
+                "schema": {
+                  "type": "string",
+                  "example": "no-cache"
+                }
+              },
+              "Connection": {
+                "description": "Keep connection alive for streaming",
+                "schema": {
+                  "type": "string",
+                  "example": "keep-alive"
+                }
+              },
+              "X-Accel-Buffering": {
+                "description": "Disable nginx buffering",
+                "schema": {
+                  "type": "string",
+                  "example": "no"
+                }
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
           }
         }
       }
@@ -3451,8 +3608,7 @@
                         },
                         "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                       }
-                    },
-                    "additionalProperties": false
+                    }
                   },
                   {
                     "type": "object",
@@ -4366,6 +4522,58 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/generate-title": {
+      "post": {
+        "summary": "Generate Session Title",
+        "description": "Generates a descriptive title for the session using the first user message. Returns existing title if already set.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Title generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Generated title, or null if generation failed"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "sessionId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found (error format handled by middleware)"
           }
         }
       }
@@ -7425,6 +7633,116 @@
         }
       }
     },
+    "/api/approvals/{approvalId}": {
+      "post": {
+        "summary": "Submit Approval Decision",
+        "description": "Submit a user decision for a pending approval request",
+        "tags": [
+          "approvals"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID of the approval request"
+            },
+            "required": true,
+            "description": "The ID of the approval request",
+            "name": "approvalId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Optional key to ensure idempotent processing"
+            },
+            "required": false,
+            "description": "Optional key to ensure idempotent processing",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "denied"
+                    ],
+                    "description": "The user decision"
+                  },
+                  "formData": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    },
+                    "description": "Optional form data provided by the user (for elicitation)"
+                  },
+                  "rememberChoice": {
+                    "type": "boolean",
+                    "description": "Whether to remember this choice for future requests"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "description": "Request body for submitting an approval decision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approval processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Whether the approval was successfully processed"
+                    },
+                    "approvalId": {
+                      "type": "string",
+                      "description": "The ID of the processed approval"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "denied"
+                      ],
+                      "description": "The final status"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "approvalId",
+                    "status"
+                  ],
+                  "description": "Response after processing approval"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Approval request not found or expired"
+          },
+          "503": {
+            "description": "Approval coordinator unavailable (server not initialized for approvals)"
+          }
+        }
+      }
+    },
     "/api/agents": {
       "get": {
         "summary": "List Agents",
@@ -9743,12 +10061,12 @@
                           "mode": {
                             "type": "string",
                             "enum": [
-                              "event-based",
+                              "manual",
                               "auto-approve",
                               "auto-deny"
                             ],
-                            "default": "event-based",
-                            "description": "Tool confirmation mode: event-based (interactive), auto-approve (all tools), auto-deny (no tools)"
+                            "default": "auto-approve",
+                            "description": "Tool confirmation mode: manual (interactive), auto-approve (all tools), auto-deny (no tools)"
                           },
                           "timeout": {
                             "type": "integer",
@@ -10440,7 +10758,6 @@
                 "properties": {
                   "yaml": {
                     "type": "string",
-                    "minLength": 1,
                     "description": "YAML agent configuration content to validate"
                   }
                 },

@@ -1,4 +1,5 @@
 /**
+ * TODO: fetch from a2a sdk to avoid drift over time
  * A2A Protocol Type Definitions
  *
  * Type definitions compliant with A2A Protocol v0.3.0 specification.

@@ -187,13 +187,6 @@ export const generalCommands: CommandDefinition[] = [
                 // This clears the viewable conversation without deleting the old session
                 const newSession = await agent.createSession();
 
-                // Emit event for UI layers to handle session switching
-                // This maintains separation: command does business logic, UI handles state
-                agent.agentEventBus.emit('dexto:sessionCreated', {
-                    sessionId: newSession.id,
-                    switchTo: true, // Signal that UI should switch to this session
-                });
-
                 const output = `🔄 Started new session: ${newSession.id.slice(0, 8)}\n💡 Previous session preserved. Use /resume to switch back.`;
                 console.log(chalk.green(output));
                 return formatForInkCli(output);

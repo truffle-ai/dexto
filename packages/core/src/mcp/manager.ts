@@ -845,7 +845,7 @@ export class MCPManager {
             this.logger.info(`Successfully restarted server '${name}'`);
 
             // Emit event for restart
-            eventBus.emit('dexto:mcpServerRestarted', { serverName: name });
+            eventBus.emit('mcp:server-restarted', { serverName: name });
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             this.connectionErrors[name] = errorMsg;
@@ -947,7 +947,7 @@ export class MCPManager {
             }
 
             // Emit event to notify other parts of the system
-            eventBus.emit('dexto:mcpResourceUpdated', {
+            eventBus.emit('mcp:resource-updated', {
                 serverName,
                 resourceUri: params.uri,
             });
@@ -997,7 +997,7 @@ export class MCPManager {
                 );
 
                 // Emit event to notify other parts of the system
-                eventBus.emit('dexto:mcpPromptsListChanged', {
+                eventBus.emit('mcp:prompts-list-changed', {
                     serverName,
                     prompts: promptNames,
                 });
@@ -1125,7 +1125,7 @@ export class MCPManager {
                 );
 
                 // Emit event to notify other parts of the system
-                eventBus.emit('dexto:mcpToolsListChanged', {
+                eventBus.emit('mcp:tools-list-changed', {
                     serverName,
                     tools: toolNames,
                 });

@@ -60,7 +60,6 @@ describe('ToolManager Integration Tests', () => {
 
         // Create ApprovalManager in auto-approve mode for integration tests
         approvalManager = new ApprovalManager(
-            mockAgentEventBus,
             {
                 toolConfirmation: {
                     mode: 'auto-approve',
@@ -232,7 +231,6 @@ describe('ToolManager Integration Tests', () => {
     describe('Confirmation Flow Integration', () => {
         it('should work with auto-approve mode', async () => {
             const autoApproveManager = new ApprovalManager(
-                mockAgentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-approve',
@@ -282,7 +280,6 @@ describe('ToolManager Integration Tests', () => {
 
         it('should work with auto-deny mode', async () => {
             const autoDenyManager = new ApprovalManager(
-                mockAgentEventBus,
                 {
                     toolConfirmation: {
                         mode: 'auto-deny',

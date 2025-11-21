@@ -65,12 +65,14 @@ export type AgentServices = {
  * @param config The validated agent configuration object
  * @param configPath Optional path to the config file (for relative path resolution)
  * @param logger Logger instance for this agent (dependency injection)
+ * @param agentEventBus Pre-created event bus from DextoAgent constructor
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
     config: ValidatedAgentConfig,
     configPath: string | undefined,
-    logger: IDextoLogger
+    logger: IDextoLogger,
+    agentEventBus: AgentEventBus
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -80,9 +82,8 @@ export async function createAgentServices(
         logger.debug('Telemetry initialized');
     }
 
-    // 1. Initialize shared event bus
-    const agentEventBus: AgentEventBus = new AgentEventBus();
-    logger.debug('Agent event bus initialized');
+    // 1. Use the event bus provided by DextoAgent constructor
+    logger.debug('Using pre-created agent event bus');
 
     // 2. Initialize storage manager (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
     logger.debug('Initializing storage manager');
@@ -97,7 +98,6 @@ export async function createAgentServices(
     // Created before MCP manager since MCP manager depends on it for elicitation support
     logger.debug('Initializing approval manager');
     const approvalManager = new ApprovalManager(
-        agentEventBus,
         {
             toolConfirmation: {
                 mode: config.toolConfirmation.mode,

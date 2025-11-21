@@ -30,6 +30,14 @@ export function createTestAgentConfig(): AgentConfig {
             maxSessions: 10,
             sessionTTL: 3600,
         },
+        toolConfirmation: {
+            mode: 'auto-approve',
+            timeout: 120000,
+        },
+        elicitation: {
+            enabled: false,
+            timeout: 120000,
+        },
     };
 }
 
@@ -78,7 +86,6 @@ export async function startTestServer(
         defaultName: 'test-agent',
         defaultVersion: '1.0.0',
         defaultBaseUrl: `http://localhost:${serverPort}`,
-        webSubscriber: false, // Will be updated after bridge creation
     });
 
     // Create getter functions
@@ -87,10 +94,26 @@ export async function startTestServer(
     const getAgent = () => agent;
     const getAgentCard = () => agentCard;
 
+    // Create event subscribers and approval coordinator for test
+    const { WebhookEventSubscriber } = await import('../../events/webhook-subscriber.js');
+    const { A2ASseEventSubscriber } = await import('../../events/a2a-sse-subscriber.js');
+    const { ApprovalCoordinator } = await import('../../approval/approval-coordinator.js');
+
+    const webhookSubscriber = new WebhookEventSubscriber();
+    const sseSubscriber = new A2ASseEventSubscriber();
+    const approvalCoordinator = new ApprovalCoordinator();
+
+    // Subscribe to agent's event bus
+    webhookSubscriber.subscribe(agent.agentEventBus);
+    sseSubscriber.subscribe(agent.agentEventBus);
+
     // Create Hono app
     const app = createDextoApp({
         getAgent,
         getAgentCard,
+        approvalCoordinator,
+        webhookSubscriber,
+        sseSubscriber,
         ...(agentsContext ? { agentsContext } : {}), // Include agentsContext only if provided
     });
 
@@ -100,12 +123,11 @@ export async function startTestServer(
         port: serverPort,
     });
 
-    // Update agent card with web subscriber
+    // Agent card (no updates needed after bridge creation in SSE migration)
     const updatedAgentCard = createAgentCard({
         defaultName: 'test-agent',
         defaultVersion: '1.0.0',
         defaultBaseUrl: `http://localhost:${serverPort}`,
-        webSubscriber: bridge.webSubscriber,
     });
 
     // Start the server
@@ -127,6 +149,11 @@ export async function startTestServer(
         baseUrl,
         port: serverPort,
         cleanup: async () => {
+            // Cleanup subscribers to prevent memory leaks
+            webhookSubscriber.cleanup();
+            sseSubscriber.cleanup();
+            approvalCoordinator.removeAllListeners();
+
             await new Promise<void>((resolve, reject) => {
                 bridge.server.close((err) => {
                     if (err) reject(err);

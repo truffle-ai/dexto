@@ -35,7 +35,7 @@
     "@modelcontextprotocol/sdk": "^1.17.2"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts",
     "test": "vitest run"

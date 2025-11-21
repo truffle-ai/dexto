@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # React Chat App using Dexto
 
-When you run `dexto` (web is the default mode), you get a powerful backend server with REST APIs and WebSocket support. Let's build a React chat application step by step, introducing each API capability as we go.
+When you run `dexto` (web is the default mode), you get a powerful backend server with REST APIs and Server-Sent Events (SSE) for real-time streaming. Let's build a React chat application step by step, introducing each API capability as we go.
 
 :::tip Port Configuration
 By default, Dexto runs the Web UI on port 3000 and the API server on port 3001. All code examples in this tutorial use `http://localhost:3001` for API calls.
@@ -19,13 +19,13 @@ To customize ports:
 When Dexto runs in web mode, it provides these endpoints:
 
 - **`POST /api/message-sync`** - Send message and get complete response
-- **`POST /api/message`** - Send message asynchronously (use WebSocket for response)
+- **`POST /api/message-stream`** - Send message and stream response via SSE (response IS the stream)
+- **`POST /api/message`** - ⚠️ Deprecated: Send message asynchronously (use `/api/message-stream` for SSE instead)
 - **`POST /api/reset`** - Reset conversation history
 - **`POST /api/mcp/servers`** - Dynamically add new MCP servers
 - **`GET /api/mcp/servers`** - List connected servers
 - **`GET /api/mcp/servers/:serverId/tools`** - List tools for a server
 - **`POST /api/mcp/servers/:serverId/tools/:toolName/execute`** - Execute specific tools
-- **WebSocket at `/`** - Real-time streaming responses
 
 For the complete API reference including sessions, LLM management, webhooks, and more, see the **[REST API Documentation](/api/rest/)**.
 
@@ -172,11 +172,11 @@ export const BasicChat: React.FC = () => {
 
 ## Layer 2: Add Real-time Streaming
 
-Now let's add WebSocket support for real-time streaming responses:
+Now let's add Server-Sent Events (SSE) support for real-time streaming responses:
 
 ```typescript
 // components/StreamingChat.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 
 interface Message {
   id: string;
@@ -189,119 +189,39 @@ interface Message {
 export const StreamingChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentInput, setCurrentInput] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
 
-  // WebSocket connection
-  useEffect(() => {
-    const connectWebSocket = () => {
-      const ws = new WebSocket('ws://localhost:3001/');
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        console.log('🟢 Connected to Dexto');
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleDextoEvent(data);
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-        console.log('🔴 Disconnected from Dexto');
-        // Auto-reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-    };
-
-    connectWebSocket();
-
-    return () => {
-      wsRef.current?.close();
-    };
-  }, []);
-
-  const handleDextoEvent = (data: any) => {
-    switch (data.event) {
-      case 'thinking':
-        // Agent started thinking
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            content: '🤔 Thinking...',
-            sender: 'agent',
-            timestamp: new Date(),
-            isStreaming: true
-          }
-        ]);
-        break;
-
-      case 'chunk':
-        // Streaming content chunk
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          
-          if (lastMessage && lastMessage.sender === 'agent' && lastMessage.isStreaming) {
-            // Replace "Thinking..." with actual content or append to existing content
-            if (lastMessage.content === '🤔 Thinking...') {
-              lastMessage.content = data.data.content;
-            } else {
-              lastMessage.content += data.data.content;
-            }
-          } else {
-            // Create new streaming message
-            newMessages.push({
-              id: Date.now().toString(),
-              content: data.data.content,
-              sender: 'agent',
-              timestamp: new Date(),
-              isStreaming: true
-            });
-          }
-          
-          return newMessages;
+  const handleStreamChunk = (data: any) => {
+    const content = data.content || '';
+    
+    setMessages(prev => {
+      const newMessages = [...prev];
+      const lastMessage = newMessages[newMessages.length - 1];
+      
+      if (lastMessage && lastMessage.sender === 'agent' && lastMessage.isStreaming) {
+        // Replace "Thinking..." with actual content or append to existing content
+        if (lastMessage.content === '🤔 Thinking...') {
+          lastMessage.content = content;
+        } else {
+          lastMessage.content += content;
+        }
+      } else {
+        // Create new streaming message
+        newMessages.push({
+          id: Date.now().toString(),
+          content,
+          sender: 'agent',
+          timestamp: new Date(),
+          isStreaming: true
         });
-        break;
-
-      case 'response':
-        // Streaming complete
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          
-          if (lastMessage && lastMessage.sender === 'agent' && lastMessage.isStreaming) {
-            lastMessage.isStreaming = false;
-            lastMessage.content = data.data.content;
-          }
-          
-          return newMessages;
-        });
-        break;
-
-      case 'error':
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            content: `❌ Error: ${data.data.message}`,
-            sender: 'agent',
-            timestamp: new Date()
-          }
-        ]);
-        break;
-    }
+      }
+      
+      return newMessages;
+    });
   };
 
   const sendMessage = async () => {
-    if (!currentInput.trim() || !isConnected) return;
+    if (!currentInput.trim() || isStreaming) return;
 
     // Add user message
     const userMessage: Message = {
@@ -312,13 +232,87 @@ export const StreamingChat: React.FC = () => {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Send via WebSocket for streaming response
-    wsRef.current?.send(JSON.stringify({
-      type: 'message',
-      content: currentInput
-    }));
-
+    const messageToSend = currentInput;
     setCurrentInput('');
+
+    try {
+      // POST to /api/message-stream - response IS the SSE stream
+      const response = await fetch('http://localhost:3001/api/message-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messageToSend,
+          sessionId: 'default-session'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Response body is the SSE stream - process it directly
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      setIsStreaming(true);
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          setIsStreaming(false);
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          const eventMatch = line.match(/^event: (.+)$/m);
+          const dataMatch = line.match(/^data: (.+)$/m);
+
+          if (eventMatch && dataMatch) {
+            const eventType = eventMatch[1];
+            const data = JSON.parse(dataMatch[1]);
+
+            if (eventType === 'llm:thinking') {
+              setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                content: '🤔 Thinking...',
+                sender: 'agent',
+                timestamp: new Date(),
+                isStreaming: true
+              }]);
+            } else if (eventType === 'llm:chunk') {
+              handleStreamChunk(data);
+            } else if (eventType === 'llm:response') {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.isStreaming) {
+                  last.isStreaming = false;
+                }
+                return updated;
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setIsStreaming(false);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        content: `❌ Error: ${error.message}`,
+        sender: 'agent',
+        timestamp: new Date()
+      }]);
+    }
   };
 
   return (
@@ -364,17 +358,17 @@ export const StreamingChat: React.FC = () => {
           type="text"
           value={currentInput}
           onChange={(e) => setCurrentInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          onKeyPress={(e) => e.key === 'Enter' && !isStreaming && sendMessage()}
           placeholder="Type your message..."
           className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={!isConnected}
+          disabled={isStreaming}
         />
         <button
           onClick={sendMessage}
-          disabled={!isConnected || !currentInput.trim()}
+          disabled={isStreaming || !currentInput.trim()}
           className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
         >
-          Send
+          {isStreaming ? '...' : 'Send'}
         </button>
       </div>
     </div>
@@ -383,10 +377,10 @@ export const StreamingChat: React.FC = () => {
 ```
 
 **What we've added:**
-- WebSocket connection management
-- Real-time streaming responses
-- Connection status indicator
-- Auto-reconnection logic
+- Server-Sent Events (SSE) for streaming via POST response
+- Real-time chunk-by-chunk response streaming
+- Stream status indicator
+- Manual SSE parsing with ReadableStream
 
 ## Layer 3: Add Server Management
 
@@ -413,36 +407,35 @@ interface Server {
 export const ServerManagementChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentInput, setCurrentInput] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [servers, setServers] = useState<Server[]>([]);
   const [showServerPanel, setShowServerPanel] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
 
-  // WebSocket connection (same as Layer 2)
+  // Load servers on mount
   useEffect(() => {
-    const connectWebSocket = () => {
-      const ws = new WebSocket('ws://localhost:3001/');
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        fetchServers(); // Fetch servers when connected
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleDextoEvent(data);
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-        setTimeout(connectWebSocket, 3000);
-      };
-    };
-
-    connectWebSocket();
-    return () => wsRef.current?.close();
+    fetchServers();
   }, []);
+
+  // Note: Use the same sendMessage implementation from Layer 2
+  // for SSE streaming. We'll skip repeating it here for brevity.
+
+  const handleStreamChunk = (data: any) => {
+    // Same chunk handling as Layer 2
+    const content = data.content || '';
+    setMessages(prev => {
+      const last = prev[prev.length - 1];
+      if (last && last.sender === 'agent' && last.isStreaming) {
+        return [...prev.slice(0, -1), { ...last, content: last.content + content }];
+      }
+      return [...prev, {
+        id: Date.now().toString(),
+        content,
+        sender: 'agent',
+        timestamp: new Date(),
+        isStreaming: true
+      }];
+    });
+  };
 
   // Fetch available servers
   const fetchServers = async () => {
@@ -494,77 +487,8 @@ export const ServerManagementChat: React.FC = () => {
     }
   };
 
-  const handleDextoEvent = (data: any) => {
-    switch (data.event) {
-      case 'thinking':
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          content: '🤔 Thinking...',
-          sender: 'agent',
-          timestamp: new Date(),
-          isStreaming: true
-        }]);
-        break;
-
-      case 'chunk':
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          
-          if (lastMessage && lastMessage.sender === 'agent' && lastMessage.isStreaming) {
-            if (lastMessage.content === '🤔 Thinking...') {
-              lastMessage.content = data.data.content;
-            } else {
-              lastMessage.content += data.data.content;
-            }
-          }
-          return newMessages;
-        });
-        break;
-
-      case 'toolCall':
-        // Show when agent uses a tool
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          content: `🔧 Using tool: ${data.data.toolName}`,
-          sender: 'agent',
-          timestamp: new Date()
-        }]);
-        break;
-
-      case 'response':
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          
-          if (lastMessage && lastMessage.sender === 'agent' && lastMessage.isStreaming) {
-            lastMessage.isStreaming = false;
-            lastMessage.content = data.data.content;
-          }
-          return newMessages;
-        });
-        break;
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!currentInput.trim() || !isConnected) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: currentInput,
-      sender: 'user',
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
-
-    wsRef.current?.send(JSON.stringify({
-      type: 'message',
-      content: currentInput
-    }));
-
-    setCurrentInput('');
-  };
+  // Use the same sendMessage implementation from Layer 2 for streaming
+  // (omitted here for brevity - refer to Layer 2 code above)
 
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto p-4">
@@ -573,12 +497,7 @@ export const ServerManagementChat: React.FC = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">Dexto Chat - With Server Management</h1>
-            <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
-              <span className="text-sm text-gray-600">
-                {isConnected ? 'Connected to Dexto' : 'Connecting...'}
-              </span>
-            </div>
+            <p className="text-sm text-gray-600">Using SSE streaming + server management</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -655,17 +574,17 @@ export const ServerManagementChat: React.FC = () => {
           type="text"
           value={currentInput}
           onChange={(e) => setCurrentInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          onKeyPress={(e) => e.key === 'Enter' && !isStreaming && sendMessage()}
           placeholder="Type your message..."
           className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={!isConnected}
+          disabled={isStreaming}
         />
         <button
           onClick={sendMessage}
-          disabled={!isConnected || !currentInput.trim()}
+          disabled={isStreaming || !currentInput.trim()}
           className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
         >
-          Send
+          {isStreaming ? '...' : 'Send'}
         </button>
       </div>
     </div>
@@ -808,7 +727,7 @@ const fetchServers = async () => {
 We've built up our React app layer by layer:
 
 1. **Layer 1**: Basic synchronous messaging (`/api/message-sync`)
-2. **Layer 2**: Real-time streaming (WebSocket events)
+2. **Layer 2**: Real-time streaming (Server-Sent Events)
 3. **Layer 3**: Server management (`/api/mcp/servers`)
 4. **Layer 4**: Direct tool execution (`/api/mcp/servers/:serverId/tools/:toolName/execute`)
 

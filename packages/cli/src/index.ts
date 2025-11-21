@@ -35,7 +35,7 @@ import {
     globalPreferencesExist,
     loadGlobalPreferences,
 } from '@dexto/agent-management';
-import type { AgentConfig } from '@dexto/core';
+import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
 import { startDiscordBot } from './discord/bot.js';
 import { startTelegramBot } from './telegram/bot.js';
@@ -331,6 +331,18 @@ async function bootstrapAgentFromGlobalOpts() {
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
     const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath);
+
+    // Override approval config for read-only commands (never run conversations)
+    // This avoids needing to set up unused approval handlers
+    enrichedConfig.toolConfirmation = {
+        mode: 'auto-approve',
+        timeout: enrichedConfig.toolConfirmation?.timeout ?? 120000,
+    };
+    enrichedConfig.elicitation = {
+        enabled: false,
+        timeout: enrichedConfig.elicitation?.timeout ?? 120000,
+    };
+
     const agent = new DextoAgent(enrichedConfig, resolvedPath);
     await agent.start();
 
@@ -749,7 +761,7 @@ program
                 }
 
                 // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
-                let validatedConfig: AgentConfig;
+                let validatedConfig: ValidatedAgentConfig;
                 let resolvedPath: string;
 
                 try {
@@ -831,6 +843,48 @@ program
                     safeExit('main', 1, 'config-load-failed');
                 }
 
+                // ——— VALIDATE APPROVAL MODE COMPATIBILITY ———
+                // Check if approval handler is needed (manual mode OR elicitation enabled)
+                const needsHandler =
+                    validatedConfig.toolConfirmation?.mode === 'manual' ||
+                    validatedConfig.elicitation.enabled;
+
+                if (needsHandler) {
+                    // Headless CLI cannot do interactive approval
+                    if (opts.mode === 'cli' && headlessInput) {
+                        console.error(
+                            '❌ Manual approval and elicitation are not supported in headless CLI mode (pipes/scripts).'
+                        );
+                        console.error('💡 Use interactive CLI mode, or update your config:');
+                        console.error(
+                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
+                        );
+                        console.error('   - Set elicitation.enabled to false');
+                        safeExit('main', 1, 'approval-unsupported-headless');
+                    }
+
+                    // Only web, server, and interactive CLI support approval handlers
+                    // TODO: Add approval support for other modes:
+                    // - Discord: Could use Discord message buttons/reactions for approval UI
+                    // - Telegram: Could use Telegram inline keyboards for approval prompts
+                    // - MCP: Could implement callback-based approval mechanism in MCP protocol
+                    const supportedModes = ['web', 'server', 'cli'];
+                    if (!supportedModes.includes(opts.mode)) {
+                        console.error(
+                            `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`
+                        );
+                        console.error(
+                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(', ')}`
+                        );
+                        console.error('   Update your config:');
+                        console.error(
+                            '   - Set toolConfirmation.mode to "auto-approve" or "auto-deny"'
+                        );
+                        console.error('   - Set elicitation.enabled to false');
+                        safeExit('main', 1, 'approval-unsupported-mode');
+                    }
+                }
+
                 // ——— CREATE AGENT ———
                 let agent: DextoAgent;
                 let derivedAgentId: string;
@@ -855,7 +909,12 @@ program
                     agent = new DextoAgent(validatedConfig, resolvedPath);
 
                     // Start the agent (initialize async services)
-                    await agent.start();
+                    // - web/server modes: initializeHonoApi will set approval handler and start the agent
+                    // - cli mode: handles its own approval setup in the case block
+                    // - other modes: start immediately (no approval support)
+                    if (opts.mode !== 'web' && opts.mode !== 'server' && opts.mode !== 'cli') {
+                        await agent.start();
+                    }
 
                     // Derive a concise agent ID for display purposes (used by API/UI)
                     // Prefer agentCard.name, otherwise extract from filename
@@ -870,8 +929,34 @@ program
                 }
 
                 // ——— Dispatch based on --mode ———
+                // TODO: Refactor mode-specific logic into separate handler files
+                // This switch statement has grown large with nested if-else chains for each mode.
+                // Consider breaking down into mode-specific handlers (e.g., cli/modes/cli.ts, cli/modes/web.ts)
+                // to improve maintainability and reduce complexity in this entry point file.
+                // See PR 450 comment: https://github.com/truffle-ai/dexto/pull/450#discussion_r2546242983
                 switch (opts.mode) {
                     case 'cli': {
+                        // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
+                        // Note: Headless CLI with manual mode is blocked by validation above
+                        // Ink CLI uses ApprovalCoordinator (same as server/web mode) to coordinate
+                        // approval requests with React UI components
+                        const needsHandler =
+                            !headlessInput &&
+                            (validatedConfig.toolConfirmation?.mode === 'manual' ||
+                                validatedConfig.elicitation.enabled);
+
+                        if (needsHandler) {
+                            const { createManualApprovalHandler, ApprovalCoordinator } =
+                                await import('@dexto/server');
+                            const approvalCoordinator = new ApprovalCoordinator();
+                            const handler = createManualApprovalHandler(approvalCoordinator);
+                            agent.setApprovalHandler(handler);
+                            logger.debug('Event-based approval handler configured for Ink CLI');
+                        }
+
+                        // Start the agent now that approval handler is configured
+                        await agent.start();
+
                         // Session management - CLI uses explicit sessionId like WebUI
                         // NOTE: Migrated from defaultSession pattern which will be deprecated in core
                         // We now pass sessionId explicitly to all agent methods (agent.run, agent.switchLLM, etc.)
@@ -1067,7 +1152,7 @@ program
                         await startHonoApiServer(
                             agent,
                             apiPort,
-                            agent.getEffectiveConfig().agentCard || {},
+                            agent.config.agentCard || {},
                             derivedAgentId
                         );
 
@@ -1096,17 +1181,17 @@ program
                         break;
                     }
 
-                    // Start server with REST APIs and WebSockets on port 3001
+                    // Start server with REST APIs and SSE on port 3001
                     // This also enables dexto to be used as a remote mcp server at localhost:3001/mcp
                     case 'server': {
-                        // Start server with REST APIs and WebSockets only
-                        const agentCard = agent.getEffectiveConfig().agentCard ?? {};
+                        // Start server with REST APIs and SSE only
+                        const agentCard = agent.config.agentCard ?? {};
                         // Use explicit --api-port if provided, otherwise default to 3001
                         const defaultApiPort = opts.apiPort ? parseInt(opts.apiPort, 10) : 3001;
                         const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
                         const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
 
-                        console.log('🌐 Starting server (REST APIs + WebSockets)...');
+                        console.log('🌐 Starting server (REST APIs + SSE)...');
                         await startHonoApiServer(agent, apiPort, agentCard, derivedAgentId);
                         console.log(`✅ Server running at ${apiUrl}`);
                         console.log('Available endpoints:');
@@ -1114,7 +1199,7 @@ program
                         console.log('  POST /api/message-sync - Send sync message');
                         console.log('  POST /api/reset - Reset conversation');
                         console.log('  GET  /api/mcp/servers - List MCP servers');
-                        console.log('  WebSocket support available for real-time events');
+                        console.log('  SSE support available for real-time events');
                         break;
                     }
 
@@ -1144,7 +1229,7 @@ program
                     // Use `dexto --mode server` to start dexto as a remote server
                     case 'mcp': {
                         // Start stdio mcp server only
-                        const agentCardConfig = agent.getEffectiveConfig().agentCard || {
+                        const agentCardConfig = agent.config.agentCard || {
                             name: 'dexto',
                             version: '1.0.0',
                         };

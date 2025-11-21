@@ -51,7 +51,7 @@ describe('AgentStateManager Events', () => {
                 sessionTTL: 3600000,
             },
             toolConfirmation: {
-                mode: 'event-based',
+                mode: 'manual',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
             },
@@ -63,7 +63,7 @@ describe('AgentStateManager Events', () => {
 
     it('emits dexto:stateChanged when LLM config is updated', () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:stateChanged', eventSpy);
+        eventBus.on('state:changed', eventSpy);
 
         const updatedConfig = LLMConfigSchema.parse({
             ...mockConfig.llm,
@@ -81,7 +81,7 @@ describe('AgentStateManager Events', () => {
 
     it('emits dexto:mcpServerAdded when adding a new MCP server', () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:mcpServerAdded', eventSpy);
+        eventBus.on('mcp:server-added', eventSpy);
 
         const newServerConfig = McpServerConfigSchema.parse({
             type: 'stdio' as const,
@@ -102,7 +102,7 @@ describe('AgentStateManager Events', () => {
 
     it('emits dexto:mcpServerRemoved when removing an MCP server', () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:mcpServerRemoved', eventSpy);
+        eventBus.on('mcp:server-removed', eventSpy);
 
         stateManager.removeMcpServer('test');
 
@@ -113,7 +113,7 @@ describe('AgentStateManager Events', () => {
 
     it('emits dexto:sessionOverrideSet when setting session overrides', () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:sessionOverrideSet', eventSpy);
+        eventBus.on('session:override-set', eventSpy);
 
         const sessionConfig = LLMConfigSchema.parse({
             ...mockConfig.llm,
@@ -131,7 +131,7 @@ describe('AgentStateManager Events', () => {
 
     it('emits dexto:sessionOverrideCleared when clearing session overrides', () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:sessionOverrideCleared', eventSpy);
+        eventBus.on('session:override-cleared', eventSpy);
 
         // First set an override
         const sessionConfig = LLMConfigSchema.parse({
@@ -150,7 +150,7 @@ describe('AgentStateManager Events', () => {
 
     it('emits dexto:stateReset when resetting to baseline', () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:stateReset', eventSpy);
+        eventBus.on('state:reset', eventSpy);
 
         stateManager.resetToBaseline();
 
@@ -161,7 +161,7 @@ describe('AgentStateManager Events', () => {
 
     it('emits dexto:stateExported when exporting state as config', () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:stateExported', eventSpy);
+        eventBus.on('state:exported', eventSpy);
 
         const exported = stateManager.exportAsConfig();
 

@@ -28,6 +28,10 @@ export interface ILLMService {
         stream?: boolean
     ): Promise<string>;
 
+    // TODO: Implement streamTask() in all LLM services to move away from EventBus side effects.
+    // Currently, DextoAgent aggregates EventBus events into AsyncIterator at the top level.
+    // Future refactor should push AsyncIterator down to LLM service level for cleaner architecture.
+
     // Get all available tools
     getAllTools(): Promise<ToolSet>;
 
@@ -49,3 +53,13 @@ export type LLMServiceConfig = {
     configuredMaxInputTokens?: number | null;
     modelMaxInputTokens?: number | null;
 };
+
+/**
+ * Token usage statistics from LLM
+ */
+export interface LLMTokenUsage {
+    inputTokens: number;
+    outputTokens: number;
+    reasoningTokens?: number;
+    totalTokens: number;
+}

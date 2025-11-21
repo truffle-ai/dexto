@@ -92,7 +92,7 @@ Configuration for Model Context Protocol servers.
 
 ```typescript
 interface McpServerConfig {
-  type: 'stdio' | 'sse' | 'websocket';
+  type: 'stdio' | 'sse';
   command?: string;
   args?: string[];
   env?: Record<string, string>;
@@ -200,119 +200,168 @@ type ValidatedLLMConfig = LLMConfig & {
 
 ## Event Types
 
+:::info Event Naming Convention
+All events use the `namespace:kebab-case` format. For detailed event documentation and usage examples, see the [Events Reference](./events.md).
+:::
+
 ### `AgentEventMap`
 
-Type map for agent-level events.
+Type map for agent-level events. All event names follow the `namespace:kebab-case` convention.
 
 ```typescript
 interface AgentEventMap {
-  // Conversation events
-  'dexto:conversationReset': {
+  // Session events
+  'session:reset': {
+    sessionId: string;
+  };
+  
+  'session:created': {
+    sessionId: string;
+    switchTo: boolean; // Whether UI should switch to this session
+  };
+  
+  'session:title-updated': {
+    sessionId: string;
+    title: string;
+  };
+  
+  'session:override-set': {
+    sessionId: string;
+    override: SessionOverride;
+  };
+  
+  'session:override-cleared': {
     sessionId: string;
   };
   
   // MCP server events
-  'dexto:mcpServerConnected': {
+  'mcp:server-connected': {
     name: string;
     success: boolean;
     error?: string;
   };
   
-  'dexto:mcpServerAdded': {
+  'mcp:server-added': {
     serverName: string;
     config: McpServerConfig;
   };
   
-  'dexto:mcpServerRemoved': {
+  'mcp:server-removed': {
     serverName: string;
   };
   
-  'dexto:mcpServerUpdated': {
+  'mcp:server-updated': {
     serverName: string;
     config: McpServerConfig;
   };
   
-  'dexto:availableToolsUpdated': {
+  'mcp:server-restarted': {
+    serverName: string;
+  };
+  
+  'mcp:resource-updated': {
+    serverName: string;
+    resourceUri: string;
+  };
+  
+  'mcp:prompts-list-changed': {
+    serverName: string;
+    prompts: string[];
+  };
+  
+  'mcp:tools-list-changed': {
+    serverName: string;
+    tools: string[];
+  };
+  
+  'resource:cache-invalidated': {
+    resourceUri?: string;
+    serverName: string;
+    action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
+  };
+  
+  'tools:available-updated': {
     tools: string[];
     source: 'mcp' | 'builtin';
   };
   
   // Configuration events
-  'dexto:llmSwitched': {
+  'llm:switched': {
     newConfig: ValidatedLLMConfig;
     router?: 'vercel' | 'in-built';
     historyRetained?: boolean;
-    sessionIds: string[];
+    sessionIds: string[]; // Array of affected session IDs
   };
   
-  'dexto:stateChanged': {
+  'state:changed': {
     field: string;
     oldValue: any;
     newValue: any;
     sessionId?: string;
   };
   
-  'dexto:stateExported': {
+  'state:exported': {
     config: AgentConfig;
   };
   
-  'dexto:stateReset': {
+  'state:reset': {
     toConfig: AgentConfig;
   };
   
-  // Session override events
-  'dexto:sessionOverrideSet': {
-    sessionId: string;
-    override: SessionOverride;
-  };
-  
-  'dexto:sessionOverrideCleared': {
-    sessionId: string;
-  };
-  
-  // Tool confirmation events
-  'dexto:toolConfirmationRequest': {
-    toolName: string;
-    args: Record<string, any>;
-    description?: string;
-    executionId: string;
-    timestamp: string; // ISO 8601 timestamp
+  // Approval events
+  'approval:request': {
+    approvalId: string;
+    approvalType: 'tool_confirmation' | 'elicitation' | 'custom';
     sessionId?: string;
+    timeout?: number;
+    timestamp: Date;
+    metadata: Record<string, any>;
   };
   
-  'dexto:toolConfirmationResponse': {
-    executionId: string;
-    approved: boolean;
-    rememberChoice?: boolean;
+  'approval:response': {
+    approvalId: string;
+    status: 'approved' | 'denied' | 'cancelled';
+    reason?: DenialReason;
+    message?: string;
     sessionId?: string;
+    data?: Record<string, any>;
   };
   
-  // LLM service events (forwarded from sessions)
-  'llmservice:thinking': {
+  // LLM service events (forwarded from sessions with sessionId)
+  'llm:thinking': {
     sessionId: string;
   };
   
-  'llmservice:response': {
+  'llm:response': {
     content: string;
-    tokenCount?: number;
+    reasoning?: string;
+    provider?: string;
     model?: string;
+    router?: string;
+    tokenUsage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      reasoningTokens?: number;
+      totalTokens?: number;
+    };
     sessionId: string;
   };
   
-  'llmservice:chunk': {
+  'llm:chunk': {
+    chunkType: 'text' | 'reasoning'; // Note: renamed from 'type' to avoid conflicts
     content: string;
     isComplete?: boolean;
     sessionId: string;
   };
   
-  'llmservice:toolCall': {
+  'llm:tool-call': {
     toolName: string;
     args: Record<string, any>;
     callId?: string;
     sessionId: string;
   };
   
-  'llmservice:toolResult': {
+  'llm:tool-result': {
     toolName: string;
     sanitized: SanitizedToolResult;
     rawResult?: unknown;
@@ -321,17 +370,19 @@ interface AgentEventMap {
     sessionId: string;
   };
   
-  'llmservice:error': {
+  'llm:error': {
     error: Error;
     context?: string;
     recoverable?: boolean;
     sessionId: string;
   };
   
-  'llmservice:switched': {
-    newConfig: ValidatedLLMConfig;
-    router?: 'vercel' | 'in-built';
-    historyRetained?: boolean;
+  'llm:unsupported-input': {
+    errors: string[];
+    provider: LLMProvider;
+    model?: string;
+    fileType?: string;
+    details?: any;
     sessionId: string;
   };
 }
@@ -339,30 +390,39 @@ interface AgentEventMap {
 
 ### `SessionEventMap`
 
-Type map for session-level events.
+Type map for session-level events. These events are emitted within individual chat sessions and are automatically forwarded to the `AgentEventBus` with a `sessionId` property.
 
 ```typescript
 interface SessionEventMap {
-  'llmservice:thinking': void;
+  'llm:thinking': void;
   
-  'llmservice:response': {
+  'llm:response': {
     content: string;
-    tokenCount?: number;
+    reasoning?: string;
+    provider?: string;
     model?: string;
+    router?: string;
+    tokenUsage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      reasoningTokens?: number;
+      totalTokens?: number;
+    };
   };
   
-  'llmservice:chunk': {
+  'llm:chunk': {
+    chunkType: 'text' | 'reasoning';
     content: string;
     isComplete?: boolean;
   };
   
-  'llmservice:toolCall': {
+  'llm:tool-call': {
     toolName: string;
     args: Record<string, any>;
     callId?: string;
   };
   
-  'llmservice:toolResult': {
+  'llm:tool-result': {
     toolName: string;
     sanitized: SanitizedToolResult;
     rawResult?: unknown;
@@ -370,18 +430,69 @@ interface SessionEventMap {
     success: boolean;
   };
   
-  'llmservice:error': {
+  'llm:error': {
     error: Error;
     context?: string;
     recoverable?: boolean;
   };
   
-  'llmservice:switched': {
+  'llm:switched': {
     newConfig: ValidatedLLMConfig;
     router?: 'vercel' | 'in-built';
     historyRetained?: boolean;
+    sessionIds: string[];
+  };
+  
+  'llm:unsupported-input': {
+    errors: string[];
+    provider: LLMProvider;
+    model?: string;
+    fileType?: string;
+    details?: any;
   };
 }
+```
+
+### Event Tier Types
+
+```typescript
+// Tier 1: Events exposed via DextoAgent.stream()
+export type StreamingEventName = 
+  | 'llm:thinking'
+  | 'llm:chunk'
+  | 'llm:response'
+  | 'llm:tool-call'
+  | 'llm:tool-result'
+  | 'llm:error'
+  | 'llm:unsupported-input'
+  | 'approval:request'
+  | 'approval:response'
+  | 'session:title-updated';
+
+// Tier 2: Events exposed via webhooks, A2A, and monitoring
+export type IntegrationEventName = StreamingEventName
+  | 'session:created'
+  | 'session:reset'
+  | 'mcp:server-connected'
+  | 'mcp:server-restarted'
+  | 'mcp:tools-list-changed'
+  | 'mcp:prompts-list-changed'
+  | 'tools:available-updated'
+  | 'llm:switched'
+  | 'state:changed';
+
+// Union types with payloads
+export type StreamingEvent = 
+  | ({ type: 'llm:thinking' } & AgentEventMap['llm:thinking'])
+  | ({ type: 'llm:chunk' } & AgentEventMap['llm:chunk'])
+  | ({ type: 'llm:response' } & AgentEventMap['llm:response'])
+  | ({ type: 'llm:tool-call' } & AgentEventMap['llm:tool-call'])
+  | ({ type: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
+  | ({ type: 'llm:error' } & AgentEventMap['llm:error'])
+  | ({ type: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
+  | ({ type: 'approval:request' } & AgentEventMap['approval:request'])
+  | ({ type: 'approval:response' } & AgentEventMap['approval:response'])
+  | ({ type: 'session:title-updated' } & AgentEventMap['session:title-updated']);
 ```
 
 ---

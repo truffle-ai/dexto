@@ -42,24 +42,6 @@ export class ClientError {
     }
 
     /**
-     * WebSocket Errors
-     */
-    static websocketConnectionFailed(url: string, originalError?: Error) {
-        const error = new Error(`Failed to connect WebSocket to ${url}`);
-        error.name = 'WebSocketConnectionError';
-        (error as any).url = url;
-        (error as any).originalError = originalError?.message;
-        return error;
-    }
-
-    static websocketSendFailed(originalError?: Error) {
-        const error = new Error('Failed to send WebSocket message');
-        error.name = 'WebSocketSendError';
-        (error as any).originalError = originalError?.message;
-        return error;
-    }
-
-    /**
      * Configuration Errors
      */
     static invalidConfig(field: string, value: unknown, reason: string) {

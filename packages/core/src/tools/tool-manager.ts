@@ -64,7 +64,7 @@ export class ToolManager {
     private internalToolsProvider?: InternalToolsProvider;
     private approvalManager: ApprovalManager;
     private allowedToolsProvider: IAllowedToolsProvider;
-    private approvalMode: 'event-based' | 'auto-approve' | 'auto-deny';
+    private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
 
@@ -86,7 +86,7 @@ export class ToolManager {
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
         allowedToolsProvider: IAllowedToolsProvider,
-        approvalMode: 'event-based' | 'auto-approve' | 'auto-deny',
+        approvalMode: 'manual' | 'auto-approve' | 'auto-deny',
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
         options: InternalToolsOptions,
@@ -153,7 +153,7 @@ export class ToolManager {
      */
     private setupNotificationListeners(): void {
         // Listen for MCP server connection changes that affect tools
-        this.agentEventBus.on('dexto:mcpServerConnected', async (payload) => {
+        this.agentEventBus.on('mcp:server-connected', async (payload) => {
             if (payload.success) {
                 this.logger.debug(
                     `🔄 MCP server connected, invalidating tool cache: ${payload.name}`
@@ -162,7 +162,7 @@ export class ToolManager {
             }
         });
 
-        this.agentEventBus.on('dexto:mcpServerRemoved', async (payload) => {
+        this.agentEventBus.on('mcp:server-removed', async (payload) => {
             this.logger.debug(
                 `🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`
             );
@@ -570,7 +570,7 @@ export class ToolManager {
 
     /**
      * Handle tool approval/confirmation flow
-     * Checks allowed list, manages approval modes (event-based, auto-approve, auto-deny),
+     * Checks allowed list, manages approval modes (manual, auto-approve, auto-deny),
      * and handles remember choice logic
      */
     private async handleToolApproval(
@@ -617,7 +617,7 @@ export class ToolManager {
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
-        // Event-based mode - request approval
+        // Manual mode - request approval
         this.logger.info(
             `Tool confirmation requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );
@@ -658,8 +658,20 @@ export class ToolManager {
             const approved = response.status === ApprovalStatus.APPROVED;
 
             if (!approved) {
+                // Distinguish between timeout, cancellation, and actual denial
+                if (response.status === ApprovalStatus.CANCELLED && response.reason === 'timeout') {
+                    this.logger.info(
+                        `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                    );
+                    this.logger.debug(`⏱️ Tool execution timed out: ${toolName}`);
+                    // Use timeout value from response if available, otherwise fallback to 0
+                    const timeoutMs = response.timeoutMs ?? 0;
+                    throw ToolError.executionTimeout(toolName, timeoutMs, sessionId);
+                }
+
+                // All other non-approved statuses (denied, cancelled for other reasons)
                 this.logger.info(
-                    `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                    `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
                 );
                 this.logger.debug(`🚫 Tool execution denied: ${toolName}`);
                 throw ToolError.executionDenied(toolName, sessionId);

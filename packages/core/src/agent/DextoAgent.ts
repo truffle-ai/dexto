@@ -35,13 +35,19 @@ import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
 import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
-import { AgentEventBus } from '../events/index.js';
+import {
+    AgentEventBus,
+    STREAMING_EVENTS,
+    type StreamingEvent,
+    type StreamingEventName,
+} from '../events/index.js';
 import type { IMCPClient } from '../mcp/types.js';
 import type { ToolSet } from '../tools/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
+import type { ApprovalHandler } from '../approval/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -56,7 +62,7 @@ const requiredServices: (keyof AgentServices)[] = [
 
 /**
  * Interface for objects that can subscribe to the agent's event bus.
- * Typically used by API layer subscribers (WebSocket, Webhooks, etc.)
+ * Typically used by API layer subscribers (SSE, Webhooks, etc.)
  */
 export interface AgentEventSubscriber {
     subscribe(eventBus: AgentEventBus): void;
@@ -147,18 +153,28 @@ export class DextoAgent {
     private _isStarted: boolean = false;
     private _isStopped: boolean = false;
 
-    // Store config for async initialization
-    private config: ValidatedAgentConfig;
+    // Store config for async initialization (accessible before start() for setup)
+    public config: ValidatedAgentConfig;
 
-    // Event subscribers (e.g., WebSocket, Webhook handlers)
+    // Event subscribers (e.g., SSE, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
 
     // Telemetry instance for distributed tracing
     private telemetry?: Telemetry;
 
+    // Approval handler for manual tool confirmation and elicitation
+    // Set via setApprovalHandler() before start() if needed
+    private approvalHandler?: ApprovalHandler | undefined;
+
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
+    /**
+     * Creates a DextoAgent instance.
+     *
+     * @param config - Agent configuration (validated and enriched)
+     * @param configPath - Optional path to config file (for relative path resolution)
+     */
     constructor(
         config: AgentConfig,
         private configPath?: string
@@ -173,6 +189,9 @@ export class DextoAgent {
             agentId: this.config.agentId,
             component: DextoLogComponent.AGENT,
         });
+
+        // Create event bus early so it's available for approval handler creation
+        this.agentEventBus = new AgentEventBus();
 
         // call start() to initialize services
         this.logger.info('DextoAgent created.');
@@ -194,8 +213,13 @@ export class DextoAgent {
             this.logger.info('Starting DextoAgent...');
 
             // Initialize all services asynchronously
-            // Pass logger to services for dependency injection
-            const services = await createAgentServices(this.config, this.configPath, this.logger);
+            // Pass logger and eventBus to services for dependency injection
+            const services = await createAgentServices(
+                this.config,
+                this.configPath,
+                this.logger,
+                this.agentEventBus
+            );
 
             // Validate all required services are provided
             for (const service of requiredServices) {
@@ -206,13 +230,40 @@ export class DextoAgent {
                 }
             }
 
+            // Validate approval configuration
+            // Handler is required for manual tool confirmation OR when elicitation is enabled
+            const needsHandler =
+                this.config.toolConfirmation.mode === 'manual' || this.config.elicitation.enabled;
+
+            if (needsHandler && !this.approvalHandler) {
+                const reasons = [];
+                if (this.config.toolConfirmation.mode === 'manual') {
+                    reasons.push('tool confirmation mode is "manual"');
+                }
+                if (this.config.elicitation.enabled) {
+                    reasons.push('elicitation is enabled');
+                }
+
+                throw AgentError.initializationFailed(
+                    `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
+                        'Either:\n' +
+                        '  • Call agent.setApprovalHandler() before starting\n' +
+                        '  • Set toolConfirmation: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
+                        '  • Disable elicitation: { enabled: false }'
+                );
+            }
+
+            // Set approval handler if provided via setApprovalHandler() before start()
+            if (this.approvalHandler) {
+                services.approvalManager.setHandler(this.approvalHandler);
+            }
+
             // Use Object.assign to set readonly properties
             Object.assign(this, {
                 mcpManager: services.mcpManager,
                 toolManager: services.toolManager,
                 resourceManager: services.resourceManager,
                 systemPromptManager: services.systemPromptManager,
-                agentEventBus: services.agentEventBus,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
                 memoryManager: services.memoryManager,
@@ -352,7 +403,7 @@ export class DextoAgent {
 
     /**
      * Register an event subscriber that will be automatically re-subscribed on agent restart.
-     * Subscribers are typically API layer components (WebSocket, Webhook handlers) that need
+     * Subscribers are typically API layer components (SSE, Webhook handlers) that need
      * to receive agent events. If the agent is already started, the subscriber is immediately subscribed.
      *
      * @param subscriber - Object implementing AgentEventSubscriber interface
@@ -499,9 +550,9 @@ export class DextoAgent {
                 ensureOk(validation, this.logger);
 
                 // Resolve the concrete ChatSession for the target session id
-                const existingSession = await this.sessionManager.getSession(targetSessionId);
                 const session: ChatSession =
-                    existingSession || (await this.sessionManager.createSession(targetSessionId));
+                    (await this.sessionManager.getSession(targetSessionId)) ||
+                    (await this.sessionManager.createSession(targetSessionId));
 
                 this.logger.debug(
                     `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
@@ -571,8 +622,8 @@ export class DextoAgent {
                     finalText = textInput;
                 }
 
-                // Kick off background title generation for first turn if needed
-                void this.maybeGenerateTitle(targetSessionId, finalText, llmConfig);
+                // Title generation moved to on-demand API endpoint
+                // Users can call generateSessionTitle() explicitly
 
                 const response = await session.run(
                     finalText,
@@ -599,6 +650,275 @@ export class DextoAgent {
                 throw error;
             }
         });
+    }
+
+    /**
+     * Generate a complete response (waits for full completion).
+     * This is the recommended method for non-streaming use cases.
+     *
+     * @param message The user's message
+     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @returns Promise that resolves to the complete response
+     *
+     * @example
+     * ```typescript
+     * const response = await agent.generate("What is 2+2?", { sessionId: "default" });
+     * console.log(response.content); // "4"
+     * console.log(response.usage.totalTokens); // 50
+     * ```
+     */
+    public async generate(
+        message: string,
+        options: import('./types.js').GenerateOptions
+    ): Promise<import('./types.js').GenerateResponse> {
+        // Collect all events from stream
+        const events: StreamingEvent[] = [];
+
+        for await (const event of await this.stream(message, options)) {
+            events.push(event);
+        }
+
+        // Find the llm:response event (final response)
+        const responseEvent = events.find((e) => e.type === 'llm:response');
+        if (!responseEvent || responseEvent.type !== 'llm:response') {
+            throw new Error('Stream did not complete successfully');
+        }
+
+        // Collect tool calls from llm:tool-call events
+        const toolCallEvents = events.filter(
+            (e): e is Extract<StreamingEvent, { type: 'llm:tool-call' }> =>
+                e.type === 'llm:tool-call'
+        );
+        const toolResultEvents = events.filter(
+            (e): e is Extract<StreamingEvent, { type: 'llm:tool-result' }> =>
+                e.type === 'llm:tool-result'
+        );
+
+        const toolCalls: import('./types.js').AgentToolCall[] = toolCallEvents.map((tc) => {
+            const toolResult = toolResultEvents.find((tr) => tr.callId === tc.callId);
+            return {
+                toolName: tc.toolName,
+                args: tc.args,
+                callId: tc.callId || `tool_${Date.now()}`,
+                result: toolResult
+                    ? {
+                          success: toolResult.success,
+                          data: toolResult.sanitized,
+                      }
+                    : undefined,
+            };
+        });
+
+        // TODO: Message ID infrastructure exists but not fully utilized yet
+        // Future enhancements:
+        // - Persist messageId in conversation history for tracking
+        // - Use for idempotency (prevent duplicate processing)
+        // - Enable message-level operations (edit, regenerate, etc.)
+        // - Correlate with tool calls and approval requests
+        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+        // Ensure usage matches LLMTokenUsage type with all required fields
+        const defaultUsage: import('./types.js').TokenUsage = {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+        };
+        const usage = responseEvent.tokenUsage ?? defaultUsage;
+
+        return {
+            content: responseEvent.content,
+            reasoning: responseEvent.reasoning,
+            usage: usage as import('./types.js').TokenUsage,
+            toolCalls,
+            sessionId: options.sessionId,
+            messageId,
+        };
+    }
+
+    /**
+     * Stream a response (yields events as they arrive).
+     * This is the recommended method for real-time streaming UI updates.
+     *
+     * TODO: Refactor to move AsyncIterator down to LLM service level (Option 1).
+     * Streaming message API that returns core AgentEvents in real-time.
+     * Only emits STREAMING_EVENTS (tier 1 visibility) - events designed for real-time chat UIs.
+     *
+     * Events are forwarded directly from the AgentEventBus with no mapping layer,
+     * providing a unified event system across all API layers.
+     *
+     * @param message The user's message
+     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @returns AsyncIterator that yields StreamingEvent objects (core events with type property)
+     *
+     * @example
+     * ```typescript
+     * for await (const event of await agent.stream("Write a poem", { sessionId: "default" })) {
+     *   if (event.type === 'llm:chunk') {
+     *     process.stdout.write(event.content);
+     *   }
+     *   if (event.type === 'llm:tool-call') {
+     *     console.log(`\n[Using ${event.toolName}]\n`);
+     *   }
+     * }
+     * ```
+     */
+    public async stream(
+        message: string,
+        options: import('./types.js').StreamOptions
+    ): Promise<AsyncIterableIterator<StreamingEvent>> {
+        this.ensureStarted();
+
+        // Validate sessionId is provided
+        if (!options.sessionId) {
+            throw new Error('sessionId is required in StreamOptions');
+        }
+
+        const sessionId = options.sessionId;
+        const imageData = options.imageData;
+        const fileData = options.fileData;
+        const signal = options.signal;
+
+        // Event queue for aggregation - now holds core events directly
+        const eventQueue: StreamingEvent[] = [];
+        let completed = false;
+        let _streamError: Error | null = null;
+
+        // Create AbortController for cleanup
+        const controller = new AbortController();
+        const cleanupSignal = controller.signal;
+
+        // Track listener references for manual cleanup
+        const listeners: Array<{
+            event: StreamingEventName;
+            listener: (payload: any) => void;
+        }> = [];
+
+        // Cleanup function to remove all listeners
+        const cleanupListeners = () => {
+            if (listeners.length === 0) {
+                return; // Already cleaned up
+            }
+            for (const { event, listener } of listeners) {
+                this.agentEventBus.off(event, listener);
+            }
+            listeners.length = 0;
+        };
+
+        // Wire external signal to trigger cleanup
+        if (signal) {
+            const abortHandler = () => {
+                cleanupListeners();
+                controller.abort();
+            };
+            signal.addEventListener('abort', abortHandler, { once: true });
+        }
+
+        // Subscribe to all STREAMING_EVENTS on AgentEventBus
+        // Core events are forwarded directly with no mapping
+        for (const eventName of STREAMING_EVENTS) {
+            const listener = (data: any) => {
+                // Filter to this session's events (if sessionId is present in event)
+                if (data.sessionId !== undefined && data.sessionId !== sessionId) {
+                    return;
+                }
+
+                // Forward core event directly with type property
+                eventQueue.push({ type: eventName, ...data } as StreamingEvent);
+
+                // Mark stream as completed when we receive final events
+                if (
+                    eventName === 'llm:response' ||
+                    (eventName === 'llm:error' && !data.recoverable)
+                ) {
+                    completed = true;
+                }
+            };
+
+            this.agentEventBus.on(eventName as StreamingEventName, listener, {
+                signal: cleanupSignal,
+            });
+            listeners.push({ event: eventName as StreamingEventName, listener });
+        }
+
+        // Start run in background (fire-and-forget)
+        // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
+        const imageDataForRun = imageData
+            ? {
+                  image:
+                      typeof imageData.image === 'string'
+                          ? imageData.image
+                          : imageData.image.toString(),
+                  mimeType: imageData.mimeType || 'image/png',
+              }
+            : undefined;
+
+        // Convert fileData to format expected by run() (data must be string)
+        const fileDataForRun = fileData
+            ? {
+                  data:
+                      typeof fileData.data === 'string' ? fileData.data : fileData.data.toString(),
+                  mimeType: fileData.mimeType,
+                  ...(fileData.filename && { filename: fileData.filename }),
+              }
+            : undefined;
+
+        this.run(message, imageDataForRun, fileDataForRun, sessionId, true).catch((error) => {
+            _streamError = error;
+            completed = true;
+            eventQueue.push({
+                type: 'llm:error',
+                error,
+                recoverable: false,
+                context: 'run_failed',
+                sessionId,
+            } as StreamingEvent);
+        });
+
+        // Return async iterable iterator
+        const iterator: AsyncIterableIterator<StreamingEvent> = {
+            async next(): Promise<IteratorResult<StreamingEvent>> {
+                // Wait for events
+                while (!completed && eventQueue.length === 0) {
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+
+                    // Check for abort
+                    if (signal?.aborted) {
+                        cleanupListeners();
+                        controller.abort();
+                        return { done: true, value: undefined };
+                    }
+                }
+
+                // Return queued events
+                if (eventQueue.length > 0) {
+                    return { done: false, value: eventQueue.shift()! };
+                }
+
+                // Stream completed
+                if (completed) {
+                    cleanupListeners();
+                    controller.abort();
+                    return { done: true, value: undefined };
+                }
+
+                // Shouldn't reach here
+                cleanupListeners();
+                return { done: true, value: undefined };
+            },
+
+            async return(): Promise<IteratorResult<StreamingEvent>> {
+                // Called when consumer breaks out early or explicitly calls return()
+                cleanupListeners();
+                controller.abort();
+                return { done: true, value: undefined };
+            },
+
+            [Symbol.asyncIterator]() {
+                return iterator;
+            },
+        };
+
+        return iterator;
     }
 
     /**
@@ -702,79 +1022,84 @@ export class DextoAgent {
     }
 
     /**
-     * Background task: generate and persist a session title using the same LLM.
-     * Runs only for the first user message (messageCount === 0 and no existing title).
-     * Never throws; timeboxed in the generator.
+     * Generate a title for a session on-demand.
+     * Uses the first user message content to generate a descriptive title.
+     *
+     * @param sessionId Session ID to generate title for
+     * @returns Promise that resolves to the generated title, or null if generation failed
      */
-    private async maybeGenerateTitle(
-        sessionId: string,
-        userText: string,
-        llmConfig: ValidatedLLMConfig
-    ): Promise<void> {
-        try {
-            const metadata = await this.sessionManager.getSessionMetadata(sessionId);
-            if (!metadata) {
-                this.logger.debug(
-                    `[SessionTitle] No session metadata available for ${sessionId}, skipping title generation`
-                );
-                return;
-            }
-            if (metadata.title) {
-                this.logger.debug(
-                    `[SessionTitle] Session ${sessionId} already has title '${metadata.title}', skipping`
-                );
-                return;
-            }
-            if (!userText || !userText.trim()) {
-                this.logger.debug(
-                    `[SessionTitle] User text empty for session ${sessionId}, skipping title generation`
-                );
-                return;
-            }
+    public async generateSessionTitle(sessionId: string): Promise<string | null> {
+        this.ensureStarted();
 
-            this.logger.debug(
-                `[SessionTitle] Checking title generation preconditions for session ${sessionId}`
-            );
-            const result = await generateSessionTitle(
-                llmConfig,
-                llmConfig.router,
-                this.toolManager,
-                this.systemPromptManager,
-                this.resourceManager,
-                userText,
-                this.logger
-            );
-            if (result.error) {
-                this.logger.debug(
-                    `[SessionTitle] LLM title generation failed for ${sessionId}: ${result.error}${
-                        result.timedOut ? ' (timeout)' : ''
-                    }`
-                );
-            }
-
-            let title = result.title;
-            if (!title) {
-                title = deriveHeuristicTitle(userText);
-                if (title) {
-                    this.logger.info(
-                        `[SessionTitle] Using heuristic title for ${sessionId}: ${title}`
-                    );
-                } else {
-                    this.logger.debug(
-                        `[SessionTitle] No suitable title derived for session ${sessionId}`
-                    );
-                    return;
-                }
-            } else {
-                this.logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
-            }
-
-            await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
-            this.agentEventBus.emit('dexto:sessionTitleUpdated', { sessionId, title });
-        } catch (err) {
-            // Swallow background errors – never impact main flow
-            this.logger.debug(`Title generation skipped/failed for ${sessionId}: ${String(err)}`);
+        // Get session metadata to check if title already exists
+        const metadata = await this.sessionManager.getSessionMetadata(sessionId);
+        if (!metadata) {
+            throw SessionError.notFound(sessionId);
         }
+        if (metadata.title) {
+            this.logger.debug(
+                `[SessionTitle] Session ${sessionId} already has title '${metadata.title}'`
+            );
+            return metadata.title;
+        }
+
+        // Get first user message
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        const history = await session.getHistory();
+        const firstUserMsg = history.find((m) => m.role === 'user');
+        if (!firstUserMsg) {
+            this.logger.debug(`[SessionTitle] No user message found for session ${sessionId}`);
+            return null;
+        }
+
+        const userText =
+            typeof firstUserMsg.content === 'string'
+                ? firstUserMsg.content
+                : firstUserMsg.content
+                      ?.filter((p) => p.type === 'text')
+                      .map((p: { type: string; text: string }) => p.text)
+                      .join(' ');
+
+        if (!userText || !userText.trim()) {
+            this.logger.debug(`[SessionTitle] Empty user text for session ${sessionId}`);
+            return null;
+        }
+
+        // Get LLM config for the session
+        const llmConfig = this.getEffectiveConfig(sessionId).llm;
+
+        // Generate title
+        const result = await generateSessionTitle(
+            llmConfig,
+            llmConfig.router,
+            this.toolManager,
+            this.systemPromptManager,
+            this.resourceManager,
+            userText,
+            this.logger
+        );
+
+        let title = result.title;
+        if (!title) {
+            // Fallback to heuristic
+            title = deriveHeuristicTitle(userText);
+            if (title) {
+                this.logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+            } else {
+                this.logger.debug(`[SessionTitle] No suitable title derived for ${sessionId}`);
+                return null;
+            }
+        } else {
+            this.logger.info(`[SessionTitle] Generated LLM title for ${sessionId}: ${title}`);
+        }
+
+        // Save title
+        await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
+
+        return title;
     }
 
     /**
@@ -855,7 +1180,7 @@ export class DextoAgent {
             await this.sessionManager.resetSession(sessionId);
 
             this.logger.info(`DextoAgent conversation reset for session: ${sessionId}`);
-            this.agentEventBus.emit('dexto:conversationReset', {
+            this.agentEventBus.emit('session:reset', {
                 sessionId: sessionId,
             });
         } catch (error) {
@@ -1124,11 +1449,11 @@ export class DextoAgent {
             // Ensure tool cache reflects the newly connected server before notifying listeners
             await this.toolManager.refresh();
 
-            this.agentEventBus.emit('dexto:mcpServerConnected', {
+            this.agentEventBus.emit('mcp:server-connected', {
                 name,
                 success: true,
             });
-            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+            this.agentEventBus.emit('tools:available-updated', {
                 tools: Object.keys(await this.toolManager.getAllTools()),
                 source: 'mcp',
             });
@@ -1155,7 +1480,7 @@ export class DextoAgent {
             // Clean up state if connection failed
             this.stateManager.removeMcpServer(name);
 
-            this.agentEventBus.emit('dexto:mcpServerConnected', {
+            this.agentEventBus.emit('mcp:server-connected', {
                 name,
                 success: false,
                 error: errorMessage,
@@ -1199,10 +1524,10 @@ export class DextoAgent {
             // Refresh tool cache after restart so the LLM sees updated toolset
             await this.toolManager.refresh();
 
-            this.agentEventBus.emit('dexto:mcpServerRestarted', {
+            this.agentEventBus.emit('mcp:server-restarted', {
                 serverName: name,
             });
-            this.agentEventBus.emit('dexto:availableToolsUpdated', {
+            this.agentEventBus.emit('tools:available-updated', {
                 tools: Object.keys(await this.toolManager.getAllTools()),
                 source: 'mcp',
             });
@@ -1453,9 +1778,10 @@ export class DextoAgent {
     /**
      * Gets the effective configuration for a session or the default configuration.
      * @param sessionId Optional session ID. If not provided, returns default config.
-     * @returns The effective configuration object
+     * @returns The effective configuration object (validated with defaults applied)
+     * @remarks Requires agent to be started. Use `agent.config` for pre-start access.
      */
-    public getEffectiveConfig(sessionId?: string): Readonly<AgentConfig> {
+    public getEffectiveConfig(sessionId?: string): Readonly<ValidatedAgentConfig> {
         this.ensureStarted();
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
@@ -1577,6 +1903,69 @@ export class DextoAgent {
         }
 
         return changes;
+    }
+
+    // ============= APPROVAL HANDLER API =============
+
+    /**
+     * Set a custom approval handler for manual approval mode.
+     *
+     * When `toolConfirmation.mode` is set to 'manual', an approval handler must be
+     * provided to process tool confirmation requests. The handler will be called
+     * whenever a tool execution requires user approval.
+     *
+     * The handler receives an approval request and must return a promise that resolves
+     * to an approval response with the user's decision (approved/denied/cancelled).
+     *
+     * @param handler The approval handler function
+     *
+     * @example
+     * ```typescript
+     * import { ApprovalStatus } from '@dexto/core';
+     *
+     * agent.setApprovalHandler(async (request) => {
+     *   // Present approval request to user (CLI, UI, webhook, etc.)
+     *   console.log(`Approve tool: ${request.metadata.toolName}?`);
+     *   console.log(`Args: ${JSON.stringify(request.metadata.args)}`);
+     *
+     *   // Collect user's decision (this is just an example)
+     *   const approved = await getUserInput();
+     *
+     *   return {
+     *     approvalId: request.approvalId,
+     *     status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
+     *     sessionId: request.sessionId,
+     *   };
+     * });
+     * ```
+     */
+    public setApprovalHandler(handler: ApprovalHandler): void {
+        // Store handler for use during start() if not yet started
+        this.approvalHandler = handler;
+
+        // If agent is already started, also set it on the service immediately
+        if (this._isStarted && this.services) {
+            this.services.approvalManager.setHandler(handler);
+        }
+
+        this.logger.debug('Approval handler registered');
+    }
+
+    /**
+     * Clear the current approval handler.
+     *
+     * After calling this, manual approval mode will fail if a tool requires approval.
+     */
+    public clearApprovalHandler(): void {
+        // Clear stored handler
+        this.approvalHandler = undefined;
+
+        // If agent is already started, also clear it on the service
+        if (this._isStarted && this.services) {
+            this.services.approvalManager.clearHandler();
+        }
+
+        this.logger.debug('Approval handler cleared');
     }
 
     // ============= AGENT MANAGEMENT =============

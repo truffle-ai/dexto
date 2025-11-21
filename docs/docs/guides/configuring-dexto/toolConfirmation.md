@@ -25,17 +25,17 @@ The tool confirmation system provides security and oversight by controlling whic
 
 | Mode | Behavior | Use Case |
 |------|----------|----------|
-| **event-based** | Interactive prompts via CLI/WebUI | Production with oversight |
+| **manual** | Interactive prompts via CLI/WebUI | Production with oversight |
 | **auto-approve** | Automatically approve all tools | Development/testing |
 | **auto-deny** | Block all tool execution | Read-only/high-security |
 
-### event-based (Default)
+### manual (Default)
 
 Interactive confirmation via CLI prompts or WebUI dialogs:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 30000               # 30 seconds
   allowedToolsStorage: storage # Persist across sessions
 ```
@@ -81,7 +81,7 @@ Fine-grained control over specific tools:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   toolPolicies:
     alwaysAllow:
       - internal--ask_user
@@ -154,7 +154,7 @@ toolConfirmation:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 60000
   allowedToolsStorage: storage
   toolPolicies:
@@ -170,7 +170,7 @@ toolConfirmation:
 
 ```yaml
 toolConfirmation:
-  mode: event-based
+  mode: manual
   allowedToolsStorage: memory
   toolPolicies:
     alwaysAllow: []
@@ -180,22 +180,68 @@ toolConfirmation:
       - internal--bash_exec
 ```
 
-## Event-Based Flow
+## Manual Mode Requirements
 
-In event-based mode, confirmation uses an event-driven architecture:
+Manual mode requires UI integration to prompt the user for approvals:
 
-1. Agent requests tool execution
-2. System emits `dexto:toolConfirmationRequest` event
-3. UI layer shows confirmation dialog
-4. User approves/denies
-5. UI emits `dexto:toolConfirmationResponse` event
-6. Tool executes or is denied
+- **CLI Mode**: Interactive prompts in the terminal
+- **Web/Server Mode**: Approval dialogs in the WebUI
+- **Custom Integration**: Implement your own approval handler via `agent.setApprovalHandler()`
 
-**Timeout:** Auto-denies if no response within configured timeout.
+The system will wait for user input up to the configured timeout, then auto-deny if no response is received.
+
+## Approval Handlers
+
+Approval handlers control how your application prompts for and receives user decisions about tool execution.
+
+### Built-in Options
+
+**Auto modes**: No handler needed - `auto-approve` and `auto-deny` modes handle approvals automatically without requiring a handler implementation.
+
+**Manual handler for server/API mode**: Use `createManualApprovalHandler` from `@dexto/server` when building web applications. This handler coordinates approvals between backend and frontend via event bus:
+
+```typescript
+import { createManualApprovalHandler } from '@dexto/server';
+
+const handler = createManualApprovalHandler(
+  agent.agentEventBus,
+  60000 // timeout in ms
+);
+agent.setApprovalHandler(handler);
+```
+
+### Custom Handlers
+
+For CLI tools, desktop apps, or custom integrations, implement your own handler:
+
+```typescript
+import { ApprovalStatus, DenialReason } from '@dexto/core';
+
+agent.setApprovalHandler(async (request) => {
+  // request contains: approvalId, type, metadata (toolName, args, etc.)
+
+  const userChoice = await promptUser(
+    `Allow ${request.metadata.toolName}?`
+  );
+
+  return {
+    approvalId: request.approvalId,
+    status: userChoice ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
+    reason: userChoice ? undefined : DenialReason.USER_DENIED,
+  };
+});
+```
+
+**Common use cases for custom handlers:**
+- CLI tools (readline, inquirer, prompts)
+- Desktop apps (native dialogs, Electron)
+- Policy-based approval (check against rules)
+- External integrations (Slack, PagerDuty)
+- Audit logging wrappers
 
 ## Best Practices
 
-1. **Use event-based in production** - Maintain oversight and control
+1. **Use manual mode in production** - Maintain oversight and control
 2. **Set reasonable timeouts** - Balance security with user experience
 3. **Enable read-only tools** - Allow safe operations without confirmation
 4. **Block destructive operations** - Use `alwaysDeny` for dangerous tools
@@ -207,10 +253,10 @@ In event-based mode, confirmation uses an event-driven architecture:
 | Scenario | Configuration |
 |----------|--------------|
 | **Development** | auto-approve + memory storage |
-| **Production** | event-based + storage + policies |
+| **Production** | manual + storage + policies |
 | **CI/CD** | auto-deny (no tool execution) |
-| **Read-only** | event-based + alwaysAllow read operations |
-| **High-security** | event-based + memory storage + strict deny list |
+| **Read-only** | manual + alwaysAllow read operations |
+| **High-security** | manual + memory storage + strict deny list |
 
 ## See Also
 

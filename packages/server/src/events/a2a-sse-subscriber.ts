@@ -1,11 +1,10 @@
 /**
- * SSE (Server-Sent Events) Event Subscriber
+ * A2A SSE (Server-Sent Events) Event Subscriber
  *
- * Subscribes to agent events and streams them to SSE clients.
- * Uses standard SSE protocol (text/event-stream) instead of WebSocket.
+ * Subscribes to agent events and streams them to SSE clients for A2A tasks.
+ * Uses standard SSE protocol (text/event-stream).
  *
  * Design:
- * - Similar to WebSocketEventSubscriber but for SSE
  * - Filters events by taskId/sessionId for targeted streaming
  * - Uses standard SSE format: event: name\ndata: json\n\n
  * - Supports multiple concurrent SSE connections
@@ -31,13 +30,13 @@ interface SSEConnection {
 }
 
 /**
- * SSE Event Subscriber
+ * A2A SSE Event Subscriber
  *
  * Manages Server-Sent Events connections for A2A Protocol task streaming.
  *
  * Usage:
  * ```typescript
- * const sseSubscriber = new SSEEventSubscriber();
+ * const sseSubscriber = new A2ASseEventSubscriber();
  * sseSubscriber.subscribe(agent.agentEventBus);
  *
  * // In route handler
@@ -51,7 +50,7 @@ interface SSEConnection {
  * });
  * ```
  */
-export class SSEEventSubscriber {
+export class A2ASseEventSubscriber {
     private connections: Map<string, SSEConnection> = new Map();
     private eventBus?: AgentEventBus;
     private globalAbortController?: AbortController;
@@ -78,7 +77,7 @@ export class SSEEventSubscriber {
 
         // Subscribe to agent events
         eventBus.on(
-            'llmservice:thinking',
+            'llm:thinking',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.thinking', {
                     taskId: payload.sessionId,
@@ -88,11 +87,11 @@ export class SSEEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:chunk',
+            'llm:chunk',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.chunk', {
                     taskId: payload.sessionId,
-                    type: payload.type,
+                    type: payload.chunkType,
                     content: payload.content,
                     isComplete: payload.isComplete,
                 });
@@ -101,7 +100,7 @@ export class SSEEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:toolCall',
+            'llm:tool-call',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.toolCall', {
                     taskId: payload.sessionId,
@@ -114,7 +113,7 @@ export class SSEEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:toolResult',
+            'llm:tool-result',
             (payload) => {
                 const data: Record<string, unknown> = {
                     taskId: payload.sessionId,
@@ -132,7 +131,7 @@ export class SSEEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:response',
+            'llm:response',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.message', {
                     taskId: payload.sessionId,
@@ -150,7 +149,7 @@ export class SSEEventSubscriber {
         );
 
         eventBus.on(
-            'llmservice:error',
+            'llm:error',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.error', {
                     taskId: payload.sessionId,
@@ -164,7 +163,7 @@ export class SSEEventSubscriber {
         );
 
         eventBus.on(
-            'dexto:conversationReset',
+            'session:reset',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.reset', {
                     taskId: payload.sessionId,
@@ -173,7 +172,7 @@ export class SSEEventSubscriber {
             { signal }
         );
 
-        logger.debug('SSEEventSubscriber subscribed to agent events');
+        logger.debug('A2ASseEventSubscriber subscribed to agent events');
     }
 
     /**

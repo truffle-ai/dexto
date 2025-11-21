@@ -5,6 +5,7 @@ import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
     reloadAgentConfigFromFile,
+    enrichAgentConfig,
 } from '@dexto/agent-management';
 import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
@@ -105,10 +106,7 @@ const CustomAgentCreateSchema = z
 
 const AgentConfigValidateSchema = z
     .object({
-        yaml: z
-            .string()
-            .min(1, 'YAML content is required')
-            .describe('YAML agent configuration content to validate'),
+        yaml: z.string().describe('YAML agent configuration content to validate'),
     })
     .describe('Request body for validating agent configuration YAML');
 
@@ -308,7 +306,10 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 },
                 injectPreferences
             );
-            return ctx.json({ installed: true, id, name: displayName, type: 'custom' }, 201);
+            return ctx.json(
+                { installed: true as const, id, name: displayName, type: 'custom' as const },
+                201
+            );
         } else {
             // Registry agent installation
             const { id } = body as z.output<typeof AgentIdentifierSchema>;
@@ -316,9 +317,9 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             const agentInfo = await resolveAgentInfo(id);
             return ctx.json(
                 {
-                    installed: true,
+                    installed: true as const,
                     ...agentInfo,
-                    type: 'builtin',
+                    type: 'builtin' as const,
                 },
                 201
             );
@@ -353,7 +354,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         // Route based on presence of path parameter
         const result = filePath ? await switchAgentByPath(filePath) : await switchAgentById(id);
 
-        return ctx.json({ switched: true, ...result });
+        return ctx.json({ switched: true as const, ...result });
     });
 
     const validateNameRoute = createRoute({
@@ -431,7 +432,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
     app.openapi(uninstallRoute, async (ctx) => {
         const { id, force } = ctx.req.valid('json');
         await Dexto.uninstallAgent(id, force);
-        return ctx.json({ uninstalled: true, id });
+        return ctx.json({ uninstalled: true as const, id });
     });
 
     const customCreateRoute = createRoute({
@@ -524,7 +525,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             // Clean up temp file
             await fs.unlink(tmpFile).catch(() => {});
 
-            return ctx.json({ created: true, id, name }, 201);
+            return ctx.json({ created: true as const, id, name }, 201);
         } catch (installError) {
             // Clean up temp file on error
             await fs.unlink(tmpFile).catch(() => {});
@@ -694,8 +695,29 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             });
         }
 
+        // Check that parsed content is a valid object (not null, array, or primitive)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return ctx.json({
+                valid: false,
+                errors: [
+                    {
+                        line: 1,
+                        column: 1,
+                        message: 'Configuration must be a valid YAML object',
+                        code: 'INVALID_CONFIG_TYPE',
+                    },
+                ],
+                warnings: [],
+            });
+        }
+
+        // Enrich config with defaults/paths to satisfy schema requirements
+        // Pass undefined for validation-only (no real file path)
+        // AgentId will be derived from agentCard.name or fall back to 'default-agent'
+        const enriched = enrichAgentConfig(parsed, undefined);
+
         // Validate against schema
-        const result = AgentConfigSchema.safeParse(parsed);
+        const result = AgentConfigSchema.safeParse(enriched);
 
         if (!result.success) {
             const errors = result.error.errors.map((err) => ({
@@ -774,8 +796,27 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             ]);
         }
 
+        // Check that parsed content is a valid object (not null, array, or primitive)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new DextoValidationError([
+                {
+                    code: AgentErrorCode.INVALID_CONFIG,
+                    message: 'Configuration must be a valid YAML object',
+                    scope: ErrorScope.AGENT,
+                    type: ErrorType.USER,
+                    severity: 'error',
+                },
+            ]);
+        }
+
+        // Get target file path for enrichment
+        const agentPath = agent.getAgentFilePath();
+
+        // Enrich config with defaults/paths before validation (same as validation endpoint)
+        const enriched = enrichAgentConfig(parsed, agentPath);
+
         // Validate schema
-        const validationResult = AgentConfigSchema.safeParse(parsed);
+        const validationResult = AgentConfigSchema.safeParse(enriched);
 
         if (!validationResult.success) {
             throw new DextoValidationError(
@@ -789,9 +830,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             );
         }
 
-        // Get target file path
-        const agentPath = agent.getAgentFilePath();
-
         // Create backup
         const backupPath = `${agentPath}.backup`;
         await fs.copyFile(agentPath, backupPath);
@@ -803,8 +841,11 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             // Load from file (agent-management's job)
             const newConfig = await reloadAgentConfigFromFile(agentPath);
 
+            // Enrich config before reloading into agent (core expects enriched config with paths)
+            const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
+
             // Reload into agent (core's job - handles restart automatically)
-            const reloadResult = await agent.reload(newConfig);
+            const reloadResult = await agent.reload(enrichedConfig);
 
             if (reloadResult.restarted) {
                 logger.info(
@@ -822,7 +863,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             logger.info(`Agent configuration saved and applied: ${agentPath}`);
 
             return ctx.json({
-                ok: true,
+                ok: true as const,
                 path: agentPath,
                 reloaded: true,
                 restarted: reloadResult.restarted,

@@ -1,7 +1,6 @@
 import { AgentEventBus } from '@dexto/core';
 
 /**
- * TODO: temporarily DUPE OF cli
  * Generic interface for subscribing to core events.
  */
 export interface EventSubscriber {

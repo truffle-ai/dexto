@@ -29,8 +29,8 @@ export async function createTestEnvironment(
         sessionId,
         cleanup: async () => {
             if (agent.isStarted()) {
-                // Give any pending operations time to complete before stopping
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                // Don't wait - just stop the agent immediately
+                // The agent.stop() will handle graceful shutdown
                 await agent.stop();
             }
         },
@@ -62,7 +62,7 @@ export const TestConfigs = {
                 provider,
                 model: 'gpt-5-nano', // Use cheapest model for testing
                 apiKey,
-                maxOutputTokens: 100, // Keep costs low
+                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
                 temperature: 0, // Deterministic responses
                 maxIterations: 1, // Minimal tool iterations
             },
@@ -74,7 +74,19 @@ export const TestConfigs = {
             },
             sessions: {
                 maxSessions: 10,
-                sessionTTL: 100, // 100ms for fast testing
+                sessionTTL: 60000, // 60s for tests
+            },
+            logger: {
+                level: 'info',
+                transports: [{ type: 'console' }],
+            },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't have interactive approval
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: false, // Tests don't handle elicitation
+                timeout: 120000,
             },
         };
     },
@@ -97,7 +109,7 @@ export const TestConfigs = {
                 provider,
                 model: 'claude-haiku-4-5-20251001', // Use cheapest model for testing
                 apiKey,
-                maxOutputTokens: 100,
+                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
             },
@@ -109,7 +121,19 @@ export const TestConfigs = {
             },
             sessions: {
                 maxSessions: 10,
-                sessionTTL: 100,
+                sessionTTL: 60000,
+            },
+            logger: {
+                level: 'info',
+                transports: [{ type: 'console' }],
+            },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't have interactive approval
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: false, // Tests don't handle elicitation
+                timeout: 120000,
             },
         };
     },
@@ -143,7 +167,7 @@ export const TestConfigs = {
                 provider,
                 model: model || defaultModels[provider],
                 apiKey,
-                maxOutputTokens: 100,
+                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
             },
@@ -155,7 +179,19 @@ export const TestConfigs = {
             },
             sessions: {
                 maxSessions: 10,
-                sessionTTL: 100,
+                sessionTTL: 60000,
+            },
+            logger: {
+                level: 'info',
+                transports: [{ type: 'console' }],
+            },
+            toolConfirmation: {
+                mode: 'auto-approve', // Tests don't have interactive approval
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: false, // Tests don't handle elicitation
+                timeout: 120000,
             },
         };
     },

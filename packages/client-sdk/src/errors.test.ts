@@ -74,32 +74,6 @@ describe('ClientError Factory', () => {
         });
     });
 
-    describe('WebSocket Errors', () => {
-        it('should create WebSocket connection failed error', () => {
-            const url = 'ws://localhost:3000/';
-            const originalError = new Error('Connection refused');
-
-            const error = ClientError.websocketConnectionFailed(url, originalError);
-
-            expect(error).toBeInstanceOf(Error);
-            expect(error.name).toBe('WebSocketConnectionError');
-            expect(error.message).toBe(`Failed to connect WebSocket to ${url}`);
-            expect((error as any).url).toBe(url);
-            expect((error as any).originalError).toBe(originalError.message);
-        });
-
-        it('should create WebSocket send failed error', () => {
-            const originalError = new Error('Connection closed');
-
-            const error = ClientError.websocketSendFailed(originalError);
-
-            expect(error).toBeInstanceOf(Error);
-            expect(error.name).toBe('WebSocketSendError');
-            expect(error.message).toBe('Failed to send WebSocket message');
-            expect((error as any).originalError).toBe(originalError.message);
-        });
-    });
-
     describe('Configuration Errors', () => {
         it('should create invalid config error', () => {
             const field = 'apiKey';

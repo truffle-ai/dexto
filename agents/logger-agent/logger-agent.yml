@@ -68,7 +68,7 @@ storage:
 
 # Tool confirmation settings
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 120000
   allowedToolsStorage: memory
 

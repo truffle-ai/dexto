@@ -35,11 +35,16 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         };
 
         // Handle streaming chunks
-        const handleChunk = (payload: { type: string; content: string }) => {
+        const handleChunk = (payload: {
+            chunkType: 'text' | 'reasoning';
+            content: string;
+            isComplete?: boolean;
+            sessionId: string;
+        }) => {
             if (isCancelling) return; // Ignore events during cancellation
             // End thinking state when first chunk arrives
             dispatch({ type: 'THINKING_END' });
-            if (payload.type === 'text') {
+            if (payload.chunkType === 'text') {
                 dispatch({
                     type: 'STREAMING_CHUNK',
                     content: payload.content,
@@ -188,13 +193,13 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         };
 
         // Subscribe to events
-        bus.on('llmservice:thinking', handleThinking);
-        bus.on('llmservice:chunk', handleChunk);
-        bus.on('llmservice:response', handleResponse);
-        bus.on('llmservice:error', handleError);
-        bus.on('llmservice:toolCall', handleToolCall);
-        bus.on('llmservice:toolResult', handleToolResult);
-        bus.on('dexto:approvalRequest', handleApprovalRequest);
+        bus.on('llm:thinking', handleThinking);
+        bus.on('llm:chunk', handleChunk);
+        bus.on('llm:response', handleResponse);
+        bus.on('llm:error', handleError);
+        bus.on('llm:tool-call', handleToolCall);
+        bus.on('llm:tool-result', handleToolResult);
+        bus.on('approval:request', handleApprovalRequest);
 
         // Handle model switch
         const handleModelSwitch = (payload: any) => {
@@ -224,24 +229,23 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
                 });
             }
         };
-
         // Subscribe to events
-        bus.on('llmservice:switched', handleModelSwitch);
-        bus.on('dexto:conversationReset', handleConversationReset);
-        bus.on('dexto:sessionCreated', handleSessionCreated);
+        bus.on('llm:switched', handleModelSwitch);
+        bus.on('session:reset', handleConversationReset);
+        bus.on('session:created', handleSessionCreated);
 
         // Cleanup on unmount
         return () => {
-            bus.off('llmservice:thinking', handleThinking);
-            bus.off('llmservice:chunk', handleChunk);
-            bus.off('llmservice:response', handleResponse);
-            bus.off('llmservice:error', handleError);
-            bus.off('llmservice:toolCall', handleToolCall);
-            bus.off('llmservice:toolResult', handleToolResult);
-            bus.off('dexto:approvalRequest', handleApprovalRequest);
-            bus.off('llmservice:switched', handleModelSwitch);
-            bus.off('dexto:conversationReset', handleConversationReset);
-            bus.off('dexto:sessionCreated', handleSessionCreated);
+            bus.off('llm:thinking', handleThinking);
+            bus.off('llm:chunk', handleChunk);
+            bus.off('llm:response', handleResponse);
+            bus.off('llm:error', handleError);
+            bus.off('llm:tool-call', handleToolCall);
+            bus.off('llm:tool-result', handleToolResult);
+            bus.off('approval:request', handleApprovalRequest);
+            bus.off('llm:switched', handleModelSwitch);
+            bus.off('session:reset', handleConversationReset);
+            bus.off('session:created', handleSessionCreated);
         };
     }, [agent, dispatch, isCancelling]);
 }

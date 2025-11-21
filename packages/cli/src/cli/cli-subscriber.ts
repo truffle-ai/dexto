@@ -21,17 +21,15 @@ export class CLISubscriber implements EventSubscriber {
     private completionReject?: (error: Error) => void;
 
     subscribe(eventBus: AgentEventBus): void {
-        eventBus.on('llmservice:thinking', this.onThinking.bind(this));
-        eventBus.on('llmservice:chunk', (payload) => {
-            if (payload.type === 'text') {
+        eventBus.on('llm:thinking', this.onThinking.bind(this));
+        eventBus.on('llm:chunk', (payload) => {
+            if (payload.chunkType === 'text') {
                 this.onChunk(payload.content);
             }
             // Ignore reasoning chunks for headless mode
         });
-        eventBus.on('llmservice:toolCall', (payload) =>
-            this.onToolCall(payload.toolName, payload.args)
-        );
-        eventBus.on('llmservice:toolResult', (payload) =>
+        eventBus.on('llm:tool-call', (payload) => this.onToolCall(payload.toolName, payload.args));
+        eventBus.on('llm:tool-result', (payload) =>
             this.onToolResult(
                 payload.toolName,
                 payload.sanitized,
@@ -39,9 +37,9 @@ export class CLISubscriber implements EventSubscriber {
                 payload.success
             )
         );
-        eventBus.on('llmservice:response', (payload) => this.onResponse(payload.content));
-        eventBus.on('llmservice:error', (payload) => this.onError(payload.error));
-        eventBus.on('dexto:conversationReset', this.onConversationReset.bind(this));
+        eventBus.on('llm:response', (payload) => this.onResponse(payload.content));
+        eventBus.on('llm:error', (payload) => this.onError(payload.error));
+        eventBus.on('session:reset', this.onConversationReset.bind(this));
     }
 
     /**

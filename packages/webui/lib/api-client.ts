@@ -19,6 +19,9 @@ import { extractErrorMessage, extractErrorDetails, type DextoErrorResponse } fro
 /**
  * Custom error class for API errors
  * Provides structured error information including status code and response data
+ *
+ * The error message automatically includes endpoint context for better debugging.
+ * Access the original message without endpoint via the `originalMessage` property.
  */
 export class ApiError extends Error {
     public readonly code?: string;
@@ -26,16 +29,43 @@ export class ApiError extends Error {
     public readonly type?: string;
     public readonly traceId?: string;
     public readonly recovery?: string | string[];
+    public readonly endpoint: string;
+    public readonly method: string;
+    public readonly originalMessage: string;
 
     constructor(
         message: string,
         public status: number,
+        endpoint: string,
+        method: string,
         public data?: unknown
     ) {
-        super(message);
-        this.name = 'ApiError';
+        // Store original message before augmenting it
+        const originalMsg = message;
 
         // Extract additional error details if available
+        let finalEndpoint = endpoint;
+        let finalMethod = method;
+
+        if (data && typeof data === 'object') {
+            const details = extractErrorDetails(data as Partial<DextoErrorResponse>);
+            // Prefer endpoint/method from server response if available
+            finalEndpoint = details.endpoint || endpoint;
+            finalMethod = details.method || method;
+        }
+
+        // Format endpoint info for display
+        const endpointInfo = `${finalMethod.toUpperCase()} ${finalEndpoint}`;
+
+        // Augment message with endpoint context automatically
+        super(`${message} (${endpointInfo})`);
+
+        this.name = 'ApiError';
+        this.originalMessage = originalMsg;
+        this.endpoint = finalEndpoint;
+        this.method = finalMethod;
+
+        // Extract additional error details
         if (data && typeof data === 'object') {
             const details = extractErrorDetails(data as Partial<DextoErrorResponse>);
             this.code = details.code;
@@ -44,6 +74,14 @@ export class ApiError extends Error {
             this.traceId = details.traceId;
             this.recovery = details.recovery;
         }
+    }
+
+    /**
+     * Get formatted endpoint info for display
+     * @returns Formatted string like "POST /api/llm/switch"
+     */
+    getEndpointInfo(): string {
+        return `${this.method.toUpperCase()} ${this.endpoint}`;
     }
 }
 
@@ -72,6 +110,7 @@ export class ApiError extends Error {
  */
 export async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${getApiUrl()}${endpoint}`;
+    const method = options?.method || 'GET';
 
     const response = await fetch(url, {
         headers: {
@@ -96,7 +135,7 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
             `HTTP ${response.status} ${response.statusText}`
         );
 
-        throw new ApiError(errorMessage, response.status, errorData);
+        throw new ApiError(errorMessage, response.status, endpoint, method, errorData);
     }
 
     // Handle empty responses
@@ -112,6 +151,8 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
         throw new ApiError(
             `Failed to parse JSON response: ${error instanceof Error ? error.message : 'Unknown error'}`,
             response.status,
+            endpoint,
+            method,
             text
         );
     }

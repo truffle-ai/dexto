@@ -82,5 +82,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Fixed port for metadata (runtime can override via -e API_PORT)
 EXPOSE 3001
 
-# Server mode: REST APIs + WebSocket on single port (no Web UI)
+# Server mode: REST APIs + SSE streaming on single port (no Web UI)
 CMD ["sh", "-c", "node packages/cli/dist/index.js --mode server --agent $CONFIG_FILE"]

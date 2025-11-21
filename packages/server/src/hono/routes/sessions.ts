@@ -365,5 +365,44 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         });
     });
 
+    const generateTitleRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/generate-title',
+        summary: 'Generate Session Title',
+        description:
+            'Generates a descriptive title for the session using the first user message. Returns existing title if already set.',
+        tags: ['sessions'],
+        request: {
+            params: z.object({ sessionId: z.string().describe('Session identifier') }),
+        },
+        responses: {
+            200: {
+                description: 'Title generated successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                title: z
+                                    .string()
+                                    .nullable()
+                                    .describe('Generated title, or null if generation failed'),
+                                sessionId: z.string().describe('Session ID'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            404: {
+                description: 'Session not found (error format handled by middleware)',
+            },
+        },
+    });
+    app.openapi(generateTitleRoute, async (ctx) => {
+        const agent = getAgent();
+        const { sessionId } = ctx.req.valid('param');
+        const title = await agent.generateSessionTitle(sessionId);
+        return ctx.json({ title, sessionId });
+    });
+
     return app;
 }

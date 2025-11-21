@@ -165,7 +165,7 @@ export function startDiscordBot(agent: DextoAgent) {
                         );
                     });
             };
-            agentEventBus.on('llmservice:toolCall', toolCallHandler);
+            agentEventBus.on('llm:tool-call', toolCallHandler);
 
             try {
                 const sessionId = getDiscordSessionId(message.author.id);
@@ -214,7 +214,7 @@ export function startDiscordBot(agent: DextoAgent) {
                     console.error('Error sending error reply:', replyError);
                 }
             } finally {
-                agentEventBus.off('llmservice:toolCall', toolCallHandler);
+                agentEventBus.off('llm:tool-call', toolCallHandler);
                 // Set cooldown for the user after processing
                 if (RATE_LIMIT_ENABLED && COOLDOWN_SECONDS > 0) {
                     userCooldowns.set(message.author.id, Date.now() + COOLDOWN_SECONDS * 1000);

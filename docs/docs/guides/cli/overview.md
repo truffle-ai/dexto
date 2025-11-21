@@ -458,7 +458,7 @@ dexto --agent database-agent
 ### API Server
 
 ```bash
-# Start REST + WebSocket server (default port 3001)
+# Start REST + SSE streaming server (default port 3001)
 dexto --mode server
 
 # With custom API port

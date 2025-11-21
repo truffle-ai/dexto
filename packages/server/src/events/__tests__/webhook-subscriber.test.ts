@@ -108,13 +108,13 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.subscribe(agentEventBus);
 
             // Verify that all expected events are subscribed to
-            expect(mockOn).toHaveBeenCalledWith('llmservice:thinking', expect.any(Function), {
+            expect(mockOn).toHaveBeenCalledWith('llm:thinking', expect.any(Function), {
                 signal: expect.any(AbortSignal),
             });
-            expect(mockOn).toHaveBeenCalledWith('llmservice:response', expect.any(Function), {
+            expect(mockOn).toHaveBeenCalledWith('llm:response', expect.any(Function), {
                 signal: expect.any(AbortSignal),
             });
-            expect(mockOn).toHaveBeenCalledWith('dexto:conversationReset', expect.any(Function), {
+            expect(mockOn).toHaveBeenCalledWith('session:reset', expect.any(Function), {
                 signal: expect.any(AbortSignal),
             });
         });
@@ -154,7 +154,7 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.subscribe(agentEventBus);
 
             // Emit event and wait for async delivery
-            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('session:reset', { sessionId: 'test-session' });
 
             // Wait for async delivery to complete (much shorter in test env due to 1ms delays)
             await new Promise((resolve) => setTimeout(resolve, 10));
@@ -167,10 +167,10 @@ describe('WebhookEventSubscriber', () => {
                     headers: expect.objectContaining({
                         'Content-Type': 'application/json',
                         'User-Agent': 'DextoAgent/1.0',
-                        'X-Dexto-Event-Type': 'dexto:conversationReset',
+                        'X-Dexto-Event-Type': 'session:reset',
                         'X-Dexto-Signature-256': expect.stringMatching(/^sha256=[a-f0-9]{64}$/),
                     }),
-                    body: expect.stringContaining('"type":"dexto:conversationReset"'),
+                    body: expect.stringContaining('"type":"session:reset"'),
                 })
             );
         });
@@ -178,7 +178,7 @@ describe('WebhookEventSubscriber', () => {
         it('should not deliver events when no webhooks are registered', async () => {
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('session:reset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -195,7 +195,7 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.addWebhook(webhook);
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('llmservice:response', {
+            agentEventBus.emit('llm:response', {
                 content: 'Hello world',
                 sessionId: 'test-session',
                 tokenUsage: { totalTokens: 2 },
@@ -211,7 +211,7 @@ describe('WebhookEventSubscriber', () => {
 
             expect(requestBody).toMatchObject({
                 id: expect.stringMatching(/^evt_/),
-                type: 'llmservice:response',
+                type: 'llm:response',
                 data: {
                     content: 'Hello world',
                     sessionId: 'test-session',
@@ -245,7 +245,7 @@ describe('WebhookEventSubscriber', () => {
                 'https://example.com/webhook',
                 expect.objectContaining({
                     method: 'POST',
-                    body: expect.stringContaining('"type":"dexto:availableToolsUpdated"'),
+                    body: expect.stringContaining('"type":"tools:available-updated"'),
                 })
             );
         });
@@ -314,7 +314,7 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.addWebhook(webhook);
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('session:reset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -336,7 +336,7 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.addWebhook(webhook);
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('session:reset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -411,7 +411,7 @@ describe('WebhookEventSubscriber', () => {
             webhookSubscriber.addWebhook(webhook2);
             webhookSubscriber.subscribe(agentEventBus);
 
-            agentEventBus.emit('dexto:conversationReset', { sessionId: 'test-session' });
+            agentEventBus.emit('session:reset', { sessionId: 'test-session' });
 
             await new Promise((resolve) => setTimeout(resolve, 200));
 

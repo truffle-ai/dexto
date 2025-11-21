@@ -12,6 +12,8 @@ import type {
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
+import { EventStreamClient, SSEEvent } from '../../lib/EventStreamClient';
+import { getApiUrl } from '../../lib/api-url';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -138,15 +140,18 @@ export interface ErrorMessage {
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-export function useChat(wsUrl: string, getActiveSessionId?: () => string | null) {
+export function useChat(apiUrl: string, getActiveSessionId?: () => string | null) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
-    const wsRef = useRef<globalThis.WebSocket | null>(null);
+
+    // Ref for aborting current stream
+    const abortControllerRef = useRef<AbortController | null>(null);
+
     const [messages, setMessages] = useState<Message[]>([]);
 
     // Track the last user message id to anchor errors inline in the UI
     const lastUserMessageIdRef = useRef<string | null>(null);
-    const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
+    const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('closed');
     const [processing, setProcessing] = useState<boolean>(false);
     // Separate error state - not part of message flow
     const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
@@ -172,49 +177,41 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         return !!current && sessionId === current;
     }, []);
 
-    useEffect(() => {
-        const ws = new globalThis.WebSocket(wsUrl);
+    const processEvent = useCallback(
+        (event: SSEEvent) => {
+            if (!event.data) return;
 
-        wsRef.current = ws;
-        ws.onopen = () => setStatus('open');
-        ws.onclose = () => setStatus('closed');
-        ws.onerror = (_evt) => {
-            setStatus('closed');
-            setActiveError({
-                id: generateUniqueId(),
-                message: 'Connection error. Please try again.',
-                timestamp: Date.now(),
-                context: 'websocket',
-            });
-        };
-        ws.onmessage = (event: globalThis.MessageEvent) => {
-            // TODO: Replace untyped WebSocket payloads with a shared, typed schema
-            // Define a union for { event: 'chunk' | 'response' | ...; data: ... } and
-            // use proper type guards instead of `any` casting here.
-            let msg: any;
+            // TODO: Replace with proper discriminated union types after Hono HC client SDK migration
+            // Hono HC will generate types from API routes for type-safe SSE event payloads
+            // See PR 450 comment: https://github.com/truffle-ai/dexto/pull/450#discussion_r2546398874
+            let payload: any;
             try {
-                msg = JSON.parse(event.data);
-            } catch (err: unknown) {
-                const error = toError(err);
-                console.error(`[useChat] WebSocket message parse error: ${error.message}`, {
-                    error,
-                });
-                return; // Skip malformed message
+                payload = JSON.parse(event.data);
+            } catch (e) {
+                console.error('Failed to parse event data', e);
+                return;
             }
-            const payload = msg.data || {};
-            switch (msg.event) {
-                case 'chunk': {
-                    if (!isForActiveSession((payload as any).sessionId)) return;
+
+            const eventType = event.event;
+
+            // Check session match
+            if (payload.sessionId && !isForActiveSession(payload.sessionId)) {
+                return;
+            }
+
+            switch (eventType) {
+                case 'llm:thinking':
+                    // LLM started thinking - can update UI status
                     setProcessing(true);
-                    // All chunk types use payload.content
-                    const text = typeof payload.content === 'string' ? payload.content : '';
-                    if (!text) break;
-                    const chunkType = payload.type as 'text' | 'reasoning' | undefined;
+                    setStatus('open');
+                    break;
+
+                case 'llm:chunk': {
+                    const text = payload.content || '';
+                    const chunkType = payload.chunkType;
 
                     setMessages((ms) => {
                         if (chunkType === 'reasoning') {
-                            // Update reasoning on the last assistant message if present,
-                            // otherwise create a placeholder assistant message to host the reasoning stream.
                             const last = ms[ms.length - 1];
                             if (last && last.role === 'assistant') {
                                 const updated = {
@@ -224,7 +221,6 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 };
                                 return [...ms.slice(0, -1), updated];
                             }
-                            // No assistant yet; create one with empty content and initial reasoning
                             return [
                                 ...ms,
                                 {
@@ -236,10 +232,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                                 },
                             ];
                         } else {
-                            // For text chunks, update content
                             const last = ms[ms.length - 1];
                             if (last && last.role === 'assistant') {
-                                // Ensure content is always a string for streaming
                                 const currentContent =
                                     typeof last.content === 'string' ? last.content : '';
                                 const newContent = currentContent + text;
@@ -263,112 +257,65 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     });
                     break;
                 }
-                case 'response': {
-                    if (!isForActiveSession((payload as any).sessionId)) return;
+
+                case 'llm:response': {
                     setProcessing(false);
-                    const text = typeof payload.text === 'string' ? payload.text : '';
-                    const reasoning =
-                        typeof payload.reasoning === 'string' ? payload.reasoning : undefined;
-                    const tokenUsage =
-                        payload && typeof payload.tokenUsage === 'object'
-                            ? (payload.tokenUsage as {
-                                  inputTokens?: number;
-                                  outputTokens?: number;
-                                  reasoningTokens?: number;
-                                  totalTokens?: number;
-                              })
-                            : undefined;
-                    const model = typeof payload.model === 'string' ? payload.model : undefined;
-                    const provider =
-                        typeof payload.provider === 'string'
-                            ? (payload.provider as LLMProvider)
-                            : undefined;
-                    const router = typeof payload.router === 'string' ? payload.router : undefined;
-                    const sessionId =
-                        typeof payload.sessionId === 'string' ? payload.sessionId : undefined;
+                    const text = payload.content || '';
+                    const usage = payload.tokenUsage;
+                    const model = payload.model;
+                    const provider = payload.provider;
+                    const router = payload.router;
 
                     setMessages((ms) => {
-                        // Check if this response is updating an existing message
                         const lastMsg = ms[ms.length - 1];
                         if (lastMsg && lastMsg.role === 'assistant') {
-                            // Update existing message with final content and metadata
-                            // Ensure content is always a string for consistency
                             const finalContent = typeof text === 'string' ? text : '';
                             const updatedMsg: Message = {
                                 ...lastMsg,
                                 content: finalContent,
-                                tokenUsage,
-                                reasoning,
-                                model,
-                                provider,
-                                router,
+                                tokenUsage: usage,
+                                ...(model && { model }),
+                                ...(provider && { provider }),
+                                ...(router && { router }),
                                 createdAt: Date.now(),
-                                sessionId: sessionId ?? lastMsg.sessionId,
                             };
                             return [...ms.slice(0, -1), updatedMsg];
                         }
-
-                        // Create new message if no existing assistant message
-                        const newMsg: Message = {
-                            id: generateUniqueId(),
-                            role: 'assistant',
-                            content: text,
-                            createdAt: Date.now(),
-                            tokenUsage,
-                            reasoning,
-                            model,
-                            provider,
-                            router,
-                            sessionId,
-                        };
-                        return [...ms, newMsg];
+                        return ms;
                     });
 
-                    // Emit DOM event for other components to listen to
+                    // Emit DOM event
                     if (typeof window !== 'undefined') {
                         window.dispatchEvent(
                             new CustomEvent('dexto:response', {
                                 detail: {
                                     text,
-                                    sessionId,
-                                    reasoning,
-                                    tokenUsage,
-                                    model,
+                                    sessionId: payload.sessionId,
+                                    tokenUsage: usage,
                                     timestamp: Date.now(),
                                 },
                             })
                         );
                     }
-
                     break;
                 }
-                case 'conversationReset':
-                    if (!isForActiveSession((payload as any).sessionId)) return;
-                    setProcessing(false);
-                    setMessages([]);
-                    lastUserMessageIdRef.current = null;
-                    pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
-                    break;
-                case 'toolCall': {
-                    if (!isForActiveSession((payload as any).sessionId)) return;
-                    const name = payload.toolName;
-                    const args = payload.args;
-                    const callId = payload.callId;
+
+                case 'llm:tool-call': {
+                    const { toolName, args, callId } = payload;
                     setMessages((ms) => {
                         const newIndex = ms.length;
                         const newMessages: Message[] = [
                             ...ms,
                             {
                                 id: generateUniqueId(),
-                                role: 'tool' as const,
+                                role: 'tool',
                                 content: null,
-                                toolName: name,
+                                toolName,
                                 toolArgs: args,
                                 toolCallId: callId,
                                 createdAt: Date.now(),
                             },
                         ];
-                        // Store callId -> index mapping for O(1) lookup
                         if (callId) {
                             pendingToolCallsRef.current.set(callId, newIndex);
                         }
@@ -376,470 +323,313 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
                     });
                     break;
                 }
-                case 'toolResult': {
-                    if (!isForActiveSession((payload as any).sessionId)) return;
-                    const name = payload.toolName;
-                    const sanitized: SanitizedToolResult | undefined = payload.sanitized;
-                    const callId =
-                        sanitized?.meta?.toolCallId ??
-                        (typeof (payload as any).toolCallId === 'string'
-                            ? (payload as any).toolCallId
-                            : undefined) ??
-                        (typeof (payload as any).callId === 'string'
-                            ? (payload as any).callId
-                            : undefined) ??
-                        (typeof (payload as any).id === 'string' ? (payload as any).id : undefined);
-                    const rawResult = payload.rawResult;
-                    const successFlag =
-                        typeof payload.success === 'boolean' ? payload.success : undefined;
-                    const result = sanitized ?? rawResult;
+
+                case 'llm:tool-result': {
+                    const { callId, success, sanitized, toolName } = payload;
+                    const result = sanitized; // Core events use 'sanitized' field
 
                     // Track tool call completion
-                    const sessionId = (payload as any).sessionId;
-                    if (sessionId && name) {
+                    if (toolName) {
                         analyticsRef.current.trackToolCalled({
-                            toolName: name,
-                            success: successFlag !== false,
-                            sessionId,
+                            toolName,
+                            success: success !== false,
+                            sessionId: payload.sessionId,
                         });
                     }
 
-                    // Process and normalize the tool result to ensure proper image handling
-                    let processedResult = result;
+                    // Normalize result logic (simplified from original useChat)
+                    // Note: The agent usually sanitizes results before emitting
 
-                    const normalizeContentPart = (
-                        part: unknown
-                    ): CoreTextPart | CoreImagePart | FilePart => {
-                        if (
-                            typeof part === 'object' &&
-                            part !== null &&
-                            (part as { type?: unknown }).type === 'image'
-                        ) {
-                            const imgPart = part as {
-                                data?: string;
-                                base64?: string;
-                                image?: string;
-                                url?: string;
-                                mimeType?: string;
-                            };
-
-                            const payload =
-                                imgPart.data ?? imgPart.base64 ?? imgPart.image ?? imgPart.url;
-                            if (payload) {
-                                return {
-                                    type: 'image',
-                                    image: payload,
-                                    ...(imgPart.mimeType ? { mimeType: imgPart.mimeType } : {}),
-                                } satisfies CoreImagePart;
-                            }
-                        }
-
-                        if (
-                            typeof part === 'object' &&
-                            part !== null &&
-                            (part as { type?: unknown }).type === 'audio'
-                        ) {
-                            const audioPart = part as {
-                                data?: string;
-                                base64?: string;
-                                audio?: string;
-                                url?: string;
-                                mimeType?: string;
-                                filename?: string;
-                            };
-
-                            const payload =
-                                audioPart.data ??
-                                audioPart.base64 ??
-                                audioPart.audio ??
-                                audioPart.url;
-                            if (payload && audioPart.mimeType) {
-                                return {
-                                    type: 'file',
-                                    data: payload,
-                                    mimeType: audioPart.mimeType,
-                                    ...(audioPart.filename ? { filename: audioPart.filename } : {}),
-                                } satisfies FilePart;
-                            }
-                        }
-
-                        if (
-                            typeof part === 'object' &&
-                            part !== null &&
-                            (part as { type?: unknown }).type === 'resource'
-                        ) {
-                            const resourcePart = part as {
-                                resource?: {
-                                    text?: string;
-                                    mimeType?: string;
-                                    title?: string;
-                                };
-                            };
-
-                            const resource = resourcePart.resource;
-                            if (resource?.text && resource.mimeType) {
-                                if (resource.mimeType.startsWith('image/')) {
-                                    return {
-                                        type: 'image',
-                                        image: resource.text,
-                                        mimeType: resource.mimeType,
-                                    } satisfies CoreImagePart;
-                                }
-
-                                return {
-                                    type: 'file',
-                                    data: resource.text,
-                                    mimeType: resource.mimeType,
-                                    ...(resource.title ? { filename: resource.title } : {}),
-                                } satisfies FilePart;
-                            }
-                        }
-
-                        if (
-                            typeof part === 'object' &&
-                            part !== null &&
-                            (part as { type?: unknown }).type === 'file'
-                        ) {
-                            const filePart = part as FilePart;
-                            return {
-                                type: 'file',
-                                data: filePart.data,
-                                mimeType: filePart.mimeType,
-                                ...(filePart.filename ? { filename: filePart.filename } : {}),
-                            } satisfies FilePart;
-                        }
-
-                        if (
-                            typeof part === 'object' &&
-                            part !== null &&
-                            (part as { type?: unknown }).type === 'text'
-                        ) {
-                            const textPart = part as CoreTextPart;
-                            return {
-                                type: 'text',
-                                text: textPart.text,
-                            } satisfies CoreTextPart;
-                        }
-
-                        if (typeof part === 'string') {
-                            return {
-                                type: 'text',
-                                text: part,
-                            } satisfies CoreTextPart;
-                        }
-
-                        return {
-                            type: 'text',
-                            text: JSON.stringify(part),
-                        } satisfies CoreTextPart;
-                    };
-
-                    if (sanitized && Array.isArray(sanitized.content) && successFlag !== false) {
-                        const normalizedContent = sanitized.content.map(normalizeContentPart);
-                        processedResult = {
-                            ...sanitized,
-                            content: normalizedContent,
-                        } satisfies SanitizedToolResult;
-                    } else if (result && Array.isArray((result as any).content)) {
-                        // Normalize media parts in tool result content
-                        const normalizedContent = result.content.map(normalizeContentPart);
-                        processedResult = { ...result, content: normalizedContent };
-                    }
-
-                    if (successFlag === false && rawResult) {
-                        processedResult = rawResult;
-                    }
-
-                    // Merge toolResult into the existing toolCall message
                     setMessages((ms) => {
                         let idx = -1;
-
-                        // Use O(1) lookup if callId is available and exists in map
                         if (callId && pendingToolCallsRef.current.has(callId)) {
                             idx = pendingToolCallsRef.current.get(callId)!;
-                            // Remove from pending map after retrieval
                             pendingToolCallsRef.current.delete(callId);
                         } else {
-                            // Fallback to O(n) name-based search (for backwards compatibility or missing callId)
                             idx = ms.findIndex(
                                 (m) =>
                                     m.role === 'tool' &&
                                     m.toolResult === undefined &&
-                                    m.toolName === name
+                                    m.toolName === toolName
                             );
                         }
 
                         if (idx !== -1 && idx < ms.length) {
                             const updatedMsg = {
                                 ...ms[idx],
-                                toolResult: processedResult,
-                                toolResultMeta: sanitized?.meta,
-                                toolResultSuccess: successFlag,
+                                toolResult: result,
+                                toolResultSuccess: success,
                             };
-
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }
-                        console.warn(
-                            `No matching tool call found for result of ${name}${callId ? ` (callId: ${callId})` : ''}`
-                        );
-                        // No matching toolCall found; do not append a new message
                         return ms;
                     });
                     break;
                 }
-                case 'toolConfirmationResponse': {
-                    // No UI output needed; just ignore.
+
+                case 'approval:request': {
+                    // Dispatch event for ToolConfirmationHandler
+                    if (typeof window !== 'undefined' && payload) {
+                        window.dispatchEvent(
+                            new CustomEvent('approval:request', {
+                                detail: {
+                                    approvalId: payload.approvalId,
+                                    type: payload.type, // Use 'type' field from event bus
+                                    timestamp: payload.timestamp,
+                                    metadata: payload.metadata,
+                                    sessionId: payload.sessionId,
+                                },
+                            })
+                        );
+                    }
                     break;
                 }
-                case 'error': {
-                    if (!isForActiveSession((payload as any).sessionId)) return;
-                    setProcessing(false);
-                    // TODO: Replace untyped WebSocket payloads with a shared, typed schema
-                    // Define a union for { event: 'error'; data: DextoValidationError | DextoRuntimeError } and
-                    // use proper type guards instead of manual payload inspection here.
 
-                    // If we recently triggered cancel locally, suppress the next provider error
+                case 'approval:response': {
+                    // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
+                    if (typeof window !== 'undefined' && payload) {
+                        window.dispatchEvent(
+                            new CustomEvent('approval:response', {
+                                detail: {
+                                    approvalId: payload.approvalId,
+                                    status: payload.status,
+                                    reason: payload.reason,
+                                    message: payload.message,
+                                    sessionId: payload.sessionId,
+                                },
+                            })
+                        );
+                    }
+                    break;
+                }
+
+                case 'llm:error': {
                     if (suppressNextErrorRef.current) {
                         suppressNextErrorRef.current = false;
                         break;
                     }
 
-                    // If this is a user-initiated cancel, do not surface an error UI.
-                    if (payload?.context === 'user_cancelled') {
-                        break;
-                    }
-
-                    // Otherwise, set an error banner (separate from messages)
-                    const errorMessage = toError(payload).message;
-
-                    // Serialize context if it's an object (e.g., from DextoRuntimeError)
-                    let contextStr: string | undefined;
-                    if (payload.context) {
-                        if (typeof payload.context === 'string') {
-                            contextStr = payload.context;
-                        } else if (typeof payload.context === 'object') {
-                            // Extract meaningful context (e.g., plugin name or scope)
-                            const ctx = payload.context as Record<string, unknown>;
-                            if (ctx.plugin) {
-                                contextStr = `plugin:${ctx.plugin}`;
-                            } else if (ctx.scope) {
-                                contextStr = String(ctx.scope);
-                            } else {
-                                contextStr = 'error';
-                            }
-                        }
-                    }
+                    const errorObj = payload.error || {};
+                    const message = errorObj.message || 'Unknown error';
 
                     setActiveError({
                         id: generateUniqueId(),
-                        message: errorMessage,
+                        message,
                         timestamp: Date.now(),
-                        context: contextStr,
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
-                        detailedIssues: Array.isArray(payload.issues)
-                            ? (payload.issues as Issue[])
-                            : [],
                     });
+                    setProcessing(false);
+                    setStatus('closed');
                     break;
                 }
-                case 'resourceCacheInvalidated': {
-                    // Handle resource cache invalidation events
-                    console.log('💾 Resource cache invalidated via WebSocket:', payload);
 
-                    // Dispatch DOM event for components to listen to
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:resourceCacheInvalidated', {
-                                detail: {
-                                    resourceUri: payload.resourceUri,
-                                    serverName: payload.serverName,
-                                    action: payload.action,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
-                    break;
-                }
-                // TODO: Architectural Inconsistency - Event Handling Patterns
-                // The current event flow has 3 different patterns with 3 layers of transformation:
-                //
-                // EventEmitter (core) → WebSocket (API) → useChat (WebUI)
-                //
-                // Pattern 1 (chunk/toolCall): Updates React state only
-                // Pattern 2 (response): Updates React state + dispatches DOM events
-                // Pattern 3 (MCP events below): Only dispatches DOM events (no React state)
-                //
-                // This creates confusion and maintenance burden. Consider refactoring to:
-                // - React Context for shared state across components
-                // - Direct WebSocket subscriptions in components that need them
-                // - Unified event system instead of EventEmitter → WebSocket → DOM
-                //
-                // Related files:
-                // - packages/core/src/events/index.ts (EventEmitter)
-                // - packages/cli/src/api/websocket-subscriber.ts (WebSocket)
-                // - packages/webui/components/hooks/useChat.ts (DOM events)
-                case 'mcpPromptsListChanged': {
-                    // Handle prompt list change events
-                    console.log('✨ Prompts list changed via WebSocket:', payload);
-
-                    // Dispatch DOM event for components to listen to
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:mcpPromptsListChanged', {
-                                detail: {
-                                    serverName: payload.serverName,
-                                    prompts: payload.prompts,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
-                    break;
-                }
-                case 'mcpToolsListChanged': {
-                    // Handle tool list change events
-                    console.log('🔧 Tools list changed via WebSocket:', payload);
-
-                    // Dispatch DOM event for components to listen to
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:mcpToolsListChanged', {
-                                detail: {
-                                    serverName: payload.serverName,
-                                    tools: payload.tools,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
-                    break;
-                }
-                case 'mcpResourceUpdated': {
-                    // Handle resource update events
-                    console.log('📋 Resource updated via WebSocket:', payload);
-
-                    // Dispatch DOM event for components to listen to
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:mcpResourceUpdated', {
-                                detail: {
-                                    serverName: payload.serverName,
-                                    resourceUri: payload.resourceUri,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
-                    break;
-                }
-                case 'sessionTitleUpdated': {
-                    const isObject = (value: unknown): value is Record<string, unknown> =>
-                        typeof value === 'object' && value !== null;
-                    const sessionId =
-                        isObject(payload) && typeof payload.sessionId === 'string'
-                            ? payload.sessionId
-                            : undefined;
-                    const title =
-                        isObject(payload) && typeof payload.title === 'string'
-                            ? payload.title
-                            : undefined;
-                    if (typeof window !== 'undefined' && sessionId && title) {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:sessionTitleUpdated', {
-                                detail: { sessionId, title, timestamp: Date.now() },
-                            })
-                        );
-                    }
-                    break;
-                }
-                default:
-                    break;
+                // Handle legacy events if server still sends them or mapped differently?
+                // No, we are using new SSE stream.
             }
-        };
-        return () => {
-            ws.close();
-        };
-    }, [wsUrl, isForActiveSession]);
+        },
+        [isForActiveSession]
+    );
 
     const sendMessage = useCallback(
-        (
+        async (
             content: string,
             imageData?: { base64: string; mimeType: string },
             fileData?: FileData,
             sessionId?: string,
-            stream = false
+            stream = true // Default to true for SSE
         ) => {
-            if (wsRef.current?.readyState === globalThis.WebSocket.OPEN) {
-                const message = {
-                    type: 'message',
+            if (!sessionId) {
+                console.error('Session ID required for sending message');
+                return;
+            }
+
+            // Abort previous request if any
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+
+            const abortController = new AbortController();
+            abortControllerRef.current = abortController;
+
+            setProcessing(true);
+            setStatus('connecting');
+
+            // Add user message to state
+            const userId = generateUniqueId();
+            lastUserMessageIdRef.current = userId;
+            setMessages((ms) => [
+                ...ms,
+                {
+                    id: userId,
+                    role: 'user',
                     content,
+                    createdAt: Date.now(),
+                    sessionId,
                     imageData,
                     fileData,
-                    sessionId,
-                    stream,
-                };
-                wsRef.current.send(JSON.stringify(message));
-                setProcessing(true);
+                },
+            ]);
 
-                // Add user message to local state immediately
-                const userId = generateUniqueId();
-                lastUserMessageIdRef.current = userId;
-                setMessages((ms) => [
-                    ...ms,
-                    {
-                        id: userId,
-                        role: 'user',
-                        content,
-                        createdAt: Date.now(),
-                        sessionId,
-                        imageData,
-                        fileData,
-                    },
-                ]);
+            // Emit DOM event
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                    new CustomEvent('dexto:message', {
+                        detail: { content, sessionId, timestamp: Date.now() },
+                    })
+                );
+            }
 
-                // Emit DOM event for other components to listen to
-                if (typeof window !== 'undefined') {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:message', {
-                            detail: { content, sessionId, timestamp: Date.now() },
-                        })
-                    );
+            try {
+                if (stream) {
+                    // Streaming mode: use /api/message-stream with SSE
+                    const client = new EventStreamClient();
+
+                    const response = await fetch(`${apiUrl}/api/message-stream`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: content,
+                            sessionId,
+                            imageData,
+                            fileData,
+                            stream: true,
+                        }),
+                        signal: abortController.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to send message: ${response.statusText}`);
+                    }
+
+                    // Response body is the SSE stream - connect to it directly
+                    const iterator = await client.connectFromResponse(response, {
+                        signal: abortController.signal,
+                    });
+
+                    setStatus('open');
+
+                    for await (const event of iterator) {
+                        processEvent(event);
+                    }
+
+                    setStatus('closed');
+                } else {
+                    // Non-streaming mode: use /api/message-sync and wait for full response
+                    const response = await fetch(`${apiUrl}/api/message-sync`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: content,
+                            sessionId,
+                            imageData,
+                            fileData,
+                        }),
+                        signal: abortController.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to send message: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+
+                    // Add assistant response as a complete message with metadata
+                    setMessages((ms) => [
+                        ...ms,
+                        {
+                            id: generateUniqueId(),
+                            role: 'assistant',
+                            content: data.response || '',
+                            createdAt: Date.now(),
+                            sessionId,
+                            ...(data.tokenUsage && { tokenUsage: data.tokenUsage }),
+                            ...(data.reasoning && { reasoning: data.reasoning }),
+                            ...(data.model && { model: data.model }),
+                            ...(data.provider && { provider: data.provider }),
+                            ...(data.router && { router: data.router }),
+                        },
+                    ]);
+
+                    setStatus('closed');
+                    setProcessing(false);
+
+                    // Emit DOM event with metadata
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(
+                            new CustomEvent('dexto:response', {
+                                detail: {
+                                    text: data.response,
+                                    sessionId,
+                                    tokenUsage: data.tokenUsage,
+                                    timestamp: Date.now(),
+                                },
+                            })
+                        );
+                    }
                 }
-            } else {
+            } catch (error: any) {
+                if (error.name === 'AbortError') {
+                    console.log('Stream aborted by user');
+                    return;
+                }
+
+                console.error('Stream error:', error);
+                setStatus('closed');
+                setProcessing(false);
+
                 setActiveError({
                     id: generateUniqueId(),
-                    message: 'Cannot send message: connection is not open',
+                    message: error.message || 'Failed to send message',
                     timestamp: Date.now(),
-                    context: 'websocket',
+                    context: 'stream',
                     recoverable: true,
+                    sessionId,
+                    anchorMessageId: userId,
                 });
+            } finally {
+                abortControllerRef.current = null;
             }
         },
-        []
+        [apiUrl, processEvent]
     );
 
-    const reset = useCallback((sessionId?: string) => {
-        if (wsRef.current?.readyState === globalThis.WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'reset', sessionId }));
-        }
-        setMessages([]);
-        setActiveError(null); // Clear errors on reset
-        lastUserMessageIdRef.current = null;
-        pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
-        setProcessing(false);
-    }, []);
+    const reset = useCallback(
+        async (sessionId?: string) => {
+            if (!sessionId) return;
+
+            try {
+                await fetch(`${apiUrl}/api/reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId }),
+                });
+            } catch (e) {
+                console.error('Failed to reset session', e);
+            }
+
+            setMessages([]);
+            setActiveError(null);
+            lastUserMessageIdRef.current = null;
+            pendingToolCallsRef.current.clear();
+            setProcessing(false);
+        },
+        [apiUrl]
+    );
 
     const cancel = useCallback((sessionId?: string) => {
-        if (wsRef.current?.readyState === globalThis.WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'cancel', sessionId }));
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
         }
-        // Optimistically clear processing state; server will also send events
         setProcessing(false);
-        pendingToolCallsRef.current.clear(); // Clear pending tool call mappings
-        // Ensure any ensuing provider stream error from abort does not surface as banner
+        setStatus('closed');
+        pendingToolCallsRef.current.clear();
         suppressNextErrorRef.current = true;
     }, []);
 
@@ -853,10 +643,8 @@ export function useChat(wsUrl: string, getActiveSessionId?: () => string | null)
         sendMessage,
         reset,
         setMessages,
-        websocket: wsRef.current,
         processing,
         cancel,
-        // Error state
         activeError,
         clearError,
     };

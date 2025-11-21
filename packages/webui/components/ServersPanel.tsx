@@ -238,16 +238,13 @@ export default function ServersPanel({
         };
 
         if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:mcpServerConnected', handleServerConnected);
-            window.addEventListener(
-                'dexto:resourceCacheInvalidated',
-                handleResourceCacheInvalidated
-            );
+            window.addEventListener('mcp:server-connected', handleServerConnected);
+            window.addEventListener('resource:cache-invalidated', handleResourceCacheInvalidated);
 
             return () => {
-                window.removeEventListener('dexto:mcpServerConnected', handleServerConnected);
+                window.removeEventListener('mcp:server-connected', handleServerConnected);
                 window.removeEventListener(
-                    'dexto:resourceCacheInvalidated',
+                    'resource:cache-invalidated',
                     handleResourceCacheInvalidated
                 );
             };

@@ -35,7 +35,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -64,7 +64,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -87,7 +87,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -118,7 +118,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -142,7 +142,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -168,7 +168,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     t(
@@ -194,7 +194,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     // Error handling tests
@@ -230,7 +230,7 @@ describe('OpenAI LLM Service Integration', () => {
                 await cleanupTestEnvironment(env);
             }
         },
-        20000
+        60000
     );
 
     // Skip test warning

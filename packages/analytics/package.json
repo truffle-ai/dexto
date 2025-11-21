@@ -18,7 +18,7 @@
     "node-machine-id": "^1.1.12"
   },
   "scripts": {
-    "build": "tsup && tsc -p tsconfig.json --emitDeclarationOnly",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json --emitDeclarationOnly",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts"
   },

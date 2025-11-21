@@ -38,7 +38,7 @@ Refer to the main project [README.md](../../../README.md) for more details on ge
 
 *   **Framework:** The bot now uses [grammY](https://grammy.dev), a modern, secure, and lightweight Telegram Bot framework with excellent TypeScript support.
 *   **Message Handling:** The bot uses long polling to receive updates from Telegram. grammY handles this automatically when `bot.start()` is called.
-*   **Tool Call Notifications:** The bot subscribes to `llmservice:toolCall` events on its `agentEventBus`. When a tool is about to be executed by the LLM service, a notification message (⚙️ Calling tool...) is sent to the Telegram chat where the command originated.
+*   **Tool Call Notifications:** The bot subscribes to `llm:tool-call` events on its `agentEventBus`. When a tool is about to be executed by the LLM service, a notification message (⚙️ Calling tool...) is sent to the Telegram chat where the command originated.
 *   **Image Attachments:** If a message includes a photo, the bot downloads the highest resolution version of the image, converts it to a base64 string, and passes it along with any caption text to the LLM service for processing.
 *   **Command Triggers & Interaction:**
     *   `/start`: Displays a welcome message and inline buttons (e.g., for resetting conversation).

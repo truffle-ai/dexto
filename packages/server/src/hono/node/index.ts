@@ -1,24 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
-import { WebSocketServer, type WebSocket } from 'ws';
 import type { DextoApp } from '../types.js';
 import type { DextoAgent } from '@dexto/core';
-import {
-    logger,
-    validateInputForLLM,
-    DextoValidationError,
-    AgentErrorCode,
-    ErrorScope,
-    ErrorType,
-    redactSensitiveData,
-    ApprovalResponseSchema,
-} from '@dexto/core';
-import { WebSocketEventSubscriber } from '../../events/websocket-subscriber.js';
-import {
-    sendWebSocketError,
-    sendWebSocketValidationError,
-} from '../../events/websocket-error-handler.js';
+import { logger } from '@dexto/core';
 import type { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 
 type FetchRequest = globalThis.Request;
@@ -28,7 +13,6 @@ export type NodeBridgeOptions = {
     getAgent: () => DextoAgent;
     port?: number;
     hostname?: string;
-    websocketPath?: string;
     mcpHandlers?: {
         handlePost: (
             req: IncomingMessage,
@@ -41,13 +25,11 @@ export type NodeBridgeOptions = {
 
 export type NodeBridgeResult = {
     server: ReturnType<typeof createServer>;
-    websocketServer: WebSocketServer;
-    webSubscriber: WebSocketEventSubscriber;
     webhookSubscriber?: WebhookEventSubscriber;
 };
 
 export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): NodeBridgeResult {
-    const { getAgent } = options;
+    const { getAgent: _getAgent } = options;
     const webhookSubscriber = app.webhookSubscriber;
 
     const server = createServer(async (req, res) => {
@@ -99,59 +81,8 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
         }
     });
 
-    const websocketServer = new WebSocketServer({ noServer: true });
-    const webSubscriber = new WebSocketEventSubscriber(websocketServer);
-    webSubscriber.subscribe(getAgent().agentEventBus);
-
-    // Normalize connection handling so both our subscriber and the per-connection
-    // message handler are wired via the same 'connection' event.
-    websocketServer.on('connection', (ws) => {
-        logger.info('WebSocket client connected.');
-        handleWebsocketConnection(getAgent, ws);
-    });
-
-    const websocketPath = options.websocketPath ?? '/';
-
     server.on('close', () => {
-        webSubscriber.cleanup();
         webhookSubscriber?.cleanup?.();
-    });
-
-    server.on('upgrade', (req, socket, head) => {
-        if (!req.url?.startsWith(websocketPath)) {
-            socket.destroy();
-            return;
-        }
-
-        // Authenticate WebSocket connections
-        // Default: Development mode (no auth)
-        // NODE_ENV=production or DEXTO_SERVER_REQUIRE_AUTH=true: Requires auth
-        const apiKey = process.env.DEXTO_SERVER_API_KEY;
-        const isProduction = process.env.NODE_ENV === 'production';
-        const requireAuth = process.env.DEXTO_SERVER_REQUIRE_AUTH === 'true';
-
-        // Only enforce auth if production mode OR explicit requirement
-        if ((isProduction || requireAuth) && apiKey) {
-            const authHeader = req.headers['authorization'];
-            const providedKey = authHeader?.replace(/^Bearer\s+/i, '');
-
-            if (!providedKey || providedKey !== apiKey) {
-                logger.warn('Unauthorized WebSocket connection attempt', {
-                    host: req.headers.host,
-                    origin: req.headers.origin,
-                    mode: isProduction ? 'production' : 'development',
-                });
-                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                socket.destroy();
-                return;
-            }
-        }
-
-        websocketServer.handleUpgrade(req, socket, head, (ws) => {
-            // Emit the standard 'connection' event so any listeners (like our
-            // WebSocketEventSubscriber) can register this client.
-            websocketServer.emit('connection', ws, req);
-        });
     });
 
     if (typeof options.port === 'number') {
@@ -163,8 +94,6 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
 
     const result: NodeBridgeResult = {
         server,
-        websocketServer,
-        webSubscriber,
     };
 
     if (webhookSubscriber) {
@@ -172,229 +101,6 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     }
 
     return result;
-}
-
-function handleWebsocketConnection(getAgent: () => DextoAgent, ws: WebSocket) {
-    ws.on('message', async (messageBuffer: Buffer) => {
-        const messageString = messageBuffer.toString();
-        try {
-            const data = JSON.parse(messageString);
-            const agent = getAgent();
-
-            // Log with agent logger for agent-specific messages
-            try {
-                const parsedMessage = JSON.parse(messageString);
-                const redactedMessage = redactSensitiveData(parsedMessage);
-                agent.logger.debug(
-                    `WebSocket received message: ${JSON.stringify(redactedMessage)}`
-                );
-            } catch {
-                const redacted = String(redactSensitiveData(messageString));
-                const truncated =
-                    redacted.length > 200
-                        ? `${redacted.substring(0, 200)}... (${redacted.length} total chars)`
-                        : redacted;
-                agent.logger.debug(`WebSocket received message: ${truncated}`);
-            }
-
-            // Handle approval responses (both new and deprecated formats)
-            if (
-                (data.type === 'approvalResponse' || data.type === 'toolConfirmationResponse') &&
-                data.data
-            ) {
-                // Validate the approval response payload with Zod schema
-                const validationResult = ApprovalResponseSchema.safeParse(data.data);
-                if (!validationResult.success) {
-                    agent.logger.warn(
-                        `Received invalid approval response payload: ${validationResult.error.message}`
-                    );
-                    // Do not emit invalid payloads
-                    return;
-                }
-                // Route validated approval response back via AgentEventBus
-                agent.agentEventBus.emit('dexto:approvalResponse', validationResult.data);
-                return;
-            }
-
-            if (data.type === 'message' && (data.content || data.imageData || data.fileData)) {
-                const imageDataInput = data.imageData
-                    ? { image: data.imageData.base64, mimeType: data.imageData.mimeType }
-                    : undefined;
-
-                const fileDataInput = data.fileData
-                    ? {
-                          data: data.fileData.base64,
-                          mimeType: data.fileData.mimeType,
-                          ...(data.fileData.filename && { filename: data.fileData.filename }),
-                      }
-                    : undefined;
-
-                const sessionId =
-                    typeof data.sessionId === 'string' ? (data.sessionId as string) : undefined;
-                if (!sessionId) {
-                    agent.logger.error(
-                        'Received WebSocket message without sessionId. Dropping message.'
-                    );
-                    return;
-                }
-                const stream = data.stream === true;
-
-                // Check agent availability before processing message
-                // Prevents processing during agent switching, stopping, or startup failures
-                if (!agent.isStarted() || agent.isStopped()) {
-                    agent.logger.error('Agent not available for WebSocket message processing');
-                    sendWebSocketError(
-                        ws,
-                        new Error('Agent is not available. Please try again.'),
-                        sessionId
-                    );
-                    return;
-                }
-
-                const currentConfig = agent.getEffectiveConfig(sessionId);
-                const llmProvider = currentConfig.llm.provider;
-                const llmModel = currentConfig.llm.model;
-                const validation = validateInputForLLM(
-                    {
-                        text: data.content,
-                        ...(imageDataInput && { imageData: imageDataInput }),
-                        ...(fileDataInput && { fileData: fileDataInput }),
-                    },
-                    {
-                        provider: llmProvider,
-                        model: llmModel,
-                    },
-                    agent.logger
-                );
-
-                if (!validation.ok) {
-                    const redactedIssues = redactSensitiveData(validation.issues);
-                    agent.logger.error('Invalid input for current LLM configuration', {
-                        provider: llmProvider,
-                        model: llmModel,
-                        issues: redactedIssues,
-                    });
-                    const hierarchicalError = new DextoValidationError([
-                        {
-                            code: AgentErrorCode.API_VALIDATION_ERROR,
-                            message: 'Invalid input for current LLM configuration',
-                            scope: ErrorScope.AGENT,
-                            type: ErrorType.USER,
-                            severity: 'error',
-                            context: {
-                                provider: llmProvider,
-                                model: llmModel,
-                                detailedIssues: validation.issues,
-                            },
-                        },
-                    ]);
-                    sendWebSocketError(ws, hierarchicalError, sessionId);
-                    return;
-                }
-
-                await agent.run(data.content, imageDataInput, fileDataInput, sessionId, stream);
-                return;
-            }
-
-            if (data.type === 'reset') {
-                const sessionId = data.sessionId as string | undefined;
-                if (!sessionId) {
-                    agent.logger.error('Received WebSocket reset without sessionId');
-                    sendWebSocketValidationError(
-                        ws,
-                        'sessionId is required for reset operation',
-                        'unknown',
-                        { messageType: 'reset' }
-                    );
-                    return;
-                }
-                agent.logger.info(`Processing reset command from WebSocket for session: ${sessionId}`);
-
-                // Check agent availability before processing reset
-                if (!agent.isStarted() || agent.isStopped()) {
-                    agent.logger.error('Agent not available for WebSocket reset');
-                    sendWebSocketError(
-                        ws,
-                        new Error('Agent is not available. Please try again.'),
-                        sessionId
-                    );
-                    return;
-                }
-
-                await agent.resetConversation(sessionId);
-                return;
-            }
-
-            if (data.type === 'cancel') {
-                const sessionId = data.sessionId as string | undefined;
-                if (!sessionId) {
-                    agent.logger.error('Received WebSocket cancel without sessionId');
-                    sendWebSocketValidationError(
-                        ws,
-                        'sessionId is required for cancel operation',
-                        'unknown',
-                        { messageType: 'cancel' }
-                    );
-                    return;
-                }
-                agent.logger.info(`Processing cancel command from WebSocket for session: ${sessionId}`);
-
-                // Check agent availability before processing cancel
-                if (!agent.isStarted() || agent.isStopped()) {
-                    agent.logger.error('Agent not available for WebSocket cancel');
-                    sendWebSocketError(
-                        ws,
-                        new Error('Agent is not available. Please try again.'),
-                        sessionId
-                    );
-                    return;
-                }
-
-                const cancelled = await agent.cancel(sessionId);
-                if (!cancelled) {
-                    agent.logger.debug('No in-flight run to cancel');
-                }
-                return;
-            }
-
-            agent.logger.warn(`Received unknown WebSocket message type: ${data.type}`);
-            if (typeof data.sessionId === 'string') {
-                sendWebSocketValidationError(ws, 'Unknown message type', data.sessionId, {
-                    messageType: data.type,
-                });
-            } else {
-                agent.logger.error('Cannot send error for unknown message type without sessionId.');
-            }
-        } catch (error) {
-            // Use global logger for error handling since agent may not be accessible
-            logger.error(
-                `Error processing WebSocket message: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-            try {
-                const maybe = JSON.parse(messageBuffer.toString());
-                if (typeof maybe.sessionId === 'string') {
-                    sendWebSocketError(ws, error, maybe.sessionId);
-                } else {
-                    logger.error(
-                        'Cannot send WebSocket error without sessionId. Error will be logged only.'
-                    );
-                }
-            } catch {
-                logger.error(
-                    'Cannot parse incoming message to extract sessionId for error reporting.'
-                );
-            }
-        }
-    });
-
-    ws.on('close', () => {
-        logger.info('WebSocket client disconnected.');
-    });
-
-    ws.on('error', (error: Error) => {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`WebSocket error: ${errorMessage}`);
-    });
 }
 
 async function toRequest(req: IncomingMessage): Promise<FetchRequest> {

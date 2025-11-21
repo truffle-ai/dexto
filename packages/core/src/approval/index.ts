@@ -4,7 +4,7 @@
 
 // Types
 export type {
-    ApprovalProvider,
+    ApprovalHandler,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
@@ -70,7 +70,3 @@ export type {
 // Manager
 export { ApprovalManager } from './manager.js';
 export type { ApprovalManagerConfig } from './manager.js';
-
-// Providers
-export { EventBasedApprovalProvider } from './providers/event-based-approval-provider.js';
-export { NoOpApprovalProvider } from './providers/noop-approval-provider.js';

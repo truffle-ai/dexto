@@ -10,10 +10,13 @@ import {
     createMcpTransport as createServerMcpTransport,
     createMcpHttpHandlers,
     initializeMcpServer as initializeServerMcpServer,
+    createManualApprovalHandler,
+    WebhookEventSubscriber,
+    A2ASseEventSubscriber,
+    ApprovalCoordinator,
     type McpTransportType,
 } from '@dexto/server';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
-import path from 'path';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
@@ -32,8 +35,6 @@ function resolveBaseUrl(port: number): string {
 export type HonoInitializationResult = {
     app: ReturnType<typeof createDextoApp>;
     server: ReturnType<typeof createNodeServer>['server'];
-    websocketServer: ReturnType<typeof createNodeServer>['websocketServer'];
-    webSubscriber: ReturnType<typeof createNodeServer>['webSubscriber'];
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
     agentCard: AgentCard;
     mcpTransport?: Transport;
@@ -67,10 +68,29 @@ export async function initializeHonoApi(
             defaultName: overrides.name ?? activeAgentId,
             defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
             defaultBaseUrl: baseApiUrl,
-            webSubscriber: true, // Will be updated after bridge creation
         },
         overrides
     );
+
+    // Create event subscribers and approval coordinator (shared across agent switches)
+    const webhookSubscriber = new WebhookEventSubscriber();
+    const sseSubscriber = new A2ASseEventSubscriber();
+    const approvalCoordinator = new ApprovalCoordinator();
+
+    /**
+     * Wire services (SSE subscribers) to an agent.
+     * Called for agent switching to re-subscribe to the new agent's event bus.
+     * Note: Approval handler and coordinator are set before agent.start() for each agent.
+     */
+    async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
+        logger.debug('Wiring services to agent...');
+
+        // Subscribe to event bus (methods handle aborting previous subscriptions)
+        webhookSubscriber.subscribe(agent.agentEventBus);
+        sseSubscriber.subscribe(agent.agentEventBus);
+        // Note: ApprovalCoordinator doesn't subscribe to agent event bus
+        // It's a separate coordination channel between handler and server
+    }
 
     /**
      * Helper to resolve agent ID to { id, name } by looking up in registry
@@ -114,20 +134,35 @@ export async function initializeHonoApi(
         agentId: string,
         bridge: ReturnType<typeof createNodeServer>
     ) {
-        // Register event subscribers with new agent before starting
-        logger.info('Registering event subscribers with new agent...');
-        newAgent.registerSubscriber(bridge.webSubscriber);
+        logger.info('Preparing new agent for switch...');
+
+        // Register webhook subscriber for LLM streaming events
         if (bridge.webhookSubscriber) {
             newAgent.registerSubscriber(bridge.webhookSubscriber);
         }
 
-        logger.info(`Starting new agent: ${agentId}`);
-        await newAgent.start();
-
-        // Stop previous agent last (only after new one is fully operational)
+        // Switch activeAgent reference first
         const previousAgent = activeAgent;
         activeAgent = newAgent;
         activeAgentId = agentId;
+
+        // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
+        const needsHandler =
+            newAgent.config.toolConfirmation?.mode === 'manual' ||
+            newAgent.config.elicitation.enabled;
+
+        if (needsHandler) {
+            logger.debug('Setting up manual approval handler for new agent...');
+            const handler = createManualApprovalHandler(approvalCoordinator);
+            newAgent.setApprovalHandler(handler);
+        }
+
+        // Wire SSE subscribers BEFORE starting
+        logger.info('Wiring services to new agent...');
+        await wireServicesToAgent(newAgent);
+
+        logger.info(`Starting new agent: ${agentId}`);
+        await newAgent.start();
 
         // Update agent card for A2A and MCP routes
         agentCardData = createAgentCard(
@@ -135,7 +170,6 @@ export async function initializeHonoApi(
                 defaultName: agentId,
                 defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
                 defaultBaseUrl: baseApiUrl,
-                webSubscriber: bridge.webSubscriber,
             },
             overrides
         );
@@ -269,6 +303,9 @@ export async function initializeHonoApi(
         apiPrefix: '/api',
         getAgent,
         getAgentCard,
+        approvalCoordinator,
+        webhookSubscriber,
+        sseSubscriber,
         agentsContext: {
             switchAgentById: (id: string) => {
                 if (!bridgeRef) throw new Error('Bridge not initialized');
@@ -294,37 +331,46 @@ export async function initializeHonoApi(
         mcpTransport = undefined;
     }
 
-    // Create bridge with app - bridge will create webSubscriber
+    // Create bridge with app
     bridgeRef = createNodeServer(app, {
         getAgent,
         mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
     });
 
-    // Register subscribers with initial agent
-    logger.info('Registering event subscribers with agent...');
-    activeAgent.registerSubscriber(bridgeRef.webSubscriber);
+    // Register webhook subscriber for LLM streaming events
+    logger.info('Registering webhook subscriber with agent...');
     if (bridgeRef.webhookSubscriber) {
         activeAgent.registerSubscriber(bridgeRef.webhookSubscriber);
     }
 
-    // Update agent card with actual webSubscriber
+    // Update agent card
     agentCardData = createAgentCard(
         {
             defaultName: overrides.name ?? activeAgentId,
             defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
             defaultBaseUrl: baseApiUrl,
-            webSubscriber: bridgeRef.webSubscriber,
         },
         overrides
     );
 
-    // Ensure the initial agent is started
-    if (!activeAgent.isStarted() && !activeAgent.isStopped()) {
-        logger.info('Starting initial agent...');
-        await activeAgent.start();
-    } else if (activeAgent.isStopped()) {
-        logger.warn('Initial agent is stopped, this may cause issues');
+    // Set approval handler for initial agent if manual mode OR elicitation enabled (before start() for validation)
+    const needsHandler =
+        activeAgent.config.toolConfirmation?.mode === 'manual' ||
+        activeAgent.config.elicitation.enabled;
+
+    if (needsHandler) {
+        logger.debug('Setting up manual approval handler for initial agent...');
+        const handler = createManualApprovalHandler(approvalCoordinator);
+        activeAgent.setApprovalHandler(handler);
     }
+
+    // Wire SSE subscribers to initial agent
+    logger.info('Wiring SSE subscribers to initial agent...');
+    await wireServicesToAgent(activeAgent);
+
+    // Start the initial agent now that approval handler is set and subscribers are wired
+    logger.info('Starting initial agent...');
+    await activeAgent.start();
 
     // Initialize MCP server after agent has started
     if (mcpTransport) {
@@ -340,8 +386,6 @@ export async function initializeHonoApi(
     return {
         app,
         server: bridgeRef.server,
-        websocketServer: bridgeRef.websocketServer,
-        webSubscriber: bridgeRef.webSubscriber,
         ...(bridgeRef.webhookSubscriber ? { webhookSubscriber: bridgeRef.webhookSubscriber } : {}),
         agentCard: agentCardData,
         ...(mcpTransport ? { mcpTransport } : {}),
@@ -361,11 +405,9 @@ export async function startHonoApiServer(
     agentId?: string
 ): Promise<{
     server: ReturnType<typeof createNodeServer>['server'];
-    wss: ReturnType<typeof createNodeServer>['websocketServer'];
-    webSubscriber: ReturnType<typeof createNodeServer>['webSubscriber'];
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
 }> {
-    const { server, websocketServer, webSubscriber, webhookSubscriber } = await initializeHonoApi(
+    const { server, webhookSubscriber } = await initializeHonoApi(
         agent,
         agentCardOverride,
         port,
@@ -392,8 +434,6 @@ export async function startHonoApiServer(
 
     return {
         server,
-        wss: websocketServer,
-        webSubscriber,
         ...(webhookSubscriber ? { webhookSubscriber } : {}),
     };
 }

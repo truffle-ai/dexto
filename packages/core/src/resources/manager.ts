@@ -211,13 +211,13 @@ export class ResourceManager {
      */
     private setupNotificationListeners(): void {
         // Listen for MCP resource updates
-        eventBus.on('dexto:mcpResourceUpdated', async (payload) => {
+        eventBus.on('mcp:resource-updated', async (payload) => {
             this.logger.debug(
                 `🔄 Resource updated notification: ${payload.resourceUri} from server '${payload.serverName}'`
             );
 
             // Emit a more specific event for components that need to refresh resource lists
-            eventBus.emit('dexto:resourceCacheInvalidated', {
+            eventBus.emit('resource:cache-invalidated', {
                 resourceUri: payload.resourceUri,
                 serverName: payload.serverName,
                 action: 'updated',
@@ -225,21 +225,21 @@ export class ResourceManager {
         });
 
         // Listen for MCP server connection changes that affect resources
-        eventBus.on('dexto:mcpServerConnected', async (payload) => {
+        eventBus.on('mcp:server-connected', async (payload) => {
             if (payload.success) {
                 this.logger.debug(
                     `🔄 Server connected, resources may have changed: ${payload.name}`
                 );
-                eventBus.emit('dexto:resourceCacheInvalidated', {
+                eventBus.emit('resource:cache-invalidated', {
                     serverName: payload.name,
                     action: 'server_connected',
                 });
             }
         });
 
-        eventBus.on('dexto:mcpServerRemoved', async (payload) => {
+        eventBus.on('mcp:server-removed', async (payload) => {
             this.logger.debug(`🔄 Server removed, resources invalidated: ${payload.serverName}`);
-            eventBus.emit('dexto:resourceCacheInvalidated', {
+            eventBus.emit('resource:cache-invalidated', {
                 serverName: payload.serverName,
                 action: 'server_removed',
             });

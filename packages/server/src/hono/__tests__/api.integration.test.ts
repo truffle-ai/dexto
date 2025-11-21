@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { TextDecoder } from 'node:util';
+import type { StreamingEvent } from '@dexto/core';
 import {
     createTestAgent,
     startTestServer,
@@ -475,6 +477,89 @@ describe('Hono API Integration Tests', () => {
                 sessionId: 'test-session-reset',
             });
             expect(res.status).toBe(200);
+        });
+
+        it('POST /api/message-stream returns SSE stream directly', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+            const agent = testServer.agent;
+            const originalStream = agent.stream;
+            const fakeEvents: StreamingEvent[] = [
+                {
+                    type: 'llm:thinking',
+                    sessionId,
+                },
+                {
+                    type: 'llm:chunk',
+                    content: 'hello',
+                    chunkType: 'text',
+                    isComplete: false,
+                    sessionId,
+                },
+                {
+                    type: 'llm:response',
+                    content: 'hello',
+                    tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    sessionId,
+                    provider: 'openai',
+                    model: 'test-model',
+                },
+            ];
+
+            agent.stream = async function (
+                _message: string,
+                _options
+            ): Promise<AsyncIterableIterator<StreamingEvent>> {
+                async function* generator() {
+                    for (const event of fakeEvents) {
+                        yield event;
+                    }
+                }
+                return generator();
+            } as typeof agent.stream;
+
+            try {
+                // POST to /api/message-stream - response IS the SSE stream
+                const response = await fetch(`${testServer.baseUrl}/api/message-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId,
+                        message: 'Say hello',
+                    }),
+                });
+
+                expect(response.status).toBe(200);
+                expect(response.headers.get('content-type')).toBe('text/event-stream');
+
+                const reader = response.body?.getReader();
+                if (!reader) throw new Error('Response does not contain a readable body');
+
+                const decoder = new TextDecoder();
+                let received = '';
+                let chunks = 0;
+                while (chunks < 50) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    chunks++;
+                    received += decoder.decode(value, { stream: true });
+                    if (received.includes('event: llm:response')) {
+                        break;
+                    }
+                }
+
+                await reader.cancel();
+
+                expect(received).toContain('event: llm:thinking');
+                expect(received).toContain('event: llm:response');
+            } finally {
+                agent.stream = originalStream;
+            }
         });
     });
 

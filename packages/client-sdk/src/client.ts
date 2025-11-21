@@ -1,5 +1,4 @@
 import { HttpClient } from './http-client.js';
-import { WebSocketClient, EventHandler } from './websocket-client.js';
 import {
     ClientConfig,
     ClientOptions,
@@ -20,7 +19,7 @@ import { ClientError } from './errors.js';
 import { isValidUrl } from './schemas.js';
 
 /**
- * Dexto Client SDK - Ultra-lightweight HTTP/WebSocket wrapper
+ * Dexto Client SDK - Ultra-lightweight HTTP wrapper
  *
  * This SDK provides a thin interface for interacting with Dexto API.
  * All validation is handled by the server - we just pass data through.
@@ -43,7 +42,6 @@ import { isValidUrl } from './schemas.js';
  */
 export class DextoClient {
     private http: HttpClient;
-    private ws: WebSocketClient | null = null;
     private config: ClientConfig;
     private options: ClientOptions;
 
@@ -65,34 +63,19 @@ export class DextoClient {
         };
 
         this.options = {
-            enableWebSocket: options.enableWebSocket ?? true,
-            reconnect: options.reconnect ?? true,
-            reconnectInterval: options.reconnectInterval ?? 5000,
             debug: options.debug ?? false,
         };
 
         this.http = new HttpClient(this.config);
-
-        if (this.options.enableWebSocket) {
-            this.initializeWebSocket();
-        }
-    }
-
-    private initializeWebSocket() {
-        const wsUrl = this.config.baseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
-        this.ws = new WebSocketClient(wsUrl, {
-            reconnect: this.options.reconnect ?? true,
-            reconnectInterval: this.options.reconnectInterval ?? 5000,
-        });
     }
 
     // ============= CONNECTION MANAGEMENT =============
 
     /**
-     * Establish connection to Dexto server (including WebSocket if enabled)
+     * Establish connection to Dexto server
      */
     async connect(): Promise<void> {
-        // Test HTTP connection first
+        // Test HTTP connection
         try {
             await this.http.get('/health');
         } catch (error) {
@@ -101,32 +84,13 @@ export class DextoClient {
                 error instanceof Error ? error : undefined
             );
         }
-
-        // Connect WebSocket if enabled
-        if (this.options.enableWebSocket && this.ws) {
-            try {
-                await this.ws.connect();
-            } catch (error) {
-                if (this.options.debug) {
-                    console.warn(
-                        `WebSocket connection failed, continuing with HTTP-only mode: ${
-                            error instanceof Error ? error.message : String(error)
-                        }`
-                    );
-                }
-                this.ws = null;
-            }
-        }
     }
 
     /**
      * Disconnect from Dexto server
      */
     disconnect(): void {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
+        // No-op for HTTP-only client
     }
 
     // ============= MESSAGING =============
@@ -152,27 +116,6 @@ export class DextoClient {
         };
 
         return this.http.post<MessageResponse>(endpoint, requestBody);
-    }
-
-    /**
-     * Send a message via WebSocket for streaming responses
-     */
-    sendMessageStream(input: MessageInput): boolean {
-        if (!this.ws || this.ws.state !== 'open') {
-            throw ClientError.connectionFailed(
-                'WebSocket endpoint',
-                new Error('WebSocket connection not available for streaming')
-            );
-        }
-
-        return this.ws.send({
-            type: 'message',
-            content: input.content,
-            ...(input.sessionId && { sessionId: input.sessionId }),
-            ...(input.imageData && { imageData: input.imageData }),
-            ...(input.fileData && { fileData: input.fileData }),
-            stream: true,
-        });
     }
 
     // ============= SESSION MANAGEMENT =============
@@ -372,33 +315,6 @@ export class DextoClient {
         return this.http.get<SessionSearchResponse>(`/api/search/sessions?${params}`);
     }
 
-    // ============= EVENT HANDLING =============
-
-    /**
-     * Subscribe to real-time events
-     */
-    on(eventType: string, handler: EventHandler): () => void {
-        if (!this.ws) {
-            if (this.options.debug) {
-                console.warn('WebSocket not available, events will not be received');
-            }
-            return () => {};
-        }
-        return this.ws.on(eventType, handler);
-    }
-
-    /**
-     * Subscribe to connection state changes
-     */
-    onConnectionState(
-        handler: (state: 'connecting' | 'open' | 'closed' | 'error') => void
-    ): () => void {
-        if (!this.ws) {
-            return () => {};
-        }
-        return this.ws.onConnectionState(handler);
-    }
-
     // ============= GREETING =============
 
     /**
@@ -411,20 +327,6 @@ export class DextoClient {
     }
 
     // ============= UTILITY METHODS =============
-
-    /**
-     * Get connection status
-     */
-    get connectionState(): 'connecting' | 'open' | 'closed' | 'error' {
-        return this.ws ? this.ws.state : 'closed';
-    }
-
-    /**
-     * Check if client is connected
-     */
-    get isConnected(): boolean {
-        return this.connectionState === 'open';
-    }
 
     /**
      * Get client configuration

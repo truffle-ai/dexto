@@ -889,9 +889,9 @@ describe('Tool notification handling', () => {
         expect(manager['toolCache'].has('tool2')).toBe(false); // tool2 removed
     });
 
-    it('should emit dexto:mcpToolsListChanged event with correct payload', async () => {
+    it('should emit mcp:tools-list-changed event with correct payload', async () => {
         const eventSpy = vi.fn();
-        eventBus.on('dexto:mcpToolsListChanged', eventSpy);
+        eventBus.on('mcp:tools-list-changed', eventSpy);
 
         manager.registerClient('server1', client1);
         await manager['updateClientCache']('server1', client1);
@@ -909,7 +909,7 @@ describe('Tool notification handling', () => {
             tools: ['tool1'],
         });
 
-        eventBus.off('dexto:mcpToolsListChanged', eventSpy);
+        eventBus.off('mcp:tools-list-changed', eventSpy);
     });
 
     it('should detect conflicts when notification adds conflicting tool', async () => {

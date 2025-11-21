@@ -144,7 +144,6 @@ export default function SlashCommandAutocomplete({
     onCreatePrompt,
     refreshKey,
 }: SlashCommandAutocompleteProps) {
-    const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([]);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const selectedIndexRef = useRef(0);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -166,6 +165,26 @@ export default function SlashCommandAutocomplete({
             lastRefreshKeyRef.current = effectiveKey;
         }
     }, [isVisible, refreshKey, refetch]);
+
+    // Filter prompts based on search query - memoized to avoid infinite loops
+    const filteredPrompts = React.useMemo(() => {
+        if (!searchQuery.trim() || searchQuery === '/') {
+            return prompts;
+        }
+
+        // Extract just the command name (first word after /) for filtering
+        // E.g., "/summarize technical 100 'text'" -> "summarize"
+        const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
+        const commandName = withoutSlash.split(/\s+/)[0] || '';
+
+        return prompts.filter(
+            (prompt) =>
+                prompt.name.toLowerCase().includes(commandName.toLowerCase()) ||
+                (prompt.description &&
+                    prompt.description.toLowerCase().includes(commandName.toLowerCase())) ||
+                (prompt.title && prompt.title.toLowerCase().includes(commandName.toLowerCase()))
+        );
+    }, [searchQuery, prompts]);
 
     const showCreateOption = React.useMemo(() => {
         const trimmed = searchQuery.trim();
@@ -195,43 +214,21 @@ export default function SlashCommandAutocomplete({
             refetch();
         };
 
-        // Listen for WebSocket events that indicate prompts changes
+        // Listen for events that indicate prompts changes
         if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
+            window.addEventListener('mcp:prompts-list-changed', handlePromptsListChanged);
             return () => {
-                window.removeEventListener('dexto:mcpPromptsListChanged', handlePromptsListChanged);
+                window.removeEventListener('mcp:prompts-list-changed', handlePromptsListChanged);
             };
         }
     }, [isVisible, refetch]);
 
-    // Filter prompts based on search query from parent input
+    // Reset selected index when filtered results change
     useEffect(() => {
-        if (!searchQuery.trim() || searchQuery === '/') {
-            setFilteredPrompts(prompts);
-            // Calculate index based on prompts we're setting, not current state
-            const shouldShowCreate = searchQuery === '/';
-            const defaultIndex = shouldShowCreate && prompts.length > 0 ? 1 : 0;
-            setSelectedIndex(defaultIndex);
-            return;
-        }
-
-        // Extract just the command name (first word after /) for filtering
-        // E.g., "/summarize technical 100 'text'" -> "summarize"
-        const withoutSlash = searchQuery.startsWith('/') ? searchQuery.slice(1) : searchQuery;
-        const commandName = withoutSlash.split(/\s+/)[0] || '';
-
-        const filtered = prompts.filter(
-            (prompt) =>
-                prompt.name.toLowerCase().includes(commandName.toLowerCase()) ||
-                (prompt.description &&
-                    prompt.description.toLowerCase().includes(commandName.toLowerCase())) ||
-                (prompt.title && prompt.title.toLowerCase().includes(commandName.toLowerCase()))
-        );
-
-        setFilteredPrompts(filtered);
-        // Reset to first item (create option takes index 0 if shown)
-        setSelectedIndex(0);
-    }, [searchQuery, prompts]);
+        const shouldShowCreate = searchQuery === '/';
+        const defaultIndex = shouldShowCreate && filteredPrompts.length > 0 ? 1 : 0;
+        setSelectedIndex(defaultIndex);
+    }, [searchQuery, filteredPrompts.length]);
 
     const itemsLength = combinedItems.length;
 

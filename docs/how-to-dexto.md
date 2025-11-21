@@ -165,7 +165,7 @@ dexto
 |------------|-------------------------------|-------------------------------------------|
 | `web`      | `dexto`                       | Starts a web UI (default mode, port: 3000).|
 | `cli`      | `dexto --mode cli`            | Interactive or one-shot terminal commands.|
-| `server`   | `dexto --mode server`         | Starts a REST/WebSocket server (port: 3001).|
+| `server`   | `dexto --mode server`         | Starts a REST/SSE streaming server (port: 3001).|
 | `mcp`      | `dexto --mode mcp`            | Exposes the agent as a tool via MCP/stdio.|
 | `discord`  | `dexto --mode discord`        | Runs the agent as a Discord bot.          |
 | `telegram` | `dexto --mode telegram`       | Runs the agent as a Telegram bot.         |
@@ -224,10 +224,32 @@ dexto --mode server
 ```
 
 **Key API Endpoints:**
-- `POST /api/message`: Send a prompt asynchronously. The agent will process it and you can receive events via WebSocket.
-  - Body: `{ "message": "your prompt here" }`
+- `POST /api/message-stream`: Send a prompt and stream the response via SSE.
+  - Body: `{ "sessionId": "your-session-id", "message": "your prompt here" }`
+  - Response: SSE stream (text/event-stream)
 - `POST /api/message-sync`: Send a prompt and wait for the complete response.
-  - Body: `{ "message": "your prompt here" }`
+  - Body: `{ "sessionId": "your-session-id", "message": "your prompt here" }`
+  - Response: JSON with complete text
+- `POST /api/message`: ⚠️ **Deprecated** - Send asynchronously (use `/api/message-stream` instead)
+
+```ts
+// POST to /api/message-stream - response IS the SSE stream
+const response = await fetch('http://localhost:3001/api/message-stream', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ sessionId: 'demo-session', message: 'Summarize the news' })
+});
+
+// Response body is the SSE stream
+const reader = response.body!.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  console.log(decoder.decode(value));
+}
+```
 - `POST /api/reset`: Resets the current conversation session.
 - `GET /api/mcp/servers`: Lists the connected MCP tool servers.
 

@@ -136,7 +136,7 @@ export class AnthropicService implements ILLMService {
             this.logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
 
             // Notify thinking
-            this.sessionEventBus.emit('llmservice:thinking');
+            this.sessionEventBus.emit('llm:thinking');
 
             let iterationCount = 0;
             let fullResponse = '';
@@ -249,7 +249,7 @@ export class AnthropicService implements ILLMService {
                             this.contextManager.updateActualTokenCount(totalTokens);
                         }
 
-                        this.sessionEventBus.emit('llmservice:response', {
+                        this.sessionEventBus.emit('llm:response', {
                             content: fullResponse,
                             provider: this.config.provider,
                             model: this.config.model,
@@ -285,7 +285,7 @@ export class AnthropicService implements ILLMService {
                         const toolUseId = toolUse.id;
 
                         // Notify tool call
-                        this.sessionEventBus.emit('llmservice:toolCall', {
+                        this.sessionEventBus.emit('llm:tool-call', {
                             toolName,
                             args,
                             callId: toolUseId,
@@ -308,7 +308,7 @@ export class AnthropicService implements ILLMService {
                             );
 
                             // Notify tool result
-                            this.sessionEventBus.emit('llmservice:toolResult', {
+                            this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
                                 callId: toolUseId,
                                 success: true,
@@ -331,7 +331,7 @@ export class AnthropicService implements ILLMService {
                                 { success: false }
                             );
 
-                            this.sessionEventBus.emit('llmservice:toolResult', {
+                            this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
                                 callId: toolUseId,
                                 success: false,
@@ -356,7 +356,7 @@ export class AnthropicService implements ILLMService {
                     this.contextManager.updateActualTokenCount(totalTokens);
                 }
 
-                this.sessionEventBus.emit('llmservice:response', {
+                this.sessionEventBus.emit('llm:response', {
                     content: fullResponse,
                     provider: this.config.provider,
                     model: this.config.model,
@@ -388,7 +388,7 @@ export class AnthropicService implements ILLMService {
                     error,
                 });
 
-                this.sessionEventBus.emit('llmservice:error', {
+                this.sessionEventBus.emit('llm:error', {
                     error: error instanceof Error ? error : new Error(errorMessage),
                     context: 'Anthropic API call',
                     recoverable: false,
@@ -533,8 +533,8 @@ export class AnthropicService implements ILLMService {
                 if (chunk.delta.type === 'text_delta') {
                     textAccumulator += chunk.delta.text;
                     // Emit chunk event for real-time streaming
-                    this.sessionEventBus.emit('llmservice:chunk', {
-                        type: 'text',
+                    this.sessionEventBus.emit('llm:chunk', {
+                        chunkType: 'text',
                         content: chunk.delta.text,
                         isComplete: false,
                     });
@@ -587,8 +587,8 @@ export class AnthropicService implements ILLMService {
 
         // Emit completion chunk
         if (textAccumulator) {
-            this.sessionEventBus.emit('llmservice:chunk', {
-                type: 'text',
+            this.sessionEventBus.emit('llm:chunk', {
+                chunkType: 'text',
                 content: '',
                 isComplete: true,
             });

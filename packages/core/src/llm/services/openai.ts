@@ -136,7 +136,7 @@ export class OpenAIService implements ILLMService {
             this.logger.silly(`Formatted tools: ${JSON.stringify(formattedTools, null, 2)}`);
 
             // Notify thinking
-            this.sessionEventBus.emit('llmservice:thinking');
+            this.sessionEventBus.emit('llm:thinking');
 
             let iterationCount = 0;
             let totalTokens = 0;
@@ -196,7 +196,7 @@ export class OpenAIService implements ILLMService {
                         }
 
                         // Always emit token usage
-                        this.sessionEventBus.emit('llmservice:response', {
+                        this.sessionEventBus.emit('llm:response', {
                             content: finalContent,
                             provider: this.config.provider,
                             model: this.config.model,
@@ -285,7 +285,7 @@ export class OpenAIService implements ILLMService {
                                 { success: false }
                             );
                             // Notify failure so UI & logging subscribers stay in sync
-                            this.sessionEventBus.emit('llmservice:toolResult', {
+                            this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
                                 callId: toolCall.id,
                                 success: false,
@@ -298,7 +298,7 @@ export class OpenAIService implements ILLMService {
                         }
 
                         // Notify tool call
-                        this.sessionEventBus.emit('llmservice:toolCall', {
+                        this.sessionEventBus.emit('llm:tool-call', {
                             toolName,
                             args,
                             callId: toolCall.id,
@@ -321,7 +321,7 @@ export class OpenAIService implements ILLMService {
                             );
 
                             // Notify tool result
-                            this.sessionEventBus.emit('llmservice:toolResult', {
+                            this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
                                 callId: toolCall.id,
                                 success: true,
@@ -344,7 +344,7 @@ export class OpenAIService implements ILLMService {
                                 { success: false }
                             );
 
-                            this.sessionEventBus.emit('llmservice:toolResult', {
+                            this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
                                 callId: toolCall.id,
                                 success: false,
@@ -383,7 +383,7 @@ export class OpenAIService implements ILLMService {
                 }
 
                 // Always emit token usage
-                this.sessionEventBus.emit('llmservice:response', {
+                this.sessionEventBus.emit('llm:response', {
                     content: finalResponse,
                     provider: this.config.provider,
                     model: this.config.model,
@@ -429,7 +429,7 @@ export class OpenAIService implements ILLMService {
                     );
                 }
 
-                this.sessionEventBus.emit('llmservice:error', {
+                this.sessionEventBus.emit('llm:error', {
                     error: error instanceof Error ? error : new Error(errorMessage),
                     context: contextStr,
                     recoverable: false,
@@ -632,8 +632,8 @@ export class OpenAIService implements ILLMService {
                     if (delta?.content) {
                         content += delta.content;
                         // Emit chunk event for real-time streaming
-                        this.sessionEventBus.emit('llmservice:chunk', {
-                            type: 'text',
+                        this.sessionEventBus.emit('llm:chunk', {
+                            chunkType: 'text',
                             content: delta.content,
                             isComplete: false,
                         });
@@ -689,8 +689,8 @@ export class OpenAIService implements ILLMService {
 
                 // Emit completion chunk
                 if (content) {
-                    this.sessionEventBus.emit('llmservice:chunk', {
-                        type: 'text',
+                    this.sessionEventBus.emit('llm:chunk', {
+                        chunkType: 'text',
                         content: '',
                         isComplete: true,
                     });

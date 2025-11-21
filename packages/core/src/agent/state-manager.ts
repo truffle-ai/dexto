@@ -95,7 +95,7 @@ export class AgentStateManager {
             this.runtimeConfig.llm = validatedConfig;
         }
 
-        this.agentEventBus.emit('dexto:stateChanged', {
+        this.agentEventBus.emit('state:changed', {
             field: 'llm',
             oldValue,
             newValue: validatedConfig,
@@ -127,10 +127,10 @@ export class AgentStateManager {
         this.runtimeConfig.mcpServers[serverName] = validatedConfig;
 
         // Emit events
-        const eventName = isUpdate ? 'dexto:mcpServerUpdated' : 'dexto:mcpServerAdded';
+        const eventName = isUpdate ? 'mcp:server-updated' : 'mcp:server-added';
         this.agentEventBus.emit(eventName, { serverName, config: validatedConfig });
 
-        this.agentEventBus.emit('dexto:stateChanged', {
+        this.agentEventBus.emit('state:changed', {
             field: 'mcpServers',
             oldValue: isUpdate ? 'updated' : 'added',
             newValue: validatedConfig,
@@ -151,8 +151,8 @@ export class AgentStateManager {
         if (serverName in this.runtimeConfig.mcpServers) {
             delete this.runtimeConfig.mcpServers[serverName];
 
-            this.agentEventBus.emit('dexto:mcpServerRemoved', { serverName });
-            this.agentEventBus.emit('dexto:stateChanged', {
+            this.agentEventBus.emit('mcp:server-removed', { serverName });
+            this.agentEventBus.emit('state:changed', {
                 field: 'mcpServers',
                 oldValue: 'removed',
                 newValue: undefined,
@@ -172,7 +172,7 @@ export class AgentStateManager {
      */
     private setSessionOverride(sessionId: string, override: SessionOverride): void {
         this.sessionOverrides.set(sessionId, override);
-        this.agentEventBus.emit('dexto:sessionOverrideSet', {
+        this.agentEventBus.emit('session:override-set', {
             sessionId,
             override: structuredClone(override),
         });
@@ -193,7 +193,7 @@ export class AgentStateManager {
         this.sessionOverrides.delete(sessionId);
 
         if (hadOverride) {
-            this.agentEventBus.emit('dexto:sessionOverrideCleared', { sessionId });
+            this.agentEventBus.emit('session:override-cleared', { sessionId });
             this.logger.info('Session override cleared', { sessionId });
         }
     }
@@ -206,7 +206,7 @@ export class AgentStateManager {
         this.sessionOverrides.clear();
 
         sessionIds.forEach((sessionId) => {
-            this.agentEventBus.emit('dexto:sessionOverrideCleared', { sessionId });
+            this.agentEventBus.emit('session:override-cleared', { sessionId });
         });
 
         if (sessionIds.length > 0) {
@@ -228,7 +228,7 @@ export class AgentStateManager {
             mcpServers: structuredClone(this.runtimeConfig.mcpServers),
         };
 
-        this.agentEventBus.emit('dexto:stateExported', {
+        this.agentEventBus.emit('state:exported', {
             config: exportedConfig,
         });
 
@@ -246,7 +246,7 @@ export class AgentStateManager {
         this.runtimeConfig = structuredClone(this.baselineConfig);
 
         this.clearAllSessionOverrides();
-        this.agentEventBus.emit('dexto:stateReset', { toConfig: this.baselineConfig });
+        this.agentEventBus.emit('state:reset', { toConfig: this.baselineConfig });
 
         this.logger.info('Runtime state reset to baseline config');
     }

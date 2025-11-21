@@ -38,6 +38,14 @@ describe('DextoAgent Lifecycle Management', () => {
                 maxSessions: 10,
                 sessionTTL: 3600,
             },
+            toolConfirmation: {
+                mode: 'auto-approve',
+                timeout: 120000,
+            },
+            elicitation: {
+                enabled: false,
+                timeout: 120000,
+            },
         };
 
         // Create the validated config that DextoAgent actually uses
@@ -87,6 +95,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 requestElicitation: vi.fn(),
                 cancelApproval: vi.fn(),
                 cancelAllApprovals: vi.fn(),
+                hasHandler: vi.fn().mockReturnValue(false),
             } as any,
             memoryManager: {} as any,
             pluginManager: {
@@ -122,7 +131,8 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockCreateAgentServices).toHaveBeenCalledWith(
                 mockValidatedConfig,
                 undefined,
-                expect.anything() // logger instance
+                expect.anything(), // logger instance
+                expect.anything() // eventBus instance
             );
         });
 
@@ -148,7 +158,8 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockCreateAgentServices).toHaveBeenCalledWith(
                 validatedConfigWithServerModes,
                 undefined,
-                expect.anything() // logger instance
+                expect.anything(), // logger instance
+                expect.anything() // eventBus instance
             );
         });
 

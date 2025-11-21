@@ -15,7 +15,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
-import type { SSEEventSubscriber } from '../../events/sse-subscriber.js';
+import type { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
 import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
 
 // Request/Response Schemas for OpenAPI (using A2A-compliant schema)
@@ -205,7 +205,7 @@ const TaskListQuerySchema = z
  */
 export function createA2ATasksRouter(
     getAgent: () => DextoAgent,
-    sseSubscriber: SSEEventSubscriber
+    sseSubscriber: A2ASseEventSubscriber
 ) {
     const app = new OpenAPIHono();
 
@@ -279,7 +279,7 @@ export function createA2ATasksRouter(
             const stream = sseSubscriber.createStream(session.id);
 
             // Start agent processing in background
-            // Note: Errors are automatically broadcast via the event bus (llmservice:error event)
+            // Note: Errors are automatically broadcast via the event bus (llm:error event)
             const { text, image, file } = a2aToInternalMessage(validatedBody.message as any);
             agent.run(text, image, file, session.id).catch((error) => {
                 logger.error(`Error in streaming task ${session.id}: ${error}`);

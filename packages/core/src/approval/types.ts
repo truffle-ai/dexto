@@ -236,29 +236,61 @@ export type ApprovalResponse = z.output<typeof ApprovalResponseSchema>;
 export type ApprovalRequestDetails = z.output<typeof ApprovalRequestDetailsSchema>;
 
 /**
- * Interface for approval providers
+ * Handler interface for processing approval requests.
+ *
+ * This is the core abstraction for approval handling in Dexto. When tool confirmation
+ * mode is 'manual', a handler must be provided to process approval requests.
+ *
+ * The handler is a callable interface that:
+ * - Processes approval requests and returns responses
+ * - Manages pending approval state (for cancellation)
+ * - Provides lifecycle management methods
+ *
+ * @example
+ * ```typescript
+ * const handler: ApprovalHandler = Object.assign(
+ *   async (request: ApprovalRequest) => {
+ *     console.log(`Approve tool: ${request.metadata.toolName}?`);
+ *     // In real implementation, wait for user input
+ *     return {
+ *       approvalId: request.approvalId,
+ *       status: ApprovalStatus.APPROVED,
+ *       sessionId: request.sessionId,
+ *     };
+ *   },
+ *   {
+ *     cancel: (id: string) => { },
+ *     cancelAll: () => { },
+ *     getPending: () => [] as string[],
+ *   }
+ * );
+ * ```
  */
-export interface ApprovalProvider {
+export interface ApprovalHandler {
     /**
-     * Request approval from the user
-     * @param request The approval request details
+     * Process an approval request
+     * @param request The approval request to handle
      * @returns Promise resolving to the approval response
      */
-    requestApproval(request: ApprovalRequest): Promise<ApprovalResponse>;
+    (request: ApprovalRequest): Promise<ApprovalResponse>;
 
     /**
-     * Cancel a pending approval request
+     * Cancel a specific pending approval request (optional)
      * @param approvalId The ID of the approval to cancel
+     * @remarks Not all handlers support cancellation (e.g., auto-approve handlers)
      */
-    cancelApproval(approvalId: string): void;
+    cancel?(approvalId: string): void;
 
     /**
-     * Cancel all pending approval requests
+     * Cancel all pending approval requests (optional)
+     * @remarks Not all handlers support cancellation (e.g., auto-approve handlers)
      */
-    cancelAllApprovals(): void;
+    cancelAll?(): void;
 
     /**
-     * Get list of pending approval request IDs
+     * Get list of pending approval request IDs (optional)
+     * @returns Array of approval IDs currently pending
+     * @remarks Not all handlers track pending requests (e.g., auto-approve handlers)
      */
-    getPendingApprovals(): string[];
+    getPending?(): string[];
 }

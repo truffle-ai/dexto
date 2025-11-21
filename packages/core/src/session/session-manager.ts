@@ -607,7 +607,7 @@ export class SessionManager {
             }
         }
 
-        this.services.agentEventBus.emit('dexto:llmSwitched', {
+        this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
             router: newLLMConfig.router,
             historyRetained: true,
@@ -644,7 +644,7 @@ export class SessionManager {
 
         await session.switchLLM(newLLMConfig);
 
-        this.services.agentEventBus.emit('dexto:llmSwitched', {
+        this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
             router: newLLMConfig.router,
             historyRetained: true,

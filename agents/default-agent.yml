@@ -84,7 +84,7 @@ storage:
     # storePath: (automatically provided by CLI as ~/.dexto/blobs/<agent-id>)
 
 toolConfirmation:
-  mode: event-based
+  mode: manual
   timeout: 120000          # Time to wait for approval (ms)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
@@ -96,12 +96,12 @@ toolConfirmation:
       - mcp--read_file
       - mcp--list_directory
       - mcp--list_allowed_directories
-  #
-  #   # Tools that are always denied (high-risk, destructive operations)
-  #   # Deny list takes precedence over allow list
-  #   alwaysDeny:
-  #     - mcp--filesystem--delete_file
-  #     - mcp--playwright--execute_script
+
+    # Tools that are always denied (high-risk, destructive operations)
+    # Deny list takes precedence over allow list
+    # alwaysDeny:
+    #   - mcp--filesystem--delete_file
+    #   - mcp--playwright--execute_script
 
 # Elicitation configuration - separate from tool confirmation
 # Allows auto-approve for tools while still supporting user input requests

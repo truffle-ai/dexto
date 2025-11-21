@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import chalk from 'chalk';
-import { AgentConfigSchema, type AgentConfig } from '@dexto/core';
+import { AgentConfigSchema, type AgentConfig, type ValidatedAgentConfig } from '@dexto/core';
 import { interactiveApiKeySetup } from './api-key-setup.js';
 import { LLMErrorCode } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
@@ -9,12 +9,12 @@ import { logger } from '@dexto/core';
 /**
  * Validates agent config with optional interactive fixes for user experience.
  * Uses schema parsing to detect API key issues and provides targeted setup.
- * Returns validated AgentConfig.
+ * Returns validated config with all defaults applied.
  */
 export async function validateAgentConfig(
     config: AgentConfig,
     interactive: boolean = false
-): Promise<AgentConfig> {
+): Promise<ValidatedAgentConfig> {
     // Parse with schema to detect issues
     const parseResult = AgentConfigSchema.safeParse(config);
 

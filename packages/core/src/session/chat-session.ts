@@ -41,7 +41,7 @@ import type { InternalMessage } from '../context/types.js';
  * ## Event Handling
  *
  * Each session has its own event bus that emits standard Dexto events:
- * - `llmservice:*` events (thinking, toolCall, response, etc.)
+ * - `llm:*` events (thinking, toolCall, response, etc.)
  *
  * Session events are forwarded to the global agent event bus with session prefixes.
  *
@@ -52,7 +52,7 @@ import type { InternalMessage } from '../context/types.js';
  * const session = agent.createSession('user-123');
  *
  * // Listen for session events
- * session.eventBus.on('llmservice:response', (payload) => {
+ * session.eventBus.on('llm:response', (payload) => {
  *   console.log('Session response:', payload.content);
  * });
  *
@@ -75,9 +75,9 @@ export class ChatSession {
      * to the global agent event bus.
      *
      * Events emitted include:
-     * - `llmservice:thinking` - AI model is processing
-     * - `llmservice:toolCall` - Tool execution requested
-     * - `llmservice:response` - Final response generated
+     * - `llm:thinking` - AI model is processing
+     * - `llm:tool-call` - Tool execution requested
+     * - `llm:response` - Final response generated
      */
     public readonly eventBus: SessionEventBus;
 
@@ -172,9 +172,6 @@ export class ChatSession {
                     payload && typeof payload === 'object'
                         ? { ...payload, sessionId: this.id }
                         : { sessionId: this.id };
-                this.logger.silly(
-                    `Forwarding session event ${eventName} to agent bus with session context: ${JSON.stringify(payloadWithSession, null, 2)}`
-                );
                 // Forward to agent bus with session context
                 this.services.agentEventBus.emit(eventName as any, payloadWithSession);
             };
@@ -185,6 +182,9 @@ export class ChatSession {
             // Attach the forwarder to the session event bus
             this.eventBus.on(eventName, forwarder);
         });
+        this.logger.debug(
+            `[setupEventForwarding] Event forwarding setup complete for session=${this.id}`
+        );
     }
 
     /**
@@ -256,10 +256,10 @@ export class ChatSession {
         await this.historyProvider.saveMessage(assistantMessage);
 
         // Emit response event so UI updates immediately on blocked interactions
-        // This ensures listeners relying on llmservice:response know a response was added
+        // This ensures listeners relying on llm:response know a response was added
         // Note: sessionId is automatically added by event forwarding layer
         const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-        this.eventBus.emit('llmservice:response', {
+        this.eventBus.emit('llm:response', {
             content: errorContent,
             provider: llmConfig.provider,
             model: llmConfig.model,
@@ -374,7 +374,7 @@ export class ChatSession {
                 // TODO: Remove emit errors, cancellation is a normal state and not an error state.
                 // LLMService.completeTask should return the partial computed response till then
                 // and not error out in case the execution was cancelled.
-                this.eventBus.emit('llmservice:error', {
+                this.eventBus.emit('llm:error', {
                     error: new Error('Run cancelled'),
                     context: 'user_cancelled',
                     recoverable: true,
@@ -453,7 +453,7 @@ export class ChatSession {
      * This method:
      * 1. Clears all messages from the session's conversation history
      * 2. Removes persisted history from the storage provider
-     * 3. Emits a `dexto:conversationReset` event with session context
+     * 3. Emits a `session:reset` event with session context
      *
      * The system prompt and session configuration remain unchanged.
      * Only the conversation messages are cleared.
@@ -473,7 +473,7 @@ export class ChatSession {
         await this.historyProvider.clearHistory();
 
         // Emit agent-level event with session context
-        this.services.agentEventBus.emit('dexto:conversationReset', {
+        this.services.agentEventBus.emit('session:reset', {
             sessionId: this.id,
         });
     }
@@ -541,7 +541,7 @@ export class ChatSession {
             );
 
             // Emit session-level event
-            this.eventBus.emit('llmservice:switched', {
+            this.eventBus.emit('llm:switched', {
                 newConfig: newLLMConfig,
                 router,
                 historyRetained: true,

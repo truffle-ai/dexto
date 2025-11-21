@@ -181,7 +181,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
 
     const handlePromptCreated = React.useCallback(
         (prompt: { name: string; arguments?: Array<{ name: string; required?: boolean }> }) => {
-            // Manual cache invalidation needed for custom prompt creation (not triggered by WebSocket events)
+            // Manual cache invalidation needed for custom prompt creation (not triggered by SSE events)
             queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
             setShowCreatePromptModal(false);
             setSlashRefreshKey((prev) => prev + 1);

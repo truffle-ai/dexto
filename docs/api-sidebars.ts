@@ -13,11 +13,6 @@ const sidebars: SidebarsConfig = {
             href: '/api/rest',
         },
         {
-            type: 'doc',
-            id: 'websocket',
-            label: 'WebSocket API',
-        },
-        {
             type: 'category',
             label: 'Dexto SDK',
             link: {

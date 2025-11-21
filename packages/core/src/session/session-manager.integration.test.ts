@@ -22,6 +22,14 @@ describe('Session Integration: Chat History Preservation', () => {
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
         },
+        toolConfirmation: {
+            mode: 'auto-approve',
+            timeout: 120000,
+        },
+        elicitation: {
+            enabled: false,
+            timeout: 120000,
+        },
     };
 
     beforeEach(async () => {

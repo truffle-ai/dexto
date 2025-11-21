@@ -7,6 +7,18 @@
  * The package.json conditional exports handle environment routing:
  * - Browser: Routes to index.browser.ts (minimal safe exports)
  * - Node: Routes to this file (full exports)
+ *
+ * TODO: Break down into subpath exports for better tree-shaking
+ * Consider adding exports like:
+ * - @dexto/core/telemetry - Telemetry utilities
+ * - @dexto/core/llm - LLM services and factories
+ * - @dexto/core/session - Session management (currently internal)
+ * - @dexto/core/tools - Tool system
+ * This would allow:
+ * 1. Better tree-shaking (only import what you need)
+ * 2. Cleaner public API boundaries
+ * 3. Reduced bundle sizes for packages that only need specific functionality
+ * 4. Avoid pulling in OpenTelemetry decorators for packages that don't need instrumentation
  */
 
 // Core Agent

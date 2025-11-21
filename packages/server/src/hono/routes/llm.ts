@@ -87,17 +87,8 @@ const SaveKeySchema = z
     })
     .describe('Request body for saving a provider API key');
 
-const SessionIdEnvelopeSchema = z
-    .object({
-        sessionId: z
-            .string()
-            .optional()
-            .describe('Session identifier for session-specific LLM configuration'),
-    })
-    .describe('Envelope schema for extracting sessionId');
-
-// Intersect LLMUpdatesSchema with sessionId for LLM switch endpoint
-// This avoids duplicating all LLM config fields while providing proper OpenAPI documentation
+// Combine LLM updates schema with sessionId for API requests
+// LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
 const SwitchLLMBodySchema = LLMUpdatesSchema.and(
     z.object({
         sessionId: z
@@ -357,7 +348,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     app.openapi(saveKeyRoute, async (ctx) => {
         const { provider, apiKey } = ctx.req.valid('json');
         const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
-        return ctx.json({ ok: true, provider, envVar: meta.envVar });
+        return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
     });
 
     const switchRoute = createRoute({
@@ -398,13 +389,10 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
     });
     app.openapi(switchRoute, async (ctx) => {
         const agent = getAgent();
-        // Parse body: extract sessionId and validate LLM fields
-        // Schema validates all fields at OpenAPI level for proper type safety
         const raw = ctx.req.valid('json');
-        const { sessionId } = SessionIdEnvelopeSchema.parse(raw);
-        const { sessionId: _omit, ...llmCandidate } = raw as Record<string, unknown>;
-        const llmConfig = LLMUpdatesSchema.parse(llmCandidate);
-        const config = await agent.switchLLM(llmConfig, sessionId);
+        const { sessionId, ...llmUpdates } = raw;
+
+        const config = await agent.switchLLM(llmUpdates, sessionId);
 
         // Omit apiKey from response for security
         const { apiKey, ...configWithoutKey } = config;

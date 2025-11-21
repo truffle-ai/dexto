@@ -1,6 +1,11 @@
 import crypto from 'crypto';
 import { setMaxListeners } from 'events';
-import { AgentEventBus, type AgentEventName, type AgentEventMap } from '@dexto/core';
+import {
+    AgentEventBus,
+    INTEGRATION_EVENTS,
+    type AgentEventMap,
+    type AgentEventName,
+} from '@dexto/core';
 import { logger } from '@dexto/core';
 import { EventSubscriber } from './types.js';
 import {
@@ -20,9 +25,7 @@ const DEFAULT_DELIVERY_OPTIONS: Required<WebhookDeliveryOptions> = {
 };
 
 /**
- * TODO: temporarily DUPE OF cli
  * Webhook event subscriber that delivers agent events via HTTP POST
- * Mirrors WebSocketEventSubscriber but sends HTTP requests to registered webhook URLs
  */
 export class WebhookEventSubscriber implements EventSubscriber {
     private webhooks: Map<string, WebhookConfig> = new Map();
@@ -56,24 +59,9 @@ export class WebhookEventSubscriber implements EventSubscriber {
         const MAX_SHARED_SIGNAL_LISTENERS = 20;
         setMaxListeners(MAX_SHARED_SIGNAL_LISTENERS, signal);
 
-        // Subscribe to all relevant events with abort signal (same as WebSocket subscriber)
-        const eventNames: AgentEventName[] = [
-            'llmservice:thinking',
-            'llmservice:chunk',
-            'llmservice:toolCall',
-            'llmservice:toolResult',
-            'llmservice:response',
-            'llmservice:error',
-            'dexto:conversationReset',
-            'dexto:mcpServerConnected',
-            'dexto:availableToolsUpdated',
-            'dexto:approvalRequest',
-            'dexto:approvalResponse',
-            'dexto:llmSwitched',
-            'dexto:stateChanged',
-        ];
-
-        eventNames.forEach((eventName) => {
+        // Subscribe to all INTEGRATION_EVENTS (tier 2 visibility)
+        // This includes streaming events + lifecycle/state events
+        INTEGRATION_EVENTS.forEach((eventName) => {
             eventBus.on(
                 eventName,
                 (payload) => {
@@ -130,9 +118,9 @@ export class WebhookEventSubscriber implements EventSubscriber {
             throw new Error(`Webhook not found: ${webhookId}`);
         }
 
-        const testEvent: DextoWebhookEvent<'dexto:availableToolsUpdated'> = {
+        const testEvent: DextoWebhookEvent<'tools:available-updated'> = {
             id: `evt_test_${Date.now()}`,
-            type: 'dexto:availableToolsUpdated',
+            type: 'tools:available-updated',
             data: {
                 tools: ['test-tool'],
                 source: 'mcp',

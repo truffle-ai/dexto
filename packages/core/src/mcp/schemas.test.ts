@@ -498,7 +498,7 @@ describe('MCP Schemas', () => {
 
             it('should reject config with invalid type', () => {
                 const config = {
-                    type: 'websocket', // Invalid type
+                    type: 'invalid-type', // Invalid type
                     url: 'ws://localhost:8080',
                 };
                 expect(() => McpServerConfigSchema.parse(config)).toThrow();

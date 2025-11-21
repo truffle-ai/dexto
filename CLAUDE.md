@@ -157,6 +157,18 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 ### Import Requirements
 - **All imports must end with `.js`** in core repository only for ES module compatibility
 
+### OpenAPI Documentation
+- **NEVER directly modify `docs/static/openapi/openapi.json`** - This file is auto-generated
+- **Generated from server APIs** - OpenAPI spec is extracted from Hono route definitions in `packages/server/src/hono/routes/*.ts`
+- **Update process**:
+  1. Modify the route definition in `packages/server/src/hono/routes/*.ts` (add/update response schemas, parameters, etc.)
+  2. Run `pnpm run sync-openapi-docs` to regenerate `docs/static/openapi/openapi.json`
+  3. Verify the generated file includes your changes
+- **Route definitions use Zod schemas** - Use `createRoute()` from `@hono/zod-openapi` with Zod schemas for type-safe OpenAPI generation
+- **Error responses** - Follow the standard error format from `packages/server/src/hono/middleware/error.ts`:
+  - DextoRuntimeError returns: `{code, message, scope, type, context, recovery, traceId, endpoint, method}`
+  - 404 responses should document this structure in the route definition
+
 ### Module Organization
 - **Selective index.ts strategy** - Only create index.ts files at logical module boundaries that represent cohesive public APIs
 - **✅ DO**: Add index.ts for main entry points and modules that export types/interfaces used by external consumers
@@ -204,24 +216,24 @@ The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automat
 ## Application Architecture
 
 ### API Layer (`packages/cli/src/api/`)
-- **Express.js REST API** with WebSocket support for real-time communication
+- **Hono REST API** with Server-Sent Events (SSE) for real-time streaming
 - **Key endpoints**: `/api/message`, `/api/mcp/servers`, `/api/sessions`, `/api/llm/switch`
 - **MCP integration**: Multiple transport types (stdio, HTTP, SSE) with tool aggregation
-- **WebSocket events**: `thinking`, `chunk`, `toolCall`, `toolResult`, `response`
+- **SSE events**: `llm:thinking`, `llm:chunk`, `llm:tool-call`, `llm:tool-result`, `llm:response`
 - **Session management**: Multi-session support with persistent storage
 - **A2A communication**: Agent-to-Agent via `.well-known/agent-card.json`
 
 ### WebUI Layer (`packages/webui/`)
 - **Next.js 14** with App Router, React 18, TypeScript, Tailwind CSS
 - **Key components**: `ChatApp`, `MessageList`, `InputArea`, `ServersPanel`, `SessionPanel`
-- **State management**: React Context + custom hooks for WebSocket communication
-- **Communication**: WebSocket for real-time events, REST API for operations
+- **State management**: React Context + custom hooks for SSE communication
+- **Communication**: SSE for real-time streaming, REST API for operations
 - **Multi-mode operation**: CLI, Web, Server, Discord, Telegram, MCP modes
 
 ### Layer Interaction Flow
-```
-User Input → WebUI → WebSocket/REST → API → DextoAgent → Core Services
-                ← WebSocket Events ← Agent Event Bus ← Core Services
+```text
+User Input → WebUI → SSE/REST → API → DextoAgent → Core Services
+                ← SSE Events ← Agent Event Bus ← Core Services
 ```
 
 ## Documentation

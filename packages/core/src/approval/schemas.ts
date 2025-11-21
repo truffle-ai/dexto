@@ -174,6 +174,12 @@ export const BaseApprovalResponseSchema = z
             .string()
             .optional()
             .describe('Human-readable message explaining the denial/cancellation'),
+        timeoutMs: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Timeout duration in milliseconds (present for timeout events)'),
     })
     .describe('Base approval response');
 
