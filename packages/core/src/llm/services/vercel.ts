@@ -596,7 +596,6 @@ export class VercelLLMService implements ILLMService {
         }
 
         // use vercel's streamText
-        // Wrap in try-catch because Vercel SDK both calls onError AND throws exceptions
         let streamErr: unknown | undefined;
         const includeMaxOutputTokens = typeof maxOutputTokens === 'number';
 
@@ -682,6 +681,10 @@ export class VercelLLMService implements ILLMService {
                 response.reasoningText,
             ]);
         } catch (_error) {
+            // Log finalization failures to aid debugging
+            this.logger.debug(
+                `streamText finalization failed while awaiting text/usage/reasoning: ${String(_error)}`
+            );
             /* nov 21 2025 - this is the error we get when model generation fails here
              * [API] 7:50:02 PM [ERROR] [llm:default-agent] ${JSON.stringify(error, null, 2): {
              * [API]   "name": "AI_NoOutputGeneratedError"
