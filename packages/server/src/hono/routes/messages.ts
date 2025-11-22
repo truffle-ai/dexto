@@ -85,38 +85,6 @@ export function createMessagesRouter(
             400: { description: 'Validation error' },
         },
     });
-    app.openapi(messageRoute, async (ctx) => {
-        const agent = getAgent();
-        agent.logger.info('Received message via POST /api/message');
-        const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
-
-        const imageDataInput = imageData
-            ? { image: imageData.base64, mimeType: imageData.mimeType }
-            : undefined;
-
-        const fileDataInput = fileData
-            ? {
-                  data: fileData.base64,
-                  mimeType: fileData.mimeType,
-                  ...(fileData.filename && { filename: fileData.filename }),
-              }
-            : undefined;
-
-        if (imageDataInput) agent.logger.info('Image data included in message.');
-        if (fileDataInput) agent.logger.info('File data included in message.');
-        agent.logger.info(`Message for session: ${sessionId}`);
-
-        // Fire and forget - start processing asynchronously
-        // Results will be delivered via SSE
-        agent.run(message || '', imageDataInput, fileDataInput, sessionId, false).catch((error) => {
-            agent.logger.error(
-                `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
-            );
-        });
-
-        return ctx.json({ accepted: true, sessionId }, 202);
-    });
-
     const messageSyncRoute = createRoute({
         method: 'post',
         path: '/message-sync',
@@ -158,47 +126,6 @@ export function createMessagesRouter(
             400: { description: 'Validation error' },
         },
     });
-    app.openapi(messageSyncRoute, async (ctx) => {
-        const agent = getAgent();
-        agent.logger.info('Received message via POST /api/message-sync');
-        const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
-
-        const imageDataInput = imageData
-            ? { image: imageData.base64, mimeType: imageData.mimeType }
-            : undefined;
-
-        const fileDataInput = fileData
-            ? {
-                  data: fileData.base64,
-                  mimeType: fileData.mimeType,
-                  ...(fileData.filename && { filename: fileData.filename }),
-              }
-            : undefined;
-
-        if (imageDataInput) agent.logger.info('Image data included in message.');
-        if (fileDataInput) agent.logger.info('File data included in message.');
-        agent.logger.info(`Message for session: ${sessionId}`);
-
-        // Use generate() instead of run() to get metadata
-        const result = await agent.generate(message || '', {
-            sessionId,
-            imageData: imageDataInput,
-            fileData: fileDataInput,
-        });
-
-        // Get the session's current LLM config to include model/provider/router info
-        const llmConfig = agent.stateManager.getLLMConfig(sessionId);
-
-        return ctx.json({
-            response: result.content,
-            sessionId: result.sessionId,
-            tokenUsage: result.usage,
-            reasoning: result.reasoning,
-            model: llmConfig.model,
-            provider: llmConfig.provider,
-            router: 'vercel', // Hardcoded for now since we only use Vercel AI SDK
-        });
-    });
 
     const resetRoute = createRoute({
         method: 'post',
@@ -227,15 +154,7 @@ export function createMessagesRouter(
             },
         },
     });
-    app.openapi(resetRoute, async (ctx) => {
-        const agent = getAgent();
-        agent.logger.info('Received request via POST /api/reset');
-        const { sessionId } = ctx.req.valid('json');
-        await agent.resetConversation(sessionId);
-        return ctx.json({ status: 'reset initiated', sessionId });
-    });
 
-    // Register message-stream route (always registered for OpenAPI documentation)
     const messageStreamRoute = createRoute({
         method: 'post',
         path: '/message-stream',
@@ -284,72 +203,182 @@ export function createMessagesRouter(
         },
     });
 
-    app.openapi(messageStreamRoute, async (ctx) => {
-        const agent = getAgent();
-        const body = ctx.req.valid('json');
+    return app
+        .openapi(messageRoute, async (ctx) => {
+            const agent = getAgent();
+            agent.logger.info('Received message via POST /api/message');
+            const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
 
-        const { message = '', sessionId, imageData, fileData } = body;
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
+                : undefined;
 
-        const imageDataInput = imageData
-            ? { image: imageData.base64, mimeType: imageData.mimeType }
-            : undefined;
+            const fileDataInput = fileData
+                ? {
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      ...(fileData.filename && { filename: fileData.filename }),
+                  }
+                : undefined;
 
-        const fileDataInput = fileData
-            ? {
-                  data: fileData.base64,
-                  mimeType: fileData.mimeType,
-                  ...(fileData.filename && { filename: fileData.filename }),
-              }
-            : undefined;
+            if (imageDataInput) agent.logger.info('Image data included in message.');
+            if (fileDataInput) agent.logger.info('File data included in message.');
+            agent.logger.info(`Message for session: ${sessionId}`);
 
-        // Create abort controller for cleanup
-        const abortController = new AbortController();
-        const { signal } = abortController;
+            // Fire and forget - start processing asynchronously
+            // Results will be delivered via SSE
+            agent
+                .run(message || '', imageDataInput, fileDataInput, sessionId, false)
+                .catch((error) => {
+                    agent.logger.error(
+                        `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                });
 
-        // Start agent streaming
-        const iterator = await agent.stream(message, {
-            sessionId,
-            imageData: imageDataInput,
-            fileData: fileDataInput,
-            signal,
-        });
+            return ctx.json({ accepted: true, sessionId }, 202);
+        })
+        .openapi(messageSyncRoute, async (ctx) => {
+            const agent = getAgent();
+            agent.logger.info('Received message via POST /api/message-sync');
+            const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
 
-        // Use Hono's streamSSE helper which handles backpressure correctly
-        return streamSSE(ctx, async (stream) => {
-            // Store pending approval events to be written to stream (only if coordinator available)
-            const pendingApprovalEvents: Array<{ event: string; data: unknown }> = [];
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
+                : undefined;
 
-            // Subscribe to approval events from coordinator (if available)
-            if (approvalCoordinator) {
-                approvalCoordinator.onRequest(
-                    (request) => {
-                        if (request.sessionId === sessionId) {
-                            pendingApprovalEvents.push({
-                                event: 'approval:request',
-                                data: request,
+            const fileDataInput = fileData
+                ? {
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      ...(fileData.filename && { filename: fileData.filename }),
+                  }
+                : undefined;
+
+            if (imageDataInput) agent.logger.info('Image data included in message.');
+            if (fileDataInput) agent.logger.info('File data included in message.');
+            agent.logger.info(`Message for session: ${sessionId}`);
+
+            // Use generate() instead of run() to get metadata
+            const result = await agent.generate(message || '', {
+                sessionId,
+                imageData: imageDataInput,
+                fileData: fileDataInput,
+            });
+
+            // Get the session's current LLM config to include model/provider/router info
+            const llmConfig = agent.stateManager.getLLMConfig(sessionId);
+
+            return ctx.json({
+                response: result.content,
+                sessionId: result.sessionId,
+                tokenUsage: result.usage,
+                reasoning: result.reasoning,
+                model: llmConfig.model,
+                provider: llmConfig.provider,
+                router: 'vercel', // Hardcoded for now since we only use Vercel AI SDK
+            });
+        })
+        .openapi(resetRoute, async (ctx) => {
+            const agent = getAgent();
+            agent.logger.info('Received request via POST /api/reset');
+            const { sessionId } = ctx.req.valid('json');
+            await agent.resetConversation(sessionId);
+            return ctx.json({ status: 'reset initiated', sessionId });
+        })
+        .openapi(messageStreamRoute, async (ctx) => {
+            const agent = getAgent();
+            const body = ctx.req.valid('json');
+
+            const { message = '', sessionId, imageData, fileData } = body;
+
+            const imageDataInput = imageData
+                ? { image: imageData.base64, mimeType: imageData.mimeType }
+                : undefined;
+
+            const fileDataInput = fileData
+                ? {
+                      data: fileData.base64,
+                      mimeType: fileData.mimeType,
+                      ...(fileData.filename && { filename: fileData.filename }),
+                  }
+                : undefined;
+
+            // Create abort controller for cleanup
+            const abortController = new AbortController();
+            const { signal } = abortController;
+
+            // Start agent streaming
+            const iterator = await agent.stream(message, {
+                sessionId,
+                imageData: imageDataInput,
+                fileData: fileDataInput,
+                signal,
+            });
+
+            // Use Hono's streamSSE helper which handles backpressure correctly
+            return streamSSE(ctx, async (stream) => {
+                // Store pending approval events to be written to stream (only if coordinator available)
+                const pendingApprovalEvents: Array<{ event: string; data: unknown }> = [];
+
+                // Subscribe to approval events from coordinator (if available)
+                if (approvalCoordinator) {
+                    approvalCoordinator.onRequest(
+                        (request) => {
+                            if (request.sessionId === sessionId) {
+                                pendingApprovalEvents.push({
+                                    event: 'approval:request',
+                                    data: request,
+                                });
+                            }
+                        },
+                        { signal }
+                    );
+
+                    approvalCoordinator.onResponse(
+                        (response) => {
+                            if (response.sessionId === sessionId) {
+                                pendingApprovalEvents.push({
+                                    event: 'approval:response',
+                                    data: response,
+                                });
+                            }
+                        },
+                        { signal }
+                    );
+                }
+
+                try {
+                    // Stream LLM/tool events from iterator
+                    for await (const event of iterator) {
+                        // First, write any pending approval events
+                        while (pendingApprovalEvents.length > 0) {
+                            const approvalEvent = pendingApprovalEvents.shift()!;
+                            await stream.writeSSE({
+                                event: approvalEvent.event,
+                                data: JSON.stringify(approvalEvent.data),
                             });
                         }
-                    },
-                    { signal }
-                );
 
-                approvalCoordinator.onResponse(
-                    (response) => {
-                        if (response.sessionId === sessionId) {
-                            pendingApprovalEvents.push({
-                                event: 'approval:response',
-                                data: response,
-                            });
-                        }
-                    },
-                    { signal }
-                );
-            }
+                        // Then write the LLM/tool event
+                        // Serialize errors properly since Error objects don't JSON.stringify well
+                        const eventData =
+                            event.type === 'llm:error' && event.error instanceof Error
+                                ? {
+                                      ...event,
+                                      error: {
+                                          message: event.error.message,
+                                          name: event.error.name,
+                                          stack: event.error.stack,
+                                      },
+                                  }
+                                : event;
+                        await stream.writeSSE({
+                            event: event.type,
+                            data: JSON.stringify(eventData),
+                        });
+                    }
 
-            try {
-                // Stream LLM/tool events from iterator
-                for await (const event of iterator) {
-                    // First, write any pending approval events
+                    // Write any remaining approval events
                     while (pendingApprovalEvents.length > 0) {
                         const approvalEvent = pendingApprovalEvents.shift()!;
                         await stream.writeSSE({
@@ -357,50 +386,20 @@ export function createMessagesRouter(
                             data: JSON.stringify(approvalEvent.data),
                         });
                     }
-
-                    // Then write the LLM/tool event
-                    // Serialize errors properly since Error objects don't JSON.stringify well
-                    const eventData =
-                        event.type === 'llm:error' && event.error instanceof Error
-                            ? {
-                                  ...event,
-                                  error: {
-                                      message: event.error.message,
-                                      name: event.error.name,
-                                      stack: event.error.stack,
-                                  },
-                              }
-                            : event;
+                } catch (error) {
                     await stream.writeSSE({
-                        event: event.type,
-                        data: JSON.stringify(eventData),
+                        event: 'llm:error',
+                        data: JSON.stringify({
+                            error: {
+                                message: error instanceof Error ? error.message : String(error),
+                            },
+                            recoverable: false,
+                            sessionId,
+                        }),
                     });
+                } finally {
+                    abortController.abort(); // Cleanup subscriptions
                 }
-
-                // Write any remaining approval events
-                while (pendingApprovalEvents.length > 0) {
-                    const approvalEvent = pendingApprovalEvents.shift()!;
-                    await stream.writeSSE({
-                        event: approvalEvent.event,
-                        data: JSON.stringify(approvalEvent.data),
-                    });
-                }
-            } catch (error) {
-                await stream.writeSSE({
-                    event: 'llm:error',
-                    data: JSON.stringify({
-                        error: {
-                            message: error instanceof Error ? error.message : String(error),
-                        },
-                        recoverable: false,
-                        sessionId,
-                    }),
-                });
-            } finally {
-                abortController.abort(); // Cleanup subscriptions
-            }
+            });
         });
-    });
-
-    return app;
 }

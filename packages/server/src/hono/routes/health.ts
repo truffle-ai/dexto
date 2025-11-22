@@ -21,7 +21,5 @@ export function createHealthRouter(_getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(route, (c) => c.text('OK'));
-
-    return app;
+    return app.openapi(route, (c) => c.text('OK'));
 }

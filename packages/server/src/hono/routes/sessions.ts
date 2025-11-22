@@ -34,34 +34,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(listRoute, async (ctx) => {
-        const agent = getAgent();
-        const sessionIds = await agent.listSessions();
-        const sessions = await Promise.all(
-            sessionIds.map(async (id) => {
-                try {
-                    const metadata = await agent.getSessionMetadata(id);
-                    return {
-                        id,
-                        createdAt: metadata?.createdAt || null,
-                        lastActivity: metadata?.lastActivity || null,
-                        messageCount: metadata?.messageCount || 0,
-                        title: metadata?.title || null,
-                    };
-                } catch {
-                    // Skip sessions that no longer exist
-                    return {
-                        id,
-                        createdAt: null,
-                        lastActivity: null,
-                        messageCount: 0,
-                        title: null,
-                    };
-                }
-            })
-        );
-        return ctx.json({ sessions });
-    });
 
     const createRouteDef = createRoute({
         method: 'post',
@@ -86,24 +58,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 },
             },
         },
-    });
-    app.openapi(createRouteDef, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('json');
-        const session = await agent.createSession(sessionId);
-        const metadata = await agent.getSessionMetadata(session.id);
-        return ctx.json(
-            {
-                session: {
-                    id: session.id,
-                    createdAt: metadata?.createdAt || Date.now(),
-                    lastActivity: metadata?.lastActivity || Date.now(),
-                    messageCount: metadata?.messageCount || 0,
-                    title: metadata?.title || null,
-                },
-            },
-            201
-        );
     });
 
     const getRoute = createRoute({
@@ -136,22 +90,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(getRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.param();
-        const metadata = await agent.getSessionMetadata(sessionId);
-        const history = await agent.getSessionHistory(sessionId);
-        return ctx.json({
-            session: {
-                id: sessionId,
-                createdAt: metadata?.createdAt || null,
-                lastActivity: metadata?.lastActivity || null,
-                messageCount: metadata?.messageCount || 0,
-                title: metadata?.title || null,
-                history: history.length,
-            },
-        });
-    });
 
     const historyRoute = createRoute({
         method: 'get',
@@ -176,12 +114,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 },
             },
         },
-    });
-    app.openapi(historyRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.param();
-        const history = await agent.getSessionHistory(sessionId);
-        return ctx.json({ history });
     });
 
     const deleteRoute = createRoute({
@@ -208,12 +140,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(deleteRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.param();
-        await agent.deleteSession(sessionId);
-        return ctx.json({ status: 'deleted', sessionId });
-    });
 
     const cancelRoute = createRoute({
         method: 'post',
@@ -237,15 +163,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 },
             },
         },
-    });
-    app.openapi(cancelRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('param');
-        const cancelled = await agent.cancel(sessionId);
-        if (!cancelled) {
-            agent.logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
-        }
-        return ctx.json({ cancelled, sessionId });
     });
 
     const loadRoute = createRoute({
@@ -285,31 +202,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(loadRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('param');
-
-        // Validate that session exists
-        const sessionIds = await agent.listSessions();
-        if (!sessionIds.includes(sessionId)) {
-            return ctx.json({ error: `Session not found: ${sessionId}` }, 404);
-        }
-
-        // Return session metadata
-        const metadata = await agent.getSessionMetadata(sessionId);
-        return ctx.json(
-            {
-                session: {
-                    id: sessionId,
-                    createdAt: metadata?.createdAt || null,
-                    lastActivity: metadata?.lastActivity || null,
-                    messageCount: metadata?.messageCount || 0,
-                    title: metadata?.title || null,
-                },
-            },
-            200
-        );
-    });
 
     const patchRoute = createRoute({
         method: 'patch',
@@ -348,22 +240,6 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(patchRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('param');
-        const { title } = ctx.req.valid('json');
-        await agent.setSessionTitle(sessionId, title);
-        const metadata = await agent.getSessionMetadata(sessionId);
-        return ctx.json({
-            session: {
-                id: sessionId,
-                createdAt: metadata?.createdAt || null,
-                lastActivity: metadata?.lastActivity || null,
-                messageCount: metadata?.messageCount || 0,
-                title: metadata?.title || title,
-            },
-        });
-    });
 
     const generateTitleRoute = createRoute({
         method: 'post',
@@ -397,12 +273,136 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(generateTitleRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('param');
-        const title = await agent.generateSessionTitle(sessionId);
-        return ctx.json({ title, sessionId });
-    });
 
-    return app;
+    return app
+        .openapi(listRoute, async (ctx) => {
+            const agent = getAgent();
+            const sessionIds = await agent.listSessions();
+            const sessions = await Promise.all(
+                sessionIds.map(async (id) => {
+                    try {
+                        const metadata = await agent.getSessionMetadata(id);
+                        return {
+                            id,
+                            createdAt: metadata?.createdAt || null,
+                            lastActivity: metadata?.lastActivity || null,
+                            messageCount: metadata?.messageCount || 0,
+                            title: metadata?.title || null,
+                        };
+                    } catch {
+                        // Skip sessions that no longer exist
+                        return {
+                            id,
+                            createdAt: null,
+                            lastActivity: null,
+                            messageCount: 0,
+                            title: null,
+                        };
+                    }
+                })
+            );
+            return ctx.json({ sessions });
+        })
+        .openapi(createRouteDef, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('json');
+            const session = await agent.createSession(sessionId);
+            const metadata = await agent.getSessionMetadata(session.id);
+            return ctx.json(
+                {
+                    session: {
+                        id: session.id,
+                        createdAt: metadata?.createdAt || Date.now(),
+                        lastActivity: metadata?.lastActivity || Date.now(),
+                        messageCount: metadata?.messageCount || 0,
+                        title: metadata?.title || null,
+                    },
+                },
+                201
+            );
+        })
+        .openapi(getRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.param();
+            const metadata = await agent.getSessionMetadata(sessionId);
+            const history = await agent.getSessionHistory(sessionId);
+            return ctx.json({
+                session: {
+                    id: sessionId,
+                    createdAt: metadata?.createdAt || null,
+                    lastActivity: metadata?.lastActivity || null,
+                    messageCount: metadata?.messageCount || 0,
+                    title: metadata?.title || null,
+                    history: history.length,
+                },
+            });
+        })
+        .openapi(historyRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.param();
+            const history = await agent.getSessionHistory(sessionId);
+            return ctx.json({ history });
+        })
+        .openapi(deleteRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.param();
+            await agent.deleteSession(sessionId);
+            return ctx.json({ status: 'deleted', sessionId });
+        })
+        .openapi(cancelRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('param');
+            const cancelled = await agent.cancel(sessionId);
+            if (!cancelled) {
+                agent.logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+            }
+            return ctx.json({ cancelled, sessionId });
+        })
+        .openapi(loadRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('param');
+
+            // Validate that session exists
+            const sessionIds = await agent.listSessions();
+            if (!sessionIds.includes(sessionId)) {
+                return ctx.json({ error: `Session not found: ${sessionId}` }, 404);
+            }
+
+            // Return session metadata
+            const metadata = await agent.getSessionMetadata(sessionId);
+            return ctx.json(
+                {
+                    session: {
+                        id: sessionId,
+                        createdAt: metadata?.createdAt || null,
+                        lastActivity: metadata?.lastActivity || null,
+                        messageCount: metadata?.messageCount || 0,
+                        title: metadata?.title || null,
+                    },
+                },
+                200
+            );
+        })
+        .openapi(patchRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('param');
+            const { title } = ctx.req.valid('json');
+            await agent.setSessionTitle(sessionId, title);
+            const metadata = await agent.getSessionMetadata(sessionId);
+            return ctx.json({
+                session: {
+                    id: sessionId,
+                    createdAt: metadata?.createdAt || null,
+                    lastActivity: metadata?.lastActivity || null,
+                    messageCount: metadata?.messageCount || 0,
+                    title: metadata?.title || title,
+                },
+            });
+        })
+        .openapi(generateTitleRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('param');
+            const title = await agent.generateSessionTitle(sessionId);
+            return ctx.json({ title, sessionId });
+        });
 }

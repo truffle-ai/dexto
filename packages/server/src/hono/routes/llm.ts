@@ -131,35 +131,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(currentRoute, (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('query');
-
-        const currentConfig = sessionId
-            ? agent.getEffectiveConfig(sessionId).llm
-            : agent.getCurrentLLMConfig();
-
-        let displayName: string | undefined;
-        try {
-            const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
-                (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
-            );
-            displayName = model?.displayName || undefined;
-        } catch {
-            // ignore lookup errors
-        }
-
-        // Omit apiKey from response for security
-        const { apiKey, ...configWithoutKey } = currentConfig;
-        return ctx.json({
-            config: {
-                ...configWithoutKey,
-                hasApiKey: !!apiKey,
-                ...(displayName && { displayName }),
-            },
-        });
-    });
-
     const catalogRoute = createRoute({
         method: 'get',
         path: '/llm/catalog',
@@ -203,118 +174,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(catalogRoute, (ctx) => {
-        type ProviderCatalog = Pick<
-            ProviderInfo,
-            'supportedRouters' | 'models' | 'supportedFileTypes'
-        > & {
-            name: string;
-            hasApiKey: boolean;
-            primaryEnvVar: string;
-            supportsBaseURL: boolean;
-        };
-
-        type ModelFlat = ProviderCatalog['models'][number] & { provider: LLMProvider };
-
-        const queryParams = ctx.req.valid('query');
-
-        const providers: Record<string, ProviderCatalog> = {};
-        for (const provider of LLM_PROVIDERS) {
-            const info = LLM_REGISTRY[provider];
-            const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
-            const keyStatus = getProviderKeyStatus(provider);
-
-            providers[provider] = {
-                name: displayName,
-                hasApiKey: keyStatus.hasApiKey,
-                primaryEnvVar: keyStatus.envVar,
-                supportedRouters: getSupportedRoutersForProvider(provider),
-                supportsBaseURL: supportsBaseURL(provider),
-                models: info.models,
-                supportedFileTypes: info.supportedFileTypes,
-            };
-        }
-
-        let filtered: Record<string, ProviderCatalog> = { ...providers };
-
-        if (queryParams.provider && queryParams.provider.length > 0) {
-            const allowed = new Set(
-                queryParams.provider.filter((p) => (LLM_PROVIDERS as readonly string[]).includes(p))
-            );
-            const filteredByProvider: Record<string, ProviderCatalog> = {};
-            for (const [id, catalog] of Object.entries(filtered)) {
-                if (allowed.has(id)) {
-                    filteredByProvider[id] = catalog;
-                }
-            }
-            filtered = filteredByProvider;
-        }
-
-        if (typeof queryParams.hasKey === 'boolean') {
-            const byKey: Record<string, ProviderCatalog> = {};
-            for (const [id, catalog] of Object.entries(filtered)) {
-                if (catalog.hasApiKey === queryParams.hasKey) {
-                    byKey[id] = catalog;
-                }
-            }
-            filtered = byKey;
-        }
-
-        if (queryParams.router) {
-            const byRouter: Record<string, ProviderCatalog> = {};
-            for (const [id, catalog] of Object.entries(filtered)) {
-                if (!catalog.supportedRouters.includes(queryParams.router!)) continue;
-                const models = catalog.models.filter((model) =>
-                    isRouterSupportedForModel(id as LLMProvider, model.name, queryParams.router!)
-                );
-                if (models.length > 0) {
-                    byRouter[id] = { ...catalog, models };
-                }
-            }
-            filtered = byRouter;
-        }
-
-        if (queryParams.fileType) {
-            const byFileType: Record<string, ProviderCatalog> = {};
-            for (const [id, catalog] of Object.entries(filtered)) {
-                const models = catalog.models.filter((model) => {
-                    const modelTypes =
-                        Array.isArray(model.supportedFileTypes) &&
-                        model.supportedFileTypes.length > 0
-                            ? model.supportedFileTypes
-                            : catalog.supportedFileTypes || [];
-                    return modelTypes.includes(queryParams.fileType!);
-                });
-                if (models.length > 0) {
-                    byFileType[id] = { ...catalog, models };
-                }
-            }
-            filtered = byFileType;
-        }
-
-        if (queryParams.defaultOnly) {
-            const byDefault: Record<string, ProviderCatalog> = {};
-            for (const [id, catalog] of Object.entries(filtered)) {
-                const models = catalog.models.filter((model) => model.default === true);
-                if (models.length > 0) {
-                    byDefault[id] = { ...catalog, models };
-                }
-            }
-            filtered = byDefault;
-        }
-
-        if (queryParams.mode === 'flat') {
-            const flat: ModelFlat[] = [];
-            for (const [id, catalog] of Object.entries(filtered)) {
-                for (const model of catalog.models) {
-                    flat.push({ provider: id as LLMProvider, ...model });
-                }
-            }
-            return ctx.json({ models: flat });
-        }
-
-        return ctx.json({ providers: filtered });
-    });
 
     const saveKeyRoute = createRoute({
         method: 'post',
@@ -344,11 +203,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 },
             },
         },
-    });
-    app.openapi(saveKeyRoute, async (ctx) => {
-        const { provider, apiKey } = ctx.req.valid('json');
-        const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
-        return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
     });
 
     const switchRoute = createRoute({
@@ -387,23 +241,174 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(switchRoute, async (ctx) => {
-        const agent = getAgent();
-        const raw = ctx.req.valid('json');
-        const { sessionId, ...llmUpdates } = raw;
 
-        const config = await agent.switchLLM(llmUpdates, sessionId);
+    return app
+        .openapi(currentRoute, (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('query');
 
-        // Omit apiKey from response for security
-        const { apiKey, ...configWithoutKey } = config;
-        return ctx.json({
-            config: {
-                ...configWithoutKey,
-                hasApiKey: !!apiKey,
-            },
-            sessionId,
+            const currentConfig = sessionId
+                ? agent.getEffectiveConfig(sessionId).llm
+                : agent.getCurrentLLMConfig();
+
+            let displayName: string | undefined;
+            try {
+                const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
+                    (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
+                );
+                displayName = model?.displayName || undefined;
+            } catch {
+                // ignore lookup errors
+            }
+
+            // Omit apiKey from response for security
+            const { apiKey, ...configWithoutKey } = currentConfig;
+            return ctx.json({
+                config: {
+                    ...configWithoutKey,
+                    hasApiKey: !!apiKey,
+                    ...(displayName && { displayName }),
+                },
+            });
+        })
+        .openapi(catalogRoute, (ctx) => {
+            type ProviderCatalog = Pick<
+                ProviderInfo,
+                'supportedRouters' | 'models' | 'supportedFileTypes'
+            > & {
+                name: string;
+                hasApiKey: boolean;
+                primaryEnvVar: string;
+                supportsBaseURL: boolean;
+            };
+
+            type ModelFlat = ProviderCatalog['models'][number] & { provider: LLMProvider };
+
+            const queryParams = ctx.req.valid('query');
+
+            const providers: Record<string, ProviderCatalog> = {};
+            for (const provider of LLM_PROVIDERS) {
+                const info = LLM_REGISTRY[provider];
+                const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                const keyStatus = getProviderKeyStatus(provider);
+
+                providers[provider] = {
+                    name: displayName,
+                    hasApiKey: keyStatus.hasApiKey,
+                    primaryEnvVar: keyStatus.envVar,
+                    supportedRouters: getSupportedRoutersForProvider(provider),
+                    supportsBaseURL: supportsBaseURL(provider),
+                    models: info.models,
+                    supportedFileTypes: info.supportedFileTypes,
+                };
+            }
+
+            let filtered: Record<string, ProviderCatalog> = { ...providers };
+
+            if (queryParams.provider && queryParams.provider.length > 0) {
+                const allowed = new Set(
+                    queryParams.provider.filter((p) =>
+                        (LLM_PROVIDERS as readonly string[]).includes(p)
+                    )
+                );
+                const filteredByProvider: Record<string, ProviderCatalog> = {};
+                for (const [id, catalog] of Object.entries(filtered)) {
+                    if (allowed.has(id)) {
+                        filteredByProvider[id] = catalog;
+                    }
+                }
+                filtered = filteredByProvider;
+            }
+
+            if (typeof queryParams.hasKey === 'boolean') {
+                const byKey: Record<string, ProviderCatalog> = {};
+                for (const [id, catalog] of Object.entries(filtered)) {
+                    if (catalog.hasApiKey === queryParams.hasKey) {
+                        byKey[id] = catalog;
+                    }
+                }
+                filtered = byKey;
+            }
+
+            if (queryParams.router) {
+                const byRouter: Record<string, ProviderCatalog> = {};
+                for (const [id, catalog] of Object.entries(filtered)) {
+                    if (!catalog.supportedRouters.includes(queryParams.router!)) continue;
+                    const models = catalog.models.filter((model) =>
+                        isRouterSupportedForModel(
+                            id as LLMProvider,
+                            model.name,
+                            queryParams.router!
+                        )
+                    );
+                    if (models.length > 0) {
+                        byRouter[id] = { ...catalog, models };
+                    }
+                }
+                filtered = byRouter;
+            }
+
+            if (queryParams.fileType) {
+                const byFileType: Record<string, ProviderCatalog> = {};
+                for (const [id, catalog] of Object.entries(filtered)) {
+                    const models = catalog.models.filter((model) => {
+                        const modelTypes =
+                            Array.isArray(model.supportedFileTypes) &&
+                            model.supportedFileTypes.length > 0
+                                ? model.supportedFileTypes
+                                : catalog.supportedFileTypes || [];
+                        return modelTypes.includes(queryParams.fileType!);
+                    });
+                    if (models.length > 0) {
+                        byFileType[id] = { ...catalog, models };
+                    }
+                }
+                filtered = byFileType;
+            }
+
+            if (queryParams.defaultOnly) {
+                const byDefault: Record<string, ProviderCatalog> = {};
+                for (const [id, catalog] of Object.entries(filtered)) {
+                    const models = catalog.models.filter((model) => model.default === true);
+                    if (models.length > 0) {
+                        byDefault[id] = { ...catalog, models };
+                    }
+                }
+                filtered = byDefault;
+            }
+
+            if (queryParams.mode === 'flat') {
+                const flat: ModelFlat[] = [];
+                for (const [id, catalog] of Object.entries(filtered)) {
+                    for (const model of catalog.models) {
+                        flat.push({ provider: id as LLMProvider, ...model });
+                    }
+                }
+                return ctx.json({ models: flat });
+            }
+
+            return ctx.json({ providers: filtered });
+        })
+        .openapi(saveKeyRoute, async (ctx) => {
+            const { provider, apiKey } = ctx.req.valid('json');
+            const meta = await saveProviderApiKey(provider, apiKey, process.cwd());
+            return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
+        })
+        .openapi(switchRoute, async (ctx) => {
+            const agent = getAgent();
+            const raw = ctx.req.valid('json');
+            const { sessionId, ...llmUpdates } = raw;
+
+            const config = await agent.switchLLM(llmUpdates, sessionId);
+
+            // Omit apiKey from response for security
+            const { apiKey, ...configWithoutKey } = config;
+            return ctx.json({
+                config: {
+                    ...configWithoutKey,
+                    hasApiKey: !!apiKey,
+                },
+                sessionId,
+            });
         });
-    });
-
-    return app;
 }

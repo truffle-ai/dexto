@@ -232,15 +232,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             },
         },
     });
-    app.openapi(listRoute, async (ctx) => {
-        const agents = await Dexto.listAgents();
-        const currentId = getActiveAgentId() ?? null;
-        return ctx.json({
-            installed: agents.installed,
-            available: agents.available,
-            current: currentId ? await resolveAgentInfo(currentId) : { id: null, name: null },
-        });
-    });
 
     const currentRoute = createRoute({
         method: 'get',
@@ -254,13 +245,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 content: { 'application/json': { schema: AgentInfoNullableSchema } },
             },
         },
-    });
-    app.openapi(currentRoute, async (ctx) => {
-        const currentId = getActiveAgentId() ?? null;
-        if (!currentId) {
-            return ctx.json({ id: null, name: null });
-        }
-        return ctx.json(await resolveAgentInfo(currentId));
     });
 
     const installRoute = createRoute({
@@ -285,46 +269,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             },
         },
     });
-    app.openapi(installRoute, async (ctx) => {
-        const body = ctx.req.valid('json');
-
-        // Check if this is a custom agent installation (has sourcePath and metadata)
-        if ('sourcePath' in body && 'metadata' in body) {
-            const { id, displayName, sourcePath, metadata, injectPreferences } = body as ReturnType<
-                typeof CustomAgentInstallSchema.parse
-            >;
-
-            await Dexto.installCustomAgent(
-                id,
-                sourcePath,
-                {
-                    name: displayName,
-                    description: metadata.description,
-                    author: metadata.author,
-                    tags: metadata.tags,
-                    ...(metadata.main ? { main: metadata.main } : {}),
-                },
-                injectPreferences
-            );
-            return ctx.json(
-                { installed: true as const, id, name: displayName, type: 'custom' as const },
-                201
-            );
-        } else {
-            // Registry agent installation
-            const { id } = body as z.output<typeof AgentIdentifierSchema>;
-            await Dexto.installAgent(id);
-            const agentInfo = await resolveAgentInfo(id);
-            return ctx.json(
-                {
-                    installed: true as const,
-                    ...agentInfo,
-                    type: 'builtin' as const,
-                },
-                201
-            );
-        }
-    });
 
     const switchRoute = createRoute({
         method: 'post',
@@ -347,14 +291,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 content: { 'application/json': { schema: SwitchAgentResponseSchema } },
             },
         },
-    });
-    app.openapi(switchRoute, async (ctx) => {
-        const { id, path: filePath } = ctx.req.valid('json');
-
-        // Route based on presence of path parameter
-        const result = filePath ? await switchAgentByPath(filePath) : await switchAgentById(id);
-
-        return ctx.json({ switched: true as const, ...result });
     });
 
     const validateNameRoute = createRoute({
@@ -379,32 +315,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             },
         },
     });
-    app.openapi(validateNameRoute, async (ctx) => {
-        const { id } = ctx.req.valid('json');
-        const agents = await Dexto.listAgents();
-
-        // Check if name exists in installed agents
-        const installedAgent = agents.installed.find((a) => a.id === id);
-        if (installedAgent) {
-            return ctx.json({
-                valid: false,
-                conflict: installedAgent.type,
-                message: `Agent id '${id}' already exists (${installedAgent.type})`,
-            });
-        }
-
-        // Check if name exists in available agents (registry)
-        const availableAgent = agents.available.find((a) => a.id === id);
-        if (availableAgent) {
-            return ctx.json({
-                valid: false,
-                conflict: availableAgent.type,
-                message: `Agent id '${id}' conflicts with ${availableAgent.type} agent`,
-            });
-        }
-
-        return ctx.json({ valid: true });
-    });
 
     const uninstallRoute = createRoute({
         method: 'post',
@@ -428,11 +338,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 content: { 'application/json': { schema: UninstallAgentResponseSchema } },
             },
         },
-    });
-    app.openapi(uninstallRoute, async (ctx) => {
-        const { id, force } = ctx.req.valid('json');
-        await Dexto.uninstallAgent(id, force);
-        return ctx.json({ uninstalled: true as const, id });
     });
 
     const customCreateRoute = createRoute({
@@ -467,73 +372,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             },
         },
     });
-    app.openapi(customCreateRoute, async (ctx) => {
-        const { id, name, description, author, tags, config } = ctx.req.valid('json');
 
-        // Handle API key: if it's a raw key, store securely and use env var reference
-        const provider: LLMProvider = config.llm.provider;
-        let agentConfig = config;
-
-        if (config.llm.apiKey && !config.llm.apiKey.startsWith('$')) {
-            // Raw API key provided - store securely and get env var reference
-            const meta = await saveProviderApiKey(provider, config.llm.apiKey, process.cwd());
-            const apiKeyRef = `$${meta.envVar}`;
-            logger.info(`Stored API key securely for ${provider}, using env var: ${meta.envVar}`);
-            // Update config with env var reference
-            agentConfig = {
-                ...config,
-                llm: {
-                    ...config.llm,
-                    apiKey: apiKeyRef,
-                },
-            };
-        } else if (!config.llm.apiKey) {
-            // No API key provided, use default env var
-            agentConfig = {
-                ...config,
-                llm: {
-                    ...config.llm,
-                    apiKey: `$${getPrimaryApiKeyEnvVar(provider)}`,
-                },
-            };
-        }
-
-        const yamlContent = yamlStringify(agentConfig);
-        logger.info(
-            `Creating agent config for ${id}: agentConfig=${safeStringify(agentConfig)}, yamlContent=${yamlContent}`
-        );
-
-        // Create temporary file
-        const tmpDir = os.tmpdir();
-        const tmpFile = path.join(tmpDir, `${id}-${Date.now()}.yml`);
-        await fs.writeFile(tmpFile, yamlContent, 'utf-8');
-
-        try {
-            // Install the custom agent
-            await Dexto.installCustomAgent(
-                id,
-                tmpFile,
-                {
-                    name,
-                    description,
-                    author: author || 'Custom',
-                    tags: tags || [],
-                },
-                false // Don't inject preferences
-            );
-
-            // Clean up temp file
-            await fs.unlink(tmpFile).catch(() => {});
-
-            return ctx.json({ created: true as const, id, name }, 201);
-        } catch (installError) {
-            // Clean up temp file on error
-            await fs.unlink(tmpFile).catch(() => {});
-            throw installError;
-        }
-    });
-
-    // Agent Config routes
     const getPathRoute = createRoute({
         method: 'get',
         path: '/agent/path',
@@ -550,21 +389,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 },
             },
         },
-    });
-    app.openapi(getPathRoute, (ctx) => {
-        const agent = getAgent();
-        const agentPath = agent.getAgentFilePath();
-
-        const relativePath = path.basename(agentPath);
-        const ext = path.extname(agentPath);
-        const name = path.basename(agentPath, ext);
-
-        return ctx.json({
-            path: agentPath,
-            relativePath,
-            name,
-            isDefault: name === 'default-agent',
-        });
     });
 
     const getConfigRoute = createRoute({
@@ -583,29 +407,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 },
             },
         },
-    });
-    app.openapi(getConfigRoute, async (ctx) => {
-        const agent = getAgent();
-
-        // Get the agent file path being used
-        const agentPath = agent.getAgentFilePath();
-
-        // Read raw YAML from file (not expanded env vars)
-        const yamlContent = await fs.readFile(agentPath, 'utf-8');
-
-        // Get metadata
-        const stats = await fs.stat(agentPath);
-
-        return ctx.json({
-            yaml: yamlContent,
-            path: agentPath,
-            relativePath: path.basename(agentPath),
-            lastModified: stats.mtime,
-            warnings: [
-                'Environment variables ($VAR) will be resolved at runtime',
-                'API keys should use environment variables',
-            ],
-        });
     });
 
     const validateConfigRoute = createRoute({
@@ -673,82 +474,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             },
         },
     });
-    app.openapi(validateConfigRoute, async (ctx) => {
-        const { yaml } = ctx.req.valid('json');
-
-        // Parse YAML
-        let parsed;
-        try {
-            parsed = yamlParse(yaml);
-        } catch (parseError: any) {
-            return ctx.json({
-                valid: false,
-                errors: [
-                    {
-                        line: parseError.linePos?.[0]?.line || 1,
-                        column: parseError.linePos?.[0]?.col || 1,
-                        message: parseError.message,
-                        code: 'YAML_PARSE_ERROR',
-                    },
-                ],
-                warnings: [],
-            });
-        }
-
-        // Check that parsed content is a valid object (not null, array, or primitive)
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            return ctx.json({
-                valid: false,
-                errors: [
-                    {
-                        line: 1,
-                        column: 1,
-                        message: 'Configuration must be a valid YAML object',
-                        code: 'INVALID_CONFIG_TYPE',
-                    },
-                ],
-                warnings: [],
-            });
-        }
-
-        // Enrich config with defaults/paths to satisfy schema requirements
-        // Pass undefined for validation-only (no real file path)
-        // AgentId will be derived from agentCard.name or fall back to 'default-agent'
-        const enriched = enrichAgentConfig(parsed, undefined);
-
-        // Validate against schema
-        const result = AgentConfigSchema.safeParse(enriched);
-
-        if (!result.success) {
-            const errors = result.error.errors.map((err) => ({
-                path: err.path.join('.'),
-                message: err.message,
-                code: 'SCHEMA_VALIDATION_ERROR',
-            }));
-
-            return ctx.json({
-                valid: false,
-                errors,
-                warnings: [],
-            });
-        }
-
-        // Check for warnings (e.g., plain text API keys)
-        const warnings: Array<{ path: string; message: string; code: string }> = [];
-        if (parsed.llm?.apiKey && !parsed.llm.apiKey.startsWith('$')) {
-            warnings.push({
-                path: 'llm.apiKey',
-                message: 'Consider using environment variable instead of plain text',
-                code: 'SECURITY_WARNING',
-            });
-        }
-
-        return ctx.json({
-            valid: true,
-            errors: [],
-            warnings,
-        });
-    });
 
     const saveConfigRoute = createRoute({
         method: 'post',
@@ -776,110 +501,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             },
         },
     });
-    app.openapi(saveConfigRoute, async (ctx) => {
-        const agent = getAgent();
-        const { yaml } = ctx.req.valid('json');
-
-        // Validate YAML syntax first
-        let parsed;
-        try {
-            parsed = yamlParse(yaml);
-        } catch (parseError: any) {
-            throw new DextoValidationError([
-                {
-                    code: AgentErrorCode.INVALID_CONFIG,
-                    message: `Invalid YAML syntax: ${parseError.message}`,
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
-                    severity: 'error',
-                },
-            ]);
-        }
-
-        // Check that parsed content is a valid object (not null, array, or primitive)
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            throw new DextoValidationError([
-                {
-                    code: AgentErrorCode.INVALID_CONFIG,
-                    message: 'Configuration must be a valid YAML object',
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
-                    severity: 'error',
-                },
-            ]);
-        }
-
-        // Get target file path for enrichment
-        const agentPath = agent.getAgentFilePath();
-
-        // Enrich config with defaults/paths before validation (same as validation endpoint)
-        const enriched = enrichAgentConfig(parsed, agentPath);
-
-        // Validate schema
-        const validationResult = AgentConfigSchema.safeParse(enriched);
-
-        if (!validationResult.success) {
-            throw new DextoValidationError(
-                validationResult.error.errors.map((err) => ({
-                    code: AgentErrorCode.INVALID_CONFIG,
-                    message: `${err.path.join('.')}: ${err.message}`,
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
-                    severity: 'error',
-                }))
-            );
-        }
-
-        // Create backup
-        const backupPath = `${agentPath}.backup`;
-        await fs.copyFile(agentPath, backupPath);
-
-        try {
-            // Write new config
-            await fs.writeFile(agentPath, yaml, 'utf-8');
-
-            // Load from file (agent-management's job)
-            const newConfig = await reloadAgentConfigFromFile(agentPath);
-
-            // Enrich config before reloading into agent (core expects enriched config with paths)
-            const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
-
-            // Reload into agent (core's job - handles restart automatically)
-            const reloadResult = await agent.reload(enrichedConfig);
-
-            if (reloadResult.restarted) {
-                logger.info(
-                    `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
-                );
-            } else if (reloadResult.changesApplied.length === 0) {
-                logger.info('Configuration saved (no changes detected)');
-            }
-
-            // Clean up backup file after successful save
-            await fs.unlink(backupPath).catch(() => {
-                // Ignore errors if backup file doesn't exist
-            });
-
-            logger.info(`Agent configuration saved and applied: ${agentPath}`);
-
-            return ctx.json({
-                ok: true as const,
-                path: agentPath,
-                reloaded: true,
-                restarted: reloadResult.restarted,
-                changesApplied: reloadResult.changesApplied,
-                message: reloadResult.restarted
-                    ? 'Configuration saved and applied successfully (agent restarted)'
-                    : 'Configuration saved successfully (no changes detected)',
-            });
-        } catch (error) {
-            // Restore backup on error
-            await fs.copyFile(backupPath, agentPath).catch(() => {
-                // Ignore errors if backup restore fails
-            });
-            throw error;
-        }
-    });
 
     const exportConfigRoute = createRoute({
         method: 'get',
@@ -902,42 +523,421 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             },
         },
     });
-    app.openapi(exportConfigRoute, async (ctx) => {
-        const agent = getAgent();
-        const { sessionId } = ctx.req.valid('query');
-        const config = agent.getEffectiveConfig(sessionId);
 
-        // Redact sensitive values
-        const maskedConfig = {
-            ...config,
-            llm: {
-                ...config.llm,
-                apiKey: config.llm.apiKey ? '[REDACTED]' : undefined,
-            },
-            mcpServers: config.mcpServers
-                ? Object.fromEntries(
-                      Object.entries(config.mcpServers).map(([name, serverConfig]) => [
-                          name,
-                          serverConfig.type === 'stdio' && serverConfig.env
-                              ? {
-                                    ...serverConfig,
-                                    env: Object.fromEntries(
-                                        Object.keys(serverConfig.env).map((key) => [
-                                            key,
-                                            '[REDACTED]',
-                                        ])
-                                    ),
-                                }
-                              : serverConfig,
-                      ])
-                  )
-                : undefined,
-        };
+    return app
+        .openapi(listRoute, async (ctx) => {
+            const agents = await Dexto.listAgents();
+            const currentId = getActiveAgentId() ?? null;
+            return ctx.json({
+                installed: agents.installed,
+                available: agents.available,
+                current: currentId ? await resolveAgentInfo(currentId) : { id: null, name: null },
+            });
+        })
+        .openapi(currentRoute, async (ctx) => {
+            const currentId = getActiveAgentId() ?? null;
+            if (!currentId) {
+                return ctx.json({ id: null, name: null });
+            }
+            return ctx.json(await resolveAgentInfo(currentId));
+        })
+        .openapi(installRoute, async (ctx) => {
+            const body = ctx.req.valid('json');
 
-        const yamlStr = yamlStringify(maskedConfig);
-        ctx.header('Content-Type', 'application/x-yaml');
-        return ctx.body(yamlStr);
-    });
+            // Check if this is a custom agent installation (has sourcePath and metadata)
+            if ('sourcePath' in body && 'metadata' in body) {
+                const { id, displayName, sourcePath, metadata, injectPreferences } =
+                    body as ReturnType<typeof CustomAgentInstallSchema.parse>;
 
-    return app;
+                await Dexto.installCustomAgent(
+                    id,
+                    sourcePath,
+                    {
+                        name: displayName,
+                        description: metadata.description,
+                        author: metadata.author,
+                        tags: metadata.tags,
+                        ...(metadata.main ? { main: metadata.main } : {}),
+                    },
+                    injectPreferences
+                );
+                return ctx.json(
+                    { installed: true as const, id, name: displayName, type: 'custom' as const },
+                    201
+                );
+            } else {
+                // Registry agent installation
+                const { id } = body as z.output<typeof AgentIdentifierSchema>;
+                await Dexto.installAgent(id);
+                const agentInfo = await resolveAgentInfo(id);
+                return ctx.json(
+                    {
+                        installed: true as const,
+                        ...agentInfo,
+                        type: 'builtin' as const,
+                    },
+                    201
+                );
+            }
+        })
+        .openapi(switchRoute, async (ctx) => {
+            const { id, path: filePath } = ctx.req.valid('json');
+
+            // Route based on presence of path parameter
+            const result = filePath ? await switchAgentByPath(filePath) : await switchAgentById(id);
+
+            return ctx.json({ switched: true as const, ...result });
+        })
+        .openapi(validateNameRoute, async (ctx) => {
+            const { id } = ctx.req.valid('json');
+            const agents = await Dexto.listAgents();
+
+            // Check if name exists in installed agents
+            const installedAgent = agents.installed.find((a) => a.id === id);
+            if (installedAgent) {
+                return ctx.json({
+                    valid: false,
+                    conflict: installedAgent.type,
+                    message: `Agent id '${id}' already exists (${installedAgent.type})`,
+                });
+            }
+
+            // Check if name exists in available agents (registry)
+            const availableAgent = agents.available.find((a) => a.id === id);
+            if (availableAgent) {
+                return ctx.json({
+                    valid: false,
+                    conflict: availableAgent.type,
+                    message: `Agent id '${id}' conflicts with ${availableAgent.type} agent`,
+                });
+            }
+
+            return ctx.json({ valid: true });
+        })
+        .openapi(uninstallRoute, async (ctx) => {
+            const { id, force } = ctx.req.valid('json');
+            await Dexto.uninstallAgent(id, force);
+            return ctx.json({ uninstalled: true as const, id });
+        })
+        .openapi(customCreateRoute, async (ctx) => {
+            const { id, name, description, author, tags, config } = ctx.req.valid('json');
+
+            // Handle API key: if it's a raw key, store securely and use env var reference
+            const provider: LLMProvider = config.llm.provider;
+            let agentConfig = config;
+
+            if (config.llm.apiKey && !config.llm.apiKey.startsWith('$')) {
+                // Raw API key provided - store securely and get env var reference
+                const meta = await saveProviderApiKey(provider, config.llm.apiKey, process.cwd());
+                const apiKeyRef = `$${meta.envVar}`;
+                logger.info(
+                    `Stored API key securely for ${provider}, using env var: ${meta.envVar}`
+                );
+                // Update config with env var reference
+                agentConfig = {
+                    ...config,
+                    llm: {
+                        ...config.llm,
+                        apiKey: apiKeyRef,
+                    },
+                };
+            } else if (!config.llm.apiKey) {
+                // No API key provided, use default env var
+                agentConfig = {
+                    ...config,
+                    llm: {
+                        ...config.llm,
+                        apiKey: `$${getPrimaryApiKeyEnvVar(provider)}`,
+                    },
+                };
+            }
+
+            const yamlContent = yamlStringify(agentConfig);
+            logger.info(
+                `Creating agent config for ${id}: agentConfig=${safeStringify(agentConfig)}, yamlContent=${yamlContent}`
+            );
+
+            // Create temporary file
+            const tmpDir = os.tmpdir();
+            const tmpFile = path.join(tmpDir, `${id}-${Date.now()}.yml`);
+            await fs.writeFile(tmpFile, yamlContent, 'utf-8');
+
+            try {
+                // Install the custom agent
+                await Dexto.installCustomAgent(
+                    id,
+                    tmpFile,
+                    {
+                        name,
+                        description,
+                        author: author || 'Custom',
+                        tags: tags || [],
+                    },
+                    false // Don't inject preferences
+                );
+
+                // Clean up temp file
+                await fs.unlink(tmpFile).catch(() => {});
+
+                return ctx.json({ created: true as const, id, name }, 201);
+            } catch (installError) {
+                // Clean up temp file on error
+                await fs.unlink(tmpFile).catch(() => {});
+                throw installError;
+            }
+        })
+        .openapi(getPathRoute, (ctx) => {
+            const agent = getAgent();
+            const agentPath = agent.getAgentFilePath();
+
+            const relativePath = path.basename(agentPath);
+            const ext = path.extname(agentPath);
+            const name = path.basename(agentPath, ext);
+
+            return ctx.json({
+                path: agentPath,
+                relativePath,
+                name,
+                isDefault: name === 'default-agent',
+            });
+        })
+        .openapi(getConfigRoute, async (ctx) => {
+            const agent = getAgent();
+
+            // Get the agent file path being used
+            const agentPath = agent.getAgentFilePath();
+
+            // Read raw YAML from file (not expanded env vars)
+            const yamlContent = await fs.readFile(agentPath, 'utf-8');
+
+            // Get metadata
+            const stats = await fs.stat(agentPath);
+
+            return ctx.json({
+                yaml: yamlContent,
+                path: agentPath,
+                relativePath: path.basename(agentPath),
+                lastModified: stats.mtime,
+                warnings: [
+                    'Environment variables ($VAR) will be resolved at runtime',
+                    'API keys should use environment variables',
+                ],
+            });
+        })
+        .openapi(validateConfigRoute, async (ctx) => {
+            const { yaml } = ctx.req.valid('json');
+
+            // Parse YAML
+            let parsed;
+            try {
+                parsed = yamlParse(yaml);
+            } catch (parseError: any) {
+                return ctx.json({
+                    valid: false,
+                    errors: [
+                        {
+                            line: parseError.linePos?.[0]?.line || 1,
+                            column: parseError.linePos?.[0]?.col || 1,
+                            message: parseError.message,
+                            code: 'YAML_PARSE_ERROR',
+                        },
+                    ],
+                    warnings: [],
+                });
+            }
+
+            // Check that parsed content is a valid object (not null, array, or primitive)
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                return ctx.json({
+                    valid: false,
+                    errors: [
+                        {
+                            line: 1,
+                            column: 1,
+                            message: 'Configuration must be a valid YAML object',
+                            code: 'INVALID_CONFIG_TYPE',
+                        },
+                    ],
+                    warnings: [],
+                });
+            }
+
+            // Enrich config with defaults/paths to satisfy schema requirements
+            // Pass undefined for validation-only (no real file path)
+            // AgentId will be derived from agentCard.name or fall back to 'default-agent'
+            const enriched = enrichAgentConfig(parsed, undefined);
+
+            // Validate against schema
+            const result = AgentConfigSchema.safeParse(enriched);
+
+            if (!result.success) {
+                const errors = result.error.errors.map((err) => ({
+                    path: err.path.join('.'),
+                    message: err.message,
+                    code: 'SCHEMA_VALIDATION_ERROR',
+                }));
+
+                return ctx.json({
+                    valid: false,
+                    errors,
+                    warnings: [],
+                });
+            }
+
+            // Check for warnings (e.g., plain text API keys)
+            const warnings: Array<{ path: string; message: string; code: string }> = [];
+            if (parsed.llm?.apiKey && !parsed.llm.apiKey.startsWith('$')) {
+                warnings.push({
+                    path: 'llm.apiKey',
+                    message: 'Consider using environment variable instead of plain text',
+                    code: 'SECURITY_WARNING',
+                });
+            }
+
+            return ctx.json({
+                valid: true,
+                errors: [],
+                warnings,
+            });
+        })
+        .openapi(saveConfigRoute, async (ctx) => {
+            const agent = getAgent();
+            const { yaml } = ctx.req.valid('json');
+
+            // Validate YAML syntax first
+            let parsed;
+            try {
+                parsed = yamlParse(yaml);
+            } catch (parseError: any) {
+                throw new DextoValidationError([
+                    {
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: `Invalid YAML syntax: ${parseError.message}`,
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    },
+                ]);
+            }
+
+            // Check that parsed content is a valid object (not null, array, or primitive)
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                throw new DextoValidationError([
+                    {
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: 'Configuration must be a valid YAML object',
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    },
+                ]);
+            }
+
+            // Get target file path for enrichment
+            const agentPath = agent.getAgentFilePath();
+
+            // Enrich config with defaults/paths before validation (same as validation endpoint)
+            const enriched = enrichAgentConfig(parsed, agentPath);
+
+            // Validate schema
+            const validationResult = AgentConfigSchema.safeParse(enriched);
+
+            if (!validationResult.success) {
+                throw new DextoValidationError(
+                    validationResult.error.errors.map((err) => ({
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: `${err.path.join('.')}: ${err.message}`,
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    }))
+                );
+            }
+
+            // Create backup
+            const backupPath = `${agentPath}.backup`;
+            await fs.copyFile(agentPath, backupPath);
+
+            try {
+                // Write new config
+                await fs.writeFile(agentPath, yaml, 'utf-8');
+
+                // Load from file (agent-management's job)
+                const newConfig = await reloadAgentConfigFromFile(agentPath);
+
+                // Enrich config before reloading into agent (core expects enriched config with paths)
+                const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
+
+                // Reload into agent (core's job - handles restart automatically)
+                const reloadResult = await agent.reload(enrichedConfig);
+
+                if (reloadResult.restarted) {
+                    logger.info(
+                        `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
+                    );
+                } else if (reloadResult.changesApplied.length === 0) {
+                    logger.info('Configuration saved (no changes detected)');
+                }
+
+                // Clean up backup file after successful save
+                await fs.unlink(backupPath).catch(() => {
+                    // Ignore errors if backup file doesn't exist
+                });
+
+                logger.info(`Agent configuration saved and applied: ${agentPath}`);
+
+                return ctx.json({
+                    ok: true as const,
+                    path: agentPath,
+                    reloaded: true,
+                    restarted: reloadResult.restarted,
+                    changesApplied: reloadResult.changesApplied,
+                    message: reloadResult.restarted
+                        ? 'Configuration saved and applied successfully (agent restarted)'
+                        : 'Configuration saved successfully (no changes detected)',
+                });
+            } catch (error) {
+                // Restore backup on error
+                await fs.copyFile(backupPath, agentPath).catch(() => {
+                    // Ignore errors if backup restore fails
+                });
+                throw error;
+            }
+        })
+        .openapi(exportConfigRoute, async (ctx) => {
+            const agent = getAgent();
+            const { sessionId } = ctx.req.valid('query');
+            const config = agent.getEffectiveConfig(sessionId);
+
+            // Redact sensitive values
+            const maskedConfig = {
+                ...config,
+                llm: {
+                    ...config.llm,
+                    apiKey: config.llm.apiKey ? '[REDACTED]' : undefined,
+                },
+                mcpServers: config.mcpServers
+                    ? Object.fromEntries(
+                          Object.entries(config.mcpServers).map(([name, serverConfig]) => [
+                              name,
+                              serverConfig.type === 'stdio' && serverConfig.env
+                                  ? {
+                                        ...serverConfig,
+                                        env: Object.fromEntries(
+                                            Object.keys(serverConfig.env).map((key) => [
+                                                key,
+                                                '[REDACTED]',
+                                            ])
+                                        ),
+                                    }
+                                  : serverConfig,
+                          ])
+                      )
+                    : undefined,
+            };
+
+            const yamlStr = yamlStringify(maskedConfig);
+            ctx.header('Content-Type', 'application/x-yaml');
+            return ctx.body(yamlStr);
+        });
 }

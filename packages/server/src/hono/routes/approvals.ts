@@ -80,7 +80,7 @@ export function createApprovalsRouter(
         },
     });
 
-    app.openapi(submitApprovalRoute, async (ctx) => {
+    return app.openapi(submitApprovalRoute, async (ctx) => {
         const agent = getAgent();
         const { approvalId } = ctx.req.valid('param');
         const { status, formData, rememberChoice } = ctx.req.valid('json');
@@ -139,6 +139,4 @@ export function createApprovalsRouter(
             return ctx.json({ ok: false as const, approvalId, status }, 500);
         }
     });
-
-    return app;
 }
