@@ -41,13 +41,11 @@ export function createDextoClient(config: ClientConfig) {
         };
     }
 
-    // Create Hono typed client with AppType for full type safety
-    const client = hc<AppType>(config.baseUrl, options);
-
-    return client;
+    return hc<AppType>(config.baseUrl, options);
 }
 
 /**
- * Type helper to get the inferred client type
+ * Type alias for the Dexto client
+ * Inferred from the createDextoClient return type
  */
 export type DextoClient = ReturnType<typeof createDextoClient>;
