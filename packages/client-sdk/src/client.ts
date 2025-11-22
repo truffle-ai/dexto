@@ -7,28 +7,41 @@ import type { ClientConfig } from './types.js';
  *
  * @example
  * ```typescript
+ * import { createDextoClient } from '@dexto/client-sdk';
+ *
  * const client = createDextoClient({
  *   baseUrl: 'http://localhost:3001',
  *   apiKey: 'optional-api-key'
  * });
  *
- * // Synchronous message
- * const res = await client.api['message-sync'].$post({
- *   json: { message: 'Hello', sessionId: 'session-123' }
- * });
- * const data = await res.json();
- *
- * // Streaming message
- * const streamRes = await client.api['message-stream'].$post({
- *   json: { message: 'Hello', sessionId: 'session-123' }
+ * // Create a session
+ * const session = await client.api.sessions.$post({
+ *   json: { sessionId: 'my-session' }
  * });
  *
- * // Use EventStreamClient to parse SSE
- * import { EventStreamClient } from '@dexto/client-sdk';
- * const sseClient = new EventStreamClient();
- * const stream = await sseClient.connectFromResponse(streamRes);
- * for await (const event of stream) {
- *   console.log(event.event, JSON.parse(event.data));
+ * // Send a synchronous message
+ * const response = await client.api['message-sync'].$post({
+ *   json: { message: 'Hello!', sessionId: 'my-session' }
+ * });
+ * const { response: text } = await response.json();
+ *
+ * // Search messages
+ * const searchResults = await client.api.search.messages.$get({
+ *   query: { q: 'hello', limit: 10 }
+ * });
+ *
+ * // Streaming responses with SSE
+ * const stream = await client.api['message-stream'].$post({
+ *   json: { message: 'Tell me a story', sessionId: 'my-session' }
+ * });
+ *
+ * // Parse SSE stream
+ * const reader = stream.body?.getReader();
+ * const decoder = new TextDecoder();
+ * while (reader) {
+ *   const { done, value } = await reader.read();
+ *   if (done) break;
+ *   console.log(decoder.decode(value));
  * }
  * ```
  */
@@ -46,13 +59,8 @@ export function createDextoClient(config: ClientConfig) {
 
 export * from './streaming.js';
 
-/**
- * Type alias for the Dexto client
- * Inferred from the createDextoClient return type
- */
-export type DextoClient = ReturnType<typeof createDextoClient>;
-
 // Uncomment for testing in IDE
+
 // const client1 = hc<AppType>('http://localhost:3001');
 // let response1 = await client1.api.search.sessions.$get({
 //     query: {
@@ -63,15 +71,12 @@ export type DextoClient = ReturnType<typeof createDextoClient>;
 //     baseUrl: 'http://localhost:3001',
 //     apiKey: 'optional-api-key'
 // })
-
 // let response2 = await client2.api.sessions.$post({
 //     json: {
 //         sessionId: 'session-123'
 //     }
 // })
-
 // const body2 = await response2.json();
 // console.log(body2.session.id);
-
 // let response3 = await client2.health.$get();
 // console.log(response3.ok);

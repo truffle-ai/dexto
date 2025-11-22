@@ -5,7 +5,6 @@
 
 // Core client
 export { createDextoClient } from './client.js';
-export type { DextoClient } from './client.js';
 
 // SSE streaming
 export { stream, createStream, SSEError } from './streaming.js';
