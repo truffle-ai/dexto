@@ -4,7 +4,10 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
-    "noEmit": false
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false
   },
   "include": [
     "src/**/*"
@@ -12,6 +15,7 @@
   "exclude": [
     "**/*.test.ts",
     "**/*.spec.ts",
+    "**/*.integration.test.ts",
     "dist",
     "node_modules"
   ]

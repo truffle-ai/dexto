@@ -2,18 +2,25 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "noEmit": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
     "paths": {
-      "@dexto/core": ["../core/src/index.ts"],
-      "@core/*": ["../core/src/*"],
-      "@dexto/agent-management": ["../agent-management/src/index.ts"]
+      "@dexto/core": ["../core/dist/index.d.ts"],
+      "@core/*": ["../core/dist/*"],
+      "@dexto/agent-management": ["../agent-management/dist/index.d.ts"]
     }
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.test.ts"
+    "src/**/*"
   ],
   "exclude": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.integration.test.ts",
     "dist",
     "node_modules"
   ]

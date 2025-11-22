@@ -138,23 +138,31 @@ export interface ErrorMessage {
     detailedIssues?: Issue[];
 }
 
+export type StreamStatus = 'idle' | 'connecting' | 'open' | 'closed';
+
+// Session-scoped state helpers interface
+export interface SessionScopedStateHelpers {
+    setSessionError: (sessionId: string, error: ErrorMessage | null) => void;
+    setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
+    setSessionStatus: (sessionId: string, status: StreamStatus) => void;
+    getSessionAbortController: (sessionId: string) => AbortController;
+    abortSession: (sessionId: string) => void;
+}
+
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-export function useChat(apiUrl: string, getActiveSessionId?: () => string | null) {
+export function useChat(
+    apiUrl: string,
+    getActiveSessionId: () => string | null,
+    sessionHelpers: SessionScopedStateHelpers
+) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
-
-    // Ref for aborting current stream
-    const abortControllerRef = useRef<AbortController | null>(null);
 
     const [messages, setMessages] = useState<Message[]>([]);
 
     // Track the last user message id to anchor errors inline in the UI
     const lastUserMessageIdRef = useRef<string | null>(null);
-    const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('closed');
-    const [processing, setProcessing] = useState<boolean>(false);
-    // Separate error state - not part of message flow
-    const [activeError, setActiveError] = useState<ErrorMessage | null>(null);
     const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
@@ -163,6 +171,42 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
     useEffect(() => {
         analyticsRef.current = analytics;
     }, [analytics]);
+
+    // Helper wrappers for session-scoped state
+    const setError = useCallback(
+        (sessionId: string, error: ErrorMessage | null) => {
+            sessionHelpers.setSessionError(sessionId, error);
+        },
+        [sessionHelpers]
+    );
+
+    const setProcessing = useCallback(
+        (sessionId: string, isProcessing: boolean) => {
+            sessionHelpers.setSessionProcessing(sessionId, isProcessing);
+        },
+        [sessionHelpers]
+    );
+
+    const setStatus = useCallback(
+        (sessionId: string, status: StreamStatus) => {
+            sessionHelpers.setSessionStatus(sessionId, status);
+        },
+        [sessionHelpers]
+    );
+
+    const getAbortController = useCallback(
+        (sessionId: string) => {
+            return sessionHelpers.getSessionAbortController(sessionId);
+        },
+        [sessionHelpers]
+    );
+
+    const abortSession = useCallback(
+        (sessionId: string) => {
+            sessionHelpers.abortSession(sessionId);
+        },
+        [sessionHelpers]
+    );
 
     // Track the active session id from the host (ChatContext)
     const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
@@ -194,16 +238,22 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
 
             const eventType = event.event;
 
+            // All streaming events must have sessionId (added by forwarding layer)
+            if (!payload.sessionId) {
+                console.error('Event missing sessionId:', event);
+                return;
+            }
+
             // Check session match
-            if (payload.sessionId && !isForActiveSession(payload.sessionId)) {
+            if (!isForActiveSession(payload.sessionId)) {
                 return;
             }
 
             switch (eventType) {
                 case 'llm:thinking':
                     // LLM started thinking - can update UI status
-                    setProcessing(true);
-                    setStatus('open');
+                    setProcessing(payload.sessionId, true);
+                    setStatus(payload.sessionId, 'open');
                     break;
 
                 case 'llm:chunk': {
@@ -259,7 +309,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                 }
 
                 case 'llm:response': {
-                    setProcessing(false);
+                    setProcessing(payload.sessionId, false);
                     const text = payload.content || '';
                     const usage = payload.tokenUsage;
                     const model = payload.model;
@@ -412,16 +462,17 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     const errorObj = payload.error || {};
                     const message = errorObj.message || 'Unknown error';
 
-                    setActiveError({
+                    setError(payload.sessionId, {
                         id: generateUniqueId(),
                         message,
                         timestamp: Date.now(),
+                        context: payload.context,
                         recoverable: payload.recoverable,
                         sessionId: payload.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
                     });
-                    setProcessing(false);
-                    setStatus('closed');
+                    setProcessing(payload.sessionId, false);
+                    setStatus(payload.sessionId, 'closed');
                     break;
                 }
 
@@ -429,7 +480,7 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                 // No, we are using new SSE stream.
             }
         },
-        [isForActiveSession]
+        [isForActiveSession, setProcessing, setStatus, setError]
     );
 
     const sendMessage = useCallback(
@@ -446,15 +497,12 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             }
 
             // Abort previous request if any
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-            }
+            abortSession(sessionId);
 
-            const abortController = new AbortController();
-            abortControllerRef.current = abortController;
+            const abortController = getAbortController(sessionId) || new AbortController();
 
-            setProcessing(true);
-            setStatus('connecting');
+            setProcessing(sessionId, true);
+            setStatus(sessionId, 'connecting');
 
             // Add user message to state
             const userId = generateUniqueId();
@@ -502,7 +550,24 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Failed to send message: ${response.statusText}`);
+                        // Parse error response body to get actual error details
+                        const errorData = await response.json();
+                        const errorMessage =
+                            errorData.message || `Failed to send message: ${response.statusText}`;
+
+                        setError(sessionId, {
+                            id: generateUniqueId(),
+                            message: errorMessage,
+                            timestamp: Date.now(),
+                            context: 'stream',
+                            recoverable: false,
+                            sessionId,
+                            anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        });
+
+                        setStatus(sessionId, 'closed');
+                        setProcessing(sessionId, false);
+                        return;
                     }
 
                     // Response body is the SSE stream - connect to it directly
@@ -510,13 +575,14 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                         signal: abortController.signal,
                     });
 
-                    setStatus('open');
+                    setStatus(sessionId, 'open');
 
                     for await (const event of iterator) {
                         processEvent(event);
                     }
 
-                    setStatus('closed');
+                    setStatus(sessionId, 'closed');
+                    setProcessing(sessionId, false);
                 } else {
                     // Non-streaming mode: use /api/message-sync and wait for full response
                     const response = await fetch(`${apiUrl}/api/message-sync`, {
@@ -534,7 +600,24 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Failed to send message: ${response.statusText}`);
+                        // Parse error response body to get actual error details
+                        const errorData = await response.json();
+                        const errorMessage =
+                            errorData.message || `Failed to send message: ${response.statusText}`;
+
+                        setError(sessionId, {
+                            id: generateUniqueId(),
+                            message: errorMessage,
+                            timestamp: Date.now(),
+                            context: 'message-sync',
+                            recoverable: false,
+                            sessionId,
+                            anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        });
+
+                        setStatus(sessionId, 'closed');
+                        setProcessing(sessionId, false);
+                        return;
                     }
 
                     const data = await response.json();
@@ -556,8 +639,8 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                         },
                     ]);
 
-                    setStatus('closed');
-                    setProcessing(false);
+                    setStatus(sessionId, 'closed');
+                    setProcessing(sessionId, false);
 
                     // Emit DOM event with metadata
                     if (typeof window !== 'undefined') {
@@ -580,10 +663,10 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                 }
 
                 console.error('Stream error:', error);
-                setStatus('closed');
-                setProcessing(false);
+                setStatus(sessionId, 'closed');
+                setProcessing(sessionId, false);
 
-                setActiveError({
+                setError(sessionId, {
                     id: generateUniqueId(),
                     message: error.message || 'Failed to send message',
                     timestamp: Date.now(),
@@ -592,11 +675,9 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
                     sessionId,
                     anchorMessageId: userId,
                 });
-            } finally {
-                abortControllerRef.current = null;
             }
         },
-        [apiUrl, processEvent]
+        [apiUrl, processEvent, abortSession, getAbortController, setProcessing, setStatus, setError]
     );
 
     const reset = useCallback(
@@ -614,38 +695,31 @@ export function useChat(apiUrl: string, getActiveSessionId?: () => string | null
             }
 
             setMessages([]);
-            setActiveError(null);
+            setError(sessionId, null);
             lastUserMessageIdRef.current = null;
             pendingToolCallsRef.current.clear();
-            setProcessing(false);
+            setProcessing(sessionId, false);
         },
-        [apiUrl]
+        [apiUrl, setError, setProcessing]
     );
 
-    const cancel = useCallback((sessionId?: string) => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            abortControllerRef.current = null;
-        }
-        setProcessing(false);
-        setStatus('closed');
-        pendingToolCallsRef.current.clear();
-        suppressNextErrorRef.current = true;
-    }, []);
-
-    const clearError = useCallback(() => {
-        setActiveError(null);
-    }, []);
+    const cancel = useCallback(
+        (sessionId?: string) => {
+            if (!sessionId) return;
+            abortSession(sessionId);
+            setProcessing(sessionId, false);
+            setStatus(sessionId, 'closed');
+            pendingToolCallsRef.current.clear();
+            suppressNextErrorRef.current = true;
+        },
+        [abortSession, setProcessing, setStatus]
+    );
 
     return {
         messages,
-        status,
         sendMessage,
         reset,
         setMessages,
-        processing,
         cancel,
-        activeError,
-        clearError,
     };
 }

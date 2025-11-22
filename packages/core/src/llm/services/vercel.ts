@@ -491,13 +491,20 @@ export class VercelLLMService implements ILLMService {
             // Return the plain text of the response
             return response.text;
         } catch (err: unknown) {
-            this.mapProviderError(err, 'generate');
+            const error = this.mapProviderError(err, 'generate');
+            this.sessionEventBus.emit('llm:error', {
+                error: error as Error,
+                context: 'generateText',
+                recoverable: false,
+            });
+            return '';
         }
     }
 
-    private mapProviderError(err: unknown, phase: 'generate' | 'stream'): never {
-        // APICallError from Vercel AI SDK
+    private mapProviderError(err: unknown, phase: 'generate' | 'stream'): Error {
+        // APICallError from Vercel AI SDK) {
         if (APICallError.isInstance?.(err)) {
+            this.logger.error(`APICallError in mapProviderError: ${JSON.stringify(err, null, 2)}`);
             const status = err.statusCode;
             const headers = (err.responseHeaders || {}) as Record<string, string>;
             const retryAfter = headers['retry-after'] ? Number(headers['retry-after']) : undefined;
@@ -507,7 +514,7 @@ export class VercelLLMService implements ILLMService {
                     : JSON.stringify(err.responseBody ?? '');
 
             if (status === 429) {
-                throw new DextoRuntimeError(
+                return new DextoRuntimeError(
                     LLMErrorCode.RATE_LIMIT_EXCEEDED,
                     ErrorScope.LLM,
                     ErrorType.RATE_LIMIT,
@@ -524,7 +531,7 @@ export class VercelLLMService implements ILLMService {
                 );
             }
             if (status === 408) {
-                throw new DextoRuntimeError(
+                return new DextoRuntimeError(
                     LLMErrorCode.GENERATION_FAILED,
                     ErrorScope.LLM,
                     ErrorType.TIMEOUT,
@@ -539,7 +546,7 @@ export class VercelLLMService implements ILLMService {
                     }
                 );
             }
-            throw new DextoRuntimeError(
+            return new DextoRuntimeError(
                 LLMErrorCode.GENERATION_FAILED,
                 ErrorScope.LLM,
                 ErrorType.THIRD_PARTY,
@@ -554,8 +561,9 @@ export class VercelLLMService implements ILLMService {
                 }
             );
         }
-        // rethrow any other errors (including DextoRuntimeError and DextoValidationError)
-        throw err;
+
+        // convert any other errors (including DextoRuntimeError and DextoValidationError) to an Error
+        return toError(err, this.logger);
     }
 
     // Updated streamText to behave like generateText - returns string and handles message processing internally
@@ -590,7 +598,9 @@ export class VercelLLMService implements ILLMService {
         // use vercel's streamText
         let streamErr: unknown | undefined;
         const includeMaxOutputTokens = typeof maxOutputTokens === 'number';
-        const response = streamText({
+
+        let response;
+        response = streamText({
             model: this.model,
             messages,
             tools: effectiveTools,
@@ -615,8 +625,9 @@ export class VercelLLMService implements ILLMService {
             // Vercel triggers onAbort instead of onError for cancelled streams.
             // This is where cancellation logic should be handled properly.
             onError: (error) => {
-                const err = toError(error);
-                this.logger.error(`Error in streamText: ${err?.stack ?? err}`);
+                const err = this.mapProviderError(error, 'stream');
+                this.logger.error(`Error in streamText after parsing: ${err.toString()}`);
+
                 this.sessionEventBus.emit('llm:error', {
                     error: err,
                     context: 'streamText',
@@ -643,26 +654,63 @@ export class VercelLLMService implements ILLMService {
             ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
             ...(temperature !== undefined && { temperature }),
         });
-        // Consume to completion via helpers and prepare final payload
-        const [finalText, usage, reasoningText] = await Promise.all([
-            response.text,
-            response.totalUsage,
-            response.reasoningText,
-        ]);
 
-        response.totalUsage;
-
-        // If streaming reported an error, return early since we already emitted llm:error event
+        // Check for streaming errors BEFORE consuming response promises
+        //this.logger.debug(`streamText streamErr: ${JSON.stringify(streamErr, null, 2)}`);
         if (streamErr) {
-            // TODO: Re-evaluate error handling strategy - should we emit events OR throw, not both?
-            // Current approach: emit llm:error event for subscribers (SSE, CLI, webhooks)
-            // Alternative: throw error and let generic handlers deal with it
-            // Trade-offs: event-driven (flexible, multiple subscribers) vs exception-based (simpler, single path)
-
             // Error was already handled via llm:error event in onError callback
-            // Don't re-throw to prevent duplicate error messages in SSE stream
             return '';
         }
+
+        //this.logger.debug(`awaiting promises`);
+        // Consume to completion via helpers and prepare final payload
+
+        let finalText: string;
+        let usage: any;
+        let reasoningText: string | undefined;
+
+        // [finalText, usage, reasoningText] = await Promise.all([
+        //     response.text,
+        //     response.totalUsage,
+        //     response.reasoningText,
+        // ]);
+        try {
+            [finalText, usage, reasoningText] = await Promise.all([
+                response.text,
+                response.totalUsage,
+                response.reasoningText,
+            ]);
+        } catch (_error) {
+            // Log finalization failures to aid debugging
+            this.logger.debug(
+                `streamText finalization failed while awaiting text/usage/reasoning: ${String(_error)}`
+            );
+            /* nov 21 2025 - this is the error we get when model generation fails here
+             * [API] 7:50:02 PM [ERROR] [llm:default-agent] ${JSON.stringify(error, null, 2): {
+             * [API]   "name": "AI_NoOutputGeneratedError"
+             * [API] }
+             * [API] 7:50:02 PM [ERROR] [llm:default-agent] error.cause: undefined
+             * [API] 7:50:02 PM [ERROR] [llm:default-agent] error.name: AI_NoOutputGeneratedError
+             * [API] 7:50:02 PM [ERROR] [llm:default-agent] error.stack: AI_NoOutputGeneratedError: No output generated. Check the stream for errors.
+             * [API]     at Object.flush (file:///Users/karaj/Projects/dexto/node_modules/.pnpm/ai@5.0.29_zod@3.25.76/node_modules/ai/dist/index.mjs:4682:27)
+             * [API]     at invokePromiseCallback (node:internal/webstreams/util:181:10)
+             * [API]     at Object.<anonymous> (node:internal/webstreams/util:186:23)
+             * [API]     at transformStreamDefaultSinkCloseAlgorithm (node:internal/webstreams/transformstream:613:43)
+             * [API]     at node:internal/webstreams/transformstream:371:11
+             * [API]     at writableStreamDefaultControllerProcessClose (node:internal/webstreams/writablestream:1153:28)
+             * [API]     at writableStreamDefaultControllerAdvanceQueueIfNeeded (node:internal/webstreams/writablestream:1233:5)
+             * [API]     at writableStreamDefaultControllerClose (node:internal/webstreams/writablestream:1200:3)
+             * [API]     at writableStreamClose (node:internal/webstreams/writablestream:713:3)
+             * [API]     at writableStreamDefaultWriterClose (node:internal/webstreams/writablestream:1082:10)
+             * [API] 7:50:02 PM [ERROR] [llm:default-agent] error.toString: AI_NoOutputGeneratedError: No output generated. Check the stream for errors.
+             */
+            return '';
+        }
+
+        this.logger.debug(`streamText finalText: ${finalText}`);
+        this.logger.debug(`streamText usage: ${JSON.stringify(usage, null, 2)}`);
+        this.logger.debug(`streamText reasoningText: ${reasoningText}`);
+
         // Emit final response with reasoning and full token usage (authoritative)
         this.sessionEventBus.emit('llm:response', {
             content: finalText,

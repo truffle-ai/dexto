@@ -10,7 +10,7 @@ export default defineConfig([
         ],
         format: ['esm', 'cjs'],
         outDir: 'dist',
-        dts: true,
+        dts: false, // Disable DTS generation in tsup to avoid worker memory issues
         clean: true,
         bundle: false,
         platform: 'node',
