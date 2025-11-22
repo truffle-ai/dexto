@@ -44,6 +44,14 @@ export function createDextoClient(config: ClientConfig) {
     return hc<AppType>(config.baseUrl, options);
 }
 
+export * from './streaming.js';
+
+/**
+ * Type alias for the Dexto client
+ * Inferred from the createDextoClient return type
+ */
+export type DextoClient = ReturnType<typeof createDextoClient>;
+
 // Uncomment for testing in IDE
 // const client1 = hc<AppType>('http://localhost:3001');
 // let response1 = await client1.api.search.sessions.$get({
@@ -67,11 +75,3 @@ export function createDextoClient(config: ClientConfig) {
 
 // let response3 = await client2.health.$get();
 // console.log(response3.ok);
-
-export * from './streaming.js';
-
-/**
- * Type alias for the Dexto client
- * Inferred from the createDextoClient return type
- */
-export type DextoClient = ReturnType<typeof createDextoClient>;
