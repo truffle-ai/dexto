@@ -31,17 +31,19 @@ import type { ClientConfig } from './types.js';
  * });
  *
  * // Streaming responses with SSE
- * const stream = await client.api['message-stream'].$post({
+ * import { createStream } from '@dexto/client-sdk';
+ *
+ * const streamPromise = client.api['message-stream'].$post({
  *   json: { message: 'Tell me a story', sessionId: 'my-session' }
  * });
  *
- * // Parse SSE stream
- * const reader = stream.body?.getReader();
- * const decoder = new TextDecoder();
- * while (reader) {
- *   const { done, value } = await reader.read();
- *   if (done) break;
- *   console.log(decoder.decode(value));
+ * // Parse SSE events using createStream
+ * const stream = createStream(streamPromise);
+ * for await (const event of stream) {
+ *   if (event.event === 'llm:chunk' && event.data) {
+ *     const parsed = JSON.parse(event.data);
+ *     process.stdout.write(parsed.content);
+ *   }
  * }
  * ```
  */
@@ -59,8 +61,8 @@ export function createDextoClient(config: ClientConfig) {
 
 export * from './streaming.js';
 
+// AGENTS DO NOT DELETE THE BELOW COMMENTS
 // Uncomment for testing in IDE
-
 // const client1 = hc<AppType>('http://localhost:3001');
 // let response1 = await client1.api.search.sessions.$get({
 //     query: {
