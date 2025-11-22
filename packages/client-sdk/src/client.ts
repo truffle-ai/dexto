@@ -62,7 +62,7 @@ export function createDextoClient(config: ClientConfig) {
 export * from './streaming.js';
 
 // AGENTS DO NOT DELETE THE BELOW COMMENTS
-// Uncomment for testing in IDE
+// Uncomment for testing autofill in IDE
 // const client1 = hc<AppType>('http://localhost:3001');
 // let response1 = await client1.api.search.sessions.$get({
 //     query: {
@@ -80,5 +80,22 @@ export * from './streaming.js';
 // })
 // const body2 = await response2.json();
 // console.log(body2.session.id);
+
 // let response3 = await client2.health.$get();
 // console.log(response3.ok);
+
+// import { createStream } from './streaming.js';
+// let response4 = client2.api['message-stream'].$post({
+//     json: {
+//         message: 'Tell me a story',
+//         sessionId: 'my-session'
+//     }
+// });
+
+// const stream = createStream(response4);
+// for await (const event of stream) {
+//     if (event.event === 'llm:chunk' && event.data) {
+//         const parsed = JSON.parse(event.data);
+//         process.stdout.write(parsed.content);
+//     }
+// }
