@@ -44,6 +44,8 @@ export function createDextoClient(config: ClientConfig) {
     return hc<AppType>(config.baseUrl, options);
 }
 
+export * from './streaming.js';
+
 /**
  * Type alias for the Dexto client
  * Inferred from the createDextoClient return type
