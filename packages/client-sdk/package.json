@@ -16,7 +16,9 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@dexto/core": "workspace:*"
+    "@dexto/core": "workspace:*",
+    "@dexto/server": "workspace:*",
+    "hono": "^4.6.14"
   },
   "scripts": {
     "build": "tsup && tsc -p tsconfig.json --emitDeclarationOnly",
