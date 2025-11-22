@@ -44,6 +44,3 @@ export type {
     McpServerConfig,
     ToolSet,
 } from './types.js';
-
-// Errors
-export { ClientError } from './errors.js';
