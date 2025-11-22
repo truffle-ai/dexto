@@ -44,6 +44,20 @@ export function createDextoClient(config: ClientConfig) {
     return hc<AppType>(config.baseUrl, options);
 }
 
+// temp stuff for testing
+// const client1 = hc<AppType>('http://localhost:3001');
+// client1.api.sessions.$post({
+//     json: {
+//         sessionId: 'session-123'
+//     }
+// });
+
+// const response = await client1.api.search.sessions.$get({
+//     query: {
+//         q: "poop"
+//     }
+// })
+
 export * from './streaming.js';
 
 /**
