@@ -44,19 +44,29 @@ export function createDextoClient(config: ClientConfig) {
     return hc<AppType>(config.baseUrl, options);
 }
 
-// temp stuff for testing
+// Uncomment for testing in IDE
 // const client1 = hc<AppType>('http://localhost:3001');
-// client1.api.sessions.$post({
-//     json: {
-//         sessionId: 'session-123'
-//     }
-// });
-
-// const response = await client1.api.search.sessions.$get({
+// let response1 = await client1.api.search.sessions.$get({
 //     query: {
 //         q: "poop"
 //     }
 // })
+// const client2 = createDextoClient({
+//     baseUrl: 'http://localhost:3001',
+//     apiKey: 'optional-api-key'
+// })
+
+// let response2 = await client2.api.sessions.$post({
+//     json: {
+//         sessionId: 'session-123'
+//     }
+// })
+
+// const body2 = await response2.json();
+// console.log(body2.session.id);
+
+// let response3 = await client2.health.$get();
+// console.log(response3.ok);
 
 export * from './streaming.js';
 
