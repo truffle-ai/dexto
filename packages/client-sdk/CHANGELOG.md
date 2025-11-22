@@ -1,5 +1,41 @@
 # @dexto/client-sdk
 
+## 1.2.5
+
+### Patch Changes
+
+- 8f373cc: Migrate server API to Hono framework with feature flag
+    - Migrated Express server to Hono with OpenAPI schema generation
+    - Added DEXTO_USE_HONO environment variable flag (default: false for backward compatibility)
+    - Fixed WebSocket test isolation by adding sessionId filtering
+    - Fixed logger context to pass structured objects instead of stringified JSON
+    - Fixed CI workflow for OpenAPI docs synchronization
+    - Updated documentation links and fixed broken API references
+
+- a35a256: Migrate from WebSocket to Server-Sent Events (SSE) for real-time streaming
+    - Replace WebSocket with SSE for message streaming via new `/api/message-stream` endpoint
+    - Refactor approval system from event-based providers to simpler handler pattern
+    - Add new APIs for session approval
+    - Move session title generation to a separate API
+    - Add `ApprovalCoordinator` for multi-client SSE routing with sessionId mapping
+    - Add stream and generate methods to DextoAgent and integ tests for itq=
+
+- ac649fd: Fix error handling and UI bugs, add gpt-5.1, gemini-3
+- Updated dependencies [c1e814f]
+- Updated dependencies [f9bca72]
+- Updated dependencies [c0a10cd]
+- Updated dependencies [81598b5]
+- Updated dependencies [4c90ffe]
+- Updated dependencies [1a20506]
+- Updated dependencies [8f373cc]
+- Updated dependencies [4dd4998]
+- Updated dependencies [5e27806]
+- Updated dependencies [a35a256]
+- Updated dependencies [0fa6ef5]
+- Updated dependencies [a154ae0]
+- Updated dependencies [ac649fd]
+    - @dexto/core@1.2.5
+
 ## 1.2.4
 
 ### Patch Changes
