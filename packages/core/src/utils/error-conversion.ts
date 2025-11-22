@@ -66,11 +66,9 @@ export function toError(error: unknown, logger: IDextoLogger): Error {
         ) {
             return new Error((error as { description: string }).description, { cause: error });
         }
-        logger.info(
-            `falling back to safe serialization for complex objects: ${JSON.stringify(error, null, 2)}`
-        );
         // Fallback to safe serialization for complex objects
-        const serialized = safeStringify(error); // Use default limit (1000 chars)
+        const serialized = safeStringify(error); // Uses truncation + circular-ref safety
+        logger.info(`falling back to safe serialization for complex objects: ${serialized}`);
         return new Error(serialized);
     }
 

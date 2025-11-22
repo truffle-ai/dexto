@@ -565,15 +565,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            // Mark this session as being switched to immediately
-            lastSwitchedSessionRef.current = sessionId;
             setIsSwitchingSession(true);
             try {
-                // Track session switch
-                analytics.trackSessionSwitched({
-                    fromSessionId: currentSessionId,
-                    toSessionId: sessionId,
-                });
+                // Track session switch (defensive - analytics failures shouldn't block switching)
+                try {
+                    analytics.trackSessionSwitched({
+                        fromSessionId: currentSessionId,
+                        toSessionId: sessionId,
+                    });
+                } catch (analyticsError) {
+                    console.error('Failed to track session switch:', analyticsError);
+                }
 
                 // Skip history load for newly created sessions with first message already sent
                 // This prevents replacing message IDs and breaking error anchoring
@@ -587,6 +589,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
                 setCurrentSessionId(sessionId);
                 setIsWelcomeState(false); // No longer in welcome state
+
+                // Mark this session as being switched to after state update succeeds
+                lastSwitchedSessionRef.current = sessionId;
 
                 if (!skipHistoryLoad) {
                     await loadSessionHistory(sessionId);

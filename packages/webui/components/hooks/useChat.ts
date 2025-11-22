@@ -582,6 +582,7 @@ export function useChat(
                     }
 
                     setStatus(sessionId, 'closed');
+                    setProcessing(sessionId, false);
                 } else {
                     // Non-streaming mode: use /api/message-sync and wait for full response
                     const response = await fetch(`${apiUrl}/api/message-sync`, {
