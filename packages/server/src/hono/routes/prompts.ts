@@ -95,12 +95,6 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(listRoute, async (ctx) => {
-        const agent = getAgent();
-        const prompts = await agent.listPrompts();
-        const list = Object.values(prompts);
-        return ctx.json({ prompts: list });
-    });
 
     const createCustomRoute = createRoute({
         method: 'post',
@@ -134,40 +128,6 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(createCustomRoute, async (ctx) => {
-        const agent = getAgent();
-        const payload = ctx.req.valid('json');
-        const promptArguments = payload.arguments
-            ?.map((arg) => ({
-                name: arg.name,
-                ...(arg.description ? { description: arg.description } : {}),
-                ...(typeof arg.required === 'boolean' ? { required: arg.required } : {}),
-            }))
-            .filter(Boolean);
-
-        const createPayload = {
-            name: payload.name,
-            content: payload.content,
-            ...(payload.title ? { title: payload.title } : {}),
-            ...(payload.description ? { description: payload.description } : {}),
-            ...(promptArguments && promptArguments.length > 0
-                ? { arguments: promptArguments }
-                : {}),
-            ...(payload.resource
-                ? {
-                      resource: {
-                          base64: payload.resource.base64,
-                          mimeType: payload.resource.mimeType,
-                          ...(payload.resource.filename
-                              ? { filename: payload.resource.filename }
-                              : {}),
-                      },
-                  }
-                : {}),
-        };
-        const prompt = await agent.createCustomPrompt(createPayload);
-        return ctx.json({ prompt }, 201);
-    });
 
     const deleteCustomRoute = createRoute({
         method: 'delete',
@@ -183,13 +143,6 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
         responses: {
             204: { description: 'Prompt deleted' },
         },
-    });
-    app.openapi(deleteCustomRoute, async (ctx) => {
-        const agent = getAgent();
-        const { name } = ctx.req.valid('param');
-        // Hono automatically decodes path parameters, no manual decode needed
-        await agent.deleteCustomPrompt(name);
-        return ctx.body(null, 204);
     });
 
     const getPromptRoute = createRoute({
@@ -217,13 +170,6 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
             },
             404: { description: 'Prompt not found' },
         },
-    });
-    app.openapi(getPromptRoute, async (ctx) => {
-        const agent = getAgent();
-        const { name } = ctx.req.valid('param');
-        const definition = await agent.getPromptDefinition(name);
-        if (!definition) throw PromptError.notFound(name);
-        return ctx.json({ definition });
     });
 
     const resolvePromptRoute = createRoute({
@@ -257,36 +203,90 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
             404: { description: 'Prompt not found' },
         },
     });
-    app.openapi(resolvePromptRoute, async (ctx) => {
-        const agent = getAgent();
-        const { name } = ctx.req.valid('param');
-        const { context, args: argsString } = ctx.req.valid('query');
 
-        // Optional structured args in `args` query param as JSON
-        let parsedArgs: Record<string, unknown> | undefined;
-        if (argsString) {
-            try {
-                const parsed = JSON.parse(argsString);
-                if (parsed && typeof parsed === 'object') {
-                    parsedArgs = parsed as Record<string, unknown>;
+    return app
+        .openapi(listRoute, async (ctx) => {
+            const agent = getAgent();
+            const prompts = await agent.listPrompts();
+            const list = Object.values(prompts);
+            return ctx.json({ prompts: list });
+        })
+        .openapi(createCustomRoute, async (ctx) => {
+            const agent = getAgent();
+            const payload = ctx.req.valid('json');
+            const promptArguments = payload.arguments
+                ?.map((arg) => ({
+                    name: arg.name,
+                    ...(arg.description ? { description: arg.description } : {}),
+                    ...(typeof arg.required === 'boolean' ? { required: arg.required } : {}),
+                }))
+                .filter(Boolean);
+
+            const createPayload = {
+                name: payload.name,
+                content: payload.content,
+                ...(payload.title ? { title: payload.title } : {}),
+                ...(payload.description ? { description: payload.description } : {}),
+                ...(promptArguments && promptArguments.length > 0
+                    ? { arguments: promptArguments }
+                    : {}),
+                ...(payload.resource
+                    ? {
+                          resource: {
+                              base64: payload.resource.base64,
+                              mimeType: payload.resource.mimeType,
+                              ...(payload.resource.filename
+                                  ? { filename: payload.resource.filename }
+                                  : {}),
+                          },
+                      }
+                    : {}),
+            };
+            const prompt = await agent.createCustomPrompt(createPayload);
+            return ctx.json({ prompt }, 201);
+        })
+        .openapi(deleteCustomRoute, async (ctx) => {
+            const agent = getAgent();
+            const { name } = ctx.req.valid('param');
+            // Hono automatically decodes path parameters, no manual decode needed
+            await agent.deleteCustomPrompt(name);
+            return ctx.body(null, 204);
+        })
+        .openapi(getPromptRoute, async (ctx) => {
+            const agent = getAgent();
+            const { name } = ctx.req.valid('param');
+            const definition = await agent.getPromptDefinition(name);
+            if (!definition) throw PromptError.notFound(name);
+            return ctx.json({ definition });
+        })
+        .openapi(resolvePromptRoute, async (ctx) => {
+            const agent = getAgent();
+            const { name } = ctx.req.valid('param');
+            const { context, args: argsString } = ctx.req.valid('query');
+
+            // Optional structured args in `args` query param as JSON
+            let parsedArgs: Record<string, unknown> | undefined;
+            if (argsString) {
+                try {
+                    const parsed = JSON.parse(argsString);
+                    if (parsed && typeof parsed === 'object') {
+                        parsedArgs = parsed as Record<string, unknown>;
+                    }
+                } catch {
+                    // Ignore malformed args JSON; continue with whatever we have
                 }
-            } catch {
-                // Ignore malformed args JSON; continue with whatever we have
             }
-        }
 
-        // Build options object with only defined values
-        const options: {
-            context?: string;
-            args?: Record<string, unknown>;
-        } = {};
-        if (context !== undefined) options.context = context;
-        if (parsedArgs !== undefined) options.args = parsedArgs;
+            // Build options object with only defined values
+            const options: {
+                context?: string;
+                args?: Record<string, unknown>;
+            } = {};
+            if (context !== undefined) options.context = context;
+            if (parsedArgs !== undefined) options.args = parsedArgs;
 
-        // Use DextoAgent's resolvePrompt method
-        const result = await agent.resolvePrompt(name, options);
-        return ctx.json({ text: result.text, resources: result.resources });
-    });
-
-    return app;
+            // Use DextoAgent's resolvePrompt method
+            const result = await agent.resolvePrompt(name, options);
+            return ctx.json({ text: result.text, resources: result.resources });
+        });
 }

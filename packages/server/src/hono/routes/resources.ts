@@ -73,11 +73,6 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(listRoute, async (ctx) => {
-        const agent = getAgent();
-        const resources = await agent.listResources();
-        return ctx.json({ ok: true, resources: Object.values(resources) });
-    });
 
     const getContentRoute = createRoute({
         method: 'get',
@@ -96,12 +91,6 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(getContentRoute, async (ctx) => {
-        const agent = getAgent();
-        const { resourceId } = ctx.req.valid('param');
-        const content = await agent.readResource(resourceId);
-        return ctx.json({ ok: true, content });
-    });
 
     const headRoute = createRoute({
         method: 'head',
@@ -117,12 +106,23 @@ export function createResourcesRouter(getAgent: () => DextoAgent) {
             404: { description: 'Resource not found' },
         },
     });
-    app.openapi(headRoute, async (ctx) => {
-        const agent = getAgent();
-        const { resourceId } = ctx.req.valid('param');
-        const exists = await agent.hasResource(resourceId);
-        return ctx.body(null, exists ? 200 : 404);
-    });
 
-    return app;
+    return app
+        .openapi(listRoute, async (ctx) => {
+            const agent = getAgent();
+            const resources = await agent.listResources();
+            return ctx.json({ ok: true, resources: Object.values(resources) });
+        })
+        .openapi(getContentRoute, async (ctx) => {
+            const agent = getAgent();
+            const { resourceId } = ctx.req.valid('param');
+            const content = await agent.readResource(resourceId);
+            return ctx.json({ ok: true, content });
+        })
+        .openapi(headRoute, async (ctx) => {
+            const agent = getAgent();
+            const { resourceId } = ctx.req.valid('param');
+            const exists = await agent.hasResource(resourceId);
+            return ctx.body(null, exists ? 200 : 404);
+        });
 }

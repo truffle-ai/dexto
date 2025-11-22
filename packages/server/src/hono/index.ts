@@ -72,11 +72,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         sseSubscriber,
         agentsContext,
     } = options;
-    const app = new OpenAPIHono({ strict: false }) as DextoApp;
-
-    // NOTE: Subscribers and approval handler are wired in CLI layer before agent.start()
-    // This ensures proper initialization order and validation
-    app.webhookSubscriber = webhookSubscriber;
+    const app = new OpenAPIHono({ strict: false });
 
     // Global CORS middleware for cross-origin requests (must be first)
     app.use('*', createCorsMiddleware());
@@ -200,6 +196,12 @@ export function createDextoApp(options: CreateDextoAppOptions) {
             },
         ],
     });
+
+    // NOTE: Subscribers and approval handler are wired in CLI layer before agent.start()
+    // This ensures proper initialization order and validation
+    // We attach webhookSubscriber as a property but don't include it in the return type
+    // to preserve Hono's route type inference
+    Object.assign(fullApp, { webhookSubscriber });
 
     return fullApp;
 }

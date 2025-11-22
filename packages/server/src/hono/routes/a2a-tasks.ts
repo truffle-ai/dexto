@@ -237,17 +237,87 @@ export function createA2ATasksRouter(
         },
     });
 
-    app.openapi(messageSendRoute, async (ctx) => {
-        const handlers = new A2AMethodHandlers(getAgent());
-        const body = ctx.req.valid('json');
+    // GET /v1/tasks - List tasks
+    const listTasksRoute = createRoute({
+        method: 'get',
+        path: '/v1/tasks',
+        summary: 'List Tasks',
+        description: 'List all A2A tasks with optional filtering (A2A tasks/list)',
+        tags: ['a2a'],
+        request: {
+            query: TaskListQuerySchema,
+        },
+        responses: {
+            200: {
+                description: 'Task list',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                tasks: z.array(TaskSchema).describe('Array of tasks'),
+                                totalSize: z.number().describe('Total number of tasks'),
+                                pageSize: z.number().describe('Number of tasks in this page'),
+                                nextPageToken: z.string().describe('Token for next page'),
+                            })
+                            .describe('Response body for tasks/list'),
+                    },
+                },
+            },
+        },
+    });
 
-        logger.info('REST: message/send', { hasMessage: !!body.message });
+    // GET /v1/tasks/{id} - Get a specific task
+    const getTaskRoute = createRoute({
+        method: 'get',
+        path: '/v1/tasks/{id}',
+        summary: 'Get Task',
+        description: 'Retrieve a specific task by ID (A2A tasks/get)',
+        tags: ['a2a'],
+        request: {
+            params: z.object({
+                id: z.string().describe('Task ID'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Task details',
+                content: {
+                    'application/json': {
+                        schema: TaskSchema,
+                    },
+                },
+            },
+            404: {
+                description: 'Task not found',
+            },
+        },
+    });
 
-        // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
-        // from mutable handler types. Structurally compatible at runtime.
-        const result = await handlers.messageSend(body as any);
-
-        return ctx.json(result as any);
+    // POST /v1/tasks/{id}:cancel - Cancel task
+    const cancelTaskRoute = createRoute({
+        method: 'post',
+        path: '/v1/tasks/{id}:cancel',
+        summary: 'Cancel Task',
+        description: 'Cancel a running task (A2A tasks/cancel)',
+        tags: ['a2a'],
+        request: {
+            params: z.object({
+                id: z.string().describe('Task ID'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Task cancelled',
+                content: {
+                    'application/json': {
+                        schema: TaskSchema,
+                    },
+                },
+            },
+            404: {
+                description: 'Task not found',
+            },
+        },
     });
 
     // POST /v1/message:stream - Send message with streaming response
@@ -302,127 +372,53 @@ export function createA2ATasksRouter(
         }
     });
 
-    // GET /v1/tasks - List tasks
-    const listTasksRoute = createRoute({
-        method: 'get',
-        path: '/v1/tasks',
-        summary: 'List Tasks',
-        description: 'List all A2A tasks with optional filtering (A2A tasks/list)',
-        tags: ['a2a'],
-        request: {
-            query: TaskListQuerySchema,
-        },
-        responses: {
-            200: {
-                description: 'Task list',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                tasks: z.array(TaskSchema).describe('Array of tasks'),
-                                totalSize: z.number().describe('Total number of tasks'),
-                                pageSize: z.number().describe('Number of tasks in this page'),
-                                nextPageToken: z.string().describe('Token for next page'),
-                            })
-                            .describe('Response body for tasks/list'),
-                    },
-                },
-            },
-        },
-    });
+    return app
+        .openapi(messageSendRoute, async (ctx) => {
+            const handlers = new A2AMethodHandlers(getAgent());
+            const body = ctx.req.valid('json');
 
-    app.openapi(listTasksRoute, async (ctx) => {
-        const handlers = new A2AMethodHandlers(getAgent());
-        const query = ctx.req.valid('query');
+            logger.info('REST: message/send', { hasMessage: !!body.message });
 
-        // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
-        // from mutable handler types. Structurally compatible at runtime.
-        const result = await handlers.tasksList(query as any);
+            // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
+            // from mutable handler types. Structurally compatible at runtime.
+            const result = await handlers.messageSend(body as any);
 
-        return ctx.json(result);
-    });
+            return ctx.json(result as any);
+        })
+        .openapi(listTasksRoute, async (ctx) => {
+            const handlers = new A2AMethodHandlers(getAgent());
+            const query = ctx.req.valid('query');
 
-    // GET /v1/tasks/{id} - Get a specific task
-    const getTaskRoute = createRoute({
-        method: 'get',
-        path: '/v1/tasks/{id}',
-        summary: 'Get Task',
-        description: 'Retrieve a specific task by ID (A2A tasks/get)',
-        tags: ['a2a'],
-        request: {
-            params: z.object({
-                id: z.string().describe('Task ID'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'Task details',
-                content: {
-                    'application/json': {
-                        schema: TaskSchema,
-                    },
-                },
-            },
-            404: {
-                description: 'Task not found',
-            },
-        },
-    });
+            // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
+            // from mutable handler types. Structurally compatible at runtime.
+            const result = await handlers.tasksList(query as any);
 
-    app.openapi(getTaskRoute, async (ctx) => {
-        const handlers = new A2AMethodHandlers(getAgent());
-        const { id } = ctx.req.valid('param');
+            return ctx.json(result);
+        })
+        .openapi(getTaskRoute, async (ctx) => {
+            const handlers = new A2AMethodHandlers(getAgent());
+            const { id } = ctx.req.valid('param');
 
-        try {
-            const task = await handlers.tasksGet({ id });
-            return ctx.json(task);
-        } catch (error) {
-            logger.warn(`Task ${id} not found: ${error}`);
-            return ctx.json({ error: 'Task not found' }, 404);
-        }
-    });
+            try {
+                const task = await handlers.tasksGet({ id });
+                return ctx.json(task);
+            } catch (error) {
+                logger.warn(`Task ${id} not found: ${error}`);
+                return ctx.json({ error: 'Task not found' }, 404);
+            }
+        })
+        .openapi(cancelTaskRoute, async (ctx) => {
+            const handlers = new A2AMethodHandlers(getAgent());
+            const { id } = ctx.req.valid('param');
 
-    // POST /v1/tasks/{id}:cancel - Cancel task
-    const cancelTaskRoute = createRoute({
-        method: 'post',
-        path: '/v1/tasks/{id}:cancel',
-        summary: 'Cancel Task',
-        description: 'Cancel a running task (A2A tasks/cancel)',
-        tags: ['a2a'],
-        request: {
-            params: z.object({
-                id: z.string().describe('Task ID'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'Task cancelled',
-                content: {
-                    'application/json': {
-                        schema: TaskSchema,
-                    },
-                },
-            },
-            404: {
-                description: 'Task not found',
-            },
-        },
-    });
+            logger.info(`REST: tasks/cancel ${id}`);
 
-    app.openapi(cancelTaskRoute, async (ctx) => {
-        const handlers = new A2AMethodHandlers(getAgent());
-        const { id } = ctx.req.valid('param');
-
-        logger.info(`REST: tasks/cancel ${id}`);
-
-        try {
-            const task = await handlers.tasksCancel({ id });
-            return ctx.json(task);
-        } catch (error) {
-            logger.error(`Failed to cancel task ${id}: ${error}`);
-            return ctx.json({ error: 'Task not found' }, 404);
-        }
-    });
-
-    return app;
+            try {
+                const task = await handlers.tasksCancel({ id });
+                return ctx.json(task);
+            } catch (error) {
+                logger.error(`Failed to cancel task ${id}: ${error}`);
+                return ctx.json({ error: 'Task not found' }, 404);
+            }
+        });
 }
