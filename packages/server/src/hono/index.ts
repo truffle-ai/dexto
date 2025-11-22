@@ -83,32 +83,29 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     // Global error handling for all routes
     app.onError((err, ctx) => handleHonoError(ctx, err));
 
-    // Create API router using fluent chaining to ensure correct type inference
-    const api = new OpenAPIHono()
-        .use('*', prettyJsonMiddleware)
-        .use('*', redactionMiddleware)
-        .route('/', createGreetingRouter(getAgent))
-        .route('/', createMessagesRouter(getAgent, approvalCoordinator))
-        .route('/', createLlmRouter(getAgent))
-        .route('/', createSessionsRouter(getAgent))
-        .route('/', createSearchRouter(getAgent))
-        .route('/', createMcpRouter(getAgent))
-        .route('/', createWebhooksRouter(getAgent, webhookSubscriber))
-        .route('/', createPromptsRouter(getAgent))
-        .route('/', createResourcesRouter(getAgent))
-        .route('/', createMemoryRouter(getAgent))
-        .route('/', createApprovalsRouter(getAgent, approvalCoordinator))
-        // Always mount agents router for consistent type signature
-        // Use dummy context if real context is missing
-        .route('/', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext));
+    // Apply middleware to all /api routes
+    app.use('/api/*', prettyJsonMiddleware);
+    app.use('/api/*', redactionMiddleware);
 
-    // Construct the full application
+    // Mount all API routers directly at /api for proper type inference
+    // Each router is mounted individually so Hono can properly track route types
     const fullApp = app
         .route('/health', createHealthRouter(getAgent))
         .route('/', createA2aRouter(getAgentCard))
         .route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber))
         .route('/', createA2ATasksRouter(getAgent, sseSubscriber))
-        .route(options.apiPrefix ?? '/api', api);
+        .route('/api', createGreetingRouter(getAgent))
+        .route('/api', createMessagesRouter(getAgent, approvalCoordinator))
+        .route('/api', createLlmRouter(getAgent))
+        .route('/api', createSessionsRouter(getAgent))
+        .route('/api', createSearchRouter(getAgent))
+        .route('/api', createMcpRouter(getAgent))
+        .route('/api', createWebhooksRouter(getAgent, webhookSubscriber))
+        .route('/api', createPromptsRouter(getAgent))
+        .route('/api', createResourcesRouter(getAgent))
+        .route('/api', createMemoryRouter(getAgent))
+        .route('/api', createApprovalsRouter(getAgent, approvalCoordinator))
+        .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext));
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
@@ -207,4 +204,5 @@ export function createDextoApp(options: CreateDextoAppOptions) {
 }
 
 // Export inferred AppType
+// Routes are now properly typed since they're all mounted directly
 export type AppType = ReturnType<typeof createDextoApp>;
