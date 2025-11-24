@@ -40,3 +40,7 @@ export function useSaveApiKey() {
         },
     });
 }
+
+// Export inferred types for components to use
+export type SaveApiKeyPayload = Parameters<typeof client.api.llm.key.$post>[0]['json'];
+export type LLMProvider = SaveApiKeyPayload['provider'];
