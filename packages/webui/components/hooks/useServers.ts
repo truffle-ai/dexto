@@ -2,11 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 import type { McpServerConfig } from '@dexto/core';
-import type { McpServer, McpTool } from '@/lib/api-types';
 
 // Fetch all MCP servers
 export function useServers(enabled: boolean = true) {
-    return useQuery<McpServer[], Error>({
+    return useQuery({
         queryKey: queryKeys.servers.all,
         queryFn: async () => {
             const res = await client.api.mcp.servers.$get();
@@ -14,7 +13,7 @@ export function useServers(enabled: boolean = true) {
                 throw new Error('Failed to fetch servers');
             }
             const data = await res.json();
-            // Server response type matches McpServer[] exactly - no transformation needed
+            // Type is inferred from Hono client response schema
             return data.servers;
         },
         enabled,
@@ -23,7 +22,7 @@ export function useServers(enabled: boolean = true) {
 
 // Fetch tools for a specific server
 export function useServerTools(serverId: string | null, enabled: boolean = true) {
-    return useQuery<McpTool[], Error>({
+    return useQuery({
         queryKey: queryKeys.servers.tools(serverId || ''),
         queryFn: async () => {
             if (!serverId) return [];
@@ -34,7 +33,7 @@ export function useServerTools(serverId: string | null, enabled: boolean = true)
                 throw new Error('Failed to fetch tools');
             }
             const data = await res.json();
-            // Server response type matches McpTool[] exactly - no transformation needed
+            // Type is inferred from Hono client response schema
             return data.tools;
         },
         enabled: enabled && !!serverId,

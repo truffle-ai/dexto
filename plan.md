@@ -9,7 +9,8 @@ Update the Web UI to use the Hono typed client SDK (`@dexto/client-sdk`) instead
 ### Type Safety & Refactoring
 - **NO TYPE CASTING**: If you notice you have to type cast at any point or you have to make the API response match some different format, it's a **RED FLAG** and indicates we need to do some refactors.
 - **Fix at the source**: When type issues occur, refactor the server code to return the correct types, then update the Web UI to consume these types, then remove duplicate Web UI types.
-- **Import types from core/client-sdk**: Avoid duplicating types in the Web UI. Types should ideally come from `@dexto/core` or `@dexto/client-sdk`.
+- **No explicit types for API responses**: React Query automatically infers types from Hono client. Don't create type definitions for API responses.
+- **No api-types.ts file**: The Hono typed client provides complete type inference from server Zod schemas. No need for intermediate type files.
 
 ### Commit Strategy
 - **Commit after each working API change**: For every working API change, commit the changes immediately.
@@ -18,6 +19,47 @@ Update the Web UI to use the Hono typed client SDK (`@dexto/client-sdk`) instead
 ### Migration Approach
 - **One file at a time**: Migrate one file/hook at a time to validate the approach.
 - **Check for issues early**: Each migration should be verified before moving to the next file.
+
+## Key Findings
+
+### ✅ No Explicit Types Needed for React Query
+**Discovery**: React Query automatically infers types from the Hono client responses. No need for explicit type annotations or separate type files.
+
+**Why This Works**:
+1. Hono client methods (e.g., `client.api.mcp.servers.$get()`) are fully typed based on server Zod schemas
+2. The `.json()` method returns a typed promise with the exact response shape
+3. React Query's `useQuery` infers the return type from the `queryFn` automatically
+4. TypeScript propagates these types through the entire component tree
+
+**Before** (unnecessary):
+```typescript
+import type { McpServer } from '@/lib/api-types';
+
+export function useServers() {
+    return useQuery<McpServer[], Error>({ // ❌ Explicit type annotation
+        queryFn: async () => {
+            const res = await client.api.mcp.servers.$get();
+            const data = await res.json();
+            return data.servers;
+        },
+    });
+}
+```
+
+**After** (automatic inference):
+```typescript
+export function useServers() {
+    return useQuery({ // ✅ No type annotation needed
+        queryFn: async () => {
+            const res = await client.api.mcp.servers.$get();
+            const data = await res.json();
+            return data.servers; // Type is inferred from Hono schema
+        },
+    });
+}
+```
+
+**Result**: No need for `api-types.ts` or duplicate type definitions. The Hono client provides end-to-end type safety from server schemas to React components.
 
 ## User Review Required
 
@@ -33,14 +75,15 @@ Update the Web UI to use the Hono typed client SDK (`@dexto/client-sdk`) instead
 **[NEW]** `packages/webui/lib/client.ts`
 - Initialize and export the typed client using `createDextoClient`
 - This will be the single source of truth for the API client
+- No additional type files needed - Hono client provides full type inference
 
 ### 3. Core Hooks Migration
 
-#### MCP Servers (Priority 1 - Already Started)
+#### MCP Servers (Priority 1 - ✅ Complete)
 **[MODIFY]** `packages/webui/components/hooks/useServers.ts`
 - Replace `apiFetch` with `client.api.mcp.servers` calls
-- Update types to match Hono client responses
-- Ensure `McpServer` and `McpTool` types are compatible or adapted
+- Remove explicit type annotations from `useQuery` - let TypeScript infer from Hono client
+- Remove any data transformations - return response data directly
 
 **[MODIFY]** `packages/webui/components/ServersPanel.tsx`
 - Fix type errors related to servers array (find, length, map)
@@ -91,8 +134,9 @@ Update the Web UI to use the Hono typed client SDK (`@dexto/client-sdk`) instead
 - Remove `apiFetch` completely (no backward compatibility)
 
 **[MODIFY]** `packages/webui/types.ts`
-- Remove duplicate types that exist in `@dexto/core` or `@dexto/client-sdk`
-- Keep only Web UI-specific types
+- Remove `McpServer` and `McpTool` types - these are inferred from Hono client
+- Keep only Web UI-specific types that aren't API responses (e.g., `ServerRegistryEntry`, UI state types)
+- Any type that represents an API response should be removed and inferred from the Hono client instead
 
 ## Type Issues Encountered
 
