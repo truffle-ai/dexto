@@ -6545,7 +6545,7 @@
                                 "enum": [
                                   "object"
                                 ],
-                                "description": "Schema type, always \"object\""
+                                "description": "Schema type, always \"object\" when present"
                               },
                               "properties": {
                                 "type": "object",
@@ -6602,17 +6602,13 @@
                                 "description": "Required property names"
                               }
                             },
-                            "required": [
-                              "type"
-                            ],
                             "description": "JSON Schema for tool input parameters"
                           }
                         },
                         "required": [
                           "id",
                           "name",
-                          "description",
-                          "inputSchema"
+                          "description"
                         ],
                         "additionalProperties": false,
                         "description": "Tool information"
@@ -6893,7 +6889,8 @@
                           },
                           "lastModified": {
                             "type": "string",
-                            "description": "Last modified timestamp (ISO string)"
+                            "format": "date-time",
+                            "description": "Last modified timestamp (ISO 8601 string)"
                           },
                           "metadata": {
                             "type": "object",
@@ -7895,7 +7892,8 @@
                           },
                           "lastModified": {
                             "type": "string",
-                            "description": "Last modified timestamp (ISO string)"
+                            "format": "date-time",
+                            "description": "Last modified timestamp (ISO 8601 string)"
                           },
                           "metadata": {
                             "type": "object",
