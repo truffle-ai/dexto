@@ -2,9 +2,15 @@
 
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys.js';
-import { apiFetch } from '@/lib/api-client.js';
+import {
+    useAgents,
+    useAgentPath,
+    useSwitchAgent,
+    useInstallAgent,
+    useUninstallAgent,
+} from '../hooks/useAgents';
 import { useRecentAgentsStore, type RecentAgent } from '@/lib/stores/recentAgentsStore';
 import { Button } from '../ui/button';
 import {
@@ -88,76 +94,19 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         return dextoIndex >= 0 && dextoIndex <= 3;
     }, []);
 
-    // Fetch agents list using TanStack Query
-    const {
-        data: agentsData,
-        isLoading: agentsLoading,
-        refetch: refetchAgents,
-    } = useQuery<AgentsResponse, Error>({
-        queryKey: queryKeys.agents.all,
-        queryFn: async () => {
-            return await apiFetch<AgentsResponse>('/api/agents');
-        },
-    });
+    // Fetch agents list and path using typed hooks
+    const { data: agentsData, isLoading: agentsLoading, refetch: refetchAgents } = useAgents();
+    const { data: currentAgentPathData } = useAgentPath();
 
     const installed = useMemo(() => agentsData?.installed || [], [agentsData?.installed]);
     const available = useMemo(() => agentsData?.available || [], [agentsData?.available]);
     const currentId = agentsData?.current.id || null;
-
-    // Fetch current agent path using TanStack Query
-    const { data: currentAgentPathData } = useQuery<AgentPath, Error>({
-        queryKey: queryKeys.agents.path,
-        queryFn: async () => {
-            return await apiFetch<AgentPath>('/api/agent/path');
-        },
-        retry: false, // Don't retry if path fetch fails
-    });
-
     const currentAgentPath = currentAgentPathData ?? null;
 
-    // Agent switch mutation
-    const switchAgentMutation = useMutation({
-        mutationFn: async ({ id, path }: { id: string; path?: string }) => {
-            return await apiFetch('/api/agents/switch', {
-                method: 'POST',
-                body: JSON.stringify({ id, ...(path ? { path } : {}) }),
-            });
-        },
-        onSuccess: () => {
-            // Invalidate and refetch agents and path after successful switch
-            queryClient.invalidateQueries({ queryKey: queryKeys.agents.all });
-            queryClient.invalidateQueries({ queryKey: queryKeys.agents.path });
-        },
-    });
-
-    // Agent install mutation (no chaining - coordination happens in handleInstall)
-    const installAgentMutation = useMutation({
-        mutationFn: async (agentId: string) => {
-            return await apiFetch('/api/agents/install', {
-                method: 'POST',
-                body: JSON.stringify({ id: agentId }),
-            });
-        },
-        onSuccess: async () => {
-            // Just invalidate the cache - let handleInstall coordinate the full flow
-            await queryClient.invalidateQueries({ queryKey: queryKeys.agents.all });
-        },
-    });
-
-    // Agent delete mutation
-    const deleteAgentMutation = useMutation({
-        mutationFn: async (agentId: string) => {
-            return await apiFetch('/api/agents/uninstall', {
-                method: 'POST',
-                body: JSON.stringify({ id: agentId }),
-            });
-        },
-        onSuccess: () => {
-            // Invalidate and refetch agents after successful delete
-            queryClient.invalidateQueries({ queryKey: queryKeys.agents.all });
-            queryClient.invalidateQueries({ queryKey: queryKeys.agents.path });
-        },
-    });
+    // Agent mutations using typed hooks
+    const switchAgentMutation = useSwitchAgent();
+    const installAgentMutation = useInstallAgent();
+    const deleteAgentMutation = useUninstallAgent();
 
     // Sync current agent path to recent agents when it loads
     useEffect(() => {
@@ -280,7 +229,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 const fromAgentId = currentId;
 
                 // Step 1: Install the agent
-                await installAgentMutation.mutateAsync(agentId);
+                await installAgentMutation.mutateAsync({ id: agentId });
 
                 // Step 2: Verify agent is now in installed list
                 const freshData = queryClient.getQueryData<AgentsResponse>(queryKeys.agents.all);
@@ -346,7 +295,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
             }
             try {
                 setSwitching(true);
-                await deleteAgentMutation.mutateAsync(agent.id);
+                await deleteAgentMutation.mutateAsync({ id: agent.id });
             } catch (err) {
                 console.error(
                     `Delete agent failed: ${err instanceof Error ? err.message : String(err)}`

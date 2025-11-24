@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { apiFetch } from '@/lib/api-client.js';
+import { useCreateAgent, type CreateAgentPayload } from '../hooks/useAgents';
 import {
     Dialog,
     DialogContent,
@@ -68,8 +68,9 @@ export default function CreateAgentModal({
     const [metadata, setMetadata] = useState<RegistryMetadata>(initialMetadata);
     const [config, setConfig] = useState<Partial<AgentConfig>>(initialAgentConfig);
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [isCreating, setIsCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
+    const createAgentMutation = useCreateAgent();
+    const isCreating = createAgentMutation.isPending;
 
     // Track which sections are open
     const [openSections, setOpenSections] = useState({
@@ -150,48 +151,50 @@ export default function CreateAgentModal({
             return;
         }
 
-        setIsCreating(true);
         setCreateError(null);
 
-        try {
-            const data = await apiFetch<{ id: string }>('/api/agents/custom/create', {
-                method: 'POST',
-                body: JSON.stringify({
-                    // Registry metadata
-                    id: metadata.id.trim(),
-                    name: metadata.name.trim(),
-                    description: metadata.description.trim(),
-                    author: metadata.author.trim() || undefined,
-                    tags: metadata.tags
-                        .split(',')
-                        .map((t) => t.trim())
-                        .filter(Boolean),
+        createAgentMutation.mutate(
+            {
+                // Registry metadata
+                id: metadata.id.trim(),
+                name: metadata.name.trim(),
+                description: metadata.description.trim(),
+                author: metadata.author.trim() || undefined,
+                tags: metadata.tags
+                    .split(',')
+                    .map((t) => t.trim())
+                    .filter(Boolean),
 
-                    // Full agent configuration
-                    config: {
-                        llm: config.llm,
-                        systemPrompt: config.systemPrompt,
-                    },
-                }),
-            });
+                // TODO: Fix type mismatch - config state is typed as Partial<AgentConfig> but
+                // the server requires llm to be present. The validation function ensures llm
+                // exists before reaching this point, but TypeScript can't track that guarantee
+                // across the conditional return. Need to refactor state type or validation
+                // approach to eliminate the need for type assertions.
+                config: {
+                    llm: config.llm!,
+                    systemPrompt: config.systemPrompt,
+                } as CreateAgentPayload['config'],
+            },
+            {
+                onSuccess: (data) => {
+                    // Reset form
+                    setMetadata(initialMetadata);
+                    setConfig(initialAgentConfig);
+                    setErrors({});
 
-            // Reset form
-            setMetadata(initialMetadata);
-            setConfig(initialAgentConfig);
-            setErrors({});
+                    // Close modal
+                    onOpenChange(false);
 
-            // Close modal
-            onOpenChange(false);
-
-            // Notify parent with agent ID
-            if (onAgentCreated && data.id) {
-                onAgentCreated(data.id);
+                    // Notify parent with agent ID
+                    if (onAgentCreated && data.id) {
+                        onAgentCreated(data.id);
+                    }
+                },
+                onError: (error: Error) => {
+                    setCreateError(error.message);
+                },
             }
-        } catch (error) {
-            setCreateError(error instanceof Error ? error.message : 'An unexpected error occurred');
-        } finally {
-            setIsCreating(false);
-        }
+        );
     };
 
     const handleCancel = () => {
