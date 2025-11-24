@@ -57,10 +57,6 @@ export interface ToolResult {
     success: boolean;
     data?: any;
     error?: string;
-    metadata?: {
-        type: string;
-        mimeType?: string;
-    };
 }
 
 /**

@@ -46,12 +46,22 @@ const ServersListResponseSchema = z
     .strict()
     .describe('List of MCP servers');
 
+// JSON Schema definition for tool input parameters (based on MCP SDK Tool type)
+const ToolInputSchemaSchema = z
+    .object({
+        type: z.literal('object').describe('Schema type, always "object"'),
+        properties: z.record(z.any()).optional().describe('Property definitions'),
+        required: z.array(z.string()).optional().describe('Required property names'),
+    })
+    .passthrough()
+    .describe('JSON Schema for tool input parameters');
+
 const ToolInfoSchema = z
     .object({
         id: z.string().describe('Tool identifier'),
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: z.record(z.any()).describe('JSON Schema for tool input parameters'),
+        inputSchema: ToolInputSchemaSchema.describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool information');

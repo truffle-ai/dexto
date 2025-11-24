@@ -14,14 +14,21 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Copy, Share2, Zap } from 'lucide-react';
-import type { McpTool, JsonSchemaProperty } from '@/types';
+import type { useServerTools } from '@/components/hooks/useServers';
+
+// Infer McpTool type from the hook's return value
+type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];
 
 interface ToolInputFormProps {
     tool: McpTool;
     inputs: Record<string, any>;
     errors: Record<string, string>;
     isLoading: boolean;
-    onInputChange: (name: string, value: any, type?: JsonSchemaProperty['type']) => void;
+    onInputChange: (
+        name: string,
+        value: any,
+        type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+    ) => void;
     onSubmit: () => void;
     onCopyConfig?: () => void;
     onShareConfig?: () => void;
@@ -40,13 +47,15 @@ const toolTemplates: ToolTemplate[] = [
         apply: (tool: McpTool) => {
             const defaults: Record<string, any> = {};
             if (tool.inputSchema?.properties) {
-                Object.entries(tool.inputSchema.properties).forEach(([key, prop]) => {
-                    if (prop.type === 'string') defaults[key] = `test-${key}`;
-                    else if (prop.type === 'number') defaults[key] = 42;
-                    else if (prop.type === 'boolean') defaults[key] = true;
-                    else if (prop.type === 'object') defaults[key] = '{"example": "value"}';
-                    else if (prop.type === 'array') defaults[key] = '["example"]';
-                });
+                Object.entries(tool.inputSchema.properties).forEach(
+                    ([key, prop]: [string, any]) => {
+                        if (prop.type === 'string') defaults[key] = `test-${key}`;
+                        else if (prop.type === 'number') defaults[key] = 42;
+                        else if (prop.type === 'boolean') defaults[key] = true;
+                        else if (prop.type === 'object') defaults[key] = '{"example": "value"}';
+                        else if (prop.type === 'array') defaults[key] = '["example"]';
+                    }
+                );
             }
             return defaults;
         },
@@ -57,7 +66,7 @@ const toolTemplates: ToolTemplate[] = [
         apply: (tool: McpTool) => {
             const defaults: Record<string, any> = {};
             if (tool.inputSchema?.properties && tool.inputSchema?.required) {
-                tool.inputSchema.required.forEach((key) => {
+                tool.inputSchema.required.forEach((key: string) => {
                     const prop = tool.inputSchema!.properties![key];
                     if (prop.type === 'string') defaults[key] = '';
                     else if (prop.type === 'number') defaults[key] = '';
@@ -89,7 +98,7 @@ export function ToolInputForm({
     const hasInputs =
         tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
 
-    const renderInput = (key: string, prop: JsonSchemaProperty) => {
+    const renderInput = (key: string, prop: any) => {
         const isRequired = tool.inputSchema?.required?.includes(key);
         const errorMsg = errors[key];
         const baseInputClassName = `w-full ${errorMsg ? 'border-destructive focus-visible:ring-destructive' : ''}`;

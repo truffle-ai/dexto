@@ -6,7 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { McpTool, McpServer } from '@/types';
+import type { useServers, useServerTools } from '@/components/hooks/useServers';
+
+// Infer types from hooks
+type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
+type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];
 
 interface ToolsListProps {
     tools: McpTool[];

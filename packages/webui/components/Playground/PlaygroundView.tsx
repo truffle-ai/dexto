@@ -12,10 +12,14 @@ import { ToolsList } from './ToolsList';
 import { ToolInputForm } from './ToolInputForm';
 import { ToolResult } from './ToolResult';
 import { ExecutionHistory, type ExecutionHistoryItem } from './ExecutionHistory';
-import type { JsonSchemaProperty, McpServer, McpTool, ToolResult as ToolResultType } from '@/types';
+import type { ToolResult as ToolResultType } from '@dexto/core';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api-client';
 import { useServers, useServerTools } from '../hooks/useServers';
+
+// Infer types from hooks
+type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
+type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];
 
 export default function PlaygroundView() {
     const [selectedServer, setSelectedServer] = useState<McpServer | null>(null);
@@ -99,7 +103,11 @@ export default function PlaygroundView() {
     }, []);
 
     const handleInputChange = useCallback(
-        (inputName: string, value: any, type?: JsonSchemaProperty['type']) => {
+        (
+            inputName: string,
+            value: any,
+            type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+        ) => {
             setToolInputs((prev) => ({ ...prev, [inputName]: value }));
             if (inputErrors[inputName]) {
                 setInputErrors((prev) => ({ ...prev, [inputName]: '' }));
