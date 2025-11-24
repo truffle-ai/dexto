@@ -125,20 +125,20 @@ export interface ServerRegistryFilter { ... }  // UI-only
 - [x] Fix core self-referencing import (api-key-resolver.ts)
 - [x] Update server schema to use z.output types (mcp.ts - ServerInfoSchema)
 - [x] Add proper ToolInputSchemaSchema with properties/required fields
+- [x] Remove unused metadata field from core ToolResult
 - [x] Migrate useServers hook - remove explicit types
 - [x] Migrate useServerTools hook - remove explicit types
 - [x] Update ServersPanel.tsx - remove 'unknown' status references
-- [x] Clean up types.ts - remove McpServer, McpTool, ToolResult, etc.
-- [x] Update Playground components to inline type inference:
-  - [x] PlaygroundView.tsx
+- [x] Clean up types.ts - remove McpServer, McpTool, ToolResult, etc (API response types)
+- [x] Update all Playground components to inline type inference:
+  - [x] PlaygroundView.tsx - import ToolResult from @dexto/core (domain type)
   - [x] ToolInputForm.tsx
   - [x] ToolsList.tsx
+  - [x] ServersList.tsx
+  - [x] ToolResult.tsx - import ToolResult from @dexto/core
 
 ### 🚧 In Progress (Current Focus)
-- [ ] Fix remaining Playground build errors
-- [ ] Update remaining Playground components:
-  - [ ] ServersList.tsx
-  - [ ] ToolResult.tsx
+- [ ] Fix GreetingResponse type error in useGreeting.ts
 
 ### 📋 Remaining Hooks to Migrate
 - [ ] useChat.ts
