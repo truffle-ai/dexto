@@ -21,7 +21,7 @@ export function useSwitchLLM() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: Parameters<typeof client.api.llm.switch.$post>[0]['json']) => {
+        mutationFn: async (payload: SwitchLLMPayload) => {
             const response = await client.api.llm.switch.$post({ json: payload });
             if (!response.ok) {
                 throw new Error(`Failed to switch LLM: ${response.status}`);
@@ -38,7 +38,7 @@ export function useSaveApiKey() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: Parameters<typeof client.api.llm.key.$post>[0]['json']) => {
+        mutationFn: async (payload: SaveApiKeyPayload) => {
             const response = await client.api.llm.key.$post({ json: payload });
             if (!response.ok) {
                 throw new Error(`Failed to save API key: ${response.status}`);
