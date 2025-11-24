@@ -1,6 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { logger, safeStringify, AgentConfigSchema, type LLMProvider } from '@dexto/core';
+import {
+    logger,
+    safeStringify,
+    AgentConfigSchema,
+    type LLMProvider,
+    zodToIssues,
+} from '@dexto/core';
 import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
@@ -771,9 +777,11 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             const result = AgentConfigSchema.safeParse(enriched);
 
             if (!result.success) {
-                const errors = result.error.errors.map((err) => ({
-                    path: err.path.join('.'),
-                    message: err.message,
+                // Use zodToIssues to extract detailed validation errors (handles union errors properly)
+                const issues = zodToIssues(result.error);
+                const errors = issues.map((issue) => ({
+                    path: issue.path?.join('.') ?? 'root',
+                    message: issue.message,
                     code: 'SCHEMA_VALIDATION_ERROR',
                 }));
 

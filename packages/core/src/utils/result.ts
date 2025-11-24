@@ -232,17 +232,33 @@ export function zodToIssues<C = unknown>(
     err: ZodError,
     severity: 'error' | 'warning' = 'error'
 ): Issue<C>[] {
-    return err.errors.map((e: ZodIssue) => {
-        const params = (e as any).params || {};
-        return {
-            code: (params.code ?? 'schema_validation') as DextoErrorCode,
-            message: e.message,
-            scope: params.scope ?? ErrorScope.AGENT, // Fallback for non-custom Zod errors
-            // Treat plain Zod schema failures as USER errors by default
-            type: params.type ?? ErrorType.USER,
-            path: e.path,
-            severity,
-            context: params as C,
-        };
-    });
+    const issues: Issue<C>[] = [];
+
+    for (const e of err.errors) {
+        // Handle invalid_union errors by extracting the actual validation errors from unionErrors
+        if (e.code === 'invalid_union' && (e as any).unionErrors) {
+            const unionErrors = (e as any).unionErrors as ZodError[];
+            // The second unionError (index 1) typically contains the object validation errors
+            // with the most specific error messages and paths
+            const objectErrors = unionErrors[1] || unionErrors[0];
+            if (objectErrors) {
+                // Recursively process the union errors to get detailed issues
+                issues.push(...zodToIssues<C>(objectErrors, severity));
+            }
+        } else {
+            // Standard error processing
+            const params = (e as any).params || {};
+            issues.push({
+                code: (params.code ?? 'schema_validation') as DextoErrorCode,
+                message: e.message,
+                scope: params.scope ?? ErrorScope.AGENT,
+                type: params.type ?? ErrorType.USER,
+                path: e.path,
+                severity,
+                context: params as C,
+            });
+        }
+    }
+
+    return issues;
 }
