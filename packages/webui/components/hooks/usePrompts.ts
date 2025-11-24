@@ -30,6 +30,9 @@ export function useCreatePrompt() {
             payload: Parameters<typeof client.api.prompts.custom.$post>[0]['json']
         ) => {
             const response = await client.api.prompts.custom.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to create prompt: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {

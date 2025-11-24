@@ -27,9 +27,9 @@ export function useSearchMessages(
 }
 
 // Search sessions
-export function useSearchSessions(query: string, limit: number = 20, enabled: boolean = true) {
+export function useSearchSessions(query: string, enabled: boolean = true) {
     return useQuery({
-        queryKey: queryKeys.search.sessions(query, limit),
+        queryKey: queryKeys.search.sessions(query),
         queryFn: async () => {
             const response = await client.api.search.sessions.$get({
                 query: { q: query },

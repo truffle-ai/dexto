@@ -70,7 +70,7 @@ export default function SearchPanel({
         data: sessionData,
         isLoading: sessionLoading,
         error: sessionError,
-    } = useSearchSessions(debouncedQuery, 20, isOpen && searchMode === 'sessions');
+    } = useSearchSessions(debouncedQuery, isOpen && searchMode === 'sessions');
 
     // Derive state from query results
     const messageResults = messageData?.results || [];
