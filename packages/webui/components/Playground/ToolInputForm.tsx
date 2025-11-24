@@ -19,6 +19,9 @@ import type { useServerTools } from '@/components/hooks/useServers';
 // Infer McpTool type from the hook's return value
 type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];
 
+// Infer the property schema type from the tool's input schema
+type JsonSchemaProperty = NonNullable<NonNullable<McpTool['inputSchema']>['properties']>[string];
+
 interface ToolInputFormProps {
     tool: McpTool;
     inputs: Record<string, any>;
@@ -98,15 +101,19 @@ export function ToolInputForm({
     const hasInputs =
         tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
 
-    const renderInput = (key: string, prop: any) => {
+    const renderInput = (key: string, prop: JsonSchemaProperty) => {
         const isRequired = tool.inputSchema?.required?.includes(key);
         const errorMsg = errors[key];
         const baseInputClassName = `w-full ${errorMsg ? 'border-destructive focus-visible:ring-destructive' : ''}`;
 
         // Enum select
         if (prop.enum && Array.isArray(prop.enum)) {
-            const isEnumBoolean = prop.enum.every((v) => typeof v === 'boolean');
-            const isEnumNumeric = prop.enum.every((v) => typeof v === 'number');
+            const isEnumBoolean = prop.enum.every(
+                (v: string | number | boolean) => typeof v === 'boolean'
+            );
+            const isEnumNumeric = prop.enum.every(
+                (v: string | number | boolean) => typeof v === 'number'
+            );
             return (
                 <Select
                     value={
@@ -128,7 +135,7 @@ export function ToolInputForm({
                         />
                     </SelectTrigger>
                     <SelectContent>
-                        {prop.enum.map((enumValue) => (
+                        {prop.enum.map((enumValue: string | number | boolean) => (
                             <SelectItem key={String(enumValue)} value={String(enumValue)}>
                                 {String(enumValue)}
                             </SelectItem>

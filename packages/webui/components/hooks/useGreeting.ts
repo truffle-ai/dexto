@@ -2,17 +2,15 @@
 
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { GreetingResponse } from '@/types';
-import { apiFetch } from '@/lib/api-client.js';
+import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-async function fetchGreeting(sessionId?: string | null): Promise<string | null> {
-    const endpoint = sessionId
-        ? `/api/greeting?sessionId=${encodeURIComponent(sessionId)}`
-        : `/api/greeting`;
-
-    const data = await apiFetch<GreetingResponse>(endpoint);
-    return data.greeting ?? null;
+async function fetchGreeting(sessionId?: string | null) {
+    const data = await client.api.greeting.$get({
+        query: sessionId ? { sessionId } : {},
+    });
+    const json = await data.json();
+    return json.greeting ?? null;
 }
 
 export function useGreeting(sessionId?: string | null) {
@@ -22,7 +20,7 @@ export function useGreeting(sessionId?: string | null) {
         data: greeting = null,
         isLoading,
         error,
-    } = useQuery<string | null, Error>({
+    } = useQuery({
         queryKey: queryKeys.greeting(sessionId),
         queryFn: () => fetchGreeting(sessionId),
     });

@@ -7,7 +7,7 @@ Update the Web UI to use the Hono typed client SDK (`@dexto/client-sdk`) instead
 ## Important Instructions
 
 ### Type Safety & Refactoring
-- **NO TYPE CASTING**: If you notice you have to type cast at any point or you have to make the API response match some different format, it's a **RED FLAG** and indicates we need to do some refactors.
+- **NO TYPE CASTIN OR ANY TYPES**: If you notice you have to type cast at any point or you have to make the API response match some different format, it's a **RED FLAG** and indicates we need to do some refactors.
 - **Fix at the source**: When type issues occur, refactor the server code to return the correct types, then update the Web UI to consume these types, then remove duplicate Web UI types.
 - **No explicit types for API responses**: React Query automatically infers types from Hono client. Don't create type definitions for API responses.
 - **No api-types.ts file**: The Hono typed client provides complete type inference from server Zod schemas. No need for intermediate type files.
@@ -124,7 +124,7 @@ export interface ServerRegistryFilter { ... }  // UI-only
 ### ✅ Completed
 - [x] Fix core self-referencing import (api-key-resolver.ts)
 - [x] Update server schema to use z.output types (mcp.ts - ServerInfoSchema)
-- [x] Add proper ToolInputSchemaSchema with properties/required fields
+- [x] Add proper JsonSchemaProperty schema with type/description/enum/default fields
 - [x] Remove unused metadata field from core ToolResult
 - [x] Migrate useServers hook - remove explicit types
 - [x] Migrate useServerTools hook - remove explicit types
@@ -132,17 +132,18 @@ export interface ServerRegistryFilter { ... }  // UI-only
 - [x] Clean up types.ts - remove McpServer, McpTool, ToolResult, etc (API response types)
 - [x] Update all Playground components to inline type inference:
   - [x] PlaygroundView.tsx - import ToolResult from @dexto/core (domain type)
-  - [x] ToolInputForm.tsx
+  - [x] ToolInputForm.tsx - use proper JsonSchemaProperty type
   - [x] ToolsList.tsx
   - [x] ServersList.tsx
-  - [x] ToolResult.tsx - import ToolResult from @dexto/core
+  - [x] ToolResult.tsx - import ToolResult from @dexto/core, remove metadata references
+- [x] Migrate useGreeting hook - replace apiFetch with typed client
+- [x] Add typecheck script to webui package.json
 
 ### 🚧 In Progress (Current Focus)
-- [ ] Fix GreetingResponse type error in useGreeting.ts
+- [ ] Migrate remaining hooks starting with useChat.ts
 
 ### 📋 Remaining Hooks to Migrate
 - [ ] useChat.ts
-- [ ] useGreeting.ts
 - [ ] ChatContext.tsx
 - [ ] usePrompts.ts
 - [ ] useResources.ts
