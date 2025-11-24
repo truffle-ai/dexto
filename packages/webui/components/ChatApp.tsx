@@ -102,8 +102,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     const { theme, toggleTheme } = useTheme();
 
     // API mutations
-    const addServerMutation = useAddServer();
-    const resolvePromptMutation = useResolvePrompt();
+    const { mutateAsync: addServer } = useAddServer();
+    const { mutateAsync: resolvePrompt } = useResolvePrompt();
 
     const [isModalOpen, setModalOpen] = useState(false);
     const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -491,7 +491,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
             try {
                 setIsRegistryBusy(true);
-                await addServerMutation.mutateAsync({
+                await addServer({
                     name: entry.name,
                     config,
                     persistToAgent: false,
@@ -518,6 +518,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             }
         },
         [
+            addServer,
             setServerRegistryOpen,
             setModalOpen,
             setConnectPrefill,
@@ -643,7 +644,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     action: async () => {
                         try {
                             // Resolve the prompt server-side just like InputArea does
-                            const result = await resolvePromptMutation.mutateAsync({
+                            const result = await resolvePrompt({
                                 name: prompt.name,
                             });
                             if (result.text.trim()) {
@@ -665,7 +666,14 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             }
         });
         return actions;
-    }, [starterPrompts, starterPromptsLoaded, quickActions, handleSend, setServersPanelOpen]);
+    }, [
+        starterPrompts,
+        starterPromptsLoaded,
+        quickActions,
+        handleSend,
+        setServersPanelOpen,
+        resolvePrompt,
+    ]);
 
     // Keyboard shortcuts (using react-hotkeys-hook)
     // Cmd/Ctrl + Backspace to delete current session

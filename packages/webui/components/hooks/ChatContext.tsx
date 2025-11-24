@@ -357,7 +357,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const { greeting } = useGreeting(currentSessionId);
 
     // Mutation for generating session title
-    const generateTitleMutation = useMutation({
+    const { mutate: generateTitle } = useMutation({
         mutationFn: async (sessionId: string) => {
             const response = await client.api.sessions[':sessionId']['generate-title'].$post({
                 param: { sessionId },
@@ -432,9 +432,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     router.replace(`/chat/${sessionId}`);
 
                     // Generate title for newly created session after first message
-                    // Use setTimeout to avoid including mutation in dependencies
+                    // Use setTimeout to delay title generation until message is complete
                     setTimeout(() => {
-                        if (sessionId) generateTitleMutation.mutate(sessionId);
+                        if (sessionId) generateTitle(sessionId);
                     }, 0);
 
                     // Note: currentLLM will automatically refetch when currentSessionId changes
@@ -477,7 +477,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             router,
             analytics,
             currentLLM,
-            // generateTitleMutation removed - mutation called via setTimeout to avoid dep issues
+            generateTitle,
         ]
     );
 

@@ -179,6 +179,36 @@ const handleSubmit = () => {
 };
 ```
 
+### Mutations in useCallback/useMemo Dependencies
+
+**CRITICAL:** useMutation objects are NOT stable and will cause infinite re-renders if added to dependency arrays. Instead, extract `mutate` or `mutateAsync` functions which ARE stable:
+
+```typescript
+// ❌ WRONG - mutation object is unstable
+const addServerMutation = useAddServer();
+
+const handleClick = useCallback(() => {
+    addServerMutation.mutate({ name, config });
+}, [addServerMutation]); // ⚠️ Causes infinite loop!
+
+// ✅ CORRECT - extract stable function
+const { mutate: addServer } = useAddServer();
+
+const handleClick = useCallback(() => {
+    addServer({ name, config });
+}, [addServer]); // ✅ Safe - mutate function is stable
+
+// ✅ CORRECT - for async operations
+const { mutateAsync: addServer } = useAddServer();
+
+const handleClick = useCallback(async () => {
+    await addServer({ name, config });
+    doSomethingElse();
+}, [addServer]); // ✅ Safe - mutateAsync function is stable
+```
+
+**Reference:** See `ToolConfirmationHandler.tsx` lines 36, 220 for the pattern in action.
+
 ## State Management
 
 - **TanStack Query** - Server state, caching, API data

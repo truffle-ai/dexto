@@ -1,5 +1,5 @@
 // schemas/helpers.ts
-import { z, type ZodError, type ZodIssue } from 'zod';
+import { z, type ZodError } from 'zod';
 import type { DextoErrorCode, Issue } from '@core/errors/types.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
