@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-async function fetchGreeting(sessionId?: string | null) {
+async function fetchGreeting(sessionId?: string | null): Promise<string | null> {
     const data = await client.api.greeting.$get({
         query: sessionId ? { sessionId } : {},
     });

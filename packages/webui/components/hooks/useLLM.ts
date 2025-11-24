@@ -8,6 +8,9 @@ export function useLLMCatalog(options?: { enabled?: boolean; mode?: 'grouped' | 
         queryKey: [...queryKeys.llm.catalog, mode],
         queryFn: async () => {
             const response = await client.api.llm.catalog.$get({ query: { mode } });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch LLM catalog: ${response.status}`);
+            }
             return await response.json();
         },
         enabled: options?.enabled ?? true,
@@ -20,6 +23,9 @@ export function useSwitchLLM() {
     return useMutation({
         mutationFn: async (payload: Parameters<typeof client.api.llm.switch.$post>[0]['json']) => {
             const response = await client.api.llm.switch.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to switch LLM: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {
@@ -34,6 +40,9 @@ export function useSaveApiKey() {
     return useMutation({
         mutationFn: async (payload: Parameters<typeof client.api.llm.key.$post>[0]['json']) => {
             const response = await client.api.llm.key.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to save API key: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {

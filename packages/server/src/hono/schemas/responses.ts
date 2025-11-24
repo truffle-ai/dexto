@@ -354,7 +354,11 @@ export const ResourceSchema = z
             .optional()
             .describe('Original server/provider name (for MCP resources)'),
         size: z.number().optional().describe('Size of the resource in bytes (if known)'),
-        lastModified: z.string().optional().describe('Last modified timestamp (ISO string)'),
+        lastModified: z
+            .string()
+            .datetime()
+            .optional()
+            .describe('Last modified timestamp (ISO 8601 string)'),
         metadata: z
             .record(z.unknown())
             .optional()

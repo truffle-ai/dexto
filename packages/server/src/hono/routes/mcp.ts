@@ -65,7 +65,7 @@ const JsonSchemaProperty = z
 
 const ToolInputSchema = z
     .object({
-        type: z.literal('object').describe('Schema type, always "object"'),
+        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
         properties: z.record(JsonSchemaProperty).optional().describe('Property definitions'),
         required: z.array(z.string()).optional().describe('Required property names'),
     })
@@ -77,7 +77,7 @@ const ToolInfoSchema = z
         id: z.string().describe('Tool identifier'),
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: ToolInputSchema.describe('JSON Schema for tool input parameters'),
+        inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool information');
