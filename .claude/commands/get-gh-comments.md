@@ -166,7 +166,7 @@ This keeps the response concise for the user while also informing them of the es
 When CodeRabbit comments are **incorrect** or based on outdated analysis:
 
 1. **Provide the GitHub links** for manual resolution as invalid
-2. **Explain why the comment is wrong** briefly  
+2. **Explain why the comment is wrong** briefly
 3. **Group them clearly**:
 
 ```
@@ -181,3 +181,35 @@ When CodeRabbit comments are **incorrect** or based on outdated analysis:
 ## Valid Comments Still Needing Fixes
 [List the legitimate issues with their links]
 ```
+
+## Replying to Specific Review Comments
+
+To reply to a specific review comment thread (not a general PR comment), use the GitHub API:
+
+```bash
+gh api repos/truffle-ai/dexto/pulls/PR_NUMBER/comments/COMMENT_ID/replies \
+  -X POST \
+  --field body="Your reply here"
+```
+
+**Important:**
+- Use the `COMMENT_ID` from the script output (the number after `Comment ID:`)
+- This replies to the specific comment thread, not the entire PR
+- The body should use markdown formatting
+- Use heredoc for multi-line replies:
+
+```bash
+gh api repos/truffle-ai/dexto/pulls/453/comments/2556242072/replies \
+  -X POST \
+  --field body="$(cat <<'EOF'
+This analysis is incorrect because:
+
+**Reason 1:** Explanation here
+**Reason 2:** More details
+
+The current code is correct.
+EOF
+)"
+```
+
+**DON'T** use `gh pr review PR_NUMBER --comment --body` - that creates a general PR comment, not a reply to a specific thread.
