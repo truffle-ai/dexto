@@ -1,0 +1,42 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
+import { client } from '@/lib/client';
+
+export function useLLMCatalog(enabled: boolean = true) {
+    return useQuery({
+        queryKey: queryKeys.llm.catalog,
+        queryFn: async () => {
+            const response = await client.api.llm.catalog.$get({ query: {} });
+            return await response.json();
+        },
+        enabled,
+    });
+}
+
+export function useSwitchLLM() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: any) => {
+            const response = await client.api.llm.switch.$post({ json: payload });
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.catalog });
+        },
+    });
+}
+
+export function useSaveApiKey() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: any) => {
+            const response = await client.api.llm.key.$post({ json: payload });
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.catalog });
+        },
+    });
+}
