@@ -386,6 +386,20 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
             {
+                name: 'claude-opus-4-5-20251101',
+                displayName: 'Claude 4.5 Opus',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                pricing: {
+                    inputPerM: 5.0,
+                    outputPerM: 25.0,
+                    cacheWritePerM: 6.25,
+                    cacheReadPerM: 0.5,
+                    currency: 'USD',
+                    unit: 'per_million_tokens',
+                },
+            },
+            {
                 name: 'claude-opus-4-1-20250805',
                 displayName: 'Claude 4.1 Opus',
                 maxInputTokens: 200000,
