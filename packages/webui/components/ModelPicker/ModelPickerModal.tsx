@@ -226,7 +226,11 @@ export default function ModelPickerModal() {
     }, [analytics]);
 
     // Load catalog when opening
-    const { data: catalogData, isLoading: loading, error: catalogError } = useLLMCatalog(open);
+    const {
+        data: catalogData,
+        isLoading: loading,
+        error: catalogError,
+    } = useLLMCatalog({ enabled: open });
 
     useEffect(() => {
         if (catalogData && 'providers' in catalogData) {

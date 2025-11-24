@@ -276,9 +276,16 @@ mutationFn: async (payload) => {
   - [x] Export CreateAgentPayload type from useAgents hook
   - [x] Fix CreateAgentModal state type to use CreateAgentPayload['config'] instead of Partial<AgentConfig>
   - [x] Eliminate type casts and non-null assertions
+- [x] Migrate InputArea.tsx - replace apiFetch with typed hooks
+  - [x] Add mode parameter to useLLMCatalog hook for flat/grouped catalog responses
+  - [x] Replace apiFetch catalog call with useLLMCatalog({ mode: 'flat' })
+  - [x] Add type guard for discriminated union (flat vs grouped catalog response)
+  - [x] Replace apiFetch prompt resolution with useResolvePrompt mutation
+  - [x] Add response.ok check in useResolvePrompt for proper error handling
+  - [x] Fix ModelPickerModal to use options object instead of boolean for useLLMCatalog
 
 ### 🚧 In Progress (Current Focus)
-- [ ] Migrate remaining components that use fetch or apiFetch directly
+- [ ] Migrate remaining components that use fetch or apiFetch directly (lib/serverRegistry.ts, ChatApp.tsx)
 
 ### 📋 Remaining Hooks to Migrate
 - [x] usePrompts.ts
@@ -290,12 +297,12 @@ mutationFn: async (payload) => {
 
 ### 📋 Remaining Components to Migrate
 - [ ] ChatApp.tsx
-- [ ] InputArea.tsx
-- [ ] SessionPanel.tsx
-- [ ] MemoryPanel.tsx
-- [ ] CreatePromptModal.tsx
-- [ ] CreateMemoryModal.tsx
-- [ ] ApiKeyModal.tsx
+- [x] InputArea.tsx
+- [x] SessionPanel.tsx (no apiFetch - already clean)
+- [x] MemoryPanel.tsx (no apiFetch - already clean)
+- [x] CreatePromptModal.tsx (no apiFetch - already clean)
+- [x] CreateMemoryModal.tsx (no apiFetch - already clean)
+- [x] ApiKeyModal.tsx (no apiFetch - already clean)
 - [x] AgentSelector/CreateAgentModal.tsx
 - [x] ModelPicker/ModelPickerModal.tsx
 - [x] ToolConfirmationHandler.tsx

@@ -2,14 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
 
-export function useLLMCatalog(enabled: boolean = true) {
+export function useLLMCatalog(options?: { enabled?: boolean; mode?: 'grouped' | 'flat' }) {
+    const mode = options?.mode ?? 'grouped';
     return useQuery({
-        queryKey: queryKeys.llm.catalog,
+        queryKey: [...queryKeys.llm.catalog, mode],
         queryFn: async () => {
-            const response = await client.api.llm.catalog.$get({ query: {} });
+            const response = await client.api.llm.catalog.$get({ query: { mode } });
             return await response.json();
         },
-        enabled,
+        enabled: options?.enabled ?? true,
     });
 }
 

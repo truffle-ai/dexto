@@ -52,6 +52,11 @@ export function useResolvePrompt() {
                 param: { name: encodeURIComponent(name) },
                 query,
             });
+
+            if (!response.ok) {
+                throw new Error(`Failed to resolve prompt: ${response.status}`);
+            }
+
             return await response.json();
         },
     });
