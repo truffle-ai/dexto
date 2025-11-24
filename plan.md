@@ -148,18 +148,25 @@ export interface ServerRegistryFilter { ... }  // UI-only
   - [x] Remove apiUrl parameter from useChat signature
   - [x] Export createMessageStream and MessageStreamEvent from client-sdk index
 - [x] Update ChatContext.tsx to remove apiUrl parameter when calling useChat
+- [x] Migrate usePrompts hook - replace apiFetch with typed client
+- [x] Migrate useResources hook - replace apiFetch with typed client, fix server ResourceSchema
+- [x] Migrate useSessions hook (useDeleteSession) - replace apiFetch with typed client
+- [x] Fix server ResourceSchema to include all fields from core ResourceMetadata (source, serverName, size, lastModified, metadata)
+- [x] Migrate useAgentConfig hook - replace apiFetch with typed client (GET config, POST validate, POST save)
+- [x] Migrate useResourceContent hook - replace apiFetch with typed client
+- [x] Migrate useSearch hook - replace apiFetch with typed client (search messages and sessions)
+- [x] Export nested types (ValidationError, ValidationWarning, SearchResult, SessionSearchResult) via type inference
 
 ### 🚧 In Progress (Current Focus)
-- [ ] Continue migrating remaining hooks
+- [ ] Migrate remaining components that use fetch or apiFetch directly
 
 ### 📋 Remaining Hooks to Migrate
-- [ ] ChatContext.tsx
-- [ ] usePrompts.ts
-- [ ] useResources.ts
-- [ ] useSessions.ts
-- [ ] useAgentConfig.ts
-- [ ] useResourceContent.ts
-- [ ] useSearch.ts
+- [x] usePrompts.ts
+- [x] useResources.ts
+- [x] useSessions.ts
+- [x] useAgentConfig.ts
+- [x] useResourceContent.ts
+- [x] useSearch.ts
 
 ### 📋 Remaining Components to Migrate
 - [ ] ChatApp.tsx
