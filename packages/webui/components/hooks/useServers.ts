@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
-import type { McpServerConfig } from '@dexto/core';
 
 // Fetch all MCP servers
 export function useServers(enabled: boolean = true) {
@@ -45,18 +44,8 @@ export function useAddServer() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: {
-            name: string;
-            config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
-            persistToAgent?: boolean;
-        }) => {
-            const res = await client.api.mcp.servers.$post({
-                json: {
-                    name: payload.name,
-                    config: payload.config as McpServerConfig, // Cast to match expected type
-                    persistToAgent: payload.persistToAgent,
-                },
-            });
+        mutationFn: async (payload: Parameters<typeof client.api.mcp.servers.$post>[0]['json']) => {
+            const res = await client.api.mcp.servers.$post({ json: payload });
             if (!res.ok) {
                 const error = await res.text();
                 throw new Error(error || 'Failed to add server');
