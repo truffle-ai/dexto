@@ -1,4 +1,4 @@
-import type { LLMRouter, SupportedFileType } from '@dexto/core';
+import type { LLMRouter, SupportedFileType, LLMProvider } from '@dexto/core';
 
 export type ModelInfo = {
     name: string;
@@ -26,7 +26,7 @@ export type ProviderCatalog = {
     models: ModelInfo[];
 };
 
-export type CatalogResponse = { providers: Record<string, ProviderCatalog> };
+export type CatalogResponse = { providers: Record<LLMProvider, ProviderCatalog> };
 
 export type CurrentLLMConfigResponse = {
     config: {
