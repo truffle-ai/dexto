@@ -17,7 +17,6 @@ import { Collapsible } from '../ui/collapsible';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { LLMConfigSection } from '../AgentEditor/form-sections/LLMConfigSection';
 import { SystemPromptSection } from '../AgentEditor/form-sections/SystemPromptSection';
-import type { AgentConfig } from '@dexto/core';
 
 interface CreateAgentModalProps {
     open: boolean;
@@ -41,7 +40,7 @@ const initialMetadata: RegistryMetadata = {
     tags: '',
 };
 
-const initialAgentConfig: Partial<AgentConfig> = {
+const initialAgentConfig: CreateAgentPayload['config'] = {
     llm: {
         provider: 'openai',
         model: 'gpt-5',
@@ -66,7 +65,7 @@ export default function CreateAgentModal({
     onAgentCreated,
 }: CreateAgentModalProps) {
     const [metadata, setMetadata] = useState<RegistryMetadata>(initialMetadata);
-    const [config, setConfig] = useState<Partial<AgentConfig>>(initialAgentConfig);
+    const [config, setConfig] = useState<CreateAgentPayload['config']>(initialAgentConfig);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [createError, setCreateError] = useState<string | null>(null);
     const createAgentMutation = useCreateAgent();
@@ -165,15 +164,7 @@ export default function CreateAgentModal({
                     .map((t) => t.trim())
                     .filter(Boolean),
 
-                // TODO: Fix type mismatch - config state is typed as Partial<AgentConfig> but
-                // the server requires llm to be present. The validation function ensures llm
-                // exists before reaching this point, but TypeScript can't track that guarantee
-                // across the conditional return. Need to refactor state type or validation
-                // approach to eliminate the need for type assertions.
-                config: {
-                    llm: config.llm!,
-                    systemPrompt: config.systemPrompt,
-                } as CreateAgentPayload['config'],
+                config,
             },
             {
                 onSuccess: (data) => {
