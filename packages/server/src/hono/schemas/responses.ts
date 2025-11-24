@@ -338,6 +338,10 @@ export type AgentRegistryEntry = z.output<typeof AgentRegistryEntrySchema>;
 
 // --- Resource Schemas ---
 
+// TODO: Consider refactoring to use discriminated union for better type safety:
+// - MCP resources (source: 'mcp') should require serverName field
+// - Internal resources (source: 'internal') should not have serverName field
+// This would require updating core's ResourceMetadata interface to also use discriminated union
 export const ResourceSchema = z
     .object({
         uri: z.string().describe('Resource URI'),
