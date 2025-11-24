@@ -14,7 +14,7 @@ import { ToolResult } from './ToolResult';
 import { ExecutionHistory, type ExecutionHistoryItem } from './ExecutionHistory';
 import type { ToolResult as ToolResultType } from '@dexto/core';
 import { cn } from '@/lib/utils';
-import { apiFetch } from '@/lib/api-client';
+import { client } from '@/lib/client';
 import { useServers, useServerTools } from '../hooks/useServers';
 import type { McpServer, McpTool } from '../hooks/useServers';
 
@@ -244,14 +244,21 @@ export default function PlaygroundView() {
                 }
             }
 
-            const resultData = await apiFetch<ToolResultType>(
-                `/api/mcp/servers/${selectedServer.id}/tools/${selectedTool.id}/execute`,
-                {
-                    method: 'POST',
-                    body: JSON.stringify(processedInputs),
-                    signal: controller.signal,
-                }
-            );
+            const response = await client.api.mcp.servers[':serverId'].tools[
+                ':toolName'
+            ].execute.$post({
+                param: {
+                    serverId: selectedServer.id,
+                    toolName: selectedTool.id,
+                },
+                json: processedInputs,
+            });
+
+            if (!response.ok) {
+                throw new Error('Tool execution failed');
+            }
+
+            const resultData = await response.json();
 
             const duration = Date.now() - executionStart;
             setToolResult(resultData);
