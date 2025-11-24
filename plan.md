@@ -76,22 +76,50 @@ export function useServers() {
 }
 ```
 
-### Step 3: Components - Inline Type Inference
+### Step 3: Export Types from Hooks (Centralized Pattern)
 
-**Extract types inline from hook return values using `ReturnType`**
+**Export commonly used types from hook files to avoid duplication**
+
+When components need to work with individual items from hook responses, export those types from the hook file:
 
 ```typescript
-// In component file
+// useServers.ts - Export types alongside hooks
+export function useServers() {
+    return useQuery({
+        queryFn: async () => {
+            const data = await client.api.mcp.servers.$get().json();
+            return data.servers;
+        },
+    });
+}
+
+// Export inferred types for components to use
+export type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
+export type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];
+```
+
+**Components import and use the centralized types:**
+
+```typescript
+// ServersList.tsx - Import types from hook file
 import { useServers } from '@/hooks/useServers';
+import type { McpServer } from '@/hooks/useServers';
 
-// Infer type inline where needed (one-liner)
-type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
-
-function MyComponent() {
-    const { data: servers } = useServers();
-    const server: McpServer = servers[0]; // ✅ Fully typed
+function ServersList({ servers }: { servers: McpServer[] }) {
+    const selectedServer: McpServer = servers[0]; // ✅ Fully typed
 }
 ```
+
+**Benefits of centralized exports:**
+- ✅ Single source of truth (no duplication across components)
+- ✅ Consistent types everywhere
+- ✅ Better discoverability (clear what types are available from each hook)
+- ✅ Easier maintenance (change once in hook file)
+
+**When to export types:**
+- Array element types (e.g., `McpServer` from `servers[]`)
+- Nested object types that components need to reference (e.g., `ValidationError` from `errors[]`)
+- NOT the full hook return type (components can infer that automatically)
 
 ### Step 4: Remove Duplicate Types from types.ts
 
@@ -114,10 +142,38 @@ export interface ServerRegistryFilter { ... }  // UI-only
 
 1. **Server Zod schemas** → Define response shape with proper types
 2. **Hono typed client** → Extracts types from schemas automatically
-3. **React Query** → Infers return type from `queryFn`
-4. **Components** → Extract types from hooks using `ReturnType`
+3. **React Query hooks** → Infer return type from `queryFn` (no explicit types)
+4. **Hook exports** → Provide centralized type exports for components (using `ReturnType`)
+5. **Components** → Import types from hooks (no duplication)
 
 **Result**: End-to-end type safety with ZERO duplication. Server schemas are the single source of truth.
+
+### Type Inference Pattern (Standardized)
+
+**All hooks use this consistent pattern for exporting nested types:**
+
+```typescript
+// ✅ Standard pattern - easy to read and understand
+export type ValidationError = NonNullable<
+    ReturnType<typeof useValidateAgent>['data']
+>['errors'][number];
+
+export type McpServer = NonNullable<
+    ReturnType<typeof useServers>['data']
+>[number];
+```
+
+**Why `NonNullable`?**
+React Query hooks return `data: T | undefined` (undefined while loading). `NonNullable` removes `undefined` so we can safely access the array/object structure.
+
+**Pattern breakdown:**
+1. `ReturnType<typeof useHook>` - Get the hook's return type
+2. `['data']` - Access the data property
+3. `NonNullable<...>` - Remove undefined (assume data is loaded)
+4. `[number]` - Get array element type (if it's an array)
+5. `['field'][number]` - Access nested arrays (e.g., errors array)
+
+**This pattern is used across all hooks for consistency and readability.**
 
 ## Migration Progress
 
@@ -130,11 +186,11 @@ export interface ServerRegistryFilter { ... }  // UI-only
 - [x] Migrate useServerTools hook - remove explicit types
 - [x] Update ServersPanel.tsx - remove 'unknown' status references
 - [x] Clean up types.ts - remove McpServer, McpTool, ToolResult, etc (API response types)
-- [x] Update all Playground components to inline type inference:
-  - [x] PlaygroundView.tsx - import ToolResult from @dexto/core (domain type)
-  - [x] ToolInputForm.tsx - use proper JsonSchemaProperty type
-  - [x] ToolsList.tsx
-  - [x] ServersList.tsx
+- [x] Update all Playground components to use centralized type exports:
+  - [x] PlaygroundView.tsx - import ToolResult from @dexto/core (domain type), import McpServer/McpTool from hooks
+  - [x] ToolInputForm.tsx - use proper JsonSchemaProperty type, import McpTool from hooks
+  - [x] ToolsList.tsx - import McpServer/McpTool from hooks (removed inline type definitions)
+  - [x] ServersList.tsx - import McpServer from hooks (removed inline type definition)
   - [x] ToolResult.tsx - import ToolResult from @dexto/core, remove metadata references
 - [x] Migrate useGreeting hook - replace apiFetch with typed client
 - [x] Add typecheck script to webui package.json
@@ -156,6 +212,11 @@ export interface ServerRegistryFilter { ... }  // UI-only
 - [x] Migrate useResourceContent hook - replace apiFetch with typed client
 - [x] Migrate useSearch hook - replace apiFetch with typed client (search messages and sessions)
 - [x] Export nested types (ValidationError, ValidationWarning, SearchResult, SessionSearchResult) via type inference
+- [x] Standardize type inference pattern across all hooks:
+  - [x] Refactor complex Awaited<ReturnType<typeof client...>> patterns to simpler NonNullable<ReturnType<typeof useHook>['data']> pattern
+  - [x] Add centralized type exports to useServers.ts (McpServer, McpTool)
+  - [x] Remove 4+ duplicate inline type definitions from Playground components
+  - [x] Document standardized pattern in plan.md with explanations
 
 ### 🚧 In Progress (Current Focus)
 - [ ] Migrate remaining components that use fetch or apiFetch directly
