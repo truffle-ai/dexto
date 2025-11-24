@@ -268,6 +268,9 @@ mutationFn: async (payload) => {
   - [x] Replace Object.entries() with LLM_PROVIDERS.map() to preserve types
   - [x] Export SwitchLLMPayload type from useLLM hook
   - [x] Fix mutation payload structure to match server schema
+- [x] Migrate ToolConfirmationHandler - replace apiFetch with useSubmitApproval hook
+  - [x] Import ApprovalStatus enum for type-safe status values
+  - [x] Use submitApprovalMutation with proper onSuccess/onError handlers
 
 ### 🚧 In Progress (Current Focus)
 - [ ] Migrate remaining components that use fetch or apiFetch directly
@@ -290,7 +293,7 @@ mutationFn: async (payload) => {
 - [ ] ApiKeyModal.tsx
 - [ ] AgentSelector/CreateAgentModal.tsx
 - [x] ModelPicker/ModelPickerModal.tsx
-- [ ] ToolConfirmationHandler.tsx
+- [x] ToolConfirmationHandler.tsx
 - [ ] AgentSelector/AgentSelector.tsx
 - [ ] lib/serverRegistry.ts
 
