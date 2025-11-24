@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ApiError } from '@/lib/api-client';
 import type {
     McpServerConfig,
     StdioServerConfig,
@@ -289,9 +288,7 @@ export default function ConnectServerModal({
             onClose();
         } catch (err: unknown) {
             let message = 'Failed to connect server';
-            if (err instanceof ApiError) {
-                message = err.message;
-            } else if (err instanceof Error) {
+            if (err instanceof Error) {
                 message = err.message || message;
             } else if (typeof err === 'string') {
                 message = err;
