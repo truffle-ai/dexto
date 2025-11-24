@@ -546,10 +546,20 @@ export function useChat(
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Failed to send message: ${response.status}`);
+                        const errorText = await response.text();
+                        throw new Error(
+                            `Failed to send message: ${response.status} ${response.statusText}. ${errorText}`
+                        );
                     }
 
-                    const data = await response.json();
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch (parseError) {
+                        const errorMessage =
+                            parseError instanceof Error ? parseError.message : String(parseError);
+                        throw new Error(`Failed to parse response: ${errorMessage}`);
+                    }
 
                     // Add assistant response as a complete message with metadata
                     setMessages((ms) => [
