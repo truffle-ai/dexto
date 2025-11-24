@@ -262,6 +262,12 @@ mutationFn: async (payload) => {
   - [x] Add centralized type exports to useServers.ts (McpServer, McpTool)
   - [x] Remove 4+ duplicate inline type definitions from Playground components
   - [x] Document standardized pattern in plan.md with explanations
+- [x] Migrate ModelPicker/ModelPickerModal.tsx - replace apiFetch with typed hooks (useLLMCatalog, useSwitchLLM)
+  - [x] Fix server schema to use z.enum(LLM_PROVIDERS) for typed provider keys
+  - [x] Update providers state type to Partial<Record<LLMProvider, ProviderCatalog>>
+  - [x] Replace Object.entries() with LLM_PROVIDERS.map() to preserve types
+  - [x] Export SwitchLLMPayload type from useLLM hook
+  - [x] Fix mutation payload structure to match server schema
 
 ### 🚧 In Progress (Current Focus)
 - [ ] Migrate remaining components that use fetch or apiFetch directly
@@ -283,7 +289,7 @@ mutationFn: async (payload) => {
 - [ ] CreateMemoryModal.tsx
 - [ ] ApiKeyModal.tsx
 - [ ] AgentSelector/CreateAgentModal.tsx
-- [ ] ModelPicker/ModelPickerModal.tsx
+- [x] ModelPicker/ModelPickerModal.tsx
 - [ ] ToolConfirmationHandler.tsx
 - [ ] AgentSelector/AgentSelector.tsx
 - [ ] lib/serverRegistry.ts
