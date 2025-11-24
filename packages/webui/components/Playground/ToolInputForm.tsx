@@ -14,10 +14,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Copy, Share2, Zap } from 'lucide-react';
-import type { useServerTools } from '@/components/hooks/useServers';
-
-// Infer McpTool type from the hook's return value
-type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];
+import type { McpTool } from '@/components/hooks/useServers';
 
 // Infer the property schema type from the tool's input schema
 type JsonSchemaProperty = NonNullable<NonNullable<McpTool['inputSchema']>['properties']>[string];

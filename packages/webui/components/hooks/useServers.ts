@@ -108,3 +108,7 @@ export function useRestartServer() {
         },
     });
 }
+
+// Export types inferred from hook return values
+export type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
+export type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];

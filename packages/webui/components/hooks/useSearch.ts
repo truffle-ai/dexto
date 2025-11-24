@@ -2,28 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-// Type inference helpers - extract types from server response
-type MessageSearchResponseType =
-    Awaited<ReturnType<typeof client.api.search.messages.$get>> extends {
-        json: () => Promise<infer T>;
-    }
-        ? T
-        : never;
-
-type SessionSearchResponseType =
-    Awaited<ReturnType<typeof client.api.search.sessions.$get>> extends {
-        json: () => Promise<infer T>;
-    }
-        ? T
-        : never;
-
-export type SearchResult = MessageSearchResponseType extends { results: Array<infer R> }
-    ? R
-    : never;
-export type SessionSearchResult = SessionSearchResponseType extends { results: Array<infer R> }
-    ? R
-    : never;
-
 // Search messages
 export function useSearchMessages(
     query: string,
@@ -62,3 +40,11 @@ export function useSearchSessions(query: string, limit: number = 20, enabled: bo
         staleTime: 30000, // 30 seconds
     });
 }
+
+// Export types inferred from hook return values
+export type SearchResult = NonNullable<
+    ReturnType<typeof useSearchMessages>['data']
+>['results'][number];
+export type SessionSearchResult = NonNullable<
+    ReturnType<typeof useSearchSessions>['data']
+>['results'][number];

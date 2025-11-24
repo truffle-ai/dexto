@@ -2,19 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-// Type inference helpers - extract types from server response
-type ValidationResponseType =
-    Awaited<ReturnType<typeof client.api.agent.validate.$post>> extends {
-        json: () => Promise<infer T>;
-    }
-        ? T
-        : never;
-
-export type ValidationError = ValidationResponseType extends { errors: Array<infer E> } ? E : never;
-export type ValidationWarning = ValidationResponseType extends { warnings: Array<infer W> }
-    ? W
-    : never;
-
 // Fetch agent configuration
 export function useAgentConfig(enabled: boolean = true) {
     return useQuery({
@@ -39,6 +26,14 @@ export function useValidateAgent() {
         },
     });
 }
+
+// Export types inferred from hook return values
+export type ValidationError = NonNullable<
+    ReturnType<typeof useValidateAgent>['data']
+>['errors'][number];
+export type ValidationWarning = NonNullable<
+    ReturnType<typeof useValidateAgent>['data']
+>['warnings'][number];
 
 // Save agent configuration
 export function useSaveAgentConfig() {

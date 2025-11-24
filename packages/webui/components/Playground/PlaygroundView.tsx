@@ -16,10 +16,7 @@ import type { ToolResult as ToolResultType } from '@dexto/core';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api-client';
 import { useServers, useServerTools } from '../hooks/useServers';
-
-// Infer types from hooks
-type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
-type McpTool = NonNullable<ReturnType<typeof useServerTools>['data']>[number];
+import type { McpServer, McpTool } from '../hooks/useServers';
 
 export default function PlaygroundView() {
     const [selectedServer, setSelectedServer] = useState<McpServer | null>(null);

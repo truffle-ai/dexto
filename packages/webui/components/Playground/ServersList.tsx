@@ -7,10 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { useServers } from '@/components/hooks/useServers';
-
-// Infer type from hook
-type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
+import type { McpServer } from '@/components/hooks/useServers';
 
 interface ServersListProps {
     servers: McpServer[];
