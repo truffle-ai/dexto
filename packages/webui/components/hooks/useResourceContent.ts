@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client';
+import { client } from '@/lib/client';
 
 type NormalizedResourceItem =
     | {
@@ -134,9 +134,10 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
 }
 
 async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
-    const body = await apiFetch<{ content: any }>(
-        `/api/resources/${encodeURIComponent(uri)}/content`
-    );
+    const response = await client.api.resources[':resourceId'].content.$get({
+        param: { resourceId: encodeURIComponent(uri) },
+    });
+    const body = await response.json();
     const contentPayload = body?.content;
     if (!contentPayload) {
         throw new Error('No content returned for resource');

@@ -1,42 +1,28 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client.js';
+import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-export interface SearchResult {
-    sessionId: string;
-    message: {
-        role: 'user' | 'assistant' | 'system' | 'tool';
-        content: string | null;
-    };
-    matchedText: string;
-    context: string;
-    messageIndex: number;
-}
+// Type inference helpers - extract types from server response
+type MessageSearchResponseType =
+    Awaited<ReturnType<typeof client.api.search.messages.$get>> extends {
+        json: () => Promise<infer T>;
+    }
+        ? T
+        : never;
 
-export interface MessageSearchResponse {
-    results: SearchResult[];
-    total: number;
-    hasMore: boolean;
-    query: string;
-}
+type SessionSearchResponseType =
+    Awaited<ReturnType<typeof client.api.search.sessions.$get>> extends {
+        json: () => Promise<infer T>;
+    }
+        ? T
+        : never;
 
-export interface SessionSearchResult {
-    sessionId: string;
-    matchCount: number;
-    firstMatch: SearchResult;
-    metadata: {
-        createdAt: number;
-        lastActivity: number;
-        messageCount: number;
-    };
-}
-
-export interface SessionSearchResponse {
-    results: SessionSearchResult[];
-    total: number;
-    hasMore: boolean;
-    query: string;
-}
+export type SearchResult = MessageSearchResponseType extends { results: Array<infer R> }
+    ? R
+    : never;
+export type SessionSearchResult = SessionSearchResponseType extends { results: Array<infer R> }
+    ? R
+    : never;
 
 // Search messages
 export function useSearchMessages(
@@ -45,14 +31,17 @@ export function useSearchMessages(
     limit: number = 50,
     enabled: boolean = true
 ) {
-    return useQuery<MessageSearchResponse, Error>({
+    return useQuery({
         queryKey: queryKeys.search.messages(query, sessionId, limit),
         queryFn: async () => {
-            const params = new URLSearchParams({ q: query, limit: limit.toString() });
-            if (sessionId) params.append('sessionId', sessionId);
-
-            const data = await apiFetch<MessageSearchResponse>(`/api/search/messages?${params}`);
-            return data;
+            const response = await client.api.search.messages.$get({
+                query: {
+                    q: query,
+                    limit: limit,
+                    ...(sessionId && { sessionId }),
+                },
+            });
+            return await response.json();
         },
         enabled: enabled && query.trim().length > 0,
         staleTime: 30000, // 30 seconds
@@ -61,12 +50,13 @@ export function useSearchMessages(
 
 // Search sessions
 export function useSearchSessions(query: string, limit: number = 20, enabled: boolean = true) {
-    return useQuery<SessionSearchResponse, Error>({
+    return useQuery({
         queryKey: queryKeys.search.sessions(query, limit),
         queryFn: async () => {
-            const params = new URLSearchParams({ q: query, limit: limit.toString() });
-            const data = await apiFetch<SessionSearchResponse>(`/api/search/sessions?${params}`);
-            return data;
+            const response = await client.api.search.sessions.$get({
+                query: { q: query },
+            });
+            return await response.json();
         },
         enabled: enabled && query.trim().length > 0,
         staleTime: 30000, // 30 seconds

@@ -1,51 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client.js';
+import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-export interface ValidationError {
-    line?: number;
-    column?: number;
-    path?: string;
-    message: string;
-    code: string;
-}
+// Type inference helpers - extract types from server response
+type ValidationResponseType =
+    Awaited<ReturnType<typeof client.api.agent.validate.$post>> extends {
+        json: () => Promise<infer T>;
+    }
+        ? T
+        : never;
 
-export interface ValidationWarning {
-    path: string;
-    message: string;
-    code: string;
-}
-
-interface AgentConfigResponse {
-    yaml: string;
-    path: string;
-    relativePath: string;
-    lastModified: string;
-    warnings: string[];
-}
-
-interface ValidationResponse {
-    valid: boolean;
-    errors: ValidationError[];
-    warnings: ValidationWarning[];
-}
-
-interface SaveConfigResponse {
-    ok: boolean;
-    path: string;
-    reloaded: boolean;
-    restarted: boolean;
-    changesApplied: string[];
-    message: string;
-}
+export type ValidationError = ValidationResponseType extends { errors: Array<infer E> } ? E : never;
+export type ValidationWarning = ValidationResponseType extends { warnings: Array<infer W> }
+    ? W
+    : never;
 
 // Fetch agent configuration
 export function useAgentConfig(enabled: boolean = true) {
-    return useQuery<AgentConfigResponse, Error>({
+    return useQuery({
         queryKey: queryKeys.agent.config,
         queryFn: async () => {
-            const data = await apiFetch<AgentConfigResponse>('/api/agent/config');
-            return data;
+            const response = await client.api.agent.config.$get();
+            return await response.json();
         },
         enabled,
         staleTime: 30000, // 30 seconds
@@ -54,13 +30,12 @@ export function useAgentConfig(enabled: boolean = true) {
 
 // Validate agent configuration
 export function useValidateAgent() {
-    return useMutation<ValidationResponse, Error, { yaml: string }>({
-        mutationFn: async ({ yaml }) => {
-            const data = await apiFetch<ValidationResponse>('/api/agent/validate', {
-                method: 'POST',
-                body: JSON.stringify({ yaml }),
+    return useMutation({
+        mutationFn: async ({ yaml }: { yaml: string }) => {
+            const response = await client.api.agent.validate.$post({
+                json: { yaml },
             });
-            return data;
+            return await response.json();
         },
     });
 }
@@ -69,13 +44,12 @@ export function useValidateAgent() {
 export function useSaveAgentConfig() {
     const queryClient = useQueryClient();
 
-    return useMutation<SaveConfigResponse, Error, { yaml: string }>({
-        mutationFn: async ({ yaml }) => {
-            const data = await apiFetch<SaveConfigResponse>('/api/agent/config', {
-                method: 'POST',
-                body: JSON.stringify({ yaml }),
+    return useMutation({
+        mutationFn: async ({ yaml }: { yaml: string }) => {
+            const response = await client.api.agent.config.$post({
+                json: { yaml },
             });
-            return data;
+            return await response.json();
         },
         onSuccess: () => {
             // Invalidate agent config to refresh after save
