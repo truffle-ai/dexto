@@ -271,6 +271,11 @@ mutationFn: async (payload) => {
 - [x] Migrate ToolConfirmationHandler - replace apiFetch with useSubmitApproval hook
   - [x] Import ApprovalStatus enum for type-safe status values
   - [x] Use submitApprovalMutation with proper onSuccess/onError handlers
+- [x] Migrate agent components (AgentSelector, CreateAgentModal) - replace apiFetch with typed hooks
+  - [x] Add useSwitchAgent, useInstallAgent, useUninstallAgent hooks to useAgents.ts
+  - [x] Export CreateAgentPayload type from useAgents hook
+  - [x] Fix CreateAgentModal state type to use CreateAgentPayload['config'] instead of Partial<AgentConfig>
+  - [x] Eliminate type casts and non-null assertions
 
 ### 🚧 In Progress (Current Focus)
 - [ ] Migrate remaining components that use fetch or apiFetch directly
@@ -291,10 +296,10 @@ mutationFn: async (payload) => {
 - [ ] CreatePromptModal.tsx
 - [ ] CreateMemoryModal.tsx
 - [ ] ApiKeyModal.tsx
-- [ ] AgentSelector/CreateAgentModal.tsx
+- [x] AgentSelector/CreateAgentModal.tsx
 - [x] ModelPicker/ModelPickerModal.tsx
 - [x] ToolConfirmationHandler.tsx
-- [ ] AgentSelector/AgentSelector.tsx
+- [x] AgentSelector/AgentSelector.tsx
 - [ ] lib/serverRegistry.ts
 
 ### 🗑️ Final Cleanup
