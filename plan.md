@@ -20,46 +20,104 @@ Update the Web UI to use the Hono typed client SDK (`@dexto/client-sdk`) instead
 - **One file at a time**: Migrate one file/hook at a time to validate the approach.
 - **Check for issues early**: Each migration should be verified before moving to the next file.
 
-## Key Findings
+## Migration Methodology
 
-### ✅ No Explicit Types Needed for React Query
-**Discovery**: React Query automatically infers types from the Hono client responses. No need for explicit type annotations or separate type files.
+This is the exact pattern established for migrating ALL API calls in the webui package.
 
-**Why This Works**:
-1. Hono client methods (e.g., `client.api.mcp.servers.$get()`) are fully typed based on server Zod schemas
-2. The `.json()` method returns a typed promise with the exact response shape
-3. React Query's `useQuery` infers the return type from the `queryFn` automatically
-4. TypeScript propagates these types through the entire component tree
+### Step 1: Fix Server Schema Types
 
-**Before** (unnecessary):
+**Always use `z.output<typeof Schema>` instead of inline types**
+
 ```typescript
-import type { McpServer } from '@/lib/api-types';
+// ❌ BEFORE: Inline type that drifts from schema
+const servers: Array<{ id: string; name: string; status: string }> = [];
 
+// ✅ AFTER: Use schema output type
+const servers: z.output<typeof ServerInfoSchema>[] = [];
+```
+
+**Use proper Zod schemas instead of `z.record(z.any())`**
+
+```typescript
+// ❌ BEFORE: Loses type information
+inputSchema: z.record(z.any())
+
+// ✅ AFTER: Proper structured schema
+const ToolInputSchemaSchema = z.object({
+    type: z.literal('object'),
+    properties: z.record(z.any()).optional(),
+    required: z.array(z.string()).optional(),
+}).passthrough();
+```
+
+### Step 2: Update WebUI Hooks - Remove Explicit Types
+
+**Remove all explicit type annotations from React Query hooks**
+
+```typescript
+// ❌ BEFORE: Explicit type annotation
 export function useServers() {
-    return useQuery<McpServer[], Error>({ // ❌ Explicit type annotation
+    return useQuery<McpServer[], Error>({
         queryFn: async () => {
-            const res = await client.api.mcp.servers.$get();
-            const data = await res.json();
+            const data = await client.api.mcp.servers.$get().json();
             return data.servers;
         },
     });
 }
-```
 
-**After** (automatic inference):
-```typescript
+// ✅ AFTER: Let TypeScript infer from Hono client
 export function useServers() {
-    return useQuery({ // ✅ No type annotation needed
+    return useQuery({
         queryFn: async () => {
-            const res = await client.api.mcp.servers.$get();
-            const data = await res.json();
-            return data.servers; // Type is inferred from Hono schema
+            const data = await client.api.mcp.servers.$get().json();
+            return data.servers; // Type inferred from server Zod schema
         },
     });
 }
 ```
 
-**Result**: No need for `api-types.ts` or duplicate type definitions. The Hono client provides end-to-end type safety from server schemas to React components.
+### Step 3: Components - Inline Type Inference
+
+**Extract types inline from hook return values using `ReturnType`**
+
+```typescript
+// In component file
+import { useServers } from '@/hooks/useServers';
+
+// Infer type inline where needed (one-liner)
+type McpServer = NonNullable<ReturnType<typeof useServers>['data']>[number];
+
+function MyComponent() {
+    const { data: servers } = useServers();
+    const server: McpServer = servers[0]; // ✅ Fully typed
+}
+```
+
+### Step 4: Remove Duplicate Types from types.ts
+
+**Delete ANY type that represents an API response**
+
+```typescript
+// ❌ DELETE these from types.ts
+export interface McpServer { ... }
+export interface McpTool { ... }
+export interface ToolResult { ... }
+export interface GreetingResponse { ... }
+// etc - ANY API response type
+
+// ✅ KEEP only UI-specific types
+export interface ServerRegistryEntry { ... }  // UI-only, not from API
+export interface ServerRegistryFilter { ... }  // UI-only
+```
+
+### Why This Works
+
+1. **Server Zod schemas** → Define response shape with proper types
+2. **Hono typed client** → Extracts types from schemas automatically
+3. **React Query** → Infers return type from `queryFn`
+4. **Components** → Extract types from hooks using `ReturnType`
+
+**Result**: End-to-end type safety with ZERO duplication. Server schemas are the single source of truth.
 
 ## User Review Required
 
