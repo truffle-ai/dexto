@@ -34,7 +34,7 @@ const ServerInfoSchema = z
     .object({
         id: z.string().describe('Server identifier'),
         name: z.string().describe('Server name'),
-        status: z.string().describe('Server status (connected or error)'),
+        status: z.enum(['connected', 'error', 'disconnected']).describe('Server status'),
     })
     .strict()
     .describe('MCP server information');
@@ -318,7 +318,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             const agent = getAgent();
             const clientsMap = agent.getMcpClients();
             const failedConnections = agent.getMcpFailedConnections();
-            const servers: Array<{ id: string; name: string; status: string }> = [];
+            const servers: z.output<typeof ServerInfoSchema>[] = [];
             for (const name of clientsMap.keys()) {
                 servers.push({ id: name, name, status: 'connected' });
             }
