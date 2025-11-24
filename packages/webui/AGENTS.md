@@ -14,7 +14,7 @@ If you need to cast, it's a RED FLAG. Fix the server schema instead.
 
 ## Architecture
 
-**Stack**: Next.js 14 + React 18 + TypeScript + Hono Typed Client + TanStack Query + SSE
+**Stack**: Next.js 15 + React 19 + TypeScript + Hono Typed Client + TanStack Query + SSE
 
 **Key Files**:
 - `lib/client.ts` - Hono client initialization

@@ -238,12 +238,28 @@ export function zodToIssues<C = unknown>(
         // Handle invalid_union errors by extracting the actual validation errors from unionErrors
         if (e.code === 'invalid_union' && (e as any).unionErrors) {
             const unionErrors = (e as any).unionErrors as ZodError[];
-            // The second unionError (index 1) typically contains the object validation errors
-            // with the most specific error messages and paths
-            const objectErrors = unionErrors[1] || unionErrors[0];
-            if (objectErrors) {
-                // Recursively process the union errors to get detailed issues
-                issues.push(...zodToIssues<C>(objectErrors, severity));
+            // Iterate through ALL union errors to capture validation issues from every union branch
+            let hasCollectedErrors = false;
+            for (const unionError of unionErrors) {
+                if (unionError && unionError.errors && unionError.errors.length > 0) {
+                    // Recursively process each union branch's errors
+                    issues.push(...zodToIssues<C>(unionError, severity));
+                    hasCollectedErrors = true;
+                }
+            }
+
+            // Fallback: if no union errors were collected, report the invalid_union error itself
+            if (!hasCollectedErrors) {
+                const params = (e as any).params || {};
+                issues.push({
+                    code: (params.code ?? 'schema_validation') as DextoErrorCode,
+                    message: e.message,
+                    scope: params.scope ?? ErrorScope.AGENT,
+                    type: params.type ?? ErrorType.USER,
+                    path: e.path,
+                    severity,
+                    context: params as C,
+                });
             }
         } else {
             // Standard error processing
