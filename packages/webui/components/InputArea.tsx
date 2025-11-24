@@ -264,9 +264,8 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                                   })()
                                 : undefined,
                     });
-                    const txt = typeof result?.text === 'string' ? result.text : '';
-                    if (txt.trim()) {
-                        trimmed = txt;
+                    if (result.text.trim()) {
+                        trimmed = result.text;
                     }
                 } catch {
                     // keep original

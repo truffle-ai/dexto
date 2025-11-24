@@ -9,7 +9,9 @@ import { useTheme } from './hooks/useTheme';
 import { usePrompts } from './hooks/usePrompts';
 import { useDeleteSession } from './hooks/useSessions';
 import { queryKeys } from '@/lib/queryKeys';
-import { apiFetch } from '@/lib/api-client';
+import { client } from '@/lib/client';
+import { useAddServer } from './hooks/useServers';
+import { useResolvePrompt } from './hooks/usePrompts';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
 import ConnectServerModal from './ConnectServerModal';
@@ -98,6 +100,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     // Theme management
     const { theme, toggleTheme } = useTheme();
+
+    // API mutations
+    const addServerMutation = useAddServer();
+    const resolvePromptMutation = useResolvePrompt();
 
     const [isModalOpen, setModalOpen] = useState(false);
     const [isServerRegistryOpen, setServerRegistryOpen] = useState(false);
@@ -291,25 +297,24 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     useEffect(() => {
         if (isExportOpen) {
-            // Include current session ID in config export if available
-            const endpoint = currentSessionId
-                ? `/api/agent/config/export?sessionId=${currentSessionId}`
-                : '/api/agent/config/export';
-
-            // Note: Using raw fetch here because endpoint returns YAML text, not JSON
-            fetch(`${window.location.origin}${endpoint}`)
-                .then((res) => {
-                    if (!res.ok) throw new Error('Failed to fetch configuration');
-                    return res.text();
-                })
-                .then((text) => {
+            // Fetch YAML configuration for preview
+            const fetchConfig = async () => {
+                try {
+                    const response = await client.api.agent.config.export.$get({
+                        query: currentSessionId ? { sessionId: currentSessionId } : {},
+                    });
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch configuration');
+                    }
+                    const text = await response.text();
                     setExportContent(text);
                     setExportError(null);
-                })
-                .catch((err) => {
+                } catch (err) {
                     console.error('Preview fetch failed:', err);
                     setExportError(err instanceof Error ? err.message : 'Preview fetch failed');
-                });
+                }
+            };
+            void fetchConfig();
         } else {
             setExportContent('');
             setExportError(null);
@@ -319,14 +324,13 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
     const handleDownload = useCallback(async () => {
         try {
-            const endpoint = currentSessionId
-                ? `/api/agent/config/export?sessionId=${currentSessionId}`
-                : '/api/agent/config/export';
-
-            // Note: Using raw fetch here because endpoint returns YAML text, not JSON
-            const res = await fetch(`${window.location.origin}${endpoint}`);
-            if (!res.ok) throw new Error('Failed to fetch configuration');
-            const yamlText = await res.text();
+            const response = await client.api.agent.config.export.$get({
+                query: currentSessionId ? { sessionId: currentSessionId } : {},
+            });
+            if (!response.ok) {
+                throw new Error('Failed to fetch configuration');
+            }
+            const yamlText = await response.text();
             const blob = new Blob([yamlText], { type: 'application/x-yaml' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -487,9 +491,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
 
             try {
                 setIsRegistryBusy(true);
-                await apiFetch('/api/mcp/servers', {
-                    method: 'POST',
-                    body: JSON.stringify({ name: entry.name, config, persistToAgent: false }),
+                await addServerMutation.mutateAsync({
+                    name: entry.name,
+                    config,
+                    persistToAgent: false,
                 });
 
                 if (entry.id) {
@@ -638,12 +643,11 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                     action: async () => {
                         try {
                             // Resolve the prompt server-side just like InputArea does
-                            const data = await apiFetch<{ text?: string }>(
-                                `/api/prompts/${encodeURIComponent(prompt.name)}/resolve`
-                            );
-                            const resolvedText = typeof data?.text === 'string' ? data.text : '';
-                            if (resolvedText.trim()) {
-                                handleSend(resolvedText.trim());
+                            const result = await resolvePromptMutation.mutateAsync({
+                                name: prompt.name,
+                            });
+                            if (result.text.trim()) {
+                                handleSend(result.text.trim());
                             } else {
                                 // Fallback: send slash command if resolution returned empty
                                 handleSend(`/${prompt.name}`);
