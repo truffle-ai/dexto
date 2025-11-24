@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { DextoAgent, AgentCard } from '@dexto/core';
-import type { DextoApp } from './types.js';
 import { createHealthRouter } from './routes/health.js';
 import { createGreetingRouter } from './routes/greeting.js';
 import { createMessagesRouter } from './routes/messages.js';

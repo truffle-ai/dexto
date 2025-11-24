@@ -43,7 +43,7 @@ export async function* stream<T = string>(
             } else {
                 errorBody = await response.text();
             }
-        } catch (e) {
+        } catch {
             errorBody = 'Unknown error';
         }
         throw new SSEError(response.status, errorBody);
@@ -54,7 +54,7 @@ export async function* stream<T = string>(
         throw new Error('Response body is null');
     }
 
-    const decoder = new TextDecoder();
+    const decoder = new globalThis.TextDecoder();
     let buffer = '';
     const signal = options?.signal;
 
@@ -163,7 +163,7 @@ export async function* createMessageStream(
                     parsed.type = event.event;
                 }
                 yield parsed as MessageStreamEvent;
-            } catch (e) {
+            } catch {
                 // Ignore parse errors for non-JSON data
             }
         }
