@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import {
     Dialog,
     DialogContent,
@@ -14,12 +13,12 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
-import { apiFetch } from '@/lib/api-client.js';
+import { useSaveApiKey, type LLMProvider } from './hooks/useLLM';
 
 export type ApiKeyModalProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    provider: string; // validated server-side
+    provider: LLMProvider;
     primaryEnvVar: string;
     onSaved: (meta: { provider: string; envVar: string }) => void;
 };
@@ -34,26 +33,7 @@ export function ApiKeyModal({
     const [apiKey, setApiKey] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
-    const saveApiKeyMutation = useMutation({
-        mutationFn: async ({ provider, apiKey }: { provider: string; apiKey: string }) => {
-            return await apiFetch<{ ok: boolean; provider: string; envVar: string }>(
-                '/api/llm/key',
-                {
-                    method: 'POST',
-                    body: JSON.stringify({ provider, apiKey }),
-                }
-            );
-        },
-        onSuccess: (data) => {
-            onSaved({ provider: data.provider, envVar: data.envVar });
-            onOpenChange(false);
-            setApiKey('');
-            setError(null);
-        },
-        onError: (err: Error) => {
-            setError(err.message || 'Failed to save API key');
-        },
-    });
+    const saveApiKeyMutation = useSaveApiKey();
 
     const submit = () => {
         if (!apiKey.trim()) {
@@ -61,7 +41,20 @@ export function ApiKeyModal({
             return;
         }
         setError(null);
-        saveApiKeyMutation.mutate({ provider, apiKey });
+        saveApiKeyMutation.mutate(
+            { provider, apiKey },
+            {
+                onSuccess: (data) => {
+                    onSaved({ provider: data.provider, envVar: data.envVar });
+                    onOpenChange(false);
+                    setApiKey('');
+                    setError(null);
+                },
+                onError: (err: Error) => {
+                    setError(err.message || 'Failed to save API key');
+                },
+            }
+        );
     };
 
     return (

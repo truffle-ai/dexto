@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client.js';
-import { queryKeys } from '@/lib/queryKeys.js';
+import { useMemories, useDeleteMemory, type Memory } from './hooks/useMemories';
 import { formatDateTime, formatRelativeTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -33,61 +31,26 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import CreateMemoryModal from './CreateMemoryModal';
 
-interface Memory {
-    id: string;
-    content: string;
-    createdAt: number;
-    updatedAt: number;
-    tags?: string[];
-    metadata?: {
-        source?: 'user' | 'system';
-        pinned?: boolean;
-        [key: string]: unknown;
-    };
-}
-
 interface MemoryPanelProps {
     isOpen: boolean;
     onClose: () => void;
     variant?: 'inline' | 'modal';
 }
 
-async function fetchMemories(): Promise<Memory[]> {
-    const data = await apiFetch<{ memories?: Memory[] } | null>('/api/memory');
-    return data?.memories ?? [];
-}
-
 export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: MemoryPanelProps) {
-    const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedMemoryForDelete, setSelectedMemoryForDelete] = useState<Memory | null>(null);
 
-    const {
-        data: memories = [],
-        isLoading: loading,
-        error,
-    } = useQuery<Memory[], Error>({
-        queryKey: queryKeys.memories.all,
-        queryFn: fetchMemories,
-        enabled: isOpen,
-    });
+    const { data: memories = [], isLoading: loading, error } = useMemories(isOpen);
 
-    const deleteMemoryMutation = useMutation({
-        mutationFn: async (memoryId: string) => {
-            await apiFetch<void>(`/api/memory/${memoryId}`, { method: 'DELETE' });
-            return memoryId;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
-            setDeleteDialogOpen(false);
-            setSelectedMemoryForDelete(null);
-        },
-    });
+    const deleteMemoryMutation = useDeleteMemory();
 
     const handleDeleteMemory = async (memoryId: string) => {
-        await deleteMemoryMutation.mutateAsync(memoryId);
+        await deleteMemoryMutation.mutateAsync({ memoryId });
+        setDeleteDialogOpen(false);
+        setSelectedMemoryForDelete(null);
     };
 
     const truncateContent = (content: string, maxLength: number = 120) => {
@@ -293,18 +256,12 @@ export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: Memo
                                 selectedMemoryForDelete &&
                                 handleDeleteMemory(selectedMemoryForDelete.id)
                             }
-                            disabled={
-                                deleteMemoryMutation.isPending &&
-                                deleteMemoryMutation.variables === selectedMemoryForDelete?.id
-                            }
+                            disabled={deleteMemoryMutation.isPending}
                             className="flex items-center space-x-2"
                         >
                             <Trash2 className="h-4 w-4" />
                             <span>
-                                {deleteMemoryMutation.isPending &&
-                                deleteMemoryMutation.variables === selectedMemoryForDelete?.id
-                                    ? 'Deleting...'
-                                    : 'Delete Memory'}
+                                {deleteMemoryMutation.isPending ? 'Deleting...' : 'Delete Memory'}
                             </span>
                         </Button>
                     </DialogFooter>

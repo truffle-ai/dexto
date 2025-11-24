@@ -1,15 +1,46 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client.js';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
+
+// List all sessions
+export function useSessions(enabled: boolean = true) {
+    return useQuery({
+        queryKey: queryKeys.sessions.all,
+        queryFn: async () => {
+            const response = await client.api.sessions.$get();
+            const data = await response.json();
+            return data.sessions;
+        },
+        enabled,
+    });
+}
+
+// Create a new session
+export function useCreateSession() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ sessionId }: { sessionId?: string }) => {
+            const response = await client.api.sessions.$post({
+                json: { sessionId: sessionId?.trim() || undefined },
+            });
+            const data = await response.json();
+            return data.session;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+        },
+    });
+}
 
 // Delete a session
 export function useDeleteSession() {
     const queryClient = useQueryClient();
 
-    return useMutation<void, Error, { sessionId: string }>({
-        mutationFn: async ({ sessionId }) => {
-            await apiFetch(`/api/sessions/${sessionId}`, {
-                method: 'DELETE',
+    return useMutation({
+        mutationFn: async ({ sessionId }: { sessionId: string }) => {
+            await client.api.sessions[':sessionId'].$delete({
+                param: { sessionId },
             });
         },
         onSuccess: () => {
@@ -18,3 +49,6 @@ export function useDeleteSession() {
         },
     });
 }
+
+// Export inferred types for components to use
+export type Session = NonNullable<ReturnType<typeof useSessions>['data']>[number];

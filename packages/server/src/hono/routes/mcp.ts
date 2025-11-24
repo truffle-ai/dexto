@@ -34,7 +34,7 @@ const ServerInfoSchema = z
     .object({
         id: z.string().describe('Server identifier'),
         name: z.string().describe('Server name'),
-        status: z.string().describe('Server status (connected or error)'),
+        status: z.enum(['connected', 'error', 'disconnected']).describe('Server status'),
     })
     .strict()
     .describe('MCP server information');
@@ -46,12 +46,38 @@ const ServersListResponseSchema = z
     .strict()
     .describe('List of MCP servers');
 
+// JSON Schema definition for tool input parameters (based on MCP SDK Tool type)
+const JsonSchemaProperty = z
+    .object({
+        type: z
+            .enum(['string', 'number', 'integer', 'boolean', 'object', 'array'])
+            .optional()
+            .describe('Property type'),
+        description: z.string().optional().describe('Property description'),
+        enum: z
+            .array(z.union([z.string(), z.number(), z.boolean()]))
+            .optional()
+            .describe('Enum values'),
+        default: z.any().optional().describe('Default value'),
+    })
+    .passthrough()
+    .describe('JSON Schema property definition');
+
+const ToolInputSchema = z
+    .object({
+        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
+        properties: z.record(JsonSchemaProperty).optional().describe('Property definitions'),
+        required: z.array(z.string()).optional().describe('Required property names'),
+    })
+    .passthrough()
+    .describe('JSON Schema for tool input parameters');
+
 const ToolInfoSchema = z
     .object({
         id: z.string().describe('Tool identifier'),
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: z.record(z.any()).describe('JSON Schema for tool input parameters'),
+        inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool information');
@@ -318,7 +344,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             const agent = getAgent();
             const clientsMap = agent.getMcpClients();
             const failedConnections = agent.getMcpFailedConnections();
-            const servers: Array<{ id: string; name: string; status: string }> = [];
+            const servers: z.output<typeof ServerInfoSchema>[] = [];
             for (const name of clientsMap.keys()) {
                 servers.push({ id: name, name, status: 'connected' });
             }

@@ -148,7 +148,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                                 z
                                     .object({
                                         providers: z
-                                            .record(ProviderCatalogSchema)
+                                            .record(z.enum(LLM_PROVIDERS), ProviderCatalogSchema)
                                             .describe(
                                                 'Providers grouped by ID with their models and capabilities'
                                             ),

@@ -1,5 +1,5 @@
 // schemas/helpers.ts
-import { z, type ZodError, type ZodIssue } from 'zod';
+import { z, type ZodError } from 'zod';
 import type { DextoErrorCode, Issue } from '@core/errors/types.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 
@@ -232,17 +232,49 @@ export function zodToIssues<C = unknown>(
     err: ZodError,
     severity: 'error' | 'warning' = 'error'
 ): Issue<C>[] {
-    return err.errors.map((e: ZodIssue) => {
-        const params = (e as any).params || {};
-        return {
-            code: (params.code ?? 'schema_validation') as DextoErrorCode,
-            message: e.message,
-            scope: params.scope ?? ErrorScope.AGENT, // Fallback for non-custom Zod errors
-            // Treat plain Zod schema failures as USER errors by default
-            type: params.type ?? ErrorType.USER,
-            path: e.path,
-            severity,
-            context: params as C,
-        };
-    });
+    const issues: Issue<C>[] = [];
+
+    for (const e of err.errors) {
+        // Handle invalid_union errors by extracting the actual validation errors from unionErrors
+        if (e.code === 'invalid_union' && (e as any).unionErrors) {
+            const unionErrors = (e as any).unionErrors as ZodError[];
+            // Iterate through ALL union errors to capture validation issues from every union branch
+            let hasCollectedErrors = false;
+            for (const unionError of unionErrors) {
+                if (unionError && unionError.errors && unionError.errors.length > 0) {
+                    // Recursively process each union branch's errors
+                    issues.push(...zodToIssues<C>(unionError, severity));
+                    hasCollectedErrors = true;
+                }
+            }
+
+            // Fallback: if no union errors were collected, report the invalid_union error itself
+            if (!hasCollectedErrors) {
+                const params = (e as any).params || {};
+                issues.push({
+                    code: (params.code ?? 'schema_validation') as DextoErrorCode,
+                    message: e.message,
+                    scope: params.scope ?? ErrorScope.AGENT,
+                    type: params.type ?? ErrorType.USER,
+                    path: e.path,
+                    severity,
+                    context: params as C,
+                });
+            }
+        } else {
+            // Standard error processing
+            const params = (e as any).params || {};
+            issues.push({
+                code: (params.code ?? 'schema_validation') as DextoErrorCode,
+                message: e.message,
+                scope: params.scope ?? ErrorScope.AGENT,
+                type: params.type ?? ErrorType.USER,
+                path: e.path,
+                severity,
+                context: params as C,
+            });
+        }
+    }
+
+    return issues;
 }

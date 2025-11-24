@@ -7,8 +7,8 @@
 export { createDextoClient } from './client.js';
 
 // SSE streaming
-export { stream, createStream, SSEError } from './streaming.js';
-export type { SSEEvent } from './streaming.js';
+export { stream, createStream, createMessageStream, SSEError } from './streaming.js';
+export type { SSEEvent, MessageStreamEvent } from './streaming.js';
 
 // Client configuration
 export type { ClientConfig } from './types.js';

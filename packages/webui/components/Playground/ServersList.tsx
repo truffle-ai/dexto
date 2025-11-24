@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { McpServer } from '@/types';
+import type { McpServer } from '@/components/hooks/useServers';
 
 interface ServersListProps {
     servers: McpServer[];
@@ -41,7 +41,6 @@ export function ServersList({
             case 'error':
                 return <AlertCircle className="h-3 w-3" />;
             case 'disconnected':
-            case 'unknown':
             default:
                 return <Loader2 className="h-3 w-3 animate-spin" />;
         }
@@ -55,7 +54,6 @@ export function ServersList({
                 return 'bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400';
             case 'disconnected':
                 return 'bg-slate-100 text-slate-600 dark:bg-slate-700/20 dark:text-slate-400';
-            case 'unknown':
             default:
                 return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400';
         }

@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client.js';
-import { queryKeys } from '@/lib/queryKeys.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLLMCatalog, useSwitchLLM, type SwitchLLMPayload } from '../hooks/useLLM';
 import Image from 'next/image';
 import {
     Dialog,
@@ -38,6 +37,7 @@ import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/core';
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from './constants';
 import { CapabilityIcons } from './CapabilityIcons';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -187,7 +187,7 @@ function CompactModelCard({
 
 export default function ModelPickerModal() {
     const [open, setOpen] = useState(false);
-    const [providers, setProviders] = useState<Record<string, ProviderCatalog>>({});
+    const [providers, setProviders] = useState<Partial<Record<LLMProvider, ProviderCatalog>>>({});
     const [search, setSearch] = useState('');
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | ''>('');
@@ -207,9 +207,9 @@ export default function ModelPickerModal() {
 
     // API key modal
     const [keyModalOpen, setKeyModalOpen] = useState(false);
-    const [pendingKeyProvider, setPendingKeyProvider] = useState<string | null>(null);
+    const [pendingKeyProvider, setPendingKeyProvider] = useState<LLMProvider | null>(null);
     const [pendingSelection, setPendingSelection] = useState<{
-        provider: string;
+        provider: LLMProvider;
         model: string;
     } | null>(null);
 
@@ -230,16 +230,10 @@ export default function ModelPickerModal() {
         data: catalogData,
         isLoading: loading,
         error: catalogError,
-    } = useQuery<CatalogResponse, Error>({
-        queryKey: queryKeys.llm.catalog,
-        queryFn: async () => {
-            return await apiFetch<CatalogResponse>('/api/llm/catalog');
-        },
-        enabled: open,
-    });
+    } = useLLMCatalog({ enabled: open });
 
     useEffect(() => {
-        if (catalogData?.providers) {
+        if (catalogData && 'providers' in catalogData) {
             setProviders(catalogData.providers);
         }
     }, [catalogData]);
@@ -285,7 +279,7 @@ export default function ModelPickerModal() {
         }
     }, [open]);
 
-    const toggleFavorite = useCallback((providerId: string, modelName: string) => {
+    const toggleFavorite = useCallback((providerId: LLMProvider, modelName: string) => {
         const key = favKey(providerId, modelName);
         setFavorites((prev) => {
             const newFavs = prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key];
@@ -346,7 +340,7 @@ export default function ModelPickerModal() {
     );
 
     const modelMatchesSearch = useCallback(
-        (providerId: string, model: ModelInfo): boolean => {
+        (providerId: LLMProvider, model: ModelInfo): boolean => {
             const q = search.trim().toLowerCase();
             if (!q) return true;
             return (
@@ -359,7 +353,7 @@ export default function ModelPickerModal() {
         [search, providers]
     );
 
-    function pickRouterFor(providerId: string, model: ModelInfo): SupportedRouter {
+    function pickRouterFor(providerId: LLMProvider, model: ModelInfo): SupportedRouter {
         const currentRouter = (currentLLM?.router as SupportedRouter) || 'vercel';
         const providerRouters = providers[providerId]?.supportedRouters ?? ['vercel'];
         const modelRouters = model.supportedRouters ?? providerRouters;
@@ -369,53 +363,10 @@ export default function ModelPickerModal() {
         return modelRouters[0] || providerRouters[0] || 'vercel';
     }
 
-    // LLM switch mutation using TanStack Query
-    const switchLLMMutation = useMutation({
-        mutationFn: async ({
-            providerId,
-            model,
-            useBaseURL,
-        }: {
-            providerId: string;
-            model: ModelInfo;
-            useBaseURL?: string;
-        }) => {
-            const router = pickRouterFor(providerId, model);
-            const body: Record<string, any> = { provider: providerId, model: model.name, router };
-            if (useBaseURL && providers[providerId]?.supportsBaseURL) body.baseURL = useBaseURL;
-            if (currentSessionId) body.sessionId = currentSessionId;
+    // LLM switch mutation using typed hook
+    const switchLLMMutation = useSwitchLLM();
 
-            return await apiFetch('/api/llm/switch', {
-                method: 'POST',
-                body: JSON.stringify(body),
-            });
-        },
-        onSuccess: async (_data, variables) => {
-            // Update context config immediately so the trigger label updates
-            await refreshCurrentLLM();
-
-            // Track LLM switch using ref to avoid stale closure
-            if (currentLLM) {
-                analyticsRef.current.trackLLMSwitched({
-                    fromProvider: currentLLM.provider,
-                    fromModel: currentLLM.model,
-                    toProvider: variables.providerId,
-                    toModel: variables.model.name,
-                    sessionId: currentSessionId || undefined,
-                    trigger: 'user_action',
-                });
-            }
-
-            // Close immediately for snappy feel
-            setOpen(false);
-            setError(null);
-        },
-        onError: (error: Error) => {
-            setError(error.message);
-        },
-    });
-
-    function onPickModel(providerId: string, model: ModelInfo, customBaseURL?: string) {
+    function onPickModel(providerId: LLMProvider, model: ModelInfo, customBaseURL?: string) {
         const provider = providers[providerId];
         const effectiveBaseURL = customBaseURL || baseURL;
         const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
@@ -432,10 +383,38 @@ export default function ModelPickerModal() {
             setKeyModalOpen(true);
             return;
         }
-        switchLLMMutation.mutate({
-            providerId,
-            model,
-            useBaseURL: supportsBaseURL ? effectiveBaseURL : undefined,
+
+        const router = pickRouterFor(providerId, model);
+        const payload: SwitchLLMPayload = {
+            provider: providerId,
+            model: model.name,
+            router,
+            ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
+            ...(currentSessionId && { sessionId: currentSessionId }),
+        };
+
+        switchLLMMutation.mutate(payload, {
+            onSuccess: async () => {
+                await refreshCurrentLLM();
+
+                // Track LLM switch
+                if (currentLLM) {
+                    analyticsRef.current.trackLLMSwitched({
+                        fromProvider: currentLLM.provider,
+                        fromModel: currentLLM.model,
+                        toProvider: providerId,
+                        toModel: model.name,
+                        sessionId: currentSessionId || undefined,
+                        trigger: 'user_action',
+                    });
+                }
+
+                setOpen(false);
+                setError(null);
+            },
+            onError: (error: Error) => {
+                setError(error.message);
+            },
         });
     }
 
@@ -452,37 +431,42 @@ export default function ModelPickerModal() {
     }
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {
+        const providerKey = meta.provider as LLMProvider;
         setProviders((prev) => ({
             ...prev,
-            [meta.provider]: prev[meta.provider]
-                ? { ...prev[meta.provider], hasApiKey: true }
-                : prev[meta.provider],
+            [providerKey]: prev[providerKey]
+                ? { ...prev[providerKey]!, hasApiKey: true }
+                : prev[providerKey],
         }));
         setKeyModalOpen(false);
         if (pendingSelection) {
             const { provider, model } = pendingSelection;
             const m = providers[provider]?.models.find((x) => x.name === model);
-            if (m)
-                switchLLMMutation.mutate({ providerId: provider, model: m, useBaseURL: baseURL });
+            if (m) {
+                onPickModel(provider, m);
+            }
             setPendingSelection(null);
         }
     }
 
-    const providerIds = Object.keys(providers);
     const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
 
     // Build favorites list
     const favoriteModels = useMemo(() => {
         return favorites
             .map((key) => {
-                const [providerId, modelName] = key.split('|');
+                const [providerIdRaw, modelName] = key.split('|');
+                // Validate it's a real LLMProvider
+                const providerId = providerIdRaw as LLMProvider;
+                if (!LLM_PROVIDERS.includes(providerId)) return null;
+
                 const provider = providers[providerId];
                 const model = provider?.models.find((m) => m.name === modelName);
                 if (!provider || !model) return null;
                 return { providerId, provider, model };
             })
             .filter(Boolean) as Array<{
-            providerId: string;
+            providerId: LLMProvider;
             provider: ProviderCatalog;
             model: ModelInfo;
         }>;
@@ -491,18 +475,17 @@ export default function ModelPickerModal() {
     // Filter all models for search
     const filteredProviders = useMemo(() => {
         if (!search) return providers;
-        const filtered: Record<string, ProviderCatalog> = {};
-        providerIds.forEach((pid) => {
-            const matchingModels = providers[pid].models.filter((m) => modelMatchesSearch(pid, m));
+        const result = {} as typeof providers;
+        for (const providerId of LLM_PROVIDERS) {
+            const provider = providers[providerId];
+            if (!provider) continue;
+            const matchingModels = provider.models.filter((m) => modelMatchesSearch(providerId, m));
             if (matchingModels.length > 0) {
-                filtered[pid] = {
-                    ...providers[pid],
-                    models: matchingModels,
-                };
+                result[providerId] = { ...provider, models: matchingModels };
             }
-        });
-        return filtered;
-    }, [providers, search, providerIds, modelMatchesSearch]);
+        }
+        return result;
+    }, [providers, search, modelMatchesSearch]);
 
     const isCurrentModel = (providerId: string, modelName: string) =>
         currentLLM?.provider === providerId && currentLLM?.model === modelName;
@@ -635,8 +618,10 @@ export default function ModelPickerModal() {
                                             No models found matching your search
                                         </div>
                                     ) : (
-                                        Object.entries(filteredProviders).map(
-                                            ([providerId, provider]) => (
+                                        LLM_PROVIDERS.map((providerId) => {
+                                            const provider = filteredProviders[providerId];
+                                            if (!provider) return null;
+                                            return (
                                                 <ProviderSection
                                                     key={providerId}
                                                     providerId={providerId}
@@ -647,8 +632,8 @@ export default function ModelPickerModal() {
                                                     onToggleFavorite={toggleFavorite}
                                                     onUse={onPickModel}
                                                 />
-                                            )
-                                        )
+                                            );
+                                        })
                                     )}
                                 </div>
                             ) : activeTab === 'favorites' ? (
@@ -861,18 +846,22 @@ export default function ModelPickerModal() {
                                             No providers available
                                         </div>
                                     ) : (
-                                        Object.entries(providers).map(([providerId, provider]) => (
-                                            <ProviderSection
-                                                key={providerId}
-                                                providerId={providerId}
-                                                provider={provider}
-                                                models={provider.models}
-                                                favorites={favorites}
-                                                currentModel={currentLLM || undefined}
-                                                onToggleFavorite={toggleFavorite}
-                                                onUse={onPickModel}
-                                            />
-                                        ))
+                                        LLM_PROVIDERS.map((providerId) => {
+                                            const provider = providers[providerId];
+                                            if (!provider) return null;
+                                            return (
+                                                <ProviderSection
+                                                    key={providerId}
+                                                    providerId={providerId}
+                                                    provider={provider}
+                                                    models={provider.models}
+                                                    favorites={favorites}
+                                                    currentModel={currentLLM || undefined}
+                                                    onToggleFavorite={toggleFavorite}
+                                                    onUse={onPickModel}
+                                                />
+                                            );
+                                        })
                                     )}
                                 </div>
                             )}

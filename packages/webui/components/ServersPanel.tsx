@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { apiFetch, ApiError } from '@/lib/api-client';
+
 import { Button } from './ui/button';
 import {
     X,
@@ -16,7 +16,7 @@ import {
     FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { McpServer, McpTool, ServerRegistryEntry } from '@/types';
+import type { ServerRegistryEntry } from '@/types';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';

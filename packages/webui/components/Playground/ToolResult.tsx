@@ -5,7 +5,7 @@ import { CheckCircle, XCircle, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ToolResult as ToolResultType, McpTool } from '@/types';
+import type { ToolResult as ToolResultType } from '@dexto/core';
 
 interface ToolResultProps {
     result: ToolResultType;
@@ -15,18 +15,16 @@ interface ToolResultProps {
 
 export function ToolResult({ result, toolName, onCopyResult }: ToolResultProps) {
     const renderResultContent = () => {
-        // Check if this is an image result
+        // Check if this is an image result by examining the data structure
         const isImageResult =
-            result.metadata?.mimeType?.startsWith('image/') ||
-            result.metadata?.type?.startsWith('image') ||
-            (result.data &&
-                typeof result.data === 'object' &&
-                Array.isArray((result.data as any).content));
+            result.data &&
+            typeof result.data === 'object' &&
+            (Array.isArray(result.data) ||
+                (typeof result.data === 'object' && Array.isArray((result.data as any).content)));
 
         if (isImageResult && result.data) {
             let imgSrc = '';
             let imagePart: { data?: string; mimeType?: string; type?: string } | null = null;
-            const metadataMime = result.metadata?.mimeType;
             let nonImageParts: any[] = [];
 
             if (Array.isArray(result.data)) {
@@ -41,18 +39,13 @@ export function ToolResult({ result, toolName, onCopyResult }: ToolResultProps) 
             ) {
                 const partsArray = (result.data as any).content as any[];
                 imagePart = partsArray.find((part) => part && part.type === 'image');
-                if (imagePart && typeof imagePart.data === 'string') {
-                    const mime = (imagePart.mimeType as string) || metadataMime;
-                    if (mime) {
-                        imgSrc = `data:${mime};base64,${imagePart.data}`;
-                    }
+                if (imagePart && typeof imagePart.data === 'string' && imagePart.mimeType) {
+                    imgSrc = `data:${imagePart.mimeType};base64,${imagePart.data}`;
                 }
                 nonImageParts = partsArray.filter((part) => part && part.type !== 'image');
             } else if (typeof result.data === 'string') {
                 if (result.data.startsWith('data:image')) {
                     imgSrc = result.data;
-                } else if (metadataMime) {
-                    imgSrc = `data:${metadataMime};base64,${result.data}`;
                 } else if (
                     result.data.startsWith('http://') ||
                     result.data.startsWith('https://')
@@ -87,31 +80,7 @@ export function ToolResult({ result, toolName, onCopyResult }: ToolResultProps) 
             }
         }
 
-        // Markdown result
-        if (result.metadata?.type === 'markdown' && result.data) {
-            return (
-                <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-muted/50 rounded-lg border border-border">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {typeof result.data === 'string'
-                            ? result.data
-                            : JSON.stringify(result.data, null, 2)}
-                    </ReactMarkdown>
-                </div>
-            );
-        }
-
-        // JSON result
-        if (result.metadata?.type === 'json' && result.data) {
-            return (
-                <pre className="whitespace-pre-wrap text-sm bg-muted/50 p-3 rounded-md border border-border font-mono overflow-x-auto">
-                    {typeof result.data === 'string'
-                        ? result.data
-                        : JSON.stringify(result.data, null, 2)}
-                </pre>
-            );
-        }
-
-        // Default text result
+        // Default result rendering
         return (
             <pre className="whitespace-pre-wrap text-sm bg-muted/50 p-3 rounded-md border border-border overflow-x-auto">
                 {typeof result.data === 'object'

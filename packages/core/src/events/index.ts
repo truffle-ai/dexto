@@ -142,6 +142,7 @@ export type AgentEventByName<T extends AgentEventName> = {
 /**
  * Union type of all streaming events with their payloads
  * Maps each event name to its payload from AgentEventMap, adding a type property
+ * These are the events that the message-stream API actually returns
  */
 export type StreamingEvent =
     | ({ type: 'llm:thinking' } & AgentEventMap['llm:thinking'])
@@ -151,7 +152,9 @@ export type StreamingEvent =
     | ({ type: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
     | ({ type: 'llm:error' } & AgentEventMap['llm:error'])
     | ({ type: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
-    | ({ type: 'session:title-updated' } & AgentEventMap['session:title-updated']);
+    | ({ type: 'session:title-updated' } & AgentEventMap['session:title-updated'])
+    | ({ type: 'approval:request' } & AgentEventMap['approval:request'])
+    | ({ type: 'approval:response' } & AgentEventMap['approval:response']);
 
 /**
  * Union type of all integration events with their payloads

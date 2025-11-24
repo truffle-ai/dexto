@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { apiFetch } from '@/lib/api-client.js';
+import { useCreateAgent, type CreateAgentPayload } from '../hooks/useAgents';
 import {
     Dialog,
     DialogContent,
@@ -17,7 +17,6 @@ import { Collapsible } from '../ui/collapsible';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { LLMConfigSection } from '../AgentEditor/form-sections/LLMConfigSection';
 import { SystemPromptSection } from '../AgentEditor/form-sections/SystemPromptSection';
-import type { AgentConfig } from '@dexto/core';
 
 interface CreateAgentModalProps {
     open: boolean;
@@ -41,7 +40,7 @@ const initialMetadata: RegistryMetadata = {
     tags: '',
 };
 
-const initialAgentConfig: Partial<AgentConfig> = {
+const initialAgentConfig: CreateAgentPayload['config'] = {
     llm: {
         provider: 'openai',
         model: 'gpt-5',
@@ -66,10 +65,11 @@ export default function CreateAgentModal({
     onAgentCreated,
 }: CreateAgentModalProps) {
     const [metadata, setMetadata] = useState<RegistryMetadata>(initialMetadata);
-    const [config, setConfig] = useState<Partial<AgentConfig>>(initialAgentConfig);
+    const [config, setConfig] = useState<CreateAgentPayload['config']>(initialAgentConfig);
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [isCreating, setIsCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
+    const createAgentMutation = useCreateAgent();
+    const isCreating = createAgentMutation.isPending;
 
     // Track which sections are open
     const [openSections, setOpenSections] = useState({
@@ -150,48 +150,42 @@ export default function CreateAgentModal({
             return;
         }
 
-        setIsCreating(true);
         setCreateError(null);
 
-        try {
-            const data = await apiFetch<{ id: string }>('/api/agents/custom/create', {
-                method: 'POST',
-                body: JSON.stringify({
-                    // Registry metadata
-                    id: metadata.id.trim(),
-                    name: metadata.name.trim(),
-                    description: metadata.description.trim(),
-                    author: metadata.author.trim() || undefined,
-                    tags: metadata.tags
-                        .split(',')
-                        .map((t) => t.trim())
-                        .filter(Boolean),
+        createAgentMutation.mutate(
+            {
+                // Registry metadata
+                id: metadata.id.trim(),
+                name: metadata.name.trim(),
+                description: metadata.description.trim(),
+                author: metadata.author.trim() || undefined,
+                tags: metadata.tags
+                    .split(',')
+                    .map((t) => t.trim())
+                    .filter(Boolean),
 
-                    // Full agent configuration
-                    config: {
-                        llm: config.llm,
-                        systemPrompt: config.systemPrompt,
-                    },
-                }),
-            });
+                config,
+            },
+            {
+                onSuccess: (data) => {
+                    // Reset form
+                    setMetadata(initialMetadata);
+                    setConfig(initialAgentConfig);
+                    setErrors({});
 
-            // Reset form
-            setMetadata(initialMetadata);
-            setConfig(initialAgentConfig);
-            setErrors({});
+                    // Close modal
+                    onOpenChange(false);
 
-            // Close modal
-            onOpenChange(false);
-
-            // Notify parent with agent ID
-            if (onAgentCreated && data.id) {
-                onAgentCreated(data.id);
+                    // Notify parent with agent ID
+                    if (onAgentCreated && data.id) {
+                        onAgentCreated(data.id);
+                    }
+                },
+                onError: (error: Error) => {
+                    setCreateError(error.message);
+                },
             }
-        } catch (error) {
-            setCreateError(error instanceof Error ? error.message : 'An unexpected error occurred');
-        } finally {
-            setIsCreating(false);
-        }
+        );
     };
 
     const handleCancel = () => {

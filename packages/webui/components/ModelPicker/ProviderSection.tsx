@@ -17,13 +17,13 @@ import {
 import { CapabilityIcons } from './CapabilityIcons';
 
 type Props = {
-    providerId: string;
+    providerId: LLMProvider;
     provider: ProviderCatalog;
     models: ModelInfo[];
     favorites: string[];
     currentModel?: { provider: string; model: string; displayName?: string };
-    onToggleFavorite: (providerId: string, modelName: string) => void;
-    onUse: (providerId: string, model: ModelInfo) => void;
+    onToggleFavorite: (providerId: LLMProvider, modelName: string) => void;
+    onUse: (providerId: LLMProvider, model: ModelInfo) => void;
 };
 
 export function ProviderSection({
@@ -48,16 +48,16 @@ export function ProviderSection({
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <div className="w-5 h-5 flex items-center justify-center">
-                        {PROVIDER_LOGOS[providerId as LLMProvider] ? (
+                        {PROVIDER_LOGOS[providerId] ? (
                             <Image
-                                src={PROVIDER_LOGOS[providerId as LLMProvider]}
+                                src={PROVIDER_LOGOS[providerId]}
                                 alt={`${providerId} logo`}
                                 width={20}
                                 height={20}
                                 className={cn(
                                     'object-contain',
                                     // Apply invert filter in dark mode for monochrome logos
-                                    needsDarkModeInversion(providerId as LLMProvider) &&
+                                    needsDarkModeInversion(providerId) &&
                                         'dark:invert dark:brightness-0 dark:contrast-200'
                                 )}
                             />
@@ -87,9 +87,9 @@ export function ProviderSection({
                             </Tooltip>
                         </TooltipProvider>
                     )}
-                    {PROVIDER_PRICING_URLS[providerId as LLMProvider] && (
+                    {PROVIDER_PRICING_URLS[providerId] && (
                         <a
-                            href={PROVIDER_PRICING_URLS[providerId as LLMProvider]}
+                            href={PROVIDER_PRICING_URLS[providerId]}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-muted-foreground hover:underline"

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useChatContext } from './hooks/ChatContext';
-import { apiFetch } from '@/lib/api-client';
+import { useSubmitApproval } from './hooks/useApprovals';
+import { ApprovalStatus } from '@dexto/core';
 import type { ApprovalEvent } from '../types/approval.js';
 
 interface ToolConfirmationHandlerProps {
@@ -32,6 +33,7 @@ export function ToolConfirmationHandler({
 }: ToolConfirmationHandlerProps) {
     const [pendingConfirmation, setPendingConfirmation] = useState<ApprovalEvent | null>(null);
     const { currentSessionId } = useChatContext();
+    const { mutateAsync: submitApproval } = useSubmitApproval();
 
     // Queue to hold requests that arrive while an approval is pending
     const queuedRequestsRef = React.useRef<ApprovalEvent[]>([]);
@@ -182,21 +184,23 @@ export function ToolConfirmationHandler({
             const { approvalId } = pendingConfirmation;
 
             console.debug(
-                `[WebUI] Sending approval response for ${approvalId}: ${approved ? 'approved' : 'denied'}`
+                `[WebUI] Sending approval response for ${approvalId}: ${
+                    approved ? 'approved' : 'denied'
+                }`
             );
 
             try {
-                await apiFetch(`/api/approvals/${approvalId}`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        status: approved ? 'approved' : 'denied',
-                        ...(approved && formData ? { formData } : {}),
-                        ...(approved && rememberChoice !== undefined ? { rememberChoice } : {}),
-                    }),
+                await submitApproval({
+                    approvalId,
+                    status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
+                    ...(approved && formData ? { formData } : {}),
+                    ...(approved && rememberChoice !== undefined ? { rememberChoice } : {}),
                 });
             } catch (error) {
                 console.error(
-                    `[WebUI] Failed to send approval response: ${error instanceof Error ? error.message : String(error)}`
+                    `[WebUI] Failed to send approval response: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
                 );
                 // TODO: Show toast?
                 return;
@@ -213,7 +217,7 @@ export function ToolConfirmationHandler({
                 }, 100);
             }
         },
-        [pendingConfirmation]
+        [pendingConfirmation, submitApproval]
     );
 
     const handleApprove = useCallback(

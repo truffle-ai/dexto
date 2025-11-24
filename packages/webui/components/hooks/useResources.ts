@@ -1,15 +1,15 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ResourceMetadata } from '@dexto/core';
-import { apiFetch } from '@/lib/api-client.js';
+import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-async function fetchResources(): Promise<ResourceMetadata[]> {
-    const body = await apiFetch<{ ok: boolean; resources: ResourceMetadata[] }>('/api/resources');
-    if (!body || !body.ok || !Array.isArray(body.resources)) {
+async function fetchResources() {
+    const response = await client.api.resources.$get();
+    const data = await response.json();
+    if (!data.ok || !Array.isArray(data.resources)) {
         throw new Error('Invalid response shape');
     }
-    return body.resources;
+    return data.resources;
 }
 
 export function clearResourcesCache(): void {
@@ -25,7 +25,7 @@ export function useResources() {
         isLoading: loading,
         error,
         refetch: refresh,
-    } = useQuery<ResourceMetadata[], Error>({
+    } = useQuery({
         queryKey: queryKeys.resources.all,
         queryFn: fetchResources,
     });

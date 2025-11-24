@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys.js';
-import { apiFetch } from '@/lib/api-client.js';
+import { useSessions, useCreateSession, useDeleteSession, type Session } from './hooks/useSessions';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -20,14 +20,6 @@ import { Trash2, AlertTriangle, RefreshCw, History, Search, X } from 'lucide-rea
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
-
-interface Session {
-    id: string;
-    createdAt: string | null;
-    lastActivity: string | null;
-    messageCount: number;
-    title?: string | null;
-}
 
 interface SessionPanelProps {
     isOpen: boolean;
@@ -50,11 +42,6 @@ function sortSessions(sessions: Session[]): Session[] {
     });
 }
 
-async function fetchSessions(): Promise<Session[]> {
-    const data = await apiFetch<{ sessions: Session[] }>('/api/sessions');
-    return sortSessions(data.sessions || []);
-}
-
 export default function SessionPanel({
     isOpen,
     onClose,
@@ -71,52 +58,14 @@ export default function SessionPanel({
     const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
     const [selectedSessionForAction, setSelectedSessionForAction] = useState<string | null>(null);
 
-    const {
-        data: sessions = [],
-        isLoading: loading,
-        error,
-    } = useQuery<Session[], Error>({
-        queryKey: queryKeys.sessions.all,
-        queryFn: fetchSessions,
-        enabled: isOpen,
-    });
+    const { data: sessionsData = [], isLoading: loading, error } = useSessions(isOpen);
 
-    const createSessionMutation = useMutation({
-        mutationFn: async (sessionId?: string) => {
-            const data = await apiFetch<{ session: Session }>('/api/sessions', {
-                method: 'POST',
-                body: JSON.stringify({ sessionId: sessionId?.trim() || undefined }),
-            });
-            return data.session;
-        },
-        onSuccess: (newSession) => {
-            queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
-                const updated = [...old, newSession];
-                return sortSessions(updated);
-            });
-            setNewSessionId('');
-            setNewSessionOpen(false);
-            onSessionChange(newSession.id);
-        },
-    });
+    // Sort sessions by last activity for display
+    const sessions = sortSessions([...sessionsData]);
 
-    const deleteSessionMutation = useMutation({
-        mutationFn: async (sessionId: string) => {
-            await apiFetch(`/api/sessions/${sessionId}`, {
-                method: 'DELETE',
-            });
-            return sessionId;
-        },
-        onSuccess: (sessionId) => {
-            queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
-                old.filter((s) => s.id !== sessionId)
-            );
-            const isDeletingCurrentSession = currentSessionId === sessionId;
-            if (isDeletingCurrentSession) {
-                returnToWelcome();
-            }
-        },
-    });
+    const createSessionMutation = useCreateSession();
+
+    const deleteSessionMutation = useDeleteSession();
 
     // Listen for events and update state optimistically
     useEffect(() => {
@@ -137,7 +86,7 @@ export default function SessionPanel({
                                     ? {
                                           ...session,
                                           messageCount: session.messageCount + 1,
-                                          lastActivity: new Date().toISOString(),
+                                          lastActivity: Date.now(),
                                       }
                                     : session
                             )
@@ -145,8 +94,8 @@ export default function SessionPanel({
                     } else {
                         const newSession: Session = {
                             id: eventSessionId,
-                            createdAt: new Date().toISOString(),
-                            lastActivity: new Date().toISOString(),
+                            createdAt: Date.now(),
+                            lastActivity: Date.now(),
                             messageCount: 1,
                             title: null,
                         };
@@ -167,7 +116,7 @@ export default function SessionPanel({
                                 ? {
                                       ...session,
                                       messageCount: session.messageCount + 1,
-                                      lastActivity: new Date().toISOString(),
+                                      lastActivity: Date.now(),
                                   }
                                 : session
                         )
@@ -205,25 +154,37 @@ export default function SessionPanel({
     }, [queryClient, currentSessionId]);
 
     const handleCreateSession = async () => {
-        await createSessionMutation.mutateAsync(newSessionId.trim() || undefined);
+        const newSession = await createSessionMutation.mutateAsync({
+            sessionId: newSessionId.trim() || undefined,
+        });
+        setNewSessionId('');
+        setNewSessionOpen(false);
+        onSessionChange(newSession.id);
     };
 
     const handleDeleteSession = async (sessionId: string) => {
-        await deleteSessionMutation.mutateAsync(sessionId);
+        await deleteSessionMutation.mutateAsync({ sessionId });
+        const isDeletingCurrentSession = currentSessionId === sessionId;
+        if (isDeletingCurrentSession) {
+            returnToWelcome();
+        }
     };
 
     const handleDeleteConversation = async () => {
         if (!selectedSessionForAction) return;
-        await deleteSessionMutation.mutateAsync(selectedSessionForAction);
+        await deleteSessionMutation.mutateAsync({ sessionId: selectedSessionForAction });
+        const isDeletingCurrentSession = currentSessionId === selectedSessionForAction;
+        if (isDeletingCurrentSession) {
+            returnToWelcome();
+        }
         setDeleteConversationDialogOpen(false);
         setSelectedSessionForAction(null);
     };
 
-    const formatRelativeTime = (dateString: string | null) => {
-        if (!dateString) return 'Unknown';
-        const date = new Date(dateString);
-        const now = new Date();
-        const diff = now.getTime() - date.getTime();
+    const formatRelativeTime = (timestamp: number | null) => {
+        if (!timestamp) return 'Unknown';
+        const now = Date.now();
+        const diff = now - timestamp;
         const minutes = Math.floor(diff / 60000);
         const hours = Math.floor(diff / 3600000);
         const days = Math.floor(diff / 86400000);
@@ -364,8 +325,8 @@ export default function SessionPanel({
                                                             }}
                                                             disabled={
                                                                 deleteSessionMutation.isPending &&
-                                                                deleteSessionMutation.variables ===
-                                                                    session.id
+                                                                deleteSessionMutation.variables
+                                                                    ?.sessionId === session.id
                                                             }
                                                             className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                                                             aria-label={
@@ -464,14 +425,16 @@ export default function SessionPanel({
                             onClick={handleDeleteConversation}
                             disabled={
                                 deleteSessionMutation.isPending &&
-                                deleteSessionMutation.variables === selectedSessionForAction
+                                deleteSessionMutation.variables?.sessionId ===
+                                    selectedSessionForAction
                             }
                             className="flex items-center space-x-2"
                         >
                             <Trash2 className="h-4 w-4" />
                             <span>
                                 {deleteSessionMutation.isPending &&
-                                deleteSessionMutation.variables === selectedSessionForAction
+                                deleteSessionMutation.variables?.sessionId ===
+                                    selectedSessionForAction
                                     ? 'Deleting...'
                                     : 'Delete Conversation'}
                             </span>

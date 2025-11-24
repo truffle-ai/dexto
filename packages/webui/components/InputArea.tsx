@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { apiFetch } from '@/lib/api-client';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
@@ -53,6 +52,8 @@ import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
+import { useLLMCatalog } from './hooks/useLLM';
+import { useResolvePrompt } from './hooks/usePrompts';
 
 interface ModelOption {
     name: string;
@@ -168,6 +169,9 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     // Memory state
     const [showCreateMemoryModal, setShowCreateMemoryModal] = useState(false);
 
+    // Prompt resolution mutation
+    const resolvePromptMutation = useResolvePrompt();
+
     const showUserError = (message: string) => {
         setFileUploadError(message);
         // Auto-clear error after 5 seconds
@@ -203,29 +207,25 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
     }, [text]);
 
     // Fetch supported file types for the active model to drive Attach menu
+    const { data: catalogData } = useLLMCatalog({ mode: 'flat' });
+
+    // Extract supported file types for the current model
     useEffect(() => {
-        const loadSupportedFileTypes = async () => {
-            try {
-                const data = await apiFetch<{
-                    models: Array<{
-                        provider: string;
-                        name: string;
-                        supportedFileTypes?: string[];
-                    }>;
-                }>('/api/llm/catalog?mode=flat');
-                const models = data.models || [];
-                const provider = currentLLM?.provider;
-                const model = currentLLM?.model;
-                if (!provider || !model) return;
-                const match = models.find((m) => m.provider === provider && m.name === model);
-                setSupportedFileTypes(match?.supportedFileTypes || []);
-            } catch (e) {
-                // ignore – default to []
-                setSupportedFileTypes([]);
-            }
-        };
-        loadSupportedFileTypes();
-    }, [currentLLM?.provider, currentLLM?.model]);
+        const provider = currentLLM?.provider;
+        const model = currentLLM?.model;
+        if (!provider || !model || !catalogData) {
+            setSupportedFileTypes([]);
+            return;
+        }
+        // Type guard: flat mode returns { models: [...] }
+        if (!('models' in catalogData)) {
+            setSupportedFileTypes([]);
+            return;
+        }
+        const models = catalogData.models;
+        const match = models.find((m) => m.provider === provider && m.name === model);
+        setSupportedFileTypes(match?.supportedFileTypes || []);
+    }, [currentLLM?.provider, currentLLM?.model, catalogData]);
 
     // NOTE: We intentionally do not manually resize the textarea. We rely on
     // CSS max-height + overflow to keep layout stable.
@@ -246,44 +246,26 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
             const originalArgsText = trimmed.slice(1 + name.length).trimStart();
             if (name) {
                 try {
-                    // Build query parameters
-                    const params = new URLSearchParams();
-                    // Build structured args from tokens: key=value map + positional array
-                    if (parsed.argsArray && parsed.argsArray.length > 0) {
-                        const { keyValues, positional } = splitKeyValueAndPositional(
-                            parsed.argsArray
-                        );
-                        const argsPayload: Record<string, unknown> = { ...keyValues };
-                        if (positional.length > 0) argsPayload._positional = positional;
-                        if (Object.keys(argsPayload).length > 0) {
-                            try {
-                                params.set('args', JSON.stringify(argsPayload));
-                            } catch {
-                                // ignore JSON errors and fall back to context-only
-                            }
-                        }
-                    }
-                    // Keep context for natural language compatibility
-                    if (originalArgsText) params.set('context', originalArgsText);
-
-                    const queryString = params.toString() ? `?${params.toString()}` : '';
-
-                    // Add timeout to prevent hanging on slow responses
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-                    try {
-                        const data = await apiFetch<{ text?: string }>(
-                            `/api/prompts/${encodeURIComponent(name)}/resolve${queryString}`,
-                            { signal: controller.signal }
-                        );
-                        clearTimeout(timeoutId);
-                        const txt = typeof data?.text === 'string' ? data.text : '';
-                        if (txt.trim()) {
-                            trimmed = txt;
-                        }
-                    } finally {
-                        clearTimeout(timeoutId);
+                    const result = await resolvePromptMutation.mutateAsync({
+                        name,
+                        context: originalArgsText || undefined,
+                        args:
+                            parsed.argsArray && parsed.argsArray.length > 0
+                                ? (() => {
+                                      const { keyValues, positional } = splitKeyValueAndPositional(
+                                          parsed.argsArray
+                                      );
+                                      const argsPayload: Record<string, unknown> = { ...keyValues };
+                                      if (positional.length > 0)
+                                          argsPayload._positional = positional;
+                                      return Object.keys(argsPayload).length > 0
+                                          ? JSON.stringify(argsPayload)
+                                          : undefined;
+                                  })()
+                                : undefined,
+                    });
+                    if (result.text.trim()) {
+                        trimmed = result.text;
                     }
                 } catch {
                     // keep original

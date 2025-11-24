@@ -14,14 +14,21 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Copy, Share2, Zap } from 'lucide-react';
-import type { McpTool, JsonSchemaProperty } from '@/types';
+import type { McpTool } from '@/components/hooks/useServers';
+
+// Infer the property schema type from the tool's input schema
+type JsonSchemaProperty = NonNullable<NonNullable<McpTool['inputSchema']>['properties']>[string];
 
 interface ToolInputFormProps {
     tool: McpTool;
     inputs: Record<string, any>;
     errors: Record<string, string>;
     isLoading: boolean;
-    onInputChange: (name: string, value: any, type?: JsonSchemaProperty['type']) => void;
+    onInputChange: (
+        name: string,
+        value: any,
+        type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+    ) => void;
     onSubmit: () => void;
     onCopyConfig?: () => void;
     onShareConfig?: () => void;
@@ -40,13 +47,15 @@ const toolTemplates: ToolTemplate[] = [
         apply: (tool: McpTool) => {
             const defaults: Record<string, any> = {};
             if (tool.inputSchema?.properties) {
-                Object.entries(tool.inputSchema.properties).forEach(([key, prop]) => {
-                    if (prop.type === 'string') defaults[key] = `test-${key}`;
-                    else if (prop.type === 'number') defaults[key] = 42;
-                    else if (prop.type === 'boolean') defaults[key] = true;
-                    else if (prop.type === 'object') defaults[key] = '{"example": "value"}';
-                    else if (prop.type === 'array') defaults[key] = '["example"]';
-                });
+                Object.entries(tool.inputSchema.properties).forEach(
+                    ([key, prop]: [string, any]) => {
+                        if (prop.type === 'string') defaults[key] = `test-${key}`;
+                        else if (prop.type === 'number') defaults[key] = 42;
+                        else if (prop.type === 'boolean') defaults[key] = true;
+                        else if (prop.type === 'object') defaults[key] = '{"example": "value"}';
+                        else if (prop.type === 'array') defaults[key] = '["example"]';
+                    }
+                );
             }
             return defaults;
         },
@@ -57,7 +66,7 @@ const toolTemplates: ToolTemplate[] = [
         apply: (tool: McpTool) => {
             const defaults: Record<string, any> = {};
             if (tool.inputSchema?.properties && tool.inputSchema?.required) {
-                tool.inputSchema.required.forEach((key) => {
+                tool.inputSchema.required.forEach((key: string) => {
                     const prop = tool.inputSchema!.properties![key];
                     if (prop.type === 'string') defaults[key] = '';
                     else if (prop.type === 'number') defaults[key] = '';
@@ -96,8 +105,12 @@ export function ToolInputForm({
 
         // Enum select
         if (prop.enum && Array.isArray(prop.enum)) {
-            const isEnumBoolean = prop.enum.every((v) => typeof v === 'boolean');
-            const isEnumNumeric = prop.enum.every((v) => typeof v === 'number');
+            const isEnumBoolean = prop.enum.every(
+                (v: string | number | boolean) => typeof v === 'boolean'
+            );
+            const isEnumNumeric = prop.enum.every(
+                (v: string | number | boolean) => typeof v === 'number'
+            );
             return (
                 <Select
                     value={
@@ -119,7 +132,7 @@ export function ToolInputForm({
                         />
                     </SelectTrigger>
                     <SelectContent>
-                        {prop.enum.map((enumValue) => (
+                        {prop.enum.map((enumValue: string | number | boolean) => (
                             <SelectItem key={String(enumValue)} value={String(enumValue)}>
                                 {String(enumValue)}
                             </SelectItem>

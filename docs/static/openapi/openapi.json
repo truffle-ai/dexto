@@ -2686,10 +2686,23 @@
                     },
                     "provider": {
                       "type": "string",
+                      "enum": [
+                        "openai",
+                        "openai-compatible",
+                        "anthropic",
+                        "google",
+                        "groq",
+                        "xai",
+                        "cohere"
+                      ],
                       "description": "LLM provider"
                     },
                     "router": {
                       "type": "string",
+                      "enum": [
+                        "vercel",
+                        "in-built"
+                      ],
                       "description": "Router used (e.g., vercel)"
                     }
                   },
@@ -3157,157 +3170,1071 @@
                       "properties": {
                         "providers": {
                           "type": "object",
-                          "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "name": {
-                                "type": "string",
-                                "description": "Provider display name"
-                              },
-                              "hasApiKey": {
-                                "type": "boolean",
-                                "description": "Whether API key is configured"
-                              },
-                              "primaryEnvVar": {
-                                "type": "string",
-                                "description": "Primary environment variable for API key"
-                              },
-                              "supportedRouters": {
-                                "type": "array",
-                                "items": {
+                          "properties": {
+                            "openai": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
                                   "type": "string",
-                                  "enum": [
-                                    "vercel",
-                                    "in-built"
-                                  ]
+                                  "description": "Provider display name"
                                 },
-                                "description": "Routing strategies supported by this provider"
-                              },
-                              "supportsBaseURL": {
-                                "type": "boolean",
-                                "description": "Whether custom base URLs are supported"
-                              },
-                              "models": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "name": {
-                                      "type": "string",
-                                      "description": "Model name identifier"
-                                    },
-                                    "maxInputTokens": {
-                                      "type": "integer",
-                                      "minimum": 0,
-                                      "exclusiveMinimum": true,
-                                      "description": "Maximum input tokens"
-                                    },
-                                    "default": {
-                                      "type": "boolean",
-                                      "description": "Whether this is a default model"
-                                    },
-                                    "supportedFileTypes": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string",
-                                        "enum": [
-                                          "audio",
-                                          "pdf",
-                                          "image"
-                                        ]
-                                      },
-                                      "description": "File types this model supports"
-                                    },
-                                    "supportedRouters": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string",
-                                        "enum": [
-                                          "vercel",
-                                          "in-built"
-                                        ]
-                                      },
-                                      "description": "Routing strategies this model supports"
-                                    },
-                                    "displayName": {
-                                      "type": "string",
-                                      "description": "Human-readable display name"
-                                    },
-                                    "pricing": {
-                                      "type": "object",
-                                      "properties": {
-                                        "inputPerM": {
-                                          "type": "number",
-                                          "description": "Input cost per million tokens (USD)"
-                                        },
-                                        "outputPerM": {
-                                          "type": "number",
-                                          "description": "Output cost per million tokens (USD)"
-                                        },
-                                        "cacheReadPerM": {
-                                          "type": "number",
-                                          "description": "Cache read cost per million tokens"
-                                        },
-                                        "cacheWritePerM": {
-                                          "type": "number",
-                                          "description": "Cache write cost per million tokens"
-                                        },
-                                        "currency": {
-                                          "type": "string",
-                                          "enum": [
-                                            "USD"
-                                          ],
-                                          "description": "Currency"
-                                        },
-                                        "unit": {
-                                          "type": "string",
-                                          "enum": [
-                                            "per_million_tokens"
-                                          ],
-                                          "description": "Unit"
-                                        }
-                                      },
-                                      "required": [
-                                        "inputPerM",
-                                        "outputPerM"
-                                      ],
-                                      "description": "Pricing information in USD per million tokens"
-                                    }
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportedRouters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ]
                                   },
-                                  "required": [
-                                    "name",
-                                    "maxInputTokens",
-                                    "supportedFileTypes"
-                                  ],
-                                  "additionalProperties": false,
-                                  "description": "Model information from LLM registry"
+                                  "description": "Routing strategies supported by this provider"
                                 },
-                                "description": "Models available from this provider"
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "supportedRouters": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "vercel",
+                                            "in-built"
+                                          ]
+                                        },
+                                        "description": "Routing strategies this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
                               },
-                              "supportedFileTypes": {
-                                "type": "array",
-                                "items": {
-                                  "type": "string",
-                                  "enum": [
-                                    "audio",
-                                    "pdf",
-                                    "image"
-                                  ]
-                                },
-                                "description": "Provider-level file type support"
-                              }
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportedRouters",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
                             },
-                            "required": [
-                              "name",
-                              "hasApiKey",
-                              "primaryEnvVar",
-                              "supportedRouters",
-                              "supportsBaseURL",
-                              "models",
-                              "supportedFileTypes"
-                            ],
-                            "additionalProperties": false,
-                            "description": "Provider catalog entry with models and capabilities"
+                            "openai-compatible": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportedRouters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ]
+                                  },
+                                  "description": "Routing strategies supported by this provider"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "supportedRouters": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "vercel",
+                                            "in-built"
+                                          ]
+                                        },
+                                        "description": "Routing strategies this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportedRouters",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "anthropic": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportedRouters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ]
+                                  },
+                                  "description": "Routing strategies supported by this provider"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "supportedRouters": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "vercel",
+                                            "in-built"
+                                          ]
+                                        },
+                                        "description": "Routing strategies this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportedRouters",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "google": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportedRouters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ]
+                                  },
+                                  "description": "Routing strategies supported by this provider"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "supportedRouters": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "vercel",
+                                            "in-built"
+                                          ]
+                                        },
+                                        "description": "Routing strategies this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportedRouters",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "groq": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportedRouters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ]
+                                  },
+                                  "description": "Routing strategies supported by this provider"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "supportedRouters": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "vercel",
+                                            "in-built"
+                                          ]
+                                        },
+                                        "description": "Routing strategies this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportedRouters",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "xai": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportedRouters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ]
+                                  },
+                                  "description": "Routing strategies supported by this provider"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "supportedRouters": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "vercel",
+                                            "in-built"
+                                          ]
+                                        },
+                                        "description": "Routing strategies this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportedRouters",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            },
+                            "cohere": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Provider display name"
+                                },
+                                "hasApiKey": {
+                                  "type": "boolean",
+                                  "description": "Whether API key is configured"
+                                },
+                                "primaryEnvVar": {
+                                  "type": "string",
+                                  "description": "Primary environment variable for API key"
+                                },
+                                "supportedRouters": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ]
+                                  },
+                                  "description": "Routing strategies supported by this provider"
+                                },
+                                "supportsBaseURL": {
+                                  "type": "boolean",
+                                  "description": "Whether custom base URLs are supported"
+                                },
+                                "models": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Model name identifier"
+                                      },
+                                      "maxInputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Maximum input tokens"
+                                      },
+                                      "default": {
+                                        "type": "boolean",
+                                        "description": "Whether this is a default model"
+                                      },
+                                      "supportedFileTypes": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "audio",
+                                            "pdf",
+                                            "image"
+                                          ]
+                                        },
+                                        "description": "File types this model supports"
+                                      },
+                                      "supportedRouters": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "vercel",
+                                            "in-built"
+                                          ]
+                                        },
+                                        "description": "Routing strategies this model supports"
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "description": "Human-readable display name"
+                                      },
+                                      "pricing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputPerM": {
+                                            "type": "number",
+                                            "description": "Input cost per million tokens (USD)"
+                                          },
+                                          "outputPerM": {
+                                            "type": "number",
+                                            "description": "Output cost per million tokens (USD)"
+                                          },
+                                          "cacheReadPerM": {
+                                            "type": "number",
+                                            "description": "Cache read cost per million tokens"
+                                          },
+                                          "cacheWritePerM": {
+                                            "type": "number",
+                                            "description": "Cache write cost per million tokens"
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "enum": [
+                                              "USD"
+                                            ],
+                                            "description": "Currency"
+                                          },
+                                          "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                              "per_million_tokens"
+                                            ],
+                                            "description": "Unit"
+                                          }
+                                        },
+                                        "required": [
+                                          "inputPerM",
+                                          "outputPerM"
+                                        ],
+                                        "description": "Pricing information in USD per million tokens"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "maxInputTokens",
+                                      "supportedFileTypes"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Model information from LLM registry"
+                                  },
+                                  "description": "Models available from this provider"
+                                },
+                                "supportedFileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "audio",
+                                      "pdf",
+                                      "image"
+                                    ]
+                                  },
+                                  "description": "Provider-level file type support"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "hasApiKey",
+                                "primaryEnvVar",
+                                "supportedRouters",
+                                "supportsBaseURL",
+                                "models",
+                                "supportedFileTypes"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Provider catalog entry with models and capabilities"
+                            }
                           },
                           "description": "Providers grouped by ID with their models and capabilities"
                         }
@@ -5535,7 +6462,12 @@
                           },
                           "status": {
                             "type": "string",
-                            "description": "Server status (connected or error)"
+                            "enum": [
+                              "connected",
+                              "error",
+                              "disconnected"
+                            ],
+                            "description": "Server status"
                           }
                         },
                         "required": [
@@ -5607,8 +6539,68 @@
                           },
                           "inputSchema": {
                             "type": "object",
-                            "additionalProperties": {
-                              "nullable": true
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "object"
+                                ],
+                                "description": "Schema type, always \"object\" when present"
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "string",
+                                        "number",
+                                        "integer",
+                                        "boolean",
+                                        "object",
+                                        "array"
+                                      ],
+                                      "description": "Property type"
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "description": "Property description"
+                                    },
+                                    "enum": {
+                                      "type": "array",
+                                      "items": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "boolean"
+                                          }
+                                        ]
+                                      },
+                                      "description": "Enum values"
+                                    },
+                                    "default": {
+                                      "nullable": true,
+                                      "description": "Default value"
+                                    }
+                                  },
+                                  "description": "JSON Schema property definition"
+                                },
+                                "description": "Property definitions"
+                              },
+                              "required": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "Required property names"
+                              }
                             },
                             "description": "JSON Schema for tool input parameters"
                           }
@@ -5616,8 +6608,7 @@
                         "required": [
                           "id",
                           "name",
-                          "description",
-                          "inputSchema"
+                          "description"
                         ],
                         "additionalProperties": false,
                         "description": "Tool information"
@@ -5879,10 +6870,39 @@
                           "mimeType": {
                             "type": "string",
                             "description": "MIME type of the resource"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "mcp",
+                              "internal"
+                            ],
+                            "description": "Source system that provides this resource"
+                          },
+                          "serverName": {
+                            "type": "string",
+                            "description": "Original server/provider name (for MCP resources)"
+                          },
+                          "size": {
+                            "type": "number",
+                            "description": "Size of the resource in bytes (if known)"
+                          },
+                          "lastModified": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Last modified timestamp (ISO 8601 string)"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Additional metadata specific to the resource type"
                           }
                         },
                         "required": [
-                          "uri"
+                          "uri",
+                          "source"
                         ],
                         "additionalProperties": false,
                         "description": "Resource metadata"
@@ -6853,10 +7873,39 @@
                           "mimeType": {
                             "type": "string",
                             "description": "MIME type of the resource"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "mcp",
+                              "internal"
+                            ],
+                            "description": "Source system that provides this resource"
+                          },
+                          "serverName": {
+                            "type": "string",
+                            "description": "Original server/provider name (for MCP resources)"
+                          },
+                          "size": {
+                            "type": "number",
+                            "description": "Size of the resource in bytes (if known)"
+                          },
+                          "lastModified": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Last modified timestamp (ISO 8601 string)"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Additional metadata specific to the resource type"
                           }
                         },
                         "required": [
-                          "uri"
+                          "uri",
+                          "source"
                         ],
                         "additionalProperties": false,
                         "description": "Resource metadata"

@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import type { DextoAgent } from '@dexto/core';
+import { LLM_PROVIDERS, LLM_ROUTERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import { TokenUsageSchema } from '../schemas/responses.js';
 
@@ -113,9 +114,9 @@ export function createMessagesRouter(
                                     .string()
                                     .optional()
                                     .describe('Model used for this response'),
-                                provider: z.string().optional().describe('LLM provider'),
+                                provider: z.enum(LLM_PROVIDERS).optional().describe('LLM provider'),
                                 router: z
-                                    .string()
+                                    .enum(LLM_ROUTERS)
                                     .optional()
                                     .describe('Router used (e.g., vercel)'),
                             })
