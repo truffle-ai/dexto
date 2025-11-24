@@ -33,7 +33,7 @@ export function ToolConfirmationHandler({
 }: ToolConfirmationHandlerProps) {
     const [pendingConfirmation, setPendingConfirmation] = useState<ApprovalEvent | null>(null);
     const { currentSessionId } = useChatContext();
-    const submitApprovalMutation = useSubmitApproval();
+    const { mutateAsync: submitApproval } = useSubmitApproval();
 
     // Queue to hold requests that arrive while an approval is pending
     const queuedRequestsRef = React.useRef<ApprovalEvent[]>([]);
@@ -184,37 +184,40 @@ export function ToolConfirmationHandler({
             const { approvalId } = pendingConfirmation;
 
             console.debug(
-                `[WebUI] Sending approval response for ${approvalId}: ${approved ? 'approved' : 'denied'}`
+                `[WebUI] Sending approval response for ${approvalId}: ${
+                    approved ? 'approved' : 'denied'
+                }`
             );
 
-            submitApprovalMutation.mutate(
-                {
+            try {
+                await submitApproval({
                     approvalId,
                     status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
                     ...(approved && formData ? { formData } : {}),
                     ...(approved && rememberChoice !== undefined ? { rememberChoice } : {}),
-                },
-                {
-                    onSuccess: () => {
-                        // Clear current approval
-                        setPendingConfirmation(null);
+                });
+            } catch (error) {
+                console.error(
+                    `[WebUI] Failed to send approval response: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
+                // TODO: Show toast?
+                return;
+            }
 
-                        // If there are queued requests, show the next one
-                        if (queuedRequestsRef.current.length > 0) {
-                            const next = queuedRequestsRef.current.shift()!;
-                            setTimeout(() => {
-                                setPendingConfirmation(next);
-                            }, 100);
-                        }
-                    },
-                    onError: (error: Error) => {
-                        console.error(`[WebUI] Failed to send approval response: ${error.message}`);
-                        // TODO: Show toast?
-                    },
-                }
-            );
+            // Clear current approval
+            setPendingConfirmation(null);
+
+            // If there are queued requests, show the next one
+            if (queuedRequestsRef.current.length > 0) {
+                const next = queuedRequestsRef.current.shift()!;
+                setTimeout(() => {
+                    setPendingConfirmation(next);
+                }, 100);
+            }
         },
-        [pendingConfirmation, submitApprovalMutation]
+        [pendingConfirmation, submitApproval]
     );
 
     const handleApprove = useCallback(
