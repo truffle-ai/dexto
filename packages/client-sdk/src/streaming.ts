@@ -158,6 +158,10 @@ export async function* createMessageStream(
         if (event.data) {
             try {
                 const parsed = JSON.parse(event.data);
+                // Inject the event type from the SSE event if available
+                if (event.event && !parsed.type) {
+                    parsed.type = event.event;
+                }
                 yield parsed as MessageStreamEvent;
             } catch (e) {
                 // Ignore parse errors for non-JSON data
