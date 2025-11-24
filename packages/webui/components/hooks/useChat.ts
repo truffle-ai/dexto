@@ -1,6 +1,6 @@
 // Add the client directive
 'use client';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type {
     TextPart as CoreTextPart,
     ImagePart as CoreImagePart,
@@ -153,7 +153,7 @@ export interface SessionScopedStateHelpers {
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(
-    getActiveSessionId: () => string | null,
+    activeSessionIdRef: React.MutableRefObject<string | null>,
     sessionHelpers: SessionScopedStateHelpers
 ) {
     const analytics = useAnalytics();
@@ -208,18 +208,14 @@ export function useChat(
         [sessionHelpers]
     );
 
-    // Track the active session id from the host (ChatContext)
-    const activeSessionGetterRef = useRef<(() => string | null) | undefined>(getActiveSessionId);
-    useEffect(() => {
-        activeSessionGetterRef.current = getActiveSessionId;
-    }, [getActiveSessionId]);
-
-    const isForActiveSession = useCallback((sessionId?: string): boolean => {
-        if (!sessionId) return false;
-        const getter = activeSessionGetterRef.current;
-        const current = getter ? getter() : null;
-        return !!current && sessionId === current;
-    }, []);
+    const isForActiveSession = useCallback(
+        (sessionId?: string): boolean => {
+            if (!sessionId) return false;
+            const current = activeSessionIdRef.current;
+            return !!current && sessionId === current;
+        },
+        [activeSessionIdRef]
+    );
 
     const processEvent = useCallback(
         (event: MessageStreamEvent) => {

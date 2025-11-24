@@ -241,6 +241,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const [isCreatingSession, setIsCreatingSession] = useState(false); // Guard against double auto-creation
     const lastSwitchedSessionRef = useRef<string | null>(null); // Track last switched session to prevent duplicate switches
     const newSessionWithMessageRef = useRef<string | null>(null); // Track new sessions that already have first message sent
+    const currentSessionIdRef = useRef<string | null>(null); // Synchronous session ID (updates before React state to prevent race conditions)
 
     // Session-scoped state (survives navigation)
     const [sessionErrors, setSessionErrors] = useState<Map<string, ErrorMessage>>(new Map());
@@ -310,7 +311,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         reset: originalReset,
         setMessages,
         cancel,
-    } = useChat(() => currentSessionId, {
+    } = useChat(currentSessionIdRef, {
         setSessionError,
         setSessionProcessing,
         setSessionStatus,
@@ -424,6 +425,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     // Mark this session as a new session before navigation
                     // This allows switchSession to run but skip history load
                     newSessionWithMessageRef.current = sessionId;
+
+                    // Update ref BEFORE streaming to prevent race conditions
+                    currentSessionIdRef.current = sessionId;
 
                     // Send message BEFORE navigating
                     originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
@@ -595,6 +599,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     newSessionWithMessageRef.current = null;
                 }
 
+                // Update ref BEFORE state to prevent race conditions with streaming
+                currentSessionIdRef.current = sessionId;
                 setCurrentSessionId(sessionId);
                 setIsWelcomeState(false); // No longer in welcome state
 
@@ -618,6 +624,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Return to welcome state (no active session)
     const returnToWelcome = useCallback(() => {
+        currentSessionIdRef.current = null;
         setCurrentSessionId(null);
         setIsWelcomeState(true);
         setMessages([]);
