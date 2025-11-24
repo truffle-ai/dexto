@@ -39,12 +39,10 @@ export function createGreetingRouter(getAgent: () => DextoAgent) {
         },
     });
 
-    app.openapi(greetingRoute, (ctx) => {
+    return app.openapi(greetingRoute, (ctx) => {
         const agent = getAgent();
         const { sessionId } = ctx.req.valid('query');
         const cfg = agent.getEffectiveConfig(sessionId);
         return ctx.json({ greeting: cfg.greeting });
     });
-
-    return app;
 }

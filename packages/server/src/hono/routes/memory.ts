@@ -85,27 +85,6 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(createMemoryRoute, async (ctx) => {
-        const input = ctx.req.valid('json');
-
-        // Filter out undefined values for exactOptionalPropertyTypes compatibility
-        const createInput: {
-            content: string;
-            tags?: string[];
-            metadata?: Record<string, unknown>;
-        } = {
-            content: input.content,
-        };
-        if (input.tags !== undefined && Array.isArray(input.tags)) {
-            createInput.tags = input.tags;
-        }
-        if (input.metadata !== undefined) {
-            createInput.metadata = input.metadata;
-        }
-        const agent = getAgent();
-        const memory = await agent.memoryManager.create(createInput);
-        return ctx.json({ ok: true as const, memory }, 201);
-    });
 
     const listRoute = createRoute({
         method: 'get',
@@ -120,25 +99,6 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
                 content: { 'application/json': { schema: MemoriesListResponseSchema } },
             },
         },
-    });
-    app.openapi(listRoute, async (ctx) => {
-        const query = ctx.req.valid('query');
-        const options: {
-            tags?: string[];
-            source?: 'user' | 'system';
-            pinned?: boolean;
-            limit?: number;
-            offset?: number;
-        } = {};
-        if (query.tags !== undefined) options.tags = query.tags;
-        if (query.source !== undefined) options.source = query.source;
-        if (query.pinned !== undefined) options.pinned = query.pinned;
-        if (query.limit !== undefined) options.limit = query.limit;
-        if (query.offset !== undefined) options.offset = query.offset;
-
-        const agent = getAgent();
-        const memories = await agent.memoryManager.list(options);
-        return ctx.json({ ok: true as const, memories });
     });
 
     const getRoute = createRoute({
@@ -156,12 +116,6 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
                 content: { 'application/json': { schema: MemoryResponseSchema } },
             },
         },
-    });
-    app.openapi(getRoute, async (ctx) => {
-        const { id } = ctx.req.valid('param');
-        const agent = getAgent();
-        const memory = await agent.memoryManager.get(id);
-        return ctx.json({ ok: true as const, memory });
     });
 
     const updateRoute = createRoute({
@@ -187,22 +141,6 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(updateRoute, async (ctx) => {
-        const { id } = ctx.req.valid('param');
-        const updatesRaw = ctx.req.valid('json');
-        // Build updates object only with defined properties for exactOptionalPropertyTypes
-        const updates: {
-            content?: string;
-            metadata?: Record<string, unknown>;
-            tags?: string[];
-        } = {};
-        if (updatesRaw.content !== undefined) updates.content = updatesRaw.content;
-        if (updatesRaw.metadata !== undefined) updates.metadata = updatesRaw.metadata;
-        if (updatesRaw.tags !== undefined) updates.tags = updatesRaw.tags;
-        const agent = getAgent();
-        const memory = await agent.memoryManager.update(id, updates);
-        return ctx.json({ ok: true as const, memory });
-    });
 
     const deleteRoute = createRoute({
         method: 'delete',
@@ -220,12 +158,74 @@ export function createMemoryRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(deleteRoute, async (ctx) => {
-        const { id } = ctx.req.valid('param');
-        const agent = getAgent();
-        await agent.memoryManager.delete(id);
-        return ctx.json({ ok: true as const, message: 'Memory deleted successfully' });
-    });
 
-    return app;
+    return app
+        .openapi(createMemoryRoute, async (ctx) => {
+            const input = ctx.req.valid('json');
+
+            // Filter out undefined values for exactOptionalPropertyTypes compatibility
+            const createInput: {
+                content: string;
+                tags?: string[];
+                metadata?: Record<string, unknown>;
+            } = {
+                content: input.content,
+            };
+            if (input.tags !== undefined && Array.isArray(input.tags)) {
+                createInput.tags = input.tags;
+            }
+            if (input.metadata !== undefined) {
+                createInput.metadata = input.metadata;
+            }
+            const agent = getAgent();
+            const memory = await agent.memoryManager.create(createInput);
+            return ctx.json({ ok: true as const, memory }, 201);
+        })
+        .openapi(listRoute, async (ctx) => {
+            const query = ctx.req.valid('query');
+            const options: {
+                tags?: string[];
+                source?: 'user' | 'system';
+                pinned?: boolean;
+                limit?: number;
+                offset?: number;
+            } = {};
+            if (query.tags !== undefined) options.tags = query.tags;
+            if (query.source !== undefined) options.source = query.source;
+            if (query.pinned !== undefined) options.pinned = query.pinned;
+            if (query.limit !== undefined) options.limit = query.limit;
+            if (query.offset !== undefined) options.offset = query.offset;
+
+            const agent = getAgent();
+            const memories = await agent.memoryManager.list(options);
+            return ctx.json({ ok: true as const, memories });
+        })
+        .openapi(getRoute, async (ctx) => {
+            const { id } = ctx.req.valid('param');
+            const agent = getAgent();
+            const memory = await agent.memoryManager.get(id);
+            return ctx.json({ ok: true as const, memory });
+        })
+        .openapi(updateRoute, async (ctx) => {
+            const { id } = ctx.req.valid('param');
+            const updatesRaw = ctx.req.valid('json');
+            // Build updates object only with defined properties for exactOptionalPropertyTypes
+            const updates: {
+                content?: string;
+                metadata?: Record<string, unknown>;
+                tags?: string[];
+            } = {};
+            if (updatesRaw.content !== undefined) updates.content = updatesRaw.content;
+            if (updatesRaw.metadata !== undefined) updates.metadata = updatesRaw.metadata;
+            if (updatesRaw.tags !== undefined) updates.tags = updatesRaw.tags;
+            const agent = getAgent();
+            const memory = await agent.memoryManager.update(id, updates);
+            return ctx.json({ ok: true as const, memory });
+        })
+        .openapi(deleteRoute, async (ctx) => {
+            const { id } = ctx.req.valid('param');
+            const agent = getAgent();
+            await agent.memoryManager.delete(id);
+            return ctx.json({ ok: true as const, message: 'Memory deleted successfully' });
+        });
 }

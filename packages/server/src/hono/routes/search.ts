@@ -65,19 +65,6 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(messagesRoute, async (ctx) => {
-        const agent = getAgent();
-        const { q, limit, offset, sessionId, role } = ctx.req.valid('query');
-        const options = {
-            limit: limit || 20,
-            offset: offset || 0,
-            ...(sessionId && { sessionId }),
-            ...(role && { role }),
-        };
-
-        const searchResults = await agent.searchMessages(q, options);
-        return ctx.json(searchResults);
-    });
 
     const sessionsRoute = createRoute({
         method: 'get',
@@ -115,12 +102,25 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
             },
         },
     });
-    app.openapi(sessionsRoute, async (ctx) => {
-        const agent = getAgent();
-        const { q } = ctx.req.valid('query');
-        const searchResults = await agent.searchSessions(q);
-        return ctx.json(searchResults);
-    });
 
-    return app;
+    return app
+        .openapi(messagesRoute, async (ctx) => {
+            const agent = getAgent();
+            const { q, limit, offset, sessionId, role } = ctx.req.valid('query');
+            const options = {
+                limit: limit || 20,
+                offset: offset || 0,
+                ...(sessionId && { sessionId }),
+                ...(role && { role }),
+            };
+
+            const searchResults = await agent.searchMessages(q, options);
+            return ctx.json(searchResults);
+        })
+        .openapi(sessionsRoute, async (ctx) => {
+            const agent = getAgent();
+            const { q } = ctx.req.valid('query');
+            const searchResults = await agent.searchSessions(q);
+            return ctx.json(searchResults);
+        });
 }

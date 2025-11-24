@@ -65,34 +65,6 @@ export function createWebhooksRouter(
             },
         },
     });
-    app.openapi(registerRoute, async (ctx) => {
-        const agent = getAgent();
-        const { url, secret, description } = ctx.req.valid('json');
-
-        const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-        const webhook: WebhookConfig = {
-            id: webhookId,
-            url,
-            createdAt: new Date(),
-            ...(secret && { secret }),
-            ...(description && { description }),
-        };
-
-        webhookSubscriber.addWebhook(webhook);
-        agent.logger.info(`Webhook registered: ${webhookId} -> ${url}`);
-
-        return ctx.json(
-            {
-                webhook: {
-                    id: webhook.id,
-                    url: webhook.url,
-                    description: webhook.description,
-                    createdAt: webhook.createdAt,
-                },
-            },
-            201
-        );
-    });
 
     const listRoute = createRoute({
         method: 'get',
@@ -117,16 +89,6 @@ export function createWebhooksRouter(
             },
         },
     });
-    app.openapi(listRoute, async (ctx) => {
-        const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
-            id: webhook.id,
-            url: webhook.url,
-            description: webhook.description,
-            createdAt: webhook.createdAt,
-        }));
-
-        return ctx.json({ webhooks });
-    });
 
     const getRoute = createRoute({
         method: 'get',
@@ -150,22 +112,6 @@ export function createWebhooksRouter(
             },
             404: { description: 'Not found' },
         },
-    });
-    app.openapi(getRoute, (ctx) => {
-        const { webhookId } = ctx.req.valid('param');
-        const webhook = webhookSubscriber.getWebhook(webhookId);
-        if (!webhook) {
-            return ctx.json({ error: 'Webhook not found' }, 404);
-        }
-
-        return ctx.json({
-            webhook: {
-                id: webhook.id,
-                url: webhook.url,
-                description: webhook.description,
-                createdAt: webhook.createdAt,
-            },
-        });
     });
 
     const deleteRoute = createRoute({
@@ -194,16 +140,6 @@ export function createWebhooksRouter(
             404: { description: 'Not found' },
         },
     });
-    app.openapi(deleteRoute, (ctx) => {
-        const agent = getAgent();
-        const { webhookId } = ctx.req.valid('param');
-        const removed = webhookSubscriber.removeWebhook(webhookId);
-        if (!removed) {
-            return ctx.json({ error: 'Webhook not found' }, 404);
-        }
-        agent.logger.info(`Webhook removed: ${webhookId}`);
-        return ctx.json({ status: 'removed', webhookId });
-    });
 
     const testRoute = createRoute({
         method: 'post',
@@ -231,28 +167,92 @@ export function createWebhooksRouter(
             404: { description: 'Not found' },
         },
     });
-    app.openapi(testRoute, async (ctx) => {
-        const agent = getAgent();
-        const { webhookId } = ctx.req.valid('param');
-        const webhook = webhookSubscriber.getWebhook(webhookId);
 
-        if (!webhook) {
-            return ctx.json({ error: 'Webhook not found' }, 404);
-        }
+    return app
+        .openapi(registerRoute, async (ctx) => {
+            const agent = getAgent();
+            const { url, secret, description } = ctx.req.valid('json');
 
-        agent.logger.info(`Testing webhook: ${webhookId}`);
-        const result = await webhookSubscriber.testWebhook(webhookId);
+            const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+            const webhook: WebhookConfig = {
+                id: webhookId,
+                url,
+                createdAt: new Date(),
+                ...(secret && { secret }),
+                ...(description && { description }),
+            };
 
-        return ctx.json({
-            test: 'completed',
-            result: {
-                success: result.success,
-                statusCode: result.statusCode,
-                responseTime: result.responseTime,
-                error: result.error,
-            },
+            webhookSubscriber.addWebhook(webhook);
+            agent.logger.info(`Webhook registered: ${webhookId} -> ${url}`);
+
+            return ctx.json(
+                {
+                    webhook: {
+                        id: webhook.id,
+                        url: webhook.url,
+                        description: webhook.description,
+                        createdAt: webhook.createdAt,
+                    },
+                },
+                201
+            );
+        })
+        .openapi(listRoute, async (ctx) => {
+            const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
+                id: webhook.id,
+                url: webhook.url,
+                description: webhook.description,
+                createdAt: webhook.createdAt,
+            }));
+
+            return ctx.json({ webhooks });
+        })
+        .openapi(getRoute, (ctx) => {
+            const { webhookId } = ctx.req.valid('param');
+            const webhook = webhookSubscriber.getWebhook(webhookId);
+            if (!webhook) {
+                return ctx.json({ error: 'Webhook not found' }, 404);
+            }
+
+            return ctx.json({
+                webhook: {
+                    id: webhook.id,
+                    url: webhook.url,
+                    description: webhook.description,
+                    createdAt: webhook.createdAt,
+                },
+            });
+        })
+        .openapi(deleteRoute, (ctx) => {
+            const agent = getAgent();
+            const { webhookId } = ctx.req.valid('param');
+            const removed = webhookSubscriber.removeWebhook(webhookId);
+            if (!removed) {
+                return ctx.json({ error: 'Webhook not found' }, 404);
+            }
+            agent.logger.info(`Webhook removed: ${webhookId}`);
+            return ctx.json({ status: 'removed', webhookId });
+        })
+        .openapi(testRoute, async (ctx) => {
+            const agent = getAgent();
+            const { webhookId } = ctx.req.valid('param');
+            const webhook = webhookSubscriber.getWebhook(webhookId);
+
+            if (!webhook) {
+                return ctx.json({ error: 'Webhook not found' }, 404);
+            }
+
+            agent.logger.info(`Testing webhook: ${webhookId}`);
+            const result = await webhookSubscriber.testWebhook(webhookId);
+
+            return ctx.json({
+                test: 'completed',
+                result: {
+                    success: result.success,
+                    statusCode: result.statusCode,
+                    responseTime: result.responseTime,
+                    error: result.error,
+                },
+            });
         });
-    });
-
-    return app;
 }
