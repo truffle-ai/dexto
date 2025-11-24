@@ -41,6 +41,10 @@ export {
     DEFAULT_ALLOWED_TOOLS_STORAGE,
 } from './tools/schemas.js';
 
+// Approval types and constants (used by webui)
+export { ApprovalStatus, ApprovalType, DenialReason } from './approval/types.js';
+export type { ApprovalRequest, ApprovalResponse } from './approval/types.js';
+
 // Session types (used by CLI package)
 export type { SessionMetadata } from './session/session-manager.js';
 
