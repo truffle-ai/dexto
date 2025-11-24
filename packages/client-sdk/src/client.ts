@@ -31,18 +31,17 @@ import type { ClientConfig } from './types.js';
  * });
  *
  * // Streaming responses with SSE
- * import { createStream } from '@dexto/client-sdk';
+ * import { createMessageStream } from '@dexto/client-sdk';
  *
  * const streamPromise = client.api['message-stream'].$post({
  *   json: { message: 'Tell me a story', sessionId: 'my-session' }
  * });
  *
- * // Parse SSE events using createStream
- * const stream = createStream(streamPromise);
+ * // Parse SSE events using createMessageStream
+ * const stream = createMessageStream(streamPromise);
  * for await (const event of stream) {
- *   if (event.event === 'llm:chunk' && event.data) {
- *     const parsed = JSON.parse(event.data);
- *     process.stdout.write(parsed.content);
+ *   if (event.type === 'llm:chunk') {
+ *     process.stdout.write(event.content);
  *   }
  * }
  * ```
@@ -84,7 +83,7 @@ export * from './streaming.js';
 // let response3 = await client2.health.$get();
 // console.log(response3.ok);
 
-// import { createStream } from './streaming.js';
+// import { createMessageStream } from './streaming.js';
 // let response4 = client2.api['message-stream'].$post({
 //     json: {
 //         message: 'Tell me a story',
@@ -92,10 +91,9 @@ export * from './streaming.js';
 //     }
 // });
 
-// const stream = createStream(response4);
+// const stream = createMessageStream(response4);
 // for await (const event of stream) {
-//     if (event.event === 'llm:chunk' && event.data) {
-//         const parsed = JSON.parse(event.data);
-//         process.stdout.write(parsed.content);
+//     if (event.type === 'llm:chunk') {
+//         process.stdout.write(event.content);
 //     }
 // }

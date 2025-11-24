@@ -1,11 +1,15 @@
+import type { StreamingEvent } from '@dexto/core';
+
 /**
  * SSE (Server-Sent Events) streaming utilities for client SDK
  * Adapted from @dexto/webui EventStreamClient
  */
 
-export interface SSEEvent {
+export type MessageStreamEvent = StreamingEvent;
+
+export interface SSEEvent<T = string> {
     event?: string;
-    data?: string;
+    data?: T;
     id?: string;
     retry?: number;
 }
@@ -26,10 +30,10 @@ export class SSEError extends Error {
  * @param response The fetch Response object containing the SSE stream
  * @param options Optional configuration including AbortSignal
  */
-export async function* stream(
+export async function* stream<T = string>(
     response: Response,
     options?: { signal?: AbortSignal }
-): AsyncGenerator<SSEEvent> {
+): AsyncGenerator<SSEEvent<T>> {
     if (!response.ok) {
         const contentType = response.headers.get('content-type');
         let errorBody;
@@ -85,7 +89,7 @@ export async function* stream(
 
                 const event = parseSSE(eventString);
                 if (event) {
-                    yield event;
+                    yield event as SSEEvent<T>;
                 }
                 continue;
             }
@@ -96,7 +100,7 @@ export async function* stream(
                 if (buffer.trim()) {
                     const event = parseSSE(buffer);
                     if (event) {
-                        yield event;
+                        yield event as SSEEvent<T>;
                     }
                 }
                 return;
@@ -123,17 +127,48 @@ export async function* stream(
  * for await (const event of stream) { ... }
  * ```
  */
-export async function* createStream(
+export async function* createStream<T = string>(
     responsePromise: Promise<Response>,
     options?: { signal?: AbortSignal }
-): AsyncGenerator<SSEEvent> {
+): AsyncGenerator<SSEEvent<T>> {
     const response = await responsePromise;
-    yield* stream(response, options);
+    yield* stream<T>(response, options);
 }
 
-function parseSSE(raw: string): SSEEvent | null {
+/**
+ * Helper to create a typed message stream from a promise that resolves to a Response.
+ * Automatically parses JSON data and yields typed MessageStreamEvent objects.
+ *
+ * @example
+ * ```typescript
+ * const stream = createMessageStream(client.api['message-stream'].$post({ ... }));
+ * for await (const event of stream) {
+ *   if (event.type === 'llm:chunk') {
+ *     console.log(event.content);
+ *   }
+ * }
+ * ```
+ */
+export async function* createMessageStream(
+    responsePromise: Promise<Response>,
+    options?: { signal?: AbortSignal }
+): AsyncGenerator<MessageStreamEvent> {
+    const sseStream = createStream(responsePromise, options);
+    for await (const event of sseStream) {
+        if (event.data) {
+            try {
+                const parsed = JSON.parse(event.data);
+                yield parsed as MessageStreamEvent;
+            } catch (e) {
+                // Ignore parse errors for non-JSON data
+            }
+        }
+    }
+}
+
+function parseSSE(raw: string): SSEEvent<string> | null {
     const lines = raw.split('\n').map((line) => line.replace(/\r$/, ''));
-    const event: SSEEvent = {};
+    const event: SSEEvent<string> = {};
     let hasData = false;
 
     for (const line of lines) {
