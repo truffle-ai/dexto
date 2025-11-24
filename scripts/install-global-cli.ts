@@ -212,14 +212,8 @@ try {
         execSync('npm uninstall -g dexto', { stdio: 'inherit' });
         console.log('  ✓ Removed npm global install');
     }
-} catch (e) {
-    // npm list returns non-zero if package not found, which is fine
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    if (!errorMessage.includes('(empty)') && !errorMessage.includes('ENOENT')) {
-        console.error('  ❌ Failed to check/remove npm global install');
-        console.error(errorMessage);
-        process.exit(1);
-    }
+} catch {
+    // npm list returns non-zero if package not found, which is fine - nothing to uninstall
 }
 
 // Install all packages globally
