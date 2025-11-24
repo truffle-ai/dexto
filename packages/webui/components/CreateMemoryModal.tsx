@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, ApiError } from '@/lib/api-client';
-import { queryKeys } from '@/lib/queryKeys.js';
+import { useCreateMemory } from './hooks/useMemories';
 import {
     Dialog,
     DialogContent,
@@ -25,28 +23,16 @@ interface CreateMemoryModalProps {
 }
 
 export default function CreateMemoryModal({ open, onClose }: CreateMemoryModalProps) {
-    const queryClient = useQueryClient();
     const [content, setContent] = useState('');
     const [tags, setTags] = useState('');
 
-    const createMemoryMutation = useMutation({
-        mutationFn: async (payload: {
-            content: string;
-            tags?: string[];
-            metadata: { source: string };
-        }) => {
-            await apiFetch('/api/memory', {
-                method: 'POST',
-                body: JSON.stringify(payload),
-            });
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
-            setContent('');
-            setTags('');
-            onClose();
-        },
-    });
+    const createMemoryMutation = useCreateMemory();
+
+    const handleSuccess = () => {
+        setContent('');
+        setTags('');
+        onClose();
+    };
 
     const handleSubmit = async () => {
         if (!content.trim()) return;
@@ -62,7 +48,9 @@ export default function CreateMemoryModal({ open, onClose }: CreateMemoryModalPr
             metadata: { source: 'user' },
         };
 
-        createMemoryMutation.mutate(payload);
+        createMemoryMutation.mutate(payload, {
+            onSuccess: handleSuccess,
+        });
     };
 
     const handleClose = () => {
