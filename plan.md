@@ -284,8 +284,20 @@ mutationFn: async (payload) => {
   - [x] Add response.ok check in useResolvePrompt for proper error handling
   - [x] Fix ModelPickerModal to use options object instead of boolean for useLLMCatalog
 
+- [x] Migrate remaining components to typed Hono client
+  - [x] lib/serverRegistry.ts - replace apiFetch with client.api.mcp.servers.$get()
+  - [x] ChatApp.tsx - replace fetch/apiFetch with typed client and hooks
+  - [x] PlaygroundView.tsx - replace apiFetch with client.api.mcp.servers[':serverId'].tools[':toolName'].execute.$post()
+  - [x] ChatContext.tsx - replace all apiFetch calls with typed client methods
+  - [x] Remove unnecessary typeof checks for result.text (type safety from Zod schemas)
+- [x] Final cleanup
+  - [x] Remove apiFetch from api-client.ts
+  - [x] Delete lib/api-client.ts entirely (no longer needed)
+  - [x] Delete lib/EventStreamClient.ts (replaced by createMessageStream from client-sdk)
+  - [x] Remove ApiError import and checks from ConnectServerModal
+
 ### 🚧 In Progress (Current Focus)
-- [ ] Migrate remaining components that use fetch or apiFetch directly (lib/serverRegistry.ts, ChatApp.tsx)
+- [x] Migration complete! All components now use typed Hono client
 
 ### 📋 Remaining Hooks to Migrate
 - [x] usePrompts.ts
@@ -295,8 +307,8 @@ mutationFn: async (payload) => {
 - [x] useResourceContent.ts
 - [x] useSearch.ts
 
-### 📋 Remaining Components to Migrate
-- [ ] ChatApp.tsx
+### 📋 Components Migration Status
+- [x] ChatApp.tsx
 - [x] InputArea.tsx
 - [x] SessionPanel.tsx (no apiFetch - already clean)
 - [x] MemoryPanel.tsx (no apiFetch - already clean)
@@ -307,15 +319,16 @@ mutationFn: async (payload) => {
 - [x] ModelPicker/ModelPickerModal.tsx
 - [x] ToolConfirmationHandler.tsx
 - [x] AgentSelector/AgentSelector.tsx
-- [ ] lib/serverRegistry.ts
+- [x] lib/serverRegistry.ts
+- [x] PlaygroundView.tsx
+- [x] ChatContext.tsx
+- [x] ConnectServerModal.tsx
 
 ### 🗑️ Final Cleanup
-- [ ] Remove apiFetch completely from api-client.ts
-- [ ] Export createMessageStream from client-sdk
-
-## User Review Required
-
-**IMPORTANT**: Export `createMessageStream` from `@dexto/client-sdk` as it is currently missing from the main export but used in examples - DONE.
+- [x] Remove apiFetch completely from api-client.ts
+- [x] Delete lib/api-client.ts (no longer needed)
+- [x] Delete lib/EventStreamClient.ts (replaced by createMessageStream)
+- [x] Export createMessageStream from client-sdk - DONE
 
 ## Proposed Changes
 
