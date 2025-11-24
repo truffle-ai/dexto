@@ -268,6 +268,45 @@ export interface ServerRegistryFilter { ... }  // UI-only
 - Missing fields in server responses that UI expects
 - Type casting using `as` or `as any` - these are red flags!
 
+## Key Learnings
+
+### Discriminated Union Type Inference with Hono Client
+
+**Problem**: When a Hono route defines multiple response codes (e.g., 200 and 400), the Hono client returns a discriminated union type:
+
+```typescript
+const response = await client.api['message-sync'].$post({...});
+// Type: ClientResponse<{}, 400, string> | ClientResponse<{...}, 200, "json">
+
+const data = await response.json();
+// Type: unknown ❌ - TypeScript can't infer which branch!
+```
+
+TypeScript cannot determine which response type you'll get at runtime, so `.json()` returns `unknown`.
+
+**Solution**: Use `response.ok` as a type guard to narrow the discriminated union:
+
+```typescript
+const response = await client.api['message-sync'].$post({...});
+
+if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+}
+
+const data = await response.json();
+// Type: { response: string; sessionId: string; ... } ✅ - Properly typed!
+```
+
+**Why This Works**:
+- Checking `response.ok` narrows the type from a union to a single branch
+- TypeScript knows that when `ok === true`, it must be the 200 response
+- The `.json()` call can now infer the correct return type from the 200 response schema
+
+**When You See This Pattern**:
+- Any endpoint with multiple response codes will have this issue
+- Routes with only a 200 response (like `greeting`) work without the check
+- Always check `response.ok` before calling `.json()` on routes with multiple responses
+
 ## Verification Plan
 
 ### Automated Tests
