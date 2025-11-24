@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client.js';
-import { queryKeys } from '@/lib/queryKeys.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCreatePrompt } from './hooks/usePrompts';
 import {
     Dialog,
     DialogContent,
@@ -33,8 +32,6 @@ interface ResourcePayload {
 }
 
 export default function CreatePromptModal({ open, onClose, onCreated }: CreatePromptModalProps) {
-    const queryClient = useQueryClient();
-
     const [name, setName] = useState('');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -44,28 +41,7 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
     const [resourceName, setResourceName] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
 
-    const createPromptMutation = useMutation({
-        mutationFn: async (payload: {
-            name: string;
-            title?: string;
-            description?: string;
-            content: string;
-            resource?: ResourcePayload;
-        }) => {
-            const data = await apiFetch<{ prompt: { name: string } }>('/api/prompts/custom', {
-                method: 'POST',
-                body: JSON.stringify(payload),
-            });
-            return data;
-        },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
-            if (data?.prompt) {
-                onCreated({ name: data.prompt.name });
-            }
-            onClose();
-        },
-    });
+    const createPromptMutation = useCreatePrompt();
 
     useEffect(() => {
         if (open) {
@@ -148,7 +124,14 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
             resource: resource || undefined,
         };
 
-        createPromptMutation.mutate(payload);
+        createPromptMutation.mutate(payload, {
+            onSuccess: (data) => {
+                if (data?.prompt) {
+                    onCreated({ name: data.prompt.name });
+                }
+                onClose();
+            },
+        });
     };
 
     return (
