@@ -207,7 +207,7 @@ export default function ModelPickerModal() {
 
     // API key modal
     const [keyModalOpen, setKeyModalOpen] = useState(false);
-    const [pendingKeyProvider, setPendingKeyProvider] = useState<string | null>(null);
+    const [pendingKeyProvider, setPendingKeyProvider] = useState<LLMProvider | null>(null);
     const [pendingSelection, setPendingSelection] = useState<{
         provider: string;
         model: string;
@@ -285,7 +285,7 @@ export default function ModelPickerModal() {
         }
     }, [open]);
 
-    const toggleFavorite = useCallback((providerId: string, modelName: string) => {
+    const toggleFavorite = useCallback((providerId: LLMProvider, modelName: string) => {
         const key = favKey(providerId, modelName);
         setFavorites((prev) => {
             const newFavs = prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key];
@@ -346,7 +346,7 @@ export default function ModelPickerModal() {
     );
 
     const modelMatchesSearch = useCallback(
-        (providerId: string, model: ModelInfo): boolean => {
+        (providerId: LLMProvider, model: ModelInfo): boolean => {
             const q = search.trim().toLowerCase();
             if (!q) return true;
             return (
@@ -359,7 +359,7 @@ export default function ModelPickerModal() {
         [search, providers]
     );
 
-    function pickRouterFor(providerId: string, model: ModelInfo): SupportedRouter {
+    function pickRouterFor(providerId: LLMProvider, model: ModelInfo): SupportedRouter {
         const currentRouter = (currentLLM?.router as SupportedRouter) || 'vercel';
         const providerRouters = providers[providerId]?.supportedRouters ?? ['vercel'];
         const modelRouters = model.supportedRouters ?? providerRouters;
@@ -415,7 +415,7 @@ export default function ModelPickerModal() {
         },
     });
 
-    function onPickModel(providerId: string, model: ModelInfo, customBaseURL?: string) {
+    function onPickModel(providerId: LLMProvider, model: ModelInfo, customBaseURL?: string) {
         const provider = providers[providerId];
         const effectiveBaseURL = customBaseURL || baseURL;
         const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
