@@ -432,7 +432,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     router.replace(`/chat/${sessionId}`);
 
                     // Generate title for newly created session after first message
-                    generateTitleMutation.mutate(sessionId);
+                    // Use setTimeout to avoid including mutation in dependencies
+                    setTimeout(() => {
+                        if (sessionId) generateTitleMutation.mutate(sessionId);
+                    }, 0);
 
                     // Note: currentLLM will automatically refetch when currentSessionId changes
                 } catch (error) {
@@ -474,7 +477,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             router,
             analytics,
             currentLLM,
-            generateTitleMutation,
+            // generateTitleMutation removed - mutation called via setTimeout to avoid dep issues
         ]
     );
 
