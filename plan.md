@@ -175,6 +175,51 @@ React Query hooks return `data: T | undefined` (undefined while loading). `NonNu
 
 **This pattern is used across all hooks for consistency and readability.**
 
+### Mutation Payload Type Inference Pattern
+
+**For mutations, extract payload types from the Hono client using `Parameters` utility:**
+
+```typescript
+// ✅ Extract payload type from Hono client method signature
+export function useSwitchLLM() {
+    return useMutation({
+        mutationFn: async (
+            payload: Parameters<typeof client.api.llm.switch.$post>[0]['json']
+        ) => {
+            const response = await client.api.llm.switch.$post({ json: payload });
+            return await response.json();
+        },
+    });
+}
+```
+
+**Why this works:**
+- `Parameters<typeof client.api.llm.switch.$post>` - Gets the parameters array of the client method
+- `[0]` - Gets the first parameter (the options object)
+- `['json']` - Gets the json property type from the options
+- Result: Exact type the server expects, inferred from server Zod schema
+
+**❌ DO NOT use these approaches:**
+```typescript
+// ❌ WRONG: Using any
+mutationFn: async (payload: any) => {
+
+// ❌ WRONG: Redefining types manually
+mutationFn: async (payload: {
+    name: string;
+    content: string;
+    // ... duplicating server schema
+}) => {
+
+// ❌ WRONG: No type annotation (TypeScript infers void)
+mutationFn: async (payload) => {
+```
+
+**When to use this pattern:**
+- All mutation hooks (useMutation)
+- When the payload structure is defined by server Zod schemas
+- Ensures type safety from components → hooks → client → server
+
 ## Migration Progress
 
 ### ✅ Completed

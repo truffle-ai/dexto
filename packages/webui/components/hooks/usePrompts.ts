@@ -26,14 +26,9 @@ export function useCreatePrompt() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: {
-            name: string;
-            content: string;
-            title?: string;
-            description?: string;
-            arguments?: Array<{ name: string; description?: string; required?: boolean }>;
-            resource?: { base64: string; mimeType: string; filename?: string };
-        }) => {
+        mutationFn: async (
+            payload: Parameters<typeof client.api.prompts.custom.$post>[0]['json']
+        ) => {
             const response = await client.api.prompts.custom.$post({ json: payload });
             return await response.json();
         },
@@ -43,23 +38,19 @@ export function useCreatePrompt() {
     });
 }
 
+type ResolvePromptParams = Parameters<(typeof client.api.prompts)[':name']['resolve']['$get']>[0];
+
 export function useResolvePrompt() {
     return useMutation({
-        mutationFn: async ({
-            name,
-            context,
-            args,
-        }: {
-            name: string;
-            context?: string;
-            args?: Record<string, unknown>;
-        }) => {
+        mutationFn: async (
+            payload: {
+                name: string;
+            } & ResolvePromptParams['query']
+        ) => {
+            const { name, ...query } = payload;
             const response = await client.api.prompts[':name'].resolve.$get({
                 param: { name: encodeURIComponent(name) },
-                query: {
-                    ...(context && { context }),
-                    ...(args && { args: JSON.stringify(args) }),
-                },
+                query,
             });
             return await response.json();
         },

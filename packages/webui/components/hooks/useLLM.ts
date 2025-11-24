@@ -17,7 +17,7 @@ export function useSwitchLLM() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: any) => {
+        mutationFn: async (payload: Parameters<typeof client.api.llm.switch.$post>[0]['json']) => {
             const response = await client.api.llm.switch.$post({ json: payload });
             return await response.json();
         },
@@ -31,7 +31,7 @@ export function useSaveApiKey() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: any) => {
+        mutationFn: async (payload: Parameters<typeof client.api.llm.key.$post>[0]['json']) => {
             const response = await client.api.llm.key.$post({ json: payload });
             return await response.json();
         },

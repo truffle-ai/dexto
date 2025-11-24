@@ -27,7 +27,9 @@ export function useCreateAgent() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: any) => {
+        mutationFn: async (
+            payload: Parameters<typeof client.api.agents.custom.create.$post>[0]['json']
+        ) => {
             const response = await client.api.agents.custom.create.$post({ json: payload });
             return await response.json();
         },
