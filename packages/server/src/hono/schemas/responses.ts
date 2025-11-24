@@ -344,6 +344,17 @@ export const ResourceSchema = z
         name: z.string().optional().describe('Resource name'),
         description: z.string().optional().describe('Resource description'),
         mimeType: z.string().optional().describe('MIME type of the resource'),
+        source: z.enum(['mcp', 'internal']).describe('Source system that provides this resource'),
+        serverName: z
+            .string()
+            .optional()
+            .describe('Original server/provider name (for MCP resources)'),
+        size: z.number().optional().describe('Size of the resource in bytes (if known)'),
+        lastModified: z.string().optional().describe('Last modified timestamp (ISO string)'),
+        metadata: z
+            .record(z.unknown())
+            .optional()
+            .describe('Additional metadata specific to the resource type'),
     })
     .strict()
     .describe('Resource metadata');
