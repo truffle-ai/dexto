@@ -12,8 +12,9 @@ import type {
 import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
-import { EventStreamClient, SSEEvent } from '../../lib/EventStreamClient';
-import { getApiUrl } from '../../lib/api-url';
+import { client } from '@/lib/client.js';
+import { createMessageStream } from '@dexto/client-sdk';
+import type { MessageStreamEvent } from '@dexto/client-sdk';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -152,7 +153,6 @@ export interface SessionScopedStateHelpers {
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(
-    apiUrl: string,
     getActiveSessionId: () => string | null,
     sessionHelpers: SessionScopedStateHelpers
 ) {
@@ -222,43 +222,28 @@ export function useChat(
     }, []);
 
     const processEvent = useCallback(
-        (event: SSEEvent) => {
-            if (!event.data) return;
-
-            // TODO: Replace with proper discriminated union types after Hono HC client SDK migration
-            // Hono HC will generate types from API routes for type-safe SSE event payloads
-            // See PR 450 comment: https://github.com/truffle-ai/dexto/pull/450#discussion_r2546398874
-            let payload: any;
-            try {
-                payload = JSON.parse(event.data);
-            } catch (e) {
-                console.error('Failed to parse event data', e);
-                return;
-            }
-
-            const eventType = event.event;
-
-            // All streaming events must have sessionId (added by forwarding layer)
-            if (!payload.sessionId) {
+        (event: MessageStreamEvent) => {
+            // All streaming events must have sessionId
+            if (!event.sessionId) {
                 console.error('Event missing sessionId:', event);
                 return;
             }
 
             // Check session match
-            if (!isForActiveSession(payload.sessionId)) {
+            if (!isForActiveSession(event.sessionId)) {
                 return;
             }
 
-            switch (eventType) {
+            switch (event.type) {
                 case 'llm:thinking':
                     // LLM started thinking - can update UI status
-                    setProcessing(payload.sessionId, true);
-                    setStatus(payload.sessionId, 'open');
+                    setProcessing(event.sessionId, true);
+                    setStatus(event.sessionId, 'open');
                     break;
 
                 case 'llm:chunk': {
-                    const text = payload.content || '';
-                    const chunkType = payload.chunkType;
+                    const text = event.content || '';
+                    const chunkType = event.chunkType;
 
                     setMessages((ms) => {
                         if (chunkType === 'reasoning') {
@@ -309,12 +294,12 @@ export function useChat(
                 }
 
                 case 'llm:response': {
-                    setProcessing(payload.sessionId, false);
-                    const text = payload.content || '';
-                    const usage = payload.tokenUsage;
-                    const model = payload.model;
-                    const provider = payload.provider;
-                    const router = payload.router;
+                    setProcessing(event.sessionId, false);
+                    const text = event.content || '';
+                    const usage = event.tokenUsage;
+                    const model = event.model;
+                    const provider = event.provider;
+                    const router = event.router;
 
                     setMessages((ms) => {
                         const lastMsg = ms[ms.length - 1];
@@ -340,7 +325,7 @@ export function useChat(
                             new CustomEvent('dexto:response', {
                                 detail: {
                                     text,
-                                    sessionId: payload.sessionId,
+                                    sessionId: event.sessionId,
                                     tokenUsage: usage,
                                     timestamp: Date.now(),
                                 },
@@ -351,7 +336,7 @@ export function useChat(
                 }
 
                 case 'llm:tool-call': {
-                    const { toolName, args, callId } = payload;
+                    const { toolName, args, callId } = event;
                     setMessages((ms) => {
                         const newIndex = ms.length;
                         const newMessages: Message[] = [
@@ -375,7 +360,7 @@ export function useChat(
                 }
 
                 case 'llm:tool-result': {
-                    const { callId, success, sanitized, toolName } = payload;
+                    const { callId, success, sanitized, toolName } = event;
                     const result = sanitized; // Core events use 'sanitized' field
 
                     // Track tool call completion
@@ -383,7 +368,7 @@ export function useChat(
                         analyticsRef.current.trackToolCalled({
                             toolName,
                             success: success !== false,
-                            sessionId: payload.sessionId,
+                            sessionId: event.sessionId,
                         });
                     }
 
@@ -419,15 +404,15 @@ export function useChat(
 
                 case 'approval:request': {
                     // Dispatch event for ToolConfirmationHandler
-                    if (typeof window !== 'undefined' && payload) {
+                    if (typeof window !== 'undefined') {
                         window.dispatchEvent(
                             new CustomEvent('approval:request', {
                                 detail: {
-                                    approvalId: payload.approvalId,
-                                    type: payload.type, // Use 'type' field from event bus
-                                    timestamp: payload.timestamp,
-                                    metadata: payload.metadata,
-                                    sessionId: payload.sessionId,
+                                    approvalId: event.approvalId,
+                                    type: event.type,
+                                    timestamp: event.timestamp,
+                                    metadata: event.metadata,
+                                    sessionId: event.sessionId,
                                 },
                             })
                         );
@@ -437,15 +422,15 @@ export function useChat(
 
                 case 'approval:response': {
                     // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
-                    if (typeof window !== 'undefined' && payload) {
+                    if (typeof window !== 'undefined') {
                         window.dispatchEvent(
                             new CustomEvent('approval:response', {
                                 detail: {
-                                    approvalId: payload.approvalId,
-                                    status: payload.status,
-                                    reason: payload.reason,
-                                    message: payload.message,
-                                    sessionId: payload.sessionId,
+                                    approvalId: event.approvalId,
+                                    status: event.status,
+                                    reason: event.reason,
+                                    message: event.message,
+                                    sessionId: event.sessionId,
                                 },
                             })
                         );
@@ -459,20 +444,20 @@ export function useChat(
                         break;
                     }
 
-                    const errorObj = payload.error || {};
+                    const errorObj = event.error || {};
                     const message = errorObj.message || 'Unknown error';
 
-                    setError(payload.sessionId, {
+                    setError(event.sessionId, {
                         id: generateUniqueId(),
                         message,
                         timestamp: Date.now(),
-                        context: payload.context,
-                        recoverable: payload.recoverable,
-                        sessionId: payload.sessionId,
+                        context: event.context,
+                        recoverable: event.recoverable,
+                        sessionId: event.sessionId,
                         anchorMessageId: lastUserMessageIdRef.current || undefined,
                     });
-                    setProcessing(payload.sessionId, false);
-                    setStatus(payload.sessionId, 'closed');
+                    setProcessing(event.sessionId, false);
+                    setStatus(event.sessionId, 'closed');
                     break;
                 }
 
@@ -532,46 +517,16 @@ export function useChat(
             try {
                 if (stream) {
                     // Streaming mode: use /api/message-stream with SSE
-                    const client = new EventStreamClient();
-
-                    const response = await fetch(`${apiUrl}/api/message-stream`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
+                    const responsePromise = client.api['message-stream'].$post({
+                        json: {
                             message: content,
                             sessionId,
                             imageData,
                             fileData,
-                            stream: true,
-                        }),
-                        signal: abortController.signal,
+                        },
                     });
 
-                    if (!response.ok) {
-                        // Parse error response body to get actual error details
-                        const errorData = await response.json();
-                        const errorMessage =
-                            errorData.message || `Failed to send message: ${response.statusText}`;
-
-                        setError(sessionId, {
-                            id: generateUniqueId(),
-                            message: errorMessage,
-                            timestamp: Date.now(),
-                            context: 'stream',
-                            recoverable: false,
-                            sessionId,
-                            anchorMessageId: lastUserMessageIdRef.current || undefined,
-                        });
-
-                        setStatus(sessionId, 'closed');
-                        setProcessing(sessionId, false);
-                        return;
-                    }
-
-                    // Response body is the SSE stream - connect to it directly
-                    const iterator = await client.connectFromResponse(response, {
+                    const iterator = createMessageStream(responsePromise, {
                         signal: abortController.signal,
                     });
 
@@ -585,39 +540,17 @@ export function useChat(
                     setProcessing(sessionId, false);
                 } else {
                     // Non-streaming mode: use /api/message-sync and wait for full response
-                    const response = await fetch(`${apiUrl}/api/message-sync`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
+                    const response = await client.api['message-sync'].$post({
+                        json: {
                             message: content,
                             sessionId,
                             imageData,
                             fileData,
-                        }),
-                        signal: abortController.signal,
+                        },
                     });
 
                     if (!response.ok) {
-                        // Parse error response body to get actual error details
-                        const errorData = await response.json();
-                        const errorMessage =
-                            errorData.message || `Failed to send message: ${response.statusText}`;
-
-                        setError(sessionId, {
-                            id: generateUniqueId(),
-                            message: errorMessage,
-                            timestamp: Date.now(),
-                            context: 'message-sync',
-                            recoverable: false,
-                            sessionId,
-                            anchorMessageId: lastUserMessageIdRef.current || undefined,
-                        });
-
-                        setStatus(sessionId, 'closed');
-                        setProcessing(sessionId, false);
-                        return;
+                        throw new Error(`Failed to send message: ${response.status}`);
                     }
 
                     const data = await response.json();
@@ -677,7 +610,7 @@ export function useChat(
                 });
             }
         },
-        [apiUrl, processEvent, abortSession, getAbortController, setProcessing, setStatus, setError]
+        [processEvent, abortSession, getAbortController, setProcessing, setStatus, setError]
     );
 
     const reset = useCallback(
@@ -685,10 +618,8 @@ export function useChat(
             if (!sessionId) return;
 
             try {
-                await fetch(`${apiUrl}/api/reset`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId }),
+                await client.api.reset.$post({
+                    json: { sessionId },
                 });
             } catch (e) {
                 console.error('Failed to reset session', e);
@@ -700,7 +631,7 @@ export function useChat(
             pendingToolCallsRef.current.clear();
             setProcessing(sessionId, false);
         },
-        [apiUrl, setError, setProcessing]
+        [setError, setProcessing]
     );
 
     const cancel = useCallback(

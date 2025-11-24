@@ -227,9 +227,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
-    // Calculate API URL at runtime based on frontend port
-    const apiUrl = getApiUrl();
-
     // Start with no session - pure welcome state
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [isWelcomeState, setIsWelcomeState] = useState(true);
@@ -307,7 +304,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         reset: originalReset,
         setMessages,
         cancel,
-    } = useChat(apiUrl, () => currentSessionId, {
+    } = useChat(() => currentSessionId, {
         setSessionError,
         setSessionProcessing,
         setSessionStatus,

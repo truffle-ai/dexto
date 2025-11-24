@@ -138,12 +138,21 @@ export interface ServerRegistryFilter { ... }  // UI-only
   - [x] ToolResult.tsx - import ToolResult from @dexto/core, remove metadata references
 - [x] Migrate useGreeting hook - replace apiFetch with typed client
 - [x] Add typecheck script to webui package.json
+- [x] Migrate useChat hook - complete streaming and sync message endpoints
+  - [x] Replace EventStreamClient with createMessageStream from client-sdk
+  - [x] Update processEvent to use MessageStreamEvent types directly
+  - [x] Add approval:request and approval:response to StreamingEvent type in core
+  - [x] Fix message-sync type inference issue (discriminated union) by checking response.ok
+  - [x] Update server schema to use LLM_PROVIDERS and LLM_ROUTERS enums instead of z.string()
+  - [x] Replace all payload references with event references in processEvent
+  - [x] Remove apiUrl parameter from useChat signature
+  - [x] Export createMessageStream and MessageStreamEvent from client-sdk index
+- [x] Update ChatContext.tsx to remove apiUrl parameter when calling useChat
 
 ### 🚧 In Progress (Current Focus)
-- [ ] Migrate remaining hooks starting with useChat.ts
+- [ ] Continue migrating remaining hooks
 
 ### 📋 Remaining Hooks to Migrate
-- [ ] useChat.ts
 - [ ] ChatContext.tsx
 - [ ] usePrompts.ts
 - [ ] useResources.ts
@@ -172,7 +181,7 @@ export interface ServerRegistryFilter { ... }  // UI-only
 
 ## User Review Required
 
-**IMPORTANT**: Export `createMessageStream` from `@dexto/client-sdk` as it is currently missing from the main export but used in examples.
+**IMPORTANT**: Export `createMessageStream` from `@dexto/client-sdk` as it is currently missing from the main export but used in examples - DONE.
 
 ## Proposed Changes
 
