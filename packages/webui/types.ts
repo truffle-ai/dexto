@@ -20,14 +20,14 @@ export interface JsonSchema {
 export interface McpServer {
     id: string;
     name: string;
-    status: 'connected' | 'disconnected' | 'error' | 'unknown';
+    status: 'connected' | 'disconnected' | 'error';
 }
 
 export interface McpTool {
-    id: string;
+    id: string; // The server returns 'id' now (mapped from name or actual id)
     name: string;
     description?: string;
-    inputSchema?: JsonSchema | null;
+    inputSchema?: Record<string, any> | null;
 }
 
 export interface ToolResult {

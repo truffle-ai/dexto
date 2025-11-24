@@ -1,16 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client.js';
-import { queryKeys } from '@/lib/queryKeys.js';
-import type { McpServer, McpTool } from '@/types';
+import { client } from '@/lib/client';
+import { queryKeys } from '@/lib/queryKeys';
 import type { McpServerConfig } from '@dexto/core';
+import type { McpServer, McpTool } from '@/lib/api-types';
 
 // Fetch all MCP servers
 export function useServers(enabled: boolean = true) {
     return useQuery<McpServer[], Error>({
         queryKey: queryKeys.servers.all,
         queryFn: async () => {
-            const data = await apiFetch<{ servers: McpServer[] }>('/api/mcp/servers');
-            return data.servers || [];
+            const res = await client.api.mcp.servers.$get();
+            if (!res.ok) {
+                throw new Error('Failed to fetch servers');
+            }
+            const data = await res.json();
+            // Server response type matches McpServer[] exactly - no transformation needed
+            return data.servers;
         },
         enabled,
     });
@@ -22,8 +27,15 @@ export function useServerTools(serverId: string | null, enabled: boolean = true)
         queryKey: queryKeys.servers.tools(serverId || ''),
         queryFn: async () => {
             if (!serverId) return [];
-            const data = await apiFetch<{ tools: McpTool[] }>(`/api/mcp/servers/${serverId}/tools`);
-            return data.tools || [];
+            const res = await client.api.mcp.servers[':serverId'].tools.$get({
+                param: { serverId },
+            });
+            if (!res.ok) {
+                throw new Error('Failed to fetch tools');
+            }
+            const data = await res.json();
+            // Server response type matches McpTool[] exactly - no transformation needed
+            return data.tools;
         },
         enabled: enabled && !!serverId,
     });
@@ -39,10 +51,17 @@ export function useAddServer() {
             config: Partial<McpServerConfig> & { type?: 'stdio' | 'sse' | 'http' };
             persistToAgent?: boolean;
         }) => {
-            await apiFetch('/api/mcp/servers', {
-                method: 'POST',
-                body: JSON.stringify(payload),
+            const res = await client.api.mcp.servers.$post({
+                json: {
+                    name: payload.name,
+                    config: payload.config as McpServerConfig, // Cast to match expected type
+                    persistToAgent: payload.persistToAgent,
+                },
             });
+            if (!res.ok) {
+                const error = await res.text();
+                throw new Error(error || 'Failed to add server');
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
@@ -57,7 +76,12 @@ export function useDeleteServer() {
 
     return useMutation({
         mutationFn: async (serverId: string) => {
-            await apiFetch(`/api/mcp/servers/${serverId}`, { method: 'DELETE' });
+            const res = await client.api.mcp.servers[':serverId'].$delete({
+                param: { serverId },
+            });
+            if (!res.ok) {
+                throw new Error('Failed to delete server');
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
@@ -72,7 +96,12 @@ export function useRestartServer() {
 
     return useMutation({
         mutationFn: async (serverId: string) => {
-            await apiFetch(`/api/mcp/servers/${serverId}/restart`, { method: 'POST' });
+            const res = await client.api.mcp.servers[':serverId'].restart.$post({
+                param: { serverId },
+            });
+            if (!res.ok) {
+                throw new Error('Failed to restart server');
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
