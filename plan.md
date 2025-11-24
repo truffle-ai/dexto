@@ -119,6 +119,56 @@ export interface ServerRegistryFilter { ... }  // UI-only
 
 **Result**: End-to-end type safety with ZERO duplication. Server schemas are the single source of truth.
 
+## Migration Progress
+
+### ✅ Completed
+- [x] Fix core self-referencing import (api-key-resolver.ts)
+- [x] Update server schema to use z.output types (mcp.ts - ServerInfoSchema)
+- [x] Add proper ToolInputSchemaSchema with properties/required fields
+- [x] Migrate useServers hook - remove explicit types
+- [x] Migrate useServerTools hook - remove explicit types
+- [x] Update ServersPanel.tsx - remove 'unknown' status references
+- [x] Clean up types.ts - remove McpServer, McpTool, ToolResult, etc.
+- [x] Update Playground components to inline type inference:
+  - [x] PlaygroundView.tsx
+  - [x] ToolInputForm.tsx
+  - [x] ToolsList.tsx
+
+### 🚧 In Progress (Current Focus)
+- [ ] Fix remaining Playground build errors
+- [ ] Update remaining Playground components:
+  - [ ] ServersList.tsx
+  - [ ] ToolResult.tsx
+
+### 📋 Remaining Hooks to Migrate
+- [ ] useChat.ts
+- [ ] useGreeting.ts
+- [ ] ChatContext.tsx
+- [ ] usePrompts.ts
+- [ ] useResources.ts
+- [ ] useSessions.ts
+- [ ] useAgentConfig.ts
+- [ ] useResourceContent.ts
+- [ ] useSearch.ts
+
+### 📋 Remaining Components to Migrate
+- [ ] ChatApp.tsx
+- [ ] InputArea.tsx
+- [ ] SessionPanel.tsx
+- [ ] MemoryPanel.tsx
+- [ ] CreatePromptModal.tsx
+- [ ] CreateMemoryModal.tsx
+- [ ] ApiKeyModal.tsx
+- [ ] AgentSelector/CreateAgentModal.tsx
+- [ ] ModelPicker/ModelPickerModal.tsx
+- [ ] ToolConfirmationHandler.tsx
+- [ ] AgentSelector/AgentSelector.tsx
+- [ ] lib/serverRegistry.ts
+
+### 🗑️ Final Cleanup
+- [ ] Remove apiFetch completely from api-client.ts
+- [ ] Export createMessageStream from client-sdk
+
 ## User Review Required
 
 **IMPORTANT**: Export `createMessageStream` from `@dexto/client-sdk` as it is currently missing from the main export but used in examples.
