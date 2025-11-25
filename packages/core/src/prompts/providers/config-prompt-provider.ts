@@ -1,0 +1,396 @@
+import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
+import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
+import type { ValidatedAgentConfig } from '../../agent/schemas.js';
+import type { ValidatedPrompt, ValidatedInlinePrompt, ValidatedFilePrompt } from '../schemas.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
+import { PromptError } from '../errors.js';
+import { expandPlaceholders } from '../utils.js';
+import { assertValidPromptName } from '../name-validation.js';
+import { readFile, realpath } from 'fs/promises';
+import { existsSync } from 'fs';
+import { dirname, relative, sep } from 'path';
+
+/**
+ * Config Prompt Provider - Unified provider for prompts from agent configuration
+ *
+ * Handles both inline prompts (text defined directly in config) and file-based prompts
+ * (loaded from markdown files). This replaces the old StarterPromptProvider and
+ * FilePromptProvider with a single, unified approach.
+ *
+ * Prompts with showInStarters: true are displayed as clickable buttons in the WebUI.
+ */
+export class ConfigPromptProvider implements PromptProvider {
+    private prompts: ValidatedPrompt[] = [];
+    private promptsCache: PromptInfo[] = [];
+    private promptContent: Map<string, string> = new Map();
+    private cacheValid: boolean = false;
+    private logger: IDextoLogger;
+
+    constructor(agentConfig: ValidatedAgentConfig, logger: IDextoLogger) {
+        this.logger = logger.createChild(DextoLogComponent.PROMPT);
+        this.prompts = agentConfig.prompts;
+        this.buildPromptsCache();
+    }
+
+    getSource(): string {
+        return 'config';
+    }
+
+    invalidateCache(): void {
+        this.cacheValid = false;
+        this.promptsCache = [];
+        this.promptContent.clear();
+        this.logger.debug('ConfigPromptProvider cache invalidated');
+    }
+
+    updateConfig(agentConfig: ValidatedAgentConfig): void {
+        this.prompts = agentConfig.prompts;
+        this.invalidateCache();
+        this.buildPromptsCache();
+    }
+
+    async listPrompts(_cursor?: string): Promise<PromptListResult> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        return {
+            prompts: this.promptsCache,
+        };
+    }
+
+    async getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        const promptInfo = this.promptsCache.find((p) => p.name === name);
+        if (!promptInfo) {
+            throw PromptError.notFound(name);
+        }
+
+        let content = this.promptContent.get(name);
+        if (!content) {
+            throw PromptError.missingText();
+        }
+
+        // Apply arguments
+        content = this.applyArguments(content, args);
+
+        return {
+            description: promptInfo.description,
+            messages: [
+                {
+                    role: 'user',
+                    content: {
+                        type: 'text',
+                        text: content,
+                    },
+                },
+            ],
+        };
+    }
+
+    async getPromptDefinition(name: string): Promise<PromptDefinition | null> {
+        if (!this.cacheValid) {
+            await this.buildPromptsCache();
+        }
+
+        const promptInfo = this.promptsCache.find((p) => p.name === name);
+        if (!promptInfo) {
+            return null;
+        }
+
+        return {
+            name: promptInfo.name,
+            ...(promptInfo.title && { title: promptInfo.title }),
+            ...(promptInfo.description && { description: promptInfo.description }),
+            ...(promptInfo.arguments && { arguments: promptInfo.arguments }),
+        };
+    }
+
+    private async buildPromptsCache(): Promise<void> {
+        const cache: PromptInfo[] = [];
+        const contentMap = new Map<string, string>();
+
+        for (const prompt of this.prompts) {
+            try {
+                if (prompt.type === 'inline') {
+                    const { info, content } = this.processInlinePrompt(prompt);
+                    cache.push(info);
+                    contentMap.set(info.name, content);
+                } else if (prompt.type === 'file') {
+                    const result = await this.processFilePrompt(prompt);
+                    if (result) {
+                        cache.push(result.info);
+                        contentMap.set(result.info.name, result.content);
+                    }
+                }
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to process prompt: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        // Sort by priority (higher numbers first)
+        cache.sort((a, b) => {
+            const priorityA = (a.metadata?.priority as number) ?? 0;
+            const priorityB = (b.metadata?.priority as number) ?? 0;
+            return priorityB - priorityA;
+        });
+
+        this.promptsCache = cache;
+        this.promptContent = contentMap;
+        this.cacheValid = true;
+
+        this.logger.debug(`Cached ${cache.length} config prompts`);
+    }
+
+    private processInlinePrompt(prompt: ValidatedInlinePrompt): {
+        info: PromptInfo;
+        content: string;
+    } {
+        const promptName = `config:${prompt.id}`;
+        const promptInfo: PromptInfo = {
+            name: promptName,
+            title: prompt.title,
+            description: prompt.description,
+            source: 'config',
+            metadata: {
+                type: 'inline',
+                category: prompt.category,
+                priority: prompt.priority,
+                showInStarters: prompt.showInStarters,
+                originalId: prompt.id,
+            },
+        };
+
+        return { info: promptInfo, content: prompt.prompt };
+    }
+
+    private async processFilePrompt(
+        prompt: ValidatedFilePrompt
+    ): Promise<{ info: PromptInfo; content: string } | null> {
+        const filePath = prompt.file;
+
+        if (!existsSync(filePath)) {
+            this.logger.warn(`Prompt file not found: ${filePath}`);
+            return null;
+        }
+
+        // Security: Validate file path to prevent symlink escapes
+        try {
+            const resolvedDir = await realpath(dirname(filePath));
+            const resolvedFile = await realpath(filePath);
+
+            // Check if resolved file is within the expected directory
+            const rel = relative(resolvedDir, resolvedFile);
+            if (rel.startsWith('..' + sep) || rel === '..') {
+                this.logger.warn(
+                    `Skipping prompt file '${filePath}': path traversal attempt detected (resolved outside directory)`
+                );
+                return null;
+            }
+        } catch (realpathError) {
+            this.logger.warn(
+                `Skipping prompt file '${filePath}': unable to resolve path (${realpathError instanceof Error ? realpathError.message : String(realpathError)})`
+            );
+            return null;
+        }
+
+        try {
+            const rawContent = await readFile(filePath, 'utf-8');
+            const parsed = this.parseMarkdownPrompt(rawContent, filePath);
+
+            // Validate the parsed prompt name
+            try {
+                assertValidPromptName(parsed.id, {
+                    context: `file prompt '${filePath}'`,
+                    hint: "Use kebab-case in the 'id:' frontmatter field or file name.",
+                });
+            } catch (validationError) {
+                this.logger.warn(
+                    `Invalid prompt name in '${filePath}': ${validationError instanceof Error ? validationError.message : String(validationError)}`
+                );
+                return null;
+            }
+
+            const promptInfo: PromptInfo = {
+                name: `config:${parsed.id}`,
+                title: parsed.title,
+                description: parsed.description,
+                source: 'config',
+                ...(parsed.arguments && { arguments: parsed.arguments }),
+                metadata: {
+                    type: 'file',
+                    filePath: filePath,
+                    category: parsed.category,
+                    priority: parsed.priority,
+                    showInStarters: prompt.showInStarters,
+                    originalId: parsed.id,
+                },
+            };
+
+            return { info: promptInfo, content: parsed.content };
+        } catch (error) {
+            this.logger.warn(
+                `Failed to read prompt file ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return null;
+        }
+    }
+
+    private parseMarkdownPrompt(
+        rawContent: string,
+        filePath: string
+    ): {
+        id: string;
+        title: string;
+        description: string;
+        content: string;
+        category?: string;
+        priority?: number;
+        arguments?: Array<{ name: string; required: boolean; description?: string }>;
+    } {
+        const lines = rawContent.trim().split('\n');
+        const fileName = filePath.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
+
+        let id = fileName;
+        let title = fileName;
+        let description = `File prompt: ${fileName}`;
+        let category: string | undefined;
+        let priority: number | undefined;
+        let argumentHint: string | undefined;
+        let contentBody: string;
+
+        // Parse frontmatter if present
+        if (lines[0]?.trim() === '---') {
+            let frontmatterEnd = 0;
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i]?.trim() === '---') {
+                    frontmatterEnd = i;
+                    break;
+                }
+            }
+
+            if (frontmatterEnd > 0) {
+                const frontmatterLines = lines.slice(1, frontmatterEnd);
+                contentBody = lines.slice(frontmatterEnd + 1).join('\n');
+
+                for (const line of frontmatterLines) {
+                    const match = (key: string) => {
+                        const regex = new RegExp(`${key}:\\s*(?:['"](.+)['"]|(.+))`);
+                        const m = line.match(regex);
+                        return m ? (m[1] || m[2] || '').trim() : null;
+                    };
+
+                    if (line.includes('id:')) {
+                        const val = match('id');
+                        if (val) id = val;
+                    } else if (line.includes('title:')) {
+                        const val = match('title');
+                        if (val) title = val;
+                    } else if (line.includes('description:')) {
+                        const val = match('description');
+                        if (val) description = val;
+                    } else if (line.includes('category:')) {
+                        const val = match('category');
+                        if (val) category = val;
+                    } else if (line.includes('priority:')) {
+                        const val = match('priority');
+                        if (val) priority = parseInt(val, 10);
+                    } else if (line.includes('argument-hint:')) {
+                        const val = match('argument-hint');
+                        if (val) argumentHint = val;
+                    }
+                }
+            } else {
+                contentBody = rawContent;
+            }
+        } else {
+            contentBody = rawContent;
+        }
+
+        // Extract title from first heading if not in frontmatter
+        if (title === fileName) {
+            for (const line of contentBody.trim().split('\n')) {
+                if (line.trim().startsWith('#')) {
+                    title = line.trim().replace(/^#+\s*/, '');
+                    break;
+                }
+            }
+        }
+
+        // Parse argument hints into structured arguments
+        const parsedArguments = argumentHint ? this.parseArgumentHint(argumentHint) : undefined;
+
+        return {
+            id,
+            title,
+            description,
+            content: contentBody.trim(),
+            ...(category !== undefined && { category }),
+            ...(priority !== undefined && { priority }),
+            ...(parsedArguments !== undefined && { arguments: parsedArguments }),
+        };
+    }
+
+    private parseArgumentHint(
+        hint: string
+    ): Array<{ name: string; required: boolean; description?: string }> {
+        const args: Array<{ name: string; required: boolean; description?: string }> = [];
+        const argPattern = /\[([^\]]+)\]/g;
+        let match;
+
+        while ((match = argPattern.exec(hint)) !== null) {
+            const argText = match[1];
+            if (!argText) continue;
+
+            const isOptional = argText.endsWith('?');
+            const name = isOptional ? argText.slice(0, -1).trim() : argText.trim();
+
+            if (name) {
+                args.push({
+                    name,
+                    required: !isOptional,
+                });
+            }
+        }
+
+        return args;
+    }
+
+    private applyArguments(content: string, args?: Record<string, unknown>): string {
+        // Detect whether content uses positional placeholders
+        const detectionTarget = content.replaceAll('$$', '');
+        const usesPositionalPlaceholders =
+            /\$[1-9](?!\d)/.test(detectionTarget) || detectionTarget.includes('$ARGUMENTS');
+
+        // First expand positional placeholders
+        const expanded = expandPlaceholders(content, args).trim();
+
+        if (!args || typeof args !== 'object' || Object.keys(args).length === 0) {
+            return expanded;
+        }
+
+        // If the prompt doesn't use placeholders, append formatted arguments
+        if (!usesPositionalPlaceholders) {
+            if ((args as Record<string, unknown>)._context) {
+                const contextString = String((args as Record<string, unknown>)._context);
+                return `${expanded}\n\nContext: ${contextString}`;
+            }
+
+            const argEntries = Object.entries(args).filter(([key]) => !key.startsWith('_'));
+            if (argEntries.length > 0) {
+                const formattedArgs = argEntries
+                    .map(([key, value]) => `${key}: ${value}`)
+                    .join(', ');
+                return `${expanded}\n\nArguments: ${formattedArgs}`;
+            }
+        }
+
+        return expanded;
+    }
+}

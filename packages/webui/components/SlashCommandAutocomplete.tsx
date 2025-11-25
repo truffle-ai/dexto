@@ -35,8 +35,8 @@ const PromptItem = ({
             <div className="flex-shrink-0 mt-0.5">
                 {prompt.source === 'mcp' ? (
                     <Zap className="h-3 w-3 text-blue-400" />
-                ) : prompt.source === 'starter' ? (
-                    <span className="text-xs">🚀</span>
+                ) : prompt.source === 'config' ? (
+                    <span className="text-xs">📋</span>
                 ) : (
                     <Sparkles className="h-3 w-3 text-purple-400" />
                 )}
@@ -77,9 +77,9 @@ const PromptItem = ({
                             MCP
                         </Badge>
                     )}
-                    {prompt.source === 'file' && (
+                    {prompt.source === 'config' && (
                         <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-4">
-                            File
+                            Config
                         </Badge>
                     )}
                     {prompt.source === 'custom' && (
@@ -88,14 +88,6 @@ const PromptItem = ({
                             className="text-xs px-1.5 py-0.5 h-4 bg-primary/10 text-primary border-primary/20"
                         >
                             Custom
-                        </Badge>
-                    )}
-                    {prompt.source === 'starter' && (
-                        <Badge
-                            variant="outline"
-                            className="text-xs px-1.5 py-0.5 h-4 bg-primary/10 text-primary border-primary/20"
-                        >
-                            Starter
                         </Badge>
                     )}
                 </div>

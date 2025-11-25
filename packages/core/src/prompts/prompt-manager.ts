@@ -4,8 +4,7 @@ import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
-import { FilePromptProvider } from './providers/file-prompt-provider.js';
-import { StarterPromptProvider } from './providers/starter-prompt-provider.js';
+import { ConfigPromptProvider } from './providers/config-prompt-provider.js';
 import {
     CustomPromptProvider,
     type CreateCustomPromptInput,
@@ -41,8 +40,7 @@ export class PromptManager {
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
         this.providers.set('mcp', new MCPPromptProvider(mcpManager, this.logger));
-        this.providers.set('file', new FilePromptProvider({ resourceManager }, this.logger));
-        this.providers.set('starter', new StarterPromptProvider(agentConfig, this.logger));
+        this.providers.set('config', new ConfigPromptProvider(agentConfig, this.logger));
         this.providers.set(
             'custom',
             new CustomPromptProvider(this.database, resourceManager, this.logger)

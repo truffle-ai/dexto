@@ -95,7 +95,45 @@ export const ListMemoriesOptionsSchema = z
     .strict()
     .describe('Options for listing memories');
 
+/**
+ * Configuration schema for memory inclusion in system prompts.
+ * This is a top-level agent config field that controls how memories
+ * are injected into the system prompt.
+ */
+export const MemoriesConfigSchema = z
+    .object({
+        enabled: z
+            .boolean()
+            .default(false)
+            .describe('Whether to include memories in system prompt (optional'),
+        priority: z
+            .number()
+            .int()
+            .nonnegative()
+            .default(40)
+            .describe('Priority in system prompt (lower = earlier)'),
+        includeTimestamps: z
+            .boolean()
+            .default(false)
+            .describe('Whether to include timestamps in memory display'),
+        includeTags: z
+            .boolean()
+            .default(true)
+            .describe('Whether to include tags in memory display'),
+        limit: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Maximum number of memories to include'),
+        pinnedOnly: z.boolean().default(false).describe('Only include pinned memories'),
+    })
+    .strict()
+    .describe('Memory configuration for system prompt inclusion');
+
 export type ValidatedMemory = z.output<typeof MemorySchema>;
 export type ValidatedCreateMemoryInput = z.output<typeof CreateMemoryInputSchema>;
 export type ValidatedUpdateMemoryInput = z.output<typeof UpdateMemoryInputSchema>;
 export type ValidatedListMemoriesOptions = z.output<typeof ListMemoriesOptionsSchema>;
+export type MemoriesConfig = z.input<typeof MemoriesConfigSchema>;
+export type ValidatedMemoriesConfig = z.output<typeof MemoriesConfigSchema>;

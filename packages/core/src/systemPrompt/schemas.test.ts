@@ -163,7 +163,7 @@ You can help with:
         });
 
         it('should validate dynamic contributor source enum', () => {
-            const validSources = ['dateTime', 'memorySummary', 'resources'];
+            const validSources = ['dateTime', 'resources'];
 
             for (const source of validSources) {
                 const validConfig = {

@@ -73,7 +73,7 @@ Configuration for Large Language Model providers.
 
 ```typescript
 interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'groq' | 'google' | 'cohere';
+  provider: 'openai' | 'anthropic' | 'google' | 'groq' | 'xai' | 'cohere' | 'openai-compatible';
   model: string;
   apiKey?: string;
   baseURL?: string;
@@ -92,12 +92,14 @@ Configuration for Model Context Protocol servers.
 
 ```typescript
 interface McpServerConfig {
-  type: 'stdio' | 'sse';
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
-  apiKey?: string;
+  type: 'stdio' | 'sse' | 'http';
+  command?: string;       // Required for stdio
+  args?: string[];        // For stdio
+  env?: Record<string, string>;  // For stdio
+  url?: string;           // Required for sse/http
+  headers?: Record<string, string>;  // For sse/http
+  timeout?: number;       // Default: 30000
+  connectionMode?: 'strict' | 'lenient';  // Default: 'lenient'
 }
 ```
 

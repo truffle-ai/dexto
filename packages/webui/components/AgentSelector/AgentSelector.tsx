@@ -231,7 +231,10 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 // Step 1: Install the agent
                 await installAgentMutation.mutateAsync({ id: agentId });
 
-                // Step 2: Verify agent is now in installed list
+                // Step 2: Refetch agents list to ensure cache has fresh data
+                await queryClient.refetchQueries({ queryKey: queryKeys.agents.all });
+
+                // Step 3: Verify agent is now in installed list
                 const freshData = queryClient.getQueryData<AgentsResponse>(queryKeys.agents.all);
                 const agent = freshData?.installed.find((a) => a.id === agentId);
                 if (!agent) {
@@ -240,12 +243,12 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     );
                 }
 
-                // Step 3: Switch to the newly installed agent
+                // Step 4: Switch to the newly installed agent
                 await switchAgentMutation.mutateAsync({ id: agentId });
 
                 setOpen(false);
 
-                // Step 4: Track the switch analytics
+                // Step 5: Track the switch analytics
                 analyticsRef.current.trackAgentSwitched({
                     fromAgentId,
                     toAgentId: agentId,
@@ -253,7 +256,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     sessionId: currentSessionId || undefined,
                 });
 
-                // Step 5: Dispatch event
+                // Step 6: Dispatch event
                 try {
                     window.dispatchEvent(
                         new CustomEvent('dexto:agentSwitched', {
@@ -262,7 +265,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     );
                 } catch {}
 
-                // Step 6: Navigate to home
+                // Step 7: Navigate to home
                 // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
                 router.push('/');
             } catch (err) {

@@ -234,6 +234,7 @@ export async function createAgentServices(
         config.systemPrompt,
         configDir,
         memoryManager,
+        config.memories,
         logger
     );
 

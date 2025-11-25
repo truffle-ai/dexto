@@ -21,8 +21,11 @@ You can use either a simple string for basic scenarios or an advanced multi-cont
 - Static instructions for consistent behavior
 - Dynamic context (date/time, MCP resources)
 - File-based documentation inclusion
-- User memory integration
 - Priority-based content ordering
+
+:::tip Memory Configuration
+For user memory integration, use the top-level [`memories`](./agent-yml.md#memories) configuration instead of system prompt contributors.
+:::
 
 ## Configuration Types
 
@@ -66,13 +69,10 @@ systemPrompt:
         includeFilenames: true
         errorHandling: "skip"
 
-    - id: user-context
-      type: memory
-      priority: 30
-      options:
-        pinnedOnly: true
-        limit: 10
-        includeTags: true
+# Memory is configured separately at the top level
+memories:
+  enabled: true
+  limit: 10
 ```
 
 ## Contributor Types
@@ -120,20 +120,6 @@ Include external documentation files (`.md` and `.txt` only):
 
 **Path resolution:** Relative paths are resolved from the config file location.
 
-### Memory Contributors
-Include user memories from the memory system:
-
-```yaml
-- id: user-memories
-  type: memory
-  priority: 30
-  options:
-    pinnedOnly: false
-    limit: 20
-    includeTimestamps: true
-    includeTags: true
-```
-
 ## Priority Ordering
 
 Contributors execute in ascending priority order (1 → 100+). Lower numbers appear first in the final system prompt.
@@ -141,7 +127,7 @@ Contributors execute in ascending priority order (1 → 100+). Lower numbers app
 **Recommended ranges:**
 - **1-10:** Core behavior and role definition
 - **10-50:** Dynamic context (time, resources)
-- **50-100:** User memories and custom instructions
+- **50-100:** File-based documentation
 - **100+:** Additional context and overrides
 
 ## Use Cases
@@ -150,9 +136,9 @@ Contributors execute in ascending priority order (1 → 100+). Lower numbers app
 |----------|---------------------|
 | Simple chatbot | Single string prompt |
 | Development assistant | Static + File contributors for guidelines |
-| Customer support | Static + Memory for user preferences |
+| Customer support | Static + top-level `memories` config |
 | Research agent | Static + Dynamic (resources) for live data |
-| Personal assistant | All types for maximum context |
+| Personal assistant | Static + File + Dynamic + `memories` config |
 
 ## Examples
 
@@ -182,13 +168,10 @@ systemPrompt:
       content: |
         You are a customer support assistant.
         Always be polite, professional, and solution-oriented.
-    - id: user-context
-      type: memory
-      priority: 20
-      options:
-        pinnedOnly: true
-        includeTags: true
-        limit: 10
+
+memories:
+  enabled: true
+  limit: 10
 ```
 
 ## Best Practices
@@ -197,8 +180,8 @@ systemPrompt:
 2. **Use priority ordering** - Structure from general (role) to specific (context)
 3. **Test behavior** - Validate that prompts produce desired agent responses
 4. **File contributors for docs** - Keep large documentation in separate files
-5. **Memory for personalization** - Use memory contributors for user-specific context
-6. **Enable resources selectively** - MCP resources can be large; only enable when needed
+5. **Enable resources selectively** - MCP resources can be large; only enable when needed
+6. **Use top-level memories** - Configure memory retrieval via the `memories` config field
 
 ## See Also
 

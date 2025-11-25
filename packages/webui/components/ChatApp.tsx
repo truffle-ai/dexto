@@ -146,7 +146,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         enabled: isWelcomeState,
     });
 
-    const starterPrompts = promptsData.filter((prompt) => prompt.source === 'starter');
+    // Filter prompts with showInStarters metadata flag
+    const starterPrompts = promptsData.filter((prompt) => prompt.metadata?.showInStarters === true);
     const starterPromptsLoaded = !promptsLoading;
 
     // Listen for agent switch events to invalidate prompts cache

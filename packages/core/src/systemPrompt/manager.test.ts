@@ -11,7 +11,7 @@ import * as path from 'path';
 // Mock the registry functions
 vi.mock('./registry.js', () => ({
     getPromptGenerator: vi.fn(),
-    PROMPT_GENERATOR_SOURCES: ['dateTime', 'memorySummary', 'resources'],
+    PROMPT_GENERATOR_SOURCES: ['dateTime', 'resources'],
 }));
 
 const mockGetPromptGenerator = vi.mocked(registry.getPromptGenerator);
@@ -47,7 +47,6 @@ describe('SystemPromptManager', () => {
         mockGetPromptGenerator.mockImplementation((source) => {
             const mockGenerators: Record<string, any> = {
                 dateTime: vi.fn().mockResolvedValue('Mock DateTime'),
-                memorySummary: vi.fn().mockResolvedValue('Mock Memory'),
                 resources: vi.fn().mockResolvedValue('Mock Resources'),
             };
             return mockGenerators[source];
@@ -65,6 +64,7 @@ describe('SystemPromptManager', () => {
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
 
@@ -80,6 +80,7 @@ describe('SystemPromptManager', () => {
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
 
@@ -114,6 +115,7 @@ describe('SystemPromptManager', () => {
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const contributors = manager.getContributors();
@@ -147,6 +149,7 @@ describe('SystemPromptManager', () => {
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const contributors = manager.getContributors();
@@ -168,6 +171,7 @@ describe('SystemPromptManager', () => {
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const contributors = manager.getContributors();
@@ -196,6 +200,7 @@ describe('SystemPromptManager', () => {
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -226,6 +231,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -254,6 +260,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -272,14 +279,20 @@ You can help with:
                         id: 'unknownSource',
                         type: 'dynamic',
                         priority: 10,
-                        source: 'memorySummary', // valid enum but mock returns undefined
+                        source: 'dateTime', // valid enum but mock returns undefined
                     },
                 ],
             });
 
             const error = (() => {
                 try {
-                    new SystemPromptManager(config, process.cwd(), mockMemoryManager, mockLogger);
+                    new SystemPromptManager(
+                        config,
+                        process.cwd(),
+                        mockMemoryManager,
+                        undefined,
+                        mockLogger
+                    );
                     return null;
                 } catch (e) {
                     return e;
@@ -312,6 +325,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -346,6 +360,7 @@ You can help with:
                 config,
                 '/custom/config/dir',
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const contributors = manager.getContributors();
@@ -372,6 +387,7 @@ You can help with:
                 config,
                 customConfigDir,
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
 
@@ -406,6 +422,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -439,6 +456,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -462,6 +480,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -481,6 +500,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const result = await manager.build(mockContext);
@@ -513,6 +533,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             await manager.build(customContext);
@@ -535,6 +556,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
 
@@ -552,6 +574,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             expect(manager.getContributors()).toHaveLength(1);
@@ -576,6 +599,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
 
@@ -622,6 +646,7 @@ You can help with:
                 config,
                 process.cwd(),
                 mockMemoryManager,
+                undefined,
                 mockLogger
             );
             const contributors = manager.getContributors();

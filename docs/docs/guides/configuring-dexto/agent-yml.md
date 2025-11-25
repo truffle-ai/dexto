@@ -25,9 +25,10 @@ Complete reference for all agent.yml configuration options.
 14. [Agent Identity / A2A](#agent-identity--a2a)
 15. [Agent ID](#agent-id)
 16. [Dynamic Changes](#dynamic-changes)
-17. [Starter Prompts](#starter-prompts)
-18. [Greeting](#greeting)
-19. [Global Preferences](#global-preferences)
+17. [Prompts](#prompts)
+18. [Memories](#memories)
+19. [Greeting](#greeting)
+20. [Global Preferences](#global-preferences)
 
 ## Minimal Configuration
 
@@ -64,13 +65,6 @@ systemPrompt:
       type: dynamic
       priority: 10
       source: dateTime
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        includeTags: true
-        limit: 10
 
 # MCP Servers
 mcpServers:
@@ -175,13 +169,21 @@ agentCard:
     streaming: true
     pushNotifications: false
 
-# Starter Prompts
-starterPrompts:
-  - id: quick-start
+# Prompts
+prompts:
+  - type: inline
+    id: quick-start
     title: "📚 Quick Start"
     prompt: "Show me what you can do!"
     category: learning
     priority: 9
+    showInStarters: true
+
+# Memories
+memories:
+  enabled: true
+  priority: 40
+  limit: 10
 
 # Greeting
 greeting: "Hello! I'm ready to help you today."
@@ -201,7 +203,7 @@ Language model provider and settings.
 
 ```yaml
 llm:
-  provider: string              # Required: openai | anthropic | google | groq | openai-compatible
+  provider: string              # Required: openai | anthropic | google | groq | xai | cohere | openai-compatible
   model: string                 # Required
   apiKey: string                # Required: API key or $ENV_VAR
   maxIterations: number         # Optional, default: 50
@@ -239,7 +241,7 @@ llm:
 ## System Prompt Configuration
 
 :::info Guides
-See **[System Prompt Guide](./systemPrompt)** and **[Memory Configuration](./memory)** for detailed explanations.
+See **[System Prompt Guide](./systemPrompt)** for detailed explanations. For memory integration, see **[Memories](#memories)**.
 :::
 
 Agent behavior and personality.
@@ -255,7 +257,7 @@ systemPrompt: |
 systemPrompt:
   contributors:
     - id: string                  # Required, unique
-      type: static | dynamic | file | memory
+      type: static | dynamic | file
       priority: number            # Lower runs first
       enabled: boolean            # Optional, default: true
 ```
@@ -286,16 +288,6 @@ systemPrompt:
     separator: string
     errorHandling: skip | error
     maxFileSize: number
-
-# Memory
-- id: context
-  type: memory
-  priority: 30
-  options:
-    pinnedOnly: boolean
-    limit: number
-    includeTimestamps: boolean
-    includeTags: boolean
 ```
 
 ## MCP Servers
@@ -874,37 +866,115 @@ agentId: custom-id-123
 
 Use this when you need explicit control over storage isolation or have multiple instances of the same agent.
 
-## Starter Prompts
+## Prompts
 
-Clickable prompt buttons for WebUI.
+Reusable prompts that can be defined inline or loaded from markdown files. Prompts with `showInStarters: true` appear as clickable buttons in the WebUI.
 
 ### Schema
 
 ```yaml
-starterPrompts:
-  - id: string                  # Required, kebab-case, max 64 chars
+prompts:
+  # Inline prompt (text defined in config)
+  - type: inline
+    id: string                  # Required, kebab-case, max 64 chars
     title: string               # Optional, defaults to formatted id
     description: string         # Optional
-    prompt: string              # Required
+    prompt: string              # Required, the prompt content
     category: string            # Optional, default: "general"
     priority: number            # Optional, default: 0, higher appears first
+    showInStarters: boolean     # Optional, default: false, show in WebUI starter buttons
+
+  # File-based prompt (loaded from markdown file)
+  - type: file
+    file: string                # Required, path to markdown file
+    showInStarters: boolean     # Optional, default: false
+```
+
+### Inline Prompt Example
+
+```yaml
+prompts:
+  - type: inline
+    id: quick-start
+    title: "📚 Quick Start Guide"
+    prompt: "Show me what you can do and how to work with you"
+    category: learning
+    priority: 9
+    showInStarters: true
+
+  - type: inline
+    id: tool-demo
+    title: "⚡ Tool Demonstration"
+    prompt: "Pick an interesting tool and demonstrate it with a practical example"
+    category: tools
+    priority: 5
+    showInStarters: true
+```
+
+### File-Based Prompt Example
+
+File-based prompts are loaded from markdown files with optional frontmatter:
+
+```yaml
+prompts:
+  - type: file
+    file: "${{dexto.agent_dir}}/prompts/code-review.md"
+    showInStarters: true
+```
+
+The markdown file can include frontmatter for metadata:
+
+```markdown
+---
+id: code-review
+title: "Code Review Assistant"
+description: "Review code for best practices and issues"
+category: development
+priority: 10
+argument-hint: "[file-path] [focus-area?]"
+---
+
+# Code Review
+
+Please review the following code for:
+- Best practices
+- Potential bugs
+- Performance issues
+
+$ARGUMENTS
+```
+
+### Placeholder Syntax
+
+Prompts support placeholder expansion:
+- `$1`, `$2`, etc. - Positional arguments
+- `$ARGUMENTS` - All arguments joined with spaces
+- `$$` - Literal dollar sign
+
+## Memories
+
+Top-level configuration for memory retrieval in system prompts.
+
+### Schema
+
+```yaml
+memories:
+  enabled: boolean              # Default: false
+  priority: number              # Default: 40, lower = earlier in prompt
+  limit: number                 # Optional, max memories to include
+  includeTimestamps: boolean    # Default: false
+  includeTags: boolean          # Default: true
+  pinnedOnly: boolean           # Default: false, only include pinned memories
 ```
 
 ### Example
 
 ```yaml
-starterPrompts:
-  - id: quick-start
-    title: "📚 Quick Start Guide"
-    prompt: "Show me what you can do and how to work with you"
-    category: learning
-    priority: 9
-
-  - id: tool-demo
-    title: "⚡ Tool Demonstration"
-    prompt: "Pick an interesting tool and demonstrate it with a practical example"
-    category: tools
-    priority: 5
+memories:
+  enabled: true
+  priority: 40
+  limit: 15
+  pinnedOnly: false
 ```
 
 ## Greeting

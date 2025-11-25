@@ -7,14 +7,13 @@ import { DynamicContributorContext } from './types.js';
 export type DynamicPromptGenerator = (context: DynamicContributorContext) => Promise<string>;
 
 // Available dynamic prompt generator sources
-export const PROMPT_GENERATOR_SOURCES = ['dateTime', 'memorySummary', 'resources'] as const;
+export const PROMPT_GENERATOR_SOURCES = ['dateTime', 'resources'] as const;
 
 export type PromptGeneratorSource = (typeof PROMPT_GENERATOR_SOURCES)[number];
 
 // Registry mapping sources to their generator functions
 export const PROMPT_GENERATOR_REGISTRY: Record<PromptGeneratorSource, DynamicPromptGenerator> = {
     dateTime: handlers.getCurrentDateTime,
-    memorySummary: handlers.getMemorySummary,
     resources: handlers.getResourceData,
 };
 

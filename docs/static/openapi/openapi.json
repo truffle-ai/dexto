@@ -7420,8 +7420,7 @@
                             "type": "string",
                             "enum": [
                               "mcp",
-                              "file",
-                              "starter",
+                              "config",
                               "custom"
                             ],
                             "description": "Source of the prompt"
@@ -7602,8 +7601,7 @@
                           "type": "string",
                           "enum": [
                             "mcp",
-                            "file",
-                            "starter",
+                            "config",
                             "custom"
                           ],
                           "description": "Source of the prompt"
@@ -9445,7 +9443,6 @@
                                           "type": "string",
                                           "enum": [
                                             "dateTime",
-                                            "memorySummary",
                                             "resources"
                                           ],
                                           "description": "Source identifier for dynamic content (REQUIRED for 'dynamic')"
@@ -9536,68 +9533,9 @@
                                         "files"
                                       ],
                                       "additionalProperties": false
-                                    },
-                                    {
-                                      "type": "object",
-                                      "properties": {
-                                        "id": {
-                                          "type": "string",
-                                          "description": "Unique identifier for the contributor"
-                                        },
-                                        "priority": {
-                                          "type": "integer",
-                                          "minimum": 0,
-                                          "description": "Execution priority of the contributor (lower numbers run first)"
-                                        },
-                                        "enabled": {
-                                          "type": "boolean",
-                                          "default": true,
-                                          "description": "Whether this contributor is currently active"
-                                        },
-                                        "type": {
-                                          "type": "string",
-                                          "enum": [
-                                            "memory"
-                                          ]
-                                        },
-                                        "options": {
-                                          "type": "object",
-                                          "properties": {
-                                            "includeTimestamps": {
-                                              "type": "boolean",
-                                              "default": false,
-                                              "description": "Whether to include timestamps in memory display"
-                                            },
-                                            "includeTags": {
-                                              "type": "boolean",
-                                              "default": true,
-                                              "description": "Whether to include tags in memory display"
-                                            },
-                                            "limit": {
-                                              "type": "integer",
-                                              "minimum": 0,
-                                              "exclusiveMinimum": true,
-                                              "description": "Maximum number of memories to include"
-                                            },
-                                            "pinnedOnly": {
-                                              "type": "boolean",
-                                              "default": false,
-                                              "description": "Only include pinned memories (for hybrid approach)"
-                                            }
-                                          },
-                                          "default": {},
-                                          "additionalProperties": false
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "priority",
-                                        "type"
-                                      ],
-                                      "additionalProperties": false
                                     }
                                   ],
-                                  "description": "Configuration for a system prompt contributor. Type 'static' requires 'content', type 'dynamic' requires 'source', type 'file' requires 'files', type 'memory' loads user memories."
+                                  "description": "Configuration for a system prompt contributor. Type 'static' requires 'content', type 'dynamic' requires 'source', type 'file' requires 'files'."
                                 },
                                 "minItems": 1,
                                 "default": [
@@ -10405,6 +10343,45 @@
                           }
                         },
                         "description": "OpenTelemetry configuration for distributed tracing and observability"
+                      },
+                      "memories": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Whether to include memories in system prompt (optional"
+                          },
+                          "priority": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 40,
+                            "description": "Priority in system prompt (lower = earlier)"
+                          },
+                          "includeTimestamps": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Whether to include timestamps in memory display"
+                          },
+                          "includeTags": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether to include tags in memory display"
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Maximum number of memories to include"
+                          },
+                          "pinnedOnly": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Only include pinned memories"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Memory configuration for system prompt inclusion (optional feature)"
                       },
                       "agentId": {
                         "type": "string",
@@ -11409,50 +11386,95 @@
                         "default": [],
                         "description": "Configuration for internal resources (filesystem, etc.)"
                       },
-                      "starterPrompts": {
+                      "prompts": {
                         "type": "array",
                         "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 64,
-                              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                              "description": "Kebab-case slug id for the starter prompt (e.g., quick-start)"
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "inline"
+                                  ],
+                                  "description": "Inline prompt type"
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                                  "description": "Kebab-case slug id for the prompt (e.g., quick-start)"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "Display title for the prompt"
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "default": "",
+                                  "description": "Description shown on hover or in the UI"
+                                },
+                                "prompt": {
+                                  "type": "string",
+                                  "description": "The actual prompt text"
+                                },
+                                "category": {
+                                  "type": "string",
+                                  "default": "general",
+                                  "description": "Category for organizing prompts (e.g., general, coding, analysis, tools)"
+                                },
+                                "priority": {
+                                  "type": "number",
+                                  "default": 0,
+                                  "description": "Higher numbers appear first in the list"
+                                },
+                                "showInStarters": {
+                                  "type": "boolean",
+                                  "default": false,
+                                  "description": "Show as a clickable button in WebUI starter prompts"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "id",
+                                "prompt"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Inline prompt with text defined directly in config"
                             },
-                            "title": {
-                              "type": "string",
-                              "description": "Display title for the starter prompt"
-                            },
-                            "description": {
-                              "type": "string",
-                              "default": "",
-                              "description": "Description shown on hover or in the UI"
-                            },
-                            "prompt": {
-                              "type": "string",
-                              "description": "The actual prompt text that gets resolved and sent"
-                            },
-                            "category": {
-                              "type": "string",
-                              "default": "general",
-                              "description": "Category for organizing starter prompts (e.g., general, coding, analysis, tools, learning)"
-                            },
-                            "priority": {
-                              "type": "number",
-                              "default": 0,
-                              "description": "Higher numbers appear first"
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ],
+                                  "description": "File-based prompt type"
+                                },
+                                "file": {
+                                  "type": "string",
+                                  "description": "Path to markdown file containing prompt (supports ${{dexto.agent_dir}} template)"
+                                },
+                                "showInStarters": {
+                                  "type": "boolean",
+                                  "default": false,
+                                  "description": "Show as a clickable button in WebUI starter prompts"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "file"
+                              ],
+                              "additionalProperties": false,
+                              "description": "File-based prompt loaded from a markdown file"
                             }
-                          },
-                          "required": [
-                            "id",
-                            "prompt"
-                          ],
-                          "additionalProperties": false
+                          ]
                         },
                         "default": [],
-                        "description": "Agent-specific starter prompts configuration (used by WebUI and PromptManager)"
+                        "description": "Agent prompts configuration - sample prompts which can be defined inline or referenced from file"
                       },
                       "plugins": {
                         "type": "object",

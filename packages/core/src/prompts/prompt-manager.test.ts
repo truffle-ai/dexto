@@ -43,7 +43,7 @@ describe('PromptManager MCP args mapping/filtering', () => {
         const capture: any = {};
         const fakeMCP = makeFakeMCPManager(capture);
         const resourceManagerStub = { getBlobStore: () => undefined } as any;
-        const agentConfig: any = { starterPrompts: [] };
+        const agentConfig: any = { prompts: [] };
         const eventBus: any = { on: () => {}, emit: () => {} };
         const dbStub: any = {
             connect: async () => {},

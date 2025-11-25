@@ -153,7 +153,7 @@ Shows commands from:
 
 ## How It Works
 
-Dexto's `FilePromptProvider` scans command directories for `.md` files, parses frontmatter, and registers them as slash commands. When invoked, placeholders expand with your arguments and send to the LLM. Local commands override global ones.
+Dexto's `ConfigPromptProvider` loads prompts from your agent configuration (both inline and file-based). For file-based prompts, it parses markdown files with frontmatter and registers them as slash commands. When invoked, placeholders expand with your arguments and send to the LLM.
 
 ## Troubleshooting
 

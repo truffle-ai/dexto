@@ -1,7 +1,7 @@
 import type { ValidatedSystemPromptConfig, ValidatedContributorConfig } from './schemas.js';
 import { StaticContributor, FileContributor, MemoryContributor } from './contributors.js';
 import { getPromptGenerator } from './registry.js';
-import type { MemoryManager } from '../memory/index.js';
+import type { MemoryManager, ValidatedMemoriesConfig } from '../memory/index.js';
 
 import type { SystemPromptContributor, DynamicContributorContext } from './types.js';
 import { DynamicContributor } from './contributors.js';
@@ -24,6 +24,7 @@ export class SystemPromptManager {
         config: ValidatedSystemPromptConfig,
         configDir: string,
         memoryManager: MemoryManager,
+        memoriesConfig: ValidatedMemoriesConfig | undefined,
         logger: IDextoLogger
     ) {
         this.configDir = configDir;
@@ -34,9 +35,32 @@ export class SystemPromptManager {
         // Filter enabled contributors and create contributor instances
         const enabledContributors = config.contributors.filter((c) => c.enabled !== false);
 
-        this.contributors = enabledContributors
-            .map((config) => this.createContributor(config))
-            .sort((a, b) => a.priority - b.priority); // Lower priority number = higher priority
+        const contributors: SystemPromptContributor[] = enabledContributors.map((config) =>
+            this.createContributor(config)
+        );
+
+        // Add memory contributor if enabled via top-level memories config
+        if (memoriesConfig?.enabled) {
+            this.logger.debug(
+                `[SystemPromptManager] Creating MemoryContributor with options: ${JSON.stringify(memoriesConfig)}`
+            );
+            contributors.push(
+                new MemoryContributor(
+                    'memories',
+                    memoriesConfig.priority,
+                    this.memoryManager,
+                    {
+                        includeTimestamps: memoriesConfig.includeTimestamps,
+                        includeTags: memoriesConfig.includeTags,
+                        limit: memoriesConfig.limit,
+                        pinnedOnly: memoriesConfig.pinnedOnly,
+                    },
+                    this.logger
+                )
+            );
+        }
+
+        this.contributors = contributors.sort((a, b) => a.priority - b.priority); // Lower priority number = higher priority
     }
 
     private createContributor(config: ValidatedContributorConfig): SystemPromptContributor {
@@ -60,24 +84,6 @@ export class SystemPromptManager {
                     config.id,
                     config.priority,
                     config.files,
-                    config.options,
-                    this.logger
-                );
-            }
-
-            case 'memory': {
-                if (!this.memoryManager) {
-                    throw SystemPromptError.unknownContributorSource(
-                        'memory (MemoryManager not provided)'
-                    );
-                }
-                this.logger.debug(
-                    `[SystemPromptManager] Creating MemoryContributor "${config.id}" with options: ${JSON.stringify(config.options)}`
-                );
-                return new MemoryContributor(
-                    config.id,
-                    config.priority,
-                    this.memoryManager,
                     config.options,
                     this.logger
                 );

@@ -68,17 +68,14 @@ export const promptCommands: CommandDefinition[] = [
 
                 // Group by source
                 const mcpPrompts: string[] = [];
-                const filePrompts: string[] = [];
-                const starterPrompts: string[] = [];
+                const configPrompts: string[] = [];
                 const customPrompts: string[] = [];
 
                 for (const [name, info] of Object.entries(prompts)) {
                     if (info.source === 'mcp') {
                         mcpPrompts.push(name);
-                    } else if (info.source === 'file') {
-                        filePrompts.push(name);
-                    } else if (info.source === 'starter') {
-                        starterPrompts.push(name);
+                    } else if (info.source === 'config') {
+                        configPrompts.push(name);
                     } else if (info.source === 'custom') {
                         customPrompts.push(name);
                     }
@@ -104,23 +101,9 @@ export const promptCommands: CommandDefinition[] = [
                     outputLines.push('');
                 }
 
-                if (filePrompts.length > 0) {
-                    outputLines.push('📁 File Prompts:');
-                    filePrompts.forEach((name) => {
-                        const info = prompts[name];
-                        if (info) {
-                            const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
-                            const desc = info.description ? ` - ${info.description}` : '';
-                            outputLines.push(`  ${name}${title}${desc}`);
-                        }
-                    });
-                    outputLines.push('');
-                }
-
-                if (starterPrompts.length > 0) {
-                    outputLines.push('⭐ Starter Prompts:');
-                    starterPrompts.forEach((name) => {
+                if (configPrompts.length > 0) {
+                    outputLines.push('📋 Config Prompts:');
+                    configPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
                             const title =
@@ -172,24 +155,9 @@ export const promptCommands: CommandDefinition[] = [
                     });
                     console.log();
                 }
-                if (filePrompts.length > 0) {
-                    console.log(chalk.magenta('📁 File Prompts:'));
-                    filePrompts.forEach((name) => {
-                        const info = prompts[name];
-                        if (info) {
-                            const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
-                            const desc = info.description ? ` - ${info.description}` : '';
-                            console.log(
-                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
-                            );
-                        }
-                    });
-                    console.log();
-                }
-                if (starterPrompts.length > 0) {
-                    console.log(chalk.green('⭐ Starter Prompts:'));
-                    starterPrompts.forEach((name) => {
+                if (configPrompts.length > 0) {
+                    console.log(chalk.magenta('📋 Config Prompts:'));
+                    configPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
                             const title =

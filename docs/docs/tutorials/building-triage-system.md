@@ -249,11 +249,11 @@ Update triage agent to use HTTP connections:
 ```yaml
 mcpServers:
   technical_support:
-    type: sse
+    type: http
     url: "http://localhost:3001/mcp"
-  
+
   billing_support:
-    type: sse  
+    type: http
     url: "http://localhost:3002/mcp"
 ```
 

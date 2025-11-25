@@ -8,6 +8,7 @@
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
 import { ServerConfigsSchema as McpServersConfigSchema } from '@core/mcp/schemas.js';
+import { MemoriesConfigSchema } from '@core/memory/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
@@ -18,7 +19,7 @@ import {
 } from '@core/tools/schemas.js';
 import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
-import { StarterPromptsSchema } from '@core/prompts/schemas.js';
+import { PromptsSchema } from '@core/prompts/schemas.js';
 import { PluginsConfigSchema } from '@core/plugins/schemas.js';
 import { OtelConfigurationSchema } from '@core/telemetry/schemas.js';
 
@@ -346,6 +347,10 @@ export const AgentConfigSchema = z
             'OpenTelemetry configuration for distributed tracing and observability'
         ).optional(),
 
+        memories: MemoriesConfigSchema.describe(
+            'Memory configuration for system prompt inclusion (optional feature)'
+        ).optional(),
+
         // ========================================
         // FIELDS WITH DEFAULTS (always present after parsing)
         // ========================================
@@ -393,8 +398,8 @@ export const AgentConfigSchema = z
             'Configuration for internal resources (filesystem, etc.)'
         ).default([]),
 
-        starterPrompts: StarterPromptsSchema.describe(
-            'Agent-specific starter prompts configuration (used by WebUI and PromptManager)'
+        prompts: PromptsSchema.describe(
+            'Agent prompts configuration - sample prompts which can be defined inline or referenced from file'
         ).default([]),
 
         plugins: PluginsConfigSchema.describe(
