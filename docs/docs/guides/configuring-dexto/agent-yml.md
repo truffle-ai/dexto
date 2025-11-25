@@ -182,8 +182,8 @@ prompts:
 # Memories
 memories:
   enabled: true
-  maxCount: 10
-  tags: []
+  priority: 40
+  limit: 10
 
 # Greeting
 greeting: "Hello! I'm ready to help you today."
@@ -959,9 +959,12 @@ Top-level configuration for memory retrieval in system prompts.
 
 ```yaml
 memories:
-  enabled: boolean              # Default: true
-  maxCount: number              # Default: 10, max memories to include
-  tags: [string]                # Optional, filter by specific tags
+  enabled: boolean              # Default: false
+  priority: number              # Default: 40, lower = earlier in prompt
+  limit: number                 # Optional, max memories to include
+  includeTimestamps: boolean    # Default: false
+  includeTags: boolean          # Default: true
+  pinnedOnly: boolean           # Default: false, only include pinned memories
 ```
 
 ### Example
@@ -969,8 +972,9 @@ memories:
 ```yaml
 memories:
   enabled: true
-  maxCount: 15
-  tags: ["important", "context"]
+  priority: 40
+  limit: 15
+  pinnedOnly: false
 ```
 
 ## Greeting

@@ -72,7 +72,7 @@ systemPrompt:
 # Memory is configured separately at the top level
 memories:
   enabled: true
-  maxCount: 10
+  limit: 10
 ```
 
 ## Contributor Types
@@ -171,7 +171,7 @@ systemPrompt:
 
 memories:
   enabled: true
-  maxCount: 10
+  limit: 10
 ```
 
 ## Best Practices

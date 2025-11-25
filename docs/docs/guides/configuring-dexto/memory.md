@@ -8,7 +8,7 @@ sidebar_label: "Memory"
 Configure the memory system to store and retrieve persistent information about user preferences, context, and important facts across conversations.
 
 :::tip Complete Reference
-For complete field documentation including validation rules and API specifications, see **[agent.yml → System Prompt → Memory Contributors](./agent-yml.md#system-prompt-configuration)**.
+For complete field documentation, see **[agent.yml → Memories](./agent-yml.md#memories)**.
 :::
 
 ## Overview
@@ -42,24 +42,40 @@ metadata:
   customField: "any value"
 ```
 
-## Pinned Memories
+## Enabling Memories
 
-Pinned memories are automatically loaded into the system prompt, making them always available to your agent without explicit retrieval.
-
-### Configuring Pinned Memories
+Memory is configured at the top level of your agent.yml file:
 
 ```yaml
-systemPrompt:
-  contributors:
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        pinnedOnly: true      # Only load pinned memories
-        limit: 10             # Maximum 10 memories
-        includeTimestamps: false
-        includeTags: true
+memories:
+  enabled: true
+  priority: 40
+  limit: 10
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable memory inclusion in system prompt |
+| `priority` | number | `40` | Position in system prompt (lower = earlier) |
+| `limit` | number | - | Maximum memories to include |
+| `includeTimestamps` | boolean | `false` | Show last updated date |
+| `includeTags` | boolean | `true` | Include associated tags |
+| `pinnedOnly` | boolean | `false` | Only include pinned memories |
+
+## Pinned Memories
+
+Pinned memories are automatically loaded into the system prompt when `pinnedOnly` is false, or exclusively loaded when `pinnedOnly` is true.
+
+### Configuring Pinned Memories Only
+
+```yaml
+memories:
+  enabled: true
+  priority: 40
+  pinnedOnly: true    # Only load pinned memories
+  limit: 5            # Keep system prompt compact
 ```
 
 ### When to Pin Memories
@@ -85,40 +101,32 @@ systemPrompt:
 
 ## Configuration Examples
 
-Memory is configured under the systemPrompt section.
-
 ### Basic Memory Integration
 
 ```yaml
-systemPrompt:
-  contributors:
-    - id: primary
-      type: static
-      priority: 0
-      content: |
-        You are a helpful AI assistant that remembers user preferences.
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: $ANTHROPIC_API_KEY
 
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        includeTimestamps: true
-        includeTags: true
-        limit: 15
+systemPrompt: |
+  You are a helpful AI assistant that remembers user preferences.
+
+memories:
+  enabled: true
+  priority: 40
+  limit: 15
+  includeTimestamps: true
+  includeTags: true
 ```
 
 ### Hybrid Approach: Pinned + On-Demand
 
 ```yaml
-systemPrompt:
-  contributors:
-    - id: memories
-      type: memory
-      priority: 40
-      options:
-        pinnedOnly: true    # Only auto-load critical context
-        limit: 5            # Keep system prompt compact
+memories:
+  enabled: true
+  pinnedOnly: true    # Only auto-load critical context
+  limit: 5            # Keep system prompt compact
 ```
 
 Then query additional memories programmatically when needed:
@@ -130,15 +138,6 @@ const memories = await agent.memory.list({
     limit: 20
 });
 ```
-
-## Memory Options
-
-When using the memory contributor:
-
-- **`pinnedOnly`** (boolean) - Only load pinned memories (default: false)
-- **`limit`** (number) - Maximum memories to load (default: unlimited)
-- **`includeTimestamps`** (boolean) - Show last updated date (default: false)
-- **`includeTags`** (boolean) - Include associated tags (default: true)
 
 ## Example Output Format
 
@@ -175,6 +174,6 @@ Memory data uses the key pattern: `memory:item:{id}`
 
 ## See Also
 
-- [agent.yml Reference → System Prompt](./agent-yml.md#system-prompt-configuration) - Complete contributor documentation
-- [System Prompt Configuration](./systemPrompt.md) - How to configure contributors
+- [agent.yml Reference → Memories](./agent-yml.md#memories) - Complete field documentation
+- [System Prompt Configuration](./systemPrompt.md) - How to configure system prompts
 - [Storage Configuration](./storage.md) - Database setup for persistent memories
