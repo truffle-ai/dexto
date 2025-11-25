@@ -72,7 +72,6 @@ export * from './streaming.js';
 //     baseUrl: 'http://localhost:3001',
 //     apiKey: 'optional-api-key'
 // })
-
 // let response2 = await client2.api.sessions.$post({
 //     json: {
 //         sessionId: 'session-123'
@@ -81,8 +80,8 @@ export * from './streaming.js';
 // const body2 = await response2.json();
 // console.log(body2.session.id);
 
-// // let response3 = await client2.health.$get();
-// // console.log(response3.ok);
+// let response3 = await client2.health.$get();
+// console.log(response3.ok);
 
 // import { createMessageStream } from './streaming.js';
 // let response4 = client2.api['message-stream'].$post({
