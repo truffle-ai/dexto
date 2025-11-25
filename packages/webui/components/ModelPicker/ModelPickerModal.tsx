@@ -46,7 +46,7 @@ export default function ModelPickerModal() {
     const [baseURL, setBaseURL] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [providerFilter, setProviderFilter] = useState<LLMProvider | 'all'>('all');
-    const [activeView, setActiveView] = useState<'favorites' | 'all'>('favorites');
+    const [activeView, setActiveView] = useState<'favorites' | 'all'>('all');
     const [showCustomForm, setShowCustomForm] = useState(false);
 
     // Custom models state
@@ -63,7 +63,7 @@ export default function ModelPickerModal() {
     const [pendingKeyProvider, setPendingKeyProvider] = useState<LLMProvider | null>(null);
     const [pendingSelection, setPendingSelection] = useState<{
         provider: LLMProvider;
-        model: string;
+        model: ModelInfo;
     } | null>(null);
 
     const { currentSessionId, currentLLM, refreshCurrentLLM } = useChatContext();
@@ -210,7 +210,7 @@ export default function ModelPickerModal() {
         }
 
         if (provider && !provider.hasApiKey) {
-            setPendingSelection({ provider: providerId, model: model.name });
+            setPendingSelection({ provider: providerId, model });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);
             return;
@@ -270,9 +270,25 @@ export default function ModelPickerModal() {
         }));
         setKeyModalOpen(false);
         if (pendingSelection) {
-            const { provider, model } = pendingSelection;
-            const m = providers[provider]?.models.find((x) => x.name === model);
-            if (m) onPickModel(provider, m);
+            const { provider: providerId, model } = pendingSelection;
+            // Switch directly without re-checking hasApiKey (we just saved it)
+            const router = pickRouterFor(providerId, model);
+            const payload: SwitchLLMPayload = {
+                provider: providerId,
+                model: model.name,
+                router,
+                ...(currentSessionId && { sessionId: currentSessionId }),
+            };
+            switchLLMMutation.mutate(payload, {
+                onSuccess: async () => {
+                    await refreshCurrentLLM();
+                    setOpen(false);
+                    setError(null);
+                },
+                onError: (error: Error) => {
+                    setError(error.message);
+                },
+            });
             setPendingSelection(null);
         }
     }
@@ -369,10 +385,11 @@ export default function ModelPickerModal() {
                     align="end"
                     sideOffset={8}
                     avoidCollisions={true}
-                    collisionPadding={8}
+                    collisionPadding={16}
+                    sticky="always"
                     className={cn(
-                        'w-[600px]',
-                        'max-h-[min(500px,60vh)]',
+                        'w-[calc(100vw-32px)] max-w-[600px]',
+                        'max-h-[min(500px,50vh)]',
                         'flex flex-col p-0 overflow-hidden',
                         'rounded-xl border border-border/60 bg-popover/98 backdrop-blur-xl shadow-xl'
                     )}
