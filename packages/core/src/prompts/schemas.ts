@@ -16,7 +16,7 @@ import { PROMPT_NAME_REGEX, PROMPT_NAME_GUIDANCE } from './name-validation.js';
  */
 export const InlinePromptSchema = z
     .object({
-        type: z.literal('inline').default('inline').describe('Inline prompt type'),
+        type: z.literal('inline').describe('Inline prompt type'),
         id: z
             .string()
             .min(1)
