@@ -1,5 +1,15 @@
 # @dexto/webui
 
+## 1.2.6
+
+### Patch Changes
+
+- 7feb030: Update memory and prompt configs, fix agent install bug
+- Updated dependencies [7feb030]
+    - @dexto/core@1.2.6
+    - @dexto/client-sdk@1.2.6
+    - @dexto/analytics@1.2.6
+
 ## 1.2.5
 
 ### Patch Changes
