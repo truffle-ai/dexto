@@ -29,6 +29,7 @@ import {
     BadgeCheck,
     Plus,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { useChatContext } from '../hooks/ChatContext';
 import CreateAgentModal from './CreateAgentModal';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -344,26 +345,31 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     return (
         <>
             <DropdownMenu open={open} onOpenChange={setOpen}>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant={mode === 'badge' ? 'outline' : 'default'}
-                        size="sm"
-                        className={getButtonClassName(mode)}
-                        disabled={switching}
-                    >
-                        <div className="flex items-center justify-between w-full min-w-0">
-                            <Sparkles className="w-4 h-4 mr-2 flex-shrink-0" />
-                            <span className="flex-1 text-center truncate min-w-0 px-1">
-                                {switching
-                                    ? 'Switching...'
-                                    : mode === 'title'
-                                      ? `Agent: ${currentLabel}`
-                                      : currentLabel}
-                            </span>
-                            <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
-                        </div>
-                    </Button>
-                </DropdownMenuTrigger>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant={mode === 'badge' ? 'outline' : 'default'}
+                                size="sm"
+                                className={getButtonClassName(mode)}
+                                disabled={switching}
+                            >
+                                <div className="flex items-center justify-between w-full min-w-0">
+                                    <Sparkles className="w-4 h-4 mr-2 flex-shrink-0" />
+                                    <span className="flex-1 text-center truncate min-w-0 px-1">
+                                        {switching
+                                            ? 'Switching...'
+                                            : mode === 'title'
+                                              ? `Agent: ${currentLabel}`
+                                              : currentLabel}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
+                                </div>
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Select agent</TooltipContent>
+                </Tooltip>
                 <DropdownMenuContent align="start" className="w-80 max-h-96 overflow-y-auto">
                     {loading && (
                         <DropdownMenuItem disabled className="text-center text-muted-foreground">
