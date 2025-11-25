@@ -391,7 +391,7 @@ export default function ModelPickerModal() {
                     avoidCollisions={true}
                     collisionPadding={16}
                     className={cn(
-                        'w-[calc(100vw-32px)] max-w-[600px]',
+                        'w-[calc(100vw-32px)] max-w-[650px]',
                         isWelcomeScreen ? 'max-h-[min(400px,50vh)]' : 'max-h-[min(580px,75vh)]',
                         'flex flex-col p-0 overflow-hidden',
                         'rounded-xl border border-border/60 bg-popover/98 backdrop-blur-xl shadow-xl'
@@ -733,10 +733,9 @@ export default function ModelPickerModal() {
                                     </div>
                                 ) : (
                                     <div
-                                        className="grid gap-2"
+                                        className="grid gap-2 justify-center"
                                         style={{
-                                            gridTemplateColumns:
-                                                'repeat(auto-fill, minmax(120px, 1fr))',
+                                            gridTemplateColumns: 'repeat(auto-fill, 140px)',
                                         }}
                                     >
                                         {allModels.map(({ providerId, provider, model }) => (
