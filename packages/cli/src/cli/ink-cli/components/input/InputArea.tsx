@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
-import CustomInput from '../CustomInput.js';
+import CustomTextInput from '../CustomTextInput.js';
 import EditableMultiLineInput from '../EditableMultiLineInput.js';
 
 interface InputAreaProps {
@@ -55,16 +55,15 @@ export function InputArea({
                         {'> '}
                     </Text>
                     <Box flexGrow={1}>
-                        <CustomInput
+                        <CustomTextInput
                             key={remountKey}
                             value={value}
                             onChange={onChange}
                             onSubmit={onSubmit}
                             {...(placeholder && { placeholder })}
-                            {...(isDisabled && { isProcessing: isDisabled })}
                             {...(onWordDelete && { onWordDelete })}
                             {...(onLineDelete && { onLineDelete })}
-                            {...(onToggleMultiLine && { onToggleMultiLine })}
+                            {...(onToggleMultiLine && { onNewline: onToggleMultiLine })}
                         />
                     </Box>
                 </Box>
