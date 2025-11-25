@@ -3,7 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys.js';
-import { useSessions, useCreateSession, useDeleteSession, type Session } from './hooks/useSessions';
+import {
+    useSessions,
+    useCreateSession,
+    useDeleteSession,
+    useRenameSession,
+    type Session,
+} from './hooks/useSessions';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -16,9 +22,28 @@ import {
     DialogDescription,
 } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
-import { Trash2, AlertTriangle, RefreshCw, History, Search, X } from 'lucide-react';
+import {
+    Trash2,
+    AlertTriangle,
+    RefreshCw,
+    History,
+    Search,
+    X,
+    Plus,
+    MoreHorizontal,
+    Pencil,
+    Copy,
+    Check,
+} from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+} from './ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface SessionPanelProps {
@@ -31,8 +56,6 @@ interface SessionPanelProps {
     onSearchOpen?: () => void;
     onNewChat?: () => void;
 }
-
-import NewChatButton from './NewChatButton';
 
 function sortSessions(sessions: Session[]): Session[] {
     return sessions.sort((a, b) => {
@@ -57,6 +80,9 @@ export default function SessionPanel({
     const [newSessionId, setNewSessionId] = useState('');
     const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
     const [selectedSessionForAction, setSelectedSessionForAction] = useState<string | null>(null);
+    const [isRenameDialogOpen, setRenameDialogOpen] = useState(false);
+    const [renameValue, setRenameValue] = useState('');
+    const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
 
     const { data: sessionsData = [], isLoading: loading, error } = useSessions(isOpen);
 
@@ -64,8 +90,8 @@ export default function SessionPanel({
     const sessions = sortSessions([...sessionsData]);
 
     const createSessionMutation = useCreateSession();
-
     const deleteSessionMutation = useDeleteSession();
+    const renameSessionMutation = useRenameSession();
 
     // Listen for events and update state optimistically
     useEffect(() => {
@@ -181,6 +207,29 @@ export default function SessionPanel({
         setSelectedSessionForAction(null);
     };
 
+    const handleOpenRenameDialog = (sessionId: string, currentTitle: string | null) => {
+        setSelectedSessionForAction(sessionId);
+        setRenameValue(currentTitle || '');
+        setRenameDialogOpen(true);
+    };
+
+    const handleRenameSession = async () => {
+        if (!selectedSessionForAction || !renameValue.trim()) return;
+        await renameSessionMutation.mutateAsync({
+            sessionId: selectedSessionForAction,
+            title: renameValue.trim(),
+        });
+        setRenameDialogOpen(false);
+        setSelectedSessionForAction(null);
+        setRenameValue('');
+    };
+
+    const handleCopySessionId = async (sessionId: string) => {
+        await navigator.clipboard.writeText(sessionId);
+        setCopiedSessionId(sessionId);
+        setTimeout(() => setCopiedSessionId(null), 2000);
+    };
+
     const formatRelativeTime = (timestamp: number | null) => {
         if (!timestamp) return 'Unknown';
         const now = Date.now();
@@ -197,33 +246,13 @@ export default function SessionPanel({
 
     const content = (
         <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between p-3 border-b border-border/50">
-                <div className="flex items-center space-x-2">
+            {/* Header with action buttons */}
+            <div className="p-3 space-y-3 border-b border-border/50">
+                {/* Header row with title and close button */}
+                <div className="flex items-center justify-between">
                     <h2 id="sessionpanel-title" className="text-base font-semibold">
                         Chat History
                     </h2>
-                </div>
-                <div className="flex items-center space-x-1">
-                    {onSearchOpen && (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={onSearchOpen}
-                                        className="h-7 w-7 p-0"
-                                        aria-label="Search conversations"
-                                    >
-                                        <Search className="h-3.5 w-3.5" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Search conversations (⌘⇧S)</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
-                    {onNewChat && <NewChatButton onClick={onNewChat} variant="outline" />}
                     {variant === 'overlay' && (
                         <Button
                             variant="ghost"
@@ -233,6 +262,31 @@ export default function SessionPanel({
                             aria-label="Close panel"
                         >
                             <X className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                </div>
+                {/* Action buttons */}
+                <div className="flex flex-col gap-2">
+                    {onNewChat && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onNewChat}
+                            className="w-full h-9 justify-start gap-2"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span>New Chat</span>
+                        </Button>
+                    )}
+                    {onSearchOpen && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onSearchOpen}
+                            className="w-full h-9 justify-start gap-2"
+                        >
+                            <Search className="h-4 w-4" />
+                            <span>Search Chats</span>
                         </Button>
                     )}
                 </div>
@@ -262,98 +316,109 @@ export default function SessionPanel({
                     </div>
                 ) : (
                     <div className="px-3 py-2 space-y-0.5">
-                        <TooltipProvider>
-                            {sessions.map((session) => {
-                                const title =
-                                    session.title && session.title.trim().length > 0
-                                        ? session.title
-                                        : session.id;
-                                const isActive = currentSessionId === session.id;
-                                return (
-                                    <Tooltip key={session.id} delayDuration={150}>
-                                        <TooltipTrigger asChild>
-                                            <div
-                                                className={
+                        {sessions.map((session) => {
+                            const title =
+                                session.title && session.title.trim().length > 0
+                                    ? session.title
+                                    : session.id;
+                            const isActive = currentSessionId === session.id;
+                            return (
+                                <div
+                                    key={session.id}
+                                    className={cn(
+                                        'group relative px-3 py-2.5 rounded-lg transition-colors cursor-pointer',
+                                        isActive
+                                            ? 'bg-muted/40 hover:bg-muted/60'
+                                            : 'hover:bg-muted/30'
+                                    )}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-current={isActive ? 'page' : undefined}
+                                    onClick={() => onSessionChange(session.id)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            onSessionChange(session.id);
+                                        }
+                                    }}
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <h3
+                                                className={cn(
+                                                    'text-sm truncate',
                                                     isActive
-                                                        ? 'group relative px-3 py-3 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer'
-                                                        : 'group relative px-3 py-2.5 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer'
-                                                }
-                                                role="button"
-                                                tabIndex={0}
-                                                aria-current={isActive ? 'page' : undefined}
-                                                onClick={() => onSessionChange(session.id)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        onSessionChange(session.id);
-                                                    }
-                                                }}
+                                                        ? 'font-semibold'
+                                                        : 'font-normal text-muted-foreground'
+                                                )}
                                             >
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                                                        <h3
-                                                            className={
-                                                                isActive
-                                                                    ? 'font-semibold text-sm truncate'
-                                                                    : 'font-normal text-sm truncate text-muted-foreground'
-                                                            }
-                                                        >
-                                                            {title}
-                                                        </h3>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {formatRelativeTime(
-                                                                session.lastActivity
-                                                            )}
-                                                        </span>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (session.messageCount > 0) {
-                                                                    setSelectedSessionForAction(
-                                                                        session.id
-                                                                    );
-                                                                    setDeleteConversationDialogOpen(
-                                                                        true
-                                                                    );
-                                                                } else {
-                                                                    handleDeleteSession(session.id);
-                                                                }
-                                                            }}
-                                                            disabled={
-                                                                deleteSessionMutation.isPending &&
-                                                                deleteSessionMutation.variables
-                                                                    ?.sessionId === session.id
-                                                            }
-                                                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                                                            aria-label={
-                                                                session.messageCount > 0
-                                                                    ? 'Delete conversation'
-                                                                    : 'Delete chat'
-                                                            }
-                                                            title="Delete"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="right" align="center">
-                                            <div className="text-xs space-y-1">
-                                                <div className="font-mono">{session.id}</div>
-                                                <div className="text-muted-foreground">
-                                                    {session.messageCount} messages
-                                                </div>
-                                            </div>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                );
-                            })}
-                        </TooltipProvider>
+                                                {title}
+                                            </h3>
+                                            <span className="text-xs text-muted-foreground">
+                                                {formatRelativeTime(session.lastActivity)}
+                                            </span>
+                                        </div>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                                                    aria-label="Session options"
+                                                >
+                                                    <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent
+                                                align="end"
+                                                className="w-48"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <DropdownMenuItem
+                                                    onClick={() =>
+                                                        handleOpenRenameDialog(
+                                                            session.id,
+                                                            session.title ?? null
+                                                        )
+                                                    }
+                                                >
+                                                    <Pencil className="h-4 w-4 mr-2" />
+                                                    Rename
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={() => handleCopySessionId(session.id)}
+                                                >
+                                                    {copiedSessionId === session.id ? (
+                                                        <Check className="h-4 w-4 mr-2 text-green-500" />
+                                                    ) : (
+                                                        <Copy className="h-4 w-4 mr-2" />
+                                                    )}
+                                                    {copiedSessionId === session.id
+                                                        ? 'Copied!'
+                                                        : 'Copy Session ID'}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    onClick={() => {
+                                                        if (session.messageCount > 0) {
+                                                            setSelectedSessionForAction(session.id);
+                                                            setDeleteConversationDialogOpen(true);
+                                                        } else {
+                                                            handleDeleteSession(session.id);
+                                                        }
+                                                    }}
+                                                    className="text-destructive focus:text-destructive"
+                                                >
+                                                    <Trash2 className="h-4 w-4 mr-2" />
+                                                    Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </ScrollArea>
@@ -438,6 +503,51 @@ export default function SessionPanel({
                                     ? 'Deleting...'
                                     : 'Delete Conversation'}
                             </span>
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Rename Session Dialog */}
+            <Dialog open={isRenameDialogOpen} onOpenChange={setRenameDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center space-x-2">
+                            <Pencil className="h-5 w-5" />
+                            <span>Rename Chat</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                            Enter a new name for this conversation.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="renameTitle">Chat Name</Label>
+                            <Input
+                                id="renameTitle"
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                placeholder="Enter chat name..."
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && renameValue.trim()) {
+                                        handleRenameSession();
+                                    }
+                                }}
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleRenameSession}
+                            disabled={!renameValue.trim() || renameSessionMutation.isPending}
+                        >
+                            {renameSessionMutation.isPending ? 'Saving...' : 'Save'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -50,5 +50,24 @@ export function useDeleteSession() {
     });
 }
 
+// Rename a session (update title)
+export function useRenameSession() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ sessionId, title }: { sessionId: string; title: string }) => {
+            const response = await client.api.sessions[':sessionId'].$patch({
+                param: { sessionId },
+                json: { title },
+            });
+            const data = await response.json();
+            return data.session;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+        },
+    });
+}
+
 // Export inferred types for components to use
 export type Session = NonNullable<ReturnType<typeof useSessions>['data']>[number];

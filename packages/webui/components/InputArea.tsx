@@ -69,9 +69,15 @@ interface InputAreaProps {
     ) => void;
     isSending?: boolean;
     variant?: 'welcome' | 'chat';
+    isSessionsPanelOpen?: boolean;
 }
 
-export default function InputArea({ onSend, isSending, variant = 'chat' }: InputAreaProps) {
+export default function InputArea({
+    onSend,
+    isSending,
+    variant = 'chat',
+    isSessionsPanelOpen = false,
+}: InputAreaProps) {
     const queryClient = useQueryClient();
     const [text, setText] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -956,6 +962,7 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                                                 ? supportedFileTypes.includes('audio')
                                                 : undefined,
                                         }}
+                                        useLargeBreakpoint={isSessionsPanelOpen}
                                     />
 
                                     <RecordButton
@@ -967,12 +974,18 @@ export default function InputArea({ onSend, isSending, variant = 'chat' }: Input
                                             supportedFileTypes.length > 0 &&
                                             !supportedFileTypes.includes('audio')
                                         }
+                                        useLargeBreakpoint={isSessionsPanelOpen}
                                     />
                                 </div>
                             }
                             rightButtons={
                                 <div className="flex items-center gap-2">
-                                    <div className="hidden md:block">
+                                    <div
+                                        className={cn(
+                                            'hidden',
+                                            isSessionsPanelOpen ? 'lg:block' : 'md:block'
+                                        )}
+                                    >
                                         <StreamToggle
                                             isStreaming={isStreaming}
                                             onStreamingChange={setStreaming}

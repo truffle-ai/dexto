@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from 'use-debounce';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useSearchMessages, type SearchResult } from './hooks/useSearch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import {
@@ -157,15 +156,17 @@ export default function GlobalSearchModal({
         );
     };
 
+    if (!isOpen) return null;
+
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl p-0 top-[20%] transform translate-y-0">
-                <DialogHeader>
-                    <DialogTitle className="sr-only">Search Conversations</DialogTitle>
-                </DialogHeader>
+        <>
+            {/* Backdrop */}
+            <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[2px]" onClick={onClose} />
+            {/* Search popover */}
+            <div className="fixed left-1/2 top-[15%] -translate-x-1/2 z-50 w-full max-w-2xl bg-popover/70 backdrop-blur-xl border border-border/30 rounded-xl shadow-2xl overflow-hidden">
                 <div className="flex flex-col max-h-[70vh]">
                     {/* Search Header */}
-                    <div className="p-6 pb-4">
+                    <div className="p-4 border-b border-border/30">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                             <Input
@@ -179,7 +180,7 @@ export default function GlobalSearchModal({
                     </div>
 
                     {/* Results */}
-                    <div className="flex-1 overflow-hidden border-t">
+                    <div className="flex-1 overflow-hidden">
                         {isLoading ? (
                             <div className="flex items-center justify-center py-12">
                                 <RefreshCw className="h-6 w-6 animate-spin mr-3" />
@@ -199,7 +200,7 @@ export default function GlobalSearchModal({
                                 </div>
                             </div>
                         ) : (
-                            <ScrollArea className="h-full">
+                            <ScrollArea className="h-full max-h-[calc(70vh-80px)]">
                                 <div className="p-2">
                                     {results.length > 0 ? (
                                         <div className="space-y-1">
@@ -267,22 +268,22 @@ export default function GlobalSearchModal({
                                             </p>
                                             <div className="flex items-center justify-center gap-4 mt-4 text-xs text-muted-foreground">
                                                 <div className="flex items-center gap-1">
-                                                    <kbd className="px-2 py-1 bg-muted rounded text-xs">
+                                                    <kbd className="px-2 py-1 bg-muted/50 rounded text-xs">
                                                         ↑
                                                     </kbd>
-                                                    <kbd className="px-2 py-1 bg-muted rounded text-xs">
+                                                    <kbd className="px-2 py-1 bg-muted/50 rounded text-xs">
                                                         ↓
                                                     </kbd>
                                                     <span>to navigate</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                    <kbd className="px-2 py-1 bg-muted rounded text-xs">
+                                                    <kbd className="px-2 py-1 bg-muted/50 rounded text-xs">
                                                         Enter
                                                     </kbd>
                                                     <span>to select</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                    <kbd className="px-2 py-1 bg-muted rounded text-xs">
+                                                    <kbd className="px-2 py-1 bg-muted/50 rounded text-xs">
                                                         Esc
                                                     </kbd>
                                                     <span>to close</span>
@@ -295,7 +296,7 @@ export default function GlobalSearchModal({
                         )}
                     </div>
                 </div>
-            </DialogContent>
-        </Dialog>
+            </div>
+        </>
     );
 }
