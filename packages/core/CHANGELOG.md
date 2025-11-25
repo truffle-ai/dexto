@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.2.6
+
+### Patch Changes
+
+- 7feb030: Update memory and prompt configs, fix agent install bug
+
 ## 1.2.5
 
 ### Patch Changes

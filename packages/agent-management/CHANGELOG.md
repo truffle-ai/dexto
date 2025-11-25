@@ -1,5 +1,12 @@
 # @dexto/agent-management
 
+## 1.2.6
+
+### Patch Changes
+
+- Updated dependencies [7feb030]
+    - @dexto/core@1.2.6
+
 ## 1.2.5
 
 ### Patch Changes

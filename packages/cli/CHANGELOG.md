@@ -1,5 +1,16 @@
 # dexto
 
+## 1.2.6
+
+### Patch Changes
+
+- 7feb030: Update memory and prompt configs, fix agent install bug
+- Updated dependencies [7feb030]
+    - @dexto/server@1.2.6
+    - @dexto/core@1.2.6
+    - @dexto/agent-management@1.2.6
+    - @dexto/analytics@1.2.6
+
 ## 1.2.5
 
 ### Patch Changes
