@@ -377,7 +377,7 @@ export default function ModelPickerModal() {
                         'rounded-xl border border-border/60 bg-popover/98 backdrop-blur-xl shadow-xl'
                     )}
                 >
-                    {/* Header - Search + Add Custom Button */}
+                    {/* Header - Search + Add Custom Button + Filters */}
                     <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-border/30 space-y-2">
                         {(error || catalogError) && (
                             <Alert variant="destructive" className="py-2">
@@ -407,6 +407,54 @@ export default function ModelPickerModal() {
                                 <Plus className="h-4 w-4" />
                             </button>
                         </div>
+
+                        {/* Provider Filter Pills - only in All view */}
+                        {activeView === 'all' && availableProviders.length > 1 && (
+                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                                <Filter className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <button
+                                    onClick={() => setProviderFilter('all')}
+                                    className={cn(
+                                        'px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
+                                        providerFilter === 'all'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                    )}
+                                >
+                                    All
+                                </button>
+                                {availableProviders.map((providerId) => (
+                                    <button
+                                        key={providerId}
+                                        onClick={() => setProviderFilter(providerId)}
+                                        className={cn(
+                                            'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
+                                            providerFilter === providerId
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                        )}
+                                    >
+                                        {PROVIDER_LOGOS[providerId] && (
+                                            <Image
+                                                src={PROVIDER_LOGOS[providerId]}
+                                                alt=""
+                                                width={10}
+                                                height={10}
+                                                className={cn(
+                                                    'object-contain',
+                                                    needsDarkModeInversion(providerId) &&
+                                                        providerFilter !== providerId &&
+                                                        'dark:invert dark:brightness-0 dark:contrast-200'
+                                                )}
+                                            />
+                                        )}
+                                        <span className="hidden sm:inline">
+                                            {providers[providerId]?.name || providerId}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Custom Model Form (collapsible) */}
@@ -654,55 +702,6 @@ export default function ModelPickerModal() {
                         ) : (
                             /* All Models Card Grid View */
                             <div>
-                                {/* Provider Filter Pills */}
-                                {availableProviders.length > 1 && (
-                                    <div className="flex items-center gap-1.5 flex-wrap mb-3 pb-3 border-b border-border/30">
-                                        <Filter className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                        <button
-                                            onClick={() => setProviderFilter('all')}
-                                            className={cn(
-                                                'px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                                providerFilter === 'all'
-                                                    ? 'bg-primary text-primary-foreground'
-                                                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                                            )}
-                                        >
-                                            All
-                                        </button>
-                                        {availableProviders.map((providerId) => (
-                                            <button
-                                                key={providerId}
-                                                onClick={() => setProviderFilter(providerId)}
-                                                className={cn(
-                                                    'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                                    providerFilter === providerId
-                                                        ? 'bg-primary text-primary-foreground'
-                                                        : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                                                )}
-                                            >
-                                                {PROVIDER_LOGOS[providerId] && (
-                                                    <Image
-                                                        src={PROVIDER_LOGOS[providerId]}
-                                                        alt=""
-                                                        width={10}
-                                                        height={10}
-                                                        className={cn(
-                                                            'object-contain',
-                                                            needsDarkModeInversion(providerId) &&
-                                                                providerFilter !== providerId &&
-                                                                'dark:invert dark:brightness-0 dark:contrast-200'
-                                                        )}
-                                                    />
-                                                )}
-                                                <span className="hidden sm:inline">
-                                                    {providers[providerId]?.name || providerId}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* All Models Grid */}
                                 {allModels.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-8 text-center">
                                         <p className="text-sm font-medium text-muted-foreground">
