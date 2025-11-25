@@ -64,6 +64,16 @@ export function validateBaseURL(url: string): { isValid: boolean; error?: string
 export const FAVORITES_STORAGE_KEY = 'dexto:modelFavorites';
 export const CUSTOM_MODELS_STORAGE_KEY = 'dexto:customModels';
 
+// Default favorites for new users (newest/best models)
+export const DEFAULT_FAVORITES = [
+    'anthropic|claude-sonnet-4-5-20250929',
+    'anthropic|claude-opus-4-5-20251101',
+    'openai|gpt-5.1-chat-latest',
+    'openai|gpt-5.1',
+    'google|gemini-3-pro-preview',
+    'google|gemini-3-pro-image-preview',
+];
+
 // Minimal storage for custom models - other fields are inferred
 export interface CustomModelStorage {
     name: string; // Model identifier
