@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Star, HelpCircle } from 'lucide-react';
+import { Star, HelpCircle, Lock } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
@@ -126,6 +126,20 @@ export function ModelCard({
                         role="button"
                         tabIndex={0}
                     >
+                        {/* Lock Icon - Top Left (when no API key) */}
+                        {!hasApiKey && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="absolute top-2 left-2 p-1.5 rounded-full bg-amber-500/20 z-10">
+                                        <Lock className="h-3.5 w-3.5 text-amber-500" />
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                    Click to add API key
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
+
                         {/* Favorite Star - Top Right */}
                         <button
                             onClick={(e) => {
@@ -204,6 +218,7 @@ export function ModelCard({
                             <CapabilityIcons
                                 supportedFileTypes={model.supportedFileTypes}
                                 hasApiKey={hasApiKey}
+                                showLockIcon={false}
                                 size={size === 'sm' ? 'sm' : 'md'}
                             />
                         </div>

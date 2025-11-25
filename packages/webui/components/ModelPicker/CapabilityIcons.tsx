@@ -10,6 +10,7 @@ interface CapabilityIconsProps {
     supportedFileTypes: ModelInfo['supportedFileTypes'];
     hasApiKey: boolean;
     showReasoning?: boolean;
+    showLockIcon?: boolean;
     className?: string;
     size?: 'sm' | 'md';
 }
@@ -51,6 +52,7 @@ export function CapabilityIcons({
     supportedFileTypes,
     hasApiKey,
     showReasoning,
+    showLockIcon = true,
     className,
     size = 'sm',
 }: CapabilityIconsProps) {
@@ -90,7 +92,7 @@ export function CapabilityIcons({
                 />
             )}
 
-            {!hasApiKey && (
+            {showLockIcon && !hasApiKey && (
                 <CapabilityBadge
                     icon={<Lock className={iconSize} />}
                     label="Click to add API key"
