@@ -93,7 +93,7 @@ export function CapabilityIcons({
             {!hasApiKey && (
                 <CapabilityBadge
                     icon={<Lock className={iconSize} />}
-                    label="API key required"
+                    label="Click to add API key"
                     variant="warning"
                 />
             )}
