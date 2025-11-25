@@ -294,6 +294,7 @@ export default function ModelPickerModal() {
     }
 
     const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
+    const isWelcomeScreen = !currentSessionId;
 
     // Build favorites list
     const favoriteModels = useMemo(() => {
@@ -386,10 +387,9 @@ export default function ModelPickerModal() {
                     sideOffset={8}
                     avoidCollisions={true}
                     collisionPadding={16}
-                    sticky="always"
                     className={cn(
                         'w-[calc(100vw-32px)] max-w-[600px]',
-                        'max-h-[min(500px,50vh)]',
+                        isWelcomeScreen ? 'max-h-[min(400px,50vh)]' : 'max-h-[min(580px,75vh)]',
                         'flex flex-col p-0 overflow-hidden',
                         'rounded-xl border border-border/60 bg-popover/98 backdrop-blur-xl shadow-xl'
                     )}
