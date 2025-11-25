@@ -369,9 +369,9 @@ export default function ModelPickerModal() {
                     align="end"
                     sideOffset={8}
                     avoidCollisions={true}
-                    collisionPadding={16}
+                    collisionPadding={8}
                     className={cn(
-                        'w-full max-w-2xl',
+                        'w-[600px]',
                         'max-h-[min(500px,60vh)]',
                         'flex flex-col p-0 overflow-hidden',
                         'rounded-xl border border-border/60 bg-popover/98 backdrop-blur-xl shadow-xl'
@@ -717,7 +717,7 @@ export default function ModelPickerModal() {
                                         className="grid gap-2"
                                         style={{
                                             gridTemplateColumns:
-                                                'repeat(auto-fill, minmax(140px, 170px))',
+                                                'repeat(auto-fill, minmax(120px, 1fr))',
                                         }}
                                     >
                                         {allModels.map(({ providerId, provider, model }) => (

@@ -153,7 +153,7 @@ export function ModelCard({
                         {/* Provider Logo */}
                         <div
                             className={cn(
-                                'flex items-center justify-center rounded-xl bg-muted/60 mb-3',
+                                'flex items-center justify-center rounded-xl bg-muted/60 mb-1.5',
                                 logoSizes[size].container
                             )}
                         >
@@ -175,7 +175,7 @@ export function ModelCard({
                         </div>
 
                         {/* Model Name */}
-                        <div className="text-center flex-1 flex flex-col justify-center min-w-0 w-full px-1">
+                        <div className="text-center flex-1 flex flex-col min-w-0 w-full px-1">
                             <div
                                 className={cn(
                                     'font-bold text-foreground leading-tight',
@@ -186,7 +186,7 @@ export function ModelCard({
                             </div>
                             <div
                                 className={cn(
-                                    'text-muted-foreground leading-tight mt-1 truncate',
+                                    'text-muted-foreground leading-tight mt-0.5 line-clamp-2',
                                     size === 'sm' ? 'text-sm' : 'text-base'
                                 )}
                             >
