@@ -1,6 +1,11 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { ConfigPromptProvider } from './config-prompt-provider.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURES_DIR = join(__dirname, '__fixtures__');
 
 const mockLogger = {
     debug: () => {},
@@ -311,6 +316,198 @@ describe('ConfigPromptProvider', () => {
             const config = makeAgentConfig([]);
             const provider = new ConfigPromptProvider(config, mockLogger);
             expect(provider.getSource()).toBe('config');
+        });
+    });
+
+    describe('file prompts', () => {
+        test('loads file with full frontmatter', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'full-frontmatter.md'),
+                    showInStarters: true,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                name: 'config:test-prompt',
+                title: 'Test Prompt Title',
+                description: 'A test prompt with full frontmatter',
+                source: 'config',
+            });
+            expect(result.prompts[0]?.metadata).toMatchObject({
+                type: 'file',
+                category: 'testing',
+                priority: 10,
+                showInStarters: true,
+                originalId: 'test-prompt',
+            });
+            // Should have parsed arguments from argument-hint
+            expect(result.prompts[0]?.arguments).toEqual([
+                { name: 'style', required: true },
+                { name: 'length', required: false },
+            ]);
+        });
+
+        test('loads file without frontmatter (uses filename as id)', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'minimal.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                name: 'config:minimal',
+                title: 'Minimal Prompt', // Extracted from # heading
+                source: 'config',
+            });
+        });
+
+        test('loads file with partial frontmatter', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'partial-frontmatter.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                name: 'config:partial-test',
+                title: 'Partial Frontmatter', // From heading since not in frontmatter
+                description: 'Only id and description provided',
+                source: 'config',
+            });
+        });
+
+        test('gets file prompt content', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'minimal.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.getPrompt('config:minimal');
+
+            const text = (result.messages?.[0]?.content as any).text as string;
+            expect(text).toContain('Minimal Prompt');
+            expect(text).toContain('minimal prompt without frontmatter');
+        });
+
+        test('skips file with invalid prompt name', async () => {
+            const warnings: string[] = [];
+            const warnLogger = {
+                ...mockLogger,
+                warn: (msg: string) => warnings.push(msg),
+                createChild: () => warnLogger,
+            };
+
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'invalid-name.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, warnLogger as any);
+            const result = await provider.listPrompts();
+
+            // Should be skipped due to invalid name
+            expect(result.prompts).toHaveLength(0);
+            expect(warnings.some((w) => w.includes('Invalid prompt name'))).toBe(true);
+        });
+
+        test('skips non-existent file gracefully', async () => {
+            const warnings: string[] = [];
+            const warnLogger = {
+                ...mockLogger,
+                warn: (msg: string) => warnings.push(msg),
+                createChild: () => warnLogger,
+            };
+
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'does-not-exist.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, warnLogger as any);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(0);
+            expect(warnings.some((w) => w.includes('not found'))).toBe(true);
+        });
+
+        test('mixed inline and file prompts', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'inline',
+                    id: 'inline-one',
+                    prompt: 'Inline content',
+                    priority: 5,
+                },
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'full-frontmatter.md'),
+                    showInStarters: true,
+                },
+                {
+                    type: 'inline',
+                    id: 'inline-two',
+                    prompt: 'Another inline',
+                    priority: 1,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(3);
+            // Sorted by priority: file (10), inline-one (5), inline-two (1)
+            expect(result.prompts.map((p) => p.name)).toEqual([
+                'config:test-prompt', // priority 10 from file
+                'config:inline-one', // priority 5
+                'config:inline-two', // priority 1
+            ]);
+        });
+
+        test('applies arguments to file prompt content', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'full-frontmatter.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.getPrompt('config:test-prompt', {
+                _positional: ['detailed'],
+            });
+
+            const text = (result.messages?.[0]?.content as any).text as string;
+            // $ARGUMENTS should be expanded
+            expect(text).toContain('detailed style');
         });
     });
 });
