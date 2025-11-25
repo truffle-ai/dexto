@@ -439,7 +439,7 @@ export default function ModelPickerModal() {
                                                 maxInputTokens: e.target.value,
                                             }))
                                         }
-                                        placeholder="Max input tokens"
+                                        placeholder="Max input tokens (default: 128k)"
                                         type="number"
                                         className="h-8 text-xs"
                                     />
@@ -451,7 +451,7 @@ export default function ModelPickerModal() {
                                                 maxOutputTokens: e.target.value,
                                             }))
                                         }
-                                        placeholder="Max output tokens"
+                                        placeholder="Max output tokens (optional)"
                                         type="number"
                                         className="h-8 text-xs"
                                     />
