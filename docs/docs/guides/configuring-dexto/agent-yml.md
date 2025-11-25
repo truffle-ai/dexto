@@ -203,7 +203,7 @@ Language model provider and settings.
 
 ```yaml
 llm:
-  provider: string              # Required: openai | anthropic | google | groq | openai-compatible
+  provider: string              # Required: openai | anthropic | google | groq | xai | cohere | openai-compatible
   model: string                 # Required
   apiKey: string                # Required: API key or $ENV_VAR
   maxIterations: number         # Optional, default: 50

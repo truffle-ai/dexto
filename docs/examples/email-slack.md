@@ -50,7 +50,7 @@ This example demonstrates multi-tool orchestration:
 # agents/examples/email_slack.yml
 mcpServers:
   gmail:
-    type: sse
+    type: http
     url: "your-composio-url"
 
   slack:

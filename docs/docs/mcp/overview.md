@@ -60,6 +60,10 @@ mcpServers:
 
 ### sse Server Type
 
+:::warning Deprecated
+SSE transport is deprecated. Use `http` type for remote MCP servers instead.
+:::
+
 For Server-Sent Events (SSE) based MCP servers:
 
 ```yaml

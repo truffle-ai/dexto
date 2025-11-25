@@ -57,17 +57,22 @@ async connectServer(name: string, config: McpServerConfig): Promise<void>
   env?: { [key: string]: string }
 }
 
-// HTTP server
+// HTTP server (recommended for remote)
 {
   type: 'http',
-  baseUrl: 'http://localhost:3001/mcp',
-  timeout?: number
+  url: 'http://localhost:3001/mcp',
+  headers?: { [key: string]: string },
+  timeout?: number,
+  connectionMode?: 'strict' | 'lenient'
 }
 
-// SSE (Server-Sent Events) server  
+// SSE (Server-Sent Events) server - DEPRECATED, use http instead
 {
   type: 'sse',
-  url: 'http://localhost:3001/sse'
+  url: 'http://localhost:3001/sse',
+  headers?: { [key: string]: string },
+  timeout?: number,
+  connectionMode?: 'strict' | 'lenient'
 }
 ```
 
