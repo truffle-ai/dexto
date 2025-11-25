@@ -76,7 +76,7 @@ export function ModelCard({
     // Build description lines for tooltip
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
-        displayName,
+        `Model: ${displayName}`,
         `Provider: ${providerInfo.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
