@@ -1,74 +1,101 @@
 'use client';
 
 import React from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, Eye, FileText, Mic, Image, Brain, Sparkles } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
-import { CAPABILITY_ICONS } from './constants';
+import { cn } from '../../lib/utils';
 import type { ModelInfo } from './types.js';
 
 interface CapabilityIconsProps {
     supportedFileTypes: ModelInfo['supportedFileTypes'];
     hasApiKey: boolean;
+    showReasoning?: boolean;
     className?: string;
+    size?: 'sm' | 'md';
+}
+
+interface CapabilityBadgeProps {
+    icon: React.ReactNode;
+    label: string;
+    variant?: 'default' | 'warning' | 'success' | 'info';
+}
+
+function CapabilityBadge({ icon, label, variant = 'default' }: CapabilityBadgeProps) {
+    const variantStyles = {
+        default: 'bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground',
+        warning: 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20',
+        success: 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20',
+        info: 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20',
+    };
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <div
+                    className={cn(
+                        'flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 cursor-default',
+                        variantStyles[variant]
+                    )}
+                >
+                    {icon}
+                </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+                {label}
+            </TooltipContent>
+        </Tooltip>
+    );
 }
 
 export function CapabilityIcons({
     supportedFileTypes,
     hasApiKey,
+    showReasoning,
     className,
+    size = 'sm',
 }: CapabilityIconsProps) {
+    const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
+
     return (
-        <div className={`flex items-center gap-1.5 flex-shrink-0 ${className || ''}`}>
+        <div className={cn('flex items-center gap-1', className)}>
+            {supportedFileTypes.includes('image') && (
+                <CapabilityBadge
+                    icon={<Eye className={iconSize} />}
+                    label="Vision / Image support"
+                    variant="success"
+                />
+            )}
+
             {supportedFileTypes.includes('pdf') && (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="transition-transform hover:scale-125">
-                            {CAPABILITY_ICONS.pdf}
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                        <span>PDF support</span>
-                    </TooltipContent>
-                </Tooltip>
+                <CapabilityBadge
+                    icon={<FileText className={iconSize} />}
+                    label="PDF support"
+                    variant="info"
+                />
             )}
 
             {supportedFileTypes.includes('audio') && (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="transition-transform hover:scale-125">
-                            {CAPABILITY_ICONS.audio}
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                        <span>Audio support</span>
-                    </TooltipContent>
-                </Tooltip>
+                <CapabilityBadge
+                    icon={<Mic className={iconSize} />}
+                    label="Audio support"
+                    variant="info"
+                />
             )}
 
-            {supportedFileTypes.includes('image') && (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="transition-transform hover:scale-125">
-                            {CAPABILITY_ICONS.image}
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                        <span>Image support</span>
-                    </TooltipContent>
-                </Tooltip>
+            {showReasoning && (
+                <CapabilityBadge
+                    icon={<Brain className={iconSize} />}
+                    label="Extended thinking"
+                    variant="default"
+                />
             )}
 
             {!hasApiKey && (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="transition-transform hover:scale-125">
-                            <Lock className="h-3.5 w-3.5 text-amber-500 hover:text-amber-400 transition-colors cursor-help" />
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                        <span>API key required</span>
-                    </TooltipContent>
-                </Tooltip>
+                <CapabilityBadge
+                    icon={<Lock className={iconSize} />}
+                    label="API key required"
+                    variant="warning"
+                />
             )}
         </div>
     );
