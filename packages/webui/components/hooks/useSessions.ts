@@ -60,6 +60,9 @@ export function useRenameSession() {
                 param: { sessionId },
                 json: { title },
             });
+            if (!response.ok) {
+                throw new Error('Failed to rename session');
+            }
             const data = await response.json();
             return data.session;
         },

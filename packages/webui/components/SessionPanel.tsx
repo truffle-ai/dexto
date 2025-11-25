@@ -215,20 +215,36 @@ export default function SessionPanel({
 
     const handleRenameSession = async () => {
         if (!selectedSessionForAction || !renameValue.trim()) return;
-        await renameSessionMutation.mutateAsync({
-            sessionId: selectedSessionForAction,
-            title: renameValue.trim(),
-        });
-        setRenameDialogOpen(false);
-        setSelectedSessionForAction(null);
-        setRenameValue('');
+        try {
+            await renameSessionMutation.mutateAsync({
+                sessionId: selectedSessionForAction,
+                title: renameValue.trim(),
+            });
+            setRenameDialogOpen(false);
+            setSelectedSessionForAction(null);
+            setRenameValue('');
+        } catch (error) {
+            // Error is already logged by React Query, keep dialog open for retry
+            console.error(`Failed to rename session: ${error}`);
+        }
     };
 
     const handleCopySessionId = async (sessionId: string) => {
-        await navigator.clipboard.writeText(sessionId);
-        setCopiedSessionId(sessionId);
-        setTimeout(() => setCopiedSessionId(null), 2000);
+        try {
+            await navigator.clipboard.writeText(sessionId);
+            setCopiedSessionId(sessionId);
+        } catch (error) {
+            console.error(`Failed to copy session ID: ${error}`);
+        }
     };
+
+    // Clean up copy feedback timeout
+    useEffect(() => {
+        if (copiedSessionId) {
+            const timeoutId = setTimeout(() => setCopiedSessionId(null), 2000);
+            return () => clearTimeout(timeoutId);
+        }
+    }, [copiedSessionId]);
 
     const formatRelativeTime = (timestamp: number | null) => {
         if (!timestamp) return 'Unknown';
