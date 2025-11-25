@@ -348,7 +348,7 @@ export const AgentConfigSchema = z
         ).optional(),
 
         memories: MemoriesConfigSchema.describe(
-            'Memory configuration for system prompt inclusion (opt-in feature)'
+            'Memory configuration for system prompt inclusion (optional feature)'
         ).optional(),
 
         // ========================================
@@ -399,7 +399,7 @@ export const AgentConfigSchema = z
         ).default([]),
 
         prompts: PromptsSchema.describe(
-            'Agent prompts configuration - inline text or file-based (replaces starterPrompts)'
+            'Agent prompts configuration - sample prompts which can be defined inline or referenced from file'
         ).default([]),
 
         plugins: PluginsConfigSchema.describe(

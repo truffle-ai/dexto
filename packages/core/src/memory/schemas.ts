@@ -105,7 +105,7 @@ export const MemoriesConfigSchema = z
         enabled: z
             .boolean()
             .default(false)
-            .describe('Whether to include memories in system prompt (opt-in)'),
+            .describe('Whether to include memories in system prompt (optional'),
         priority: z
             .number()
             .int()
