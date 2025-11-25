@@ -11398,7 +11398,6 @@
                                   "enum": [
                                     "inline"
                                   ],
-                                  "default": "inline",
                                   "description": "Inline prompt type"
                                 },
                                 "id": {
@@ -11438,6 +11437,7 @@
                                 }
                               },
                               "required": [
+                                "type",
                                 "id",
                                 "prompt"
                               ],
