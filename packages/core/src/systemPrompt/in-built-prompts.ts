@@ -11,19 +11,14 @@ import { DynamicContributorContext } from './types.js';
  * - Place all dynamic prompt-generating functions in this file.
  * - Also update the `registry.ts` file to register the new function.
  * - Use XML tags to indicate the start and end of the dynamic prompt - they are known to improve performance
- * - Each function should be named clearly to reflect its purpose (e.g., getCurrentDateTime, getMemorySummary).
+ * - Each function should be named clearly to reflect its purpose (e.g., getCurrentDateTime, getResourceData).
  */
 
 export async function getCurrentDateTime(_context: DynamicContributorContext): Promise<string> {
     return `<dateTime>Current date and time: ${new Date().toISOString()}</dateTime>`;
 }
 
-export async function getMemorySummary(_context: DynamicContributorContext): Promise<string> {
-    // Placeholder for actual memory logic
-    return '<memorySummary>Memory summary: [not implemented]</memorySummary>';
-}
-
-// TODO: This needs to be optimized to only fetch resources when needed. Curerntly this runs every time the prompt is generated.
+// TODO: This needs to be optimized to only fetch resources when needed. Currently this runs every time the prompt is generated.
 export async function getResourceData(context: DynamicContributorContext): Promise<string> {
     const resources = await context.mcpManager.listAllResources();
     if (!resources || resources.length === 0) {

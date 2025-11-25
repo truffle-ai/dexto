@@ -8,6 +8,7 @@
 import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { LoggerConfigSchema } from '@core/logger/index.js';
 import { ServerConfigsSchema as McpServersConfigSchema } from '@core/mcp/schemas.js';
+import { MemoriesConfigSchema } from '@core/memory/schemas.js';
 import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
@@ -344,6 +345,10 @@ export const AgentConfigSchema = z
 
         telemetry: OtelConfigurationSchema.describe(
             'OpenTelemetry configuration for distributed tracing and observability'
+        ).optional(),
+
+        memories: MemoriesConfigSchema.describe(
+            'Memory configuration for system prompt inclusion (opt-in feature)'
         ).optional(),
 
         // ========================================

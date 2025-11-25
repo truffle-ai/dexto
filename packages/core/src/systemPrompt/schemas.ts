@@ -88,53 +88,16 @@ const FileContributorSchema = BaseContributorSchema.extend({
         .default({}),
 }).strict();
 
-// Schema for 'memory' contributors - includes memory-specific configuration
-const MemoryContributorSchema = BaseContributorSchema.extend({
-    type: z.literal('memory'),
-    options: z
-        .object({
-            includeTimestamps: z
-                .boolean()
-                .optional()
-                .default(false)
-                .describe('Whether to include timestamps in memory display'),
-            includeTags: z
-                .boolean()
-                .optional()
-                .default(true)
-                .describe('Whether to include tags in memory display'),
-            limit: z
-                .number()
-                .int()
-                .positive()
-                .optional()
-                .describe('Maximum number of memories to include'),
-            pinnedOnly: z
-                .boolean()
-                .optional()
-                .default(false)
-                .describe('Only include pinned memories (for hybrid approach)'),
-        })
-        .strict()
-        .optional()
-        .default({}),
-}).strict();
-
 export const ContributorConfigSchema = z
     .discriminatedUnion(
         'type', // The field to discriminate on
-        [
-            StaticContributorSchema,
-            DynamicContributorSchema,
-            FileContributorSchema,
-            MemoryContributorSchema,
-        ],
+        [StaticContributorSchema, DynamicContributorSchema, FileContributorSchema],
         {
             // Optional: Custom error message for invalid discriminator
             errorMap: (issue, ctx) => {
                 if (issue.code === z.ZodIssueCode.invalid_union_discriminator) {
                     return {
-                        message: `Invalid contributor type. Expected 'static', 'dynamic', 'file', or 'memory'.`,
+                        message: `Invalid contributor type. Expected 'static', 'dynamic', or 'file'. Note: memory contributors are now configured via the top-level 'memories' config.`,
                     };
                 }
                 return { message: ctx.defaultError };
@@ -142,7 +105,7 @@ export const ContributorConfigSchema = z
         }
     )
     .describe(
-        "Configuration for a system prompt contributor. Type 'static' requires 'content', type 'dynamic' requires 'source', type 'file' requires 'files', type 'memory' loads user memories."
+        "Configuration for a system prompt contributor. Type 'static' requires 'content', type 'dynamic' requires 'source', type 'file' requires 'files'."
     );
 // Input type for user-facing API (pre-parsing)
 

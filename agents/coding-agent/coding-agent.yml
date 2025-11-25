@@ -28,15 +28,15 @@ systemPrompt:
         - Follow the project's existing code style and conventions
         - Provide clear explanations for your code decisions
         - Ask for clarification when requirements are ambiguous
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        includeTimestamps: false
-        includeTags: true
-        limit: 10
-        pinnedOnly: false
+
+# Memory configuration - controls how memories are included in system prompt
+memories:
+  enabled: true
+  priority: 40
+  includeTimestamps: false
+  includeTags: true
+  limit: 10
+  pinnedOnly: false
 
 # Greeting optimized for coding tasks
 greeting: "👨‍💻 Ready to code! What are we building today?"

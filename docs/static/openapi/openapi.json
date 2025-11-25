@@ -9445,7 +9445,6 @@
                                           "type": "string",
                                           "enum": [
                                             "dateTime",
-                                            "memorySummary",
                                             "resources"
                                           ],
                                           "description": "Source identifier for dynamic content (REQUIRED for 'dynamic')"
@@ -9536,68 +9535,9 @@
                                         "files"
                                       ],
                                       "additionalProperties": false
-                                    },
-                                    {
-                                      "type": "object",
-                                      "properties": {
-                                        "id": {
-                                          "type": "string",
-                                          "description": "Unique identifier for the contributor"
-                                        },
-                                        "priority": {
-                                          "type": "integer",
-                                          "minimum": 0,
-                                          "description": "Execution priority of the contributor (lower numbers run first)"
-                                        },
-                                        "enabled": {
-                                          "type": "boolean",
-                                          "default": true,
-                                          "description": "Whether this contributor is currently active"
-                                        },
-                                        "type": {
-                                          "type": "string",
-                                          "enum": [
-                                            "memory"
-                                          ]
-                                        },
-                                        "options": {
-                                          "type": "object",
-                                          "properties": {
-                                            "includeTimestamps": {
-                                              "type": "boolean",
-                                              "default": false,
-                                              "description": "Whether to include timestamps in memory display"
-                                            },
-                                            "includeTags": {
-                                              "type": "boolean",
-                                              "default": true,
-                                              "description": "Whether to include tags in memory display"
-                                            },
-                                            "limit": {
-                                              "type": "integer",
-                                              "minimum": 0,
-                                              "exclusiveMinimum": true,
-                                              "description": "Maximum number of memories to include"
-                                            },
-                                            "pinnedOnly": {
-                                              "type": "boolean",
-                                              "default": false,
-                                              "description": "Only include pinned memories (for hybrid approach)"
-                                            }
-                                          },
-                                          "default": {},
-                                          "additionalProperties": false
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "priority",
-                                        "type"
-                                      ],
-                                      "additionalProperties": false
                                     }
                                   ],
-                                  "description": "Configuration for a system prompt contributor. Type 'static' requires 'content', type 'dynamic' requires 'source', type 'file' requires 'files', type 'memory' loads user memories."
+                                  "description": "Configuration for a system prompt contributor. Type 'static' requires 'content', type 'dynamic' requires 'source', type 'file' requires 'files'."
                                 },
                                 "minItems": 1,
                                 "default": [
@@ -10405,6 +10345,45 @@
                           }
                         },
                         "description": "OpenTelemetry configuration for distributed tracing and observability"
+                      },
+                      "memories": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Whether to include memories in system prompt (opt-in)"
+                          },
+                          "priority": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 40,
+                            "description": "Priority in system prompt (lower = earlier)"
+                          },
+                          "includeTimestamps": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Whether to include timestamps in memory display"
+                          },
+                          "includeTags": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether to include tags in memory display"
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Maximum number of memories to include"
+                          },
+                          "pinnedOnly": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Only include pinned memories"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Memory configuration for system prompt inclusion (opt-in feature)"
                       },
                       "agentId": {
                         "type": "string",

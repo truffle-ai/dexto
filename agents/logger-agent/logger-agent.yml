@@ -35,15 +35,15 @@ systemPrompt:
       priority: 10
       source: dateTime
       enabled: true
-    - id: memories
-      type: memory
-      priority: 40
-      enabled: true
-      options:
-        includeTimestamps: false
-        includeTags: true
-        limit: 10
-        pinnedOnly: false
+
+# Memory configuration - controls how memories are included in system prompt
+memories:
+  enabled: true
+  priority: 40
+  includeTimestamps: false
+  includeTags: true
+  limit: 10
+  pinnedOnly: false
 
 # Optional greeting shown at chat start
 greeting: "Hi! I'm the Logger Agent — all interactions are being logged for analysis. How can I help?"
