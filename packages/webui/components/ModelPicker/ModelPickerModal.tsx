@@ -701,7 +701,7 @@ export default function ModelPickerModal() {
                                         className="grid gap-2"
                                         style={{
                                             gridTemplateColumns:
-                                                'repeat(auto-fill, minmax(120px, 140px))',
+                                                'repeat(auto-fill, minmax(140px, 170px))',
                                         }}
                                     >
                                         {allModels.map(({ providerId, provider, model }) => (

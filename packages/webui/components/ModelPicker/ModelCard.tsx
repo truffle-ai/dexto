@@ -79,20 +79,20 @@ export function ModelCard({
         `Provider: ${providerInfo.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
-        !hasApiKey && 'API key required',
+        !hasApiKey && 'API key required (click to add)',
         ...priceLines,
     ].filter(Boolean) as string[];
 
     const sizeClasses = {
-        sm: 'p-2.5 h-[120px] w-full',
-        md: 'p-3.5 h-[140px] w-full',
-        lg: 'p-5 h-[170px] w-full',
+        sm: 'p-4 h-[180px] w-full',
+        md: 'p-5 h-[210px] w-full',
+        lg: 'p-6 h-[255px] w-full',
     };
 
     const logoSizes = {
-        sm: { width: 24, height: 24, container: 'w-7 h-7' },
-        md: { width: 32, height: 32, container: 'w-9 h-9' },
-        lg: { width: 40, height: 40, container: 'w-12 h-12' },
+        sm: { width: 36, height: 36, container: 'w-10 h-10' },
+        md: { width: 48, height: 48, container: 'w-14 h-14' },
+        lg: { width: 60, height: 60, container: 'w-16 h-16' },
     };
 
     return (
@@ -179,28 +179,28 @@ export function ModelCard({
                             <div
                                 className={cn(
                                     'font-bold text-foreground leading-tight',
-                                    size === 'sm' ? 'text-sm' : 'text-base'
+                                    size === 'sm' ? 'text-base' : 'text-lg'
                                 )}
                             >
                                 {providerName}
                             </div>
                             <div
                                 className={cn(
-                                    'text-muted-foreground leading-tight mt-0.5 truncate',
-                                    size === 'sm' ? 'text-xs' : 'text-sm'
+                                    'text-muted-foreground leading-tight mt-1 truncate',
+                                    size === 'sm' ? 'text-sm' : 'text-base'
                                 )}
                             >
                                 {modelName}
                             </div>
                             {suffix && (
-                                <div className="text-[11px] text-primary/90 font-medium mt-1">
+                                <div className="text-xs text-primary/90 font-medium mt-1">
                                     ({suffix})
                                 </div>
                             )}
                         </div>
 
-                        {/* Capability Icons */}
-                        <div className="mt-auto pt-2">
+                        {/* Capability Icons - fixed height to ensure consistent card layout */}
+                        <div className="mt-auto pt-2 h-8 flex items-center justify-center">
                             <CapabilityIcons
                                 supportedFileTypes={model.supportedFileTypes}
                                 hasApiKey={hasApiKey}
