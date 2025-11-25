@@ -24,6 +24,7 @@ import { ModelCard } from './ModelCard';
 import {
     FAVORITES_STORAGE_KEY,
     CUSTOM_MODELS_STORAGE_KEY,
+    DEFAULT_FAVORITES,
     ProviderCatalog,
     ModelInfo,
     CustomModelStorage,
@@ -105,7 +106,9 @@ export default function ModelPickerModal() {
         if (open) {
             try {
                 const favRaw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-                const loadedFavorites = favRaw ? (JSON.parse(favRaw) as string[]) : [];
+                // Use default favorites for new users (when localStorage key doesn't exist)
+                const loadedFavorites =
+                    favRaw !== null ? (JSON.parse(favRaw) as string[]) : DEFAULT_FAVORITES;
                 setFavorites(loadedFavorites);
 
                 const customRaw = localStorage.getItem(CUSTOM_MODELS_STORAGE_KEY);
