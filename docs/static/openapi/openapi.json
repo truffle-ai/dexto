@@ -10350,7 +10350,7 @@
                           "enabled": {
                             "type": "boolean",
                             "default": false,
-                            "description": "Whether to include memories in system prompt (opt-in)"
+                            "description": "Whether to include memories in system prompt (optional"
                           },
                           "priority": {
                             "type": "integer",
@@ -10381,7 +10381,7 @@
                           }
                         },
                         "additionalProperties": false,
-                        "description": "Memory configuration for system prompt inclusion (opt-in feature)"
+                        "description": "Memory configuration for system prompt inclusion (optional feature)"
                       },
                       "agentId": {
                         "type": "string",
@@ -11474,7 +11474,7 @@
                           ]
                         },
                         "default": [],
-                        "description": "Agent prompts configuration - inline text or file-based (replaces starterPrompts)"
+                        "description": "Agent prompts configuration - sample prompts which can be defined inline or referenced from file"
                       },
                       "plugins": {
                         "type": "object",

@@ -6,8 +6,10 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { PromptError } from '../errors.js';
 import { expandPlaceholders } from '../utils.js';
-import { readFile } from 'fs/promises';
+import { assertValidPromptName } from '../name-validation.js';
+import { readFile, realpath } from 'fs/promises';
 import { existsSync } from 'fs';
+import { dirname, relative, sep } from 'path';
 
 /**
  * Config Prompt Provider - Unified provider for prompts from agent configuration
@@ -178,9 +180,42 @@ export class ConfigPromptProvider implements PromptProvider {
             return null;
         }
 
+        // Security: Validate file path to prevent symlink escapes
+        try {
+            const resolvedDir = await realpath(dirname(filePath));
+            const resolvedFile = await realpath(filePath);
+
+            // Check if resolved file is within the expected directory
+            const rel = relative(resolvedDir, resolvedFile);
+            if (rel.startsWith('..' + sep) || rel === '..') {
+                this.logger.warn(
+                    `Skipping prompt file '${filePath}': path traversal attempt detected (resolved outside directory)`
+                );
+                return null;
+            }
+        } catch (realpathError) {
+            this.logger.warn(
+                `Skipping prompt file '${filePath}': unable to resolve path (${realpathError instanceof Error ? realpathError.message : String(realpathError)})`
+            );
+            return null;
+        }
+
         try {
             const rawContent = await readFile(filePath, 'utf-8');
             const parsed = this.parseMarkdownPrompt(rawContent, filePath);
+
+            // Validate the parsed prompt name
+            try {
+                assertValidPromptName(parsed.id, {
+                    context: `file prompt '${filePath}'`,
+                    hint: "Use kebab-case in the 'id:' frontmatter field or file name.",
+                });
+            } catch (validationError) {
+                this.logger.warn(
+                    `Invalid prompt name in '${filePath}': ${validationError instanceof Error ? validationError.message : String(validationError)}`
+                );
+                return null;
+            }
 
             const promptInfo: PromptInfo = {
                 name: `config:${parsed.id}`,
