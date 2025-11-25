@@ -46,11 +46,12 @@ function cleanup() {
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
 
-console.log('🔨 Building core and CLI packages...\n');
+console.log('🔨 Building packages...\n');
 
 try {
-    // Build core and CLI (not webui since we'll run it in dev mode)
-    execSync('pnpm run build:cli-only', {
+    // Build all packages (turbo handles dependency graph)
+    // This ensures webui dependencies like client-sdk are built
+    execSync('pnpm run build:packages', {
         stdio: 'inherit',
         cwd: rootDir,
     });
