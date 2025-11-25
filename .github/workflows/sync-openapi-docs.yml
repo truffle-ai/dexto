@@ -58,7 +58,7 @@ jobs:
         run: |
           if ! git diff --quiet --exit-code docs/static/openapi/openapi.json; then
             echo "OpenAPI docs are out of sync with API routes." >&2
-            echo "Please run: pnpm run sync-openapi-docs and commit the updated docs/static/openapi/openapi.json" >&2
+            echo "Please run: pnpm --filter @dexto/server... build &&pnpm run sync-openapi-docs and commit the updated docs/static/openapi/openapi.json" >&2
             exit 1
           else
             echo "OpenAPI docs already in sync."
