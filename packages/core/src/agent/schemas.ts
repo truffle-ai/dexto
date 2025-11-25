@@ -19,7 +19,7 @@ import {
 } from '@core/tools/schemas.js';
 import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
-import { StarterPromptsSchema } from '@core/prompts/schemas.js';
+import { PromptsSchema } from '@core/prompts/schemas.js';
 import { PluginsConfigSchema } from '@core/plugins/schemas.js';
 import { OtelConfigurationSchema } from '@core/telemetry/schemas.js';
 
@@ -398,8 +398,8 @@ export const AgentConfigSchema = z
             'Configuration for internal resources (filesystem, etc.)'
         ).default([]),
 
-        starterPrompts: StarterPromptsSchema.describe(
-            'Agent-specific starter prompts configuration (used by WebUI and PromptManager)'
+        prompts: PromptsSchema.describe(
+            'Agent prompts configuration - inline text or file-based (replaces starterPrompts)'
         ).default([]),
 
         plugins: PluginsConfigSchema.describe(

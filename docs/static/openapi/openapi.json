@@ -7420,8 +7420,7 @@
                             "type": "string",
                             "enum": [
                               "mcp",
-                              "file",
-                              "starter",
+                              "config",
                               "custom"
                             ],
                             "description": "Source of the prompt"
@@ -7602,8 +7601,7 @@
                           "type": "string",
                           "enum": [
                             "mcp",
-                            "file",
-                            "starter",
+                            "config",
                             "custom"
                           ],
                           "description": "Source of the prompt"
@@ -11388,50 +11386,95 @@
                         "default": [],
                         "description": "Configuration for internal resources (filesystem, etc.)"
                       },
-                      "starterPrompts": {
+                      "prompts": {
                         "type": "array",
                         "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 64,
-                              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                              "description": "Kebab-case slug id for the starter prompt (e.g., quick-start)"
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "inline"
+                                  ],
+                                  "default": "inline",
+                                  "description": "Inline prompt type"
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                                  "description": "Kebab-case slug id for the prompt (e.g., quick-start)"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "Display title for the prompt"
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "default": "",
+                                  "description": "Description shown on hover or in the UI"
+                                },
+                                "prompt": {
+                                  "type": "string",
+                                  "description": "The actual prompt text"
+                                },
+                                "category": {
+                                  "type": "string",
+                                  "default": "general",
+                                  "description": "Category for organizing prompts (e.g., general, coding, analysis, tools)"
+                                },
+                                "priority": {
+                                  "type": "number",
+                                  "default": 0,
+                                  "description": "Higher numbers appear first in the list"
+                                },
+                                "showInStarters": {
+                                  "type": "boolean",
+                                  "default": false,
+                                  "description": "Show as a clickable button in WebUI starter prompts"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "prompt"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Inline prompt with text defined directly in config"
                             },
-                            "title": {
-                              "type": "string",
-                              "description": "Display title for the starter prompt"
-                            },
-                            "description": {
-                              "type": "string",
-                              "default": "",
-                              "description": "Description shown on hover or in the UI"
-                            },
-                            "prompt": {
-                              "type": "string",
-                              "description": "The actual prompt text that gets resolved and sent"
-                            },
-                            "category": {
-                              "type": "string",
-                              "default": "general",
-                              "description": "Category for organizing starter prompts (e.g., general, coding, analysis, tools, learning)"
-                            },
-                            "priority": {
-                              "type": "number",
-                              "default": 0,
-                              "description": "Higher numbers appear first"
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ],
+                                  "description": "File-based prompt type"
+                                },
+                                "file": {
+                                  "type": "string",
+                                  "description": "Path to markdown file containing prompt (supports ${{dexto.agent_dir}} template)"
+                                },
+                                "showInStarters": {
+                                  "type": "boolean",
+                                  "default": false,
+                                  "description": "Show as a clickable button in WebUI starter prompts"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "file"
+                              ],
+                              "additionalProperties": false,
+                              "description": "File-based prompt loaded from a markdown file"
                             }
-                          },
-                          "required": [
-                            "id",
-                            "prompt"
-                          ],
-                          "additionalProperties": false
+                          ]
                         },
                         "default": [],
-                        "description": "Agent-specific starter prompts configuration (used by WebUI and PromptManager)"
+                        "description": "Agent prompts configuration - inline text or file-based (replaces starterPrompts)"
                       },
                       "plugins": {
                         "type": "object",

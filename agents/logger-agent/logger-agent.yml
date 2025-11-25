@@ -116,29 +116,37 @@ plugins:
       priority: 5      # Run early to capture original data before other plugins modify it
       config: {}       # Empty config uses defaults: ~/.dexto/logs/request-logger.log
 
-# Starter prompts for the WebUI
-starterPrompts:
-  - id: simple-question
+# Prompts - shown as clickable buttons in WebUI
+prompts:
+  - type: inline
+    id: simple-question
     title: "🤔 Ask a Simple Question"
     description: "Test basic request/response logging"
     prompt: "What is the capital of France?"
     category: learning
     priority: 9
-  - id: tool-usage
+    showInStarters: true
+  - type: inline
+    id: tool-usage
     title: "🔧 Use a Tool"
     description: "Test tool call and result logging"
     prompt: "List the files in the current directory"
     category: tools
     priority: 8
-  - id: multi-step
+    showInStarters: true
+  - type: inline
+    id: multi-step
     title: "🎯 Multi-Step Task"
     description: "Test logging across multiple tool calls"
     prompt: "Create a new file called test.txt with the content 'Hello from Logger Agent' and then read it back to me"
     category: tools
     priority: 7
-  - id: check-logs
+    showInStarters: true
+  - type: inline
+    id: check-logs
     title: "📋 Check the Logs"
     description: "View the request logger output"
     prompt: "Can you read the file at ~/.dexto/logs/request-logger.log and show me the last 50 lines?"
     category: tools
     priority: 6
+    showInStarters: true

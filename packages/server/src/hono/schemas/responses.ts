@@ -419,7 +419,7 @@ export const PromptInfoSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
-        source: z.enum(['mcp', 'file', 'starter', 'custom']).describe('Source of the prompt'),
+        source: z.enum(['mcp', 'config', 'custom']).describe('Source of the prompt'),
         metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
     })
     .strict()

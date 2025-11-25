@@ -155,32 +155,40 @@ internalResources:
     # Blob resource - for handling build artifacts, images, etc.
     - type: blob
 
-# Starter prompts - coding-focused examples
-starterPrompts:
-  - id: analyze-codebase
+# Prompts - coding-focused examples shown as clickable buttons in WebUI
+prompts:
+  - type: inline
+    id: analyze-codebase
     title: "🔍 Analyze Codebase"
     description: "Get an overview of the project structure"
     prompt: "Analyze this codebase. Show me the project structure, main technologies used, and provide a high-level overview."
     category: analysis
     priority: 10
-  - id: implement-feature
+    showInStarters: true
+  - type: inline
+    id: implement-feature
     title: "✨ Implement Feature"
     description: "Build a new feature from scratch"
     prompt: "Help me implement a new feature. I'll describe what I need, and you can design and implement it following best practices."
     category: development
     priority: 9
-  - id: write-tests
+    showInStarters: true
+  - type: inline
+    id: write-tests
     title: "🧪 Write Tests"
     description: "Generate unit tests for code"
     prompt: "Help me write comprehensive unit tests. Identify the testing framework and create tests that cover edge cases."
     category: testing
     priority: 8
-  - id: refactor-code
+    showInStarters: true
+  - type: inline
+    id: refactor-code
     title: "♻️ Refactor Code"
     description: "Improve code quality and structure"
     prompt: "Help me refactor some code to improve its structure, readability, and maintainability while preserving functionality."
     category: refactoring
     priority: 7
+    showInStarters: true
 
 ## Alternative LLM configurations for coding
 

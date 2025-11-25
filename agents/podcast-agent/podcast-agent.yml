@@ -173,29 +173,37 @@ toolConfirmation:
   timeout: 30000
   allowedToolsStorage: memory
 
-# Starter prompts - podcast and audio generation examples
-starterPrompts:
-  - id: create-intro
+# Prompts - podcast and audio generation examples shown as clickable buttons in WebUI
+prompts:
+  - type: inline
+    id: create-intro
     title: "🎙️ Create Podcast Intro"
     description: "Generate a multi-speaker podcast introduction"
     prompt: "Create a podcast intro with two hosts, Alex (voice: Achird) and Jamie (voice: Autonoe), welcoming listeners to a tech podcast."
     category: podcasting
     priority: 10
-  - id: generate-conversation
+    showInStarters: true
+  - type: inline
+    id: generate-conversation
     title: "💬 Generate Conversation"
     description: "Create multi-speaker dialogue"
     prompt: "Generate a 2-minute conversation between Dr. Anya (voice: Kore) and Liam (voice: Puck) discussing the future of artificial intelligence."
     category: conversation
     priority: 9
-  - id: list-voices
+    showInStarters: true
+  - type: inline
+    id: list-voices
     title: "🔊 Explore Voices"
     description: "Browse available voice options"
     prompt: "Show me all available voices with their characteristics to help me choose the right ones for my podcast."
     category: discovery
     priority: 8
-  - id: single-speaker
+    showInStarters: true
+  - type: inline
+    id: single-speaker
     title: "🗣️ Generate Speech"
     description: "Create single-speaker audio"
     prompt: "Generate a cheerful welcome announcement using voice Puck saying 'Welcome to our amazing podcast! We're thrilled to have you here today.'"
     category: speech
     priority: 7
+    showInStarters: true

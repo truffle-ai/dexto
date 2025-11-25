@@ -25,7 +25,7 @@ export interface PromptDefinition {
  * Enhanced prompt info with MCP-compliant structure
  */
 export interface PromptInfo extends PromptDefinition {
-    source: 'mcp' | 'file' | 'starter' | 'custom';
+    source: 'mcp' | 'config' | 'custom';
     metadata?: Record<string, unknown>;
 }
 
