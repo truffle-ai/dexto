@@ -76,6 +76,7 @@ export function ModelCard({
     // Build description lines for tooltip
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
+        displayName,
         `Provider: ${providerInfo.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
@@ -84,9 +85,9 @@ export function ModelCard({
     ].filter(Boolean) as string[];
 
     const sizeClasses = {
-        sm: 'p-4 h-[180px] w-full',
-        md: 'p-5 h-[210px] w-full',
-        lg: 'p-6 h-[255px] w-full',
+        sm: 'px-2 py-4 h-[200px] w-full',
+        md: 'px-3 py-5 h-[230px] w-full',
+        lg: 'px-4 py-6 h-[275px] w-full',
     };
 
     const logoSizes = {
@@ -189,7 +190,7 @@ export function ModelCard({
                         </div>
 
                         {/* Model Name */}
-                        <div className="text-center flex-1 flex flex-col min-w-0 w-full px-1">
+                        <div className="text-center flex-1 flex flex-col min-w-0 w-full">
                             <div
                                 className={cn(
                                     'font-bold text-foreground leading-tight',
@@ -200,7 +201,7 @@ export function ModelCard({
                             </div>
                             <div
                                 className={cn(
-                                    'text-muted-foreground leading-tight mt-0.5 line-clamp-2',
+                                    'text-muted-foreground leading-tight mt-0.5 line-clamp-3',
                                     size === 'sm' ? 'text-sm' : 'text-base'
                                 )}
                             >
