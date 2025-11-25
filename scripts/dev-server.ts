@@ -2,7 +2,7 @@
 
 /**
  * Development server that:
- * 1. Builds core and CLI
+ * 1. Builds all packages (turbo handles dependency graph)
  * 2. Runs the CLI directly from dist/index.js in server mode
  * 3. Starts WebUI in dev mode with hot reload
  * 4. Opens browser automatically when WebUI is ready

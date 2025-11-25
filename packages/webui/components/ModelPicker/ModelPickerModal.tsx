@@ -116,7 +116,8 @@ export default function ModelPickerModal() {
                     ? (JSON.parse(customRaw) as CustomModelStorage[])
                     : [];
                 setCustomModels(loadedCustom);
-            } catch {
+            } catch (err) {
+                console.warn('Failed to load favorites/custom models from localStorage:', err);
                 setFavorites([]);
                 setCustomModels([]);
             }
@@ -199,7 +200,12 @@ export default function ModelPickerModal() {
 
     const switchLLMMutation = useSwitchLLM();
 
-    function onPickModel(providerId: LLMProvider, model: ModelInfo, customBaseURL?: string) {
+    function onPickModel(
+        providerId: LLMProvider,
+        model: ModelInfo,
+        customBaseURL?: string,
+        skipApiKeyCheck = false
+    ) {
         const provider = providers[providerId];
         const effectiveBaseURL = customBaseURL || baseURL;
         const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
@@ -212,7 +218,7 @@ export default function ModelPickerModal() {
             }
         }
 
-        if (provider && !provider.hasApiKey) {
+        if (!skipApiKeyCheck && provider && !provider.hasApiKey) {
             setPendingSelection({ provider: providerId, model });
             setPendingKeyProvider(providerId);
             setKeyModalOpen(true);
@@ -274,24 +280,8 @@ export default function ModelPickerModal() {
         setKeyModalOpen(false);
         if (pendingSelection) {
             const { provider: providerId, model } = pendingSelection;
-            // Switch directly without re-checking hasApiKey (we just saved it)
-            const router = pickRouterFor(providerId, model);
-            const payload: SwitchLLMPayload = {
-                provider: providerId,
-                model: model.name,
-                router,
-                ...(currentSessionId && { sessionId: currentSessionId }),
-            };
-            switchLLMMutation.mutate(payload, {
-                onSuccess: async () => {
-                    await refreshCurrentLLM();
-                    setOpen(false);
-                    setError(null);
-                },
-                onError: (error: Error) => {
-                    setError(error.message);
-                },
-            });
+            // Skip API key check since we just saved it
+            onPickModel(providerId, model, undefined, true);
             setPendingSelection(null);
         }
     }

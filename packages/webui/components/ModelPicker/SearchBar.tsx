@@ -46,6 +46,7 @@ export function SearchBar({
             />
             {value && (
                 <button
+                    type="button"
                     onClick={() => onChange('')}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-accent transition-colors"
                     aria-label="Clear search"

@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Lock, Eye, FileText, Mic, Image, Brain, Sparkles } from 'lucide-react';
+import { Lock, Eye, FileText, Mic, Brain } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { cn } from '../../lib/utils';
-import type { ModelInfo } from './types.js';
+import type { ModelInfo } from './types';
 
 interface CapabilityIconsProps {
     supportedFileTypes: ModelInfo['supportedFileTypes'];
