@@ -32,34 +32,25 @@ export function useResources() {
     });
 
     // Listen for real-time resource cache invalidation events
+    // Note: Agent switch invalidation is now handled centrally in AgentSelector
     useEffect(() => {
-        const handleResourceCacheInvalidated = (event: any) => {
-            const detail = event?.detail || {};
+        const handleResourceCacheInvalidated = (event: unknown) => {
+            const detail = (event as CustomEvent)?.detail || {};
             console.log('💾 Resource cache invalidated:', detail);
 
             // Invalidate and refetch resources when cache is invalidated
             queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
         };
 
-        const handleAgentSwitched = (event: any) => {
-            const detail = event?.detail || {};
-            console.log('🔁 Agent switched, refreshing resources:', detail);
-
-            // Invalidate and refetch resources when agent is switched
-            queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
-        };
-
         // Listen for our custom event that gets dispatched when resources change
         if (typeof window !== 'undefined') {
             window.addEventListener('resource:cache-invalidated', handleResourceCacheInvalidated);
-            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
 
             return () => {
                 window.removeEventListener(
                     'resource:cache-invalidated',
                     handleResourceCacheInvalidated
                 );
-                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }
     }, [queryClient]);

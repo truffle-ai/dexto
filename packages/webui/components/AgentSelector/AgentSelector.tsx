@@ -71,6 +71,18 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
     const queryClient = useQueryClient();
 
+    // Invalidate all agent-specific queries when switching agents
+    // This replaces the DOM event pattern (dexto:agentSwitched)
+    const invalidateAgentSpecificQueries = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
+        queryClient.invalidateQueries({ queryKey: ['servers', 'tools'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
+        queryClient.invalidateQueries({ queryKey: ['greeting'] }); // Hierarchical invalidation
+        queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
+    }, [queryClient]);
+
     // Check if an agent path is from the global ~/.dexto directory
     // Global pattern: /Users/<user>/.dexto/agents or /home/<user>/.dexto/agents
     // Also handles Windows: C:\Users\<user>\.dexto\agents
@@ -141,13 +153,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     sessionId: currentSessionId || undefined,
                 });
 
-                try {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:agentSwitched', {
-                            detail: { id: agentId, name: agent.name },
-                        })
-                    );
-                } catch {}
+                // Invalidate all agent-specific queries
+                invalidateAgentSpecificQueries();
 
                 // Navigate back to home after switching agents
                 // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
@@ -162,7 +169,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [installed, navigate, currentId, currentSessionId, switchAgentMutation]
+        [
+            installed,
+            navigate,
+            currentId,
+            currentSessionId,
+            switchAgentMutation,
+            invalidateAgentSpecificQueries,
+        ]
     );
 
     const handleSwitchToPath = useCallback(
@@ -188,13 +202,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     sessionId: currentSessionId || undefined,
                 });
 
-                try {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:agentSwitched', {
-                            detail: { id: agent.id, name: agent.name },
-                        })
-                    );
-                } catch {}
+                // Invalidate all agent-specific queries
+                invalidateAgentSpecificQueries();
 
                 // Navigate back to home after switching agents
                 // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
@@ -209,7 +218,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [addToRecentAgents, navigate, currentId, currentSessionId, switchAgentMutation]
+        [
+            addToRecentAgents,
+            navigate,
+            currentId,
+            currentSessionId,
+            switchAgentMutation,
+            invalidateAgentSpecificQueries,
+        ]
     );
 
     const handleInstall = useCallback(
@@ -248,14 +264,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     sessionId: currentSessionId || undefined,
                 });
 
-                // Step 6: Dispatch event
-                try {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:agentSwitched', {
-                            detail: { id: agentId, name: agent.name },
-                        })
-                    );
-                } catch {}
+                // Step 6: Invalidate all agent-specific queries
+                invalidateAgentSpecificQueries();
 
                 // Step 7: Navigate to home
                 // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
@@ -276,9 +286,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
             currentId,
             currentSessionId,
             queryClient,
-            analyticsRef,
             installAgentMutation,
             switchAgentMutation,
+            invalidateAgentSpecificQueries,
         ]
     );
 

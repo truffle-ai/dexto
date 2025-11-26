@@ -1,12 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
 import { usePrompts } from './hooks/usePrompts';
 import { useDeleteSession } from './hooks/useSessions';
-import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
 import { useAddServer } from './hooks/useServers';
 import { useResolvePrompt } from './hooks/usePrompts';
@@ -134,7 +132,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         onDeny: () => void;
     } | null>(null);
 
-    const queryClient = useQueryClient();
     const deleteSessionMutation = useDeleteSession();
 
     // Fetch starter prompts using shared usePrompts hook
@@ -146,17 +143,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     const starterPrompts = promptsData.filter((prompt) => prompt.metadata?.showInStarters === true);
     const starterPromptsLoaded = !promptsLoading;
 
-    // Listen for agent switch events to invalidate prompts cache
-    useEffect(() => {
-        const handleAgentSwitch = () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
-        };
-
-        window.addEventListener('dexto:agentSwitched', handleAgentSwitch);
-        return () => {
-            window.removeEventListener('dexto:agentSwitched', handleAgentSwitch);
-        };
-    }, [queryClient]);
+    // Note: Agent switch invalidation is now handled centrally in AgentSelector
 
     // Scroll management for robust autoscroll
     const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);

@@ -1,26 +1,10 @@
-import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 
 // Fetch all MCP servers
+// Note: Agent switch invalidation is now handled centrally in AgentSelector
 export function useServers(enabled: boolean = true) {
-    const queryClient = useQueryClient();
-
-    // Invalidate servers cache when agent is switched (each agent has different MCP servers)
-    useEffect(() => {
-        const handleAgentSwitched = () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
-            return () => {
-                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
-            };
-        }
-    }, [queryClient]);
-
     return useQuery({
         queryKey: queryKeys.servers.all,
         queryFn: async () => {
@@ -38,24 +22,8 @@ export function useServers(enabled: boolean = true) {
 }
 
 // Fetch tools for a specific server
+// Note: Agent switch invalidation is now handled centrally in AgentSelector
 export function useServerTools(serverId: string | null, enabled: boolean = true) {
-    const queryClient = useQueryClient();
-
-    // Invalidate all server tools when agent is switched (each agent has different MCP servers)
-    useEffect(() => {
-        const handleAgentSwitched = () => {
-            // Invalidate all tools queries (partial key match)
-            queryClient.invalidateQueries({ queryKey: ['servers', 'tools'] });
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
-            return () => {
-                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
-            };
-        }
-    }, [queryClient]);
-
     return useQuery({
         queryKey: queryKeys.servers.tools(serverId || ''),
         queryFn: async () => {

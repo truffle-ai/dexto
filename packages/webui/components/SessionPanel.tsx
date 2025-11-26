@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/queryKeys.js';
 import {
     useSessions,
     useCreateSession,
@@ -74,7 +72,6 @@ export default function SessionPanel({
     onSearchOpen,
     onNewChat,
 }: SessionPanelProps) {
-    const queryClient = useQueryClient();
     const [isNewSessionOpen, setNewSessionOpen] = useState(false);
     const [newSessionId, setNewSessionId] = useState('');
     const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -92,20 +89,8 @@ export default function SessionPanel({
     const deleteSessionMutation = useDeleteSession();
     const renameSessionMutation = useRenameSession();
 
-    // Listen for agent switch events to invalidate sessions cache
-    // Note: message/response/title events are now handled in useChat via direct cache updates
-    useEffect(() => {
-        const handleAgentSwitched = () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
-            return () => {
-                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
-            };
-        }
-    }, [queryClient]);
+    // Note: Agent switch invalidation is now handled centrally in AgentSelector
+    // Message/response/title events are handled in useChat via direct cache updates
 
     const handleCreateSession = async () => {
         const newSession = await createSessionMutation.mutateAsync({
