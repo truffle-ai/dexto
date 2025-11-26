@@ -38,7 +38,6 @@ export function AttachButton({
     const imageSupported = supports?.image !== false; // default to true if unknown
     const pdfSupported = supports?.pdf !== false; // default to true if unknown
     const audioSupported = supports?.audio !== false;
-    const bp = useLargeBreakpoint ? 'lg' : 'md';
     return (
         <DropdownMenu open={open} onOpenChange={setOpen}>
             <DropdownMenuTrigger asChild>
