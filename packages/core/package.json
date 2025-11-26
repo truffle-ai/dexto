@@ -37,7 +37,6 @@
     "nanoid": "^5.1.6",
     "openai": "^5.16.0",
     "tiktoken": "^1.0.22",
-    "tsx": "^4.19.2",
     "winston": "^3.17.0",
     "yaml": "^2.7.1",
     "zod-to-json-schema": "^3.24.6"
@@ -58,7 +57,8 @@
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "better-sqlite3": "^11.10.0",
     "ioredis": "^5.7.0",
-    "pg": "^8.15.4"
+    "pg": "^8.15.4",
+    "tsx": "^4.19.2"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/auto-instrumentations-node": { "optional": true },
@@ -71,7 +71,8 @@
     "@opentelemetry/semantic-conventions": { "optional": true },
     "better-sqlite3": { "optional": true },
     "ioredis": { "optional": true },
-    "pg": { "optional": true }
+    "pg": { "optional": true },
+    "tsx": { "optional": true }
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",
