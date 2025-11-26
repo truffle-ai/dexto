@@ -21,7 +21,7 @@ By default, the server will run on port `3001`. You should see a confirmation me
 
 **Customize the port:**
 ```bash
-dexto --mode server --api-port 8080
+dexto --mode server --port 8080
 ```
 
 This starts the API server on port 8080 instead of the default 3001.

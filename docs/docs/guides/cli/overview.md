@@ -61,8 +61,7 @@ dexto --mode telegram
 | `-c, --continue` | Continue most recent conversation | `dexto -c` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
 | `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp, default: web) | `dexto --mode cli` |
-| `--web-port <port>` | Web UI port (default: 3000) | `dexto --web-port 8080` |
-| `--api-port <port>` | API server port (default: web-port + 1) | `dexto --web-port 5000 --api-port 5001` |
+| `--port <port>` | Server port (default: 3000 for web, 3001 for server mode) | `dexto --port 8080` |
 | `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
@@ -446,10 +445,7 @@ dexto --agent ./agents/my-custom-agent.yml
 dexto
 
 # Custom port
-dexto --web-port 8080
-
-# Custom API port (defaults to web-port + 1)
-dexto --web-port 8080 --api-port 9000
+dexto --port 8080
 
 # With specific agent
 dexto --agent database-agent
@@ -461,14 +457,14 @@ dexto --agent database-agent
 # Start REST + SSE streaming server (default port 3001)
 dexto --mode server
 
-# With custom API port
-dexto --mode server --api-port 8080
+# With custom port
+dexto --mode server --port 8080
 
 # With specific agent and strict mode
 dexto --mode server --agent my-agent --strict
 
 # For production with custom agent
-dexto --mode server --agent ./production-agent.yml --api-port 3001
+dexto --mode server --agent ./production-agent.yml --port 3001
 ```
 
 ### Content Generation
@@ -508,10 +504,10 @@ git diff | dexto -p "generate a conventional commit message for these changes"
 
 ```bash
 # Start researcher agent as MCP server (Terminal 1)
-dexto --mode mcp --web-port 4000 --api-port 4001 --agent researcher-agent
+dexto --mode mcp --port 4000 --agent researcher-agent
 
 # Start coordinator agent that uses researcher (Terminal 2)
-dexto --agent coordinator-agent --web-port 5000 --api-port 5001
+dexto --agent coordinator-agent --port 5000
 ```
 
 ### Search & History

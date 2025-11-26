@@ -107,8 +107,7 @@ program
         'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
         'web'
     )
-    .option('--web-port <port>', 'port for the web UI (default: 3000)', '3000')
-    .option('--api-port <port>', 'port for the API server (default: web-port + 1)')
+    .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
     .enablePositionalOptions();
 
@@ -1133,10 +1132,9 @@ program
                     }
 
                     case 'web': {
-                        const webPort = parseInt(opts.webPort, 10);
-                        // Use explicit --api-port if provided, otherwise default to webPort
-                        const defaultApiPort = opts.apiPort ? parseInt(opts.apiPort, 10) : webPort;
-                        const port = getPort(process.env.PORT, defaultApiPort, 'PORT');
+                        // Default to 3000 for web mode
+                        const defaultPort = opts.port ? parseInt(opts.port, 10) : 3000;
+                        const port = getPort(process.env.PORT, defaultPort, 'PORT');
                         const serverUrl = process.env.DEXTO_URL ?? `http://localhost:${port}`;
 
                         // Resolve webRoot path (embedded WebUI dist folder)
@@ -1185,10 +1183,10 @@ program
                     case 'server': {
                         // Start server with REST APIs and SSE only
                         const agentCard = agent.config.agentCard ?? {};
-                        // Use explicit --api-port if provided, otherwise default to 3001
-                        const defaultApiPort = opts.apiPort ? parseInt(opts.apiPort, 10) : 3001;
-                        const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
-                        const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
+                        // Default to 3001 for server mode
+                        const defaultPort = opts.port ? parseInt(opts.port, 10) : 3001;
+                        const apiPort = getPort(process.env.PORT, defaultPort, 'PORT');
+                        const apiUrl = process.env.DEXTO_URL ?? `http://localhost:${apiPort}`;
 
                         console.log('🌐 Starting server (REST APIs + SSE)...');
                         await startHonoApiServer(agent, apiPort, agentCard, derivedAgentId);

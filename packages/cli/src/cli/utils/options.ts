@@ -21,13 +21,16 @@ export function validateCliOptions(opts: any): void {
                     'Mode must be one of "web", "cli", "server", "discord", "telegram", or "mcp"',
             }),
         }),
-        webPort: z.string().refine(
-            (val) => {
-                const port = parseInt(val, 10);
-                return !isNaN(port) && port > 0 && port <= 65535;
-            },
-            { message: 'Web port must be a number between 1 and 65535' }
-        ),
+        port: z
+            .string()
+            .refine(
+                (val) => {
+                    const port = parseInt(val, 10);
+                    return !isNaN(port) && port > 0 && port <= 65535;
+                },
+                { message: 'Port must be a number between 1 and 65535' }
+            )
+            .optional(),
         autoApprove: z
             .boolean()
             .optional()
@@ -88,7 +91,7 @@ export function validateCliOptions(opts: any): void {
         strict: opts.strict,
         verbose: opts.verbose,
         mode: opts.mode.toLowerCase(),
-        webPort: opts.webPort,
+        port: opts.port,
         provider: opts.provider,
         model: opts.model,
         router: opts.router,
