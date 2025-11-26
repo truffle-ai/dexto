@@ -32,11 +32,7 @@ export function useCreateMemory() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (payload: {
-            content: string;
-            tags?: string[];
-            metadata?: { source: string; [key: string]: unknown };
-        }) => {
+        mutationFn: async (payload: Parameters<typeof client.api.memory.$post>[0]['json']) => {
             const response = await client.api.memory.$post({ json: payload });
             return await response.json();
         },
