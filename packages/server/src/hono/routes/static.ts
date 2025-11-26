@@ -41,9 +41,10 @@ export function createSpaFallbackHandler(webRoot: string): NotFoundHandler {
     return async (c) => {
         const path = c.req.path;
 
-        // If path has a file extension, it's a real 404 (not an SPA route)
+        // If path ends with a file extension, it's a real 404 (not an SPA route)
         // This allows /openapi.json, /.well-known/agent-card.json etc. to 404 properly
-        if (path.includes('.')) {
+        // Uses regex to avoid false positives like /session/2024.01.01
+        if (/\.[a-zA-Z0-9]+$/.test(path)) {
             return c.json({ error: 'Not Found', path }, 404);
         }
 

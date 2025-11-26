@@ -272,7 +272,11 @@ export const SessionSearchResponseSchema = z
     .object({
         results: z.array(SessionSearchResultSchema).describe('Array of session search results'),
         total: z.number().int().nonnegative().describe('Total number of sessions with matches'),
-        hasMore: z.boolean().describe('Whether there are more results'),
+        hasMore: z
+            .boolean()
+            .describe(
+                'Always false - session search returns all matching sessions without pagination'
+            ),
         query: z.string().describe('Query that was searched'),
     })
     .strict()
