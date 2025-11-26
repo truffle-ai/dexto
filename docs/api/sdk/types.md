@@ -484,17 +484,10 @@ export type IntegrationEventName = StreamingEventName
   | 'state:changed';
 
 // Union types with payloads
-export type StreamingEvent = 
-  | ({ type: 'llm:thinking' } & AgentEventMap['llm:thinking'])
-  | ({ type: 'llm:chunk' } & AgentEventMap['llm:chunk'])
-  | ({ type: 'llm:response' } & AgentEventMap['llm:response'])
-  | ({ type: 'llm:tool-call' } & AgentEventMap['llm:tool-call'])
-  | ({ type: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
-  | ({ type: 'llm:error' } & AgentEventMap['llm:error'])
-  | ({ type: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
-  | ({ type: 'approval:request' } & AgentEventMap['approval:request'])
-  | ({ type: 'approval:response' } & AgentEventMap['approval:response'])
-  | ({ type: 'session:title-updated' } & AgentEventMap['session:title-updated']);
+// Note: Uses 'name' (not 'type') to avoid collision with ApprovalRequest.type payload field
+export type StreamingEvent = {
+  [K in StreamingEventName]: { name: K } & AgentEventMap[K];
+}[StreamingEventName];
 ```
 
 ---

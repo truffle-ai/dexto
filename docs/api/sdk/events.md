@@ -492,7 +492,7 @@ await agent.start();
 
 // Use the stream() API to get streaming events
 for await (const event of await agent.stream('Hello!', { sessionId: 'session-1' })) {
-  switch (event.type) {
+  switch (event.name) {
     case 'llm:thinking':
       console.log('Agent is thinking...');
       break;

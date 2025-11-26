@@ -34,7 +34,7 @@ interface AnalyticsProviderProps {
 }
 
 /**
- * Get analytics config injected by Next.js SSR.
+ * Get analytics config injected during app initialization.
  * Returns null if analytics disabled or config not available.
  */
 function getAnalyticsConfig(): AnalyticsConfig | null {

@@ -28,7 +28,7 @@ The Model Context Protocol (MCP) allows AI models to securely connect to externa
 3. Chat with AI agents that can use your connected tools
 4. Export your configuration when ready
 
-This project is built with [Next.js](https://nextjs.org) and uses modern web technologies for a smooth development experience.
+This project is built with [Vite](https://vitejs.dev) and [TanStack Router](https://tanstack.com/router) for a smooth development experience.
 
 ## Developer guide
 
