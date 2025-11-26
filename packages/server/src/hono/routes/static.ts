@@ -7,6 +7,11 @@ import { join } from 'node:path';
 /**
  * Runtime configuration injected into WebUI via window globals.
  * This replaces the Next.js SSR injection that was lost in the Vite migration.
+ *
+ * TODO: This injection only works in production mode where Hono serves index.html.
+ * In dev mode (`pnpm dev`), Vite serves index.html directly, bypassing this injection.
+ * To support dev mode analytics, add a `/api/config/analytics` endpoint that the
+ * WebUI can fetch as a fallback when `window.__DEXTO_ANALYTICS__` is undefined.
  */
 export interface WebUIRuntimeConfig {
     analytics?: {
