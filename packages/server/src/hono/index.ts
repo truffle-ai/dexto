@@ -16,7 +16,7 @@ import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
 import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
 import { createApprovalsRouter } from './routes/approvals.js';
-import { createStaticRouter } from './routes/static.js';
+import { createStaticRouter, createSpaFallbackHandler } from './routes/static.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { A2ASseEventSubscriber } from '../events/a2a-sse-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
@@ -110,12 +110,6 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route('/api', createApprovalsRouter(getAgent, approvalCoordinator))
         .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext));
 
-    // Mount static file router for WebUI if webRoot is provided
-    // Must be mounted after API routes to avoid catching API requests
-    if (webRoot) {
-        fullApp.route('/', createStaticRouter(webRoot));
-    }
-
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
     // Alternative: Use openAPIRouteHandler from hono-openapi (third-party) for auto-generation
@@ -202,6 +196,14 @@ export function createDextoApp(options: CreateDextoAppOptions) {
             },
         ],
     });
+
+    // Mount static file router for WebUI if webRoot is provided
+    if (webRoot) {
+        fullApp.route('/', createStaticRouter(webRoot));
+        // SPA fallback: serve index.html for unmatched routes without file extensions
+        // Must be registered as notFound handler so it runs AFTER all routes (including /openapi.json)
+        fullApp.notFound(createSpaFallbackHandler(webRoot));
+    }
 
     // NOTE: Subscribers and approval handler are wired in CLI layer before agent.start()
     // This ensures proper initialization order and validation

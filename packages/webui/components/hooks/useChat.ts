@@ -21,22 +21,24 @@ import type { Session } from './useSessions.js';
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
 
-// Define WebUI-specific media parts
+// TODO: Remove these WebUI-specific types and derive from server schema instead.
+// Per WebUI CLAUDE.md: "Server Schemas = Single Source of Truth"
+// These should be replaced with types derived from Hono client response types.
 export interface ImagePart {
     type: 'image';
-    base64: string;
-    mimeType: string;
+    image: string;
+    mimeType?: string;
 }
 
 export interface AudioPart {
     type: 'audio';
-    base64: string;
+    data: string;
     mimeType: string;
     filename?: string;
 }
 
 export interface FileData {
-    base64: string;
+    data: string;
     mimeType: string;
     filename?: string;
 }
@@ -106,7 +108,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
     content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart>;
-    imageData?: { base64: string; mimeType: string };
+    imageData?: { image: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
     toolArgs?: Record<string, unknown>;
@@ -492,7 +494,7 @@ export function useChat(
     const sendMessage = useCallback(
         async (
             content: string,
-            imageData?: { base64: string; mimeType: string },
+            imageData?: { image: string; mimeType: string },
             fileData?: FileData,
             sessionId?: string,
             stream = true // Default to true for SSE

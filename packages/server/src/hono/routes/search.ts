@@ -1,6 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { SearchResultSchema, SessionSearchResultSchema } from '../schemas/responses.js';
+import {
+    SearchResultSchema,
+    SessionSearchResultSchema,
+    MessageSearchResponseSchema,
+    SessionSearchResponseSchema,
+} from '../schemas/responses.js';
 
 const MessageSearchQuery = z.object({
     q: z.string().min(1, 'Search query is required').describe('Search query string'),
@@ -115,12 +120,15 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
             };
 
             const searchResults = await agent.searchMessages(q, options);
-            return ctx.json(searchResults);
+            // TODO: Improve type alignment between core and server schemas.
+            // Core's InternalMessage has union types for binary data, but JSON responses are strings.
+            return ctx.json(searchResults as z.output<typeof MessageSearchResponseSchema>);
         })
         .openapi(sessionsRoute, async (ctx) => {
             const agent = getAgent();
             const { q } = ctx.req.valid('query');
             const searchResults = await agent.searchSessions(q);
-            return ctx.json(searchResults);
+            // TODO: Improve type alignment between core and server schemas.
+            return ctx.json(searchResults as z.output<typeof SessionSearchResponseSchema>);
         });
 }

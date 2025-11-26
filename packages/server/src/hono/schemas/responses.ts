@@ -6,26 +6,33 @@
  * 2. Define message/context schemas HERE (not in core) - see note below
  * 3. All schemas follow Zod best practices from CLAUDE.md (strict, describe, etc.)
  *
- * WHY MESSAGE SCHEMAS ARE DEFINED HERE (not in core):
- * ---------------------------------------------------
- * Core's TypeScript interfaces (InternalMessage, ImagePart, etc.) use rich types like
- * `Uint8Array | ArrayBuffer | URL` for binary data. These types:
- * 1. Break Hono client type inference (falls back to JSONValue)
- * 2. Cause DTS generation failures with structural type expansion
+ * TYPE BOUNDARY: Core vs Server Schemas
+ * -------------------------------------
+ * Core's TypeScript interfaces use rich union types for binary data:
+ *   `image: string | Uint8Array | Buffer | ArrayBuffer | URL`
  *
- * The workaround is using `z.custom<string | unknown>()` which validates at runtime
- * but uses `unknown` to avoid these issues. This means:
- * - Core has TypeScript interfaces with proper types for internal use
- * - Server has Zod schemas with `string | unknown` for API/OpenAPI compatibility
- * - These must be kept in sync manually
+ * This allows internal code to work with various binary formats before serialization.
+ * However, JSON API responses can only contain strings (base64-encoded).
  *
- * TODO: Investigate better solutions:
- * - Custom type bundling/declaration generation
- * - Runtime-only validation with separate type definitions
+ * Server schemas use `z.string()` for these fields because:
+ * 1. JSON serialization converts all binary data to base64 strings
+ * 2. Hono client type inference works correctly with concrete types
+ * 3. WebUI receives properly typed `string` instead of `JSONValue`
+ *
+ * CONSEQUENCE: Route handlers that return core types (e.g., `InternalMessage[]`)
+ * need type casts when passing to `ctx.json()` because TypeScript sees the union
+ * type from core but the schema expects just `string`. At runtime the data IS
+ * already strings - the cast just bridges the static type mismatch.
+ *
+ * See routes/sessions.ts, routes/search.ts for examples with TODO comments.
  */
 
 import { z } from 'zod';
-import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema } from '@dexto/core';
+import {
+    LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
+    LLM_PROVIDERS,
+    LLM_ROUTERS,
+} from '@dexto/core';
 
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
@@ -41,24 +48,6 @@ export { LLMConfigBaseSchema, type ValidatedLLMConfig } from '@dexto/core';
 // Message/Context Schemas (defined here, not in core - see header comment)
 // ============================================================================
 
-/**
- * Schema for binary data that can be string, Buffer, Uint8Array, or URL.
- * Uses z.custom<string | unknown>() to avoid DTS complexity - TypeScript consumers see
- * 'string | unknown' (where unknown represents binary data), while runtime validation
- * still properly validates all supported types.
- */
-const BinaryDataSchema = z.custom<string | unknown>(
-    (val) => {
-        return (
-            typeof val === 'string' ||
-            val instanceof Buffer ||
-            val instanceof Uint8Array ||
-            val instanceof URL
-        );
-    },
-    { message: 'Must be string, Buffer, Uint8Array, or URL' }
-);
-
 export const TextPartSchema = z
     .object({
         type: z.literal('text').describe('Part type: text'),
@@ -70,7 +59,7 @@ export const TextPartSchema = z
 export const ImagePartSchema = z
     .object({
         type: z.literal('image').describe('Part type: image'),
-        image: BinaryDataSchema.describe('Image data (string, binary, or URL)'),
+        image: z.string().describe('Base64-encoded image data'),
         mimeType: z.string().optional().describe('MIME type of the image'),
     })
     .strict()
@@ -79,7 +68,7 @@ export const ImagePartSchema = z
 export const FilePartSchema = z
     .object({
         type: z.literal('file').describe('Part type: file'),
-        data: BinaryDataSchema.describe('File data (string, binary, or URL)'),
+        data: z.string().describe('Base64-encoded file data'),
         mimeType: z.string().describe('MIME type of the file'),
         filename: z.string().optional().describe('Optional filename'),
     })
@@ -135,8 +124,11 @@ export const InternalMessageSchema = z
         reasoning: z.string().optional().describe('Optional model reasoning text'),
         tokenUsage: TokenUsageSchema.optional().describe('Optional token usage accounting'),
         model: z.string().optional().describe('Model identifier for assistant messages'),
-        provider: z.string().optional().describe('Provider identifier for assistant messages'),
-        router: z.string().optional().describe('Router metadata for assistant messages'),
+        provider: z
+            .enum(LLM_PROVIDERS)
+            .optional()
+            .describe('Provider identifier for assistant messages'),
+        router: z.enum(LLM_ROUTERS).optional().describe('Router metadata for assistant messages'),
         toolCalls: z.array(ToolCallSchema).optional().describe('Tool calls made by the assistant'),
         toolCallId: z.string().optional().describe('ID of the tool call this message responds to'),
         name: z.string().optional().describe('Name of the tool that produced this result'),
@@ -263,6 +255,30 @@ export const SessionSearchResultSchema = z
     .describe('Result of a session search');
 
 export type SessionSearchResult = z.output<typeof SessionSearchResultSchema>;
+
+export const MessageSearchResponseSchema = z
+    .object({
+        results: z.array(SearchResultSchema).describe('Array of search results'),
+        total: z.number().int().nonnegative().describe('Total number of results available'),
+        hasMore: z.boolean().describe('Whether there are more results beyond the current page'),
+        query: z.string().describe('Query that was searched'),
+    })
+    .strict()
+    .describe('Message search response');
+
+export type MessageSearchResponse = z.output<typeof MessageSearchResponseSchema>;
+
+export const SessionSearchResponseSchema = z
+    .object({
+        results: z.array(SessionSearchResultSchema).describe('Array of session search results'),
+        total: z.number().int().nonnegative().describe('Total number of sessions with matches'),
+        hasMore: z.boolean().describe('Whether there are more results'),
+        query: z.string().describe('Query that was searched'),
+    })
+    .strict()
+    .describe('Session search response');
+
+export type SessionSearchResponse = z.output<typeof SessionSearchResponseSchema>;
 
 // --- Webhook Schemas ---
 

@@ -204,13 +204,7 @@ function resolveMediaSrc(
     const dataCandidate: unknown =
         typeof part === 'string'
             ? part
-            : (part?.data ??
-              part?.base64 ??
-              part?.image ??
-              part?.audio ??
-              part?.video ??
-              part?.uri ??
-              part?.url);
+            : (part?.data ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri ?? part?.url);
 
     if (typeof dataCandidate === 'string') {
         if (dataCandidate.startsWith('@blob:')) {
@@ -1132,7 +1126,7 @@ export default function MessageList({
                                             {msg.imageData &&
                                                 !Array.isArray(msg.content) &&
                                                 (() => {
-                                                    const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.base64}`;
+                                                    const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.image}`;
                                                     if (!isValidDataUri(src, 'image')) {
                                                         return null;
                                                     }
@@ -1154,7 +1148,7 @@ export default function MessageList({
                                                                 <span>Video attachment</span>
                                                             </div>
                                                             {(() => {
-                                                                const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`;
+                                                                const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
                                                                 return isValidDataUri(
                                                                     videoSrc,
                                                                     'video'
@@ -1187,7 +1181,7 @@ export default function MessageList({
                                                         <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
                                                             <FileAudio className="h-4 w-4" />
                                                             {(() => {
-                                                                const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.base64}`;
+                                                                const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
                                                                 return isValidDataUri(
                                                                     audioSrc,
                                                                     'audio'

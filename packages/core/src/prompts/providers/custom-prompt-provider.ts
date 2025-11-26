@@ -38,7 +38,7 @@ export interface CreateCustomPromptInput {
     content: string;
     arguments?: PromptArgument[];
     resource?: {
-        base64: string;
+        data: string;
         mimeType: string;
         filename?: string;
     };
@@ -179,8 +179,8 @@ export class CustomPromptProvider implements PromptProvider {
         if (input.resource) {
             try {
                 const blobService = this.resourceManager.getBlobStore();
-                const { base64, mimeType, filename } = input.resource;
-                const blobRef = await blobService.store(base64, {
+                const { data, mimeType, filename } = input.resource;
+                const blobRef = await blobService.store(data, {
                     mimeType,
                     originalName: filename,
                     source: 'system',

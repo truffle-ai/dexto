@@ -14,14 +14,14 @@ const MessageBodySchema = z
             .describe('The session to use for this message'),
         imageData: z
             .object({
-                base64: z.string().describe('Base64-encoded image data'),
+                image: z.string().describe('Base64-encoded image data'),
                 mimeType: z.string().describe('The MIME type of the image (e.g., image/png)'),
             })
             .optional()
             .describe('Optional image data to include with the message'),
         fileData: z
             .object({
-                base64: z.string().describe('Base64-encoded file data'),
+                data: z.string().describe('Base64-encoded file data'),
                 mimeType: z.string().describe('The MIME type of the file (e.g., application/pdf)'),
                 filename: z.string().optional().describe('The filename'),
             })
@@ -211,12 +211,12 @@ export function createMessagesRouter(
             const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
 
             const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
+                ? { image: imageData.image, mimeType: imageData.mimeType }
                 : undefined;
 
             const fileDataInput = fileData
                 ? {
-                      data: fileData.base64,
+                      data: fileData.data,
                       mimeType: fileData.mimeType,
                       ...(fileData.filename && { filename: fileData.filename }),
                   }
@@ -244,12 +244,12 @@ export function createMessagesRouter(
             const { message, sessionId, imageData, fileData } = ctx.req.valid('json');
 
             const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
+                ? { image: imageData.image, mimeType: imageData.mimeType }
                 : undefined;
 
             const fileDataInput = fileData
                 ? {
-                      data: fileData.base64,
+                      data: fileData.data,
                       mimeType: fileData.mimeType,
                       ...(fileData.filename && { filename: fileData.filename }),
                   }
@@ -293,12 +293,12 @@ export function createMessagesRouter(
             const { message = '', sessionId, imageData, fileData } = body;
 
             const imageDataInput = imageData
-                ? { image: imageData.base64, mimeType: imageData.mimeType }
+                ? { image: imageData.image, mimeType: imageData.mimeType }
                 : undefined;
 
             const fileDataInput = fileData
                 ? {
-                      data: fileData.base64,
+                      data: fileData.data,
                       mimeType: fileData.mimeType,
                       ...(fileData.filename && { filename: fileData.filename }),
                   }

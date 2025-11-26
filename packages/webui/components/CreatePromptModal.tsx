@@ -25,7 +25,7 @@ interface CreatePromptModalProps {
 }
 
 interface ResourcePayload {
-    base64: string;
+    data: string;
     mimeType: string;
     filename?: string;
 }
@@ -59,13 +59,13 @@ export default function CreatePromptModal({ open, onClose, onCreated }: CreatePr
 
     const handleFile = async (file: File) => {
         try {
-            const base64 = await readFileAsDataUrl(file);
+            const data = await readFileAsDataUrl(file);
             setResource({
-                base64,
+                data,
                 mimeType: file.type || 'application/octet-stream',
                 filename: file.name,
             });
-            setResourcePreview(base64);
+            setResourcePreview(data);
             setResourceName(file.name);
         } catch (error) {
             console.error('Failed to read file:', error);

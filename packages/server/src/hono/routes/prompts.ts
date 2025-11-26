@@ -35,7 +35,7 @@ const CustomPromptRequestSchema = z
             .describe('Array of argument definitions'),
         resource: z
             .object({
-                base64: z
+                data: z
                     .string()
                     .min(1, 'Resource data is required')
                     .describe('Base64-encoded resource data'),
@@ -233,7 +233,7 @@ export function createPromptsRouter(getAgent: () => DextoAgent) {
                 ...(payload.resource
                     ? {
                           resource: {
-                              base64: payload.resource.base64,
+                              data: payload.resource.data,
                               mimeType: payload.resource.mimeType,
                               ...(payload.resource.filename
                                   ? { filename: payload.resource.filename }

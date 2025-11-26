@@ -33,8 +33,8 @@ interface ChatContextType {
     messages: Message[];
     sendMessage: (
         content: string,
-        imageData?: { base64: string; mimeType: string },
-        fileData?: { base64: string; mimeType: string; filename?: string }
+        imageData?: { image: string; mimeType: string },
+        fileData?: { data: string; mimeType: string; filename?: string }
     ) => void;
     status: StreamStatus;
     reset: () => void;
@@ -83,7 +83,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
 
     for (let index = 0; index < history.length; index++) {
         const msg = history[index];
-        const baseMessage = {
+        const baseMessage: Message = {
             id: `session-${sessionId}-${index}`,
             role: msg.role,
             content: msg.content,
@@ -411,8 +411,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const sendMessage = useCallback(
         async (
             content: string,
-            imageData?: { base64: string; mimeType: string },
-            fileData?: { base64: string; mimeType: string; filename?: string }
+            imageData?: { image: string; mimeType: string },
+            fileData?: { data: string; mimeType: string; filename?: string }
         ) => {
             let sessionId = currentSessionId;
             let isNewSession = false;
