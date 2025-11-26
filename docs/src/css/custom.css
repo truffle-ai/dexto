@@ -90,7 +90,6 @@ body {
 .theme-doc-sidebar-container {
   background: transparent !important;
   border-right: 1px solid var(--ifm-border-color);
-  z-index: 1000;
 }
 
 /* Ensure mobile navbar sidebar overlays main content */
