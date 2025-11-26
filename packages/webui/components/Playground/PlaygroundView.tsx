@@ -244,13 +244,16 @@ export default function PlaygroundView() {
 
             const response = await client.api.mcp.servers[':serverId'].tools[
                 ':toolName'
-            ].execute.$post({
-                param: {
-                    serverId: selectedServer.id,
-                    toolName: selectedTool.id,
+            ].execute.$post(
+                {
+                    param: {
+                        serverId: selectedServer.id,
+                        toolName: selectedTool.id,
+                    },
+                    json: processedInputs,
                 },
-                json: processedInputs,
-            });
+                { init: { signal: controller.signal } }
+            );
 
             if (!response.ok) {
                 throw new Error('Tool execution failed');
