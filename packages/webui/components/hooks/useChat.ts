@@ -13,6 +13,7 @@ import { useAnalytics } from '@/lib/analytics/index.js';
 import { client } from '@/lib/client.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
+import { useApproval } from './ApprovalContext.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -156,6 +157,7 @@ export function useChat(
 ) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
+    const { handleApprovalRequest, handleApprovalResponse } = useApproval();
 
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -228,7 +230,7 @@ export function useChat(
                 return;
             }
 
-            switch (event.type) {
+            switch (event.name) {
                 case 'llm:thinking':
                     // LLM started thinking - can update UI status
                     setProcessing(event.sessionId, true);
@@ -397,38 +399,17 @@ export function useChat(
                 }
 
                 case 'approval:request': {
-                    // Dispatch event for ToolConfirmationHandler
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('approval:request', {
-                                detail: {
-                                    approvalId: event.approvalId,
-                                    type: event.type,
-                                    timestamp: event.timestamp,
-                                    metadata: event.metadata,
-                                    sessionId: event.sessionId,
-                                },
-                            })
-                        );
-                    }
+                    // Forward SSE event payload to ApprovalContext
+                    // Remove 'name' (SSE discriminant), keep 'type' (approval discriminant)
+                    const { name: _, ...request } = event;
+                    handleApprovalRequest(request);
                     break;
                 }
 
                 case 'approval:response': {
-                    // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('approval:response', {
-                                detail: {
-                                    approvalId: event.approvalId,
-                                    status: event.status,
-                                    reason: event.reason,
-                                    message: event.message,
-                                    sessionId: event.sessionId,
-                                },
-                            })
-                        );
-                    }
+                    // Forward SSE event payload to ApprovalContext
+                    const { name: _, ...response } = event;
+                    handleApprovalResponse(response);
                     break;
                 }
 
@@ -459,7 +440,14 @@ export function useChat(
                 // No, we are using new SSE stream.
             }
         },
-        [isForActiveSession, setProcessing, setStatus, setError]
+        [
+            isForActiveSession,
+            setProcessing,
+            setStatus,
+            setError,
+            handleApprovalRequest,
+            handleApprovalResponse,
+        ]
     );
 
     const sendMessage = useCallback(
@@ -593,8 +581,9 @@ export function useChat(
                         );
                     }
                 }
-            } catch (error: any) {
-                if (error.name === 'AbortError') {
+            } catch (error: unknown) {
+                // Handle abort gracefully
+                if (error instanceof Error && error.name === 'AbortError') {
                     console.log('Stream aborted by user');
                     return;
                 }
@@ -603,9 +592,10 @@ export function useChat(
                 setStatus(sessionId, 'closed');
                 setProcessing(sessionId, false);
 
+                const message = error instanceof Error ? error.message : 'Failed to send message';
                 setError(sessionId, {
                     id: generateUniqueId(),
-                    message: error.message || 'Failed to send message',
+                    message,
                     timestamp: Date.now(),
                     context: 'stream',
                     recoverable: true,

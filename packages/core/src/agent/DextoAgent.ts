@@ -682,7 +682,7 @@ export class DextoAgent {
 
         // Check for error events first - if generation failed, throw the actual error
         const errorEvent = events.find(
-            (e): e is Extract<StreamingEvent, { type: 'llm:error' }> => e.type === 'llm:error'
+            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> => e.name === 'llm:error'
         );
         if (errorEvent) {
             // If it's already a DextoRuntimeError, throw it directly
@@ -699,8 +699,8 @@ export class DextoAgent {
         }
 
         // Find the llm:response event (final response)
-        const responseEvent = events.find((e) => e.type === 'llm:response');
-        if (!responseEvent || responseEvent.type !== 'llm:response') {
+        const responseEvent = events.find((e) => e.name === 'llm:response');
+        if (!responseEvent || responseEvent.name !== 'llm:response') {
             // Get current LLM config for error context
             const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
             throw LLMError.generationFailed(
@@ -712,12 +712,12 @@ export class DextoAgent {
 
         // Collect tool calls from llm:tool-call events
         const toolCallEvents = events.filter(
-            (e): e is Extract<StreamingEvent, { type: 'llm:tool-call' }> =>
-                e.type === 'llm:tool-call'
+            (e): e is Extract<StreamingEvent, { name: 'llm:tool-call' }> =>
+                e.name === 'llm:tool-call'
         );
         const toolResultEvents = events.filter(
-            (e): e is Extract<StreamingEvent, { type: 'llm:tool-result' }> =>
-                e.type === 'llm:tool-result'
+            (e): e is Extract<StreamingEvent, { name: 'llm:tool-result' }> =>
+                e.name === 'llm:tool-result'
         );
 
         const toolCalls: import('./types.js').AgentToolCall[] = toolCallEvents.map((tc) => {
@@ -774,15 +774,15 @@ export class DextoAgent {
      *
      * @param message The user's message
      * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
-     * @returns AsyncIterator that yields StreamingEvent objects (core events with type property)
+     * @returns AsyncIterator that yields StreamingEvent objects (core events with name property)
      *
      * @example
      * ```typescript
      * for await (const event of await agent.stream("Write a poem", { sessionId: "default" })) {
-     *   if (event.type === 'llm:chunk') {
+     *   if (event.name === 'llm:chunk') {
      *     process.stdout.write(event.content);
      *   }
-     *   if (event.type === 'llm:tool-call') {
+     *   if (event.name === 'llm:tool-call') {
      *     console.log(`\n[Using ${event.toolName}]\n`);
      *   }
      * }
@@ -895,7 +895,7 @@ export class DextoAgent {
                 `Error in DextoAgent.stream: ${error instanceof Error ? error.message : String(error)}`
             );
             eventQueue.push({
-                type: 'llm:error',
+                name: 'llm:error',
                 error,
                 recoverable: false,
                 context: 'run_failed',

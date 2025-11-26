@@ -4,14 +4,9 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { AlertTriangle, Wrench } from 'lucide-react';
-import type { ApprovalEvent } from '../types/approval.js';
-import {
-    getElicitationMetadata,
-    isElicitationEvent,
-    isToolConfirmationEvent,
-    isCommandConfirmationEvent,
-} from '../types/approval.js';
+import type { ApprovalEvent } from './ToolConfirmationHandler';
 import type { JSONSchema7 } from 'json-schema';
+import { ApprovalType } from '@dexto/core';
 
 interface InlineApprovalCardProps {
     approval: ApprovalEvent;
@@ -23,9 +18,6 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
     const [formData, setFormData] = useState<Record<string, unknown>>({});
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [rememberChoice, setRememberChoice] = useState(false);
-
-    const isElicitation = isElicitationEvent(approval);
-    const isCommandConfirmation = isCommandConfirmationEvent(approval);
 
     // Update form field value
     const updateFormField = (fieldName: string, value: unknown) => {
@@ -177,15 +169,10 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
     };
 
     const handleApprove = () => {
-        if (isElicitation) {
-            // Validate form
-            const elicitationMeta = getElicitationMetadata(approval);
-            if (!elicitationMeta) {
-                console.error('Invalid elicitation metadata');
-                return;
-            }
-
-            const required = (elicitationMeta.schema.required as string[]) || [];
+        if (approval.type === ApprovalType.ELICITATION) {
+            // Validate form - metadata is typed as ElicitationMetadata after type check
+            const { schema } = approval.metadata;
+            const required = (schema.required as string[]) || [];
             const errors: Record<string, string> = {};
 
             for (const fieldName of required) {
@@ -213,116 +200,99 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             <div className="flex items-center gap-2 text-muted-foreground">
                 <AlertTriangle className="h-4 w-4" />
                 <span className="font-medium text-sm">
-                    {isElicitation ? 'Information Request' : 'Approval Required'}
+                    {approval.type === 'elicitation' ? 'Information Request' : 'Approval Required'}
                 </span>
             </div>
 
             {/* Content */}
-            {isCommandConfirmation ? (
+            {approval.type === 'command_confirmation' ? (
                 <div className="space-y-3 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <Wrench className="h-4 w-4 flex-shrink-0" />
                         <span className="font-medium text-sm break-words min-w-0">
-                            Tool: {approval.toolName}
+                            Tool: {approval.metadata.toolName}
                         </span>
                     </div>
 
                     <div className="min-w-0">
                         <span className="font-medium text-sm block mb-2">Command:</span>
                         <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-auto max-h-40 border border-border break-words whitespace-pre-wrap max-w-full text-red-600 dark:text-red-400">
-                            {approval.command}
+                            {approval.metadata.command}
                         </pre>
                     </div>
 
-                    {approval.originalCommand && approval.originalCommand !== approval.command && (
-                        <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">
-                                Original: {approval.originalCommand}
-                            </span>
-                        </div>
-                    )}
+                    {approval.metadata.originalCommand &&
+                        approval.metadata.originalCommand !== approval.metadata.command && (
+                            <div className="min-w-0">
+                                <span className="text-xs text-muted-foreground">
+                                    Original: {approval.metadata.originalCommand}
+                                </span>
+                            </div>
+                        )}
 
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md border border-yellow-200 dark:border-yellow-800">
                         <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                            ⚠️ This command requires approval because it may modify your system.
+                            This command requires approval because it may modify your system.
                         </p>
                     </div>
                 </div>
-            ) : isElicitation ? (
-                (() => {
-                    const elicitationMeta = getElicitationMetadata(approval);
-                    if (!elicitationMeta) {
-                        return (
-                            <p className="text-sm text-red-600 dark:text-red-400">
-                                Invalid elicitation metadata
-                            </p>
-                        );
-                    }
+            ) : approval.type === 'elicitation' ? (
+                <div className="space-y-4 min-w-0">
+                    <div className="bg-muted/50 p-3 rounded-md border border-border min-w-0">
+                        <p className="text-sm font-medium mb-1 break-words">
+                            {approval.metadata.prompt}
+                        </p>
+                        <p className="text-xs text-muted-foreground break-words">
+                            From: {approval.metadata.serverName || 'Dexto Agent'}
+                        </p>
+                    </div>
 
-                    return (
-                        <div className="space-y-4 min-w-0">
-                            <div className="bg-muted/50 p-3 rounded-md border border-border min-w-0">
-                                <p className="text-sm font-medium mb-1 break-words">
-                                    {elicitationMeta.prompt}
-                                </p>
-                                <p className="text-xs text-muted-foreground break-words">
-                                    From: {elicitationMeta.serverName || 'Dexto Agent'}
-                                </p>
-                            </div>
+                    <div>
+                        {(() => {
+                            const schema = approval.metadata.schema as JSONSchema7;
+                            if (!schema?.properties || typeof schema.properties !== 'object') {
+                                return (
+                                    <p className="text-sm text-red-600 dark:text-red-400">
+                                        Invalid form schema
+                                    </p>
+                                );
+                            }
 
-                            <div>
-                                {(() => {
-                                    const schema = elicitationMeta.schema;
-                                    if (
-                                        !schema?.properties ||
-                                        typeof schema.properties !== 'object'
-                                    ) {
-                                        return (
-                                            <p className="text-sm text-red-600 dark:text-red-400">
-                                                Invalid form schema
-                                            </p>
+                            const required = (schema.required as string[]) || [];
+                            const properties = schema.properties;
+
+                            return (
+                                <div className="space-y-4">
+                                    {Object.entries(properties).map(([fieldName, fieldSchema]) => {
+                                        const isRequired = required.includes(fieldName);
+                                        return renderFormField(
+                                            fieldName,
+                                            fieldSchema as JSONSchema7,
+                                            isRequired
                                         );
-                                    }
-
-                                    const required = (schema.required as string[]) || [];
-                                    const properties = schema.properties;
-
-                                    return (
-                                        <div className="space-y-4">
-                                            {Object.entries(properties).map(
-                                                ([fieldName, fieldSchema]) => {
-                                                    const isRequired = required.includes(fieldName);
-                                                    return renderFormField(
-                                                        fieldName,
-                                                        fieldSchema as JSONSchema7,
-                                                        isRequired
-                                                    );
-                                                }
-                                            )}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    );
-                })()
-            ) : isToolConfirmationEvent(approval) ? (
+                                    })}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            ) : approval.type === 'tool_confirmation' ? (
                 <div className="space-y-3 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <Wrench className="h-4 w-4 flex-shrink-0" />
                         <span className="font-medium text-sm break-words min-w-0">
-                            Tool: {approval.toolName}
+                            Tool: {approval.metadata.toolName}
                         </span>
                     </div>
 
-                    {approval.description && (
-                        <p className="text-sm break-words">{approval.description}</p>
+                    {approval.metadata.description && (
+                        <p className="text-sm break-words">{approval.metadata.description}</p>
                     )}
 
                     <div className="min-w-0">
                         <span className="font-medium text-sm block mb-2">Arguments:</span>
                         <pre className="bg-muted/50 p-3 rounded-md text-xs overflow-auto max-h-40 border border-border break-words whitespace-pre-wrap max-w-full">
-                            {JSON.stringify(approval.args, null, 2)}
+                            {JSON.stringify(approval.metadata.args, null, 2)}
                         </pre>
                     </div>
 
@@ -343,10 +313,10 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             {/* Actions */}
             <div className="flex gap-2 justify-end pt-3 border-t border-border">
                 <Button variant="outline" onClick={onDeny} size="sm">
-                    {isElicitation ? 'Decline' : 'Deny'}
+                    {approval.type === 'elicitation' ? 'Decline' : 'Deny'}
                 </Button>
                 <Button onClick={handleApprove} size="sm">
-                    {isElicitation ? 'Submit' : 'Approve'}
+                    {approval.type === 'elicitation' ? 'Submit' : 'Approve'}
                 </Button>
             </div>
         </div>

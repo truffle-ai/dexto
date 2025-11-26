@@ -326,6 +326,7 @@ export function createMessagesRouter(
                     approvalCoordinator.onRequest(
                         (request) => {
                             if (request.sessionId === sessionId) {
+                                // No transformation needed - SSE uses 'name' discriminant, payload keeps 'type'
                                 pendingApprovalEvents.push({
                                     event: 'approval:request',
                                     data: request,
@@ -363,7 +364,7 @@ export function createMessagesRouter(
                         // Then write the LLM/tool event
                         // Serialize errors properly since Error objects don't JSON.stringify well
                         const eventData =
-                            event.type === 'llm:error' && event.error instanceof Error
+                            event.name === 'llm:error' && event.error instanceof Error
                                 ? {
                                       ...event,
                                       error: {
@@ -374,7 +375,7 @@ export function createMessagesRouter(
                                   }
                                 : event;
                         await stream.writeSSE({
-                            event: event.type,
+                            event: event.name,
                             data: JSON.stringify(eventData),
                         });
                     }

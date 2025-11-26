@@ -623,7 +623,7 @@ export default function ModelPickerModal() {
                                             >
                                                 <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-muted/60 flex-shrink-0">
                                                     {PROVIDER_LOGOS[providerId] ? (
-                                                        <Image
+                                                        <img
                                                             src={PROVIDER_LOGOS[providerId]}
                                                             alt=""
                                                             width={20}

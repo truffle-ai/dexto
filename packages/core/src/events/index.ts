@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { LLMProvider, LLMRouter } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 import { ApprovalStatus, DenialReason } from '../approval/types.js';
+import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
 
 /**
@@ -136,40 +137,41 @@ export type InternalEventName = Exclude<AgentEventName, IntegrationEventName>;
  * Type helper to extract events by name from AgentEventMap
  */
 export type AgentEventByName<T extends AgentEventName> = {
-    type: T;
+    name: T;
 } & AgentEventMap[T];
 
 /**
  * Union type of all streaming events with their payloads
- * Maps each event name to its payload from AgentEventMap, adding a type property
+ * Maps each event name to its payload from AgentEventMap, adding a 'name' property
+ * Using 'name' (not 'type') to avoid collision with payload fields like ApprovalRequest.type
  * These are the events that the message-stream API actually returns
  */
 export type StreamingEvent =
-    | ({ type: 'llm:thinking' } & AgentEventMap['llm:thinking'])
-    | ({ type: 'llm:chunk' } & AgentEventMap['llm:chunk'])
-    | ({ type: 'llm:response' } & AgentEventMap['llm:response'])
-    | ({ type: 'llm:tool-call' } & AgentEventMap['llm:tool-call'])
-    | ({ type: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
-    | ({ type: 'llm:error' } & AgentEventMap['llm:error'])
-    | ({ type: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
-    | ({ type: 'session:title-updated' } & AgentEventMap['session:title-updated'])
-    | ({ type: 'approval:request' } & AgentEventMap['approval:request'])
-    | ({ type: 'approval:response' } & AgentEventMap['approval:response']);
+    | ({ name: 'llm:thinking' } & AgentEventMap['llm:thinking'])
+    | ({ name: 'llm:chunk' } & AgentEventMap['llm:chunk'])
+    | ({ name: 'llm:response' } & AgentEventMap['llm:response'])
+    | ({ name: 'llm:tool-call' } & AgentEventMap['llm:tool-call'])
+    | ({ name: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
+    | ({ name: 'llm:error' } & AgentEventMap['llm:error'])
+    | ({ name: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
+    | ({ name: 'session:title-updated' } & AgentEventMap['session:title-updated'])
+    | ({ name: 'approval:request' } & AgentEventMap['approval:request'])
+    | ({ name: 'approval:response' } & AgentEventMap['approval:response']);
 
 /**
  * Union type of all integration events with their payloads
  */
 export type IntegrationEvent =
     | StreamingEvent
-    | ({ type: 'session:created' } & AgentEventMap['session:created'])
-    | ({ type: 'session:reset' } & AgentEventMap['session:reset'])
-    | ({ type: 'mcp:server-connected' } & AgentEventMap['mcp:server-connected'])
-    | ({ type: 'mcp:server-restarted' } & AgentEventMap['mcp:server-restarted'])
-    | ({ type: 'mcp:tools-list-changed' } & AgentEventMap['mcp:tools-list-changed'])
-    | ({ type: 'mcp:prompts-list-changed' } & AgentEventMap['mcp:prompts-list-changed'])
-    | ({ type: 'tools:available-updated' } & AgentEventMap['tools:available-updated'])
-    | ({ type: 'llm:switched' } & AgentEventMap['llm:switched'])
-    | ({ type: 'state:changed' } & AgentEventMap['state:changed']);
+    | ({ name: 'session:created' } & AgentEventMap['session:created'])
+    | ({ name: 'session:reset' } & AgentEventMap['session:reset'])
+    | ({ name: 'mcp:server-connected' } & AgentEventMap['mcp:server-connected'])
+    | ({ name: 'mcp:server-restarted' } & AgentEventMap['mcp:server-restarted'])
+    | ({ name: 'mcp:tools-list-changed' } & AgentEventMap['mcp:tools-list-changed'])
+    | ({ name: 'mcp:prompts-list-changed' } & AgentEventMap['mcp:prompts-list-changed'])
+    | ({ name: 'tools:available-updated' } & AgentEventMap['tools:available-updated'])
+    | ({ name: 'llm:switched' } & AgentEventMap['llm:switched'])
+    | ({ name: 'state:changed' } & AgentEventMap['state:changed']);
 
 /**
  * Combined event map for the agent bus - includes agent events and session events with sessionId
@@ -361,26 +363,13 @@ export interface AgentEventMap {
         action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
     };
 
-    // Approval events
+    // Approval events - use ApprovalRequest directly
+    // No transformation needed since we use 'name' (not 'type') as SSE discriminant
     /** Fired when user approval is requested (generalized approval system) */
-    'approval:request': {
-        approvalId: string;
-        type: string; // ApprovalType enum as string
-        sessionId?: string;
-        timeout?: number;
-        timestamp: Date;
-        metadata: Record<string, any>;
-    };
+    'approval:request': ApprovalRequest;
 
     /** Fired when user approval response is received */
-    'approval:response': {
-        approvalId: string;
-        status: ApprovalStatus;
-        sessionId?: string | undefined;
-        data?: Record<string, any> | undefined;
-        reason?: DenialReason | undefined;
-        message?: string | undefined;
-    };
+    'approval:response': ApprovalResponse;
 }
 
 /**
