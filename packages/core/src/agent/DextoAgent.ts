@@ -39,7 +39,6 @@ import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
 import {
     AgentEventBus,
-    STREAMING_EVENTS,
     type AgentEventMap,
     type StreamingEvent,
     type StreamingEventName,
