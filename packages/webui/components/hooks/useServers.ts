@@ -1,9 +1,26 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 
 // Fetch all MCP servers
 export function useServers(enabled: boolean = true) {
+    const queryClient = useQueryClient();
+
+    // Invalidate servers cache when agent is switched (each agent has different MCP servers)
+    useEffect(() => {
+        const handleAgentSwitched = () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
+            return () => {
+                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
+            };
+        }
+    }, [queryClient]);
+
     return useQuery({
         queryKey: queryKeys.servers.all,
         queryFn: async () => {
