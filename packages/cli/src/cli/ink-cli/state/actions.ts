@@ -12,7 +12,6 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 export type InputChangeAction = {
     type: 'INPUT_CHANGE';
     value: string;
-    forceRemount?: boolean; // Force TextInput remount to reset cursor position
 };
 
 export type InputClearAction = {
@@ -26,10 +25,6 @@ export type InputHistoryNavigateAction = {
 
 export type InputHistoryResetAction = {
     type: 'INPUT_HISTORY_RESET';
-};
-
-export type InputToggleMultiLineAction = {
-    type: 'INPUT_TOGGLE_MULTILINE';
 };
 
 /**
@@ -176,6 +171,17 @@ export type ErrorAction = {
 };
 
 /**
+ * Exit warning actions (for double Ctrl+C to exit)
+ */
+export type ExitWarningShowAction = {
+    type: 'EXIT_WARNING_SHOW';
+};
+
+export type ExitWarningClearAction = {
+    type: 'EXIT_WARNING_CLEAR';
+};
+
+/**
  * Combined action type
  */
 export type CLIAction =
@@ -183,7 +189,6 @@ export type CLIAction =
     | InputClearAction
     | InputHistoryNavigateAction
     | InputHistoryResetAction
-    | InputToggleMultiLineAction
     | MessageAddAction
     | MessageAddMultipleAction
     | MessageInsertBeforeStreamingAction
@@ -209,4 +214,6 @@ export type CLIAction =
     | ConversationResetAction
     | ApprovalRequestAction
     | ApprovalCompleteAction
-    | ErrorAction;
+    | ErrorAction
+    | ExitWarningShowAction
+    | ExitWarningClearAction;

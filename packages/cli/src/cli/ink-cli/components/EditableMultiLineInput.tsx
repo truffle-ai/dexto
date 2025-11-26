@@ -1,9 +1,9 @@
 /**
  * Editable multi-line input component
- * Allows editing text with newlines, submission with Cmd+Enter
+ * Simple, reliable multi-line editor without complex box layouts
  */
 
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 interface EditableMultiLineInputProps {
@@ -12,14 +12,12 @@ interface EditableMultiLineInputProps {
     onSubmit: (value: string) => void;
     placeholder?: string;
     isProcessing?: boolean;
-    onToggleSingleLine?: () => void; // Shift+Enter to go back to single-line
+    onToggleSingleLine?: () => void;
 }
 
 /**
- * Multi-line input component
- * - Enter adds newline
- * - Cmd+Enter or Ctrl+Enter to submit
- * - Shift+Enter to toggle back to single-line
+ * Multi-line input with cursor navigation
+ * Uses simple text rendering without nested boxes for reliable terminal display
  */
 export default function EditableMultiLineInput({
     value,
@@ -29,90 +27,166 @@ export default function EditableMultiLineInput({
     isProcessing = false,
     onToggleSingleLine,
 }: EditableMultiLineInputProps) {
+    const [cursorPos, setCursorPos] = useState(value.length);
+
+    // Keep cursor valid when value changes externally
+    useEffect(() => {
+        if (cursorPos > value.length) {
+            setCursorPos(value.length);
+        }
+    }, [value, cursorPos]);
+
+    // Calculate line info from cursor position
+    const { lines, currentLine, currentCol, lineStartIndices } = useMemo(() => {
+        const lines = value.split('\n');
+        const lineStartIndices: number[] = [];
+        let pos = 0;
+        for (const line of lines) {
+            lineStartIndices.push(pos);
+            pos += line.length + 1;
+        }
+
+        let currentLine = 0;
+        for (let i = 0; i < lineStartIndices.length; i++) {
+            const lineEnd =
+                i < lineStartIndices.length - 1 ? lineStartIndices[i + 1]! - 1 : value.length;
+            if (cursorPos <= lineEnd || i === lineStartIndices.length - 1) {
+                currentLine = i;
+                break;
+            }
+        }
+
+        const currentCol = cursorPos - (lineStartIndices[currentLine] ?? 0);
+        return { lines, currentLine, currentCol, lineStartIndices };
+    }, [value, cursorPos]);
+
     useInput(
         (inputChar, key) => {
             if (isProcessing) return;
 
-            // Cmd+Enter or Ctrl+Enter = submit
+            // Cmd/Ctrl+Enter = submit
             if (key.return && (key.meta || key.ctrl)) {
                 onSubmit(value);
                 return;
             }
 
-            // Shift+Enter = toggle back to single-line mode
-            if (key.return && key.shift) {
+            // Shift+Enter or Ctrl+E = toggle back to single-line
+            if ((key.return && key.shift) || (key.ctrl && inputChar === 'e')) {
                 onToggleSingleLine?.();
                 return;
             }
 
-            // Enter = add newline
+            // Enter = newline
             if (key.return) {
-                onChange(value + '\n');
+                const newValue = value.slice(0, cursorPos) + '\n' + value.slice(cursorPos);
+                onChange(newValue);
+                setCursorPos(cursorPos + 1);
                 return;
             }
 
-            // Backspace = delete last character
-            if (key.backspace || key.delete) {
-                onChange(value.slice(0, -1));
+            // Backspace
+            if (key.backspace && cursorPos > 0) {
+                onChange(value.slice(0, cursorPos - 1) + value.slice(cursorPos));
+                setCursorPos(cursorPos - 1);
                 return;
             }
 
-            // Regular character input (ignore modifier key combinations)
+            // Delete
+            if (key.delete && cursorPos < value.length) {
+                onChange(value.slice(0, cursorPos) + value.slice(cursorPos + 1));
+                return;
+            }
+
+            // Arrow navigation
+            if (key.leftArrow) {
+                setCursorPos(Math.max(0, cursorPos - 1));
+                return;
+            }
+            if (key.rightArrow) {
+                setCursorPos(Math.min(value.length, cursorPos + 1));
+                return;
+            }
+            if (key.upArrow && currentLine > 0) {
+                const prevLineStart = lineStartIndices[currentLine - 1]!;
+                const prevLineLen = lines[currentLine - 1]!.length;
+                setCursorPos(prevLineStart + Math.min(currentCol, prevLineLen));
+                return;
+            }
+            if (key.downArrow && currentLine < lines.length - 1) {
+                const nextLineStart = lineStartIndices[currentLine + 1]!;
+                const nextLineLen = lines[currentLine + 1]!.length;
+                setCursorPos(nextLineStart + Math.min(currentCol, nextLineLen));
+                return;
+            }
+
+            // Character input
             if (inputChar && !key.ctrl && !key.meta) {
-                onChange(value + inputChar);
+                onChange(value.slice(0, cursorPos) + inputChar + value.slice(cursorPos));
+                setCursorPos(cursorPos + inputChar.length);
             }
         },
         { isActive: true }
     );
 
-    // Split into lines for display
-    const lines = value ? value.split('\n') : [''];
-    const MAX_VISIBLE_LINES = 10;
+    // Render each line with cursor
+    const renderLine = (line: string, lineIdx: number) => {
+        const lineStart = lineStartIndices[lineIdx]!;
+        const isCursorLine = lineIdx === currentLine;
+        const cursorCol = isCursorLine ? cursorPos - lineStart : -1;
 
-    // Calculate visible lines (show last N lines if content is too long)
-    const visibleLines = lines.length > MAX_VISIBLE_LINES ? lines.slice(-MAX_VISIBLE_LINES) : lines;
-    const hiddenCount = lines.length - visibleLines.length;
+        const prefix = lineIdx === 0 ? '» ' : '  ';
 
-    return (
-        <Box flexDirection="column" paddingY={1}>
-            {hiddenCount > 0 && (
-                <Box paddingX={1}>
-                    <Text color="gray" dimColor>
-                        ... ({hiddenCount} more lines above)
+        if (cursorCol < 0) {
+            // No cursor on this line
+            return (
+                <Text key={lineIdx}>
+                    <Text color="magenta">{prefix}</Text>
+                    <Text>{line || ' '}</Text>
+                </Text>
+            );
+        }
+
+        // Cursor on this line - highlight character at cursor
+        const before = line.slice(0, cursorCol);
+        const atCursor = line.charAt(cursorCol) || ' ';
+        const after = line.slice(cursorCol + 1);
+
+        return (
+            <Text key={lineIdx}>
+                <Text color="magenta">{prefix}</Text>
+                <Text>{before}</Text>
+                <Text backgroundColor="green" color="black">
+                    {atCursor}
+                </Text>
+                <Text>{after}</Text>
+            </Text>
+        );
+    };
+
+    // Show placeholder if empty
+    if (!value && placeholder) {
+        return (
+            <Box flexDirection="column">
+                <Text>
+                    <Text color="magenta">{'» '}</Text>
+                    <Text backgroundColor="green" color="black">
+                        {' '}
                     </Text>
-                </Box>
-            )}
-            {visibleLines.map((line, index) => {
-                const isFirstVisibleLine = index === 0;
-                const isLastLine = index === visibleLines.length - 1;
-
-                return (
-                    <Box key={index} flexDirection="row">
-                        {isFirstVisibleLine ? (
-                            <Text color="green" bold>
-                                {'> '}
-                            </Text>
-                        ) : (
-                            <Text color="green" dimColor>
-                                {'  '}
-                            </Text>
-                        )}
-                        <Text>
-                            {!value && isFirstVisibleLine && placeholder ? (
-                                <Text dimColor>{placeholder}</Text>
-                            ) : (
-                                line || ' '
-                            )}
-                            {isLastLine && <Text color="green">▋</Text>}
-                        </Text>
-                    </Box>
-                );
-            })}
-            <Box marginTop={1}>
-                <Text color="gray" dimColor>
-                    Multi-line: Cmd+Enter (or Ctrl+Enter) to submit • Shift+Enter for single-line
+                    <Text dimColor> {placeholder}</Text>
+                </Text>
+                <Text dimColor>
+                    Multi-line mode • Cmd/Ctrl+Enter to submit • Ctrl+E for single-line
                 </Text>
             </Box>
+        );
+    }
+
+    return (
+        <Box flexDirection="column">
+            {lines.map((line, idx) => renderLine(line, idx))}
+            <Text dimColor>
+                Multi-line mode • Cmd/Ctrl+Enter to submit • Ctrl+E for single-line
+            </Text>
         </Box>
     );
 }

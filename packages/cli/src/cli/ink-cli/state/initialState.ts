@@ -20,14 +20,14 @@ export function createInitialState(
             value: '',
             history: [],
             historyIndex: -1,
-            remountKey: 0,
-            isMultiLine: false,
         },
         ui: {
             isProcessing: false,
             isCancelling: false,
             isThinking: false,
             activeOverlay: 'none',
+            exitWarningShown: false,
+            exitWarningTimestamp: null,
         },
         session: {
             id: null,

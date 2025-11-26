@@ -10,13 +10,34 @@ interface StatusBarProps {
     isProcessing: boolean;
     isThinking: boolean;
     approvalQueueCount: number;
+    exitWarningShown?: boolean;
 }
 
 /**
  * Status bar that shows processing state above input area
  * Provides clear feedback on whether the agent is running or idle
  */
-export function StatusBar({ isProcessing, isThinking, approvalQueueCount }: StatusBarProps) {
+export function StatusBar({
+    isProcessing,
+    isThinking,
+    approvalQueueCount,
+    exitWarningShown = false,
+}: StatusBarProps) {
+    // Show exit warning if Ctrl+C was pressed
+    if (exitWarningShown) {
+        return (
+            <Box paddingX={1} marginBottom={0}>
+                <Text color="yellow" bold>
+                    ⚠ Press Ctrl+C again to exit
+                </Text>
+                <Text color="gray" dimColor>
+                    {' '}
+                    (or press any key to cancel)
+                </Text>
+            </Box>
+        );
+    }
+
     if (!isProcessing) {
         // Show idle state - minimal, non-intrusive
         return (

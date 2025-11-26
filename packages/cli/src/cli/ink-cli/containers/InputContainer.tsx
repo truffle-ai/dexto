@@ -3,7 +3,7 @@
  * Smart container for input area - handles submission and state
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import type { DextoAgent } from '@dexto/core';
 import { InputArea } from '../components/input/InputArea.js';
 import { InputService } from '../services/InputService.js';
@@ -11,6 +11,9 @@ import type { CLIAction } from '../state/actions.js';
 import type { CLIState } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+
+/** Type for pending session creation promise */
+type SessionCreationResult = { id: string };
 
 interface InputContainerProps {
     state: CLIState;
@@ -26,6 +29,10 @@ interface InputContainerProps {
 export function InputContainer({ state, dispatch, agent, inputService }: InputContainerProps) {
     const { input, ui, approval, session } = state;
 
+    // Track pending session creation to prevent race conditions
+    // when multiple messages are sent before first session is created
+    const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+
     // Handle input change
     const handleChange = useCallback(
         (value: string) => {
@@ -34,22 +41,13 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
         [dispatch]
     );
 
-    // Handle word delete
-    const handleWordDelete = useCallback(() => {
-        const newValue = inputService.deleteWordBackward(input.value);
-        dispatch({ type: 'INPUT_CHANGE', value: newValue });
-    }, [dispatch, inputService, input.value]);
-
-    // Handle line delete
-    const handleLineDelete = useCallback(() => {
-        const newValue = inputService.deleteLine(input.value);
-        dispatch({ type: 'INPUT_CHANGE', value: newValue });
-    }, [dispatch, inputService, input.value]);
-
-    // Handle multi-line toggle
-    const handleToggleMultiLine = useCallback(() => {
-        dispatch({ type: 'INPUT_TOGGLE_MULTILINE' });
-    }, [dispatch]);
+    // Handle history navigation
+    const handleHistoryNavigate = useCallback(
+        (direction: 'up' | 'down') => {
+            dispatch({ type: 'INPUT_HISTORY_NAVIGATE', direction });
+        },
+        [dispatch]
+    );
 
     // Handle submission
     const handleSubmit = useCallback(
@@ -130,14 +128,36 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
                     let currentSessionId = session.id;
 
                     // Create session on first message if not already created (deferred creation)
+                    // Use ref to prevent race condition when multiple messages sent rapidly
                     if (!currentSessionId) {
-                        const newSession = await agent.createSession();
-                        currentSessionId = newSession.id;
-                        dispatch({
-                            type: 'SESSION_SET',
-                            sessionId: currentSessionId,
-                            hasActiveSession: true,
-                        });
+                        // Check if session creation is already in progress
+                        if (sessionCreationPromiseRef.current) {
+                            // Wait for existing session creation to complete
+                            const existingSession = await sessionCreationPromiseRef.current;
+                            currentSessionId = existingSession.id;
+                        } else {
+                            // Start new session creation and store promise in ref
+                            const sessionPromise = agent.createSession();
+                            sessionCreationPromiseRef.current = sessionPromise;
+
+                            try {
+                                const newSession = await sessionPromise;
+                                currentSessionId = newSession.id;
+                                dispatch({
+                                    type: 'SESSION_SET',
+                                    sessionId: currentSessionId,
+                                    hasActiveSession: true,
+                                });
+                            } finally {
+                                // Clear the ref after creation completes (success or failure)
+                                sessionCreationPromiseRef.current = null;
+                            }
+                        }
+                    }
+
+                    // At this point currentSessionId must be defined (either from state or created above)
+                    if (!currentSessionId) {
+                        throw new Error('Failed to create or retrieve session');
                     }
 
                     await agent.run(trimmed, undefined, undefined, currentSessionId);
@@ -163,6 +183,9 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
     // Don't wire up onSubmit when autocomplete/selector is active (they handle Enter)
     const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
 
+    // Only enable history navigation when not processing and no overlay
+    const canNavigateHistory = !ui.isProcessing && !approval && ui.activeOverlay === 'none';
+
     return (
         <InputArea
             value={input.value}
@@ -171,11 +194,9 @@ export function InputContainer({ state, dispatch, agent, inputService }: InputCo
             isProcessing={ui.isProcessing}
             isDisabled={ui.isProcessing || !!approval}
             placeholder={placeholder}
-            onWordDelete={handleWordDelete}
-            onLineDelete={handleLineDelete}
-            onToggleMultiLine={handleToggleMultiLine}
-            remountKey={input.remountKey}
-            isMultiLine={input.isMultiLine}
+            history={input.history}
+            historyIndex={input.historyIndex}
+            onHistoryNavigate={canNavigateHistory ? handleHistoryNavigate : undefined}
         />
     );
 }

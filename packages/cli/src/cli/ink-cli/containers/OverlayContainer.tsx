@@ -205,10 +205,16 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
             const commandText = `/${prompt.name}`;
             dispatch({ type: 'CLOSE_OVERLAY' });
             dispatch({ type: 'INPUT_CLEAR' });
+
+            // Show user message for the executed command
+            const userMessage = createUserMessage(commandText);
+            dispatch({
+                type: 'MESSAGE_ADD',
+                message: userMessage,
+            });
+
             dispatch({ type: 'PROCESSING_START' });
 
-            // Execute the prompt command directly without showing user message
-            // (user can already see the command in the autocomplete)
             const { CommandService } = await import('../services/CommandService.js');
             const commandService = new CommandService();
 
@@ -254,12 +260,19 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
 
     const handleSystemCommandSelect = useCallback(
         async (command: string) => {
+            const commandText = `/${command}`;
             dispatch({ type: 'CLOSE_OVERLAY' });
             dispatch({ type: 'INPUT_CLEAR' });
+
+            // Show user message for the executed command
+            const userMessage = createUserMessage(commandText);
+            dispatch({
+                type: 'MESSAGE_ADD',
+                message: userMessage,
+            });
+
             dispatch({ type: 'PROCESSING_START' });
 
-            // Execute the system command directly without showing user message
-            // (user can already see the command in the autocomplete)
             const { CommandService } = await import('../services/CommandService.js');
             const commandService = new CommandService();
 
@@ -303,7 +316,7 @@ export function OverlayContainer({ state, dispatch, agent, inputService }: Overl
 
     const handleLoadIntoInput = useCallback(
         (text: string) => {
-            dispatch({ type: 'INPUT_CHANGE', value: text, forceRemount: true });
+            dispatch({ type: 'INPUT_CHANGE', value: text });
             dispatch({ type: 'CLOSE_OVERLAY' });
         },
         [dispatch]

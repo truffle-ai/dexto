@@ -23,7 +23,7 @@ import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 import { cliReducer, createInitialState, type StartupInfo } from './state/index.js';
 
 // Custom hooks
-import { useAgentEvents, useInputHistory, useKeyboardShortcuts } from './hooks/index.js';
+import { useAgentEvents, useKeyboardShortcuts } from './hooks/index.js';
 
 // Services
 import { InputService, MessageService } from './services/index.js';
@@ -79,12 +79,7 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     // Session is now managed in state - no need for sync hook
     // useSessionSync removed - sessionId is in state from initialization or SESSION_SET actions
 
-    // Setup input history navigation
-    useInputHistory({
-        inputState: state.input,
-        dispatch,
-        isActive: !state.ui.isProcessing && !state.approval && state.ui.activeOverlay === 'none',
-    });
+    // Input history navigation is now handled by MultiLineTextInput component
 
     // Setup global keyboard shortcuts
     useKeyboardShortcuts({ state, dispatch, agent });
@@ -164,8 +159,8 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 
     return (
         <ErrorBoundary>
-            <Box flexDirection="column" height="100%" width="100%">
-                {/* Chat area (header + messages) */}
+            <Box flexDirection="column" minHeight={0}>
+                {/* Chat area (header + messages) - takes available space but can shrink */}
                 <ChatView
                     messages={visibleMessages}
                     modelName={state.session.modelName}
@@ -179,6 +174,7 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
                     isProcessing={state.ui.isProcessing}
                     isThinking={state.ui.isThinking}
                     approvalQueueCount={state.approvalQueue.length}
+                    exitWarningShown={state.ui.exitWarningShown}
                 />
 
                 {/* Overlays (approval, selectors, autocomplete) */}
@@ -214,7 +210,8 @@ export async function startInkCliRefactored(
     agent: DextoAgent,
     initialSessionId: string | null
 ): Promise<void> {
-    registerGracefulShutdown(() => agent);
+    // Use inkMode to let Ctrl+C be handled by the UI for exit warning
+    registerGracefulShutdown(() => agent, { inkMode: true });
 
     // Note: Console suppression is done in index.ts before calling this function
     const startupInfo = await getStartupInfo(agent);
@@ -224,7 +221,11 @@ export async function startInkCliRefactored(
             agent={agent}
             initialSessionId={initialSessionId}
             startupInfo={startupInfo}
-        />
+        />,
+        {
+            // Disable default Ctrl+C exit to handle it ourselves with double-press warning
+            exitOnCtrlC: false,
+        }
     );
 
     // Wait for the Ink app to exit before resolving

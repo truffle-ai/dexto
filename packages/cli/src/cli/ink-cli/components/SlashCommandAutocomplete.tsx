@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { PromptInfo } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
@@ -131,10 +131,14 @@ export default function SlashCommandAutocomplete({
     const selectedIndexRef = useRef(0);
     const MAX_VISIBLE_ITEMS = 10; // Increased to show more items
 
-    // Keep ref in sync
-    useEffect(() => {
-        selectedIndexRef.current = selectedIndex;
-    }, [selectedIndex]);
+    // Wrapper to set both state and ref synchronously to prevent race conditions
+    const setSelectedIndexSync = useCallback((newIndex: number | ((prev: number) => number)) => {
+        setSelectedIndex((prev) => {
+            const resolved = typeof newIndex === 'function' ? newIndex(prev) : newIndex;
+            selectedIndexRef.current = resolved;
+            return resolved;
+        });
+    }, []);
 
     // Fetch prompts and system commands from agent
     useEffect(() => {
@@ -272,9 +276,9 @@ export default function SlashCommandAutocomplete({
 
     // Reset selected index and scroll when items change
     useEffect(() => {
-        setSelectedIndex(0);
+        setSelectedIndexSync(0);
         setScrollOffset(0);
-    }, [combinedItems.length]);
+    }, [combinedItems.length, setSelectedIndexSync]);
 
     // Auto-scroll to keep selected item visible
     useEffect(() => {
@@ -300,22 +304,16 @@ export default function SlashCommandAutocomplete({
             const itemsLength = combinedItems.length;
             if (itemsLength === 0) return;
 
-            switch (key.upArrow) {
-                case true:
-                    setSelectedIndex((prev) => (prev - 1 + itemsLength) % itemsLength);
-                    break;
+            if (key.upArrow) {
+                setSelectedIndexSync((prev) => (prev - 1 + itemsLength) % itemsLength);
             }
 
-            switch (key.downArrow) {
-                case true:
-                    setSelectedIndex((prev) => (prev + 1) % itemsLength);
-                    break;
+            if (key.downArrow) {
+                setSelectedIndexSync((prev) => (prev + 1) % itemsLength);
             }
 
-            switch (key.escape) {
-                case true:
-                    onClose();
-                    break;
+            if (key.escape) {
+                onClose();
             }
 
             // Tab: Load command into input (for editing before execution)
