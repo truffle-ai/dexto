@@ -2,6 +2,8 @@ import { context as otlpContext, trace, propagation } from '@opentelemetry/api';
 import type { Tracer, Context, BaggageEntry } from '@opentelemetry/api';
 import type { OtelConfiguration } from './schemas.js';
 import { logger } from '../logger/logger.js';
+import { TelemetryError } from './errors.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
 // Type definitions for dynamically imported modules
 type NodeSDKType = import('@opentelemetry/sdk-node').NodeSDK;
@@ -60,9 +62,9 @@ export class Telemetry {
                 } catch (err) {
                     const error = err as NodeJS.ErrnoException;
                     if (error.code === 'ERR_MODULE_NOT_FOUND') {
-                        throw new Error(
-                            'OTLP gRPC exporter configured but @opentelemetry/exporter-trace-otlp-grpc is not installed.\n' +
-                                'Install with: npm install @opentelemetry/exporter-trace-otlp-grpc'
+                        throw TelemetryError.exporterDependencyNotInstalled(
+                            'grpc',
+                            '@opentelemetry/exporter-trace-otlp-grpc'
                         );
                     }
                     throw err;
@@ -81,9 +83,9 @@ export class Telemetry {
             } catch (err) {
                 const error = err as NodeJS.ErrnoException;
                 if (error.code === 'ERR_MODULE_NOT_FOUND') {
-                    throw new Error(
-                        'OTLP HTTP exporter configured but @opentelemetry/exporter-trace-otlp-http is not installed.\n' +
-                            'Install with: npm install @opentelemetry/exporter-trace-otlp-http'
+                    throw TelemetryError.exporterDependencyNotInstalled(
+                        'http',
+                        '@opentelemetry/exporter-trace-otlp-http'
                     );
                 }
                 throw err;
@@ -152,11 +154,15 @@ export class Telemetry {
                         } catch (importError) {
                             const err = importError as NodeJS.ErrnoException;
                             if (err.code === 'ERR_MODULE_NOT_FOUND') {
-                                throw new Error(
-                                    'Telemetry is enabled but required OpenTelemetry packages are not installed.\n' +
-                                        'Install with: npm install @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node @opentelemetry/resources @opentelemetry/semantic-conventions @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-trace-otlp-grpc\n' +
-                                        'Or disable telemetry by setting enabled: false in your configuration.'
-                                );
+                                throw TelemetryError.dependencyNotInstalled([
+                                    '@opentelemetry/sdk-node',
+                                    '@opentelemetry/auto-instrumentations-node',
+                                    '@opentelemetry/resources',
+                                    '@opentelemetry/semantic-conventions',
+                                    '@opentelemetry/sdk-trace-base',
+                                    '@opentelemetry/exporter-trace-otlp-http',
+                                    '@opentelemetry/exporter-trace-otlp-grpc',
+                                ]);
                             }
                             throw importError;
                         }
@@ -201,13 +207,20 @@ export class Telemetry {
                 return globalThis.__TELEMETRY__!;
             })();
 
-            return Telemetry._initPromise;
+            // Await the promise so failures are caught by outer try/catch
+            // This ensures _initPromise is cleared on failure, allowing re-initialization
+            return await Telemetry._initPromise;
         } catch (error) {
-            const wrappedError = new Error(
-                `Failed to initialize telemetry: ${error instanceof Error ? error.message : String(error)}`
-            );
+            // Clear init promise so subsequent calls can retry
             Telemetry._initPromise = undefined;
-            throw wrappedError;
+            // Re-throw typed errors as-is, wrap unknown errors
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
+            throw TelemetryError.initializationFailed(
+                error instanceof Error ? error.message : String(error),
+                error
+            );
         }
     }
 
@@ -218,12 +231,12 @@ export class Telemetry {
 
     /**
      * Get the global telemetry instance
-     * @throws {Error} If telemetry has not been initialized
+     * @throws {DextoRuntimeError} If telemetry has not been initialized
      * @returns {Telemetry} The global telemetry instance
      */
     static get(): Telemetry {
         if (!globalThis.__TELEMETRY__) {
-            throw new Error('Telemetry not initialized');
+            throw TelemetryError.notInitialized();
         }
         return globalThis.__TELEMETRY__;
     }
