@@ -79,6 +79,10 @@ export const STREAMING_EVENTS = [
 
     // Session metadata
     'session:title-updated',
+
+    // Approval events (needed for tool confirmation in streaming UIs)
+    'approval:request',
+    'approval:response',
 ] as const;
 
 /**
@@ -142,21 +146,13 @@ export type AgentEventByName<T extends AgentEventName> = {
 
 /**
  * Union type of all streaming events with their payloads
- * Maps each event name to its payload from AgentEventMap, adding a 'name' property
- * Using 'name' (not 'type') to avoid collision with payload fields like ApprovalRequest.type
- * These are the events that the message-stream API actually returns
+ * Automatically derived from STREAMING_EVENTS const to stay in sync.
+ * Uses 'name' property (not 'type') to avoid collision with payload fields like ApprovalRequest.type
+ * These are the events that the message-stream API actually returns.
  */
-export type StreamingEvent =
-    | ({ name: 'llm:thinking' } & AgentEventMap['llm:thinking'])
-    | ({ name: 'llm:chunk' } & AgentEventMap['llm:chunk'])
-    | ({ name: 'llm:response' } & AgentEventMap['llm:response'])
-    | ({ name: 'llm:tool-call' } & AgentEventMap['llm:tool-call'])
-    | ({ name: 'llm:tool-result' } & AgentEventMap['llm:tool-result'])
-    | ({ name: 'llm:error' } & AgentEventMap['llm:error'])
-    | ({ name: 'llm:unsupported-input' } & AgentEventMap['llm:unsupported-input'])
-    | ({ name: 'session:title-updated' } & AgentEventMap['session:title-updated'])
-    | ({ name: 'approval:request' } & AgentEventMap['approval:request'])
-    | ({ name: 'approval:response' } & AgentEventMap['approval:response']);
+export type StreamingEvent = {
+    [K in StreamingEventName]: { name: K } & AgentEventMap[K];
+}[StreamingEventName];
 
 /**
  * Union type of all integration events with their payloads
