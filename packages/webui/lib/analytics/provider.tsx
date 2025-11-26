@@ -1,5 +1,3 @@
-'use client';
-
 // packages/webui/lib/analytics/provider.tsx
 // React Context Provider for WebUI analytics using PostHog JS SDK.
 
@@ -34,7 +32,7 @@ interface AnalyticsProviderProps {
 }
 
 /**
- * Get analytics config injected by Next.js SSR.
+ * Get analytics config injected during app initialization.
  * Returns null if analytics disabled or config not available.
  */
 function getAnalyticsConfig(): AnalyticsConfig | null {

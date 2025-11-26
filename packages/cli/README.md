@@ -536,10 +536,8 @@ Options:
   --mode <mode>                    The application in which dexto should talk
                                    to you - web | cli | server | discord |
                                    telegram | mcp (default: "web")
-  --web-port <port>                port for the web UI (default: 3000)
-                                   (default: "3000")
-  --api-port <port>                port for the API server (default: web-port +
-                                   1)
+  --port <port>                    port for the server (default: 3000 for web,
+                                   3001 for server mode)
   --no-auto-install                Disable automatic installation of missing
                                    agents from registry
   -h, --help                       display help for command

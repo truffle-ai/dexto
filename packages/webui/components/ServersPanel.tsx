@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 
 import { Button } from './ui/button';
@@ -223,33 +221,6 @@ export default function ServersPanel({
             refetchServers();
         }
     }, [refreshTrigger, isOpen, refetchServers]);
-
-    // Listen for real-time MCP server and resource updates
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleServerConnected = (event: any) => {
-            console.log('🔗 Server connected:', event?.detail || {});
-            refetchServers();
-        };
-
-        const handleResourceCacheInvalidated = (event: any) => {
-            console.log('💾 Resource cache invalidated for server panel:', event?.detail || {});
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('mcp:server-connected', handleServerConnected);
-            window.addEventListener('resource:cache-invalidated', handleResourceCacheInvalidated);
-
-            return () => {
-                window.removeEventListener('mcp:server-connected', handleServerConnected);
-                window.removeEventListener(
-                    'resource:cache-invalidated',
-                    handleResourceCacheInvalidated
-                );
-            };
-        }
-    }, [isOpen, refetchServers]);
 
     const selectedServer = servers.find((s) => s.id === selectedServerId);
 

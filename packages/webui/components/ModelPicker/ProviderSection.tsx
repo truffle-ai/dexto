@@ -1,7 +1,4 @@
-'use client';
-
 import React, { useState } from 'react';
-import Image from 'next/image';
 import { Star, HelpCircle, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import type { ProviderCatalog, ModelInfo } from './types';
 import { cn } from '../../lib/utils';
@@ -62,7 +59,7 @@ export function ProviderSection({
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-muted/50">
                             {PROVIDER_LOGOS[providerId] ? (
-                                <Image
+                                <img
                                     src={PROVIDER_LOGOS[providerId]}
                                     alt={`${providerId} logo`}
                                     width={20}

@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import type {
     McpServerConfig,
@@ -267,7 +265,7 @@ export default function ConnectServerModal({
                 persistToAgent,
             });
 
-            if (process.env.NODE_ENV === 'development') {
+            if (import.meta.env.DEV) {
                 // Create a safe version for logging with masked sensitive values
                 const safeConfig = { ...config };
                 if (safeConfig.type === 'stdio' && safeConfig.env) {

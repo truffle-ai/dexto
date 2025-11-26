@@ -489,18 +489,18 @@ describe('Hono API Integration Tests', () => {
             const originalStream = agent.stream;
             const fakeEvents: StreamingEvent[] = [
                 {
-                    type: 'llm:thinking',
+                    name: 'llm:thinking',
                     sessionId,
                 },
                 {
-                    type: 'llm:chunk',
+                    name: 'llm:chunk',
                     content: 'hello',
                     chunkType: 'text',
                     isComplete: false,
                     sessionId,
                 },
                 {
-                    type: 'llm:response',
+                    name: 'llm:response',
                     content: 'hello',
                     tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
                     sessionId,

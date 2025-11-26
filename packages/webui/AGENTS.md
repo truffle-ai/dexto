@@ -1,6 +1,6 @@
 # WebUI Development Guidelines for AI Agents
 
-Comprehensive guide for AI agents working on the Dexto Next.js WebUI.
+Comprehensive guide for AI agents working on the Dexto Vite WebUI.
 
 ## Core Philosophy
 
@@ -14,7 +14,7 @@ If you need to cast, it's a RED FLAG. Fix the server schema instead.
 
 ## Architecture
 
-**Stack**: Next.js 15 + React 19 + TypeScript + Hono Typed Client + TanStack Query + SSE
+**Stack**: Vite + React 19 + TypeScript + TanStack Router + Hono Typed Client + TanStack Query + SSE
 
 **Key Files**:
 - `lib/client.ts` - Hono client initialization

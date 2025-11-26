@@ -19,7 +19,7 @@ export function useServerRegistry(options: UseServerRegistryOptions = {}) {
         data: entries = [],
         isLoading,
         error,
-    } = useQuery<ServerRegistryEntry[], Error>({
+    } = useQuery({
         queryKey: queryKeys.serverRegistry(filter),
         queryFn: () => serverRegistry.getEntries(filter),
         enabled: autoLoad,

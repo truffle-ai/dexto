@@ -2481,7 +2481,7 @@
                   "imageData": {
                     "type": "object",
                     "properties": {
-                      "base64": {
+                      "image": {
                         "type": "string",
                         "description": "Base64-encoded image data"
                       },
@@ -2491,7 +2491,7 @@
                       }
                     },
                     "required": [
-                      "base64",
+                      "image",
                       "mimeType"
                     ],
                     "description": "Optional image data to include with the message"
@@ -2499,7 +2499,7 @@
                   "fileData": {
                     "type": "object",
                     "properties": {
-                      "base64": {
+                      "data": {
                         "type": "string",
                         "description": "Base64-encoded file data"
                       },
@@ -2513,7 +2513,7 @@
                       }
                     },
                     "required": [
-                      "base64",
+                      "data",
                       "mimeType"
                     ],
                     "description": "Optional file data to include with the message"
@@ -2587,7 +2587,7 @@
                   "imageData": {
                     "type": "object",
                     "properties": {
-                      "base64": {
+                      "image": {
                         "type": "string",
                         "description": "Base64-encoded image data"
                       },
@@ -2597,7 +2597,7 @@
                       }
                     },
                     "required": [
-                      "base64",
+                      "image",
                       "mimeType"
                     ],
                     "description": "Optional image data to include with the message"
@@ -2605,7 +2605,7 @@
                   "fileData": {
                     "type": "object",
                     "properties": {
-                      "base64": {
+                      "data": {
                         "type": "string",
                         "description": "Base64-encoded file data"
                       },
@@ -2619,7 +2619,7 @@
                       }
                     },
                     "required": [
-                      "base64",
+                      "data",
                       "mimeType"
                     ],
                     "description": "Optional file data to include with the message"
@@ -2802,7 +2802,7 @@
                   "imageData": {
                     "type": "object",
                     "properties": {
-                      "base64": {
+                      "image": {
                         "type": "string",
                         "description": "Base64-encoded image data"
                       },
@@ -2812,7 +2812,7 @@
                       }
                     },
                     "required": [
-                      "base64",
+                      "image",
                       "mimeType"
                     ],
                     "description": "Optional image data to include with the message"
@@ -2820,7 +2820,7 @@
                   "fileData": {
                     "type": "object",
                     "properties": {
-                      "base64": {
+                      "data": {
                         "type": "string",
                         "description": "Base64-encoded file data"
                       },
@@ -2834,7 +2834,7 @@
                       }
                     },
                     "required": [
-                      "base64",
+                      "data",
                       "mimeType"
                     ],
                     "description": "Optional file data to include with the message"
@@ -5071,6 +5071,11 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "Unique message identifier (UUID)"
+                          },
                           "role": {
                             "type": "string",
                             "enum": [
@@ -5132,7 +5137,8 @@
                                           "description": "Part type: image"
                                         },
                                         "image": {
-                                          "description": "Image data (string, binary, or URL)"
+                                          "type": "string",
+                                          "description": "Base64-encoded image data"
                                         },
                                         "mimeType": {
                                           "type": "string",
@@ -5157,7 +5163,8 @@
                                           "description": "Part type: file"
                                         },
                                         "data": {
-                                          "description": "File data (string, binary, or URL)"
+                                          "type": "string",
+                                          "description": "Base64-encoded file data"
                                         },
                                         "mimeType": {
                                           "type": "string",
@@ -5223,10 +5230,23 @@
                           },
                           "provider": {
                             "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere"
+                            ],
                             "description": "Provider identifier for assistant messages"
                           },
                           "router": {
                             "type": "string",
+                            "enum": [
+                              "vercel",
+                              "in-built"
+                            ],
                             "description": "Router metadata for assistant messages"
                           },
                           "toolCalls": {
@@ -5595,6 +5615,11 @@
                           "message": {
                             "type": "object",
                             "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Unique message identifier (UUID)"
+                              },
                               "role": {
                                 "type": "string",
                                 "enum": [
@@ -5656,7 +5681,8 @@
                                               "description": "Part type: image"
                                             },
                                             "image": {
-                                              "description": "Image data (string, binary, or URL)"
+                                              "type": "string",
+                                              "description": "Base64-encoded image data"
                                             },
                                             "mimeType": {
                                               "type": "string",
@@ -5681,7 +5707,8 @@
                                               "description": "Part type: file"
                                             },
                                             "data": {
-                                              "description": "File data (string, binary, or URL)"
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
                                             },
                                             "mimeType": {
                                               "type": "string",
@@ -5747,10 +5774,23 @@
                               },
                               "provider": {
                                 "type": "string",
+                                "enum": [
+                                  "openai",
+                                  "openai-compatible",
+                                  "anthropic",
+                                  "google",
+                                  "groq",
+                                  "xai",
+                                  "cohere"
+                                ],
                                 "description": "Provider identifier for assistant messages"
                               },
                               "router": {
                                 "type": "string",
+                                "enum": [
+                                  "vercel",
+                                  "in-built"
+                                ],
                                 "description": "Router metadata for assistant messages"
                               },
                               "toolCalls": {
@@ -5922,6 +5962,11 @@
                               "message": {
                                 "type": "object",
                                 "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "description": "Unique message identifier (UUID)"
+                                  },
                                   "role": {
                                     "type": "string",
                                     "enum": [
@@ -5983,7 +6028,8 @@
                                                   "description": "Part type: image"
                                                 },
                                                 "image": {
-                                                  "description": "Image data (string, binary, or URL)"
+                                                  "type": "string",
+                                                  "description": "Base64-encoded image data"
                                                 },
                                                 "mimeType": {
                                                   "type": "string",
@@ -6008,7 +6054,8 @@
                                                   "description": "Part type: file"
                                                 },
                                                 "data": {
-                                                  "description": "File data (string, binary, or URL)"
+                                                  "type": "string",
+                                                  "description": "Base64-encoded file data"
                                                 },
                                                 "mimeType": {
                                                   "type": "string",
@@ -6074,10 +6121,23 @@
                                   },
                                   "provider": {
                                     "type": "string",
+                                    "enum": [
+                                      "openai",
+                                      "openai-compatible",
+                                      "anthropic",
+                                      "google",
+                                      "groq",
+                                      "xai",
+                                      "cohere"
+                                    ],
                                     "description": "Provider identifier for assistant messages"
                                   },
                                   "router": {
                                     "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ],
                                     "description": "Router metadata for assistant messages"
                                   },
                                   "toolCalls": {
@@ -7515,7 +7575,7 @@
                   "resource": {
                     "type": "object",
                     "properties": {
-                      "base64": {
+                      "data": {
                         "type": "string",
                         "minLength": 1,
                         "description": "Base64-encoded resource data"
@@ -7531,7 +7591,7 @@
                       }
                     },
                     "required": [
-                      "base64",
+                      "data",
                       "mimeType"
                     ],
                     "additionalProperties": false,

@@ -40,7 +40,7 @@ import type { ClientConfig } from './types.js';
  * // Parse SSE events using createMessageStream
  * const stream = createMessageStream(streamPromise);
  * for await (const event of stream) {
- *   if (event.type === 'llm:chunk') {
+ *   if (event.name === 'llm:chunk') {
  *     process.stdout.write(event.content);
  *   }
  * }

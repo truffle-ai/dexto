@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { SearchResultSchema, SessionSearchResultSchema } from '../schemas/responses.js';
+import { MessageSearchResponseSchema, SessionSearchResponseSchema } from '../schemas/responses.js';
 
 const MessageSearchQuery = z.object({
     q: z.string().min(1, 'Search query is required').describe('Search query string'),
@@ -39,29 +39,7 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Message search results',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                results: z
-                                    .array(SearchResultSchema)
-                                    .describe('Array of search results'),
-                                total: z
-                                    .number()
-                                    .int()
-                                    .nonnegative()
-                                    .describe('Total number of results available'),
-                                hasMore: z
-                                    .boolean()
-                                    .describe(
-                                        'Whether there are more results beyond the current page'
-                                    ),
-                                query: z.string().describe('Query that was searched'),
-                            })
-                            .strict()
-                            .describe('Message search response'),
-                    },
-                },
+                content: { 'application/json': { schema: MessageSearchResponseSchema } },
             },
         },
     });
@@ -76,29 +54,7 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
         responses: {
             200: {
                 description: 'Session search results',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                results: z
-                                    .array(SessionSearchResultSchema)
-                                    .describe('Array of session search results'),
-                                total: z
-                                    .number()
-                                    .int()
-                                    .nonnegative()
-                                    .describe('Total number of sessions with matches'),
-                                hasMore: z
-                                    .boolean()
-                                    .describe(
-                                        'Always false - session search returns all matching sessions without pagination'
-                                    ),
-                                query: z.string().describe('Query that was searched'),
-                            })
-                            .strict()
-                            .describe('Session search response'),
-                    },
-                },
+                content: { 'application/json': { schema: SessionSearchResponseSchema } },
             },
         },
     });
@@ -115,12 +71,15 @@ export function createSearchRouter(getAgent: () => DextoAgent) {
             };
 
             const searchResults = await agent.searchMessages(q, options);
-            return ctx.json(searchResults);
+            // TODO: Improve type alignment between core and server schemas.
+            // Core's InternalMessage has union types for binary data, but JSON responses are strings.
+            return ctx.json(searchResults as z.output<typeof MessageSearchResponseSchema>);
         })
         .openapi(sessionsRoute, async (ctx) => {
             const agent = getAgent();
             const { q } = ctx.req.valid('query');
             const searchResults = await agent.searchSessions(q);
-            return ctx.json(searchResults);
+            // TODO: Improve type alignment between core and server schemas.
+            return ctx.json(searchResults as z.output<typeof SessionSearchResponseSchema>);
         });
 }

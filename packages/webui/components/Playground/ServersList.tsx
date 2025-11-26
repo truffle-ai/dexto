@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Server, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

@@ -167,8 +167,8 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         const handleApprovalRequest = (event: {
             approvalId: string;
             type: string;
-            sessionId?: string;
-            timeout?: number;
+            sessionId?: string | undefined;
+            timeout?: number | undefined;
             timestamp: Date;
             metadata: Record<string, any>;
         }) => {

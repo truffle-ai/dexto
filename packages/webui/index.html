@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light dark" />
+        <meta
+            name="description"
+            content="Interactive playground for testing MCP tools and talking to AI agents"
+        />
+        <title>Dexto Web UI</title>
+        <link rel="icon" type="image/svg+xml" href="/logos/dexto/dexto_logo_icon.svg" />
+        <link rel="apple-touch-icon" href="/logos/dexto/dexto_logo_icon.svg" />
+        <!-- Theme flash prevention - must run before body renders -->
+        <script>
+            (function () {
+                var stored = localStorage.getItem('theme-storage');
+                var theme = 'dark';
+                if (stored) {
+                    try {
+                        theme = JSON.parse(stored).state?.theme || 'dark';
+                    } catch (e) {}
+                }
+                if (theme === 'dark') document.documentElement.classList.add('dark');
+            })();
+        </script>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>

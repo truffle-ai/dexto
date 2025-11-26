@@ -1,7 +1,5 @@
-'use client';
-
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys.js';
 import {
@@ -54,7 +52,7 @@ type AgentSelectorProps = {
 };
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { currentSessionId } = useChatContext();
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
@@ -72,6 +70,19 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     }, [analytics]);
 
     const queryClient = useQueryClient();
+
+    // Invalidate all agent-specific queries when switching agents
+    // This replaces the DOM event pattern (dexto:agentSwitched)
+    const invalidateAgentSpecificQueries = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
+        queryClient.invalidateQueries({ queryKey: ['servers', 'tools'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
+        queryClient.invalidateQueries({ queryKey: ['greeting'] }); // Hierarchical invalidation
+        queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.config }); // Agent config (CustomizePanel)
+    }, [queryClient]);
 
     // Check if an agent path is from the global ~/.dexto directory
     // Global pattern: /Users/<user>/.dexto/agents or /home/<user>/.dexto/agents
@@ -143,17 +154,12 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     sessionId: currentSessionId || undefined,
                 });
 
-                try {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:agentSwitched', {
-                            detail: { id: agentId, name: agent.name },
-                        })
-                    );
-                } catch {}
+                // Invalidate all agent-specific queries
+                invalidateAgentSpecificQueries();
 
                 // Navigate back to home after switching agents
                 // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
-                router.push('/');
+                navigate({ to: '/' });
             } catch (err) {
                 console.error(
                     `Switch agent failed: ${err instanceof Error ? err.message : String(err)}`
@@ -164,7 +170,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [installed, router, currentId, currentSessionId, switchAgentMutation]
+        [
+            installed,
+            navigate,
+            currentId,
+            currentSessionId,
+            switchAgentMutation,
+            invalidateAgentSpecificQueries,
+        ]
     );
 
     const handleSwitchToPath = useCallback(
@@ -190,17 +203,12 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     sessionId: currentSessionId || undefined,
                 });
 
-                try {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:agentSwitched', {
-                            detail: { id: agent.id, name: agent.name },
-                        })
-                    );
-                } catch {}
+                // Invalidate all agent-specific queries
+                invalidateAgentSpecificQueries();
 
                 // Navigate back to home after switching agents
                 // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
-                router.push('/');
+                navigate({ to: '/' });
             } catch (err) {
                 console.error(
                     `Switch agent failed: ${err instanceof Error ? err.message : String(err)}`
@@ -211,7 +219,14 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                 setSwitching(false);
             }
         },
-        [addToRecentAgents, router, currentId, currentSessionId, switchAgentMutation]
+        [
+            addToRecentAgents,
+            navigate,
+            currentId,
+            currentSessionId,
+            switchAgentMutation,
+            invalidateAgentSpecificQueries,
+        ]
     );
 
     const handleInstall = useCallback(
@@ -250,18 +265,12 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                     sessionId: currentSessionId || undefined,
                 });
 
-                // Step 6: Dispatch event
-                try {
-                    window.dispatchEvent(
-                        new CustomEvent('dexto:agentSwitched', {
-                            detail: { id: agentId, name: agent.name },
-                        })
-                    );
-                } catch {}
+                // Step 6: Invalidate all agent-specific queries
+                invalidateAgentSpecificQueries();
 
                 // Step 7: Navigate to home
                 // The ChatApp component will automatically handle returnToWelcome when sessionId prop is undefined
-                router.push('/');
+                navigate({ to: '/' });
             } catch (err) {
                 console.error(
                     `Install/switch agent failed: ${err instanceof Error ? err.message : String(err)}`
@@ -274,13 +283,13 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
             }
         },
         [
-            router,
+            navigate,
             currentId,
             currentSessionId,
             queryClient,
-            analyticsRef,
             installAgentMutation,
             switchAgentMutation,
+            invalidateAgentSpecificQueries,
         ]
     );
 

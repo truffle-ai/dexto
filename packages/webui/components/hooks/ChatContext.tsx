@@ -1,5 +1,3 @@
-'use client';
-
 import React, {
     createContext,
     useContext,
@@ -9,7 +7,7 @@ import React, {
     useCallback,
     useRef,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
 import { useGreeting } from './useGreeting';
@@ -20,12 +18,23 @@ import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
 
+// Helper to get history endpoint type (workaround for string literal path)
+type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
+
+// Derive history message type from Hono client response (server schema is source of truth)
+type HistoryResponse = Awaited<ReturnType<HistoryEndpoint['$get']>>;
+type HistoryData = Awaited<ReturnType<Extract<HistoryResponse, { ok: true }>['json']>>;
+type HistoryMessage = HistoryData['history'][number];
+
+// Derive toolCall type from HistoryMessage
+type ToolCall = NonNullable<HistoryMessage['toolCalls']>[number];
+
 interface ChatContextType {
     messages: Message[];
     sendMessage: (
         content: string,
-        imageData?: { base64: string; mimeType: string },
-        fileData?: { base64: string; mimeType: string; filename?: string }
+        imageData?: { image: string; mimeType: string },
+        fileData?: { data: string; mimeType: string; filename?: string }
     ) => void;
     status: StreamStatus;
     reset: () => void;
@@ -68,13 +77,13 @@ async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
 }
 
 // Helper function to convert session history API response to UI messages
-function convertHistoryToMessages(history: any[], sessionId: string): Message[] {
+function convertHistoryToMessages(history: HistoryMessage[], sessionId: string): Message[] {
     const uiMessages: Message[] = [];
     const pendingToolCalls = new Map<string, number>();
 
     for (let index = 0; index < history.length; index++) {
-        const msg: any = history[index];
-        const baseMessage = {
+        const msg = history[index];
+        const baseMessage: Message = {
             id: `session-${sessionId}-${index}`,
             role: msg.role,
             content: msg.content,
@@ -134,7 +143,7 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
             }
 
             if (msg.toolCalls && msg.toolCalls.length > 0) {
-                msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
+                msg.toolCalls.forEach((toolCall: ToolCall, toolIndex: number) => {
                     let toolArgs: Record<string, unknown> = {};
                     if (toolCall?.function) {
                         try {
@@ -190,7 +199,6 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
                 meta: {
                     toolName,
                     toolCallId: toolCallId ?? `tool-${index}`,
-                    ...(typeof msg.success === 'boolean' ? { success: msg.success } : {}),
                 },
             };
 
@@ -200,7 +208,6 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
                     ...uiMessages[messageIndex],
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
                 };
             } else {
                 uiMessages.push({
@@ -208,10 +215,8 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
                     role: 'tool',
                     content: null,
                     toolName,
-                    toolArgs: typeof msg.args === 'object' ? msg.args : undefined,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
                 });
             }
 
@@ -227,7 +232,7 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
@@ -318,16 +323,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     // Fetch current LLM config using TanStack Query
-    const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery<
-        {
-            provider: string;
-            model: string;
-            displayName?: string;
-            router?: string;
-            baseURL?: string;
-        },
-        Error
-    >({
+    const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery({
         queryKey: queryKeys.llm.current(currentSessionId),
         queryFn: async () => {
             const response = await client.api.llm.current.$get({
@@ -406,8 +402,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const sendMessage = useCallback(
         async (
             content: string,
-            imageData?: { base64: string; mimeType: string },
-            fileData?: { base64: string; mimeType: string; filename?: string }
+            imageData?: { image: string; mimeType: string },
+            fileData?: { data: string; mimeType: string; filename?: string }
         ) => {
             let sessionId = currentSessionId;
             let isNewSession = false;
@@ -430,8 +426,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     // Send message BEFORE navigating
                     originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
 
-                    // Navigate using Next.js router - this will trigger switchSession via ChatApp useEffect
-                    router.replace(`/chat/${sessionId}`);
+                    // Navigate - this will trigger switchSession via ChatApp useEffect
+                    navigate({ to: `/chat/${sessionId}`, replace: true });
 
                     // Generate title for newly created session after first message
                     // Use setTimeout to delay title generation until message is complete
@@ -476,7 +472,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             isCreatingSession,
             createAutoSession,
             isStreaming,
-            router,
+            navigate,
             analytics,
             currentLLM,
             generateTitle,
@@ -505,7 +501,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }, [currentSessionId, setSessionError]);
 
     // Load session history when switching sessions
-    const { data: sessionHistoryData } = useQuery<Message[], Error>({
+    const { data: sessionHistoryData } = useQuery({
         queryKey: queryKeys.sessions.history(currentSessionId || ''),
         queryFn: async () => {
             if (!currentSessionId) {
@@ -535,7 +531,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const loadSessionHistory = useCallback(
         async (sessionId: string) => {
             try {
-                const result = await queryClient.fetchQuery<Message[], Error>({
+                const result = await queryClient.fetchQuery({
                     queryKey: queryKeys.sessions.history(sessionId),
                     queryFn: async () => {
                         try {
@@ -624,51 +620,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setCurrentSessionId(null);
         setIsWelcomeState(true);
         setMessages([]);
-        // Note: currentLLM will automatically refetch when currentSessionId changes to null
     }, [setMessages]);
-
-    // Listen for config-related events via DOM events
-    useEffect(() => {
-        const handleConfigChange = (event: any) => {
-            // Attempt to update current LLM from event if payload includes it
-            const detail = event?.detail || {};
-            if (detail.config?.llm) {
-                const llm = detail.config.llm;
-                queryClient.setQueryData(queryKeys.llm.current(currentSessionId), {
-                    provider: llm.provider,
-                    model: llm.model,
-                    router: llm.router,
-                    baseURL: llm.baseURL,
-                });
-            }
-        };
-
-        const handleServersChange = (event: any) => {
-            console.log('Servers changed:', event.detail);
-            // Here you could trigger UI updates, but for now just log
-        };
-
-        const handleSessionReset = (event: any) => {
-            const { sessionId } = event.detail || {};
-            if (sessionId === currentSessionId) {
-                setMessages([]);
-            }
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:configChanged', handleConfigChange);
-            window.addEventListener('dexto:serversChanged', handleServersChange);
-            window.addEventListener('dexto:conversationReset', handleSessionReset);
-
-            return () => {
-                window.removeEventListener('dexto:configChanged', handleConfigChange);
-                window.removeEventListener('dexto:serversChanged', handleServersChange);
-                window.removeEventListener('dexto:conversationReset', handleSessionReset);
-            };
-        }
-        // queryClient is a stable reference from TanStack Query, safe to omit
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSessionId, setMessages]);
 
     return (
         <ChatContext.Provider

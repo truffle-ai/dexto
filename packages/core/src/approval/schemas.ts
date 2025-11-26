@@ -3,7 +3,11 @@
 // ============================================================================
 
 import { z } from 'zod';
+import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+
+// Zod schema that validates as object but types as JSONSchema7
+const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
 
 /**
  * Schema for approval types
@@ -53,7 +57,7 @@ export const CommandConfirmationMetadataSchema = z
  */
 export const ElicitationMetadataSchema = z
     .object({
-        schema: z.record(z.unknown()).describe('JSON Schema for the form'),
+        schema: JsonSchema7Schema.describe('JSON Schema for the form'),
         prompt: z.string().describe('Prompt to show the user'),
         serverName: z.string().describe('MCP server requesting input'),
         context: z.record(z.unknown()).optional().describe('Additional context'),

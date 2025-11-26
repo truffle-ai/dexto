@@ -15,6 +15,7 @@ import {
     A2ASseEventSubscriber,
     ApprovalCoordinator,
     type McpTransportType,
+    type WebUIRuntimeConfig,
 } from '@dexto/server';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
@@ -50,7 +51,9 @@ export async function initializeHonoApi(
     agent: DextoAgent,
     agentCardOverride?: Partial<AgentCard>,
     listenPort?: number,
-    agentId?: string
+    agentId?: string,
+    webRoot?: string,
+    webUIConfig?: WebUIRuntimeConfig
 ): Promise<HonoInitializationResult> {
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
@@ -306,6 +309,8 @@ export async function initializeHonoApi(
         approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
+        ...(webRoot ? { webRoot } : {}),
+        ...(webUIConfig ? { webUIConfig } : {}),
         agentsContext: {
             switchAgentById: (id: string) => {
                 if (!bridgeRef) throw new Error('Bridge not initialized');
@@ -402,7 +407,9 @@ export async function startHonoApiServer(
     agent: DextoAgent,
     port = 3000,
     agentCardOverride?: Partial<AgentCard>,
-    agentId?: string
+    agentId?: string,
+    webRoot?: string,
+    webUIConfig?: WebUIRuntimeConfig
 ): Promise<{
     server: ReturnType<typeof createNodeServer>['server'];
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
@@ -411,7 +418,9 @@ export async function startHonoApiServer(
         agent,
         agentCardOverride,
         port,
-        agentId
+        agentId,
+        webRoot,
+        webUIConfig
     );
 
     server.listen(port, '0.0.0.0', () => {

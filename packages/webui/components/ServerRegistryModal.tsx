@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { serverRegistry } from '@/lib/serverRegistry';
 import type { ServerRegistryEntry, ServerRegistryFilter } from '@/types';

@@ -1,5 +1,3 @@
-// Add the client directive
-'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type {
     TextPart as CoreTextPart,
@@ -9,30 +7,36 @@ import type {
     SanitizedToolResult,
 } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { client } from '@/lib/client.js';
+import { queryKeys } from '@/lib/queryKeys.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
+import { useApproval } from './ApprovalContext.js';
+import type { Session } from './useSessions.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
 
-// Define WebUI-specific media parts
+// TODO: Remove these WebUI-specific types and derive from server schema instead.
+// Per WebUI CLAUDE.md: "Server Schemas = Single Source of Truth"
+// These should be replaced with types derived from Hono client response types.
 export interface ImagePart {
     type: 'image';
-    base64: string;
-    mimeType: string;
+    image: string;
+    mimeType?: string;
 }
 
 export interface AudioPart {
     type: 'audio';
-    base64: string;
+    data: string;
     mimeType: string;
     filename?: string;
 }
 
 export interface FileData {
-    base64: string;
+    data: string;
     mimeType: string;
     filename?: string;
 }
@@ -102,7 +106,7 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
     content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart>;
-    imageData?: { base64: string; mimeType: string };
+    imageData?: { image: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
     toolArgs?: Record<string, unknown>;
@@ -156,8 +160,52 @@ export function useChat(
 ) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
+    const queryClient = useQueryClient();
+    const { handleApprovalRequest, handleApprovalResponse } = useApproval();
 
     const [messages, setMessages] = useState<Message[]>([]);
+
+    // Helper to update sessions cache (replaces DOM events)
+    const updateSessionActivity = useCallback(
+        (sessionId: string, incrementMessageCount: boolean = true) => {
+            queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
+                const exists = old.some((s) => s.id === sessionId);
+                if (exists) {
+                    return old.map((session) =>
+                        session.id === sessionId
+                            ? {
+                                  ...session,
+                                  ...(incrementMessageCount && {
+                                      messageCount: session.messageCount + 1,
+                                  }),
+                                  lastActivity: Date.now(),
+                              }
+                            : session
+                    );
+                } else {
+                    // Create new session entry
+                    const newSession: Session = {
+                        id: sessionId,
+                        createdAt: Date.now(),
+                        lastActivity: Date.now(),
+                        messageCount: 1,
+                        title: null,
+                    };
+                    return [newSession, ...old];
+                }
+            });
+        },
+        [queryClient]
+    );
+
+    const updateSessionTitle = useCallback(
+        (sessionId: string, title: string) => {
+            queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
+                old.map((session) => (session.id === sessionId ? { ...session, title } : session))
+            );
+        },
+        [queryClient]
+    );
 
     // Track the last user message id to anchor errors inline in the UI
     const lastUserMessageIdRef = useRef<string | null>(null);
@@ -219,7 +267,7 @@ export function useChat(
         (event: MessageStreamEvent) => {
             // All streaming events must have sessionId
             if (!event.sessionId) {
-                console.error('Event missing sessionId:', event);
+                console.error(`Event missing sessionId: ${JSON.stringify(event)}`);
                 return;
             }
 
@@ -228,7 +276,7 @@ export function useChat(
                 return;
             }
 
-            switch (event.type) {
+            switch (event.name) {
                 case 'llm:thinking':
                     // LLM started thinking - can update UI status
                     setProcessing(event.sessionId, true);
@@ -313,19 +361,8 @@ export function useChat(
                         return ms;
                     });
 
-                    // Emit DOM event
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:response', {
-                                detail: {
-                                    text,
-                                    sessionId: event.sessionId,
-                                    tokenUsage: usage,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
+                    // Update sessions cache (response received)
+                    updateSessionActivity(event.sessionId);
                     break;
                 }
 
@@ -397,38 +434,17 @@ export function useChat(
                 }
 
                 case 'approval:request': {
-                    // Dispatch event for ToolConfirmationHandler
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('approval:request', {
-                                detail: {
-                                    approvalId: event.approvalId,
-                                    type: event.type,
-                                    timestamp: event.timestamp,
-                                    metadata: event.metadata,
-                                    sessionId: event.sessionId,
-                                },
-                            })
-                        );
-                    }
+                    // Forward SSE event payload to ApprovalContext
+                    // Remove 'name' (SSE discriminant), keep 'type' (approval discriminant)
+                    const { name: _, ...request } = event;
+                    handleApprovalRequest(request);
                     break;
                 }
 
                 case 'approval:response': {
-                    // Dispatch event for ToolConfirmationHandler to handle timeout/cancellation
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('approval:response', {
-                                detail: {
-                                    approvalId: event.approvalId,
-                                    status: event.status,
-                                    reason: event.reason,
-                                    message: event.message,
-                                    sessionId: event.sessionId,
-                                },
-                            })
-                        );
-                    }
+                    // Forward SSE event payload to ApprovalContext
+                    const { name: _, ...response } = event;
+                    handleApprovalResponse(response);
                     break;
                 }
 
@@ -455,17 +471,28 @@ export function useChat(
                     break;
                 }
 
-                // Handle legacy events if server still sends them or mapped differently?
-                // No, we are using new SSE stream.
+                case 'session:title-updated': {
+                    updateSessionTitle(event.sessionId, event.title);
+                    break;
+                }
             }
         },
-        [isForActiveSession, setProcessing, setStatus, setError]
+        [
+            isForActiveSession,
+            setProcessing,
+            setStatus,
+            setError,
+            handleApprovalRequest,
+            handleApprovalResponse,
+            updateSessionActivity,
+            updateSessionTitle,
+        ]
     );
 
     const sendMessage = useCallback(
         async (
             content: string,
-            imageData?: { base64: string; mimeType: string },
+            imageData?: { image: string; mimeType: string },
             fileData?: FileData,
             sessionId?: string,
             stream = true // Default to true for SSE
@@ -499,14 +526,8 @@ export function useChat(
                 },
             ]);
 
-            // Emit DOM event
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(
-                    new CustomEvent('dexto:message', {
-                        detail: { content, sessionId, timestamp: Date.now() },
-                    })
-                );
-            }
+            // Update sessions cache (user message sent)
+            updateSessionActivity(sessionId);
 
             try {
                 if (stream) {
@@ -579,33 +600,26 @@ export function useChat(
                     setStatus(sessionId, 'closed');
                     setProcessing(sessionId, false);
 
-                    // Emit DOM event with metadata
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:response', {
-                                detail: {
-                                    text: data.response,
-                                    sessionId,
-                                    tokenUsage: data.tokenUsage,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
+                    // Update sessions cache (response received)
+                    updateSessionActivity(sessionId);
                 }
-            } catch (error: any) {
-                if (error.name === 'AbortError') {
+            } catch (error: unknown) {
+                // Handle abort gracefully
+                if (error instanceof Error && error.name === 'AbortError') {
                     console.log('Stream aborted by user');
                     return;
                 }
 
-                console.error('Stream error:', error);
+                console.error(
+                    `Stream error: ${error instanceof Error ? error.message : String(error)}`
+                );
                 setStatus(sessionId, 'closed');
                 setProcessing(sessionId, false);
 
+                const message = error instanceof Error ? error.message : 'Failed to send message';
                 setError(sessionId, {
                     id: generateUniqueId(),
-                    message: error.message || 'Failed to send message',
+                    message,
                     timestamp: Date.now(),
                     context: 'stream',
                     recoverable: true,
@@ -614,7 +628,15 @@ export function useChat(
                 });
             }
         },
-        [processEvent, abortSession, getAbortController, setProcessing, setStatus, setError]
+        [
+            processEvent,
+            abortSession,
+            getAbortController,
+            setProcessing,
+            setStatus,
+            setError,
+            updateSessionActivity,
+        ]
     );
 
     const reset = useCallback(
@@ -626,7 +648,9 @@ export function useChat(
                     json: { sessionId },
                 });
             } catch (e) {
-                console.error('Failed to reset session', e);
+                console.error(
+                    `Failed to reset session: ${e instanceof Error ? e.message : String(e)}`
+                );
             }
 
             setMessages([]);

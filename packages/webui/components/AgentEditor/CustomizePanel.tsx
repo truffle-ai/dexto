@@ -22,7 +22,6 @@
  * See packages/core/src/utils/schema-metadata.ts for the core utilities that enable this (needs runtime fixes).
  * This TODO is linked with the corresponding TODO in schema-metadata.ts tracking the same goal.
  */
-'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDebounce } from 'use-debounce';

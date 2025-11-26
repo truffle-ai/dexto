@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import FormEditor from './FormEditor';
 import type { AgentConfig } from '@dexto/core';

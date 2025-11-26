@@ -1,25 +1,8 @@
-import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
 
 export function useMemories(enabled: boolean = true) {
-    const queryClient = useQueryClient();
-
-    // Invalidate memories cache when agent is switched (each agent has different memories)
-    useEffect(() => {
-        const handleAgentSwitched = () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
-            return () => {
-                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
-            };
-        }
-    }, [queryClient]);
-
     return useQuery({
         queryKey: queryKeys.memories.all,
         queryFn: async () => {

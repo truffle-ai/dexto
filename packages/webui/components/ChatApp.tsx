@@ -1,14 +1,10 @@
-'use client';
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from '@tanstack/react-router';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
 import { usePrompts } from './hooks/usePrompts';
 import { useDeleteSession } from './hooks/useSessions';
-import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
 import { useAddServer } from './hooks/useServers';
 import { useResolvePrompt } from './hooks/usePrompts';
@@ -79,7 +75,7 @@ interface ChatAppProps {
 }
 
 export default function ChatApp({ sessionId }: ChatAppProps = {}) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const {
         messages,
         sendMessage,
@@ -136,7 +132,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         onDeny: () => void;
     } | null>(null);
 
-    const queryClient = useQueryClient();
     const deleteSessionMutation = useDeleteSession();
 
     // Fetch starter prompts using shared usePrompts hook
@@ -148,17 +143,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     const starterPrompts = promptsData.filter((prompt) => prompt.metadata?.showInStarters === true);
     const starterPromptsLoaded = !promptsLoading;
 
-    // Listen for agent switch events to invalidate prompts cache
-    useEffect(() => {
-        const handleAgentSwitch = () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
-        };
-
-        window.addEventListener('dexto:agentSwitched', handleAgentSwitch);
-        return () => {
-            window.removeEventListener('dexto:agentSwitched', handleAgentSwitch);
-        };
-    }, [queryClient]);
+    // Note: Agent switch invalidation is now handled centrally in AgentSelector
 
     // Scroll management for robust autoscroll
     const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -384,17 +369,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         [sendMessage, positionLastUserNearTop]
     );
 
-    // Hook into existing custom events to toggle followStreaming
+    // Toggle followStreaming based on processing state (replaces DOM events)
     useEffect(() => {
-        const onStart = () => setFollowStreaming(true);
-        const onEnd = () => setFollowStreaming(false);
-        window.addEventListener('dexto:message', onStart as EventListener);
-        window.addEventListener('dexto:response', onEnd as EventListener);
-        return () => {
-            window.removeEventListener('dexto:message', onStart as EventListener);
-            window.removeEventListener('dexto:response', onEnd as EventListener);
-        };
-    }, []);
+        setFollowStreaming(processing);
+    }, [processing]);
 
     const handleSessionChange = useCallback(
         (sessionId: string) => {
@@ -402,10 +380,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             setFollowStreaming(false);
             setShowScrollHint(false);
             // Navigate to the session URL instead of just switching in context
-            router.push(`/chat/${sessionId}`);
+            navigate({ to: `/chat/${sessionId}` });
             // Keep the sessions panel open when switching sessions
         },
-        [router]
+        [navigate]
     );
 
     const handleReturnToWelcome = useCallback(() => {
@@ -414,8 +392,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         setShowScrollHint(false);
         // Clear the context state first, then navigate to home page
         returnToWelcome();
-        router.push('/');
-    }, [router, returnToWelcome]);
+        navigate({ to: '/' });
+    }, [navigate, returnToWelcome]);
 
     // Handle hydration and restore localStorage state
     useEffect(() => {
@@ -1601,7 +1579,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 isOpen={isSearchOpen}
                 onClose={() => setSearchOpen(false)}
                 onNavigateToSession={(sessionId) => {
-                    router.push(`/chat/${sessionId}`);
+                    navigate({ to: `/chat/${sessionId}` });
                     setSearchOpen(false);
                 }}
             />

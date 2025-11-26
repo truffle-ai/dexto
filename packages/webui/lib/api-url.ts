@@ -1,30 +1,15 @@
-// Extend Window interface to include our injected global
-declare global {
-    interface Window {
-        __DEXTO_API_PORT__?: string;
-    }
-}
-
 /**
- * Calculate the API URL at runtime based on the current frontend location.
+ * Get the API URL for making requests.
  *
- * Reads the API port from the injected __DEXTO_API_PORT__ global variable.
- * Falls back to convention: API server runs on frontend_port + 1
- * - Frontend on 3000 → API on 3001
- * - Frontend on 8080 → API on 8081
+ * In production: WebUI is served from the same Hono server as the API (same-origin).
+ * In development: Vite proxies /api/* requests to the API server (still same-origin from browser perspective).
  */
 export function getApiUrl(): string {
     if (typeof window === 'undefined') {
-        // SSR fallback
+        // SSR fallback (not used in Vite, but kept for safety)
         return 'http://localhost:3001';
     }
 
-    // Use injected API port if available, otherwise fall back to frontend port + 1
-    const frontendPort = parseInt(window.location.port || '3000', 10);
-    const apiPort = window.__DEXTO_API_PORT__
-        ? parseInt(window.__DEXTO_API_PORT__, 10)
-        : frontendPort + 1;
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-
-    return `${protocol}//${window.location.hostname}:${apiPort}`;
+    const { protocol, hostname, port } = window.location;
+    return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
 }

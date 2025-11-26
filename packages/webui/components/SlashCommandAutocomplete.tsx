@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap, Plus } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -195,25 +193,8 @@ export default function SlashCommandAutocomplete({
         return items;
     }, [showCreateOption, filteredPrompts]);
 
-    // Listen for real-time prompts list changes
-    useEffect(() => {
-        if (!isVisible) return;
-
-        const handlePromptsListChanged = (event: any) => {
-            const detail = event?.detail || {};
-            console.log('✨ Prompts list changed:', detail);
-            // Refetch prompts when MCP server prompts change
-            refetch();
-        };
-
-        // Listen for events that indicate prompts changes
-        if (typeof window !== 'undefined') {
-            window.addEventListener('mcp:prompts-list-changed', handlePromptsListChanged);
-            return () => {
-                window.removeEventListener('mcp:prompts-list-changed', handlePromptsListChanged);
-            };
-        }
-    }, [isVisible, refetch]);
+    // Note: mcp:prompts-list-changed DOM listener removed (was dead code - never dispatched as DOM event)
+    // Prompts are refreshed via React Query's built-in mechanisms when needed
 
     // Reset selected index when filtered results change
     useEffect(() => {

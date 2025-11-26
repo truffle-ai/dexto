@@ -39,7 +39,7 @@ import type { AgentConfig, ValidatedAgentConfig } from './schemas.js';
 import { AgentConfigSchema } from './schemas.js';
 import {
     AgentEventBus,
-    STREAMING_EVENTS,
+    type AgentEventMap,
     type StreamingEvent,
     type StreamingEventName,
 } from '../events/index.js';
@@ -682,7 +682,7 @@ export class DextoAgent {
 
         // Check for error events first - if generation failed, throw the actual error
         const errorEvent = events.find(
-            (e): e is Extract<StreamingEvent, { type: 'llm:error' }> => e.type === 'llm:error'
+            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> => e.name === 'llm:error'
         );
         if (errorEvent) {
             // If it's already a DextoRuntimeError, throw it directly
@@ -699,8 +699,8 @@ export class DextoAgent {
         }
 
         // Find the llm:response event (final response)
-        const responseEvent = events.find((e) => e.type === 'llm:response');
-        if (!responseEvent || responseEvent.type !== 'llm:response') {
+        const responseEvent = events.find((e) => e.name === 'llm:response');
+        if (!responseEvent || responseEvent.name !== 'llm:response') {
             // Get current LLM config for error context
             const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
             throw LLMError.generationFailed(
@@ -712,12 +712,12 @@ export class DextoAgent {
 
         // Collect tool calls from llm:tool-call events
         const toolCallEvents = events.filter(
-            (e): e is Extract<StreamingEvent, { type: 'llm:tool-call' }> =>
-                e.type === 'llm:tool-call'
+            (e): e is Extract<StreamingEvent, { name: 'llm:tool-call' }> =>
+                e.name === 'llm:tool-call'
         );
         const toolResultEvents = events.filter(
-            (e): e is Extract<StreamingEvent, { type: 'llm:tool-result' }> =>
-                e.type === 'llm:tool-result'
+            (e): e is Extract<StreamingEvent, { name: 'llm:tool-result' }> =>
+                e.name === 'llm:tool-result'
         );
 
         const toolCalls: import('./types.js').AgentToolCall[] = toolCallEvents.map((tc) => {
@@ -735,14 +735,6 @@ export class DextoAgent {
             };
         });
 
-        // TODO: Message ID infrastructure exists but not fully utilized yet
-        // Future enhancements:
-        // - Persist messageId in conversation history for tracking
-        // - Use for idempotency (prevent duplicate processing)
-        // - Enable message-level operations (edit, regenerate, etc.)
-        // - Correlate with tool calls and approval requests
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
         // Ensure usage matches LLMTokenUsage type with all required fields
         const defaultUsage: import('./types.js').TokenUsage = {
             inputTokens: 0,
@@ -757,7 +749,6 @@ export class DextoAgent {
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
             sessionId: options.sessionId,
-            messageId,
         };
     }
 
@@ -774,15 +765,15 @@ export class DextoAgent {
      *
      * @param message The user's message
      * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
-     * @returns AsyncIterator that yields StreamingEvent objects (core events with type property)
+     * @returns AsyncIterator that yields StreamingEvent objects (core events with name property)
      *
      * @example
      * ```typescript
      * for await (const event of await agent.stream("Write a poem", { sessionId: "default" })) {
-     *   if (event.type === 'llm:chunk') {
+     *   if (event.name === 'llm:chunk') {
      *     process.stdout.write(event.content);
      *   }
-     *   if (event.type === 'llm:tool-call') {
+     *   if (event.name === 'llm:tool-call') {
      *     console.log(`\n[Using ${event.toolName}]\n`);
      *   }
      * }
@@ -814,9 +805,10 @@ export class DextoAgent {
         const cleanupSignal = controller.signal;
 
         // Track listener references for manual cleanup
+        // Using Function type here because listeners have different signatures per event
         const listeners: Array<{
             event: StreamingEventName;
-            listener: (payload: any) => void;
+            listener: Function;
         }> = [];
 
         // Cleanup function to remove all listeners
@@ -825,7 +817,10 @@ export class DextoAgent {
                 return; // Already cleaned up
             }
             for (const { event, listener } of listeners) {
-                this.agentEventBus.off(event, listener);
+                this.agentEventBus.off(
+                    event,
+                    listener as Parameters<typeof this.agentEventBus.off>[1]
+                );
             }
             listeners.length = 0;
         };
@@ -839,32 +834,91 @@ export class DextoAgent {
             signal.addEventListener('abort', abortHandler, { once: true });
         }
 
-        // Subscribe to all STREAMING_EVENTS on AgentEventBus
-        // Core events are forwarded directly with no mapping
-        for (const eventName of STREAMING_EVENTS) {
-            const listener = (data: any) => {
-                // Filter to this session's events (if sessionId is present in event)
-                if (data.sessionId !== undefined && data.sessionId !== sessionId) {
-                    return;
-                }
+        // TODO: Simplify these explicit subscriptions while keeping full type safety.
+        // The verbose approach avoids `any` and casts that were in the original loop.
+        // Potential approaches: function overloads on EventBus, or mapped type helpers.
+        // Subscribe to each streaming event with concrete types (spread works without cast)
+        const thinkingListener = (data: AgentEventMap['llm:thinking']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:thinking', ...data });
+        };
+        this.agentEventBus.on('llm:thinking', thinkingListener, { signal: cleanupSignal });
+        listeners.push({ event: 'llm:thinking', listener: thinkingListener });
 
-                // Forward core event directly with type property
-                eventQueue.push({ type: eventName, ...data } as StreamingEvent);
+        const chunkListener = (data: AgentEventMap['llm:chunk']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:chunk', ...data });
+        };
+        this.agentEventBus.on('llm:chunk', chunkListener, { signal: cleanupSignal });
+        listeners.push({ event: 'llm:chunk', listener: chunkListener });
 
-                // Mark stream as completed when we receive final events
-                if (
-                    eventName === 'llm:response' ||
-                    (eventName === 'llm:error' && !data.recoverable)
-                ) {
-                    completed = true;
-                }
-            };
+        const responseListener = (data: AgentEventMap['llm:response']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:response', ...data });
+            completed = true;
+        };
+        this.agentEventBus.on('llm:response', responseListener, { signal: cleanupSignal });
+        listeners.push({ event: 'llm:response', listener: responseListener });
 
-            this.agentEventBus.on(eventName as StreamingEventName, listener, {
-                signal: cleanupSignal,
-            });
-            listeners.push({ event: eventName as StreamingEventName, listener });
-        }
+        const toolCallListener = (data: AgentEventMap['llm:tool-call']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:tool-call', ...data });
+        };
+        this.agentEventBus.on('llm:tool-call', toolCallListener, { signal: cleanupSignal });
+        listeners.push({ event: 'llm:tool-call', listener: toolCallListener });
+
+        const toolResultListener = (data: AgentEventMap['llm:tool-result']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:tool-result', ...data });
+        };
+        this.agentEventBus.on('llm:tool-result', toolResultListener, { signal: cleanupSignal });
+        listeners.push({ event: 'llm:tool-result', listener: toolResultListener });
+
+        const errorListener = (data: AgentEventMap['llm:error']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:error', ...data });
+            if (!data.recoverable) {
+                completed = true;
+            }
+        };
+        this.agentEventBus.on('llm:error', errorListener, { signal: cleanupSignal });
+        listeners.push({ event: 'llm:error', listener: errorListener });
+
+        const unsupportedInputListener = (data: AgentEventMap['llm:unsupported-input']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:unsupported-input', ...data });
+        };
+        this.agentEventBus.on('llm:unsupported-input', unsupportedInputListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'llm:unsupported-input', listener: unsupportedInputListener });
+
+        const titleUpdatedListener = (data: AgentEventMap['session:title-updated']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'session:title-updated', ...data });
+        };
+        this.agentEventBus.on('session:title-updated', titleUpdatedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'session:title-updated', listener: titleUpdatedListener });
+
+        const approvalRequestListener = (data: AgentEventMap['approval:request']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'approval:request', ...data });
+        };
+        this.agentEventBus.on('approval:request', approvalRequestListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'approval:request', listener: approvalRequestListener });
+
+        const approvalResponseListener = (data: AgentEventMap['approval:response']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'approval:response', ...data });
+        };
+        this.agentEventBus.on('approval:response', approvalResponseListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'approval:response', listener: approvalResponseListener });
 
         // Start run in background (fire-and-forget)
         // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
@@ -888,19 +942,22 @@ export class DextoAgent {
               }
             : undefined;
 
-        this.run(message, imageDataForRun, fileDataForRun, sessionId, true).catch((error) => {
+        this.run(message, imageDataForRun, fileDataForRun, sessionId, true).catch((err) => {
+            // Ensure error is always an Error instance for proper typing
+            const error = err instanceof Error ? err : new Error(String(err));
             _streamError = error;
             completed = true;
-            this.logger.error(
-                `Error in DextoAgent.stream: ${error instanceof Error ? error.message : String(error)}`
-            );
-            eventQueue.push({
-                type: 'llm:error',
+            this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
+
+            // Construct properly typed error event
+            const errorEvent: { name: 'llm:error' } & AgentEventMap['llm:error'] = {
+                name: 'llm:error',
                 error,
                 recoverable: false,
                 context: 'run_failed',
                 sessionId,
-            } as StreamingEvent);
+            };
+            eventQueue.push(errorEvent);
         });
 
         // Return async iterable iterator

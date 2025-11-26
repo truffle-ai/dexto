@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Clock, CheckCircle, XCircle, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';

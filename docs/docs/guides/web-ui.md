@@ -23,23 +23,13 @@ dexto
 ```
 This opens the Web UI at [http://localhost:3000](http://localhost:3000) in your browser (web is the default mode).
 
-The API server runs on port 3001 (web port + 1).
-
 **Use a different port:**
 
 ```bash
-dexto --web-port 3333
+dexto --port 3333
 ```
 
-This starts the Web UI on port 3333, with the API server on port 3334.
-
-**Customize API port independently:**
-
-```bash
-dexto --web-port 3333 --api-port 8080
-```
-
-This is useful for custom port configurations or when integrating with existing infrastructure.
+This starts the server on port 3333, serving both the Web UI and API.
 
 ## Conversation storage
 

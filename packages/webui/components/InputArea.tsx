@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
@@ -42,8 +40,8 @@ import { useResolvePrompt } from './hooks/usePrompts';
 interface InputAreaProps {
     onSend: (
         content: string,
-        imageData?: { base64: string; mimeType: string },
-        fileData?: { base64: string; mimeType: string; filename?: string }
+        imageData?: { image: string; mimeType: string },
+        fileData?: { data: string; mimeType: string; filename?: string }
     ) => void;
     isSending?: boolean;
     variant?: 'welcome' | 'chat';
@@ -58,9 +56,9 @@ export default function InputArea({
     const queryClient = useQueryClient();
     const [text, setText] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [imageData, setImageData] = useState<{ base64: string; mimeType: string } | null>(null);
+    const [imageData, setImageData] = useState<{ image: string; mimeType: string } | null>(null);
     const [fileData, setFileData] = useState<{
-        base64: string;
+        data: string;
         mimeType: string;
         filename?: string;
     } | null>(null);
@@ -470,7 +468,7 @@ export default function InputArea({
         );
         if (attach) {
             setFileData({
-                base64: toBase64(pasted),
+                data: toBase64(pasted),
                 mimeType: 'text/plain',
                 filename: 'pasted.txt',
             });
@@ -502,8 +500,8 @@ export default function InputArea({
             try {
                 const result = reader.result as string;
                 const commaIndex = result.indexOf(',');
-                const base64 = result.substring(commaIndex + 1);
-                setFileData({ base64, mimeType: 'application/pdf', filename: file.name });
+                const data = result.substring(commaIndex + 1);
+                setFileData({ data, mimeType: 'application/pdf', filename: file.name });
                 setFileUploadError(null); // Clear any previous errors
 
                 // Track file upload
@@ -546,7 +544,7 @@ export default function InputArea({
                     try {
                         const result = reader.result as string;
                         const commaIndex = result.indexOf(',');
-                        const base64 = result.substring(commaIndex + 1);
+                        const data = result.substring(commaIndex + 1);
                         // Preserve original MIME type and determine appropriate extension
                         const mimeType = mediaRecorder.mimeType || 'audio/webm';
                         const getExtensionFromMime = (mime: string): string => {
@@ -566,7 +564,7 @@ export default function InputArea({
                         const ext = getExtensionFromMime(mimeType);
 
                         setFileData({
-                            base64,
+                            data,
                             mimeType: mimeType,
                             filename: `recording.${ext}`,
                         });
@@ -627,14 +625,14 @@ export default function InputArea({
                 if (commaIndex === -1) throw new Error('Invalid Data URL format');
 
                 const meta = result.substring(0, commaIndex);
-                const base64 = result.substring(commaIndex + 1);
+                const image = result.substring(commaIndex + 1);
 
                 const mimeMatch = meta.match(/data:(.*);base64/);
                 const mimeType = mimeMatch ? mimeMatch[1] : file.type;
 
                 if (!mimeType) throw new Error('Could not determine MIME type');
 
-                setImageData({ base64, mimeType });
+                setImageData({ image, mimeType });
                 setFileUploadError(null); // Clear any previous errors
 
                 // Track image upload
@@ -696,9 +694,9 @@ export default function InputArea({
             try {
                 const result = reader.result as string;
                 const commaIndex = result.indexOf(',');
-                const base64 = result.substring(commaIndex + 1);
+                const data = result.substring(commaIndex + 1);
                 // Preserve original MIME type from file
-                setFileData({ base64, mimeType: file.type, filename: file.name });
+                setFileData({ data, mimeType: file.type, filename: file.name });
                 setFileUploadError(null); // Clear any previous errors
 
                 // Track file upload
@@ -779,7 +777,7 @@ export default function InputArea({
                                     {imageData && (
                                         <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group">
                                             <img
-                                                src={`data:${imageData.mimeType};base64,${imageData.base64}`}
+                                                src={`data:${imageData.mimeType};base64,${imageData.image}`}
                                                 alt="preview"
                                                 className="h-12 w-auto rounded-md"
                                             />
@@ -801,7 +799,7 @@ export default function InputArea({
                                                     <FileAudio className="h-4 w-4" />
                                                     <audio
                                                         controls
-                                                        src={`data:${fileData.mimeType};base64,${fileData.base64}`}
+                                                        src={`data:${fileData.mimeType};base64,${fileData.data}`}
                                                         className="h-8"
                                                     />
                                                 </>

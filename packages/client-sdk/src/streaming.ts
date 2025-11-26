@@ -143,7 +143,7 @@ export async function* createStream<T = string>(
  * ```typescript
  * const stream = createMessageStream(client.api['message-stream'].$post({ ... }));
  * for await (const event of stream) {
- *   if (event.type === 'llm:chunk') {
+ *   if (event.name === 'llm:chunk') {
  *     console.log(event.content);
  *   }
  * }
@@ -158,9 +158,10 @@ export async function* createMessageStream(
         if (event.data) {
             try {
                 const parsed = JSON.parse(event.data);
-                // Inject the event type from the SSE event if available
-                if (event.event && !parsed.type) {
-                    parsed.type = event.event;
+                // SSE event name becomes the 'name' discriminant for StreamingEvent
+                // Using 'name' (not 'type') to avoid collision with payload fields
+                if (event.event) {
+                    parsed.name = event.event;
                 }
                 yield parsed as MessageStreamEvent;
             } catch {

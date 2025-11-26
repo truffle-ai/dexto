@@ -1,5 +1,3 @@
-'use client';
-
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { client } from '@/lib/client';

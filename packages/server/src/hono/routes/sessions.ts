@@ -341,7 +341,10 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
             const agent = getAgent();
             const { sessionId } = ctx.req.param();
             const history = await agent.getSessionHistory(sessionId);
-            return ctx.json({ history });
+            // TODO: Improve type alignment between core and server schemas.
+            // Core's InternalMessage has union types (string | Uint8Array | Buffer | URL)
+            // for binary data, but JSON responses are always base64 strings.
+            return ctx.json({ history: history as z.output<typeof InternalMessageSchema>[] });
         })
         .openapi(deleteRoute, async (ctx) => {
             const agent = getAgent();

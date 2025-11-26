@@ -1,8 +1,4 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/queryKeys.js';
 import {
     useSessions,
     useCreateSession,
@@ -74,7 +70,6 @@ export default function SessionPanel({
     onSearchOpen,
     onNewChat,
 }: SessionPanelProps) {
-    const queryClient = useQueryClient();
     const [isNewSessionOpen, setNewSessionOpen] = useState(false);
     const [newSessionId, setNewSessionId] = useState('');
     const [isDeleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
@@ -92,91 +87,8 @@ export default function SessionPanel({
     const deleteSessionMutation = useDeleteSession();
     const renameSessionMutation = useRenameSession();
 
-    // Listen for events and update state optimistically
-    useEffect(() => {
-        const handleAgentSwitched = () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
-        };
-
-        const handleMessage: EventListener = (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const eventSessionId = customEvent.detail?.sessionId;
-            if (eventSessionId) {
-                queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
-                    const sessionExists = old.some((s) => s.id === eventSessionId);
-                    if (sessionExists) {
-                        return sortSessions(
-                            old.map((session) =>
-                                session.id === eventSessionId
-                                    ? {
-                                          ...session,
-                                          messageCount: session.messageCount + 1,
-                                          lastActivity: Date.now(),
-                                      }
-                                    : session
-                            )
-                        );
-                    } else {
-                        const newSession: Session = {
-                            id: eventSessionId,
-                            createdAt: Date.now(),
-                            lastActivity: Date.now(),
-                            messageCount: 1,
-                            title: null,
-                        };
-                        return sortSessions([newSession, ...old]);
-                    }
-                });
-            }
-        };
-
-        const handleResponse: EventListener = (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const eventSessionId = customEvent.detail?.sessionId;
-            if (eventSessionId) {
-                queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
-                    sortSessions(
-                        old.map((session) =>
-                            session.id === eventSessionId
-                                ? {
-                                      ...session,
-                                      messageCount: session.messageCount + 1,
-                                      lastActivity: Date.now(),
-                                  }
-                                : session
-                        )
-                    )
-                );
-            }
-        };
-
-        const handleTitleUpdated: EventListener = (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const eventSessionId = customEvent.detail?.sessionId;
-            const title = customEvent.detail?.title;
-            if (eventSessionId && title) {
-                queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
-                    old.map((session) =>
-                        session.id === eventSessionId ? { ...session, title } : session
-                    )
-                );
-            }
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:message', handleMessage);
-            window.addEventListener('dexto:response', handleResponse);
-            window.addEventListener('session:title-updated', handleTitleUpdated);
-            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
-
-            return () => {
-                window.removeEventListener('dexto:message', handleMessage);
-                window.removeEventListener('dexto:response', handleResponse);
-                window.removeEventListener('session:title-updated', handleTitleUpdated);
-                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
-            };
-        }
-    }, [queryClient, currentSessionId]);
+    // Note: Agent switch invalidation is now handled centrally in AgentSelector
+    // Message/response/title events are handled in useChat via direct cache updates
 
     const handleCreateSession = async () => {
         const newSession = await createSessionMutation.mutateAsync({
