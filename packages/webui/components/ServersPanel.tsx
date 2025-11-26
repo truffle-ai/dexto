@@ -224,32 +224,9 @@ export default function ServersPanel({
         }
     }, [refreshTrigger, isOpen, refetchServers]);
 
-    // Listen for real-time MCP server and resource updates
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleServerConnected = (event: any) => {
-            console.log('🔗 Server connected:', event?.detail || {});
-            refetchServers();
-        };
-
-        const handleResourceCacheInvalidated = (event: any) => {
-            console.log('💾 Resource cache invalidated for server panel:', event?.detail || {});
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('mcp:server-connected', handleServerConnected);
-            window.addEventListener('resource:cache-invalidated', handleResourceCacheInvalidated);
-
-            return () => {
-                window.removeEventListener('mcp:server-connected', handleServerConnected);
-                window.removeEventListener(
-                    'resource:cache-invalidated',
-                    handleResourceCacheInvalidated
-                );
-            };
-        }
-    }, [isOpen, refetchServers]);
+    // Note: mcp:server-connected and resource:cache-invalidated DOM listeners removed
+    // - mcp:server-connected was dead code (never dispatched as DOM event)
+    // - resource invalidation handled via React Query's built-in mechanisms
 
     const selectedServer = servers.find((s) => s.id === selectedServerId);
 

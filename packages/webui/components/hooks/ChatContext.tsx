@@ -625,48 +625,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Note: currentLLM will automatically refetch when currentSessionId changes to null
     }, [setMessages]);
 
-    // Listen for config-related events via DOM events
-    useEffect(() => {
-        const handleConfigChange = (event: any) => {
-            // Attempt to update current LLM from event if payload includes it
-            const detail = event?.detail || {};
-            if (detail.config?.llm) {
-                const llm = detail.config.llm;
-                queryClient.setQueryData(queryKeys.llm.current(currentSessionId), {
-                    provider: llm.provider,
-                    model: llm.model,
-                    router: llm.router,
-                    baseURL: llm.baseURL,
-                });
-            }
-        };
-
-        const handleServersChange = (event: any) => {
-            console.log('Servers changed:', event.detail);
-            // Here you could trigger UI updates, but for now just log
-        };
-
-        const handleSessionReset = (event: any) => {
-            const { sessionId } = event.detail || {};
-            if (sessionId === currentSessionId) {
-                setMessages([]);
-            }
-        };
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:configChanged', handleConfigChange);
-            window.addEventListener('dexto:serversChanged', handleServersChange);
-            window.addEventListener('dexto:conversationReset', handleSessionReset);
-
-            return () => {
-                window.removeEventListener('dexto:configChanged', handleConfigChange);
-                window.removeEventListener('dexto:serversChanged', handleServersChange);
-                window.removeEventListener('dexto:conversationReset', handleSessionReset);
-            };
-        }
-        // queryClient is a stable reference from TanStack Query, safe to omit
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSessionId, setMessages]);
+    // Note: dexto:configChanged, dexto:serversChanged, dexto:conversationReset DOM listeners removed
+    // These were dead code (never dispatched as DOM events)
+    // - Config changes handled via React Query
+    // - Server changes handled via useServers hook
+    // - Session reset is direct state update, not DOM event
 
     return (
         <ChatContext.Provider
