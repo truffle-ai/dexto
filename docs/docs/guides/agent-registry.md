@@ -95,7 +95,7 @@ dexto --agent music-agent "Create a lo-fi chill beat for studying"
 
 **Recommended LLM:** OpenAI GPT-5 Mini
 
-**Tutorial:** [Music Agent Tutorial](../tutorials/music-agent.md)
+**Tutorial:** [Music Agent Tutorial](../tutorials/cli/examples/music-agent.md)
 
 ---
 
@@ -261,7 +261,7 @@ dexto --agent database-agent "Show me all users who signed up last month"
 
 **Recommended LLM:** OpenAI GPT-5 Mini
 
-**Tutorial:** [Database Agent Tutorial](../tutorials/database-agent.md)
+**Tutorial:** [Database Agent Tutorial](../tutorials/cli/examples/database-agent.md)
 
 ---
 
@@ -285,7 +285,7 @@ dexto --agent talk2pdf-agent "Summarize the key findings in this research paper"
 
 **Recommended LLM:** OpenAI GPT-5 Mini
 
-**Tutorial:** [Talk2PDF Tutorial](../tutorials/talk2pdf-agent.md)
+**Tutorial:** [Talk2PDF Tutorial](../tutorials/cli/examples/talk2pdf-agent.md)
 
 ---
 
@@ -339,7 +339,7 @@ dexto --agent product-researcher "Suggest names for a sustainable fashion startu
 
 **Recommended LLM:** Anthropic Claude Sonnet 4.5
 
-**Tutorial:** [Product Name Scout Tutorial](../tutorials/product-name-scout-agent.md)
+**Tutorial:** [Product Name Scout Tutorial](../tutorials/cli/examples/product-name-scout-agent.md)
 
 ---
 
@@ -372,7 +372,7 @@ dexto --agent triage-agent "I need help with my billing"
 
 **Recommended LLM:** OpenAI GPT-5
 
-**Tutorial:** [Building Multi-Agent Systems](../tutorials/building-triage-system.md)
+**Tutorial:** [Building Multi-Agent Systems](../tutorials/cli/examples/building-triage-system.md)
 
 ---
 

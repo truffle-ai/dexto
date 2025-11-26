@@ -372,7 +372,7 @@ export const AgentConfigSchema = z
         logger: LoggerConfigSchema.describe(
             'Logger configuration with multi-transport support (file, console, remote) - CLI enrichment adds per-agent file transport'
         ).default({
-            level: 'info',
+            level: 'error',
             transports: [{ type: 'console', colorize: true }],
         }),
 

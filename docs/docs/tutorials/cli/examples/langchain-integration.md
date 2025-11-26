@@ -1,3 +1,7 @@
+---
+sidebar_position: 8
+---
+
 # Integrating Existing Agents: Dexto + LangChain
 
 import ExpandableMermaid from '@site/src/components/ExpandableMermaid';

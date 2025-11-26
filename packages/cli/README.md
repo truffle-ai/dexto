@@ -23,7 +23,7 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 
 - **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
 - **Runtime** – Execution with orchestration, session management, conversation memory, and multimodal support.
-- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK.
+- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and the Dexto Agent SDK.
 
 #### With Dexto, you can build:
 
@@ -358,7 +358,7 @@ await agent.run('Make it funnier');
 await agent.stop();
 ```
 
-See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
+See our [Dexto Agent SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
 
 ---
 

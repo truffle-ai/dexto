@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # DextoAgent API
 
-Complete API reference for the main `DextoAgent` class.
+Complete API reference for the main `DextoAgent` class. This is the core interface for the Dexto Agent SDK.
 
 ## Constructor and Lifecycle
 
@@ -53,48 +53,155 @@ await agent.stop();
 
 ## Core Methods
 
-### `run`
+The Dexto Agent SDK provides three methods for processing messages:
+- **`generate()`** - Recommended for most use cases. Returns a complete response.
+- **`stream()`** - For real-time streaming UIs. Yields events as they arrive.
+- **`run()`** - Lower-level method for direct control.
 
-Processes user input through the agent's LLM and returns the response.
+### `generate`
+
+**Recommended method** for processing user input. Waits for complete response.
 
 ```typescript
-async run(
-  textInput: string,
-  imageDataInput?: { base64: string; mimeType: string },
-  fileDataInput?: { base64: string; mimeType: string; filename?: string },
-  sessionId?: string,
-  stream?: boolean
-): Promise<string | null>
+async generate(
+  message: string,
+  options: GenerateOptions
+): Promise<GenerateResponse>
 ```
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `textInput` | `string` | User message or query |
-| `imageDataInput` | `{ base64: string; mimeType: string }` | (Optional) Base64-encoded image |
-| `fileDataInput` | `{ base64: string; mimeType: string; filename?: string }` | (Optional) Base64-encoded file |
-| `sessionId` | `string` | (Optional) Session ID |
-| `stream` | `boolean` | (Optional) Enable streaming (default: false) |
+| `message` | `string` | User message or query |
+| `options.sessionId` | `string` | **Required.** Session ID for the conversation |
+| `options.imageData` | `{ image: string; mimeType: string }` | (Optional) Image data |
+| `options.fileData` | `{ data: string; mimeType: string; filename?: string }` | (Optional) File data |
+| `options.signal` | `AbortSignal` | (Optional) For cancellation |
 
-**Returns:** `Promise<string | null>` - AI response or null
+**Returns:** `Promise<GenerateResponse>`
+```typescript
+interface GenerateResponse {
+  content: string;           // The AI's text response
+  reasoning?: string;        // Extended thinking (o1/o3 models)
+  usage: TokenUsage;         // Token usage statistics
+  toolCalls: AgentToolCall[]; // Tools that were called
+  sessionId: string;
+  messageId: string;
+}
+```
 
 **Example:**
 ```typescript
 const agent = new DextoAgent(config);
 await agent.start();
 
-// Create a session for the conversation
 const session = await agent.createSession();
 
-// Run with explicit session ID
+// Simple usage
+const response = await agent.generate('What is 2+2?', {
+  sessionId: session.id
+});
+console.log(response.content); // "4"
+console.log(response.usage.totalTokens); // Token count
+
+// With image
+const response = await agent.generate('Describe this image', {
+  sessionId: session.id,
+  imageData: { image: base64Image, mimeType: 'image/png' }
+});
+
+await agent.stop();
+```
+
+### `stream`
+
+For real-time streaming UIs. Yields events as they arrive.
+
+```typescript
+async stream(
+  message: string,
+  options: StreamOptions
+): Promise<AsyncIterableIterator<StreamingEvent>>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `message` | `string` | User message or query |
+| `options.sessionId` | `string` | **Required.** Session ID |
+| `options.imageData` | `{ image: string; mimeType: string }` | (Optional) Image data |
+| `options.fileData` | `{ data: string; mimeType: string; filename?: string }` | (Optional) File data |
+| `options.signal` | `AbortSignal` | (Optional) For cancellation |
+
+**Returns:** `Promise<AsyncIterableIterator<StreamingEvent>>`
+
+**Example:**
+```typescript
+const session = await agent.createSession();
+
+for await (const event of await agent.stream('Write a poem', { sessionId: session.id })) {
+  if (event.type === 'llm:chunk') {
+    process.stdout.write(event.content);
+  }
+  if (event.type === 'llm:tool-call') {
+    console.log(`\n[Using ${event.toolName}]\n`);
+  }
+}
+```
+
+### `run`
+
+Lower-level method for direct control. Prefer `generate()` for most use cases.
+
+```typescript
+async run(
+  textInput: string,
+  imageDataInput: { image: string; mimeType: string } | undefined,
+  fileDataInput: { data: string; mimeType: string; filename?: string } | undefined,
+  sessionId: string,
+  stream?: boolean
+): Promise<string>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `textInput` | `string` | User message or query |
+| `imageDataInput` | `{ image: string; mimeType: string } \| undefined` | Image data or undefined |
+| `fileDataInput` | `{ data: string; mimeType: string; filename?: string } \| undefined` | File data or undefined |
+| `sessionId` | `string` | **Required.** Session ID |
+| `stream` | `boolean` | (Optional) Enable streaming (default: false) |
+
+**Returns:** `Promise<string>` - AI response text
+
+**Example:**
+```typescript
+const agent = new DextoAgent(config);
+await agent.start();
+
+const session = await agent.createSession();
+
+// Basic text input
 const response = await agent.run(
   "Explain quantum computing",
-  undefined,
-  undefined,
+  undefined,  // no image
+  undefined,  // no file
   session.id
 );
 
 await agent.stop();
 ```
+
+### `cancel`
+
+Cancels the currently running turn for a session.
+
+```typescript
+async cancel(sessionId: string): Promise<boolean>
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `sessionId` | `string` | **Required.** Session ID to cancel |
+
+**Returns:** `Promise<boolean>` - true if a run was in progress and cancelled
 
 ---
 
@@ -120,12 +227,15 @@ async createSession(sessionId?: string): Promise<ChatSession>
 
 **Example:**
 ```typescript
-// Create a new session
+// Create a new session (auto-generated ID)
 const session = await agent.createSession();
 console.log(`Created session: ${session.id}`);
 
+// Create a session with custom ID
+const userSession = await agent.createSession('user-123');
+
 // Use the session for conversations
-await agent.run("Hello!", undefined, undefined, session.id);
+await agent.generate("Hello!", { sessionId: session.id });
 ```
 
 ### `getSession`

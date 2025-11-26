@@ -54,7 +54,8 @@ graph TB
 
 ### Key Methods
 - `start()` - Initialize all services
-- `run(prompt, tools?, sessionId?)` - Execute user prompt
+- `generate(message, options)` - Execute user prompt (recommended)
+- `run(prompt, imageData?, fileData?, sessionId)` - Lower-level execution
 - `switchLLM(updates)` - Change LLM model/provider
 - `createSession(sessionId?)` - Create new chat session
 - `stop()` - Shutdown all services
@@ -64,8 +65,14 @@ graph TB
 const agent = new DextoAgent(config);
 await agent.start();
 
+// Create a session
+const session = await agent.createSession();
+
 // Run a task
-const response = await agent.run("List files in current directory");
+const response = await agent.generate("List files in current directory", {
+  sessionId: session.id
+});
+console.log(response.content);
 
 // Switch models
 await agent.switchLLM({ model: "claude-sonnet-4-5-20250929" });

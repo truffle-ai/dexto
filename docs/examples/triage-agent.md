@@ -74,6 +74,6 @@ Watch the multi-agent system communicate to get your responses.
 
 ## Learn More
 
-- [Multi-Agent Systems Tutorial](/docs/tutorials/multi-agent-systems)
-- [Building a Triage System](/docs/tutorials/building-triage-system)
+- [Multi-Agent Systems Tutorial](/docs/tutorials/cli/examples/multi-agent-systems)
+- [Building a Triage System](/docs/tutorials/cli/examples/building-triage-system)
 - [Agent Configuration](/docs/guides/configuring-dexto/overview)

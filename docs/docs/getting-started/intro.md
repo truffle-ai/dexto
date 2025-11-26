@@ -12,7 +12,7 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 
 - **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
 - **Runtime** – Execution with orchestration, session management, conversation memory, and multimodal support.
-- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK.
+- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and the Dexto Agent SDK.
 
 import ExpandableImage from '@site/src/components/ExpandableImage';
 
@@ -26,7 +26,7 @@ import ExpandableImage from '@site/src/components/ExpandableImage';
 
 - **50+ LLMs** - OpenAI, Anthropic, Google, Groq, local models
 - **MCP integration** - Connect to 100+ tools and services via Model Context Protocol
-- **Multiple interfaces** - CLI, Web UI, REST API, TypeScript SDK
+- **Multiple interfaces** - CLI, Web UI, REST API, Dexto Agent SDK
 - **Persistent sessions** - Maintain context across conversations
 - **Local-first** - Run on your infrastructure
 - **Production storage** - Redis, PostgreSQL, SQLite

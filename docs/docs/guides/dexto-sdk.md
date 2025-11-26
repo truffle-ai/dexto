@@ -1,13 +1,13 @@
 ---
 sidebar_position: 5
-title: "Dexto SDK Guide"
+title: "Dexto Agent SDK Guide"
 ---
 
 import ExpandableMermaid from '@site/src/components/ExpandableMermaid';
 
-# Dexto SDK Guide
+# Dexto Agent SDK Guide
 
-Welcome to the Dexto SDK guide for TypeScript. This guide provides everything you need to build high-quality AI applications with Dexto.
+Welcome to the Dexto Agent SDK guide for TypeScript. This guide provides everything you need to build high-quality AI applications with Dexto.
 
 Whether you're creating standalone agents, integrating with existing applications, or building custom AI workflows, the SDK offers a flexible and robust set of tools.
 
@@ -36,13 +36,17 @@ const agent = new DextoAgent({
     provider: 'openai',
     model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY,
-  },
+  }
 });
 
 await agent.start();
 
-const response = await agent.run('Hello, world!');
-console.log(response);
+// Create a session for the conversation
+const session = await agent.createSession();
+
+// Use generate() for simple request/response
+const response = await agent.generate('Hello, world!', { sessionId: session.id });
+console.log(response.content);
 
 await agent.stop();
 ```
@@ -91,9 +95,12 @@ const agent = new DextoAgent({
 });
 await agent.start();
 
-// Start a conversation
-const response = await agent.run('Hello! What can you help me with?');
-console.log(response);
+// Create a session and start a conversation
+const session = await agent.createSession();
+const response = await agent.generate('Hello! What can you help me with?', {
+  sessionId: session.id
+});
+console.log(response.content);
 ```
 
 ### Adding MCP Tools
@@ -105,6 +112,7 @@ const agent = new DextoAgent({
     model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   },
+  toolConfirmation: { mode: 'auto-approve' },
   mcpServers: {
     filesystem: {
       type: 'stdio',
@@ -112,7 +120,7 @@ const agent = new DextoAgent({
       args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
     },
     web: {
-      type: 'stdio', 
+      type: 'stdio',
       command: 'npx',
       args: ['-y', '@modelcontextprotocol/server-brave-search']
     }
@@ -120,8 +128,13 @@ const agent = new DextoAgent({
 });
 await agent.start();
 
-// Now the agent can use filesystem and web search tools
-const response = await agent.run('List the files in this directory and search for recent AI news');
+// Create session and use the agent with filesystem and web search tools
+const session = await agent.createSession();
+const response = await agent.generate(
+  'List the files in this directory and search for recent AI news',
+  { sessionId: session.id }
+);
+console.log(response.content);
 ```
 
 ## Core Concepts
@@ -141,8 +154,8 @@ const userSession = await agent.createSession('user-123');
 const adminSession = await agent.createSession('admin-456');
 
 // Each session maintains separate conversation history
-await userSession.run('Help me with my account');
-await adminSession.run('Show me system metrics');
+await agent.generate('Help me with my account', { sessionId: userSession.id });
+await agent.generate('Show me system metrics', { sessionId: adminSession.id });
 ```
 
 ### Event-Driven Architecture
@@ -179,7 +192,7 @@ sequenceDiagram
     User1->>ChatApp: handleUserMessage
     ChatApp->>ChatApp: Get or create session
     ChatApp->>Agent: createSession (if new)
-    ChatApp->>Agent: run(message, undefined, sessionId)
+    ChatApp->>Agent: generate(message, {sessionId})
     Agent->>Agent: Process message
     Agent-->>ChatApp: Response
     ChatApp-->>User1: broadcastToUser
@@ -196,6 +209,7 @@ class ChatApplication {
   async initialize() {
     this.agent = new DextoAgent({
       llm: { provider: 'openai', model: 'gpt-5', apiKey: process.env.OPENAI_API_KEY },
+      toolConfirmation: { mode: 'auto-approve' },
       mcpServers: { /* your tools */ }
     });
     await this.agent.start();
@@ -215,8 +229,9 @@ class ChatApplication {
       this.userSessions.set(userId, sessionId);
     }
 
-    // Process message (explicitly passing undefined for image and file inputs)
-    return await this.agent.run(message, undefined, undefined, sessionId);
+    // Process message using generate()
+    const response = await this.agent.generate(message, { sessionId });
+    return response.content;
   }
 
   private broadcastToUser(sessionId: string, message: string) {
@@ -304,7 +319,8 @@ class PersistentChatBot {
   async chat(userId: string, message: string) {
     const sessionId = `user-${userId}`;
     // Always pass session ID explicitly
-    return await this.agent.run(message, undefined, undefined, sessionId);
+    const response = await this.agent.generate(message, { sessionId });
+    return response.content;
   }
 }
 ```
@@ -403,16 +419,17 @@ agent.agentEventBus.on('llm:error', (data) => {
 try {
   const agent = new DextoAgent({
     llm: primaryLLMConfig,
+    toolConfirmation: { mode: 'auto-approve' },
     mcpServers: allServers
   });
   await agent.start();
 } catch (error) {
   console.warn('⚠️ Full setup failed, using minimal config');
-  
+
   // Fallback to basic configuration
   const agent = new DextoAgent({
-    llm: fallbackLLMConfig,
-    mcpServers: {} // No external tools
+    llm: fallbackLLMConfig
+    // No MCP servers in fallback mode
   });
   await agent.start();
 }
