@@ -3,4 +3,4 @@
 'dexto': patch
 ---
 
-Added changeset for ink-cli upgrades and metdata patch in webui
+Added changeset for ink-cli upgrades and metadata patch in webui
