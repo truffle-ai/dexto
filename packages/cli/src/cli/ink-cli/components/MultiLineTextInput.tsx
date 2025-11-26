@@ -42,10 +42,12 @@ export function MultiLineTextInput({
     const terminalWidth = stdout?.columns || 80;
 
     // Keep cursor valid when value changes externally (e.g., from history navigation)
+    // Only adjust if cursor would be past end of value, to avoid jumping during typing
     useEffect(() => {
-        // When value changes externally, move cursor to end
-        setCursorPos(value.length);
-    }, [value]);
+        if (cursorPos > value.length) {
+            setCursorPos(value.length);
+        }
+    }, [value, cursorPos]);
 
     // Calculate line info for cursor positioning
     const getLineInfo = useCallback(
@@ -118,12 +120,21 @@ export function MultiLineTextInput({
             }
 
             // Backspace - delete character before cursor
-            const isBackspace = key.backspace || key.delete || input === '\x7f' || input === '\x08';
+            const isBackspace = key.backspace || input === '\x7f' || input === '\x08';
             if (isBackspace) {
                 if (cursorPos > 0) {
                     const newValue = value.slice(0, cursorPos - 1) + value.slice(cursorPos);
                     onChange(newValue);
                     setCursorPos(cursorPos - 1);
+                }
+                return;
+            }
+
+            // Delete - delete character at cursor (forward delete)
+            if (key.delete) {
+                if (cursorPos < value.length) {
+                    const newValue = value.slice(0, cursorPos) + value.slice(cursorPos + 1);
+                    onChange(newValue);
                 }
                 return;
             }

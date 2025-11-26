@@ -70,8 +70,9 @@ export default function EditableMultiLineInput({
                 return;
             }
 
-            // Shift+Enter or Ctrl+E = toggle back to single-line
-            if ((key.return && key.shift) || (key.ctrl && inputChar === 'e')) {
+            // Shift+Enter = toggle back to single-line
+            // Note: Ctrl+E is reserved for standard "move to end of line" behavior
+            if (key.return && key.shift) {
                 onToggleSingleLine?.();
                 return;
             }
@@ -175,7 +176,7 @@ export default function EditableMultiLineInput({
                     <Text dimColor> {placeholder}</Text>
                 </Text>
                 <Text dimColor>
-                    Multi-line mode • Cmd/Ctrl+Enter to submit • Ctrl+E for single-line
+                    Multi-line mode • Cmd/Ctrl+Enter to submit • Shift+Enter for single-line
                 </Text>
             </Box>
         );
@@ -185,7 +186,7 @@ export default function EditableMultiLineInput({
         <Box flexDirection="column">
             {lines.map((line, idx) => renderLine(line, idx))}
             <Text dimColor>
-                Multi-line mode • Cmd/Ctrl+Enter to submit • Ctrl+E for single-line
+                Multi-line mode • Cmd/Ctrl+Enter to submit • Shift+Enter for single-line
             </Text>
         </Box>
     );
