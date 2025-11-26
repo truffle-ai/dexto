@@ -97,7 +97,7 @@ for (const message of history) {
 ```
 
 Output:
-```
+```text
 [user]: I want to build a REST API in Node.js.
 [assistant]: Building a REST API in Node.js is a great choice. Here are...
 [user]: What framework should I use?

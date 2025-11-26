@@ -84,6 +84,11 @@ body {
   color: var(--ifm-color-primary);
 }
 
+.navbar__link:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
 /* ==========================================
    Sidebar - Minimal & Clean
    ========================================== */
@@ -188,6 +193,11 @@ body {
 
 .menu__link.menu__link--active {
   color: var(--ifm-color-primary) !important;
+}
+
+.menu__link:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
 }
 
 .menu__list-item-collapsible .menu__link::before,
@@ -534,11 +544,10 @@ body {
 
 .markdown h2 {
   font-size: 1.75rem;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   margin-top: 3rem;
   border-bottom: none;
   color: var(--ifm-color-content);
-  letter-spacing: -0.01em;
   text-shadow: none;
 }
 
@@ -563,6 +572,13 @@ body {
 }
 
 .markdown a:hover {
+  border-bottom-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary-light);
+}
+
+.markdown a:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
   border-bottom-color: var(--ifm-color-primary);
   color: var(--ifm-color-primary-light);
 }
