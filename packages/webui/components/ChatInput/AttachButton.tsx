@@ -10,6 +10,7 @@ import {
     DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface AttachButtonProps {
     onImageAttach: () => void;
@@ -21,6 +22,8 @@ interface AttachButtonProps {
         pdf?: boolean;
         audio?: boolean;
     };
+    /** Use lg breakpoint instead of md for responsive text */
+    useLargeBreakpoint?: boolean;
 }
 
 export function AttachButton({
@@ -29,6 +32,7 @@ export function AttachButton({
     onAudioAttach,
     className,
     supports,
+    useLargeBreakpoint = false,
 }: AttachButtonProps) {
     const [open, setOpen] = React.useState(false);
     const imageSupported = supports?.image !== false; // default to true if unknown
@@ -40,11 +44,19 @@ export function AttachButton({
                 <Button
                     variant="ghost"
                     size="sm"
-                    className={`h-8 px-2 md:px-3 text-sm text-muted-foreground hover:text-foreground rounded-full ${className || ''}`}
+                    className={cn(
+                        'h-8 px-2 text-sm text-muted-foreground hover:text-foreground rounded-full',
+                        useLargeBreakpoint ? 'lg:px-3' : 'md:px-3',
+                        className
+                    )}
                     aria-label="Attach File"
                 >
-                    <Paperclip className="h-3 w-3 md:mr-1.5" />
-                    <span className="hidden md:inline">Attach</span>
+                    <Paperclip
+                        className={cn('h-3 w-3', useLargeBreakpoint ? 'lg:mr-1.5' : 'md:mr-1.5')}
+                    />
+                    <span className={cn('hidden', useLargeBreakpoint ? 'lg:inline' : 'md:inline')}>
+                        Attach
+                    </span>
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start">

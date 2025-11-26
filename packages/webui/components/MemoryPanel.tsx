@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useMemories, useDeleteMemory, type Memory } from './hooks/useMemories';
-import { formatDateTime, formatRelativeTime } from '@/lib/date-utils';
+import { formatRelativeTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -15,17 +15,7 @@ import {
     DialogDescription,
 } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
-import {
-    Brain,
-    Plus,
-    Trash2,
-    Edit2,
-    Calendar,
-    Tag,
-    AlertTriangle,
-    RefreshCw,
-    Search,
-} from 'lucide-react';
+import { Brain, Plus, Trash2, Calendar, Tag, AlertTriangle, RefreshCw, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';

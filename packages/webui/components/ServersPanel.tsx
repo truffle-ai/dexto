@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { Button } from './ui/button';
 import {
@@ -250,10 +250,6 @@ export default function ServersPanel({
             };
         }
     }, [isOpen, refetchServers]);
-
-    const handleServerSelect = (serverId: string) => {
-        setSelectedServerId(serverId);
-    };
 
     const selectedServer = servers.find((s) => s.id === selectedServerId);
 

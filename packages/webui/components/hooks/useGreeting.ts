@@ -9,6 +9,9 @@ async function fetchGreeting(sessionId?: string | null): Promise<string | null> 
     const data = await client.api.greeting.$get({
         query: sessionId ? { sessionId } : {},
     });
+    if (!data.ok) {
+        throw new Error(`Failed to fetch greeting: ${data.status}`);
+    }
     const json = await data.json();
     return json.greeting ?? null;
 }
@@ -23,6 +26,7 @@ export function useGreeting(sessionId?: string | null) {
     } = useQuery({
         queryKey: queryKeys.greeting(sessionId),
         queryFn: () => fetchGreeting(sessionId),
+        staleTime: 5 * 60 * 1000, // 5 minutes - greeting is static per agent
     });
 
     // Listen for agent switching events to refresh greeting

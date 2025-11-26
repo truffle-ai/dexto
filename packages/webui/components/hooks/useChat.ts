@@ -3,13 +3,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type {
     TextPart as CoreTextPart,
-    ImagePart as CoreImagePart,
     InternalMessage,
     FilePart,
     Issue,
     SanitizedToolResult,
 } from '@dexto/core';
-import { toError } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { client } from '@/lib/client.js';

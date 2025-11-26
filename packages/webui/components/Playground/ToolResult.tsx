@@ -3,8 +3,6 @@
 import React from 'react';
 import { CheckCircle, XCircle, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import type { ToolResult as ToolResultType } from '@dexto/core';
 
 interface ToolResultProps {

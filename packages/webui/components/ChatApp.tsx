@@ -57,7 +57,6 @@ import { Textarea } from './ui/textarea';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
-import Link from 'next/link';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -73,7 +72,6 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
-import type { PromptInfo } from '@dexto/core';
 import type { ServerRegistryEntry } from '@/types';
 
 interface ChatAppProps {
@@ -846,36 +844,51 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                 </div>
                             )}
 
-                            {/* Dexto Logo - Icon on mobile, full logo on desktop */}
+                            {/* Dexto Logo - Icon on mobile/constrained, full logo on desktop */}
                             <a
                                 href="https://dexto.ai"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center hover:opacity-80 transition-opacity shrink-0"
                             >
-                                {/* Mobile: Icon only */}
+                                {/* Mobile/Constrained: Icon only */}
                                 <img
                                     src="/logos/dexto/dexto_logo_icon.svg"
                                     alt="Dexto"
-                                    className="h-9 w-9 md:hidden"
+                                    className={cn(
+                                        'h-9 w-9',
+                                        isSessionsPanelOpen ? 'lg:hidden' : 'md:hidden'
+                                    )}
                                 />
-                                {/* Desktop: Full logo */}
+                                {/* Desktop: Full logo (light mode) */}
                                 <img
                                     src="/logos/dexto/dexto_logo_light.svg"
                                     alt="Dexto"
-                                    className="h-11 w-auto hidden md:block dark:md:hidden"
+                                    className={cn(
+                                        'h-11 w-auto hidden dark:hidden',
+                                        isSessionsPanelOpen ? 'lg:block' : 'md:block'
+                                    )}
                                 />
+                                {/* Desktop: Full logo (dark mode) */}
                                 <img
                                     src="/logos/dexto/dexto_logo.svg"
                                     alt="Dexto"
-                                    className="h-11 w-auto hidden dark:md:block"
+                                    className={cn(
+                                        'h-11 w-auto hidden',
+                                        isSessionsPanelOpen ? 'dark:lg:block' : 'dark:md:block'
+                                    )}
                                 />
                                 <span className="sr-only">Dexto</span>
                             </a>
                         </div>
 
-                        {/* Right Section - Desktop buttons */}
-                        <div className="hidden md:flex items-center gap-2">
+                        {/* Right Section - Desktop buttons (hide when session panel is open on smaller screens) */}
+                        <div
+                            className={cn(
+                                'hidden items-center gap-2',
+                                isSessionsPanelOpen ? 'lg:flex' : 'md:flex'
+                            )}
+                        >
                             {/* Customize Agent */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -995,8 +1008,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                             </DropdownMenu>
                         </div>
 
-                        {/* Right Section - Narrow screens (hamburger menu) */}
-                        <div className="flex md:hidden">
+                        {/* Right Section - Narrow screens (hamburger menu) - also show on md when session panel open */}
+                        <div
+                            className={cn('flex', isSessionsPanelOpen ? 'lg:hidden' : 'md:hidden')}
+                        >
                             <DropdownMenu open={isMobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                                 <DropdownMenuTrigger asChild>
                                     <Button
@@ -1223,6 +1238,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                             onSend={handleSend}
                                             isSending={isSendingMessage}
                                             variant="welcome"
+                                            isSessionsPanelOpen={isSessionsPanelOpen}
                                         />
                                     </div>
 
@@ -1304,6 +1320,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                                     onSend={handleSend}
                                                     isSending={isSendingMessage}
                                                     variant="chat"
+                                                    isSessionsPanelOpen={isSessionsPanelOpen}
                                                 />
                                             </div>
                                         </div>
@@ -1583,7 +1600,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             <GlobalSearchModal
                 isOpen={isSearchOpen}
                 onClose={() => setSearchOpen(false)}
-                onNavigateToSession={(sessionId, messageIndex) => {
+                onNavigateToSession={(sessionId) => {
                     router.push(`/chat/${sessionId}`);
                     setSearchOpen(false);
                 }}

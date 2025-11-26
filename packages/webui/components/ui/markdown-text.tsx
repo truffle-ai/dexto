@@ -126,18 +126,6 @@ function isVideoUrl(url: string): boolean {
     return false;
 }
 
-function isImageUrl(url: string): boolean {
-    // Check for image file extensions
-    if (url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i)) {
-        return true;
-    }
-    // Check for image patterns in URL
-    if (url.includes('/image/') || url.includes('image_') || url.includes('/avatar/')) {
-        return true;
-    }
-    return false;
-}
-
 function isAudioUrl(url: string): boolean {
     // Check for audio file extensions
     if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac|wma)(\?.*)?$/i)) {
@@ -312,7 +300,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
                                 srcString = objectUrl;
                                 // Track the URL for cleanup
                                 blobUrlsRef.current.add(objectUrl);
-                            } catch (error) {
+                            } catch {
                                 // URL.createObjectURL failed, treat as invalid
                                 srcString = null;
                             }
@@ -329,7 +317,7 @@ const MarkdownTextImpl = ({ children }: { children: string }) => {
                                 srcString = objectUrl;
                                 // Track the URL for cleanup
                                 blobUrlsRef.current.add(objectUrl);
-                            } catch (error) {
+                            } catch {
                                 // URL.createObjectURL failed, treat as invalid
                                 srcString = null;
                             }

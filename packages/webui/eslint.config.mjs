@@ -25,6 +25,16 @@ export default [
       'react-hooks': await import('eslint-plugin-react-hooks').then(m => m.default || m),
     },
     rules: {
+      // Match root config's unused-vars rule
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
       // Block specific problematic imports only
       // The browser bundle (index.browser.ts) and conditional exports already
       // ensure only browser-safe exports are available. This rule just catches

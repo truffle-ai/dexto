@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import {
@@ -22,8 +21,6 @@ import {
     ChevronUp,
     Users,
     Plus,
-    ArrowUpRight,
-    Tag,
     PlusCircle,
     X,
 } from 'lucide-react';
@@ -53,7 +50,7 @@ export default function ServerRegistryModal({
     const [installing, setInstalling] = useState<string | null>(null);
 
     // Filter state
-    const [filter, setFilter] = useState<ServerRegistryFilter>({});
+    const [filter] = useState<ServerRegistryFilter>({});
     const [searchInput, setSearchInput] = useState('');
 
     // View state
@@ -82,17 +79,6 @@ export default function ServerRegistryModal({
             }
         };
     }, []);
-
-    const categories = [
-        { value: 'all', label: 'All Categories' },
-        { value: 'productivity', label: 'Productivity' },
-        { value: 'development', label: 'Development' },
-        { value: 'research', label: 'Research' },
-        { value: 'creative', label: 'Creative' },
-        { value: 'data', label: 'Data' },
-        { value: 'communication', label: 'Communication' },
-        { value: 'custom', label: 'Custom' },
-    ];
 
     // Load entries when modal opens
     useEffect(() => {
