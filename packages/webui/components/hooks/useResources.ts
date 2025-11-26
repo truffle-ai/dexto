@@ -28,6 +28,7 @@ export function useResources() {
     } = useQuery({
         queryKey: queryKeys.resources.all,
         queryFn: fetchResources,
+        staleTime: 60 * 1000, // 1 minute - resources can be uploaded
     });
 
     // Listen for real-time resource cache invalidation events

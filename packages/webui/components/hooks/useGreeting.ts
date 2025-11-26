@@ -23,6 +23,7 @@ export function useGreeting(sessionId?: string | null) {
     } = useQuery({
         queryKey: queryKeys.greeting(sessionId),
         queryFn: () => fetchGreeting(sessionId),
+        staleTime: 5 * 60 * 1000, // 5 minutes - greeting is static per agent
     });
 
     // Listen for agent switching events to refresh greeting

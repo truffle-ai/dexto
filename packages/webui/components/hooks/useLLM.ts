@@ -14,6 +14,7 @@ export function useLLMCatalog(options?: { enabled?: boolean; mode?: 'grouped' | 
             return await response.json();
         },
         enabled: options?.enabled ?? true,
+        staleTime: 5 * 60 * 1000, // 5 minutes - catalog rarely changes
     });
 }
 

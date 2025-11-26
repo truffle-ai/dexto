@@ -9,6 +9,7 @@ export function useAgents() {
             const response = await client.api.agents.$get();
             return await response.json();
         },
+        staleTime: 5 * 60 * 1000, // 5 minutes - agent list rarely changes
     });
 }
 
@@ -20,6 +21,7 @@ export function useAgentPath() {
             return await response.json();
         },
         retry: false,
+        staleTime: 5 * 60 * 1000, // 5 minutes - current agent path only changes on explicit switch
     });
 }
 

@@ -1,9 +1,26 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
 // List all sessions
 export function useSessions(enabled: boolean = true) {
+    const queryClient = useQueryClient();
+
+    // Invalidate sessions cache when agent is switched (each agent has different sessions)
+    useEffect(() => {
+        const handleAgentSwitched = () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
+            return () => {
+                window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
+            };
+        }
+    }, [queryClient]);
+
     return useQuery({
         queryKey: queryKeys.sessions.all,
         queryFn: async () => {
@@ -12,6 +29,7 @@ export function useSessions(enabled: boolean = true) {
             return data.sessions;
         },
         enabled,
+        staleTime: 30 * 1000, // 30 seconds - sessions can be created frequently
     });
 }
 
