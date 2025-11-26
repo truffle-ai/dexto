@@ -67,22 +67,12 @@ async function createSQLiteStore(
     config: SqliteDatabaseConfig,
     logger: IDextoLogger
 ): Promise<Database> {
-    try {
-        if (!SQLiteStore) {
-            const module = await import('./sqlite-store.js');
-            SQLiteStore = module.SQLiteStore;
-        }
-        logger.info(`Creating SQLite database store: ${config.path}`);
-        return new SQLiteStore(config, logger);
-    } catch (error: unknown) {
-        const err = error as NodeJS.ErrnoException;
-        if (err.code === 'ERR_MODULE_NOT_FOUND') {
-            throw StorageError.dependencyNotInstalled(
-                'SQLite',
-                'better-sqlite3',
-                'npm install better-sqlite3'
-            );
-        }
-        throw error;
+    // SQLiteStore uses dynamic import for better-sqlite3 inside connect(),
+    // so dependency errors are thrown there, not here
+    if (!SQLiteStore) {
+        const module = await import('./sqlite-store.js');
+        SQLiteStore = module.SQLiteStore;
     }
+    logger.info(`Creating SQLite database store: ${config.path}`);
+    return new SQLiteStore(config, logger);
 }
