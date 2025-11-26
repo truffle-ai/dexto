@@ -1,12 +1,11 @@
 /**
  * InputArea Component
- * Displays the input prompt and handles user input
+ * Simple input area - Shift+Enter for newlines, Enter to submit
  */
 
 import React from 'react';
 import { Box, Text } from 'ink';
-import CustomTextInput from '../CustomTextInput.js';
-import EditableMultiLineInput from '../EditableMultiLineInput.js';
+import { MultiLineTextInput } from '../MultiLineTextInput.js';
 
 interface InputAreaProps {
     value: string;
@@ -15,16 +14,12 @@ interface InputAreaProps {
     isProcessing: boolean;
     isDisabled: boolean;
     placeholder?: string | undefined;
-    onWordDelete?: () => void;
-    onLineDelete?: () => void;
-    remountKey?: number; // Key to force TextInput remount for cursor positioning
-    isMultiLine?: boolean; // Whether multi-line input mode is active
-    onToggleMultiLine?: () => void; // Toggle multi-line mode
+    // History props
+    history?: string[] | undefined;
+    historyIndex?: number | undefined;
+    onHistoryNavigate?: ((direction: 'up' | 'down') => void) | undefined;
 }
 
-/**
- * Pure presentational component for input area
- */
 export function InputArea({
     value,
     onChange,
@@ -32,42 +27,22 @@ export function InputArea({
     isProcessing,
     isDisabled,
     placeholder,
-    onWordDelete,
-    onLineDelete,
-    remountKey = 0,
-    isMultiLine = false,
-    onToggleMultiLine,
+    history,
+    historyIndex,
+    onHistoryNavigate,
 }: InputAreaProps) {
     return (
-        <Box borderStyle="single" borderColor="green" paddingX={1} flexDirection="column">
-            {isMultiLine ? (
-                <EditableMultiLineInput
-                    value={value}
-                    onChange={onChange}
-                    onSubmit={onSubmit}
-                    {...(placeholder && { placeholder })}
-                    {...(isDisabled && { isProcessing: isDisabled })}
-                    {...(onToggleMultiLine && { onToggleSingleLine: onToggleMultiLine })}
-                />
-            ) : (
-                <Box flexDirection="row">
-                    <Text color="green" bold>
-                        {'> '}
-                    </Text>
-                    <Box flexGrow={1}>
-                        <CustomTextInput
-                            key={remountKey}
-                            value={value}
-                            onChange={onChange}
-                            onSubmit={onSubmit}
-                            {...(placeholder && { placeholder })}
-                            {...(onWordDelete && { onWordDelete })}
-                            {...(onLineDelete && { onLineDelete })}
-                            {...(onToggleMultiLine && { onNewline: onToggleMultiLine })}
-                        />
-                    </Box>
-                </Box>
-            )}
+        <Box flexDirection="column">
+            <MultiLineTextInput
+                value={value}
+                onChange={onChange}
+                onSubmit={onSubmit}
+                placeholder={placeholder}
+                isDisabled={isDisabled || isProcessing}
+                history={history}
+                historyIndex={historyIndex}
+                onHistoryNavigate={onHistoryNavigate}
+            />
         </Box>
     );
 }

@@ -48,8 +48,6 @@ export interface InputState {
     value: string;
     history: string[];
     historyIndex: number;
-    remountKey: number; // Key to force TextInput remount for cursor positioning
-    isMultiLine: boolean; // Whether multi-line input mode is active
 }
 
 /**
@@ -71,6 +69,8 @@ export interface UIState {
     isCancelling: boolean; // True when cancellation is in progress
     isThinking: boolean; // True when LLM is thinking (before streaming starts)
     activeOverlay: OverlayType;
+    exitWarningShown: boolean; // True when first Ctrl+C was pressed (pending second to exit)
+    exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
 }
 
 /**

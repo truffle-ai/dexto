@@ -45,7 +45,7 @@ export default function CreateMemoryModal({ open, onClose }: CreateMemoryModalPr
                     .map((t) => t.trim())
                     .filter(Boolean),
             }),
-            metadata: { source: 'user' },
+            metadata: { source: 'user' as const },
         };
 
         createMemoryMutation.mutate(payload, {
