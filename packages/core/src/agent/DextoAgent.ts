@@ -735,14 +735,6 @@ export class DextoAgent {
             };
         });
 
-        // TODO: Message ID infrastructure exists but not fully utilized yet
-        // Future enhancements:
-        // - Persist messageId in conversation history for tracking
-        // - Use for idempotency (prevent duplicate processing)
-        // - Enable message-level operations (edit, regenerate, etc.)
-        // - Correlate with tool calls and approval requests
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
         // Ensure usage matches LLMTokenUsage type with all required fields
         const defaultUsage: import('./types.js').TokenUsage = {
             inputTokens: 0,
@@ -757,7 +749,6 @@ export class DextoAgent {
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
             sessionId: options.sessionId,
-            messageId,
         };
     }
 

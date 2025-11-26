@@ -48,7 +48,6 @@ export interface GenerateResponse {
     usage: LLMTokenUsage;
     toolCalls: AgentToolCall[];
     sessionId: string;
-    messageId: string;
 }
 
 /**

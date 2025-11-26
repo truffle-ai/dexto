@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { IMessageFormatter } from '@core/llm/formatters/types.js';
 import { LLMContext } from '../llm/types.js';
 import { InternalMessage, ImageData, FileData } from './types.js';
@@ -446,6 +447,14 @@ export class ContextManager<TMessage = unknown> {
                     throw ContextError.systemMessageContentInvalid();
                 }
                 break;
+        }
+
+        // Generate ID and timestamp if not provided
+        if (!message.id) {
+            message.id = randomUUID();
+        }
+        if (!message.timestamp) {
+            message.timestamp = Date.now();
         }
 
         this.logger.debug(

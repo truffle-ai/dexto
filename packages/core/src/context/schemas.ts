@@ -76,6 +76,7 @@ export const ToolCallSchema = z
 
 export const InternalMessageSchema = z
     .object({
+        id: z.string().uuid().optional().describe('Unique message identifier (UUID)'),
         role: z
             .enum(['system', 'user', 'assistant', 'tool'])
             .describe('Role of the message sender'),

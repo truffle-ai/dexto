@@ -18,6 +18,17 @@ import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
 
+// Helper to get history endpoint type (workaround for string literal path)
+const historyEndpoint = client.api.sessions[':sessionId'].history;
+
+// Derive history message type from Hono client response (server schema is source of truth)
+type HistoryResponse = Awaited<ReturnType<(typeof historyEndpoint)['$get']>>;
+type HistoryData = Awaited<ReturnType<Extract<HistoryResponse, { ok: true }>['json']>>;
+type HistoryMessage = HistoryData['history'][number];
+
+// Derive toolCall type from HistoryMessage
+type ToolCall = NonNullable<HistoryMessage['toolCalls']>[number];
+
 interface ChatContextType {
     messages: Message[];
     sendMessage: (
@@ -66,12 +77,12 @@ async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
 }
 
 // Helper function to convert session history API response to UI messages
-function convertHistoryToMessages(history: any[], sessionId: string): Message[] {
+function convertHistoryToMessages(history: HistoryMessage[], sessionId: string): Message[] {
     const uiMessages: Message[] = [];
     const pendingToolCalls = new Map<string, number>();
 
     for (let index = 0; index < history.length; index++) {
-        const msg: any = history[index];
+        const msg = history[index];
         const baseMessage = {
             id: `session-${sessionId}-${index}`,
             role: msg.role,
@@ -132,7 +143,7 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
             }
 
             if (msg.toolCalls && msg.toolCalls.length > 0) {
-                msg.toolCalls.forEach((toolCall: any, toolIndex: number) => {
+                msg.toolCalls.forEach((toolCall: ToolCall, toolIndex: number) => {
                     let toolArgs: Record<string, unknown> = {};
                     if (toolCall?.function) {
                         try {
@@ -188,7 +199,6 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
                 meta: {
                     toolName,
                     toolCallId: toolCallId ?? `tool-${index}`,
-                    ...(typeof msg.success === 'boolean' ? { success: msg.success } : {}),
                 },
             };
 
@@ -198,7 +208,6 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
                     ...uiMessages[messageIndex],
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
                 };
             } else {
                 uiMessages.push({
@@ -206,10 +215,8 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
                     role: 'tool',
                     content: null,
                     toolName,
-                    toolArgs: typeof msg.args === 'object' ? msg.args : undefined,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    toolResultSuccess: typeof msg.success === 'boolean' ? msg.success : undefined,
                 });
             }
 

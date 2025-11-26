@@ -41,7 +41,6 @@ describe('DextoAgent.generate() API', () => {
 
                 // Validate metadata
                 expect(response.sessionId).toBe(env.sessionId);
-                expect(response.messageId).toBeTruthy();
                 expect(response.toolCalls).toEqual([]);
             } finally {
                 await cleanupTestEnvironment(env);
