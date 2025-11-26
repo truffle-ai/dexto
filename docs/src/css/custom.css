@@ -90,6 +90,24 @@ body {
 .theme-doc-sidebar-container {
   background: transparent !important;
   border-right: 1px solid var(--ifm-border-color);
+  z-index: 1000;
+}
+
+/* Ensure mobile navbar sidebar overlays main content */
+@media (max-width: 996px) {
+  #__docusaurus > nav > div.theme-layout-navbar-sidebar.navbar-sidebar {
+    position: fixed;
+    inset: 0;
+    z-index: 11000;
+    width: 100vw;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--ifm-background-surface-color);
+  }
+
+  #__docusaurus > nav > div.theme-layout-navbar-sidebar.navbar-sidebar .navbar-sidebar__backdrop {
+    z-index: 10999;
+  }
 }
 
 .menu {
@@ -102,19 +120,16 @@ body {
 }
 
 /* Sidebar Toggle Button */
-.theme-doc-sidebar-toggle {
-  display: none !important;
-}
-
 [class*="collapseSidebarButton"] {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
   position: sticky;
   top: calc(var(--ifm-navbar-height) + 0.75rem);
-  margin-left: 0.5rem;
+  margin-left: auto;
+  margin-right: 0.35rem;
   border-radius: 9999px;
   border: 1px solid var(--ifm-border-color);
   background: var(--dexto-glass-bg);
@@ -124,6 +139,13 @@ body {
   z-index: 3;
 }
 
+@media (max-width: 996px) {
+  [class*="collapseSidebarButton"] {
+    display: none !important;
+  }
+}
+
+/* Mobile sidebar overlay */
 [class*="collapseSidebarButton"]::before {
   content: "";
   display: block;
@@ -154,10 +176,24 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ifm-color-content);
-  margin-top: 0.55rem;
-  margin-bottom: 0.1rem;
-  padding: 0.32rem 0.5rem;
+  margin: 0;
+  padding: 0.4rem 0.65rem;
   border-radius: 6px;
+}
+
+.menu__list .menu__link {
+  padding: 0.4rem 0.65rem !important;
+  margin: 0.12rem 0;
+  border-radius: 6px;
+}
+
+.menu__link.menu__link--active {
+  color: var(--ifm-color-primary) !important;
+}
+
+.menu__list-item-collapsible .menu__link::before,
+.menu__list .menu__link::before {
+  content: none;
 }
 
 /* Icons for Sidebar Categories */
@@ -380,14 +416,20 @@ body {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 0.25rem;
-  margin-bottom: 0.18rem;
-  padding: 0.28rem 0.4rem;
+  margin: 0.12rem 0;
+  padding: 0.12rem 0.25rem;
   border-radius: 8px;
   background: transparent;
 }
 
 .menu__list-item-collapsible>.menu__link {
   padding-right: 0.35rem;
+}
+
+.theme-doc-sidebar-container {
+  background: linear-gradient(145deg, rgba(45, 212, 191, 0.06), rgba(37, 99, 235, 0.04));
+  border-right: 1px solid var(--ifm-border-color);
+  backdrop-filter: blur(6px);
 }
 
 .menu__caret {
@@ -422,7 +464,7 @@ body {
   color: currentColor;
   mask: none;
   display: block;
-  transform: rotate(-90deg);
+  transform: rotate(90deg);
   transition: transform 0.15s ease;
 }
 
@@ -483,10 +525,12 @@ body {
   font-size: 2.5rem;
   letter-spacing: -0.03em;
   margin-bottom: 1.5rem;
-  background: linear-gradient(to bottom right, #fff, #a5a5a5);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--ifm-color-primary);
+  text-shadow: none;
+}
+
+.title_kItE {
+  color: var(--ifm-color-primary);
 }
 
 .markdown h2 {
@@ -495,12 +539,16 @@ body {
   margin-top: 3rem;
   border-bottom: none;
   color: var(--ifm-color-content);
+  letter-spacing: -0.01em;
+  text-shadow: none;
 }
 
 .markdown h3 {
   font-size: 1.25rem;
   margin-top: 2rem;
-  color: var(--ifm-color-content);
+  color: var(--ifm-color-content-secondary);
+  letter-spacing: -0.005em;
+  text-shadow: none;
 }
 
 .markdown p {
