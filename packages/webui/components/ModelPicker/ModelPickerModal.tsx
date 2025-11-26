@@ -600,7 +600,7 @@ export default function ModelPickerModal() {
                                                 providerId.toLowerCase().includes(q)
                                             );
                                         })
-                                        .map(({ providerId, provider, model }) => (
+                                        .map(({ providerId, model }) => (
                                             <div
                                                 key={favKey(providerId, model.name)}
                                                 onClick={() => onPickModel(providerId, model)}

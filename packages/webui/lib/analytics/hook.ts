@@ -3,7 +3,7 @@
 // packages/webui/lib/analytics/hook.ts
 // Convenience hook for tracking analytics events in WebUI components.
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useAnalyticsContext } from './provider.js';
 import type {
     MessageSentEvent,

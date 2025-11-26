@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap, Plus } from 'lucide-react';
 import { Badge } from './ui/badge';
-import type { PromptArgument, PromptInfo as CorePromptInfo } from '@dexto/core';
+import type { PromptInfo as CorePromptInfo } from '@dexto/core';
 import { usePrompts } from './hooks/usePrompts';
 
 // Use canonical types from @dexto/core for alignment
@@ -49,7 +49,7 @@ const PromptItem = ({
                         <span className="font-medium text-xs text-foreground">/{prompt.name}</span>
                         {prompt.arguments && prompt.arguments.length > 0 && (
                             <span className="flex items-center gap-1">
-                                {prompt.arguments.map((arg, idx) => (
+                                {prompt.arguments.map((arg) => (
                                     <span
                                         key={arg.name}
                                         className="group relative inline-block"

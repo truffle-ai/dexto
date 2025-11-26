@@ -4,12 +4,15 @@ import React from 'react';
 import { Mic, StopCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface RecordButtonProps {
     isRecording: boolean;
     onToggleRecording: () => void;
     className?: string;
     disabled?: boolean;
+    /** Use lg breakpoint instead of md for responsive text */
+    useLargeBreakpoint?: boolean;
 }
 
 export function RecordButton({
@@ -17,6 +20,7 @@ export function RecordButton({
     onToggleRecording,
     className,
     disabled,
+    useLargeBreakpoint = false,
 }: RecordButtonProps) {
     const btn = (
         <Button
@@ -25,16 +29,30 @@ export function RecordButton({
             onClick={() => {
                 if (!disabled) onToggleRecording();
             }}
-            className={`h-8 px-2 md:px-3 text-sm rounded-full ${disabled ? 'opacity-50 cursor-not-allowed' : 'text-muted-foreground hover:text-foreground'} ${className || ''}`}
+            className={cn(
+                'h-8 px-2 text-sm rounded-full',
+                useLargeBreakpoint ? 'lg:px-3' : 'md:px-3',
+                disabled
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'text-muted-foreground hover:text-foreground',
+                className
+            )}
             aria-label={isRecording ? 'Stop recording' : 'Record audio'}
             aria-disabled={disabled ? true : undefined}
         >
             {isRecording ? (
-                <StopCircle className="h-3 w-3 md:mr-1.5 text-red-500" />
+                <StopCircle
+                    className={cn(
+                        'h-3 w-3 text-red-500',
+                        useLargeBreakpoint ? 'lg:mr-1.5' : 'md:mr-1.5'
+                    )}
+                />
             ) : (
-                <Mic className="h-3 w-3 md:mr-1.5" />
+                <Mic className={cn('h-3 w-3', useLargeBreakpoint ? 'lg:mr-1.5' : 'md:mr-1.5')} />
             )}
-            <span className="hidden md:inline">{isRecording ? 'Stop' : 'Record'}</span>
+            <span className={cn('hidden', useLargeBreakpoint ? 'lg:inline' : 'md:inline')}>
+                {isRecording ? 'Stop' : 'Record'}
+            </span>
         </Button>
     );
     return disabled ? (

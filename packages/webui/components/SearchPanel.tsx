@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import {
     useSearchMessages,
@@ -12,10 +12,8 @@ import { formatDate, formatTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Dialog, DialogContent } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
 import {
     Search,
     MessageSquare,
@@ -24,7 +22,6 @@ import {
     Bot,
     Settings,
     X,
-    ArrowLeft,
     ChevronRight,
     AlertTriangle,
     RefreshCw,
@@ -37,7 +34,7 @@ interface SearchPanelProps {
     isOpen: boolean;
     onClose: () => void;
     onNavigateToSession: (sessionId: string, messageIndex?: number) => void;
-    variant?: 'inline' | 'modal';
+    variant?: 'inline' | 'modal' | 'popover';
 }
 
 type SearchMode = 'messages' | 'sessions';
@@ -361,6 +358,29 @@ export default function SearchPanel({
 
     if (variant === 'inline') {
         return <div className="h-full flex flex-col">{content}</div>;
+    }
+
+    if (variant === 'popover') {
+        if (!isOpen) return null;
+        return (
+            <>
+                {/* Backdrop */}
+                <div
+                    className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                    onClick={onClose}
+                />
+                {/* Popover panel */}
+                <div className="fixed left-4 top-4 z-50 w-[400px] max-h-[80vh] bg-popover/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl overflow-hidden">
+                    <div className="flex items-center justify-between p-3 border-b border-border/50">
+                        <h3 className="text-sm font-medium">Search Chats</h3>
+                        <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0">
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <div className="max-h-[calc(80vh-48px)] overflow-y-auto">{content}</div>
+                </div>
+            </>
+        );
     }
 
     return (

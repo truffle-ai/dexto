@@ -9,7 +9,7 @@ import {
     useInstallAgent,
     useUninstallAgent,
 } from '../hooks/useAgents';
-import { useRecentAgentsStore, type RecentAgent } from '@/lib/stores/recentAgentsStore';
+import { useRecentAgentsStore } from '@/lib/stores/recentAgentsStore';
 import { Button } from '../ui/button';
 import {
     DropdownMenu,
@@ -47,20 +47,13 @@ type AgentsResponse = {
     current: { id: string | null; name: string | null };
 };
 
-type AgentPath = {
-    path: string;
-    name: string;
-    relativePath: string;
-    isDefault: boolean;
-};
-
 type AgentSelectorProps = {
     mode?: 'default' | 'badge' | 'title';
 };
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
     const navigate = useNavigate();
-    const { currentLLM, currentSessionId } = useChatContext();
+    const { currentSessionId } = useChatContext();
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
 

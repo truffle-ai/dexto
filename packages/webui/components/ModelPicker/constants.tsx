@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, FileAudio, FileText, Brain, Image, Sparkles, FlaskConical, Zap } from 'lucide-react';
+import { Sparkles, FlaskConical, Zap } from 'lucide-react';
 import type { LLMProvider } from '@dexto/core';
 
 // Provider logo file mapping - single source of truth

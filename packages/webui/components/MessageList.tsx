@@ -20,7 +20,6 @@ import ErrorBanner from './ErrorBanner';
 import {
     User,
     Bot,
-    ChevronsRight,
     ChevronUp,
     Loader2,
     CheckCircle,
@@ -31,10 +30,8 @@ import {
     Info,
     File,
     FileAudio,
-    Copy,
     ChevronDown,
     Brain,
-    Check as CheckIcon,
     X,
     ZoomIn,
     Volume2,
@@ -43,7 +40,6 @@ import {
 } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { MarkdownText } from './ui/markdown-text';
-import { TooltipIconButton } from './ui/tooltip-icon-button';
 import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';
 import {
@@ -334,8 +330,6 @@ export default function MessageList({
     const endRef = useRef<HTMLDivElement>(null);
     const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
     const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
-    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [imageModal, setImageModal] = useState<{ isOpen: boolean; src: string; alt: string }>({
         isOpen: false,
         src: '',

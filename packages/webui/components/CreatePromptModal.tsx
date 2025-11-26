@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useCreatePrompt } from './hooks/usePrompts';
 import {
     Dialog,

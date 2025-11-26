@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, AlertTriangle, CheckCircle, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,7 +38,6 @@ export default function PlaygroundView() {
     const [showServersSidebar, setShowServersSidebar] = useState(true);
     const [showToolsSidebar, setShowToolsSidebar] = useState(true);
 
-    const toolsAbortControllerRef = useRef<AbortController | null>(null);
     const executionAbortControllerRef = useRef<AbortController | null>(null);
 
     const {
@@ -112,7 +110,7 @@ export default function PlaygroundView() {
                 if (value === '') return;
                 try {
                     JSON.parse(value);
-                } catch (e) {
+                } catch {
                     setInputErrors((prev) => ({ ...prev, [inputName]: 'Invalid JSON format' }));
                     return;
                 }
@@ -156,7 +154,7 @@ export default function PlaygroundView() {
             if ((prop.type === 'object' || prop.type === 'array') && value !== '') {
                 try {
                     JSON.parse(value as string);
-                } catch (e) {
+                } catch {
                     currentInputErrors[key] = 'Invalid JSON format.';
                     allValid = false;
                 }
@@ -222,7 +220,7 @@ export default function PlaygroundView() {
                     ) {
                         try {
                             value = JSON.parse(value);
-                        } catch (e) {
+                        } catch {
                             setInputErrors((prev) => ({
                                 ...prev,
                                 [key]: 'Invalid JSON before sending.',
@@ -244,13 +242,16 @@ export default function PlaygroundView() {
 
             const response = await client.api.mcp.servers[':serverId'].tools[
                 ':toolName'
-            ].execute.$post({
-                param: {
-                    serverId: selectedServer.id,
-                    toolName: selectedTool.id,
+            ].execute.$post(
+                {
+                    param: {
+                        serverId: selectedServer.id,
+                        toolName: selectedTool.id,
+                    },
+                    json: processedInputs,
                 },
-                json: processedInputs,
-            });
+                { init: { signal: controller.signal } }
+            );
 
             if (!response.ok) {
                 throw new Error('Tool execution failed');

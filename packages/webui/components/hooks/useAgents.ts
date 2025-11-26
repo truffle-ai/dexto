@@ -7,8 +7,12 @@ export function useAgents() {
         queryKey: queryKeys.agents.all,
         queryFn: async () => {
             const response = await client.api.agents.$get();
+            if (!response.ok) {
+                throw new Error(`Failed to fetch agents: ${response.status}`);
+            }
             return await response.json();
         },
+        staleTime: 5 * 60 * 1000, // 5 minutes - agent list rarely changes
     });
 }
 
@@ -17,9 +21,13 @@ export function useAgentPath() {
         queryKey: queryKeys.agents.path,
         queryFn: async () => {
             const response = await client.api.agent.path.$get();
+            if (!response.ok) {
+                throw new Error(`Failed to fetch agent path: ${response.status}`);
+            }
             return await response.json();
         },
         retry: false,
+        staleTime: 5 * 60 * 1000, // 5 minutes - current agent path only changes on explicit switch
     });
 }
 
@@ -31,6 +39,9 @@ export function useSwitchAgent() {
             payload: Parameters<typeof client.api.agents.switch.$post>[0]['json']
         ) => {
             const response = await client.api.agents.switch.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to switch agent: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {
@@ -48,6 +59,9 @@ export function useInstallAgent() {
             payload: Parameters<typeof client.api.agents.install.$post>[0]['json']
         ) => {
             const response = await client.api.agents.install.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to install agent: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {
@@ -64,6 +78,9 @@ export function useUninstallAgent() {
             payload: Parameters<typeof client.api.agents.uninstall.$post>[0]['json']
         ) => {
             const response = await client.api.agents.uninstall.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to uninstall agent: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {
@@ -81,6 +98,9 @@ export function useCreateAgent() {
             payload: Parameters<typeof client.api.agents.custom.create.$post>[0]['json']
         ) => {
             const response = await client.api.agents.custom.create.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to create agent: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {

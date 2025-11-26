@@ -52,8 +52,6 @@ interface ChatContextType {
     greeting: string | null;
 }
 
-import { getApiUrl } from '@/lib/api-url';
-
 // Helper function to fetch and convert session history to UI messages
 async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
     const response = await client.api.sessions[':sessionId'].history.$get({
@@ -505,24 +503,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }, [currentSessionId, setSessionError]);
 
     // Load session history when switching sessions
-    const { data: sessionHistoryData, refetch: refetchSessionHistory } = useQuery<Message[], Error>(
-        {
-            queryKey: queryKeys.sessions.history(currentSessionId || ''),
-            queryFn: async () => {
-                if (!currentSessionId) {
-                    return [];
-                }
-                try {
-                    return await fetchSessionHistory(currentSessionId);
-                } catch (error) {
-                    // Return empty array for 404 or other errors
-                    return [];
-                }
-            },
-            enabled: false, // Manual refetch only
-            retry: false,
-        }
-    );
+    const { data: sessionHistoryData } = useQuery<Message[], Error>({
+        queryKey: queryKeys.sessions.history(currentSessionId || ''),
+        queryFn: async () => {
+            if (!currentSessionId) {
+                return [];
+            }
+            try {
+                return await fetchSessionHistory(currentSessionId);
+            } catch {
+                // Return empty array for 404 or other errors
+                return [];
+            }
+        },
+        enabled: false, // Manual refetch only
+        retry: false,
+    });
 
     // Sync session history data to messages when it changes
     useEffect(() => {
@@ -542,7 +538,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     queryFn: async () => {
                         try {
                             return await fetchSessionHistory(sessionId);
-                        } catch (error) {
+                        } catch {
                             // Return empty array for 404 or other errors
                             return [];
                         }
