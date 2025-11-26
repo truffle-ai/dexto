@@ -78,7 +78,15 @@ export class SQLiteStore implements Database {
             try {
                 const module = await import('better-sqlite3');
                 BetterSqlite3Database = (module as any).default || module;
-            } catch (error) {
+            } catch (error: unknown) {
+                const err = error as NodeJS.ErrnoException;
+                if (err.code === 'ERR_MODULE_NOT_FOUND') {
+                    throw StorageError.dependencyNotInstalled(
+                        'SQLite',
+                        'better-sqlite3',
+                        'npm install better-sqlite3'
+                    );
+                }
                 throw StorageError.connectionFailed(
                     `Failed to import better-sqlite3: ${error instanceof Error ? error.message : String(error)}`
                 );
