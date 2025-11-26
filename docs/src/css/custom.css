@@ -643,9 +643,17 @@ body {
    Code Blocks & Pre
    ========================================== */
 .prism-code {
-  background-color: #0f0f0f !important;
   border: 1px solid var(--ifm-border-color);
   border-radius: 8px;
+}
+
+[data-theme='light'] .prism-code {
+  background-color: #fafafa !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='dark'] .prism-code {
+  background-color: #0f0f0f !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
@@ -740,43 +748,41 @@ code {
   letter-spacing: 0.05em;
 }
 
-/* ==========================================
-   Footer
-   ========================================== */
-.footer {
-  background: #000000;
-  border-top: 1px solid var(--ifm-border-color);
-}
-
-.footer__title {
-  color: var(--ifm-color-content);
-  font-weight: 600;
-}
-
-.footer__link-item {
-  color: var(--ifm-color-content-secondary);
-  font-size: 0.9rem;
-}
-
 /* Enhanced Pagination */
 .pagination-nav {
   margin-top: 3rem;
   padding-top: 2rem;
-  border-top: 1px solid rgba(45, 212, 191, 0.2);
+  border-top: 1px solid var(--ifm-border-color);
 }
 
 .pagination-nav__link {
-  background: rgba(37, 37, 38, 0.4);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(45, 212, 191, 0.2);
   border-radius: 0.75rem;
   padding: 1.5rem;
   transition: all var(--ifm-transition-fast);
 }
 
+[data-theme='light'] .pagination-nav__link {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+[data-theme='dark'] .pagination-nav__link {
+  background: rgba(37, 37, 38, 0.4);
+  border: 1px solid rgba(45, 212, 191, 0.2);
+}
+
 .pagination-nav__link:hover {
   border-color: var(--ifm-color-primary);
   transform: translateY(-2px);
+}
+
+[data-theme='light'] .pagination-nav__link:hover {
+  box-shadow: 0 8px 25px rgba(20, 184, 166, 0.15);
+  background: rgba(255, 255, 255, 1);
+}
+
+[data-theme='dark'] .pagination-nav__link:hover {
   box-shadow: 0 8px 25px rgba(45, 212, 191, 0.2);
 }
 
@@ -799,8 +805,15 @@ code {
    Footer
    ========================================== */
 .footer {
-  background: #000000;
   border-top: 1px solid var(--ifm-border-color);
+}
+
+[data-theme='light'] .footer {
+  background: #f8f9fa;
+}
+
+[data-theme='dark'] .footer {
+  background: #000000;
 }
 
 .footer__title {
