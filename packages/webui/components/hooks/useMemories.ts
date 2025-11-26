@@ -24,6 +24,9 @@ export function useMemories(enabled: boolean = true) {
         queryKey: queryKeys.memories.all,
         queryFn: async () => {
             const response = await client.api.memory.$get({ query: {} });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch memories: ${response.status}`);
+            }
             const data = await response.json();
             return data.memories;
         },
@@ -37,7 +40,10 @@ export function useDeleteMemory() {
 
     return useMutation({
         mutationFn: async ({ memoryId }: { memoryId: string }) => {
-            await client.api.memory[':id'].$delete({ param: { id: memoryId } });
+            const response = await client.api.memory[':id'].$delete({ param: { id: memoryId } });
+            if (!response.ok) {
+                throw new Error(`Failed to delete memory: ${response.status}`);
+            }
             return memoryId;
         },
         onSuccess: () => {
@@ -56,6 +62,9 @@ export function useCreateMemory() {
             metadata?: { source: string; [key: string]: unknown };
         }) => {
             const response = await client.api.memory.$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to create memory: ${response.status}`);
+            }
             return await response.json();
         },
         onSuccess: () => {

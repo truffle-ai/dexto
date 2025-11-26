@@ -25,6 +25,9 @@ export function useSessions(enabled: boolean = true) {
         queryKey: queryKeys.sessions.all,
         queryFn: async () => {
             const response = await client.api.sessions.$get();
+            if (!response.ok) {
+                throw new Error(`Failed to fetch sessions: ${response.status}`);
+            }
             const data = await response.json();
             return data.sessions;
         },
@@ -42,6 +45,9 @@ export function useCreateSession() {
             const response = await client.api.sessions.$post({
                 json: { sessionId: sessionId?.trim() || undefined },
             });
+            if (!response.ok) {
+                throw new Error(`Failed to create session: ${response.status}`);
+            }
             const data = await response.json();
             return data.session;
         },
@@ -57,9 +63,12 @@ export function useDeleteSession() {
 
     return useMutation({
         mutationFn: async ({ sessionId }: { sessionId: string }) => {
-            await client.api.sessions[':sessionId'].$delete({
+            const response = await client.api.sessions[':sessionId'].$delete({
                 param: { sessionId },
             });
+            if (!response.ok) {
+                throw new Error(`Failed to delete session: ${response.status}`);
+            }
         },
         onSuccess: () => {
             // Invalidate sessions list to refresh after deletion

@@ -9,6 +9,9 @@ async function fetchGreeting(sessionId?: string | null): Promise<string | null> 
     const data = await client.api.greeting.$get({
         query: sessionId ? { sessionId } : {},
     });
+    if (!data.ok) {
+        throw new Error(`Failed to fetch greeting: ${data.status}`);
+    }
     const json = await data.json();
     return json.greeting ?? null;
 }
