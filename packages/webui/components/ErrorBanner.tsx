@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { ErrorMessage } from './hooks/useChat';

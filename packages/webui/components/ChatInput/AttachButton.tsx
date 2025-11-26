@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Paperclip, File, FileAudio } from 'lucide-react';
 import { Button } from '../ui/button';

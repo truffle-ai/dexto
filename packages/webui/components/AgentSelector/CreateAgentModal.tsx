@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import { useCreateAgent, type CreateAgentPayload } from '../hooks/useAgents';
 import {

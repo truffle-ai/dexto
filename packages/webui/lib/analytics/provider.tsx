@@ -1,5 +1,3 @@
-'use client';
-
 // packages/webui/lib/analytics/provider.tsx
 // React Context Provider for WebUI analytics using PostHog JS SDK.
 

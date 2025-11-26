@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useCallback } from 'react';
 import { useChatContext } from './hooks/ChatContext';
 import { useSubmitApproval } from './hooks/useApprovals';

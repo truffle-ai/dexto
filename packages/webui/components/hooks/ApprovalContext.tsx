@@ -1,5 +1,3 @@
-'use client';
-
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 // Import approval types directly from core to preserve discriminated union narrowing
 // (Omit<> breaks discriminated union type narrowing in TypeScript)
@@ -48,12 +46,17 @@ export function ApprovalProvider({ children }: { children: ReactNode }) {
         (response: ApprovalResponse) => {
             setPendingApproval((current) => {
                 if (current?.approvalId === response.approvalId) {
-                    // Check if it's a timeout or cancellation
-                    if (response.status === 'cancelled') {
-                        console.debug(
-                            `[ApprovalContext] Approval ${response.approvalId} cancelled: ${response.reason}`
-                        );
-                        // Process next in queue
+                    // Clear pending approval for any terminal status
+                    if (
+                        response.status === 'approved' ||
+                        response.status === 'denied' ||
+                        response.status === 'cancelled'
+                    ) {
+                        if (response.status === 'cancelled') {
+                            console.debug(
+                                `[ApprovalContext] Approval ${response.approvalId} cancelled: ${response.reason}`
+                            );
+                        }
                         processNextInQueue();
                         return null;
                     }

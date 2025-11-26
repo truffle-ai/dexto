@@ -1,5 +1,3 @@
-'use client';
-
 // packages/webui/lib/analytics/hook.ts
 // Convenience hook for tracking analytics events in WebUI components.
 

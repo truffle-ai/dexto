@@ -6,7 +6,6 @@
  * and detailed error/warning messages with line numbers. Provides visual
  * feedback during configuration editing to help users fix issues before saving.
  */
-'use client';
 
 import React from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';

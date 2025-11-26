@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';

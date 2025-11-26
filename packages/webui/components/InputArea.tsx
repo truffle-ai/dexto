@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';

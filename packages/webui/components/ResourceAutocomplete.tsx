@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { ResourceMetadata } from '@dexto/core';

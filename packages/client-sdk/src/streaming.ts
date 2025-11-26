@@ -143,7 +143,7 @@ export async function* createStream<T = string>(
  * ```typescript
  * const stream = createMessageStream(client.api['message-stream'].$post({ ... }));
  * for await (const event of stream) {
- *   if (event.type === 'llm:chunk') {
+ *   if (event.name === 'llm:chunk') {
  *     console.log(event.content);
  *   }
  * }

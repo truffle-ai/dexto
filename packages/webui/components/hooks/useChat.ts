@@ -1,5 +1,3 @@
-// Add the client directive
-'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type {
     TextPart as CoreTextPart,
@@ -628,7 +626,15 @@ export function useChat(
                 });
             }
         },
-        [processEvent, abortSession, getAbortController, setProcessing, setStatus, setError]
+        [
+            processEvent,
+            abortSession,
+            getAbortController,
+            setProcessing,
+            setStatus,
+            setError,
+            updateSessionActivity,
+        ]
     );
 
     const reset = useCallback(

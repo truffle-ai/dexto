@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useState } from 'react';
 import { Volume2 as VolumeIcon, Square as StopIcon } from 'lucide-react';
 import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';

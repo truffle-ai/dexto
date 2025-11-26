@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Zap, Plus } from 'lucide-react';
 import { Badge } from './ui/badge';

@@ -1,5 +1,3 @@
-'use client';
-
 import { ComponentPropsWithoutRef, forwardRef } from 'react';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';

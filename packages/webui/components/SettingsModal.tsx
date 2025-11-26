@@ -1,5 +1,3 @@
-'use client';
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Label } from './ui/label';
 import { SpeechVoiceSelect } from './ui/speech-voice-select';

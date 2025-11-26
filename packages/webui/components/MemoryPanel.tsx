@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import { useMemories, useDeleteMemory, type Memory } from './hooks/useMemories';
 import { formatRelativeTime } from '@/lib/date-utils';

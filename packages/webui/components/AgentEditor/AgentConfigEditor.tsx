@@ -5,7 +5,6 @@
  * Provides syntax highlighting, line numbers, and configurable editor options.
  * Validation is handled externally via the onValidate callback.
  */
-'use client';
 
 import React, { useRef, useEffect } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';

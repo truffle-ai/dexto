@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Wrench, Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';

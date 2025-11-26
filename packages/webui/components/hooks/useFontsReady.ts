@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useState } from 'react';
 
 // Returns true when the browser reports that page fonts are loaded.

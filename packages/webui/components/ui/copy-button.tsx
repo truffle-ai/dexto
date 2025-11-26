@@ -1,5 +1,3 @@
-'use client';
-
 import { useState } from 'react';
 import { Check as CheckIcon, Copy as CopyIcon } from 'lucide-react';
 import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';

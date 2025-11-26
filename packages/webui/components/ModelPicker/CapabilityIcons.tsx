@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { Lock, Eye, FileText, Mic, Brain } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
