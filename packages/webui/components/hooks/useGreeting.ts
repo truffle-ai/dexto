@@ -13,7 +13,6 @@ async function fetchGreeting(sessionId?: string | null): Promise<string | null> 
     return json.greeting ?? null;
 }
 
-// Note: Agent switch invalidation is now handled centrally in AgentSelector
 export function useGreeting(sessionId?: string | null) {
     const {
         data: greeting = null,

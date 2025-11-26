@@ -187,9 +187,8 @@ describe('DextoAgent.stream() API', () => {
                     }
                 }
 
-                // Reconstruct full content from chunks
+                // Reconstruct full content from chunks (chunkEvents already filtered to llm:chunk only)
                 const fullContent = chunkEvents
-                    .filter((e) => e.name === 'llm:chunk')
                     .map((e) => (e.name === 'llm:chunk' ? e.content : ''))
                     .join('');
 

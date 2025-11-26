@@ -2,8 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
-// List all sessions
-// Note: Agent switch invalidation is now handled centrally in AgentSelector
 export function useSessions(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.sessions.all,

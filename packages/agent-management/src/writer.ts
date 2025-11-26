@@ -1,7 +1,7 @@
 // packages/core/src/config/writer.ts
 
 import { promises as fs } from 'fs';
-import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from 'yaml';
+import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
 import type { LLMProvider, AgentConfig } from '@dexto/core';
 import { type GlobalPreferences } from './preferences/schemas.js';

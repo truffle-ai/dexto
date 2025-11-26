@@ -267,7 +267,7 @@ export function useChat(
         (event: MessageStreamEvent) => {
             // All streaming events must have sessionId
             if (!event.sessionId) {
-                console.error('Event missing sessionId:', event);
+                console.error(`Event missing sessionId: ${JSON.stringify(event)}`);
                 return;
             }
 
@@ -610,7 +610,9 @@ export function useChat(
                     return;
                 }
 
-                console.error('Stream error:', error);
+                console.error(
+                    `Stream error: ${error instanceof Error ? error.message : String(error)}`
+                );
                 setStatus(sessionId, 'closed');
                 setProcessing(sessionId, false);
 
@@ -646,7 +648,9 @@ export function useChat(
                     json: { sessionId },
                 });
             } catch (e) {
-                console.error('Failed to reset session', e);
+                console.error(
+                    `Failed to reset session: ${e instanceof Error ? e.message : String(e)}`
+                );
             }
 
             setMessages([]);

@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
 
-// Note: Agent switch invalidation is now handled centrally in AgentSelector
 export function useMemories(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.memories.all,

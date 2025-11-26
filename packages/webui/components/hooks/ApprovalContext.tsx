@@ -17,7 +17,7 @@ const ApprovalContext = createContext<ApprovalContextType | undefined>(undefined
 
 export function ApprovalProvider({ children }: { children: ReactNode }) {
     const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
-    const [queue, setQueue] = useState<ApprovalRequest[]>([]);
+    const [, setQueue] = useState<ApprovalRequest[]>([]);
 
     const processNextInQueue = useCallback(() => {
         setQueue((prevQueue) => {

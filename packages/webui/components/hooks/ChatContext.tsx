@@ -19,10 +19,10 @@ import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
 
 // Helper to get history endpoint type (workaround for string literal path)
-const historyEndpoint = client.api.sessions[':sessionId'].history;
+type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
 
 // Derive history message type from Hono client response (server schema is source of truth)
-type HistoryResponse = Awaited<ReturnType<(typeof historyEndpoint)['$get']>>;
+type HistoryResponse = Awaited<ReturnType<HistoryEndpoint['$get']>>;
 type HistoryData = Awaited<ReturnType<Extract<HistoryResponse, { ok: true }>['json']>>;
 type HistoryMessage = HistoryData['history'][number];
 
@@ -323,16 +323,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     // Fetch current LLM config using TanStack Query
-    const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery<
-        {
-            provider: string;
-            model: string;
-            displayName?: string;
-            router?: string;
-            baseURL?: string;
-        },
-        Error
-    >({
+    const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery({
         queryKey: queryKeys.llm.current(currentSessionId),
         queryFn: async () => {
             const response = await client.api.llm.current.$get({
@@ -510,7 +501,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }, [currentSessionId, setSessionError]);
 
     // Load session history when switching sessions
-    const { data: sessionHistoryData } = useQuery<Message[], Error>({
+    const { data: sessionHistoryData } = useQuery({
         queryKey: queryKeys.sessions.history(currentSessionId || ''),
         queryFn: async () => {
             if (!currentSessionId) {
@@ -540,7 +531,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const loadSessionHistory = useCallback(
         async (sessionId: string) => {
             try {
-                const result = await queryClient.fetchQuery<Message[], Error>({
+                const result = await queryClient.fetchQuery({
                     queryKey: queryKeys.sessions.history(sessionId),
                     queryFn: async () => {
                         try {
@@ -629,14 +620,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setCurrentSessionId(null);
         setIsWelcomeState(true);
         setMessages([]);
-        // Note: currentLLM will automatically refetch when currentSessionId changes to null
     }, [setMessages]);
-
-    // Note: dexto:configChanged, dexto:serversChanged, dexto:conversationReset DOM listeners removed
-    // These were dead code (never dispatched as DOM events)
-    // - Config changes handled via React Query
-    // - Server changes handled via useServers hook
-    // - Session reset is direct state update, not DOM event
 
     return (
         <ChatContext.Provider

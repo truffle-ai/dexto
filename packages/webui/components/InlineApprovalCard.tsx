@@ -198,12 +198,14 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             <div className="flex items-center gap-2 text-muted-foreground">
                 <AlertTriangle className="h-4 w-4" />
                 <span className="font-medium text-sm">
-                    {approval.type === 'elicitation' ? 'Information Request' : 'Approval Required'}
+                    {approval.type === ApprovalType.ELICITATION
+                        ? 'Information Request'
+                        : 'Approval Required'}
                 </span>
             </div>
 
             {/* Content */}
-            {approval.type === 'command_confirmation' ? (
+            {approval.type === ApprovalType.COMMAND_CONFIRMATION ? (
                 <div className="space-y-3 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <Wrench className="h-4 w-4 flex-shrink-0" />
@@ -234,7 +236,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         </p>
                     </div>
                 </div>
-            ) : approval.type === 'elicitation' ? (
+            ) : approval.type === ApprovalType.ELICITATION ? (
                 <div className="space-y-4 min-w-0">
                     <div className="bg-muted/50 p-3 rounded-md border border-border min-w-0">
                         <p className="text-sm font-medium mb-1 break-words">
@@ -247,7 +249,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
 
                     <div>
                         {(() => {
-                            const schema = approval.metadata.schema as JSONSchema7;
+                            const { schema } = approval.metadata;
                             if (!schema?.properties || typeof schema.properties !== 'object') {
                                 return (
                                     <p className="text-sm text-red-600 dark:text-red-400">
@@ -274,7 +276,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         })()}
                     </div>
                 </div>
-            ) : approval.type === 'tool_confirmation' ? (
+            ) : approval.type === ApprovalType.TOOL_CONFIRMATION ? (
                 <div className="space-y-3 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <Wrench className="h-4 w-4 flex-shrink-0" />
@@ -311,10 +313,10 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             {/* Actions */}
             <div className="flex gap-2 justify-end pt-3 border-t border-border">
                 <Button variant="outline" onClick={onDeny} size="sm">
-                    {approval.type === 'elicitation' ? 'Decline' : 'Deny'}
+                    {approval.type === ApprovalType.ELICITATION ? 'Decline' : 'Deny'}
                 </Button>
                 <Button onClick={handleApprove} size="sm">
-                    {approval.type === 'elicitation' ? 'Submit' : 'Approve'}
+                    {approval.type === ApprovalType.ELICITATION ? 'Submit' : 'Approve'}
                 </Button>
             </div>
         </div>

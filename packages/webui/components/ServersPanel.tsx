@@ -222,10 +222,6 @@ export default function ServersPanel({
         }
     }, [refreshTrigger, isOpen, refetchServers]);
 
-    // Note: mcp:server-connected and resource:cache-invalidated DOM listeners removed
-    // - mcp:server-connected was dead code (never dispatched as DOM event)
-    // - resource invalidation handled via React Query's built-in mechanisms
-
     const selectedServer = servers.find((s) => s.id === selectedServerId);
 
     // For inline variant, just return the content wrapped

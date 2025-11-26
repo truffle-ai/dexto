@@ -2,8 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 
-// Fetch all MCP servers
-// Note: Agent switch invalidation is now handled centrally in AgentSelector
 export function useServers(enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.servers.all,
@@ -21,8 +19,6 @@ export function useServers(enabled: boolean = true) {
     });
 }
 
-// Fetch tools for a specific server
-// Note: Agent switch invalidation is now handled centrally in AgentSelector
 export function useServerTools(serverId: string | null, enabled: boolean = true) {
     return useQuery({
         queryKey: queryKeys.servers.tools(serverId || ''),
@@ -58,6 +54,7 @@ export function useAddServer() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
         },
     });
 }
@@ -78,6 +75,7 @@ export function useDeleteServer() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
         },
     });
 }
@@ -99,6 +97,7 @@ export function useRestartServer() {
         onSuccess: (serverId) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
             // Invalidate tools for this server as they may have changed after restart
             queryClient.invalidateQueries({ queryKey: queryKeys.servers.tools(serverId) });
         },
