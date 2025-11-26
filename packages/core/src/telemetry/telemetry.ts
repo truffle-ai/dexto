@@ -8,7 +8,6 @@ type NodeSDKType = import('@opentelemetry/sdk-node').NodeSDK;
 type ConsoleSpanExporterType = import('@opentelemetry/sdk-trace-base').ConsoleSpanExporter;
 type OTLPHttpExporterType = import('@opentelemetry/exporter-trace-otlp-http').OTLPTraceExporter;
 type OTLPGrpcExporterType = import('@opentelemetry/exporter-trace-otlp-grpc').OTLPTraceExporter;
-type ResourceType = import('@opentelemetry/resources').Resource;
 
 // Add type declaration for global namespace
 declare global {
@@ -54,9 +53,20 @@ export class Telemetry {
         }
         if (e.type === 'otlp') {
             if (e.protocol === 'grpc') {
-                const { OTLPTraceExporter: OTLPGrpcExporter } = await import(
-                    '@opentelemetry/exporter-trace-otlp-grpc'
-                );
+                let OTLPGrpcExporter: typeof import('@opentelemetry/exporter-trace-otlp-grpc').OTLPTraceExporter;
+                try {
+                    const mod = await import('@opentelemetry/exporter-trace-otlp-grpc');
+                    OTLPGrpcExporter = mod.OTLPTraceExporter;
+                } catch (err) {
+                    const error = err as NodeJS.ErrnoException;
+                    if (error.code === 'ERR_MODULE_NOT_FOUND') {
+                        throw new Error(
+                            'OTLP gRPC exporter configured but @opentelemetry/exporter-trace-otlp-grpc is not installed.\n' +
+                                'Install with: npm install @opentelemetry/exporter-trace-otlp-grpc'
+                        );
+                    }
+                    throw err;
+                }
                 const options: { url?: string } = {};
                 if (e.endpoint) {
                     options.url = e.endpoint;
@@ -64,9 +74,20 @@ export class Telemetry {
                 return new OTLPGrpcExporter(options);
             }
             // default to http when omitted
-            const { OTLPTraceExporter: OTLPHttpExporter } = await import(
-                '@opentelemetry/exporter-trace-otlp-http'
-            );
+            let OTLPHttpExporter: typeof import('@opentelemetry/exporter-trace-otlp-http').OTLPTraceExporter;
+            try {
+                const mod = await import('@opentelemetry/exporter-trace-otlp-http');
+                OTLPHttpExporter = mod.OTLPTraceExporter;
+            } catch (err) {
+                const error = err as NodeJS.ErrnoException;
+                if (error.code === 'ERR_MODULE_NOT_FOUND') {
+                    throw new Error(
+                        'OTLP HTTP exporter configured but @opentelemetry/exporter-trace-otlp-http is not installed.\n' +
+                            'Install with: npm install @opentelemetry/exporter-trace-otlp-http'
+                    );
+                }
+                throw err;
+            }
             const options: { url?: string; headers?: Record<string, string> } = {};
             if (e.endpoint) {
                 options.url = e.endpoint;
