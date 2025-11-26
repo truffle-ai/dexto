@@ -60,18 +60,6 @@ export interface ToolResult {
 }
 
 /**
- * Tool call representation
- */
-export interface ToolCall {
-    id: string;
-    toolName: string;
-    input: any;
-    output?: any;
-    error?: string;
-    duration?: number;
-}
-
-/**
  * Interface for any provider of tools
  */
 export interface ToolProvider {

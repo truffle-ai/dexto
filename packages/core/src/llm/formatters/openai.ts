@@ -226,7 +226,16 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
                     return { type: 'image_url', image_url: { url } };
                 }
                 if (part.type === 'file') {
-                    return { type: 'file', file: part };
+                    // Transform FilePart to OpenAI's expected File format
+                    // Note: This is a simplified conversion - OpenAI expects file_data (base64) or file_id
+                    const fileData = typeof part.data === 'string' ? part.data : undefined;
+                    return {
+                        type: 'file' as const,
+                        file: {
+                            ...(fileData && { file_data: fileData }),
+                            ...(part.filename && { filename: part.filename }),
+                        },
+                    };
                 }
                 return null;
             })

@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema } from '@dexto/core';
+import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema, InternalMessageSchema } from '@dexto/core';
 
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
@@ -16,6 +16,24 @@ import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema } from '@dexto/core';
 
 // Memory schemas
 export { MemorySchema } from '@dexto/core';
+
+// Context schemas (message types)
+export {
+    TextPartSchema,
+    ImagePartSchema,
+    FilePartSchema,
+    ContentPartSchema,
+    TokenUsageSchema,
+    ToolCallSchema,
+    InternalMessageSchema,
+    type TextPart,
+    type ImagePart,
+    type FilePart,
+    type ContentPart,
+    type TokenUsage,
+    type ToolCall,
+    type InternalMessage,
+} from '@dexto/core';
 
 // LLM schemas
 export { LLMConfigBaseSchema, type ValidatedLLMConfig } from '@dexto/core';
@@ -56,34 +74,6 @@ export { InternalResourceConfigSchema } from '@dexto/core';
 // New schemas for types that don't have Zod equivalents in core
 // ============================================================================
 
-// --- Binary Data Schema ---
-
-/**
- * Schema for binary data that can be string, Buffer, Uint8Array, or URL.
- * Uses z.custom<string | unknown>() to avoid DTS complexity - TypeScript consumers see
- * 'string | unknown' (where unknown represents binary data), while runtime validation
- * still properly validates all supported types.
- *
- * Note: Even Uint8Array alone causes DTS generation failures due to structural type expansion,
- * so we must use 'unknown' for binary types to keep .d.ts files manageable.
- *
- * TODO: Investigate alternatives for better type information in .d.ts files:
- *       - Custom type bundling/declaration generation
- *       - Runtime-only validation with separate type definitions
- *       - tsup configuration adjustments to handle structural types
- */
-const BinaryDataSchema = z.custom<string | unknown>(
-    (val) => {
-        return (
-            typeof val === 'string' ||
-            val instanceof Buffer ||
-            val instanceof Uint8Array ||
-            val instanceof URL
-        );
-    },
-    { message: 'Must be string, Buffer, Uint8Array, or URL' }
-);
-
 // --- Session Schemas ---
 
 export const SessionMetadataSchema = z
@@ -112,94 +102,6 @@ export const SessionMetadataSchema = z
     .describe('Session metadata');
 
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
-
-// --- Message Schemas ---
-
-const TextPartSchema = z
-    .object({
-        type: z.literal('text').describe('Part type: text'),
-        text: z.string().describe('Text content'),
-    })
-    .strict()
-    .describe('Text content part');
-
-const ImagePartSchema = z
-    .object({
-        type: z.literal('image').describe('Part type: image'),
-        image: BinaryDataSchema.describe('Image data (string, binary, or URL)'),
-        mimeType: z.string().optional().describe('MIME type of the image'),
-    })
-    .strict()
-    .describe('Image content part');
-
-const FilePartSchema = z
-    .object({
-        type: z.literal('file').describe('Part type: file'),
-        data: BinaryDataSchema.describe('File data (string, binary, or URL)'),
-        mimeType: z.string().describe('MIME type of the file'),
-        filename: z.string().optional().describe('Optional filename'),
-    })
-    .strict()
-    .describe('File content part');
-
-const ContentPartSchema = z
-    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
-    .describe('Message content part (text, image, or file)');
-
-const ToolCallSchema = z
-    .object({
-        id: z.string().describe('Unique identifier for this tool call'),
-        type: z
-            .literal('function')
-            .describe('Tool call type (currently only function is supported)'),
-        function: z
-            .object({
-                name: z.string().describe('Name of the function to call'),
-                arguments: z.string().describe('Arguments for the function in JSON string format'),
-            })
-            .strict()
-            .describe('Function call details'),
-    })
-    .strict()
-    .describe('Tool call made by the assistant');
-
-export const TokenUsageSchema = z
-    .object({
-        inputTokens: z.number().int().nonnegative().optional().describe('Number of input tokens'),
-        outputTokens: z.number().int().nonnegative().optional().describe('Number of output tokens'),
-        reasoningTokens: z
-            .number()
-            .int()
-            .nonnegative()
-            .optional()
-            .describe('Number of reasoning tokens'),
-        totalTokens: z.number().int().nonnegative().optional().describe('Total tokens used'),
-    })
-    .strict()
-    .describe('Token usage accounting');
-
-export const InternalMessageSchema = z
-    .object({
-        role: z
-            .enum(['system', 'user', 'assistant', 'tool'])
-            .describe('Role of the message sender'),
-        timestamp: z.number().int().positive().optional().describe('Creation timestamp (Unix ms)'),
-        content: z
-            .union([z.string(), z.null(), z.array(ContentPartSchema)])
-            .describe('Message content (string, null, or array of parts)'),
-        reasoning: z.string().optional().describe('Optional model reasoning text'),
-        tokenUsage: TokenUsageSchema.optional().describe('Optional token usage accounting'),
-        model: z.string().optional().describe('Model identifier for assistant messages'),
-        provider: z.string().optional().describe('Provider identifier for assistant messages'),
-        router: z.string().optional().describe('Router metadata for assistant messages'),
-        toolCalls: z.array(ToolCallSchema).optional().describe('Tool calls made by the assistant'),
-        toolCallId: z.string().optional().describe('ID of the tool call this message responds to'),
-        name: z.string().optional().describe('Name of the tool that produced this result'),
-    })
-    .strict()
-    .describe('Internal message representation');
-
-export type InternalMessage = z.output<typeof InternalMessageSchema>;
 
 // --- Search Schemas ---
 

@@ -138,8 +138,8 @@ describe('DextoAgent.stream() API', () => {
                 expect(events.length).toBeGreaterThan(0);
                 expect(events[0]).toBeDefined();
                 expect(events[events.length - 1]).toBeDefined();
-                expect(events[0]!.type).toBe('llm:thinking');
-                expect(events[events.length - 1]!.type).toBe('llm:response');
+                expect(events[0]!.name).toBe('llm:thinking');
+                expect(events[events.length - 1]!.name).toBe('llm:response');
 
                 // Validate message-start event
                 // First event is typically llm:thinking
@@ -150,7 +150,7 @@ describe('DextoAgent.stream() API', () => {
                 // Final event should be llm:response with usage stats
                 const completeEvent = events[events.length - 1];
                 expect(completeEvent).toBeDefined();
-                if (completeEvent && completeEvent.type === 'llm:response') {
+                if (completeEvent && completeEvent.name === 'llm:response') {
                     expect(completeEvent.content).toBeTruthy();
                     expect(completeEvent.tokenUsage?.totalTokens).toBeGreaterThan(0);
                 }
@@ -171,7 +171,7 @@ describe('DextoAgent.stream() API', () => {
                 for await (const event of await env.agent.stream('Say hello', {
                     sessionId: env.sessionId,
                 })) {
-                    if (event.type === 'llm:chunk') {
+                    if (event.name === 'llm:chunk') {
                         chunkEvents.push(event);
                     }
                 }
@@ -181,7 +181,7 @@ describe('DextoAgent.stream() API', () => {
 
                 // Validate chunk structure
                 for (const event of chunkEvents) {
-                    if (event.type === 'llm:chunk') {
+                    if (event.name === 'llm:chunk') {
                         expect(event.content).toBeDefined();
                         expect(typeof event.content).toBe('string');
                         expect(event.chunkType).toMatch(/^(text|reasoning)$/);
@@ -190,8 +190,8 @@ describe('DextoAgent.stream() API', () => {
 
                 // Reconstruct full content from chunks
                 const fullContent = chunkEvents
-                    .filter((e) => e.type === 'llm:chunk')
-                    .map((e) => (e.type === 'llm:chunk' ? e.content : ''))
+                    .filter((e) => e.name === 'llm:chunk')
+                    .map((e) => (e.name === 'llm:chunk' ? e.content : ''))
                     .join('');
 
                 expect(fullContent.length).toBeGreaterThan(0);
@@ -219,8 +219,8 @@ describe('DextoAgent.stream() API', () => {
                 expect(events.length).toBeGreaterThan(0);
                 expect(events[0]).toBeDefined();
                 expect(events[events.length - 1]).toBeDefined();
-                expect(events[0]!.type).toBe('llm:thinking');
-                expect(events[events.length - 1]!.type).toBe('llm:response');
+                expect(events[0]!.name).toBe('llm:thinking');
+                expect(events[events.length - 1]!.name).toBe('llm:response');
             } finally {
                 await cleanupTestEnvironment(env);
             }
@@ -249,8 +249,8 @@ describe('DextoAgent.stream() API', () => {
                     events2.push(event);
                 }
 
-                const completeEvent2 = events2.find((e) => e.type === 'llm:response');
-                if (completeEvent2 && completeEvent2.type === 'llm:response') {
+                const completeEvent2 = events2.find((e) => e.name === 'llm:response');
+                if (completeEvent2 && completeEvent2.name === 'llm:response') {
                     expect(completeEvent2.content.toLowerCase()).toContain('blue');
                 }
             } finally {
@@ -281,8 +281,8 @@ describe('DextoAgent.stream() API', () => {
                     expect(events.length).toBeGreaterThan(0);
                     expect(events[0]).toBeDefined();
                     expect(events[events.length - 1]).toBeDefined();
-                    expect(events[0]!.type).toBe('llm:thinking');
-                    expect(events[events.length - 1]!.type).toBe('llm:response');
+                    expect(events[0]!.name).toBe('llm:thinking');
+                    expect(events[events.length - 1]!.name).toBe('llm:response');
                 } finally {
                     await cleanupTestEnvironment(env);
                 }
@@ -355,8 +355,8 @@ describe('DextoAgent API Compatibility', () => {
                     events.push(event);
                 }
 
-                const completeEvent = events.find((e) => e.type === 'llm:response');
-                if (completeEvent && completeEvent.type === 'llm:response') {
+                const completeEvent = events.find((e) => e.name === 'llm:response');
+                if (completeEvent && completeEvent.name === 'llm:response') {
                     expect(completeEvent.content.toLowerCase()).toContain('bob');
                 }
             } finally {
