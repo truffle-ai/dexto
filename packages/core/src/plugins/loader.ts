@@ -137,7 +137,24 @@ export async function loadPluginModule(modulePath: string, pluginName: string): 
             // Use computed string + webpackIgnore to prevent webpack from analyzing/bundling tsx
             // This tells webpack to skip this import during static analysis
             const tsxPackage = 'tsx/esm/api';
-            const tsx = await import(/* webpackIgnore: true */ tsxPackage);
+            let tsx: any;
+            try {
+                tsx = await import(/* webpackIgnore: true */ tsxPackage);
+            } catch (importError: unknown) {
+                const err = importError as NodeJS.ErrnoException;
+                if (err.code === 'ERR_MODULE_NOT_FOUND') {
+                    throw new DextoRuntimeError(
+                        PluginErrorCode.PLUGIN_DEPENDENCY_NOT_INSTALLED,
+                        ErrorScope.PLUGIN,
+                        ErrorType.USER,
+                        `Cannot load TypeScript plugin '${pluginName}': tsx package is not installed.\n` +
+                            `Install with: npm install tsx\n` +
+                            `Or pre-compile your plugin to .js for production use.`,
+                        { modulePath, pluginName, packageName: 'tsx' }
+                    );
+                }
+                throw importError;
+            }
             // Convert absolute path to file:// URL for cross-platform ESM compatibility
             const moduleUrl = pathToFileURL(modulePath).href;
             pluginModule = await tsx.tsImport(moduleUrl, import.meta.url);
@@ -149,7 +166,12 @@ export async function loadPluginModule(modulePath: string, pluginName: string): 
         }
 
         // Check for default export
-        const PluginClass = pluginModule.default;
+        // Handle tsx ESM interop which may double-wrap the default export
+        // as { default: { default: [class] } } instead of { default: [class] }
+        let PluginClass = pluginModule.default;
+        if (PluginClass && typeof PluginClass === 'object' && 'default' in PluginClass) {
+            PluginClass = PluginClass.default;
+        }
 
         if (!PluginClass) {
             throw new DextoRuntimeError(

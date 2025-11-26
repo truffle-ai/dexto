@@ -7,6 +7,9 @@ export enum StorageErrorCode {
     MANAGER_NOT_INITIALIZED = 'storage_manager_not_initialized',
     MANAGER_NOT_CONNECTED = 'storage_manager_not_connected',
 
+    // Dependencies
+    DEPENDENCY_NOT_INSTALLED = 'storage_dependency_not_installed',
+
     // Connection
     CONNECTION_FAILED = 'storage_connection_failed',
     CONNECTION_CONFIG_MISSING = 'storage_connection_config_missing',

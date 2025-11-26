@@ -29,8 +29,9 @@ export default function CustomTextInput({
     // This needs to run with isActive: true to intercept before TextInput
     useInput(
         (inputChar, key) => {
-            // Handle Shift+Enter for newline
-            if (key.return && key.shift) {
+            // Handle Shift+Enter or Ctrl+E to toggle multi-line mode
+            // Note: Shift+Enter may not work in all terminals, Ctrl+E is more reliable
+            if ((key.return && key.shift) || (key.ctrl && inputChar === 'e')) {
                 onNewline?.();
                 return;
             }

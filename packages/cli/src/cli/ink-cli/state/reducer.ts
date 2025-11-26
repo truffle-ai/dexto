@@ -20,10 +20,15 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 input: {
                     ...state.input,
                     value: action.value,
-                    remountKey: action.forceRemount
-                        ? state.input.remountKey + 1
-                        : state.input.remountKey,
                 },
+                // Clear exit warning when user starts typing
+                ui: state.ui.exitWarningShown
+                    ? {
+                          ...state.ui,
+                          exitWarningShown: false,
+                          exitWarningTimestamp: null,
+                      }
+                    : state.ui,
             };
 
         case 'INPUT_CLEAR':
@@ -33,8 +38,6 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     ...state.input,
                     value: '',
                     historyIndex: -1,
-                    remountKey: state.input.remountKey + 1,
-                    isMultiLine: false, // Reset to single-line on clear
                 },
             };
 
@@ -44,21 +47,32 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
 
             let newIndex = state.input.historyIndex;
             if (action.direction === 'up') {
-                newIndex = newIndex < 0 ? history.length - 1 : Math.max(0, newIndex - 1);
+                // Navigate backward through history (older items)
+                // From -1 (current input) -> last history item -> ... -> first history item
+                if (newIndex < 0) {
+                    newIndex = history.length - 1; // Start at most recent
+                } else if (newIndex > 0) {
+                    newIndex = newIndex - 1; // Go to older
+                }
+                // If at 0, stay there (oldest item)
             } else {
-                newIndex = newIndex + 1;
-            }
-
-            // If we've gone past the end, clear input
-            if (newIndex >= history.length) {
-                return {
-                    ...state,
-                    input: {
-                        ...state.input,
-                        value: '',
-                        historyIndex: -1,
-                    },
-                };
+                // Navigate forward through history (newer items)
+                // From first history item -> ... -> last history item -> current input (-1)
+                if (newIndex >= 0 && newIndex < history.length - 1) {
+                    newIndex = newIndex + 1; // Go to newer
+                } else if (newIndex === history.length - 1) {
+                    // At most recent history, go back to current input
+                    return {
+                        ...state,
+                        input: {
+                            ...state.input,
+                            value: '',
+                            historyIndex: -1,
+                        },
+                    };
+                }
+                // If at -1, stay there (no change needed)
+                if (newIndex < 0) return state;
             }
 
             const historyItem = history[newIndex];
@@ -78,16 +92,6 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 input: {
                     ...state.input,
                     historyIndex: -1,
-                },
-            };
-
-        case 'INPUT_TOGGLE_MULTILINE':
-            return {
-                ...state,
-                input: {
-                    ...state.input,
-                    isMultiLine: !state.input.isMultiLine,
-                    remountKey: state.input.remountKey + 1,
                 },
             };
 
@@ -272,14 +276,14 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     value: '',
                     history: newHistory,
                     historyIndex: -1,
-                    remountKey: state.input.remountKey + 1,
-                    isMultiLine: false, // Reset to single-line after submit
                 },
                 ui: {
                     ...state.ui,
                     isProcessing: true,
                     isCancelling: false, // Clear cancellation flag for new request
                     activeOverlay: 'none',
+                    exitWarningShown: false, // Clear exit warning on new submission
+                    exitWarningTimestamp: null,
                 },
             };
         }
@@ -464,6 +468,27 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 streamingMessage: null,
             };
         }
+
+        // Exit warning actions (for double Ctrl+C to exit)
+        case 'EXIT_WARNING_SHOW':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    exitWarningShown: true,
+                    exitWarningTimestamp: Date.now(),
+                },
+            };
+
+        case 'EXIT_WARNING_CLEAR':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    exitWarningShown: false,
+                    exitWarningTimestamp: null,
+                },
+            };
 
         default:
             return state;

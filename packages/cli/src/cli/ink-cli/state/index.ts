@@ -20,7 +20,6 @@ export type {
     InputClearAction,
     InputHistoryNavigateAction,
     InputHistoryResetAction,
-    InputToggleMultiLineAction,
     MessageAddAction,
     MessageAddMultipleAction,
     MessageInsertBeforeStreamingAction,

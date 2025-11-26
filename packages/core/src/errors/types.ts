@@ -15,6 +15,7 @@ import type { MemoryErrorCode } from '@core/memory/error-codes.js';
 import type { PluginErrorCode } from '@core/plugins/error-codes.js';
 import type { FileSystemErrorCode } from '@core/filesystem/error-codes.js';
 import type { ProcessErrorCode } from '@core/process/error-codes.js';
+import type { TelemetryErrorCode } from '@core/telemetry/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system
@@ -37,6 +38,7 @@ export enum ErrorScope {
     PLUGIN = 'plugin', // Plugin loading, validation, and execution
     FILESYSTEM = 'filesystem', // File system operations and path validation
     PROCESS = 'process', // Process execution and command validation
+    TELEMETRY = 'telemetry', // Telemetry initialization and export operations
 }
 
 /**
@@ -75,7 +77,8 @@ export type DextoErrorCode =
     | MemoryErrorCode
     | PluginErrorCode
     | FileSystemErrorCode
-    | ProcessErrorCode;
+    | ProcessErrorCode
+    | TelemetryErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

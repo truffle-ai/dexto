@@ -4,7 +4,7 @@
  * Used by ModelSelector and SessionSelector
  */
 
-import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 export interface BaseSelectorProps<T> {
@@ -42,9 +42,18 @@ export function BaseSelector<T>({
     borderColor = 'cyan',
 }: BaseSelectorProps<T>) {
     const [scrollOffset, setScrollOffset] = useState(0);
-    const selectedIndexRef = useRef(0);
+    const selectedIndexRef = useRef(selectedIndex);
 
-    // Keep ref in sync
+    // Wrapper to update both parent state and ref synchronously to prevent race conditions
+    const handleSelectIndex = useCallback(
+        (newIndex: number) => {
+            selectedIndexRef.current = newIndex;
+            onSelectIndex(newIndex);
+        },
+        [onSelectIndex]
+    );
+
+    // Keep ref in sync with prop changes (e.g., when parent resets selection)
     useEffect(() => {
         selectedIndexRef.current = selectedIndex;
     }, [selectedIndex]);
@@ -73,14 +82,12 @@ export function BaseSelector<T>({
 
             if (key.upArrow) {
                 const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
-                selectedIndexRef.current = nextIndex;
-                onSelectIndex(nextIndex);
+                handleSelectIndex(nextIndex);
             }
 
             if (key.downArrow) {
                 const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
-                selectedIndexRef.current = nextIndex;
-                onSelectIndex(nextIndex);
+                handleSelectIndex(nextIndex);
             }
 
             if (key.escape) {

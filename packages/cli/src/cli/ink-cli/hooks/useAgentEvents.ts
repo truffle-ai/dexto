@@ -4,7 +4,7 @@
  */
 
 import type React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { DextoAgent, AgentEventBus } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
 import type { CLIAction } from '../state/actions.js';
@@ -22,6 +22,13 @@ interface UseAgentEventsProps {
  * Decouples event bus from UI components
  */
 export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEventsProps): void {
+    // Use ref for isCancelling to avoid re-registering event handlers on every state change
+    // This prevents race conditions where events could be lost during handler re-registration
+    const isCancellingRef = useRef(isCancelling);
+    useEffect(() => {
+        isCancellingRef.current = isCancelling;
+    }, [isCancelling]);
+
     useEffect(() => {
         const bus: AgentEventBus = agent.agentEventBus;
 
@@ -30,7 +37,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         // Currently it just indicates LLM request start, not reasoning token generation
         // See: https://www.anthropic.com/news/3-5-models-and-computer-use (extended thinking)
         const handleThinking = () => {
-            if (isCancelling) return;
+            if (isCancellingRef.current) return;
             dispatch({ type: 'THINKING_START' });
         };
 
@@ -41,7 +48,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             isComplete?: boolean;
             sessionId: string;
         }) => {
-            if (isCancelling) return; // Ignore events during cancellation
+            if (isCancellingRef.current) return; // Ignore events during cancellation
             // End thinking state when first chunk arrives
             dispatch({ type: 'THINKING_END' });
             if (payload.chunkType === 'text') {
@@ -54,7 +61,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
 
         // Handle response completion
         const handleResponse = (payload: { content: string }) => {
-            if (isCancelling) return; // Ignore events during cancellation
+            if (isCancellingRef.current) return; // Ignore events during cancellation
             dispatch({
                 type: 'STREAMING_END',
                 content: payload.content,
@@ -77,7 +84,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
 
         // Handle tool calls
         const handleToolCall = (payload: { toolName: string; args: any; callId?: string }) => {
-            if (isCancelling) return; // Ignore events during cancellation
+            if (isCancellingRef.current) return; // Ignore events during cancellation
 
             // Format args for display (compact, one-line)
             let argsPreview = '';
@@ -120,7 +127,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             rawResult?: any;
             success: boolean;
         }) => {
-            if (isCancelling) return; // Ignore events during cancellation
+            if (isCancellingRef.current) return; // Ignore events during cancellation
 
             // Format result preview (4-5 CLI lines, ~400 chars accounting for wrapping)
             let resultPreview = '';
@@ -247,5 +254,5 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             bus.off('session:reset', handleConversationReset);
             bus.off('session:created', handleSessionCreated);
         };
-    }, [agent, dispatch, isCancelling]);
+    }, [agent, dispatch]); // Note: isCancelling is accessed via ref to avoid re-registering handlers
 }

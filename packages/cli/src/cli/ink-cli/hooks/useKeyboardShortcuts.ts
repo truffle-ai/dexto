@@ -1,9 +1,10 @@
 /**
  * Hook for global keyboard shortcuts
- * Handles shortcuts like Ctrl+C, Escape, etc.
+ * Handles shortcuts like Ctrl+C (with double-press to exit), Escape, etc.
  */
 
 import type React from 'react';
+import { useEffect, useRef } from 'react';
 import { useInput, useApp } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import type { CLIAction } from '../state/actions.js';
@@ -15,15 +16,45 @@ interface UseKeyboardShortcutsProps {
     agent: DextoAgent;
 }
 
+/** Time window for double Ctrl+C to exit (in milliseconds) */
+const EXIT_WARNING_TIMEOUT = 3000;
+
 /**
  * Manages global keyboard shortcuts
+ * - Ctrl+C: Cancel processing (if running) or show exit warning (press again to exit)
+ * - Escape: Cancel processing or close overlays
  */
 export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShortcutsProps): void {
     const { exit } = useApp();
 
+    // Use ref for session.id to avoid stale closures in async operations
+    const sessionIdRef = useRef(state.session.id);
+    useEffect(() => {
+        sessionIdRef.current = state.session.id;
+    }, [state.session.id]);
+
+    // Auto-clear exit warning after timeout
+    useEffect(() => {
+        if (!state.ui.exitWarningShown || !state.ui.exitWarningTimestamp) return;
+
+        const elapsed = Date.now() - state.ui.exitWarningTimestamp;
+        const remaining = EXIT_WARNING_TIMEOUT - elapsed;
+
+        if (remaining <= 0) {
+            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+        }, remaining);
+
+        return () => clearTimeout(timer);
+    }, [state.ui.exitWarningShown, state.ui.exitWarningTimestamp, dispatch]);
+
     useInput(
         (inputChar, key) => {
-            // Don't intercept if approval prompt is active
+            // Don't intercept if approval prompt is active (it handles its own keys)
             if (state.approval) {
                 return;
             }
@@ -33,31 +64,50 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
                 return;
             }
 
-            // Ctrl+C: Cancel or exit
+            // Ctrl+C: Cancel processing or exit (with double-press safety)
             if (key.ctrl && inputChar === 'c') {
                 if (state.ui.isProcessing) {
-                    if (!state.session.id) {
-                        console.error('Warning: Cannot cancel - no active session ID');
-                        // Allow forced exit if stuck
+                    // Cancel the current operation
+                    const currentSessionId = sessionIdRef.current;
+                    if (!currentSessionId) {
+                        // No session - force exit as fallback
                         exit();
                         return;
                     }
-                    void agent.cancel(state.session.id).catch(() => {});
+                    void agent.cancel(currentSessionId).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });
-                } else if (!state.ui.isProcessing) {
-                    exit();
+                    // Clear exit warning if it was shown
+                    if (state.ui.exitWarningShown) {
+                        dispatch({ type: 'EXIT_WARNING_CLEAR' });
+                    }
+                } else {
+                    // Not processing - handle exit with double-press safety
+                    if (state.ui.exitWarningShown) {
+                        // Second Ctrl+C within timeout - actually exit
+                        exit();
+                    } else {
+                        // First Ctrl+C - show warning
+                        dispatch({ type: 'EXIT_WARNING_SHOW' });
+                    }
                 }
+                return;
             }
 
-            // Escape: Cancel or close
+            // Escape: Cancel processing or close overlay
             if (key.escape) {
+                // Clear exit warning if shown
+                if (state.ui.exitWarningShown) {
+                    dispatch({ type: 'EXIT_WARNING_CLEAR' });
+                    return;
+                }
+
                 if (state.ui.isProcessing) {
-                    if (!state.session.id) {
-                        console.error('Warning: Cannot cancel - no active session ID');
+                    const currentSessionId = sessionIdRef.current;
+                    if (!currentSessionId) {
                         return;
                     }
-                    void agent.cancel(state.session.id).catch(() => {});
+                    void agent.cancel(currentSessionId).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
                     dispatch({ type: 'STREAMING_CANCEL' });
                 } else if (state.ui.activeOverlay !== 'none') {
@@ -65,8 +115,7 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
                 }
             }
         },
-        {
-            isActive: !state.ui.isProcessing || state.ui.activeOverlay === 'none',
-        }
+        // Always active - we handle guards internally for more reliable behavior
+        { isActive: true }
     );
 }

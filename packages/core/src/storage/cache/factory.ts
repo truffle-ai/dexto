@@ -2,6 +2,7 @@ import type { Cache } from './types.js';
 import type { RedisCacheConfig, CacheConfig } from '../schemas.js';
 import { MemoryCacheStore } from './memory-cache-store.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
+import { StorageError } from '../errors.js';
 
 // Type for Redis store constructor
 interface RedisStoreConstructor {
@@ -13,7 +14,8 @@ let RedisStore: RedisStoreConstructor | null = null;
 
 /**
  * Create a cache store based on configuration.
- * Handles lazy loading of optional dependencies with automatic fallback.
+ * Handles lazy loading of optional dependencies.
+ * Throws StorageError.dependencyNotInstalled if required package is missing.
  * @param config Cache configuration
  * @param logger Logger instance for logging
  */
@@ -37,8 +39,11 @@ async function createRedisStore(config: RedisCacheConfig, logger: IDextoLogger):
         }
         logger.info(`Connecting to Redis at ${config.host}:${config.port}`);
         return new RedisStore(config, logger);
-    } catch (error) {
-        logger.warn(`Redis not available, falling back to in-memory cache: ${error}`);
-        return new MemoryCacheStore();
+    } catch (error: unknown) {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === 'ERR_MODULE_NOT_FOUND') {
+            throw StorageError.dependencyNotInstalled('Redis', 'ioredis', 'npm install ioredis');
+        }
+        throw error;
     }
 }
