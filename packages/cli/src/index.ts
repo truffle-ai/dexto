@@ -86,7 +86,9 @@ await initAnalytics({ appVersion: pkg.version });
 // 1) GLOBAL OPTIONS
 program
     .name('dexto')
-    .description('AI-powered CLI and WebUI for interacting with MCP servers')
+    .description(
+        'AI-powered CLI and WebUI for interacting with MCP servers. Dependency reduction testing.'
+    )
     .version(pkg.version, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
     .option(
@@ -615,7 +617,7 @@ program
     )
     // Main customer facing description
     .description(
-        'Dexto CLI - AI-powered assistant with session management\n\n' +
+        'Dexto CLI - AI-powered assistant with session management.  Dependency reduction testing.\n\n' +
             'Basic Usage:\n' +
             '  dexto                    Start web UI (default)\n' +
             '  dexto "query"            Run one-shot query (auto-uses CLI mode)\n' +
