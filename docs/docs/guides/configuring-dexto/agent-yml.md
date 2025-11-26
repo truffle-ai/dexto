@@ -15,20 +15,21 @@ Complete reference for all agent.yml configuration options.
 4. [System Prompt Configuration](#system-prompt-configuration)
 5. [MCP Servers](#mcp-servers)
 6. [Tool Confirmation](#tool-confirmation)
-7. [Storage Configuration](#storage-configuration)
-8. [Session Configuration](#session-configuration)
-9. [Telemetry Configuration](#telemetry-configuration)
-10. [Logger Configuration](#logger-configuration)
-11. [Plugins](#plugins)
-12. [Internal Tools](#internal-tools)
-13. [Internal Resources](#internal-resources)
-14. [Agent Identity / A2A](#agent-identity--a2a)
-15. [Agent ID](#agent-id)
-16. [Dynamic Changes](#dynamic-changes)
-17. [Prompts](#prompts)
-18. [Memories](#memories)
-19. [Greeting](#greeting)
-20. [Global Preferences](#global-preferences)
+7. [Elicitation Configuration](#elicitation-configuration)
+8. [Storage Configuration](#storage-configuration)
+9. [Session Configuration](#session-configuration)
+10. [Telemetry Configuration](#telemetry-configuration)
+11. [Logger Configuration](#logger-configuration)
+12. [Plugins](#plugins)
+13. [Internal Tools](#internal-tools)
+14. [Internal Resources](#internal-resources)
+15. [Agent Identity / A2A](#agent-identity--a2a)
+16. [Agent ID](#agent-id)
+17. [Dynamic Changes](#dynamic-changes)
+18. [Prompts](#prompts)
+19. [Memories](#memories)
+20. [Greeting](#greeting)
+21. [Global Preferences](#global-preferences)
 
 ## Minimal Configuration
 
@@ -116,7 +117,7 @@ telemetry:
 
 # Logger
 logger:
-  level: info
+  level: info  # Set to 'info' for verbose logging (default is 'error')
   transports:
     - type: console
       colorize: true
@@ -376,6 +377,47 @@ toolConfirmation:
       - mcp--filesystem--delete_file
 ```
 
+## Elicitation Configuration
+
+:::info Guide
+For detailed information about MCP elicitation, see **[MCP Elicitation Guide](../../mcp/elicitation)**.
+:::
+
+Elicitation allows MCP servers to request structured user input during interactions. This must be explicitly enabled.
+
+### Schema
+
+```yaml
+elicitation:
+  enabled: true | false  # Default: false
+  timeout: 120000  # Timeout in milliseconds (default: 120000)
+```
+
+### Configuration Options
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `enabled` | `boolean` | `false` | Enable elicitation support. When disabled, elicitation requests will be rejected. |
+| `timeout` | `number` | `120000` | Maximum time to wait for user input (in milliseconds). |
+
+### Example
+
+```yaml
+# Enable elicitation for MCP servers that need user input
+elicitation:
+  enabled: true
+  timeout: 120000
+
+# MCP servers can now request structured user input
+mcpServers:
+  my-server:
+    type: stdio
+    command: npx
+    args: ["-y", "my-mcp-server"]
+```
+
+**Note:** Elicitation and tool confirmation are independent features. Elicitation controls whether MCP servers can request user input, while tool confirmation controls whether tools require approval before execution.
+
 ## Storage Configuration
 
 :::info Guide
@@ -542,7 +584,7 @@ The CLI automatically adds a per-agent file transport at `~/.dexto/logs/<agent-i
 
 ```yaml
 logger:
-  level: error | warn | info | debug | silly  # Default: info
+  level: error | warn | info | debug | silly  # Default: error
   transports:
     - type: console | file
       # Type-specific fields below
@@ -551,9 +593,9 @@ logger:
 ### Log Levels
 
 Following Winston convention (lower = more severe):
-- `error` - Only critical errors
+- `error` - Only critical errors (default)
 - `warn` - Warnings and errors
-- `info` - General information (default)
+- `info` - General information about agent operations
 - `debug` - Detailed debugging information
 - `silly` - Very detailed trace information
 

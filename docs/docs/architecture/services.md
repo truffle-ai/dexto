@@ -159,8 +159,9 @@ const sessions = await agent.listSessions();
 // Get conversation history
 const history = await agent.getSessionHistory('work-session');
 
-// Use session explicitly in conversations
-await agent.run("Hello", undefined, undefined, session.id);
+// Use session in conversations
+const response = await agent.generate("Hello", { sessionId: session.id });
+console.log(response.content);
 ```
 
 ## StorageManager
