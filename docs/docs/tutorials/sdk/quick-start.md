@@ -5,126 +5,111 @@ title: "Quick Start"
 
 # Quick Start
 
-Get your first Dexto agent running in 5 minutes. This guide walks you through the minimal setup needed to start building with the Dexto Agent SDK.
+Let's get your first AI response in under 5 minutes. No complexity, no explanations—just working code that proves the SDK does what you need.
 
-## What You'll Learn
+## What You'll Build
 
-- Installing the Dexto SDK
-- Creating your first agent
-- Understanding the agent lifecycle
-- Generating your first AI response
+A 15-line script that:
+1. Creates an AI agent
+2. Asks it a question
+3. Prints the answer
+
+That's it. Once this works, you'll know the SDK is set up correctly.
 
 ## Prerequisites
 
 - Node.js 18 or higher
-- An OpenAI API key (get one at [platform.openai.com](https://platform.openai.com))
+- An API key from [OpenAI](https://platform.openai.com), [Anthropic](https://console.anthropic.com), or [Cohere](https://dashboard.cohere.com)
 
-## Installation
+## Install
 
 ```bash
 npm install @dexto/core
 ```
 
-## Your First Agent
+## Write Your First Agent
 
-Create a file called `agent.ts` and add the following code:
+Create `first-agent.ts`:
 
 ```typescript
 import { DextoAgent } from '@dexto/core';
 
-async function main() {
-  // 1. Create the agent with LLM configuration
-  const agent = new DextoAgent({
-    llm: {
-      provider: 'openai',
-      model: 'gpt-5-mini',
-      apiKey: process.env.OPENAI_API_KEY
-    }
-  });
-
-  // 2. Start the agent (initializes services)
-  await agent.start();
-
-  // 3. Create a session for the conversation
-  const session = await agent.createSession();
-
-  // 4. Generate a response
-  const response = await agent.generate('What is TypeScript?', {
-    sessionId: session.id
-  });
-
-  console.log(response.content);
-
-  // 5. Clean up
-  await agent.stop();
-}
-
-main();
-```
-
-Set your API key and run it:
-
-```bash
-export OPENAI_API_KEY=your-key-here
-npx tsx agent.ts
-```
-
-You should see a detailed explanation of TypeScript.
-
-## Understanding the Code
-
-### Agent Creation
-
-```typescript
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
-    model: 'gpt-5-mini',
+    model: 'gpt-4o-mini',
     apiKey: process.env.OPENAI_API_KEY
   }
 });
+
+await agent.start();
+const session = await agent.createSession();
+
+const response = await agent.generate('Explain TypeScript in one sentence.', {
+  sessionId: session.id
+});
+
+console.log(response.content);
+await agent.stop();
 ```
 
-The `DextoAgent` constructor takes a configuration object. At minimum, you need to specify the LLM provider, model, and API key.
+## Run It
 
-### Agent Lifecycle
+```bash
+export OPENAI_API_KEY=your-key-here
+npx tsx first-agent.ts
+```
+
+You should see a concise explanation of TypeScript. If you do, **you're done**. The SDK is working.
+
+## What Just Happened?
 
 ```typescript
-await agent.start();  // Initialize services
-// ... use the agent ...
-await agent.stop();   // Clean up resources
+// Create agent with LLM config
+const agent = new DextoAgent({
+  llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY }
+});
 ```
+Configure which LLM to use. That's it for setup.
 
-Always call `start()` before using the agent and `stop()` when you're done. The `start()` method initializes internal services like the LLM client, storage, and event system.
-
-### Sessions
+```typescript
+await agent.start();
+```
+Initializes internal services (LLM client, storage, event system).
 
 ```typescript
 const session = await agent.createSession();
 ```
-
-Sessions maintain conversation context. Each session has its own isolated message history. You'll use the session ID when generating responses.
-
-### Generating Responses
+Creates a conversation context to hold message history.
 
 ```typescript
-const response = await agent.generate('What is TypeScript?', {
-  sessionId: session.id
+const response = await agent.generate('message', { sessionId: session.id });
+console.log(response.content);
+```
+Send a message and get the AI response.
+
+```typescript
+await agent.stop();
+```
+Clean up resources when you're done.
+
+Every Dexto agent follows this pattern: **configure → start → create session → generate → stop**.
+
+## Try Different Providers
+
+Swap providers by changing three lines:
+
+### Google (Gemini)
+
+```typescript
+const agent = new DextoAgent({
+  llm: {
+    provider: 'google',
+    model: 'gemini-2.0-flash-exp',
+    apiKey: process.env.GOOGLE_API_KEY
+  }
 });
 ```
-
-The `generate()` method is the recommended way to get responses from your agent. It returns a complete response object with:
-
-- `content`: The generated text
-- `usage`: Token usage information
-- `reasoning`: Any reasoning steps (if available)
-- `toolCalls`: Tools that were called (if any)
-- `sessionId`: The session this response belongs to
-- `messageId`: Unique identifier for this message
-
-## Using Different Providers
-
-The SDK supports multiple LLM providers. Here are examples:
 
 ### Anthropic (Claude)
 
@@ -150,61 +135,23 @@ const agent = new DextoAgent({
 });
 ```
 
-### Local Models (OpenAI-compatible)
+### Local Models (Ollama, vLLM, etc.)
 
 ```typescript
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
     model: 'llama-3.1-70b',
-    apiKey: 'not-needed',
+    apiKey: 'dummy',
     baseURL: 'http://localhost:8080/v1'
   }
 });
 ```
 
-## Customizing the Agent
+Any OpenAI-compatible API works with `provider: 'openai'` and a custom `baseURL`.
 
-You can customize the agent's behavior with additional configuration:
+## What's Next?
 
-```typescript
-const agent = new DextoAgent({
-  llm: {
-    provider: 'openai',
-    model: 'gpt-5-mini',
-    apiKey: process.env.OPENAI_API_KEY,
-    temperature: 0.7,        // Controls randomness (0-1)
-    maxOutputTokens: 4000    // Maximum response length
-  },
-  systemPrompt: 'You are a helpful coding assistant specialized in TypeScript.'
-});
-```
+Right now your agent forgets everything after each run. In the next tutorial, you'll learn how sessions let your agent remember previous messages—the foundation for building real conversations.
 
-## Error Handling
-
-Always wrap agent operations in try-catch blocks:
-
-```typescript
-try {
-  const agent = new DextoAgent(config);
-  await agent.start();
-
-  const session = await agent.createSession();
-  const response = await agent.generate('Hello', { sessionId: session.id });
-
-  console.log(response.content);
-
-  await agent.stop();
-} catch (error) {
-  console.error('Agent error:', error);
-  process.exit(1);
-}
-```
-
-## Next Steps
-
-Now that you have a basic agent running, learn about:
-
-- **[Sessions](./sessions.md)** - Manage multiple conversations and users
-- **[Streaming](./streaming.md)** - Real-time streaming for interactive UIs
-- **[Tools](./tools.md)** - Add MCP tools to extend agent capabilities
+**Continue to:** [Working with Sessions](./sessions.md)
