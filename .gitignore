@@ -79,3 +79,4 @@ packages/core/src/*/README.md
 
 # temporarily ignore sports analytics agent
 agents/sports-analytics-agent/
+.verdaccio
