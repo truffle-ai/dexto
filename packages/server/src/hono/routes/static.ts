@@ -5,6 +5,19 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
+ * Runtime configuration injected into WebUI via window globals.
+ * This replaces the Next.js SSR injection that was lost in the Vite migration.
+ */
+export interface WebUIRuntimeConfig {
+    analytics?: {
+        distinctId: string;
+        posthogKey: string;
+        posthogHost: string;
+        appVersion: string;
+    } | null;
+}
+
+/**
  * Create a static file router for serving WebUI assets.
  *
  * Serves static files from the specified webRoot directory.
@@ -28,6 +41,23 @@ export function createStaticRouter(webRoot: string) {
 }
 
 /**
+ * Build the injection script for runtime config.
+ * Escapes values to prevent XSS and script injection.
+ */
+function buildInjectionScript(config: WebUIRuntimeConfig): string {
+    const scripts: string[] = [];
+
+    if (config.analytics) {
+        // Escape < to prevent script injection via JSON values
+        const safeJson = JSON.stringify(config.analytics).replace(/</g, '\\u003c');
+        scripts.push(`window.__DEXTO_ANALYTICS__ = ${safeJson};`);
+    }
+
+    if (scripts.length === 0) return '';
+    return `<script>${scripts.join('\n')}</script>`;
+}
+
+/**
  * Create a notFound handler for SPA fallback.
  *
  * This handler serves index.html for client-side routes (paths without file extensions).
@@ -36,8 +66,15 @@ export function createStaticRouter(webRoot: string) {
  * This should be registered as app.notFound() to run after all routes fail to match.
  *
  * @param webRoot - Absolute path to the directory containing WebUI build output
+ * @param runtimeConfig - Optional runtime configuration to inject into the HTML
  */
-export function createSpaFallbackHandler(webRoot: string): NotFoundHandler {
+export function createSpaFallbackHandler(
+    webRoot: string,
+    runtimeConfig?: WebUIRuntimeConfig
+): NotFoundHandler {
+    // Pre-build the injection script once (not per-request)
+    const injectionScript = runtimeConfig ? buildInjectionScript(runtimeConfig) : '';
+
     return async (c) => {
         const path = c.req.path;
 
@@ -50,7 +87,13 @@ export function createSpaFallbackHandler(webRoot: string): NotFoundHandler {
 
         // SPA fallback - serve index.html for client-side routes
         try {
-            const html = await readFile(join(webRoot, 'index.html'), 'utf-8');
+            let html = await readFile(join(webRoot, 'index.html'), 'utf-8');
+
+            // Inject runtime config into <head> if provided
+            if (injectionScript) {
+                html = html.replace('</head>', `${injectionScript}</head>`);
+            }
+
             return c.html(html);
         } catch {
             // index.html not found - WebUI not available

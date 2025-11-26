@@ -11,7 +11,7 @@ import path from 'path';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { initAnalytics, capture } from './analytics/index.js';
+import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 
 // Use createRequire to import package.json without experimental warning
@@ -1147,13 +1147,19 @@ program
                             console.info('For development: Run "pnpm dev" for hot reload');
                         }
 
+                        // Build WebUI runtime config (analytics, etc.) for injection into index.html
+                        const webUIConfig = webRoot
+                            ? { analytics: await getWebUIAnalyticsConfig() }
+                            : undefined;
+
                         // Start single Hono server serving both API and WebUI
                         await startHonoApiServer(
                             agent,
                             port,
                             agent.config.agentCard || {},
                             derivedAgentId,
-                            webRoot
+                            webRoot,
+                            webUIConfig
                         );
 
                         console.log(chalk.green(`✅ Server running at ${serverUrl}`));

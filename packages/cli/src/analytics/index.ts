@@ -180,3 +180,31 @@ export async function onCommandEnd(
 export function getEnabled(): boolean {
     return enabled;
 }
+
+/**
+ * Build the analytics configuration for WebUI injection.
+ * Returns the config needed by the WebUI's PostHog client, or null if disabled.
+ */
+export async function getWebUIAnalyticsConfig(): Promise<{
+    distinctId: string;
+    posthogKey: string;
+    posthogHost: string;
+    appVersion: string;
+} | null> {
+    if (isAnalyticsDisabled()) {
+        return null;
+    }
+
+    try {
+        const analyticsState = await loadState();
+        return {
+            distinctId: analyticsState.distinctId,
+            posthogKey: process.env.DEXTO_POSTHOG_KEY ?? DEFAULT_POSTHOG_KEY,
+            posthogHost: process.env.DEXTO_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
+            appVersion: appVersion || 'unknown',
+        };
+    } catch {
+        // If analytics state loading fails, return null to disable analytics
+        return null;
+    }
+}
