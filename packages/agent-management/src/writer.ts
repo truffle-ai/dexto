@@ -1,7 +1,7 @@
 // packages/core/src/config/writer.ts
 
 import { promises as fs } from 'fs';
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
 import type { LLMProvider, AgentConfig } from '@dexto/core';
 import { type GlobalPreferences } from './preferences/schemas.js';
@@ -79,10 +79,14 @@ export async function writeLLMPreferences(
             error instanceof Error ? error.message : String(error)
         );
     }
-    // TODO: Use proper typing - raw YAML parsing should be decoupled from schema validation
-    let config: AgentConfig;
+    // Parse as document to preserve comments
+    let doc;
     try {
-        config = parseYaml(fileContent) as AgentConfig;
+        doc = parseDocument(fileContent);
+        if (doc.errors && doc.errors.length > 0) {
+            throw new Error(doc.errors.map((e) => e.message).join('; '));
+        }
+        const config = doc.toJS() as AgentConfig;
         logger.debug(`Successfully parsed YAML config`, {
             hasLlmSection: Boolean(config.llm),
             existingProvider: config.llm?.provider,
@@ -110,17 +114,20 @@ export async function writeLLMPreferences(
 
     // Note: provider+model validation already handled in preference schema
 
-    // Write only core LLM fields, preserve agent-specific settings
-    config.llm = {
-        ...config.llm, // Preserve temperature, router, maxTokens, etc.
-        provider, // Write user preference
-        model, // Write user preference
-        apiKey, // Write user preference
-    };
+    // Update document in place to preserve comments
+    // Get or create the llm section
+    let llmNode = doc.get('llm');
+    if (!llmNode || typeof llmNode !== 'object') {
+        doc.set('llm', { provider, model, apiKey });
+    } else {
+        // Update individual fields to preserve other settings and comments
+        doc.setIn(['llm', 'provider'], provider);
+        doc.setIn(['llm', 'model'], model);
+        doc.setIn(['llm', 'apiKey'], apiKey);
+    }
 
-    // Write back to file using the shared writeConfigFile function
-    // Type assertion is safe: we read a valid config and only modified the LLM section
-    await writeConfigFile(configPath, config);
+    // Write back to file preserving comments
+    await fs.writeFile(configPath, doc.toString(), 'utf-8');
 
     logger.info(`✓ Applied preferences to: ${path.basename(configPath)} (${provider}/${model})`);
 }

@@ -81,6 +81,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
         queryClient.invalidateQueries({ queryKey: queryKeys.resources.all });
         queryClient.invalidateQueries({ queryKey: ['greeting'] }); // Hierarchical invalidation
         queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.config }); // Agent config (CustomizePanel)
     }, [queryClient]);
 
     // Check if an agent path is from the global ~/.dexto directory
