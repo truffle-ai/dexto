@@ -92,91 +92,20 @@ export default function SessionPanel({
     const deleteSessionMutation = useDeleteSession();
     const renameSessionMutation = useRenameSession();
 
-    // Listen for events and update state optimistically
+    // Listen for agent switch events to invalidate sessions cache
+    // Note: message/response/title events are now handled in useChat via direct cache updates
     useEffect(() => {
         const handleAgentSwitched = () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
         };
 
-        const handleMessage: EventListener = (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const eventSessionId = customEvent.detail?.sessionId;
-            if (eventSessionId) {
-                queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
-                    const sessionExists = old.some((s) => s.id === eventSessionId);
-                    if (sessionExists) {
-                        return sortSessions(
-                            old.map((session) =>
-                                session.id === eventSessionId
-                                    ? {
-                                          ...session,
-                                          messageCount: session.messageCount + 1,
-                                          lastActivity: Date.now(),
-                                      }
-                                    : session
-                            )
-                        );
-                    } else {
-                        const newSession: Session = {
-                            id: eventSessionId,
-                            createdAt: Date.now(),
-                            lastActivity: Date.now(),
-                            messageCount: 1,
-                            title: null,
-                        };
-                        return sortSessions([newSession, ...old]);
-                    }
-                });
-            }
-        };
-
-        const handleResponse: EventListener = (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const eventSessionId = customEvent.detail?.sessionId;
-            if (eventSessionId) {
-                queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
-                    sortSessions(
-                        old.map((session) =>
-                            session.id === eventSessionId
-                                ? {
-                                      ...session,
-                                      messageCount: session.messageCount + 1,
-                                      lastActivity: Date.now(),
-                                  }
-                                : session
-                        )
-                    )
-                );
-            }
-        };
-
-        const handleTitleUpdated: EventListener = (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const eventSessionId = customEvent.detail?.sessionId;
-            const title = customEvent.detail?.title;
-            if (eventSessionId && title) {
-                queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
-                    old.map((session) =>
-                        session.id === eventSessionId ? { ...session, title } : session
-                    )
-                );
-            }
-        };
-
         if (typeof window !== 'undefined') {
-            window.addEventListener('dexto:message', handleMessage);
-            window.addEventListener('dexto:response', handleResponse);
-            window.addEventListener('session:title-updated', handleTitleUpdated);
             window.addEventListener('dexto:agentSwitched', handleAgentSwitched);
-
             return () => {
-                window.removeEventListener('dexto:message', handleMessage);
-                window.removeEventListener('dexto:response', handleResponse);
-                window.removeEventListener('session:title-updated', handleTitleUpdated);
                 window.removeEventListener('dexto:agentSwitched', handleAgentSwitched);
             };
         }
-    }, [queryClient, currentSessionId]);
+    }, [queryClient]);
 
     const handleCreateSession = async () => {
         const newSession = await createSessionMutation.mutateAsync({

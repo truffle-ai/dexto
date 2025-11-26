@@ -9,11 +9,14 @@ import type {
     SanitizedToolResult,
 } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { client } from '@/lib/client.js';
+import { queryKeys } from '@/lib/queryKeys.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { useApproval } from './ApprovalContext.js';
+import type { Session } from './useSessions.js';
 
 // Reuse the identical TextPart from core
 export type TextPart = CoreTextPart;
@@ -157,9 +160,52 @@ export function useChat(
 ) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
+    const queryClient = useQueryClient();
     const { handleApprovalRequest, handleApprovalResponse } = useApproval();
 
     const [messages, setMessages] = useState<Message[]>([]);
+
+    // Helper to update sessions cache (replaces DOM events)
+    const updateSessionActivity = useCallback(
+        (sessionId: string, incrementMessageCount: boolean = true) => {
+            queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) => {
+                const exists = old.some((s) => s.id === sessionId);
+                if (exists) {
+                    return old.map((session) =>
+                        session.id === sessionId
+                            ? {
+                                  ...session,
+                                  ...(incrementMessageCount && {
+                                      messageCount: session.messageCount + 1,
+                                  }),
+                                  lastActivity: Date.now(),
+                              }
+                            : session
+                    );
+                } else {
+                    // Create new session entry
+                    const newSession: Session = {
+                        id: sessionId,
+                        createdAt: Date.now(),
+                        lastActivity: Date.now(),
+                        messageCount: 1,
+                        title: null,
+                    };
+                    return [newSession, ...old];
+                }
+            });
+        },
+        [queryClient]
+    );
+
+    const updateSessionTitle = useCallback(
+        (sessionId: string, title: string) => {
+            queryClient.setQueryData<Session[]>(queryKeys.sessions.all, (old = []) =>
+                old.map((session) => (session.id === sessionId ? { ...session, title } : session))
+            );
+        },
+        [queryClient]
+    );
 
     // Track the last user message id to anchor errors inline in the UI
     const lastUserMessageIdRef = useRef<string | null>(null);
@@ -315,19 +361,8 @@ export function useChat(
                         return ms;
                     });
 
-                    // Emit DOM event
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:response', {
-                                detail: {
-                                    text,
-                                    sessionId: event.sessionId,
-                                    tokenUsage: usage,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
+                    // Update sessions cache (response received)
+                    updateSessionActivity(event.sessionId);
                     break;
                 }
 
@@ -436,8 +471,10 @@ export function useChat(
                     break;
                 }
 
-                // Handle legacy events if server still sends them or mapped differently?
-                // No, we are using new SSE stream.
+                case 'session:title-updated': {
+                    updateSessionTitle(event.sessionId, event.title);
+                    break;
+                }
             }
         },
         [
@@ -447,6 +484,8 @@ export function useChat(
             setError,
             handleApprovalRequest,
             handleApprovalResponse,
+            updateSessionActivity,
+            updateSessionTitle,
         ]
     );
 
@@ -487,14 +526,8 @@ export function useChat(
                 },
             ]);
 
-            // Emit DOM event
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(
-                    new CustomEvent('dexto:message', {
-                        detail: { content, sessionId, timestamp: Date.now() },
-                    })
-                );
-            }
+            // Update sessions cache (user message sent)
+            updateSessionActivity(sessionId);
 
             try {
                 if (stream) {
@@ -567,19 +600,8 @@ export function useChat(
                     setStatus(sessionId, 'closed');
                     setProcessing(sessionId, false);
 
-                    // Emit DOM event with metadata
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(
-                            new CustomEvent('dexto:response', {
-                                detail: {
-                                    text: data.response,
-                                    sessionId,
-                                    tokenUsage: data.tokenUsage,
-                                    timestamp: Date.now(),
-                                },
-                            })
-                        );
-                    }
+                    // Update sessions cache (response received)
+                    updateSessionActivity(sessionId);
                 }
             } catch (error: unknown) {
                 // Handle abort gracefully

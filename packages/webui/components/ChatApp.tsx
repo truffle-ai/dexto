@@ -382,17 +382,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         [sendMessage, positionLastUserNearTop]
     );
 
-    // Hook into existing custom events to toggle followStreaming
+    // Toggle followStreaming based on processing state (replaces DOM events)
     useEffect(() => {
-        const onStart = () => setFollowStreaming(true);
-        const onEnd = () => setFollowStreaming(false);
-        window.addEventListener('dexto:message', onStart as EventListener);
-        window.addEventListener('dexto:response', onEnd as EventListener);
-        return () => {
-            window.removeEventListener('dexto:message', onStart as EventListener);
-            window.removeEventListener('dexto:response', onEnd as EventListener);
-        };
-    }, []);
+        setFollowStreaming(processing);
+    }, [processing]);
 
     const handleSessionChange = useCallback(
         (sessionId: string) => {
