@@ -1,7 +1,4 @@
-'use client';
-
 import React from 'react';
-import Image from 'next/image';
 import { Star, HelpCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -87,7 +84,7 @@ export function CompactModelCard({
                         {/* Provider Logo */}
                         <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
                             {PROVIDER_LOGOS[provider] ? (
-                                <Image
+                                <img
                                     src={PROVIDER_LOGOS[provider]}
                                     alt={`${provider} logo`}
                                     width={20}

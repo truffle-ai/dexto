@@ -1,8 +1,5 @@
-'use client';
-
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLLMCatalog, useSwitchLLM, type SwitchLLMPayload } from '../hooks/useLLM';
-import Image from 'next/image';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -353,7 +350,7 @@ export default function ModelPickerModal() {
                     >
                         {currentLLM?.provider &&
                         PROVIDER_LOGOS[currentLLM.provider as LLMProvider] ? (
-                            <Image
+                            <img
                                 src={PROVIDER_LOGOS[currentLLM.provider as LLMProvider]}
                                 alt={`${currentLLM.provider} logo`}
                                 width={16}
@@ -445,7 +442,7 @@ export default function ModelPickerModal() {
                                         )}
                                     >
                                         {PROVIDER_LOGOS[providerId] && (
-                                            <Image
+                                            <img
                                                 src={PROVIDER_LOGOS[providerId]}
                                                 alt=""
                                                 width={10}

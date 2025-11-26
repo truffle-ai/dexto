@@ -1,8 +1,6 @@
-'use client';
-
 import React, { useState, useCallback, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import Link from 'next/link';
+import { Link } from '@tanstack/react-router';
 import { ArrowLeft, AlertTriangle, CheckCircle, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -373,7 +371,7 @@ export default function PlaygroundView() {
                 {showServersSidebar && (
                     <>
                         <div className="flex items-center justify-between pb-3 mb-3 border-b border-border">
-                            <Link href="/">
+                            <Link to="/">
                                 <Button variant="outline" size="sm" className="gap-1.5">
                                     <ArrowLeft className="h-4 w-4" />
                                     Back

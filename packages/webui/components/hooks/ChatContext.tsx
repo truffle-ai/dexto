@@ -1,5 +1,3 @@
-'use client';
-
 import React, {
     createContext,
     useContext,
@@ -9,7 +7,7 @@ import React, {
     useCallback,
     useRef,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
 import { useGreeting } from './useGreeting';
@@ -229,7 +227,7 @@ function convertHistoryToMessages(history: any[], sessionId: string): Message[] 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const analytics = useAnalytics();
     const queryClient = useQueryClient();
 
@@ -432,8 +430,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     // Send message BEFORE navigating
                     originalSendMessage(content, imageData, fileData, sessionId, isStreaming);
 
-                    // Navigate using Next.js router - this will trigger switchSession via ChatApp useEffect
-                    router.replace(`/chat/${sessionId}`);
+                    // Navigate - this will trigger switchSession via ChatApp useEffect
+                    navigate({ to: `/chat/${sessionId}`, replace: true });
 
                     // Generate title for newly created session after first message
                     // Use setTimeout to delay title generation until message is complete
@@ -478,7 +476,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             isCreatingSession,
             createAutoSession,
             isStreaming,
-            router,
+            navigate,
             analytics,
             currentLLM,
             generateTitle,

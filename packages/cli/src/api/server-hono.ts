@@ -50,7 +50,8 @@ export async function initializeHonoApi(
     agent: DextoAgent,
     agentCardOverride?: Partial<AgentCard>,
     listenPort?: number,
-    agentId?: string
+    agentId?: string,
+    webRoot?: string
 ): Promise<HonoInitializationResult> {
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
@@ -306,6 +307,7 @@ export async function initializeHonoApi(
         approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
+        ...(webRoot ? { webRoot } : {}),
         agentsContext: {
             switchAgentById: (id: string) => {
                 if (!bridgeRef) throw new Error('Bridge not initialized');
@@ -402,7 +404,8 @@ export async function startHonoApiServer(
     agent: DextoAgent,
     port = 3000,
     agentCardOverride?: Partial<AgentCard>,
-    agentId?: string
+    agentId?: string,
+    webRoot?: string
 ): Promise<{
     server: ReturnType<typeof createNodeServer>['server'];
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
@@ -411,7 +414,8 @@ export async function startHonoApiServer(
         agent,
         agentCardOverride,
         port,
-        agentId
+        agentId,
+        webRoot
     );
 
     server.listen(port, '0.0.0.0', () => {

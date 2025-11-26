@@ -72,7 +72,7 @@ import {
 } from './cli/commands/session-commands.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
-import { startNextJsWebServer } from './web.js';
+import { resolveWebRoot } from './web.js';
 import { initializeMcpServer, createMcpTransport } from '@dexto/server';
 import { createAgentCard } from '@dexto/core';
 import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
@@ -1134,47 +1134,40 @@ program
 
                     case 'web': {
                         const webPort = parseInt(opts.webPort, 10);
-                        const frontPort = getPort(
-                            process.env.FRONTEND_PORT,
-                            webPort,
-                            'FRONTEND_PORT'
-                        );
-                        // Use explicit --api-port if provided, otherwise default to webPort + 1
-                        const defaultApiPort = opts.apiPort
-                            ? parseInt(opts.apiPort, 10)
-                            : webPort + 1;
-                        const apiPort = getPort(process.env.API_PORT, defaultApiPort, 'API_PORT');
-                        const apiUrl = process.env.API_URL ?? `http://localhost:${apiPort}`;
-                        const nextJSserverURL =
-                            process.env.FRONTEND_URL ?? `http://localhost:${frontPort}`;
+                        // Use explicit --api-port if provided, otherwise default to webPort
+                        const defaultApiPort = opts.apiPort ? parseInt(opts.apiPort, 10) : webPort;
+                        const port = getPort(process.env.PORT, defaultApiPort, 'PORT');
+                        const serverUrl = process.env.DEXTO_URL ?? `http://localhost:${port}`;
 
-                        // Start API server (Hono)
+                        // Resolve webRoot path (embedded WebUI dist folder)
+                        const webRoot = resolveWebRoot();
+                        if (!webRoot) {
+                            console.warn(chalk.yellow('⚠️  WebUI not found in this build.'));
+                            console.info('For production: Run "pnpm build:all" to embed the WebUI');
+                            console.info('For development: Run "pnpm dev" for hot reload');
+                        }
+
+                        // Start single Hono server serving both API and WebUI
                         await startHonoApiServer(
                             agent,
-                            apiPort,
+                            port,
                             agent.config.agentCard || {},
-                            derivedAgentId
+                            derivedAgentId,
+                            webRoot
                         );
 
-                        // Start Next.js web server
-                        const webServerStarted = await startNextJsWebServer(
-                            apiUrl,
-                            frontPort,
-                            nextJSserverURL
-                        );
+                        console.log(chalk.green(`✅ Server running at ${serverUrl}`));
 
-                        // Open WebUI in browser if server started successfully
-                        if (webServerStarted) {
+                        // Open WebUI in browser if webRoot is available
+                        if (webRoot) {
                             try {
                                 const { default: open } = await import('open');
-                                await open(nextJSserverURL, { wait: false });
+                                await open(serverUrl, { wait: false });
                                 console.log(
-                                    chalk.green(`🌐 Opened WebUI in browser: ${nextJSserverURL}`)
+                                    chalk.green(`🌐 Opened WebUI in browser: ${serverUrl}`)
                                 );
                             } catch (_error) {
-                                console.log(
-                                    chalk.yellow(`💡 WebUI is available at: ${nextJSserverURL}`)
-                                );
+                                console.log(chalk.yellow(`💡 WebUI is available at: ${serverUrl}`));
                             }
                         }
 

@@ -2,10 +2,11 @@
   "name": "@dexto/webui",
   "version": "1.2.6",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "BUILD_STANDALONE=true next build",
-    "start": "next start",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "lint": "eslint -c eslint.config.mjs . --ext .ts,.tsx",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
   },
@@ -25,15 +26,16 @@
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5.90.6",
+    "@tanstack/react-router": "^1.93.1",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.507.0",
-    "next": "15.5.2",
     "posthog-js": "^1.281.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-helmet-async": "^2.0.5",
     "react-hotkeys-hook": "^5.2.1",
     "react-markdown": "^10.1.0",
     "react-textarea-autosize": "^8.5.9",
@@ -52,12 +54,13 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9",
-    "eslint-config-next": "15.3.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "json-schema": "^0.4.0",
     "monaco-editor": "^0.53.0",
     "tw-animate-css": "^1.2.9",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^6.0.6"
   }
 }

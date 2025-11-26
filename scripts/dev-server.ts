@@ -3,11 +3,11 @@
 /**
  * Development server that:
  * 1. Builds all packages (turbo handles dependency graph)
- * 2. Runs the CLI directly from dist/index.js in server mode
- * 3. Starts WebUI in dev mode with hot reload
+ * 2. Runs the CLI directly from dist/index.js in server mode (API on port 3001)
+ * 3. Starts Vite dev server for WebUI with hot reload (port 3000)
  * 4. Opens browser automatically when WebUI is ready
  *
- * No symlinks needed - runs directly from built files!
+ * Vite proxies /api/* requests to the API server (configured in vite.config.ts)
  *
  * Usage:
  *   pnpm dev                                    # Use default agent
@@ -116,10 +116,6 @@ setTimeout(() => {
         stdio: ['inherit', 'pipe', 'pipe'],
         env: {
             ...process.env,
-            PORT: '3000',
-            API_PORT: '3001',
-            NEXT_PUBLIC_API_URL: 'http://localhost:3001',
-            NEXT_PUBLIC_FRONTEND_URL: 'http://localhost:3000',
         },
     });
 
@@ -130,8 +126,8 @@ setTimeout(() => {
             lines.forEach((line: string) => {
                 console.log(`[UI]  ${line}`);
 
-                // Open browser when Next.js is ready (looks for "Local:" or "ready" messages)
-                if (!browserOpened && (line.includes('Local:') || line.includes('Ready in'))) {
+                // Open browser when Vite is ready (looks for "Local:" message)
+                if (!browserOpened && line.includes('Local:')) {
                     browserOpened = true;
                     const webUrl = 'http://localhost:3000';
                     console.log(`\n🌐 Opening browser at ${webUrl}...`);
@@ -148,8 +144,7 @@ setTimeout(() => {
         webuiProcess.stderr.on('data', (data) => {
             const lines = data.toString().split('\n').filter(Boolean);
             lines.forEach((line: string) => {
-                // Next.js writes some normal output to stderr, so use log instead of error
-                console.log(`[UI]  ${line}`);
+                console.error(`[UI]  ${line}`);
             });
         });
     }

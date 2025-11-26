@@ -1,7 +1,4 @@
-'use client';
-
 import React from 'react';
-import Image from 'next/image';
 import { Star, HelpCircle, Lock } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -173,7 +170,7 @@ export function ModelCard({
                             )}
                         >
                             {PROVIDER_LOGOS[provider] ? (
-                                <Image
+                                <img
                                     src={PROVIDER_LOGOS[provider]}
                                     alt={`${provider} logo`}
                                     width={logoSizes[size].width}

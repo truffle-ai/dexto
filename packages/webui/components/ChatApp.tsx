@@ -1,9 +1,7 @@
-'use client';
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from '@tanstack/react-router';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
 import { usePrompts } from './hooks/usePrompts';
@@ -57,7 +55,6 @@ import { Textarea } from './ui/textarea';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
-import Link from 'next/link';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -81,7 +78,7 @@ interface ChatAppProps {
 }
 
 export default function ChatApp({ sessionId }: ChatAppProps = {}) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const {
         messages,
         sendMessage,
@@ -404,10 +401,10 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             setFollowStreaming(false);
             setShowScrollHint(false);
             // Navigate to the session URL instead of just switching in context
-            router.push(`/chat/${sessionId}`);
+            navigate({ to: `/chat/${sessionId}` });
             // Keep the sessions panel open when switching sessions
         },
-        [router]
+        [navigate]
     );
 
     const handleReturnToWelcome = useCallback(() => {
@@ -416,8 +413,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
         setShowScrollHint(false);
         // Clear the context state first, then navigate to home page
         returnToWelcome();
-        router.push('/');
-    }, [router, returnToWelcome]);
+        navigate({ to: '/' });
+    }, [navigate, returnToWelcome]);
 
     // Handle hydration and restore localStorage state
     useEffect(() => {
@@ -1584,7 +1581,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 isOpen={isSearchOpen}
                 onClose={() => setSearchOpen(false)}
                 onNavigateToSession={(sessionId, messageIndex) => {
-                    router.push(`/chat/${sessionId}`);
+                    navigate({ to: `/chat/${sessionId}` });
                     setSearchOpen(false);
                 }}
             />

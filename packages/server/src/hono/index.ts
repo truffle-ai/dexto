@@ -16,6 +16,7 @@ import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
 import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
 import { createApprovalsRouter } from './routes/approvals.js';
+import { createStaticRouter } from './routes/static.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { A2ASseEventSubscriber } from '../events/a2a-sse-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
@@ -60,6 +61,8 @@ export type CreateDextoAppOptions = {
     webhookSubscriber: WebhookEventSubscriber;
     sseSubscriber: A2ASseEventSubscriber;
     agentsContext?: AgentsRouterContext;
+    /** Absolute path to WebUI build output. If provided, static files will be served. */
+    webRoot?: string;
 };
 
 export function createDextoApp(options: CreateDextoAppOptions) {
@@ -70,6 +73,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         webhookSubscriber,
         sseSubscriber,
         agentsContext,
+        webRoot,
     } = options;
     const app = new OpenAPIHono({ strict: false });
 
@@ -105,6 +109,12 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route('/api', createMemoryRouter(getAgent))
         .route('/api', createApprovalsRouter(getAgent, approvalCoordinator))
         .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext));
+
+    // Mount static file router for WebUI if webRoot is provided
+    // Must be mounted after API routes to avoid catching API requests
+    if (webRoot) {
+        fullApp.route('/', createStaticRouter(webRoot));
+    }
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
