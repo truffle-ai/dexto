@@ -1,15 +1,15 @@
 import { context as otlpContext, trace, propagation } from '@opentelemetry/api';
 import type { Tracer, Context, BaggageEntry } from '@opentelemetry/api';
 import type { OtelConfiguration } from './schemas.js';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
-import { OTLPTraceExporter as OTLPHttpExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { OTLPTraceExporter as OTLPGrpcExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { Resource } from '@opentelemetry/resources';
-import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
-import { CompositeExporter } from './exporters.js';
 import { logger } from '../logger/logger.js';
+import { TelemetryError } from './errors.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+
+// Type definitions for dynamically imported modules
+type NodeSDKType = import('@opentelemetry/sdk-node').NodeSDK;
+type ConsoleSpanExporterType = import('@opentelemetry/sdk-trace-base').ConsoleSpanExporter;
+type OTLPHttpExporterType = import('@opentelemetry/exporter-trace-otlp-http').OTLPTraceExporter;
+type OTLPGrpcExporterType = import('@opentelemetry/exporter-trace-otlp-grpc').OTLPTraceExporter;
 
 // Add type declaration for global namespace
 declare global {
@@ -29,11 +29,11 @@ export class Telemetry {
     public tracer: Tracer = trace.getTracer('dexto');
     name: string = 'dexto-service';
     private _isInitialized: boolean = false;
-    private _sdk?: NodeSDK | undefined;
+    private _sdk?: NodeSDKType | undefined;
     private static _initPromise?: Promise<Telemetry> | undefined;
     private static _signalHandlers?: { sigterm: () => void; sigint: () => void } | undefined;
 
-    private constructor(config: OtelConfiguration, enabled: boolean, sdk?: NodeSDK) {
+    private constructor(config: OtelConfiguration, enabled: boolean, sdk?: NodeSDKType) {
         const serviceName = config.serviceName ?? 'dexto-service';
         const tracerName = config.tracerName ?? serviceName;
 
@@ -45,13 +45,30 @@ export class Telemetry {
         this._isInitialized = enabled && !!sdk;
     }
 
-    private static buildTraceExporter(config: OtelConfiguration | undefined) {
+    private static async buildTraceExporter(
+        config: OtelConfiguration | undefined
+    ): Promise<ConsoleSpanExporterType | OTLPHttpExporterType | OTLPGrpcExporterType> {
         const e = config?.export;
         if (!e || e.type === 'console') {
+            const { ConsoleSpanExporter } = await import('@opentelemetry/sdk-trace-base');
             return new ConsoleSpanExporter();
         }
         if (e.type === 'otlp') {
             if (e.protocol === 'grpc') {
+                let OTLPGrpcExporter: typeof import('@opentelemetry/exporter-trace-otlp-grpc').OTLPTraceExporter;
+                try {
+                    const mod = await import('@opentelemetry/exporter-trace-otlp-grpc');
+                    OTLPGrpcExporter = mod.OTLPTraceExporter;
+                } catch (err) {
+                    const error = err as NodeJS.ErrnoException;
+                    if (error.code === 'ERR_MODULE_NOT_FOUND') {
+                        throw TelemetryError.exporterDependencyNotInstalled(
+                            'grpc',
+                            '@opentelemetry/exporter-trace-otlp-grpc'
+                        );
+                    }
+                    throw err;
+                }
                 const options: { url?: string } = {};
                 if (e.endpoint) {
                     options.url = e.endpoint;
@@ -59,6 +76,20 @@ export class Telemetry {
                 return new OTLPGrpcExporter(options);
             }
             // default to http when omitted
+            let OTLPHttpExporter: typeof import('@opentelemetry/exporter-trace-otlp-http').OTLPTraceExporter;
+            try {
+                const mod = await import('@opentelemetry/exporter-trace-otlp-http');
+                OTLPHttpExporter = mod.OTLPTraceExporter;
+            } catch (err) {
+                const error = err as NodeJS.ErrnoException;
+                if (error.code === 'ERR_MODULE_NOT_FOUND') {
+                    throw TelemetryError.exporterDependencyNotInstalled(
+                        'http',
+                        '@opentelemetry/exporter-trace-otlp-http'
+                    );
+                }
+                throw err;
+            }
             const options: { url?: string; headers?: Record<string, string> } = {};
             if (e.endpoint) {
                 options.url = e.endpoint;
@@ -69,6 +100,7 @@ export class Telemetry {
             return new OTLPHttpExporter(options);
         }
         // schema also allows 'custom' but YAML cannot provide a SpanExporter instance
+        const { ConsoleSpanExporter } = await import('@opentelemetry/sdk-trace-base');
         return new ConsoleSpanExporter();
     }
     /**
@@ -94,14 +126,57 @@ export class Telemetry {
                     // honor enabled=false: skip SDK registration
                     const enabled = config.enabled !== false;
 
-                    let sdk: NodeSDK | undefined;
+                    let sdk: NodeSDKType | undefined;
                     if (enabled) {
+                        // Dynamic imports for optional OpenTelemetry dependencies
+                        let NodeSDK: typeof import('@opentelemetry/sdk-node').NodeSDK;
+                        let Resource: typeof import('@opentelemetry/resources').Resource;
+                        let getNodeAutoInstrumentations: typeof import('@opentelemetry/auto-instrumentations-node').getNodeAutoInstrumentations;
+                        let ATTR_SERVICE_NAME: string;
+
+                        try {
+                            const sdkModule = await import('@opentelemetry/sdk-node');
+                            NodeSDK = sdkModule.NodeSDK;
+
+                            const resourcesModule = await import('@opentelemetry/resources');
+                            Resource = resourcesModule.Resource;
+
+                            const autoInstModule = await import(
+                                '@opentelemetry/auto-instrumentations-node'
+                            );
+                            getNodeAutoInstrumentations =
+                                autoInstModule.getNodeAutoInstrumentations;
+
+                            const semanticModule = await import(
+                                '@opentelemetry/semantic-conventions'
+                            );
+                            ATTR_SERVICE_NAME = semanticModule.ATTR_SERVICE_NAME;
+                        } catch (importError) {
+                            const err = importError as NodeJS.ErrnoException;
+                            if (err.code === 'ERR_MODULE_NOT_FOUND') {
+                                throw TelemetryError.dependencyNotInstalled([
+                                    '@opentelemetry/sdk-node',
+                                    '@opentelemetry/auto-instrumentations-node',
+                                    '@opentelemetry/resources',
+                                    '@opentelemetry/semantic-conventions',
+                                    '@opentelemetry/sdk-trace-base',
+                                    '@opentelemetry/exporter-trace-otlp-http',
+                                    '@opentelemetry/exporter-trace-otlp-grpc',
+                                ]);
+                            }
+                            throw importError;
+                        }
+
                         const resource = new Resource({
                             [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
                         });
 
                         // Use custom exporter if provided, otherwise build from config
-                        const spanExporter = exporter || Telemetry.buildTraceExporter(config);
+                        const spanExporter =
+                            exporter || (await Telemetry.buildTraceExporter(config));
+
+                        // Dynamically import CompositeExporter to avoid loading OpenTelemetry at startup
+                        const { CompositeExporter } = await import('./exporters.js');
                         const traceExporter =
                             spanExporter instanceof CompositeExporter
                                 ? spanExporter
@@ -132,13 +207,20 @@ export class Telemetry {
                 return globalThis.__TELEMETRY__!;
             })();
 
-            return Telemetry._initPromise;
+            // Await the promise so failures are caught by outer try/catch
+            // This ensures _initPromise is cleared on failure, allowing re-initialization
+            return await Telemetry._initPromise;
         } catch (error) {
-            const wrappedError = new Error(
-                `Failed to initialize telemetry: ${error instanceof Error ? error.message : String(error)}`
-            );
+            // Clear init promise so subsequent calls can retry
             Telemetry._initPromise = undefined;
-            throw wrappedError;
+            // Re-throw typed errors as-is, wrap unknown errors
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
+            throw TelemetryError.initializationFailed(
+                error instanceof Error ? error.message : String(error),
+                error
+            );
         }
     }
 
@@ -149,12 +231,12 @@ export class Telemetry {
 
     /**
      * Get the global telemetry instance
-     * @throws {Error} If telemetry has not been initialized
+     * @throws {DextoRuntimeError} If telemetry has not been initialized
      * @returns {Telemetry} The global telemetry instance
      */
     static get(): Telemetry {
         if (!globalThis.__TELEMETRY__) {
-            throw new Error('Telemetry not initialized');
+            throw TelemetryError.notInitialized();
         }
         return globalThis.__TELEMETRY__;
     }

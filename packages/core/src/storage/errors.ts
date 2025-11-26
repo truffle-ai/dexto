@@ -61,6 +61,28 @@ export class StorageError {
     }
 
     /**
+     * Required storage dependency not installed
+     */
+    static dependencyNotInstalled(
+        backendType: string,
+        packageName: string,
+        installCommand: string
+    ) {
+        return new DextoRuntimeError(
+            StorageErrorCode.DEPENDENCY_NOT_INSTALLED,
+            ErrorScope.STORAGE,
+            ErrorType.USER,
+            `${backendType} storage configured but '${packageName}' package is not installed`,
+            {
+                backendType,
+                packageName,
+                hint: `Install with: ${installCommand}`,
+                recovery: `Either install the package or change storage type to 'in-memory'`,
+            }
+        );
+    }
+
+    /**
      * Read operation failed
      */
     static readFailed(operation: string, reason: string, details?: Record<string, unknown>) {

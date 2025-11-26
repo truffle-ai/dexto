@@ -8,6 +8,32 @@ TypeScript SDK for building agentic applications programmatically. This package 
 npm install @dexto/core
 ```
 
+### Optional Dependencies
+
+Some features require additional packages. Install only what you need:
+
+```bash
+# Telemetry (OpenTelemetry distributed tracing)
+npm install @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node \
+  @opentelemetry/resources @opentelemetry/semantic-conventions \
+  @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http
+
+# For gRPC telemetry export protocol
+npm install @opentelemetry/exporter-trace-otlp-grpc
+
+# Storage backends
+npm install better-sqlite3  # SQLite database
+npm install pg              # PostgreSQL database
+npm install ioredis         # Redis cache
+
+# TypeScript plugin support
+npm install tsx
+```
+
+If you configure a feature without its dependencies, you'll get a helpful error message with the exact install command.
+
+> **Note:** The `dexto` CLI package includes all optional dependencies. These are only needed when using `@dexto/core` directly as a library.
+
 ## Quick Start
 
 ```ts

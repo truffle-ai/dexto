@@ -29,6 +29,9 @@ export enum PluginErrorCode {
 
     /** Duplicate plugin priority */
     PLUGIN_DUPLICATE_PRIORITY = 'PLUGIN_DUPLICATE_PRIORITY',
+
+    /** Required dependency not installed for plugin loading */
+    PLUGIN_DEPENDENCY_NOT_INSTALLED = 'PLUGIN_DEPENDENCY_NOT_INSTALLED',
 }
 
 export type { PluginErrorCode as default };

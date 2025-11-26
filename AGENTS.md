@@ -144,7 +144,7 @@ app.post('/api/llm/switch', express.json(), async (req, res, next) => {
 
 **Error Factory Pattern (REQUIRED):**
 Each module should have an error factory class that creates properly typed errors.
-- **Reference examples**: `packages/core/src/config/errors.ts`, `packages/core/src/logger/v2/errors.ts` - Follow this pattern for new modules
+- **Reference examples**: `packages/core/src/config/errors.ts`, `packages/core/src/logger/v2/errors.ts`, `packages/core/src/telemetry/errors.ts`, `packages/core/src/storage/errors.ts` - Follow this pattern for new modules
 
 **API Integration:**
 The error middleware (`packages/cli/src/api/middleware/errorHandler.ts`) automatically maps error types to HTTP status codes.

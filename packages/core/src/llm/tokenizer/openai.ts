@@ -9,6 +9,14 @@ const FALLBACK_ENCODING = 'cl100k_base'; // Encoding used by GPT-4, GPT-3.5 Turb
 
 /**
  * Tokenizer for OpenAI models using the tiktoken library.
+ *
+ * TODO: Make tiktoken an optional peer dependency to reduce package size by ~23MB
+ * tiktoken includes WASM binaries (5.3MB) and encoder data files (16MB).
+ * It's only needed for accurate pre-request token estimation for OpenAI models.
+ * - All providers return actual token counts in API responses
+ * - Anthropic/Google/others already use simple text.length/4 approximation
+ * - Consider falling back to DefaultTokenizer if tiktoken is not installed
+ * See: packages/core/src/llm/tokenizer/factory.ts
  * Attempts to use the specific model's encoding, falls back to a common base encoding ('cl100k_base')
  * for unknown or custom model names (often used with custom baseURLs).
  */

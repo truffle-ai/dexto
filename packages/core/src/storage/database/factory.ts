@@ -2,6 +2,7 @@ import type { Database } from './types.js';
 import type { DatabaseConfig, PostgresDatabaseConfig, SqliteDatabaseConfig } from '../schemas.js';
 import { MemoryDatabaseStore } from './memory-database-store.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
+import { StorageError } from '../errors.js';
 
 // Types for database store constructors
 interface SQLiteStoreConstructor {
@@ -18,7 +19,8 @@ let PostgresStore: PostgresStoreConstructor | null = null;
 
 /**
  * Create a database store based on configuration.
- * Handles lazy loading of optional dependencies with automatic fallback.
+ * Handles lazy loading of optional dependencies.
+ * Throws StorageError.dependencyNotInstalled if required package is missing.
  * Database paths are provided via CLI enrichment layer.
  * @param config Database configuration with explicit paths
  * @param logger Logger instance for logging
@@ -52,12 +54,12 @@ async function createPostgresStore(
         }
         logger.info('Connecting to PostgreSQL database');
         return new PostgresStore(config, logger);
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn(
-            `PostgreSQL not available, falling back to in-memory database: ${errorMessage}`
-        );
-        return new MemoryDatabaseStore();
+    } catch (error: unknown) {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === 'ERR_MODULE_NOT_FOUND') {
+            throw StorageError.dependencyNotInstalled('PostgreSQL', 'pg', 'npm install pg');
+        }
+        throw error;
     }
 }
 
@@ -65,17 +67,12 @@ async function createSQLiteStore(
     config: SqliteDatabaseConfig,
     logger: IDextoLogger
 ): Promise<Database> {
-    try {
-        if (!SQLiteStore) {
-            const module = await import('./sqlite-store.js');
-            SQLiteStore = module.SQLiteStore;
-        }
-        logger.info(`Creating SQLite database store: ${config.path}`);
-        return new SQLiteStore(config, logger);
-    } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        logger.error(`SQLite store failed to load: ${err.message}`, { error: err.message });
-        logger.warn('Falling back to in-memory database store');
-        return new MemoryDatabaseStore();
+    // SQLiteStore uses dynamic import for better-sqlite3 inside connect(),
+    // so dependency errors are thrown there, not here
+    if (!SQLiteStore) {
+        const module = await import('./sqlite-store.js');
+        SQLiteStore = module.SQLiteStore;
     }
+    logger.info(`Creating SQLite database store: ${config.path}`);
+    return new SQLiteStore(config, logger);
 }
