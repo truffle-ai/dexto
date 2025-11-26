@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useCallback, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, CheckCircle, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -41,7 +40,6 @@ export default function PlaygroundView() {
     const [showServersSidebar, setShowServersSidebar] = useState(true);
     const [showToolsSidebar, setShowToolsSidebar] = useState(true);
 
-    const toolsAbortControllerRef = useRef<AbortController | null>(null);
     const executionAbortControllerRef = useRef<AbortController | null>(null);
 
     const {
@@ -114,7 +112,7 @@ export default function PlaygroundView() {
                 if (value === '') return;
                 try {
                     JSON.parse(value);
-                } catch (e) {
+                } catch {
                     setInputErrors((prev) => ({ ...prev, [inputName]: 'Invalid JSON format' }));
                     return;
                 }
@@ -158,7 +156,7 @@ export default function PlaygroundView() {
             if ((prop.type === 'object' || prop.type === 'array') && value !== '') {
                 try {
                     JSON.parse(value as string);
-                } catch (e) {
+                } catch {
                     currentInputErrors[key] = 'Invalid JSON format.';
                     allValid = false;
                 }
@@ -224,7 +222,7 @@ export default function PlaygroundView() {
                     ) {
                         try {
                             value = JSON.parse(value);
-                        } catch (e) {
+                        } catch {
                             setInputErrors((prev) => ({
                                 ...prev,
                                 [key]: 'Invalid JSON before sending.',

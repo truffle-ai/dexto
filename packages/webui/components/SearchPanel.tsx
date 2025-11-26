@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import {
     useSearchMessages,
@@ -12,10 +12,8 @@ import { formatDate, formatTime } from '@/lib/date-utils';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Dialog, DialogContent } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
 import {
     Search,
     MessageSquare,
@@ -24,7 +22,6 @@ import {
     Bot,
     Settings,
     X,
-    ArrowLeft,
     ChevronRight,
     AlertTriangle,
     RefreshCw,

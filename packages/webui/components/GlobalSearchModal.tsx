@@ -6,16 +6,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { useSearchMessages, type SearchResult } from './hooks/useSearch';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
-import {
-    Search,
-    MessageSquare,
-    User,
-    Bot,
-    Settings,
-    Clock,
-    ChevronRight,
-    RefreshCw,
-} from 'lucide-react';
+import { Search, MessageSquare, User, Bot, Settings, ChevronRight, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
 

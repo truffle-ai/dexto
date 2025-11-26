@@ -38,7 +38,6 @@ import {
 } from '../hooks/useAgentConfig';
 import YAMLEditorView from './YAMLEditorView';
 import FormEditorView from './FormEditorView';
-import type { editor } from 'monaco-editor';
 import {
     Dialog,
     DialogContent,
@@ -55,29 +54,6 @@ interface CustomizePanelProps {
     isOpen: boolean;
     onClose: () => void;
     variant?: 'overlay' | 'inline';
-}
-
-interface AgentConfigResponse {
-    yaml: string;
-    path: string;
-    relativePath: string;
-    lastModified: string;
-    warnings: string[];
-}
-
-interface ValidationResponse {
-    valid: boolean;
-    errors: ValidationError[];
-    warnings: ValidationWarning[];
-}
-
-interface SaveConfigResponse {
-    ok: boolean;
-    path: string;
-    reloaded: boolean;
-    restarted: boolean;
-    changesApplied: string[];
-    message: string;
 }
 
 type EditorMode = 'form' | 'yaml';

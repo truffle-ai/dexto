@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
@@ -12,34 +12,18 @@ import {
     RecordButton,
 } from './ChatInput';
 import ModelPickerModal from './ModelPicker';
-import { Badge } from './ui/badge';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import {
-    Paperclip,
     SendHorizontal,
     X,
     Loader2,
-    Bot,
-    ChevronDown,
     AlertCircle,
-    Zap,
-    Mic,
     Square,
     FileAudio,
     File,
-    Search,
     Brain,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
-import { Switch } from './ui/switch';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn, filterAndSortResources } from '../lib/utils';
 import ResourceAutocomplete from './ResourceAutocomplete';
@@ -55,12 +39,6 @@ import { queryKeys } from '@/lib/queryKeys';
 import { useLLMCatalog } from './hooks/useLLM';
 import { useResolvePrompt } from './hooks/usePrompts';
 
-interface ModelOption {
-    name: string;
-    provider: string;
-    model: string;
-}
-
 interface InputAreaProps {
     onSend: (
         content: string,
@@ -75,7 +53,6 @@ interface InputAreaProps {
 export default function InputArea({
     onSend,
     isSending,
-    variant = 'chat',
     isSessionsPanelOpen = false,
 }: InputAreaProps) {
     const queryClient = useQueryClient();
@@ -115,7 +92,6 @@ export default function InputArea({
     }, [analytics]);
 
     // LLM selector state
-    const [isLoadingModel, setIsLoadingModel] = useState(false);
     const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
     const [fileUploadError, setFileUploadError] = useState<string | null>(null);
     const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
@@ -155,14 +131,6 @@ export default function InputArea({
         }
         return -1;
     };
-
-    // TODO: Populate using LLM_REGISTRY by exposing an API endpoint
-    const coreModels = [
-        { name: 'Claude 4.5 Sonnet', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929' },
-        { name: 'GPT-5', provider: 'openai', model: 'gpt-5' },
-        { name: 'GPT-5 Mini', provider: 'openai', model: 'gpt-5-mini' },
-        { name: 'Gemini 2.5 Pro', provider: 'google', model: 'gemini-2.5-pro' },
-    ];
 
     // File size limit (64MB)
     const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB in bytes
@@ -546,12 +514,12 @@ export default function InputArea({
                         sessionId: currentSessionId,
                     });
                 }
-            } catch (error) {
+            } catch {
                 showUserError('Failed to process PDF file. Please try again.');
                 setFileData(null);
             }
         };
-        reader.onerror = (error) => {
+        reader.onerror = () => {
             showUserError('Failed to read PDF file. Please try again.');
             setFileData(null);
         };
@@ -611,7 +579,7 @@ export default function InputArea({
                                 sessionId: currentSessionId,
                             });
                         }
-                    } catch (error) {
+                    } catch {
                         showUserError('Failed to process audio recording. Please try again.');
                         setFileData(null);
                     }
@@ -624,7 +592,7 @@ export default function InputArea({
 
             mediaRecorder.start();
             setIsRecording(true);
-        } catch (error) {
+        } catch {
             showUserError('Failed to start audio recording. Please check microphone permissions.');
         }
     };
@@ -677,12 +645,12 @@ export default function InputArea({
                         sessionId: currentSessionId,
                     });
                 }
-            } catch (error) {
+            } catch {
                 showUserError('Failed to process image file. Please try again.');
                 setImageData(null);
             }
         };
-        reader.onerror = (error) => {
+        reader.onerror = () => {
             showUserError('Failed to read image file. Please try again.');
             setImageData(null);
         };
@@ -705,8 +673,6 @@ export default function InputArea({
             setFileUploadError(null);
         }
     }, [text, modelSwitchError, fileUploadError]);
-
-    const showClearButton = text.length > 0 || !!imageData || !!fileData;
 
     const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -743,12 +709,12 @@ export default function InputArea({
                         sessionId: currentSessionId,
                     });
                 }
-            } catch (error) {
+            } catch {
                 showUserError('Failed to process audio file. Please try again.');
                 setFileData(null);
             }
         };
-        reader.onerror = (error) => {
+        reader.onerror = () => {
             showUserError('Failed to read audio file. Please try again.');
             setFileData(null);
         };

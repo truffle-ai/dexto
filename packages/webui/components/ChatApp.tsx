@@ -57,7 +57,6 @@ import { Textarea } from './ui/textarea';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
-import Link from 'next/link';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -73,7 +72,6 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
-import type { PromptInfo } from '@dexto/core';
 import type { ServerRegistryEntry } from '@/types';
 
 interface ChatAppProps {
@@ -1602,7 +1600,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             <GlobalSearchModal
                 isOpen={isSearchOpen}
                 onClose={() => setSearchOpen(false)}
-                onNavigateToSession={(sessionId, messageIndex) => {
+                onNavigateToSession={(sessionId) => {
                     router.push(`/chat/${sessionId}`);
                     setSearchOpen(false);
                 }}
