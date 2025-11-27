@@ -137,6 +137,9 @@ async function main() {
   // Create manager pointing to your registry
   const manager = new AgentManager('./agents/registry.json');
 
+  // Load registry (required before using sync methods)
+  await manager.loadRegistry();
+
   // List available agents
   const agents = manager.listAgents();
   console.log('Available agents:');
@@ -255,6 +258,8 @@ You can filter agents by tags or search by description:
 import { AgentManager } from '@dexto/agent-management';
 
 const manager = new AgentManager('./agents/registry.json');
+await manager.loadRegistry();
+
 const agents = manager.listAgents();
 
 // Find coding agents

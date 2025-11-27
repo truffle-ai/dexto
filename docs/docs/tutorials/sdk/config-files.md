@@ -297,6 +297,7 @@ async function createAgent(agentType: string): Promise<DextoAgent> {
 // Usage: dynamically select agent
 const userNeed = getUserRequest(); // "code", "research", "support", etc.
 
+let agent: DextoAgent;
 if (userNeed.includes('code') || userNeed.includes('function')) {
   agent = await createAgent('coding-agent');
 } else if (userNeed.includes('research') || userNeed.includes('analyze')) {

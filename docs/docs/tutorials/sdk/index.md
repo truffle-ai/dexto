@@ -44,7 +44,7 @@ You've been configuring agents inline with JavaScript objects. That works for de
 ### 7. [Agent Orchestration](./orchestration.md)
 **Manage multiple agents programmatically.**
 
-So far you've worked with one agent at a time. But what if you're building a platform where users choose from specialized agents? Learn to use AgentOrchestrator to list, install, and manage multiple agents programmatically—build agent marketplaces, multi-tenant systems, and dynamic agent selection.
+So far you've worked with one agent at a time. But what if you're building a platform where users choose from specialized agents? Learn to use AgentManager to list, install, and manage multiple agents programmatically—build agent marketplaces, multi-tenant systems, and dynamic agent selection.
 
 ## What You'll Build
 

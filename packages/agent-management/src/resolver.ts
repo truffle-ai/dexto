@@ -65,8 +65,9 @@ async function resolveAgentByName(
     // Check if installed
     try {
         const manager = new AgentManager(installedRegistryPath);
+        await manager.loadRegistry();
         if (manager.hasAgent(agentId)) {
-            const agentPath = await getAgentConfigPath(manager, agentId);
+            const agentPath = await getAgentConfigPath(agentId);
             return agentPath;
         }
     } catch (_error) {
@@ -91,9 +92,9 @@ async function resolveAgentByName(
 }
 
 /**
- * Get config path for an agent from the manager
+ * Get config path for an agent from the installed registry
  */
-async function getAgentConfigPath(_manager: AgentManager, agentId: string): Promise<string> {
+async function getAgentConfigPath(agentId: string): Promise<string> {
     // Extract config path from agent - we need to find the actual config file
     // The agent was created from the config, so we can derive the path from the registry
     const agentsDir = getDextoGlobalPath('agents');
@@ -267,6 +268,7 @@ export async function updateDefaultAgentPreference(agentName: string): Promise<v
     // Check installed registry
     try {
         const installedManager = new AgentManager(installedRegistryPath);
+        await installedManager.loadRegistry();
         if (installedManager.hasAgent(agentName)) {
             // Valid, update preferences
             const { updateGlobalPreferences } = await import('./preferences/loader.js');
@@ -283,6 +285,7 @@ export async function updateDefaultAgentPreference(agentName: string): Promise<v
     // Check bundled registry
     try {
         const bundledManager = new AgentManager(bundledRegistryPath);
+        await bundledManager.loadRegistry();
         if (bundledManager.hasAgent(agentName)) {
             // Valid, update preferences
             const { updateGlobalPreferences } = await import('./preferences/loader.js');

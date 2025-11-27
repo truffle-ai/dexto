@@ -80,8 +80,22 @@ export class AgentManager {
 
     /**
      * Load registry from file (lazy loaded, cached)
+     *
+     * Call this before using sync methods like `listAgents()` or `hasAgent()`.
+     * Alternatively, calling `createAgent()` will automatically load the registry.
+     *
+     * @returns The loaded registry
+     *
+     * @example
+     * ```typescript
+     * const manager = new AgentManager('./registry.json');
+     * await manager.loadRegistry();
+     *
+     * // Now sync methods work
+     * const agents = manager.listAgents();
+     * ```
      */
-    private async loadRegistry(): Promise<Registry> {
+    async loadRegistry(): Promise<Registry> {
         if (this.registry) {
             return this.registry;
         }

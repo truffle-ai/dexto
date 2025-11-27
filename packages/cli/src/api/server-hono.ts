@@ -7,6 +7,7 @@ import {
     deriveDisplayName,
     resolveBundledScript,
     getDextoGlobalPath,
+    listInstalledAgents,
 } from '@dexto/agent-management';
 import { readFileSync } from 'fs';
 import { promises as fs } from 'fs';
@@ -42,26 +43,6 @@ function loadBundledRegistry(): Record<string, any> {
             `Could not load bundled registry: ${error instanceof Error ? error.message : String(error)}`
         );
         return {};
-    }
-}
-
-/**
- * List installed agents from ~/.dexto/agents
- */
-async function listInstalledAgents(): Promise<string[]> {
-    const globalAgentsDir = getDextoGlobalPath('agents');
-    try {
-        const entries = await fs.readdir(globalAgentsDir, { withFileTypes: true });
-        return entries
-            .filter(
-                (e) => e.isDirectory() && e.name !== 'registry.json' && !e.name.includes('.tmp.')
-            )
-            .map((e) => e.name);
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-            return [];
-        }
-        throw error;
     }
 }
 
