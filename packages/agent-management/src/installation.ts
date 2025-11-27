@@ -101,8 +101,8 @@ export async function installBundledAgent(
         await fs.access(targetDir);
         logger.info(`Agent '${agentId}' already installed`);
 
-        // Return path to main config
-        const mainFile = agentEntry.main || `${agentId}.yml`;
+        // Return path to main config (consistent with post-install logic)
+        const mainFile = agentEntry.main || path.basename(agentEntry.source);
         return path.join(targetDir, mainFile);
     } catch {
         // Not installed, continue

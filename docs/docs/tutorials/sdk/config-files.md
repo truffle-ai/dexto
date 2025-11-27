@@ -5,33 +5,15 @@ title: "Loading Agent Configs"
 
 # Loading Agent Configs
 
-You've been configuring agents inline with JavaScript objects. That's perfect for quick scripts, but applications with multiple agents need reusable, shareable configurations. This is where YAML config files come in—the same configs that power all of Dexto's built-in agents.
+You've been configuring agents inline with JavaScript objects. That works for quick scripts, but as your project grows, configs buried in code become hard to share, review, and manage across a team.
 
-## What You'll Build
+YAML config files solve this—the same approach Dexto's built-in agents use.
 
-A pattern where:
-1. Agent configurations live in YAML files (not in code)
-2. Configs are loaded and validated at runtime
-3. Multiple specialized agents use different config files
-4. Configs get automatically enriched with agent-specific paths
-
-By the end, you'll understand when to use inline configs vs. files, and how to organize configs for different agent types.
-
-## Prerequisites
-
-- Completed [Quick Start](./quick-start.md) tutorial
-- Node.js 18+
-- Basic understanding of YAML format
-
-## Part I: From Inline to Config Files
-
-### The Problems You'll Hit
+## The Problem
 
 Here's what you've been doing:
 
 ```typescript
-import { DextoAgent } from '@dexto/core';
-
 const agent = new DextoAgent({
   llm: {
     provider: 'openai',
@@ -42,29 +24,16 @@ const agent = new DextoAgent({
 });
 ```
 
-This works for quick scripts, but you'll hit these problems:
+This gets messy fast. Config drift between team members, no easy way to share agent setups, and switching models means changing code.
 
-**Problem 1: Config drift across your team**
-Developer A runs with `model: 'gpt-4o-mini'`, Developer B runs with `model: 'gpt-4o'`. Same code, different behavior. Debugging becomes a nightmare because you can't easily see what config someone is using.
+## The Solution: YAML Config Files
 
-**Problem 2: Can't share agent configs**
-Someone asks "what's your agent setup?" You have to send them your entire source code. Want to share just the agent config? You can't—it's buried in your application code.
-
-**Problem 3: Changing models requires code changes**
-Want to try Claude instead of GPT? You have to modify code, commit, and redeploy. Config should be external and swappable, not hardcoded.
-
-**Problem 4: Hard to manage multiple agents**
-Building a system with a coding agent, research agent, and support agent? Your code becomes a mess of nested objects. Each agent config lives in a different file, making them impossible to compare or organize.
-
-### The Solution: YAML Config Files
-
-Create `my-assistant.yml`:
+Move your config to a file. Create `my-agent.yml`:
 
 ```yaml
-# Agent configuration
 systemPrompt: |
   You are a helpful assistant specializing in technical documentation.
-  Be concise, accurate, and provide code examples when relevant.
+  Be concise and provide code examples when relevant.
 
 llm:
   provider: openai
@@ -72,329 +41,115 @@ llm:
   apiKey: $OPENAI_API_KEY
 ```
 
-Now load it with the agent-management package:
+Now load it:
 
 ```typescript
 import { DextoAgent } from '@dexto/core';
 import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
 
-// Load config from file
-const config = await loadAgentConfig('my-assistant.yml');
+const config = await loadAgentConfig('my-agent.yml');
+const enriched = enrichAgentConfig(config, 'my-agent.yml');
 
-// Enrich with runtime paths (logs, storage, etc.)
-const enrichedConfig = enrichAgentConfig(config, 'my-assistant.yml');
-
-// Create agent with loaded config
-const agent = new DextoAgent(enrichedConfig, 'my-assistant.yml');
+const agent = new DextoAgent(enriched, 'my-agent.yml');
 await agent.start();
 ```
 
-### Install Agent Management
+**That's it.** Your config is now external, shareable, and version-controlled separately from your code.
 
 ```bash
 npm install @dexto/agent-management
 ```
 
-## Part II: Understanding Config Loading
+## What These Functions Do
 
-### What `loadAgentConfig` Does
+**`loadAgentConfig(path)`** reads your YAML and:
+- Validates the schema
+- Expands environment variables (`$OPENAI_API_KEY` → actual value)
+- Resolves relative paths
 
-```typescript
-import { loadAgentConfig } from '@dexto/agent-management';
+**`enrichAgentConfig(config, path)`** adds runtime paths:
+- Logs: `~/.dexto/agents/my-agent/logs/`
+- Storage: `~/.dexto/agents/my-agent/storage/`
+- Database: `~/.dexto/agents/my-agent/db/`
 
-const config = await loadAgentConfig('my-assistant.yml');
-```
+Each agent gets isolated storage automatically, derived from the config filename.
 
-This function:
-1. **Resolves paths** - Handles relative/absolute paths, searches standard locations
-2. **Validates schema** - Ensures config matches the expected structure
-3. **Expands environment variables** - Replaces `$OPENAI_API_KEY` with actual values
-4. **Merges includes** - Supports config composition (advanced)
+## Organizing Multiple Agents
 
-### What `enrichAgentConfig` Does
+Building a system with different agent types? Organize them in a folder:
 
-```typescript
-import { enrichAgentConfig } from '@dexto/agent-management';
-
-const enriched = enrichAgentConfig(config, 'my-assistant.yml');
-```
-
-This function automatically adds:
-- **Log directory** - `~/.dexto/agents/my-assistant/logs/`
-- **Storage paths** - `~/.dexto/agents/my-assistant/storage/`
-- **Database paths** - `~/.dexto/agents/my-assistant/db/`
-- **Blob storage** - `~/.dexto/agents/my-assistant/blobs/`
-
-These paths are derived from the config file path, ensuring each agent gets isolated storage.
-
-## Part III: Complete Working Example
-
-Create `customer-support.yml`:
-
-```yaml
-systemPrompt: |
-  You are a customer support assistant for TechCorp.
-
-  Guidelines:
-  - Always be polite and professional
-  - Ask clarifying questions when needed
-  - Escalate to human agents for refunds or account issues
-  - Use the knowledge base tool to find accurate information
-
-llm:
-  provider: openai
-  model: gpt-4o-mini
-  apiKey: $OPENAI_API_KEY
-  temperature: 0.7
-
-# Add MCP servers for capabilities
-mcpServers:
-  filesystem:
-    type: stdio
-    command: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "./knowledge-base"
-```
-
-Create `support-bot.ts`:
-
-```typescript
-import { DextoAgent } from '@dexto/core';
-import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
-
-async function startSupportBot() {
-  try {
-    // Load and enrich config
-    const config = await loadAgentConfig('customer-support.yml');
-    const enrichedConfig = enrichAgentConfig(config, 'customer-support.yml');
-
-    // Create agent
-    const agent = new DextoAgent(enrichedConfig, 'customer-support.yml');
-    await agent.start();
-
-    console.log('Customer support bot started');
-    console.log('Config loaded from: customer-support.yml');
-    console.log('Logs directory:', enrichedConfig.telemetry?.logDirectory);
-
-    // Create session and test
-    const session = await agent.createSession();
-    const response = await agent.generate(
-      'How do I reset my password?',
-      { sessionId: session.id }
-    );
-
-    console.log('Response:', response.content);
-
-    await agent.stop();
-  } catch (error) {
-    console.error('Failed to start agent:', error);
-    process.exit(1);
-  }
-}
-
-startSupportBot();
-```
-
-Run it:
-
-```bash
-export OPENAI_API_KEY=sk-...
-npx tsx support-bot.ts
-```
-
-## Part IV: Managing Multiple Specialized Agents
-
-You're building a platform with different agent types. Instead of one monolithic config, create specialized configs for each use case.
-
-### Organize by Agent Type
-
-```bash
+```text
 agents/
-├── coding-agent.yml      # Code generation & review
-├── research-agent.yml    # Data gathering & analysis
-├── support-agent.yml     # Customer support
-└── creative-agent.yml    # Content writing
+├── coding-agent.yml
+├── research-agent.yml
+└── support-agent.yml
 ```
 
-**coding-agent.yml:**
-```yaml
-systemPrompt: |
-  You are an expert software engineer specializing in code generation,
-  review, and debugging. Provide clear, efficient, well-documented code.
+Each config tailored to its task:
 
+```yaml
+# coding-agent.yml - Low temperature for deterministic code
 llm:
   provider: anthropic
   model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
-  temperature: 0.3  # More deterministic for code
+  temperature: 0.3
 
-mcpServers:
-  filesystem:
-    type: stdio
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+systemPrompt: You are an expert software engineer.
 ```
 
-**research-agent.yml:**
 ```yaml
-systemPrompt: |
-  You are a research analyst. Gather information from multiple sources,
-  synthesize findings, and provide well-cited, comprehensive reports.
-
-llm:
-  provider: openai
-  model: gpt-4o
-  apiKey: $OPENAI_API_KEY
-  temperature: 0.7
-
-mcpServers:
-  exa:
-    type: http
-    url: https://mcp.exa.ai/mcp
-```
-
-**support-agent.yml:**
-```yaml
-systemPrompt: |
-  You are a friendly customer support assistant.
-  Be empathetic, clear, and solution-focused.
-
+# support-agent.yml - Higher temperature for conversational tone
 llm:
   provider: openai
   model: gpt-4o-mini
   apiKey: $OPENAI_API_KEY
-  temperature: 0.8  # More conversational
+  temperature: 0.8
 
-mcpServers:
-  filesystem:
-    type: stdio
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "./kb"]
+systemPrompt: You are a friendly customer support assistant.
 ```
 
-### Load Based on Use Case
-
-Create `agent-loader.ts`:
+Load whichever you need:
 
 ```typescript
-import { DextoAgent } from '@dexto/core';
-import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
+async function createAgent(type: string): Promise<DextoAgent> {
+  const path = `agents/${type}.yml`;
+  const config = await loadAgentConfig(path);
+  const enriched = enrichAgentConfig(config, path);
 
-async function createAgent(agentType: string): Promise<DextoAgent> {
-  const configPath = `agents/${agentType}.yml`;
-
-  const config = await loadAgentConfig(configPath);
-  const enriched = enrichAgentConfig(config, configPath);
-
-  const agent = new DextoAgent(enriched, configPath);
+  const agent = new DextoAgent(enriched, path);
   await agent.start();
-
   return agent;
 }
 
-// Usage: dynamically select agent
-const userNeed = getUserRequest(); // "code", "research", "support", etc.
-
-let agent: DextoAgent;
-if (userNeed.includes('code') || userNeed.includes('function')) {
-  agent = await createAgent('coding-agent');
-} else if (userNeed.includes('research') || userNeed.includes('analyze')) {
-  agent = await createAgent('research-agent');
-} else {
-  agent = await createAgent('support-agent');
-}
+// Pick the right agent for the task
+const agent = await createAgent('coding-agent');
 ```
 
-### Benefits of This Pattern
+## When to Use What
 
-**1. Clear separation of concerns**
-Each agent's config is self-contained. Want to know what the coding agent does? Open `coding-agent.yml`.
+**Use inline configs when:**
+- Quick scripts and demos
+- Config values computed at runtime
+- Writing tests
 
-**2. Easy to compare agents**
-Configs side-by-side make it obvious how agents differ:
-- Different system prompts for different personalities
-- Different models for different tasks
-- Different tools for different capabilities
+**Use config files when:**
+- Multiple agents in your application
+- Team needs to review/modify configs
+- You want version-controlled agent settings
 
-**3. Simple to add new agent types**
-Building a new agent? Create a new config file. No code changes needed.
-
-**4. Team collaboration**
-Product manager wants to change the support agent's tone? They can edit `support-agent.yml` directly without touching code.
-
-## Part V: When to Use What
-
-### Use Inline Configs When:
-- **Quick scripts and demos** - Fast iteration, no file management
-- **Dynamic configuration** - Config values computed at runtime
-- **Testing** - Easier to modify configs in tests
+**Hybrid approach**—load a file, override at runtime:
 
 ```typescript
-// Good for quick scripts
-const agent = new DextoAgent({
-  llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY }
-});
-```
+const config = await loadAgentConfig('base-agent.yml');
+config.llm.model = process.env.USE_ADVANCED ? 'gpt-4o' : 'gpt-4o-mini';
 
-### Use Config Files When:
-- **Multiple agents** - Reusable configs across your application
-- **Team collaboration** - Easy to review and modify configs
-- **Shared configs** - Need to distribute agent configs to others
-- **Version control** - Track config changes separately from code
-
-```typescript
-// Good for reusable agents
-const config = await loadAgentConfig('coding-agent.yml');
-const enriched = enrichAgentConfig(config, 'coding-agent.yml');
-const agent = new DextoAgent(enriched, 'coding-agent.yml');
-```
-
-### Hybrid Approach
-
-You can also load a config and override specific values:
-
-```typescript
-import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
-
-// Load base config from file
-let config = await loadAgentConfig('base-agent.yml');
-
-// Override specific values based on runtime conditions
-if (process.env.USE_ADVANCED_MODEL === 'true') {
-  config.llm.model = 'gpt-4o';
-}
-
-// Apply enrichment and create agent
 const enriched = enrichAgentConfig(config, 'base-agent.yml');
 const agent = new DextoAgent(enriched, 'base-agent.yml');
 ```
 
-## Key Takeaways
-
-**Config Loading Pattern:**
-```typescript
-const config = await loadAgentConfig(path);    // Load & validate
-const enriched = enrichAgentConfig(config, path);  // Add runtime paths
-const agent = new DextoAgent(enriched, path);      // Create agent
-```
-
-**Why This Matters:**
-- **loadAgentConfig** - Validates, resolves paths, expands env vars
-- **enrichAgentConfig** - Adds per-agent storage/log paths automatically
-- **Both together** - Complete config management
-
-**Key Benefits:**
-- Configs version-controlled separately from code
-- Easy to share, review, and audit configurations
-- Organize multiple agent types cleanly
-- Automatic path management for logs and storage
-
 ## What's Next?
 
-You've learned how to move from inline configs to file-based configs. But what if you're building a service that manages multiple agents? What if users can choose from different specialized agents?
-
-That's where programmatic agent management comes in.
+Config files work great for a handful of agents. But what if you're building a platform where users choose from many specialized agents? You need a way to list, discover, and manage them programmatically.
 
 **Continue to:** [Agent Orchestration](./orchestration.md)
