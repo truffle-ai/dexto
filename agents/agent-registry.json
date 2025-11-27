@@ -107,6 +107,24 @@
       "tags": ["coding", "development", "software", "internal-tools", "programming"],
       "source": "coding-agent/",
       "main": "coding-agent.yml"
+    },
+    "workflow-builder-agent": {
+      "id": "workflow-builder-agent",
+      "name": "Workflow Builder Agent",
+      "description": "AI agent for building and managing n8n automation workflows with comprehensive workflow, execution, and credential management",
+      "author": "Truffle AI",
+      "tags": ["n8n", "automation", "workflows", "integration", "mcp"],
+      "source": "workflow-builder-agent/",
+      "main": "workflow-builder-agent.yml"
+    },
+    "product-analysis-agent": {
+      "id": "product-analysis-agent",
+      "name": "Product Analysis Agent",
+      "description": "AI agent for product analytics using PostHog with insights, feature flags, error tracking, and user behavior analysis",
+      "author": "Truffle AI",
+      "tags": ["posthog", "analytics", "product", "insights", "feature-flags", "mcp"],
+      "source": "product-analysis-agent/",
+      "main": "product-analysis-agent.yml"
     }
   }
 }

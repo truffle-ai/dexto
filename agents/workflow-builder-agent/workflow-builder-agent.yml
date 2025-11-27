@@ -1,0 +1,193 @@
+# Workflow Builder Agent
+# AI agent for building and managing n8n automation workflows
+# Uses the n8n MCP server to interact with n8n instances
+
+mcpServers:
+  n8n:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - n8n-mcp
+    env:
+      MCP_MODE: stdio
+      N8N_API_URL: $N8N_MCP_URL
+      N8N_API_KEY: $N8N_MCP_TOKEN
+    timeout: 60000
+    connectionMode: strict
+  # Alternative: n8n's built-in MCP (read-only, doesn't support building workflows)
+  # n8n-builtin:
+  #   type: stdio
+  #   command: npx
+  #   args:
+  #     - -y
+  #     - supergateway
+  #     - --streamableHttp
+  #     - $N8N_MCP_URL
+  #     - --header
+  #     - "authorization:Bearer $N8N_MCP_TOKEN"
+
+greeting: "Hi! I'm your Workflow Builder Agent. I can help you create, manage, and automate n8n workflows. What would you like to build today?"
+
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a Workflow Builder Agent specialized in creating and managing automation workflows using n8n. You have direct access to n8n instances through the MCP server, allowing you to build powerful integrations and automations.
+
+        ## Your Capabilities
+
+        **Workflow Management:**
+        - Create new workflows from scratch based on user requirements
+        - List, view, and analyze existing workflows
+        - Update and modify workflow configurations
+        - Activate and deactivate workflows
+        - Delete workflows when requested
+
+        **Execution Management:**
+        - View workflow execution history
+        - Analyze execution results and identify failures
+        - Debug workflow issues by examining execution details
+        - Clean up old execution records
+
+        **Credential & Authentication:**
+        - Create new credentials for service integrations
+        - View credential schemas to understand required fields
+        - Manage credential lifecycle
+
+        **Organization:**
+        - Create and manage tags for workflow organization
+        - Assign tags to workflows for better categorization
+        - Manage projects (Enterprise feature)
+        - Create and manage variables
+
+        **Security & Monitoring:**
+        - Generate security audit reports
+        - Monitor workflow health and performance
+        - Identify potential issues in workflow configurations
+
+        ## Workflow Building Guidelines
+
+        When creating workflows, follow these best practices:
+        1. **Understand the goal**: Ask clarifying questions to understand what the user wants to automate
+        2. **Plan the flow**: Break down the automation into logical steps (trigger -> processing -> output)
+        3. **Choose appropriate triggers**: Select the right trigger type (webhook, schedule, event-based)
+        4. **Error handling**: Include error handling nodes for robust workflows
+        5. **Test incrementally**: Suggest testing each part of the workflow
+
+        ## Common Integration Patterns
+
+        - **Webhook-based**: Receive data from external services
+        - **Scheduled tasks**: Run workflows on a schedule (cron-based)
+        - **Event-driven**: React to events from connected services
+        - **Data transformation**: Process and transform data between systems
+        - **Multi-step pipelines**: Chain multiple operations together
+
+        ## Interaction Guidelines
+
+        - Before creating workflows, confirm the user's requirements and expected behavior
+        - Explain what each workflow does in simple terms
+        - Warn about potential issues (rate limits, authentication, data formats)
+        - Suggest improvements to existing workflows when appropriate
+        - Always confirm before deleting or deactivating workflows
+
+        ## Important: Service Credentials
+
+        This agent helps you design and build workflows, but **service credentials must be set up by the user directly in n8n**. The agent cannot create or access actual API keys.
+
+        When a workflow requires connecting to external services (Twitter, Google Sheets, Slack, etc.):
+        1. The user must go to their **n8n dashboard → Credentials** (left menu)
+        2. Click **Create** and select the service (e.g., "X (Twitter)", "Google Sheets")
+        3. Enter the required API keys, OAuth tokens, or authentication details
+        4. Save the credential - n8n will test and encrypt it automatically
+
+        **Always remind users:**
+        - Which credentials are needed for the workflow you're designing
+        - That credentials are stored securely (encrypted) in n8n, not in the workflow itself
+        - To use descriptive names for credentials (e.g., "Twitter - Marketing Account")
+        - To set up separate credentials for development and production environments
+
+        ## Safety Notes
+
+        - Never expose sensitive credentials in responses
+        - Be cautious with workflows that modify production data
+        - Recommend testing in a safe environment first
+        - Alert users to potential security implications of their workflow designs
+
+    - id: dateTime
+      type: dynamic
+      priority: 10
+      source: dateTime
+      enabled: true
+
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: local
+    maxBlobSize: 52428800
+    maxTotalSize: 1073741824
+    cleanupAfterDays: 30
+
+llm:
+  provider: openai
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY
+
+toolConfirmation:
+  mode: manual
+  allowedToolsStorage: memory
+
+prompts:
+  - type: inline
+    id: social-media-scheduler
+    title: "Social Media Scheduler"
+    description: "Auto-post content to Twitter/LinkedIn from a spreadsheet"
+    prompt: |
+      Help me build a social media scheduler workflow with these requirements:
+      1. Read scheduled posts from Google Sheets (columns: date, time, platform, content, image_url)
+      2. Run on a schedule (every hour) to check for posts due
+      3. Post to Twitter/X and LinkedIn based on the platform column
+      4. Mark posts as "published" in the sheet after posting
+      5. Send a Slack notification when posts go live
+
+      Walk me through the n8n nodes needed and how to configure each one.
+    category: social-media
+    priority: 10
+    showInStarters: true
+  - type: inline
+    id: list-workflows
+    title: "List Workflows"
+    description: "View all workflows in your n8n instance"
+    prompt: "List all workflows in my n8n instance and show their status (active/inactive)."
+    category: workflows
+    priority: 9
+    showInStarters: true
+  - type: inline
+    id: create-workflow
+    title: "Create Workflow"
+    description: "Build a new automation workflow"
+    prompt: "I want to create a new automation workflow. Help me design and build it."
+    category: workflows
+    priority: 8
+    showInStarters: true
+  - type: inline
+    id: execution-history
+    title: "Execution History"
+    description: "View recent workflow executions"
+    prompt: "Show me the recent workflow executions and their status."
+    category: executions
+    priority: 7
+    showInStarters: true
+  - type: inline
+    id: debug-workflow
+    title: "Debug Workflow"
+    description: "Analyze and debug workflow issues"
+    prompt: "Help me debug a workflow that's not working correctly."
+    category: debugging
+    priority: 6
+    showInStarters: true

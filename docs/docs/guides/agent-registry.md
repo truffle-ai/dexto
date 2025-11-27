@@ -40,7 +40,9 @@ For detailed installation instructions, see the [Installing Custom Agents guide]
 | [Coding Agent](#-coding-agent) | Development | Software development, debugging | Anthropic Claude Haiku 4.5 |
 | [Database Agent](#%EF%B8%8F-database-agent) | Data & Analysis | SQL queries, database operations | OpenAI GPT-5 Mini |
 | [Talk2PDF Agent](#-talk2pdf-agent) | Data & Analysis | PDF analysis, document conversation | OpenAI GPT-5 Mini |
+| [Product Analysis Agent](#-product-analysis-agent) | Data & Analysis | Product analytics, user behavior | Anthropic Claude Sonnet 4.5 |
 | [GitHub Agent](#-github-agent) | DevOps | GitHub operations, PR analysis | OpenAI GPT-5 Mini |
+| [Workflow Builder Agent](#-workflow-builder-agent) | Automation | n8n workflow automation | OpenAI GPT-5 Mini |
 | [Product Researcher](#-product-researcher) | Research | Product naming, branding research | Anthropic Claude Sonnet 4.5 |
 | [Triage Agent](#-triage-agent) | Multi-Agent | Customer support routing | OpenAI GPT-5 |
 | [Default Agent](#%EF%B8%8F-default-agent) | General Purpose | General tasks, file operations | Any |
@@ -289,6 +291,57 @@ dexto --agent talk2pdf-agent "Summarize the key findings in this research paper"
 
 ---
 
+#### 📊 Product Analysis Agent
+
+**ID:** `product-analysis-agent`
+**Best For:** Product analytics, user behavior, feature flags, error tracking
+
+AI agent for product analytics using PostHog MCP server.
+
+**Key Features:**
+- User growth and behavior analysis
+- Feature flag management
+- Error tracking and debugging
+- Annotations for events
+- Funnel and retention analysis
+
+**Example Use:**
+```bash
+dexto --agent product-analysis-agent "Show me user growth trends over the past 30 days"
+```
+
+**Recommended LLM:** Anthropic Claude Sonnet 4.5
+
+**Requires:** `POSTHOG_API_KEY`
+
+---
+
+### Automation & Integration
+
+#### 🔧 Workflow Builder Agent
+
+**ID:** `workflow-builder-agent`
+**Best For:** n8n workflow automation, integrations, scheduled tasks
+
+AI agent for building and managing n8n automation workflows.
+
+**Key Features:**
+- Create workflows from natural language
+- Execution monitoring and debugging
+- Credential guidance for service integrations
+- Workflow templates (social media scheduler, etc.)
+
+**Example Use:**
+```bash
+dexto --agent workflow-builder-agent "Build a social media scheduler that posts from Google Sheets"
+```
+
+**Recommended LLM:** OpenAI GPT-5 Mini
+
+**Requires:** `N8N_MCP_URL`, `N8N_MCP_TOKEN`
+
+---
+
 ### Collaboration & DevOps
 
 #### 🐙 GitHub Agent
@@ -463,7 +516,9 @@ defaults:
 | coding-agent | Development | Claude/GPT | - |
 | database-agent | Data | Claude/GPT | - |
 | talk2pdf-agent | Data | Claude/Gemini | - |
+| product-analysis-agent | Data | Claude | POSTHOG_API_KEY |
 | github-agent | DevOps | Claude/GPT | GITHUB_TOKEN |
+| workflow-builder-agent | Automation | GPT | N8N_MCP_URL, N8N_MCP_TOKEN |
 | product-researcher | Research | Claude/GPT | - |
 | triage-agent | Multi-Agent | Claude/GPT | - |
 | default-agent | General | Any | Pre-installed |
@@ -483,7 +538,11 @@ defaults:
 
 ### For Analysis & Research
 - **Documents:** Use `talk2pdf-agent` for PDF analysis
+- **Product Analytics:** Use `product-analysis-agent` for PostHog insights and user behavior
 - **Branding:** Use `product-researcher` for naming and market research
+
+### For Automation
+- **Workflows:** Use `workflow-builder-agent` for n8n automation and integrations
 
 ### For Complex Systems
 - **Multi-Agent:** Use `triage-agent` as a template for building agent coordination systems
@@ -501,6 +560,9 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_GENERATIVE_AI_API_KEY=...
 GITHUB_TOKEN=ghp_...
+POSTHOG_API_KEY=phx_...
+N8N_MCP_URL=https://your-instance.app.n8n.cloud/api/v1
+N8N_MCP_TOKEN=...
 ```
 
 ## Contributing Your Own Agent
