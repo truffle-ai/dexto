@@ -708,3 +708,132 @@ mcpServers:
 |------|---------|
 | `src/gameboy/index.ts` | Main server implementation |
 | `src/gameboy/package.json` | Dependencies |
+
+---
+
+## Package-Level Analysis
+
+### Architecture: Pass-Through Design
+
+Dexto's architecture is designed for **pass-through of tool results**. Once `UIResourcePart` is added to core types, it automatically flows through all layers without additional changes.
+
+```
+Core (types) → Server (schemas) → SSE → Client SDK → WebUI
+     ↓              ↓                      ↓           ↓
+ UIResourcePart  Zod schema         (pass-through)  Render
+```
+
+### Changes Required Per Package
+
+#### packages/core (REQUIRED)
+
+**File: `src/context/types.ts`**
+```typescript
+// Add new type
+export interface UIResourcePart {
+    type: 'ui-resource';
+    uri: string;                    // ui://component/instance
+    mimeType: string;               // text/html, text/uri-list, etc.
+    content?: string;               // Inline HTML or URL
+    blob?: string;                  // Base64 content
+    metadata?: {
+        title?: string;
+        preferredSize?: { width: number; height: number };
+    };
+}
+
+// Update SanitizedToolResult
+export interface SanitizedToolResult {
+    content: Array<TextPart | ImagePart | FilePart | UIResourcePart>;  // Add UIResourcePart
+    // ... rest unchanged
+}
+```
+
+**File: `src/context/utils.ts`**
+- Add detection logic for `ui://` URIs in `normalizeToolResult()`
+- Convert MCP resources to `UIResourcePart` format
+
+**File: `src/index.browser.ts`** (optional)
+```typescript
+// Consider exporting for browser consumers
+export type { UIResourcePart } from './context/types.js';
+```
+
+#### packages/server (REQUIRED)
+
+**File: `src/hono/schemas/responses.ts`**
+```typescript
+// Add schema
+export const UIResourcePartSchema = z.object({
+    type: z.literal('ui-resource'),
+    uri: z.string().startsWith('ui://'),
+    mimeType: z.string(),
+    content: z.string().optional(),
+    blob: z.string().optional(),
+    metadata: z.object({
+        title: z.string().optional(),
+        preferredSize: z.object({
+            width: z.number(),
+            height: z.number(),
+        }).optional(),
+    }).optional(),
+}).strict();
+
+// Update ContentPartSchema
+export const ContentPartSchema = z.discriminatedUnion('type', [
+    TextPartSchema,
+    ImagePartSchema,
+    FilePartSchema,
+    UIResourcePartSchema,  // Add
+]);
+```
+
+**Other server files: NO CHANGES NEEDED**
+- SSE routes pass events through unchanged
+- A2A subscriber forwards full `sanitized` payload
+
+#### packages/client-sdk (NO CHANGES NEEDED)
+
+The client SDK already:
+- Streams events unchanged via `createMessageStream()`
+- Provides typed `StreamingEvent` that includes full `SanitizedToolResult`
+- Automatically inherits new types from core via TypeScript
+
+**Optional enhancement:**
+```typescript
+// src/index.ts - Re-export types for SDK consumers
+export type { TextPart, ImagePart, FilePart, UIResourcePart } from '@dexto/core';
+```
+
+### Summary Table
+
+| Package | Changes | Effort |
+|---------|---------|--------|
+| `packages/core` | Add `UIResourcePart` type, update union, add detection logic | Medium |
+| `packages/server` | Add Zod schema, update `ContentPartSchema` | Low |
+| `packages/client-sdk` | None required (optional: re-export types) | None |
+| `packages/webui` | Add `UIResourceRenderer` component, integrate into `MessageList.tsx` | Medium |
+
+### Event Flow Verification
+
+The `llm:tool-result` event already carries full `SanitizedToolResult`:
+
+```typescript
+// packages/core/src/events/index.ts
+'llm:tool-result': {
+    toolName: string;
+    callId?: string;
+    success: boolean;
+    sanitized: SanitizedToolResult;  // ← Includes content array with all part types
+    rawResult?: unknown;
+    sessionId: string;
+};
+```
+
+This event is:
+1. Emitted by LLM services (anthropic.ts, vercel.ts)
+2. Forwarded by server SSE routes unchanged
+3. Parsed by client SDK `createMessageStream()`
+4. Consumed by WebUI `useChat.ts`
+
+No changes needed in the event flow itself - only the type definitions and rendering.
