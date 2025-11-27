@@ -624,7 +624,9 @@ export class ContextManager<TMessage = unknown> {
                     ? `text(${p.text.length})`
                     : p.type === 'image'
                       ? `image(${p.mimeType || 'image'})`
-                      : `file(${p.mimeType || 'file'})`
+                      : p.type === 'ui-resource'
+                        ? `ui-resource(${p.uri})`
+                        : `file(${p.mimeType || 'file'})`
             )
             .join(', ');
         this.logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);

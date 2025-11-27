@@ -39,6 +39,7 @@ type InlineMediaHint = {
 
 export interface NormalizedToolResult {
     parts: Array<TextPart | ImagePart | FilePart>;
+    uiResources: UIResourcePart[];
     inlineMedia: InlineMediaHint[];
 }
 
@@ -50,6 +51,7 @@ interface PersistToolMediaOptions {
 
 interface PersistToolMediaResult {
     parts: Array<TextPart | ImagePart | FilePart>;
+    uiResources: UIResourcePart[];
     resources?: SanitizedToolResult['resources'];
 }
 
@@ -1070,7 +1072,31 @@ export async function normalizeToolResult(
         undefined,
         undefined
     );
-    const parts = coerceContentToParts(content);
+
+    // Separate UI resources from other parts since they need special handling
+    const uiResources: UIResourcePart[] = [];
+    const otherContent: InternalMessage['content'] = [];
+
+    if (Array.isArray(content)) {
+        for (const item of content) {
+            if (item && typeof item === 'object' && 'type' in item && item.type === 'ui-resource') {
+                uiResources.push(item as UIResourcePart);
+            } else {
+                otherContent.push(item);
+            }
+        }
+    } else {
+        // If content is not an array (string or other), pass through as-is
+        (otherContent as unknown[]).push(content);
+    }
+
+    if (uiResources.length > 0) {
+        logger.debug(
+            `normalizeToolResult: extracted ${uiResources.length} UI resource(s): ${uiResources.map((r) => r.uri).join(', ')}`
+        );
+    }
+
+    const parts = coerceContentToParts(otherContent as InternalMessage['content']);
     const inlineMedia: InlineMediaHint[] = [];
 
     parts.forEach((part, index) => {
@@ -1082,6 +1108,7 @@ export async function normalizeToolResult(
 
     return {
         parts,
+        uiResources,
         inlineMedia,
     };
 }
@@ -1151,6 +1178,7 @@ export async function persistToolMedia(
 
     return {
         parts,
+        uiResources: normalized.uiResources,
         ...(resources ? { resources } : {}),
     };
 }
@@ -1325,6 +1353,12 @@ export async function sanitizeToolResultToContentWithBlobs(
                                 logger.debug(
                                     `Detected MCP-UI resource: ${resourceUri} (${resource.mimeType})`
                                 );
+                                // Extract metadata - @mcp-ui/server puts metadata in _meta field
+                                const resourceMeta = resource._meta || {};
+                                const title = resourceMeta.title || resource.title;
+                                const preferredSize =
+                                    resourceMeta.preferredSize || resource.preferredSize;
+
                                 const uiPart: UIResourcePart = {
                                     type: 'ui-resource',
                                     uri: resourceUri,
@@ -1332,8 +1366,8 @@ export async function sanitizeToolResultToContentWithBlobs(
                                     content: resource.text,
                                     blob: resource.blob,
                                     metadata: {
-                                        title: resource.title,
-                                        preferredSize: resource.preferredSize,
+                                        title,
+                                        preferredSize,
                                     },
                                 };
                                 // Clean up undefined metadata fields
@@ -1674,7 +1708,18 @@ export async function sanitizeToolResult(
     );
 
     const fallbackContent: TextPart[] = [{ type: 'text', text: '' }];
-    const content = persisted.parts.length > 0 ? persisted.parts : fallbackContent;
+    // Combine regular parts with UI resources
+    const allContent: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [
+        ...persisted.parts,
+        ...persisted.uiResources,
+    ];
+    const content = allContent.length > 0 ? allContent : fallbackContent;
+
+    if (persisted.uiResources.length > 0) {
+        logger.debug(
+            `sanitizeToolResult: including ${persisted.uiResources.length} UI resource(s) in final content for ${options.toolName}`
+        );
+    }
 
     return {
         content,
