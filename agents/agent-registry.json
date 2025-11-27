@@ -125,6 +125,15 @@
       "tags": ["posthog", "analytics", "product", "insights", "feature-flags", "mcp"],
       "source": "product-analysis-agent/",
       "main": "product-analysis-agent.yml"
+    },
+    "gaming-agent": {
+      "id": "gaming-agent",
+      "name": "Gaming Agent",
+      "description": "AI agent that plays GameBoy games like Pokemon through an emulator with screen capture and button controls",
+      "author": "Truffle AI",
+      "tags": ["gaming", "gameboy", "pokemon", "emulator", "mcp"],
+      "source": "gaming-agent/",
+      "main": "gaming-agent.yml"
     }
   }
 }

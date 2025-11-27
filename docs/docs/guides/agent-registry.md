@@ -45,6 +45,7 @@ For detailed installation instructions, see the [Installing Custom Agents guide]
 | [Workflow Builder Agent](#-workflow-builder-agent) | Automation | n8n workflow automation | OpenAI GPT-5 Mini |
 | [Product Researcher](#-product-researcher) | Research | Product naming, branding research | Anthropic Claude Sonnet 4.5 |
 | [Triage Agent](#-triage-agent) | Multi-Agent | Customer support routing | OpenAI GPT-5 |
+| [Gaming Agent](#-gaming-agent) | Entertainment | GameBoy games, Pokemon | Anthropic Claude Sonnet 4.5 |
 | [Default Agent](#%EF%B8%8F-default-agent) | General Purpose | General tasks, file operations | Any |
 
 ---
@@ -480,6 +481,40 @@ dexto --agent triage-agent "I need help with my billing"
 
 ---
 
+### Entertainment
+
+#### 🎮 Gaming Agent
+
+**ID:** `gaming-agent`
+**Best For:** Playing GameBoy games like Pokemon through an emulator
+
+AI agent that plays GameBoy games through a visual emulator with button controls and screen capture.
+
+**Key Features:**
+- **Visual Gameplay** – See and analyze the game screen in real-time
+- **Button Controls** – D-pad, A, B, START, SELECT with configurable hold duration
+- **ROM Management** – Load .gb and .gbc ROM files
+- **Frame Control** – Wait for animations and control game timing
+
+**Available Tools:**
+- `press_up`, `press_down`, `press_left`, `press_right` – D-pad controls
+- `press_a`, `press_b`, `press_start`, `press_select` – Button controls
+- `load_rom` – Load a GameBoy ROM file
+- `get_screen` – Capture current screen state
+- `wait_frames` – Wait without input
+- `list_roms` – List available ROMs
+
+**Example Use:**
+```bash
+dexto --agent gaming-agent "Load Pokemon Red and start a new game"
+```
+
+**Recommended LLM:** Anthropic Claude Sonnet 4.5 (vision required)
+
+**Note:** You must provide your own ROM files (.gb or .gbc format)
+
+---
+
 ### General Purpose
 
 #### ⚙️ Default Agent
@@ -572,6 +607,7 @@ defaults:
 | workflow-builder-agent | Automation | GPT | N8N_MCP_URL, N8N_MCP_TOKEN |
 | product-researcher | Research | Claude/GPT | - |
 | triage-agent | Multi-Agent | Claude/GPT | - |
+| gaming-agent | Entertainment | Claude (Vision) | ROM files |
 | default-agent | General | Any | Pre-installed |
 
 ## Choosing the Right Agent
@@ -597,6 +633,9 @@ defaults:
 
 ### For Complex Systems
 - **Multi-Agent:** Use `triage-agent` as a template for building agent coordination systems
+
+### For Entertainment
+- **Gaming:** Use `gaming-agent` to play GameBoy games like Pokemon
 
 ## API Key Requirements
 
