@@ -1,8 +1,8 @@
-// packages/core/src/config/agent-resolver.ts
+// packages/agent-management/src/resolver.ts
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { isPath } from './utils/path.js';
+import { isPath, getDextoGlobalPath, resolveBundledScript } from './utils/path.js';
 import {
     getExecutionContext,
     findDextoSourceRoot,
@@ -11,14 +11,16 @@ import {
 import { logger } from '@dexto/core';
 import { loadGlobalPreferences, globalPreferencesExist } from './preferences/loader.js';
 import { ConfigError } from './config/index.js';
+import { AgentManager } from './AgentManager.js';
+import { installBundledAgent } from './installation.js';
 
 /**
- * Resolve agent path with preference integration
+ * Resolve agent path with automatic installation if needed
  * @param nameOrPath Optional agent name or explicit path
- * @param autoInstall Whether to automatically install missing agents from registry (default: true)
+ * @param autoInstall Whether to automatically install missing agents from bundled registry (default: true)
  * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
  * @returns Resolved absolute path to agent config
- * @throws DextoRuntimeError for any resolution failures
+ * @throws ConfigError for any resolution failures
  */
 export async function resolveAgentPath(
     nameOrPath?: string,
@@ -40,15 +42,75 @@ export async function resolveAgentPath(
         }
     }
 
-    // 2. Handle registry names
+    // 2. Handle agent names from installed registry
     if (nameOrPath) {
-        const { getAgentRegistry } = await import('./registry/registry.js');
-        const registry = getAgentRegistry();
-        return await registry.resolveAgent(nameOrPath, autoInstall, injectPreferences); // Let registry throw its own errors
+        return await resolveAgentByName(nameOrPath, autoInstall, injectPreferences);
     }
 
     // 3. Default agent resolution based on execution context
     return await resolveDefaultAgentByContext(autoInstall, injectPreferences);
+}
+
+/**
+ * Resolve agent by name from installed or bundled registry
+ */
+async function resolveAgentByName(
+    agentId: string,
+    autoInstall: boolean,
+    injectPreferences: boolean
+): Promise<string> {
+    const agentsDir = getDextoGlobalPath('agents');
+    const installedRegistryPath = path.join(agentsDir, 'registry.json');
+
+    // Check if installed
+    try {
+        const manager = new AgentManager(installedRegistryPath);
+        if (manager.hasAgent(agentId)) {
+            const agentPath = await getAgentConfigPath(manager, agentId);
+            return agentPath;
+        }
+    } catch (error) {
+        // Registry doesn't exist or agent not found, continue to auto-install
+        logger.debug(`Agent '${agentId}' not found in installed registry`);
+    }
+
+    // Auto-install from bundled if available
+    if (autoInstall) {
+        try {
+            logger.info(`Auto-installing agent '${agentId}' from bundled registry`);
+            const configPath = await installBundledAgent(agentId, { injectPreferences });
+            return configPath;
+        } catch (error) {
+            throw new Error(
+                `Agent '${agentId}' not found in installed or bundled registries: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    throw new Error(`Agent '${agentId}' not installed. Run: dexto agents install ${agentId}`);
+}
+
+/**
+ * Get config path for an agent from the manager
+ */
+async function getAgentConfigPath(manager: AgentManager, agentId: string): Promise<string> {
+    // Create a temporary agent to get its config path
+    const agent = await manager.createAgent(agentId);
+
+    // Extract config path from agent - we need to find the actual config file
+    // The agent was created from the config, so we can derive the path from the registry
+    const agentsDir = getDextoGlobalPath('agents');
+    const installedRegistryPath = path.join(agentsDir, 'registry.json');
+
+    const registryContent = await fs.readFile(installedRegistryPath, 'utf-8');
+    const registry = JSON.parse(registryContent);
+    const agentEntry = registry.agents.find((a: any) => a.id === agentId);
+
+    if (!agentEntry) {
+        throw new Error(`Agent '${agentId}' not found in registry`);
+    }
+
+    return path.resolve(path.dirname(installedRegistryPath), agentEntry.configPath);
 }
 
 /**
@@ -112,13 +174,7 @@ async function resolveDefaultAgentForDextoSource(
             if (preferences.setup.completed) {
                 logger.debug('Using user preferences in dexto-source context');
                 const preferredAgentName = preferences.defaults.defaultAgent;
-                const { getAgentRegistry } = await import('./registry/registry.js');
-                const registry = getAgentRegistry();
-                return await registry.resolveAgent(
-                    preferredAgentName,
-                    autoInstall,
-                    injectPreferences
-                );
+                return await resolveAgentByName(preferredAgentName, autoInstall, injectPreferences);
             }
         } catch (error) {
             logger.warn(`Failed to load preferences, falling back to repo config: ${error}`);
@@ -142,7 +198,6 @@ async function resolveDefaultAgentForDextoProject(
     autoInstall: boolean = true,
     injectPreferences: boolean = true
 ): Promise<string> {
-    // Get the dexto project root directory
     logger.debug('Resolving default agent for dexto project context');
     const projectRoot = findDextoProjectRoot();
     if (!projectRoot) {
@@ -150,17 +205,12 @@ async function resolveDefaultAgentForDextoProject(
     }
 
     // 1. Try project-local default-agent.yml first
-    // TODO: Expand this to have project level configurable defaults/settings as well.
-    // Could set this in dexto.config.ts or something similar and read from there
-    // This will allow users to configure default agent specific for a project
-    // link this with create-app which creates this file and preferences module
-
-    // Probe common project-local locations (ordered by preference)
     const candidatePaths = [
         path.join(projectRoot, 'default-agent.yml'),
         path.join(projectRoot, 'agents', 'default-agent.yml'),
         path.join(projectRoot, 'src', 'dexto', 'agents', 'default-agent.yml'),
     ];
+
     for (const p of candidatePaths) {
         try {
             await fs.access(p);
@@ -173,7 +223,6 @@ async function resolveDefaultAgentForDextoProject(
 
     // 2. Use preferences default agent name - REQUIRED if no project default
     if (!globalPreferencesExist()) {
-        // Provide the project root to help the user fix placement
         throw ConfigError.noProjectDefault(projectRoot);
     }
 
@@ -184,9 +233,7 @@ async function resolveDefaultAgentForDextoProject(
     }
 
     const preferredAgentName = preferences.defaults.defaultAgent;
-    const { getAgentRegistry } = await import('./registry/registry.js');
-    const registry = getAgentRegistry();
-    return await registry.resolveAgent(preferredAgentName, autoInstall, injectPreferences); // Let registry handle its own errors
+    return await resolveAgentByName(preferredAgentName, autoInstall, injectPreferences);
 }
 
 /**
@@ -208,32 +255,52 @@ async function resolveDefaultAgentForGlobalCLI(
     }
 
     const preferredAgentName = preferences.defaults.defaultAgent;
-    const { getAgentRegistry } = await import('./registry/registry.js');
-    const registry = getAgentRegistry();
-    return await registry.resolveAgent(preferredAgentName, autoInstall, injectPreferences); // Let registry handle its own errors
+    return await resolveAgentByName(preferredAgentName, autoInstall, injectPreferences);
 }
 
 /**
  * Update default agent preference
  */
 export async function updateDefaultAgentPreference(agentName: string): Promise<void> {
-    // Validate agent exists in registry first
-    const { getAgentRegistry } = await import('./registry/registry.js');
-    const { RegistryError } = await import('./registry/errors.js');
-    const { isPath } = await import('@dexto/core');
-    const registry = getAgentRegistry();
+    // Validate agent exists in bundled or installed registry
+    const agentsDir = getDextoGlobalPath('agents');
+    const installedRegistryPath = path.join(agentsDir, 'registry.json');
+    const bundledRegistryPath = resolveBundledScript('agents/agent-registry.json');
 
-    // Only registry agent names are allowed here, not file paths
-    if (isPath(agentName) || !registry.hasAgent(agentName)) {
-        const available = Object.keys(registry.getAvailableAgents());
-        throw RegistryError.agentNotFound(agentName, available);
+    // Check installed registry
+    try {
+        const installedManager = new AgentManager(installedRegistryPath);
+        if (installedManager.hasAgent(agentName)) {
+            // Valid, update preferences
+            const { updateGlobalPreferences } = await import('./preferences/loader.js');
+            await updateGlobalPreferences({
+                defaults: { defaultAgent: agentName },
+            });
+            logger.info(`Updated default agent preference to: ${agentName}`);
+            return;
+        }
+    } catch {
+        // Not in installed, check bundled
     }
 
-    // Update preferences
-    const { updateGlobalPreferences } = await import('./preferences/loader.js');
-    await updateGlobalPreferences({
-        defaults: { defaultAgent: agentName },
-    });
+    // Check bundled registry
+    try {
+        const bundledManager = new AgentManager(bundledRegistryPath);
+        if (bundledManager.hasAgent(agentName)) {
+            // Valid, update preferences
+            const { updateGlobalPreferences } = await import('./preferences/loader.js');
+            await updateGlobalPreferences({
+                defaults: { defaultAgent: agentName },
+            });
+            logger.info(`Updated default agent preference to: ${agentName}`);
+            return;
+        }
+    } catch {
+        // Not found
+    }
 
-    logger.info(`Updated default agent preference to: ${agentName}`);
+    // Agent not found in either registry
+    throw new Error(
+        `Agent '${agentName}' not found in installed or bundled registries. Install it first or check the agent ID.`
+    );
 }

@@ -29,11 +29,17 @@ export {
     type LLMOverrides,
 } from './writer.js';
 
-// Agent orchestrator
-export { AgentOrchestrator } from './AgentOrchestrator.js';
+// Agent manager (simple registry-based lifecycle management)
+export { AgentManager, type AgentMetadata } from './AgentManager.js';
 
-// Re-export for backward compatibility
-export { AgentOrchestrator as Dexto } from './AgentOrchestrator.js';
+// Installation utilities
+export {
+    installBundledAgent,
+    installCustomAgent,
+    uninstallAgent,
+    listInstalledAgents,
+    type InstallOptions,
+} from './installation.js';
 
 // Path utilities (duplicated from core for short-term compatibility)
 export {

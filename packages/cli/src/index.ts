@@ -5,7 +5,7 @@ import { applyLayeredEnvironmentLoading } from './utils/env.js';
 // Apply layered environment loading before any other imports
 await applyLayeredEnvironmentLoading();
 
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import { Command } from 'commander';
@@ -30,10 +30,10 @@ import {
 } from '@dexto/core';
 import {
     resolveAgentPath,
-    getAgentRegistry,
     loadAgentConfig,
     globalPreferencesExist,
     loadGlobalPreferences,
+    resolveBundledScript,
 } from '@dexto/agent-management';
 import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
@@ -776,19 +776,33 @@ program
                     else {
                         // Early registry validation for named agents
                         if (opts.agent) {
-                            const registry = getAgentRegistry();
-                            if (!registry.hasAgent(opts.agent)) {
-                                console.error(`❌ Agent '${opts.agent}' not found in registry`);
+                            // Load bundled registry to check if agent exists
+                            try {
+                                const bundledRegistryPath = resolveBundledScript(
+                                    'agents/agent-registry.json'
+                                );
+                                const registryContent = readFileSync(bundledRegistryPath, 'utf-8');
+                                const bundledRegistry = JSON.parse(registryContent);
 
-                                // Show available agents
-                                const available = Object.keys(registry.getAvailableAgents());
-                                if (available.length > 0) {
-                                    console.log(`📋 Available agents: ${available.join(', ')}`);
-                                } else {
-                                    console.log('📋 No agents available in registry');
+                                // Check if agent exists in bundled registry
+                                if (!(opts.agent in bundledRegistry.agents)) {
+                                    console.error(`❌ Agent '${opts.agent}' not found in registry`);
+
+                                    // Show available agents
+                                    const available = Object.keys(bundledRegistry.agents);
+                                    if (available.length > 0) {
+                                        console.log(`📋 Available agents: ${available.join(', ')}`);
+                                    } else {
+                                        console.log('📋 No agents available in registry');
+                                    }
+                                    safeExit('main', 1, 'agent-not-in-registry');
+                                    return;
                                 }
-                                safeExit('main', 1, 'agent-not-in-registry');
-                                return;
+                            } catch (error) {
+                                logger.warn(
+                                    `Could not validate agent against registry: ${error instanceof Error ? error.message : String(error)}`
+                                );
+                                // Continue anyway - resolver will handle it
                             }
                         }
 

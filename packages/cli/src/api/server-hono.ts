@@ -1,8 +1,15 @@
 import os from 'node:os';
 import type { AgentCard } from '@dexto/core';
 import { createAgentCard, logger, AgentError, DextoAgent } from '@dexto/core';
-import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
-import { Dexto, deriveDisplayName } from '@dexto/agent-management';
+import {
+    loadAgentConfig,
+    enrichAgentConfig,
+    deriveDisplayName,
+    resolveBundledScript,
+    getDextoGlobalPath,
+} from '@dexto/agent-management';
+import { readFileSync } from 'fs';
+import { promises as fs } from 'fs';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
@@ -20,6 +27,141 @@ import {
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
+
+/**
+ * Load bundled agent registry
+ */
+function loadBundledRegistry(): Record<string, any> {
+    try {
+        const registryPath = resolveBundledScript('agents/agent-registry.json');
+        const content = readFileSync(registryPath, 'utf-8');
+        const registry = JSON.parse(content);
+        return registry.agents || {};
+    } catch (error) {
+        logger.warn(
+            `Could not load bundled registry: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return {};
+    }
+}
+
+/**
+ * List installed agents from ~/.dexto/agents
+ */
+async function listInstalledAgents(): Promise<string[]> {
+    const globalAgentsDir = getDextoGlobalPath('agents');
+    try {
+        const entries = await fs.readdir(globalAgentsDir, { withFileTypes: true });
+        return entries
+            .filter(
+                (e) => e.isDirectory() && e.name !== 'registry.json' && !e.name.includes('.tmp.')
+            )
+            .map((e) => e.name);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return [];
+        }
+        throw error;
+    }
+}
+
+/**
+ * List all agents (installed and available)
+ * Replacement for old Dexto.listAgents()
+ */
+async function listAgents(): Promise<{
+    installed: Array<{
+        id: string;
+        name: string;
+        description: string;
+        author?: string;
+        tags?: string[];
+        type: 'builtin' | 'custom';
+    }>;
+    available: Array<{
+        id: string;
+        name: string;
+        description: string;
+        author?: string;
+        tags?: string[];
+        type: 'builtin' | 'custom';
+    }>;
+}> {
+    const bundledRegistry = loadBundledRegistry();
+    const installedNames = await listInstalledAgents();
+
+    // Build installed agents list with metadata
+    const installed = installedNames.map((agentId) => {
+        const registryEntry = bundledRegistry[agentId];
+        if (registryEntry) {
+            return {
+                id: agentId,
+                name: registryEntry.name || deriveDisplayName(agentId),
+                description: registryEntry.description || 'No description',
+                author: registryEntry.author,
+                tags: registryEntry.tags || [],
+                type: 'builtin' as const,
+            };
+        } else {
+            return {
+                id: agentId,
+                name: deriveDisplayName(agentId),
+                description: 'Custom agent',
+                type: 'custom' as const,
+            };
+        }
+    });
+
+    // Build available agents list (all from bundled registry)
+    const available = Object.entries(bundledRegistry).map(([id, entry]: [string, any]) => ({
+        id,
+        name: entry.name || deriveDisplayName(id),
+        description: entry.description || 'No description',
+        author: entry.author,
+        tags: entry.tags || [],
+        type: 'builtin' as const,
+    }));
+
+    return { installed, available };
+}
+
+/**
+ * Create an agent from an agent ID
+ * Replacement for old Dexto.createAgent()
+ */
+async function createAgentFromId(agentId: string): Promise<DextoAgent> {
+    const globalAgentsDir = getDextoGlobalPath('agents');
+    const agentDir = `${globalAgentsDir}/${agentId}`;
+
+    // Check if agent is installed
+    try {
+        await fs.access(agentDir);
+    } catch (error) {
+        throw new Error(
+            `Agent '${agentId}' is not installed. Install it first with: dexto install ${agentId}`
+        );
+    }
+
+    // Find the main config file
+    const bundledRegistry = loadBundledRegistry();
+    const registryEntry = bundledRegistry[agentId];
+    const mainFile = registryEntry?.main || 'agent.yml';
+    const agentPath = `${agentDir}/${mainFile}`;
+
+    try {
+        // Load and enrich agent config
+        const config = await loadAgentConfig(agentPath);
+        const enrichedConfig = enrichAgentConfig(config, agentPath);
+
+        // Create agent instance
+        logger.info(`Creating agent: ${agentId} from ${agentPath}`);
+        return new DextoAgent(enrichedConfig, agentPath);
+    } catch (error) {
+        throw new Error(
+            `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+}
 
 function resolvePort(listenPort?: number): number {
     if (typeof listenPort === 'number') {
@@ -99,7 +241,7 @@ export async function initializeHonoApi(
      * Helper to resolve agent ID to { id, name } by looking up in registry
      */
     async function resolveAgentInfo(agentId: string): Promise<{ id: string; name: string }> {
-        const agents = await Dexto.listAgents();
+        const agents = await listAgents();
         const agent =
             agents.installed.find((a) => a.id === agentId) ??
             agents.available.find((a) => a.id === agentId);
@@ -207,7 +349,7 @@ export async function initializeHonoApi(
             await Telemetry.shutdownGlobal();
 
             // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
-            newAgent = await Dexto.createAgent(agentId);
+            newAgent = await createAgentFromId(agentId);
 
             // 3. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, bridge);

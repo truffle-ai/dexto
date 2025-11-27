@@ -1,7 +1,7 @@
 // packages/cli/src/cli/commands/uninstall.ts
 
 import { z } from 'zod';
-import { getAgentRegistry } from '@dexto/agent-management';
+import { uninstallAgent, listInstalledAgents } from '../../utils/agent-helpers.js';
 import { capture } from '../../analytics/index.js';
 
 // Zod schema for uninstall command validation
@@ -29,8 +29,7 @@ async function validateUninstallCommand(
     });
 
     // Business logic validation
-    const registry = getAgentRegistry();
-    const installedAgents = await registry.getInstalledAgents();
+    const installedAgents = await listInstalledAgents();
 
     if (installedAgents.length === 0) {
         throw new Error('No agents are currently installed.');
@@ -51,8 +50,7 @@ export async function handleUninstallCommand(
 ): Promise<void> {
     // Validate command with Zod
     const validated = await validateUninstallCommand(agents, options);
-    const registry = getAgentRegistry();
-    const installedAgents = await registry.getInstalledAgents();
+    const installedAgents = await listInstalledAgents();
 
     if (installedAgents.length === 0) {
         console.log('📋 No agents are currently installed.');
@@ -89,7 +87,7 @@ export async function handleUninstallCommand(
     for (const agentName of agentsToUninstall) {
         try {
             console.log(`\n🗑️  Uninstalling ${agentName}...`);
-            await registry.uninstallAgent(agentName, validated.force);
+            await uninstallAgent(agentName);
             successCount++;
             console.log(`✅ ${agentName} uninstalled successfully`);
             uninstalled.push(agentName);
