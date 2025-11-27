@@ -18,9 +18,14 @@ import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
-// Estimated tokens for blob-referenced images (actual images are ~1-2KB base64 = ~750-1500 bytes = ~1000+ tokens)
-// Claude vision uses ~1000 tokens per image regardless of size for small images
-const BLOB_REFERENCE_IMAGE_TOKENS = 1000;
+
+// Vision model token estimates are now provider-specific via ITokenizer.estimateImageTokens()
+// Different providers charge differently for images:
+// - Claude: ~1000-2000+ tokens based on image dimensions
+// - GPT-4 Vision: 85-765 tokens (tile-based system)
+// - Gemini: 258 tokens flat per image
+// Legacy fallback constant for code that doesn't have access to tokenizer
+const FALLBACK_IMAGE_TOKENS = 1000;
 const BLOB_REFERENCE_PREFIX = '@blob:';
 
 type ToolBlobNamingOptions = {
@@ -457,16 +462,23 @@ export function countMessagesTokens(
                         if (part.type === 'text' && typeof part.text === 'string') {
                             total += tokenizer.countTokens(part.text);
                         } else if (part.type === 'image') {
-                            // Approximate tokens for images: estimate ~1 token per 1KB or based on Base64 length
+                            // Vision models charge tokens based on image dimensions, NOT file size.
+                            // Use provider-specific estimates via tokenizer.estimateImageTokens()
                             if (typeof part.image === 'string') {
                                 if (part.image.startsWith(BLOB_REFERENCE_PREFIX)) {
-                                    // Blob reference - use fixed estimate since we can't resolve synchronously
-                                    total += BLOB_REFERENCE_IMAGE_TOKENS;
-                                } else if (isDataUri(part.image)) {
-                                    // Extract base64 payload and compute byte length
-                                    const base64Payload = extractBase64FromDataUri(part.image);
-                                    const byteLength = base64LengthToBytes(base64Payload.length);
-                                    total += Math.ceil(byteLength / 1024);
+                                    // Blob reference - use provider-specific estimate
+                                    total += tokenizer.estimateImageTokens();
+                                } else if (
+                                    isDataUri(part.image) ||
+                                    isLikelyBase64String(part.image)
+                                ) {
+                                    // Actual image data - estimate byte size for providers that use it
+                                    const byteSize = isDataUri(part.image)
+                                        ? base64LengthToBytes(
+                                              extractBase64FromDataUri(part.image).length
+                                          )
+                                        : base64LengthToBytes(part.image.length);
+                                    total += tokenizer.estimateImageTokens(byteSize);
                                 } else {
                                     // Treat as URL/text: estimate token cost based on string length
                                     total += estimateTextTokens(part.image);
@@ -476,23 +488,37 @@ export function countMessagesTokens(
                                 part.image instanceof Buffer ||
                                 part.image instanceof ArrayBuffer
                             ) {
+                                // Binary image data - get byte size for estimation
                                 const bytes =
                                     part.image instanceof ArrayBuffer
                                         ? part.image.byteLength
                                         : (part.image as Uint8Array).length;
-                                total += Math.ceil(bytes / 1024);
+                                total += tokenizer.estimateImageTokens(bytes);
                             }
                         } else if (part.type === 'file') {
-                            // Approximate tokens for files: estimate ~1 token per 1KB or based on Base64 length
+                            // For files, check if it's an image (uses vision tokens) or other (byte-based)
+                            const isImageFile = part.mimeType?.startsWith('image/');
                             if (typeof part.data === 'string') {
                                 if (part.data.startsWith(BLOB_REFERENCE_PREFIX)) {
-                                    // Blob reference - use fixed estimate since we can't resolve synchronously
-                                    total += BLOB_REFERENCE_IMAGE_TOKENS;
-                                } else if (isDataUri(part.data)) {
-                                    // Extract base64 payload and compute byte length
-                                    const base64Payload = extractBase64FromDataUri(part.data);
+                                    // Blob reference - use provider-specific estimate for images
+                                    total += isImageFile
+                                        ? tokenizer.estimateImageTokens()
+                                        : FALLBACK_IMAGE_TOKENS;
+                                } else if (
+                                    isDataUri(part.data) ||
+                                    isLikelyBase64String(part.data)
+                                ) {
+                                    const base64Payload = isDataUri(part.data)
+                                        ? extractBase64FromDataUri(part.data)
+                                        : part.data;
                                     const byteLength = base64LengthToBytes(base64Payload.length);
-                                    total += Math.ceil(byteLength / 1024);
+                                    if (isImageFile) {
+                                        // Image files use provider-specific vision tokens
+                                        total += tokenizer.estimateImageTokens(byteLength);
+                                    } else {
+                                        // Non-image files: estimate based on size (~1 token/4 bytes)
+                                        total += Math.ceil(byteLength / 4);
+                                    }
                                 } else {
                                     // Treat as URL/text: estimate token cost based on string length
                                     total += estimateTextTokens(part.data);
@@ -506,7 +532,13 @@ export function countMessagesTokens(
                                     part.data instanceof ArrayBuffer
                                         ? part.data.byteLength
                                         : (part.data as Uint8Array).length;
-                                total += Math.ceil(bytes / 1024);
+                                if (isImageFile) {
+                                    // Image files use provider-specific vision tokens
+                                    total += tokenizer.estimateImageTokens(bytes);
+                                } else {
+                                    // Binary files: estimate based on size
+                                    total += Math.ceil(bytes / 4); // ~1 token per 4 bytes
+                                }
                             }
                         }
                     });

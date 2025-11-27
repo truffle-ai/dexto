@@ -69,8 +69,16 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Actual token count from the last LLM response.
      * Used for more accurate token estimation in hybrid approach.
+     * This is the REAL token count from the API - far more accurate than our estimates.
      */
     private lastActualTokenCount: number = 0;
+
+    /**
+     * Message count that corresponds to lastActualTokenCount.
+     * Used to identify which messages are "new" since we got the actual count.
+     * In tool loops: actualTokens came from step N, new messages are for step N+1.
+     */
+    private lastActualTokenMessageCount: number = 0;
 
     /**
      * Compression threshold as a percentage of maxInputTokens.
@@ -942,32 +950,78 @@ export class ContextManager<TMessage = unknown> {
 
         // Parse to InternalMessage[]
         const internalMessages = this.formatter.parseMessages(messagesToParse);
+        const currentMessageCount = internalMessages.length;
 
-        // Calculate tokens
+        // Calculate tokens using HYBRID approach:
+        // - If we have actual tokens from previous step, use that + estimate only NEW messages
+        // - This is far more accurate than re-estimating everything (especially for images!)
         const systemPromptTokens = systemPrompt ? this.tokenizer.countTokens(systemPrompt) : 0;
-        const historyTokens = countMessagesTokens(
-            internalMessages,
-            this.tokenizer,
-            undefined,
-            this.logger
-        );
-        const totalTokens = systemPromptTokens + historyTokens;
+        let totalTokens: number;
+        let estimationMethod: string;
 
-        this.logger.debug(
-            `ContextManager prepareStep: System=${systemPromptTokens}, History=${historyTokens}, Total=${totalTokens}, Max=${this.maxInputTokens}`
-        );
+        if (
+            this.lastActualTokenCount > 0 &&
+            currentMessageCount > this.lastActualTokenMessageCount
+        ) {
+            // HYBRID: Use actual count from API + estimate only new messages
+            // lastActualTokenCount already includes system prompt from previous step
+            const newMessages = internalMessages.slice(this.lastActualTokenMessageCount);
+            const newTokens = countMessagesTokens(
+                newMessages,
+                this.tokenizer,
+                undefined,
+                this.logger
+            );
+            totalTokens = this.lastActualTokenCount + newTokens;
+            estimationMethod = 'hybrid';
 
-        // Check if compression is needed
-        if (totalTokens <= this.maxInputTokens) {
             this.logger.debug(
-                `ContextManager prepareStep: No compression needed (${totalTokens} <= ${this.maxInputTokens})`
+                `ContextManager prepareStep (hybrid): prevActual=${this.lastActualTokenCount}, ` +
+                    `newMsgs=${newMessages.length}, newTokens=${newTokens}, total=${totalTokens}, max=${this.maxInputTokens}`
+            );
+        } else if (
+            this.lastActualTokenCount > 0 &&
+            currentMessageCount === this.lastActualTokenMessageCount
+        ) {
+            // Same messages as before - use actual count directly
+            totalTokens = this.lastActualTokenCount;
+            estimationMethod = 'actual';
+
+            this.logger.debug(
+                `ContextManager prepareStep (actual): ${totalTokens}, max=${this.maxInputTokens}`
+            );
+        } else {
+            // Fallback: Full estimation (first step or after compression reset)
+            const historyTokens = countMessagesTokens(
+                internalMessages,
+                this.tokenizer,
+                undefined,
+                this.logger
+            );
+            totalTokens = systemPromptTokens + historyTokens;
+            estimationMethod = 'full-estimate';
+
+            this.logger.debug(
+                `ContextManager prepareStep (full): system=${systemPromptTokens}, history=${historyTokens}, total=${totalTokens}, max=${this.maxInputTokens}`
+            );
+        }
+
+        // Update message count tracking for next iteration
+        // This count will correspond to the next actual token count we receive
+        this.lastActualTokenMessageCount = currentMessageCount;
+
+        // Check if compression is needed (using threshold)
+        const compressionTrigger = this.maxInputTokens * this.compressionThreshold;
+        if (totalTokens <= compressionTrigger) {
+            this.logger.debug(
+                `ContextManager prepareStep: No compression needed (${totalTokens} <= ${compressionTrigger}) [${estimationMethod}]`
             );
             return { messages, compressed: false };
         }
 
         // Apply compression
         this.logger.info(
-            `ContextManager prepareStep: Compressing mid-loop (${totalTokens} > ${this.maxInputTokens})`
+            `ContextManager prepareStep: Compressing mid-loop (${totalTokens} > ${compressionTrigger}) [${estimationMethod}]`
         );
         const { history: compressedHistory, strategyUsed } = this.compressHistorySync(
             internalMessages,
@@ -988,8 +1042,13 @@ export class ContextManager<TMessage = unknown> {
             this.logger
         );
         this.logger.info(
-            `ContextManager prepareStep: Compressed from ${internalMessages.length} to ${compressedHistory.length} messages (${historyTokens} -> ${newHistoryTokens} tokens)`
+            `ContextManager prepareStep: Compressed from ${internalMessages.length} to ${compressedHistory.length} messages (${totalTokens} -> ${systemPromptTokens + newHistoryTokens} tokens)`
         );
+
+        // Reset tracking after compression - we don't have accurate actual counts anymore
+        // Next step will get fresh actual counts from the API
+        this.lastActualTokenCount = 0;
+        this.lastActualTokenMessageCount = 0;
 
         return {
             messages: formattedMessages,

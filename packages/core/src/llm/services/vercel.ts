@@ -518,9 +518,19 @@ export class VercelLLMService implements ILLMService {
                         `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
                     );
 
+                    // Update actual token count from step usage for better compression estimates
+                    // This helps prepareStep make more accurate decisions on next iteration
+                    const stepUsage = step.usage;
+                    if (stepUsage && typeof stepUsage.inputTokens === 'number') {
+                        this.logger.debug(
+                            `Step ${stepIteration} usage: input=${stepUsage.inputTokens}, output=${stepUsage.outputTokens}, total=${stepUsage.totalTokens}`
+                        );
+                        // Use inputTokens as the current context size estimate
+                        this.contextManager.updateActualTokenCount(stepUsage.inputTokens);
+                    }
+
                     // Do not emit intermediate llm:response; generateText is non-stream so we only emit once after completion.
                     // toolCall and toolResult events are now emitted immediately in execute() function
-                    // Clean up any remaining raw results from the queue
                 },
                 stopWhen: stepCountIs(maxSteps),
                 ...(includeMaxOutputTokens ? { maxOutputTokens: maxOutputTokens as number } : {}),
@@ -757,6 +767,17 @@ export class VercelLLMService implements ILLMService {
                 this.logger.debug(
                     `Step finished, step tool results: ${JSON.stringify(step.toolResults, null, 2)}`
                 );
+
+                // Update actual token count from step usage for better compression estimates
+                // This helps prepareStep make more accurate decisions on next iteration
+                const stepUsage = step.usage;
+                if (stepUsage && typeof stepUsage.inputTokens === 'number') {
+                    this.logger.debug(
+                        `Step ${stepIteration} usage: input=${stepUsage.inputTokens}, output=${stepUsage.outputTokens}, total=${stepUsage.totalTokens}`
+                    );
+                    // Use inputTokens as the current context size estimate
+                    this.contextManager.updateActualTokenCount(stepUsage.inputTokens);
+                }
 
                 // Do not emit intermediate llm:response; chunks update the UI during streaming.
                 // toolCall and toolResult events are now emitted immediately in execute() function
