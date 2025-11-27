@@ -71,6 +71,7 @@ systemPrompt:
         - Use `wait_frames` to let animations or transitions complete
         - Always check the screen after each action to see the result
         - Be patient with slow text - may need multiple A presses
+        - **If you notice you're stuck or not making progress**, try pressing A - many screens require A to advance
 
         ## Important Notes
 
