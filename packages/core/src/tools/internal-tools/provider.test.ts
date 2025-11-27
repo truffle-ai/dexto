@@ -433,4 +433,115 @@ describe('InternalToolsProvider', () => {
             );
         });
     });
+
+    describe('Required Features', () => {
+        it('should throw when tool requires a feature that is disabled', async () => {
+            // Create ApprovalManager with elicitation DISABLED
+            const approvalManagerWithDisabledElicitation = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: false, // Elicitation is disabled
+                        timeout: 120000,
+                    },
+                },
+                mockLogger
+            );
+
+            const servicesWithDisabledElicitation: InternalToolsServices = {
+                approvalManager: approvalManagerWithDisabledElicitation,
+            };
+
+            // ask_user requires elicitation feature
+            const provider = new InternalToolsProvider(
+                servicesWithDisabledElicitation,
+                ['ask_user'],
+                mockLogger
+            );
+
+            // Should throw during initialization
+            await expect(provider.initialize()).rejects.toThrow(DextoRuntimeError);
+        });
+
+        it('should include feature name and recovery hint in error message', async () => {
+            const approvalManagerWithDisabledElicitation = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: false,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger
+            );
+
+            const servicesWithDisabledElicitation: InternalToolsServices = {
+                approvalManager: approvalManagerWithDisabledElicitation,
+            };
+
+            const provider = new InternalToolsProvider(
+                servicesWithDisabledElicitation,
+                ['ask_user'],
+                mockLogger
+            );
+
+            const error = (await provider.initialize().catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.FEATURE_DISABLED);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.USER);
+            expect(error.message).toContain('elicitation');
+            expect(error.message).toContain('ask_user');
+        });
+
+        it('should register tool when required feature is enabled', async () => {
+            // mockServices already has elicitation enabled (from beforeEach)
+            const provider = new InternalToolsProvider(mockServices, ['ask_user'], mockLogger);
+
+            await provider.initialize();
+
+            expect(provider.hasTool('ask_user')).toBe(true);
+            expect(provider.getToolCount()).toBe(1);
+        });
+
+        it('should register tool that has no required features', async () => {
+            // search_history has no requiredFeatures
+            const provider = new InternalToolsProvider(
+                mockServices,
+                ['search_history'],
+                mockLogger
+            );
+            await provider.initialize();
+
+            expect(provider.hasTool('search_history')).toBe(true);
+        });
+
+        it('should skip tool when required services are missing (before feature check)', async () => {
+            // ask_user requires approvalManager service
+            // When service is missing, tool is skipped BEFORE feature checking
+            const servicesWithoutApprovalManager: InternalToolsServices = {
+                searchService: mockServices.searchService!,
+                // Missing approvalManager - ask_user needs this as a service
+            };
+
+            const provider = new InternalToolsProvider(
+                servicesWithoutApprovalManager,
+                ['ask_user'],
+                mockLogger
+            );
+
+            // Should NOT throw - tool is skipped due to missing service
+            await provider.initialize();
+
+            // Tool should not be registered
+            expect(provider.hasTool('ask_user')).toBe(false);
+            expect(provider.getToolCount()).toBe(0);
+        });
+    });
 });

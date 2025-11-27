@@ -20,6 +20,19 @@ import type { KnownInternalTool } from './constants.js';
  * Agent features that tools can depend on.
  * Tools can declare required features via `requiredFeatures` in the registry.
  * If a required feature is disabled, the tool will not be registered and agent startup will fail.
+ *
+ * To add new features:
+ * 1. Add the feature name to this union type (e.g., 'elicitation' | 'file_access' | 'network_access')
+ * 2. Add the feature flag derivation in provider.ts `registerInternalTools()`:
+ *    ```
+ *    const featureFlags: Record<AgentFeature, boolean> = {
+ *        elicitation: this.services.approvalManager?.getConfig().elicitation.enabled ?? false,
+ *        file_access: config.fileAccess?.enabled ?? false,  // example
+ *    };
+ *    ```
+ * 3. Add `requiredFeatures: ['feature_name'] as const` to tool entries that need it
+ *
+ * Tools can require multiple features - all must be enabled or startup fails with a clear error.
  */
 export type AgentFeature = 'elicitation';
 
