@@ -1,5 +1,11 @@
 # @dexto/client-sdk
 
+## 1.3.0
+
+### Minor Changes
+
+- eb266af: Migrate WebUI from next-js to vite. Fix any typing in web UI. Improve types in core. minor renames in event schemas
+
 ## 1.2.6
 
 ## 1.2.5
