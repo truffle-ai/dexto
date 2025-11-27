@@ -498,8 +498,10 @@ async function checkAndCompress(): Promise<boolean> {
   if (strategy.validate) {
     const afterTokens = await this.countTokens(compressed);
     if (!strategy.validate(beforeTokens, afterTokens)) {
-      this.logger.warn('Compression validation failed - tokens increased');
-      // Optionally: revert or try different strategy
+      this.logger.warn('Compression validation failed - tokens may have increased');
+      // Proceed anyway - LLM will attempt with current context
+      // API error handling in main loop catches overflow if it occurs
+      // Rationale: Hard failures hurt UX more than suboptimal compression
     }
   }
 
@@ -869,6 +871,7 @@ Check: overflow? queue? continue?
 1. **Large tool results mid-loop**: ✅ RESOLVED - Truncate at source (like OpenCode: bash 30K chars, read 2K lines)
 2. **Compression validation**: ✅ RESOLVED - Added `validate()` method to `ICompressionStrategyV2`
 3. **Customizable compression**: ✅ RESOLVED - Pluggable strategy interface, OpenCode-style as default
+4. **Validation fallback behavior**: ✅ RESOLVED - Log warning and proceed; API error handling catches overflow if it occurs (graceful degradation over hard failure)
 
 ## Open Questions
 
