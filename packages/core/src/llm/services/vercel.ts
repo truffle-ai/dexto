@@ -414,11 +414,36 @@ export class VercelLLMService implements ILLMService {
 
         try {
             const includeMaxOutputTokens = typeof maxOutputTokens === 'number';
+
+            // LLM context for formatting during prepareStep compression
+            const llmContext = { provider: this.config.provider, model: this.getModelId() };
+
             const response = await generateText({
                 model: this.model,
                 messages,
                 tools: effectiveTools,
                 ...(signal ? { abortSignal: signal } : {}),
+                // prepareStep runs BEFORE each step - use it to compress messages mid-loop
+                prepareStep: ({ messages: stepMessages }) => {
+                    const result = this.contextManager.compressMessagesForPrepareStep(
+                        stepMessages as ModelMessage[],
+                        llmContext
+                    );
+
+                    // Emit event if compression occurred
+                    if (result.compressed && result.metadata) {
+                        this.sessionEventBus.emit('context:compressed', {
+                            originalTokens: result.metadata.originalTokens,
+                            compressedTokens: result.metadata.compressedTokens,
+                            originalMessages: result.metadata.originalMessages,
+                            compressedMessages: result.metadata.compressedMessages,
+                            strategy: result.metadata.strategy,
+                            reason: 'token_limit',
+                        });
+                    }
+
+                    return { messages: result.messages };
+                },
                 onStepFinish: async (step) => {
                     this.logger.debug(`Step iteration: ${stepIteration}`);
                     stepIteration++;
@@ -599,12 +624,36 @@ export class VercelLLMService implements ILLMService {
         let streamErr: unknown | undefined;
         const includeMaxOutputTokens = typeof maxOutputTokens === 'number';
 
+        // LLM context for formatting during prepareStep compression
+        const llmContext = { provider: this.config.provider, model: this.getModelId() };
+
         let response;
         response = streamText({
             model: this.model,
             messages,
             tools: effectiveTools,
             ...(signal ? { abortSignal: signal } : {}),
+            // prepareStep runs BEFORE each step - use it to compress messages mid-loop
+            prepareStep: ({ messages: stepMessages }) => {
+                const result = this.contextManager.compressMessagesForPrepareStep(
+                    stepMessages as ModelMessage[],
+                    llmContext
+                );
+
+                // Emit event if compression occurred
+                if (result.compressed && result.metadata) {
+                    this.sessionEventBus.emit('context:compressed', {
+                        originalTokens: result.metadata.originalTokens,
+                        compressedTokens: result.metadata.compressedTokens,
+                        originalMessages: result.metadata.originalMessages,
+                        compressedMessages: result.metadata.compressedMessages,
+                        strategy: result.metadata.strategy,
+                        reason: 'token_limit',
+                    });
+                }
+
+                return { messages: result.messages };
+            },
             onChunk: (chunk) => {
                 this.logger.debug(`Chunk type: ${chunk.chunk.type}`);
                 if (chunk.chunk.type === 'text-delta') {

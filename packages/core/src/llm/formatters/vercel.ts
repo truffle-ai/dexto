@@ -6,6 +6,7 @@ import type {
     TextPart as VercelTextPart,
     ImagePart as VercelImagePart,
     FilePart as VercelFilePart,
+    ToolCallPart,
 } from 'ai';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
@@ -458,6 +459,146 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     ? [{ type: 'text', text: msg.content }]
                     : (msg.content as AssistantContent),
         };
+    }
+
+    /**
+     * Parses raw ModelMessage[] into InternalMessage[] for mid-loop compression.
+     * This is used by prepareStep to convert SDK messages before applying compression.
+     * Unlike parseResponse, this works directly on messages without needing a response wrapper.
+     *
+     * @param messages Array of Vercel ModelMessage to parse
+     * @returns Array of InternalMessage (excluding system messages which are handled separately)
+     */
+    parseMessages(messages: ModelMessage[]): InternalMessage[] {
+        const internal: InternalMessage[] = [];
+
+        for (const msg of messages) {
+            const role = msg.role as string;
+            switch (role) {
+                case 'system':
+                    // Skip system messages - they're handled separately
+                    break;
+
+                case 'user':
+                    if (typeof msg.content === 'string') {
+                        internal.push({
+                            role: 'user',
+                            content: [{ type: 'text', text: msg.content }],
+                        });
+                    } else if (Array.isArray(msg.content)) {
+                        const srcParts = msg.content as Array<
+                            VercelTextPart | VercelImagePart | VercelFilePart
+                        >;
+                        const parts = srcParts.map((p) => {
+                            if (p.type === 'text') return { type: 'text', text: p.text } as const;
+                            if (p.type === 'image')
+                                return {
+                                    type: 'image',
+                                    image: p.image,
+                                    mimeType: p.mediaType ?? 'image/jpeg',
+                                } as const;
+                            if (p.type === 'file')
+                                return {
+                                    type: 'file',
+                                    data: p.data,
+                                    mimeType: p.mediaType,
+                                    filename: p.filename,
+                                } as const;
+                            return { type: 'text', text: JSON.stringify(p) } as const;
+                        });
+                        internal.push({
+                            role: 'user',
+                            content: parts as InternalMessage['content'],
+                        });
+                    }
+                    break;
+
+                case 'assistant': {
+                    let text: string | null = null;
+                    const calls: InternalMessage['toolCalls'] = [];
+                    if (typeof msg.content === 'string') {
+                        text = msg.content;
+                    } else if (Array.isArray(msg.content)) {
+                        let combined = '';
+                        for (const part of msg.content) {
+                            if (part.type === 'text') {
+                                combined += part.text;
+                            } else if (part.type === 'tool-call') {
+                                const toolCallPart = part as ToolCallPart;
+                                calls.push({
+                                    id: toolCallPart.toolCallId,
+                                    type: 'function',
+                                    function: {
+                                        name: toolCallPart.toolName,
+                                        arguments:
+                                            typeof toolCallPart.input === 'string'
+                                                ? toolCallPart.input
+                                                : JSON.stringify(toolCallPart.input),
+                                    },
+                                });
+                            }
+                        }
+                        text = combined || null;
+                    }
+                    const assistantMessage: InternalMessage = {
+                        role: 'assistant',
+                        content: text,
+                    };
+                    if (calls.length > 0) {
+                        assistantMessage.toolCalls = calls;
+                    }
+                    internal.push(assistantMessage);
+                    break;
+                }
+
+                case 'tool':
+                    if (Array.isArray(msg.content)) {
+                        for (const part of msg.content) {
+                            if (part.type === 'tool-result') {
+                                const toolResultPart = part as ToolResultPart;
+                                let content: InternalMessage['content'];
+                                // Handle the LanguageModelV2ToolResultOutput structure
+                                const output = toolResultPart.output;
+                                if (output.type === 'content') {
+                                    content = output.value.map((item) => {
+                                        if (item.type === 'media') {
+                                            return {
+                                                type: 'image',
+                                                image: item.data,
+                                                mimeType: item.mediaType,
+                                            };
+                                        } else {
+                                            return {
+                                                type: 'text',
+                                                text: item.text,
+                                            };
+                                        }
+                                    });
+                                } else if (output.type === 'text' || output.type === 'error-text') {
+                                    content = output.value;
+                                } else if (output.type === 'json' || output.type === 'error-json') {
+                                    content = JSON.stringify(output.value);
+                                } else {
+                                    content = JSON.stringify(output);
+                                }
+                                internal.push({
+                                    role: 'tool',
+                                    content,
+                                    toolCallId: toolResultPart.toolCallId,
+                                    name: toolResultPart.toolName,
+                                });
+                            }
+                        }
+                    }
+                    break;
+
+                default:
+                    // ignore unknown roles
+                    break;
+            }
+        }
+
+        return internal;
     }
 
     // Helper to format Tool result messages

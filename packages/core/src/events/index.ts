@@ -43,6 +43,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:error',
     'llm:switched',
     'llm:unsupported-input',
+    'context:compressed',
 ] as const;
 
 /**
@@ -75,6 +76,9 @@ export const STREAMING_EVENTS = [
     'llm:tool-result',
     'llm:error',
     'llm:unsupported-input',
+
+    // Context management events
+    'context:compressed',
 
     // Session metadata
     'session:title-updated',
@@ -331,6 +335,17 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Context was compressed during multi-step tool calling */
+    'context:compressed': {
+        originalTokens: number;
+        compressedTokens: number;
+        originalMessages: number;
+        compressedMessages: number;
+        strategy: string;
+        reason: 'token_limit' | 'message_limit';
+        sessionId: string;
+    };
+
     // State events
     /** Fired when agent runtime state changes */
     'state:changed': {
@@ -434,6 +449,16 @@ export interface SessionEventMap {
         model?: string;
         fileType?: string;
         details?: any;
+    };
+
+    /** Context was compressed during multi-step tool calling */
+    'context:compressed': {
+        originalTokens: number;
+        compressedTokens: number;
+        originalMessages: number;
+        compressedMessages: number;
+        strategy: string;
+        reason: 'token_limit' | 'message_limit';
     };
 }
 

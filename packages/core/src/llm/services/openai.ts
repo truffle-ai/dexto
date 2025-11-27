@@ -29,6 +29,10 @@ import { trace, context, propagation } from '@opentelemetry/api';
  *   - Request latency histograms
  *   - Error rate counters
  *   See feature-plans/telemetry.md for details
+ * TODO (Context Compression): Implement mid-loop compression for multi-step tool calling
+ *   Currently, compression only runs before the tool loop starts. If the native OpenAI SDK
+ *   supports multi-step tool loops (similar to Vercel's prepareStep), add compression callback
+ *   to prevent context overflow during long tool loops. See vercel.ts for reference implementation.
  */
 @InstrumentClass({
     prefix: 'llm.openai',

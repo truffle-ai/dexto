@@ -488,6 +488,16 @@ export function useChat(
                     updateSessionTitle(event.sessionId, event.title);
                     break;
                 }
+
+                case 'context:compressed': {
+                    // Context was compressed during multi-step tool calling
+                    // Log for debugging, could add UI notification in future
+                    console.log(
+                        `[Context Compressed] ${event.originalTokens.toLocaleString()} → ${event.compressedTokens.toLocaleString()} tokens ` +
+                            `(${event.originalMessages} → ${event.compressedMessages} messages) via ${event.strategy}`
+                    );
+                    break;
+                }
             }
         },
         [

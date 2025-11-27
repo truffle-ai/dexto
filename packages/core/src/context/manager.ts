@@ -886,6 +886,192 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Result of mid-loop compression including metadata for event emission
+     */
+    public static readonly NO_COMPRESSION = Symbol('NO_COMPRESSION');
+
+    /**
+     * Compresses provider-specific messages mid-loop during multi-step tool calling.
+     * Used by Vercel SDK's prepareStep callback to prevent context overflow during tool loops.
+     *
+     * Flow:
+     * 1. Extract system prompt from messages (if present)
+     * 2. Parse remaining messages to InternalMessage[]
+     * 3. Compress if over token limit
+     * 4. Format back to provider-specific format
+     * 5. Re-add system prompt
+     *
+     * @param messages Provider-specific messages (e.g., ModelMessage[] for Vercel)
+     * @param llmContext Context with provider/model info for formatting
+     * @returns Object with compressed messages and metadata, or null if no compression needed
+     */
+    compressMessagesForPrepareStep(
+        messages: TMessage[],
+        llmContext: import('../llm/types.js').LLMContext
+    ): {
+        messages: TMessage[];
+        compressed: boolean;
+        metadata?: {
+            originalTokens: number;
+            compressedTokens: number;
+            originalMessages: number;
+            compressedMessages: number;
+            strategy: string;
+        };
+    } {
+        // Check if formatter supports parseMessages (currently only Vercel)
+        if (!this.formatter.parseMessages) {
+            this.logger.debug(
+                'ContextManager: Formatter does not support parseMessages, skipping mid-loop compression'
+            );
+            return { messages, compressed: false };
+        }
+
+        // Extract system message if present (always first in Vercel format)
+        const rawMessages = messages as unknown[];
+        let systemPrompt: string | null = null;
+        let messagesToParse = rawMessages;
+
+        if (rawMessages.length > 0) {
+            const firstMsg = rawMessages[0] as { role?: string; content?: unknown };
+            if (firstMsg.role === 'system' && typeof firstMsg.content === 'string') {
+                systemPrompt = firstMsg.content;
+                messagesToParse = rawMessages.slice(1);
+            }
+        }
+
+        // Parse to InternalMessage[]
+        const internalMessages = this.formatter.parseMessages(messagesToParse);
+
+        // Calculate tokens
+        const systemPromptTokens = systemPrompt ? this.tokenizer.countTokens(systemPrompt) : 0;
+        const historyTokens = countMessagesTokens(
+            internalMessages,
+            this.tokenizer,
+            undefined,
+            this.logger
+        );
+        const totalTokens = systemPromptTokens + historyTokens;
+
+        this.logger.debug(
+            `ContextManager prepareStep: System=${systemPromptTokens}, History=${historyTokens}, Total=${totalTokens}, Max=${this.maxInputTokens}`
+        );
+
+        // Check if compression is needed
+        if (totalTokens <= this.maxInputTokens) {
+            this.logger.debug(
+                `ContextManager prepareStep: No compression needed (${totalTokens} <= ${this.maxInputTokens})`
+            );
+            return { messages, compressed: false };
+        }
+
+        // Apply compression
+        this.logger.info(
+            `ContextManager prepareStep: Compressing mid-loop (${totalTokens} > ${this.maxInputTokens})`
+        );
+        const { history: compressedHistory, strategyUsed } = this.compressHistorySync(
+            internalMessages,
+            systemPromptTokens
+        );
+
+        // Format back to provider-specific format
+        const formattedMessages = this.formatter.format(
+            compressedHistory,
+            llmContext,
+            systemPrompt
+        ) as TMessage[];
+
+        const newHistoryTokens = countMessagesTokens(
+            compressedHistory,
+            this.tokenizer,
+            undefined,
+            this.logger
+        );
+        this.logger.info(
+            `ContextManager prepareStep: Compressed from ${internalMessages.length} to ${compressedHistory.length} messages (${historyTokens} -> ${newHistoryTokens} tokens)`
+        );
+
+        return {
+            messages: formattedMessages,
+            compressed: true,
+            metadata: {
+                originalTokens: totalTokens,
+                compressedTokens: systemPromptTokens + newHistoryTokens,
+                originalMessages: internalMessages.length,
+                compressedMessages: compressedHistory.length,
+                strategy: strategyUsed,
+            },
+        };
+    }
+
+    /**
+     * Synchronous version of compressHistoryIfNeeded for use in prepareStep callback.
+     * Note: prepareStep in Vercel SDK is synchronous, so we can't use async compression strategies.
+     *
+     * @param history The conversation history to compress
+     * @param systemPromptTokens Token count of system prompt
+     * @returns Object with compressed history and strategy name that succeeded
+     */
+    private compressHistorySync(
+        history: InternalMessage[],
+        systemPromptTokens: number
+    ): { history: InternalMessage[]; strategyUsed: string } {
+        let currentTotalTokens = countMessagesTokens(
+            history,
+            this.tokenizer,
+            undefined,
+            this.logger
+        );
+        currentTotalTokens += systemPromptTokens;
+
+        if (currentTotalTokens <= this.maxInputTokens) {
+            return { history, strategyUsed: 'none' };
+        }
+
+        const initialLength = history.length;
+        let workingHistory = [...history];
+        const targetHistoryTokens = this.maxInputTokens - systemPromptTokens;
+        let lastSuccessfulStrategy = 'unknown';
+
+        for (const strategy of this.compressionStrategies) {
+            const strategyName = strategy.constructor.name;
+            this.logger.debug(`ContextManager prepareStep: Applying ${strategyName}...`);
+
+            try {
+                workingHistory = strategy.compress(
+                    [...workingHistory],
+                    this.tokenizer,
+                    targetHistoryTokens
+                );
+                lastSuccessfulStrategy = strategyName;
+            } catch (error) {
+                this.logger.error(
+                    `ContextManager prepareStep: Error applying ${strategyName}: ${error instanceof Error ? error.message : String(error)}`
+                );
+                break;
+            }
+
+            const historyTokens = countMessagesTokens(
+                workingHistory,
+                this.tokenizer,
+                undefined,
+                this.logger
+            );
+            currentTotalTokens = historyTokens + systemPromptTokens;
+            const messagesRemoved = initialLength - workingHistory.length;
+
+            if (currentTotalTokens <= this.maxInputTokens) {
+                this.logger.debug(
+                    `ContextManager prepareStep: Compression successful after ${strategyName}. New total: ${currentTotalTokens}, removed: ${messagesRemoved}`
+                );
+                break;
+            }
+        }
+
+        return { history: workingHistory, strategyUsed: lastSuccessfulStrategy };
+    }
+
+    /**
      * Parses a raw LLM stream response, converts it into internal messages and adds them to the history.
      *
      * @param response The stream response from the LLM provider
