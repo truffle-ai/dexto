@@ -8,7 +8,7 @@ mcpServers:
     command: npx
     args:
       - -y
-      - mcp-remote@latest
+      - mcp-remote@0.1.31
       - https://mcp.posthog.com/sse
       - --header
       - "Authorization:Bearer $POSTHOG_API_KEY"
@@ -114,7 +114,7 @@ llm:
   apiKey: $ANTHROPIC_API_KEY
 
 toolConfirmation:
-  mode: auto-approve
+  mode: manual
   allowedToolsStorage: memory
 
 prompts:

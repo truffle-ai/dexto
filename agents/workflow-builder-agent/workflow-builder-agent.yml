@@ -139,7 +139,7 @@ llm:
   apiKey: $OPENAI_API_KEY
 
 toolConfirmation:
-  mode: auto-approve
+  mode: manual
   allowedToolsStorage: memory
 
 prompts:
