@@ -13,7 +13,11 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ToolSet as VercelToolSet, jsonSchema } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { summarizeToolContentForText } from '../../context/utils.js';
+import {
+    summarizeToolContentForText,
+    getImageData,
+    expandBlobReferences,
+} from '../../context/utils.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
@@ -156,10 +160,69 @@ export class VercelLLMService implements ILLMService {
                                 ...(shouldIncludeRawToolResult() ? { rawResult } : {}),
                             });
 
-                            // Generate summary text from the already-sanitized content
-                            // (avoids redundant normalization since addToolResult already did it)
-                            const summaryText = summarizeToolContentForText(persisted.content);
-                            return summaryText;
+                            // Expand blob references to actual base64 data before sending to LLM
+                            // Tool results are stored with @blob: refs, but LLM needs actual data
+                            this.logger.debug(
+                                `[vercel] Expanding blob refs for tool result. Input content types: ${persisted.content.map((p) => p.type).join(', ')}`
+                            );
+                            const expandedContent = await expandBlobReferences(
+                                persisted.content,
+                                this.contextManager.getResourceManager(),
+                                this.logger
+                            );
+                            this.logger.debug(
+                                `[vercel] Expanded content types: ${Array.isArray(expandedContent) ? expandedContent.map((p) => `${p.type}${p.type === 'image' ? `(${typeof (p as { image?: unknown }).image === 'string' && (p as { image: string }).image.startsWith('@blob:') ? 'blob-ref' : 'base64'})` : ''}`).join(', ') : 'string'}`
+                            );
+
+                            // Convert sanitized content to Vercel AI SDK multimodal format
+                            // This enables images in tool results to be properly sent to the LLM
+                            const contentValue: Array<
+                                | { type: 'text'; text: string }
+                                | { type: 'media'; data: string; mediaType: string }
+                            > = [];
+
+                            const contentArray = Array.isArray(expandedContent)
+                                ? expandedContent
+                                : [{ type: 'text' as const, text: String(expandedContent) }];
+                            for (const part of contentArray) {
+                                if (part.type === 'text') {
+                                    contentValue.push({ type: 'text', text: part.text });
+                                } else if (part.type === 'image') {
+                                    const imageData = getImageData(part, this.logger);
+                                    if (imageData) {
+                                        contentValue.push({
+                                            type: 'media',
+                                            data: imageData,
+                                            mediaType: part.mimeType || 'image/jpeg',
+                                        });
+                                    }
+                                } else if (part.type === 'file') {
+                                    // Files are also sent as media if supported
+                                    const fileData =
+                                        typeof part.data === 'string'
+                                            ? part.data
+                                            : Buffer.from(part.data as ArrayBuffer).toString(
+                                                  'base64'
+                                              );
+                                    contentValue.push({
+                                        type: 'media',
+                                        data: fileData,
+                                        mediaType: part.mimeType || 'application/octet-stream',
+                                    });
+                                }
+                            }
+
+                            // If we have multimodal content, return it in the proper format
+                            // Otherwise fall back to text summary for compatibility
+                            if (
+                                contentValue.length > 0 &&
+                                contentValue.some((v) => v.type === 'media')
+                            ) {
+                                return { type: 'content' as const, value: contentValue };
+                            }
+
+                            // Fallback to text summary if no media content
+                            return summarizeToolContentForText(persisted.content);
                         } catch (err: unknown) {
                             // Handle tool execution errors
                             // Note: toolCall event was already emitted before execution
