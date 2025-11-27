@@ -18,6 +18,10 @@ import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
+// Estimated tokens for blob-referenced images (actual images are ~1-2KB base64 = ~750-1500 bytes = ~1000+ tokens)
+// Claude vision uses ~1000 tokens per image regardless of size for small images
+const BLOB_REFERENCE_IMAGE_TOKENS = 1000;
+const BLOB_REFERENCE_PREFIX = '@blob:';
 
 type ToolBlobNamingOptions = {
     toolName?: string;
@@ -455,7 +459,10 @@ export function countMessagesTokens(
                         } else if (part.type === 'image') {
                             // Approximate tokens for images: estimate ~1 token per 1KB or based on Base64 length
                             if (typeof part.image === 'string') {
-                                if (isDataUri(part.image)) {
+                                if (part.image.startsWith(BLOB_REFERENCE_PREFIX)) {
+                                    // Blob reference - use fixed estimate since we can't resolve synchronously
+                                    total += BLOB_REFERENCE_IMAGE_TOKENS;
+                                } else if (isDataUri(part.image)) {
                                     // Extract base64 payload and compute byte length
                                     const base64Payload = extractBase64FromDataUri(part.image);
                                     const byteLength = base64LengthToBytes(base64Payload.length);
@@ -478,7 +485,10 @@ export function countMessagesTokens(
                         } else if (part.type === 'file') {
                             // Approximate tokens for files: estimate ~1 token per 1KB or based on Base64 length
                             if (typeof part.data === 'string') {
-                                if (isDataUri(part.data)) {
+                                if (part.data.startsWith(BLOB_REFERENCE_PREFIX)) {
+                                    // Blob reference - use fixed estimate since we can't resolve synchronously
+                                    total += BLOB_REFERENCE_IMAGE_TOKENS;
+                                } else if (isDataUri(part.data)) {
                                     // Extract base64 payload and compute byte length
                                     const base64Payload = extractBase64FromDataUri(part.data);
                                     const byteLength = base64LengthToBytes(base64Payload.length);
