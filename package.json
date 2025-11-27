@@ -31,7 +31,6 @@
         "clean:storage": "rimraf .dexto",
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
         "dev": "tsx scripts/dev-server.ts",
-        "dev:unified": "tsx scripts/dev-server-unified.ts",
         "dev:cli": "pnpm run link-cli",
         "embed-webui": "tsx scripts/copy-webui-dist.ts",
         "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
