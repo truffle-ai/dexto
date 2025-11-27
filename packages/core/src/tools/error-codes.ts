@@ -20,4 +20,5 @@ export enum ToolErrorCode {
 
     // Configuration
     CONFIG_INVALID = 'tools_config_invalid',
+    FEATURE_DISABLED = 'tools_feature_disabled',
 }

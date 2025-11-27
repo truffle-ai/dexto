@@ -17,6 +17,13 @@ import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.
 import type { KnownInternalTool } from './constants.js';
 
 /**
+ * Agent features that tools can depend on.
+ * Tools can declare required features via `requiredFeatures` in the registry.
+ * If a required feature is disabled, the tool will not be registered and agent startup will fail.
+ */
+export type AgentFeature = 'elicitation';
+
+/**
  * Services available to internal tools
  * Add new services here as needed for internal tools
  */
@@ -37,15 +44,18 @@ export interface InternalToolsServices {
 type InternalToolFactory = (services: InternalToolsServices) => InternalTool;
 
 /**
+ * Internal tool registry entry type
+ */
+export interface InternalToolRegistryEntry {
+    factory: InternalToolFactory;
+    requiredServices: readonly (keyof InternalToolsServices)[];
+    requiredFeatures?: readonly AgentFeature[];
+}
+
+/**
  * Internal tool registry - Must match names array exactly (TypeScript enforces this)
  */
-export const INTERNAL_TOOL_REGISTRY: Record<
-    KnownInternalTool,
-    {
-        factory: InternalToolFactory;
-        requiredServices: readonly (keyof InternalToolsServices)[];
-    }
-> = {
+export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegistryEntry> = {
     search_history: {
         factory: (services: InternalToolsServices) =>
             createSearchHistoryTool(services.searchService!),
@@ -54,6 +64,7 @@ export const INTERNAL_TOOL_REGISTRY: Record<
     ask_user: {
         factory: (services: InternalToolsServices) => createAskUserTool(services.approvalManager!),
         requiredServices: ['approvalManager'] as const,
+        requiredFeatures: ['elicitation'] as const,
     },
     read_file: {
         factory: (services: InternalToolsServices) =>
@@ -104,6 +115,6 @@ export const INTERNAL_TOOL_REGISTRY: Record<
 /**
  * Type-safe registry access
  */
-export function getInternalToolInfo(toolName: KnownInternalTool) {
+export function getInternalToolInfo(toolName: KnownInternalTool): InternalToolRegistryEntry {
     return INTERNAL_TOOL_REGISTRY[toolName];
 }
