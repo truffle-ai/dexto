@@ -10,10 +10,12 @@
 
 1. **Architecture Change**: Use `stopWhen: stepCountIs(1)` instead of `maxSteps: 1` without execute callbacks
 2. **Stream Interception**: Add StreamProcessor for real-time persistence during Vercel SDK execution
-3. **Compression**: Reactive (on overflow) using actual tokens, not percentage-based threshold
+3. **Compression**: Pluggable strategy interface with reactive overflow detection as default
 4. **Pruning**: Mark tool outputs with `compactedAt` instead of deletion
 5. **Cleanup**: Adopt TC39 `defer()` pattern for cancellation
 6. **Token Estimation**: Simple `length/4` for pruning decisions, actual tokens for compression
+7. **Tool Output Truncation**: Prevent mid-loop overflow at source (like OpenCode)
+8. **Queue Coalescing**: Multiple queued messages combined into single injection
 
 ## Problem Statement
 
@@ -38,6 +40,7 @@ Our current Vercel SDK integration has several issues:
 - **Persistence**: Part-based, immediate updates via `Session.updatePart()`
 - **Cancellation**: `defer()` cleanup pattern with abort signals (TC39 Explicit Resource Management)
 - **Queue pattern**: Coalescing (all concurrent callers get same result)
+- **Tool output limits**: Bash truncates at 30K chars, Read limits to 2K lines × 2K chars/line
 
 ### Gemini-CLI Approach
 - **Custom loop**: `executeTurn()` in AgentExecutor class
@@ -84,27 +87,27 @@ This gives us:
 │                                                                             │
 │  while (true) {                                                             │
 │                                                                             │
-│    // 1. MID-LOOP MESSAGE INJECTION (Claude Code feature)                   │
-│    const newMsg = await messageQueue.dequeue();                             │
-│    if (newMsg) await contextManager.addUserMessage(newMsg);                 │
-│                                                                             │
-│    // 2. REACTIVE COMPRESSION (after overflow detected)                     │
-│    if (lastStepTokens && isOverflow(lastStepTokens, modelLimits)) {         │
-│      await compressHistory();                                               │
-│      continue;                                                              │
+│    // 1. MID-LOOP MESSAGE INJECTION with coalescing                         │
+│    const coalesced = messageQueue.dequeueAll();                             │
+│    if (coalesced) {                                                         │
+│      await contextManager.addUserMessage(coalesced.combinedContent);        │
 │    }                                                                        │
+│                                                                             │
+│    // 2. COMPRESSION CHECK (strategy determines trigger)                    │
+│    const compressed = await checkAndCompress();  // Uses ICompressionStrategy│
+│    if (compressed) continue;                                                │
 │                                                                             │
 │    // 3. SINGLE STEP WITH STREAM INTERCEPTION                               │
 │    const result = await streamProcessor.process(() =>                       │
 │      streamText({                                                           │
 │        stopWhen: stepCountIs(1),                                            │
-│        tools: toolsWithExecuteCallbacks,                                    │
+│        tools: toolsWithExecuteCallbacks,  // Output truncated at source     │
 │        abortSignal: this.abortController.signal,                            │
 │        messages: contextManager.getFormattedMessages(),                     │
 │      })                                                                     │
 │    );                                                                       │
 │                                                                             │
-│    // 4. CAPTURE ACTUAL TOKENS (for next iteration's overflow check)        │
+│    // 4. CAPTURE ACTUAL TOKENS (for overflow-based strategies)              │
 │    lastStepTokens = result.usage;                                           │
 │                                                                             │
 │    // 5. CHECK TERMINATION                                                  │
@@ -183,9 +186,194 @@ class StreamProcessor {
 }
 ```
 
-#### 2. Reactive Compression (Overflow-Based)
+#### 2. Tool Output Truncation (Prevent Mid-Loop Overflow)
 
-Triggers compression AFTER overflow is detected (using actual tokens from last step):
+**Problem**: A single tool result (e.g., `cat` on a huge file) could overflow context mid-loop before compression can react.
+
+**Solution**: Truncate at the source, like OpenCode does:
+
+```typescript
+// Constants - configurable per agent
+const DEFAULT_MAX_TOOL_OUTPUT_CHARS = 120_000;  // ~30K tokens
+const DEFAULT_MAX_FILE_LINES = 2000;
+const DEFAULT_MAX_LINE_LENGTH = 2000;
+
+// Tool output wrapper - applied to ALL tool results
+function truncateToolOutput(
+  output: string,
+  options: { maxChars?: number } = {}
+): { output: string; truncated: boolean } {
+  const maxChars = options.maxChars ?? DEFAULT_MAX_TOOL_OUTPUT_CHARS;
+
+  if (output.length <= maxChars) {
+    return { output, truncated: false };
+  }
+
+  return {
+    output: output.slice(0, maxChars) + '\n\n[Output truncated - exceeded maximum length]',
+    truncated: true,
+  };
+}
+
+// In StreamProcessor, wrap tool results
+case 'tool-result':
+  const { output, truncated } = truncateToolOutput(event.output.output);
+  await this.contextManager.updateToolState(event.toolCallId, 'completed', {
+    ...event.output,
+    output,
+    truncated,
+  });
+  break;
+```
+
+**Per-tool limits** (inherited from Dexto's existing tool config):
+```yaml
+# In agent config
+tools:
+  bash:
+    maxOutputChars: 30000
+  read:
+    maxLines: 2000
+    maxLineLength: 2000
+  grep:
+    maxMatches: 1000
+```
+
+#### 3. Pluggable Compression Strategy (Keep Dexto's Flexibility)
+
+**Interface** - maintains Dexto's existing `ICompressionStrategy` pattern:
+
+```typescript
+/**
+ * When to trigger compression check
+ */
+export type CompressionTrigger =
+  | { type: 'threshold'; percentage: number }    // e.g., 80% of context
+  | { type: 'overflow' }                          // After actual overflow (OpenCode style)
+  | { type: 'manual' };                           // Only on explicit request
+
+/**
+ * Core compression strategy interface (existing in Dexto)
+ */
+export interface ICompressionStrategy {
+  /**
+   * Compress history when triggered
+   * @param history Current message history
+   * @param tokenizer Tokenizer for counting
+   * @param maxTokens Maximum allowed tokens
+   * @returns Compressed history
+   */
+  compress(
+    history: InternalMessage[],
+    tokenizer: ITokenizer,
+    maxTokens: number
+  ): Promise<InternalMessage[]> | InternalMessage[];
+}
+
+/**
+ * Extended interface for new compression strategies
+ */
+export interface ICompressionStrategyV2 extends ICompressionStrategy {
+  /** Human-readable name for logging/UI */
+  readonly name: string;
+
+  /** When this strategy should be triggered */
+  readonly trigger: CompressionTrigger;
+
+  /** Optional: validate compression was effective */
+  validate?(before: number, after: number): boolean;
+}
+```
+
+**Default Strategy: Reactive Overflow (OpenCode-style)**
+
+```typescript
+export class ReactiveOverflowStrategy implements ICompressionStrategyV2 {
+  readonly name = 'reactive-overflow';
+  readonly trigger: CompressionTrigger = { type: 'overflow' };
+
+  constructor(
+    private readonly llmService: ILLMService,
+    private readonly options: {
+      preserveLastNTurns?: number;  // Default: 2
+      pruneProtectTokens?: number;  // Default: 40K
+    } = {}
+  ) {}
+
+  async compress(
+    history: InternalMessage[],
+    tokenizer: ITokenizer,
+    maxTokens: number
+  ): Promise<InternalMessage[]> {
+    // 1. Generate LLM summary of old messages
+    const oldMessages = this.getMessagesToSummarize(history);
+    const summary = await this.generateSummary(oldMessages);
+
+    // 2. Replace old messages with summary message
+    const summaryMessage: InternalMessage = {
+      role: 'assistant',
+      content: summary,
+      metadata: { isSummary: true, summarizedAt: Date.now() }
+    };
+
+    // 3. Keep recent messages
+    const recentMessages = this.getRecentMessages(history);
+
+    return [summaryMessage, ...recentMessages];
+  }
+
+  validate(beforeTokens: number, afterTokens: number): boolean {
+    // Compression should reduce tokens, not inflate
+    return afterTokens < beforeTokens;
+  }
+
+  private async generateSummary(messages: InternalMessage[]): Promise<string> {
+    // Use configured LLM to summarize
+    const prompt = `Summarize this conversation, focusing on:
+- What was accomplished
+- Current state and context
+- What needs to happen next
+
+Conversation:
+${this.formatMessages(messages)}`;
+
+    return this.llmService.complete(prompt, { maxTokens: 2000 });
+  }
+}
+```
+
+**Alternative Strategies (can be swapped via config)**:
+
+```typescript
+// Existing Dexto strategy - simple middle removal
+export class MiddleRemovalStrategy implements ICompressionStrategyV2 {
+  readonly name = 'middle-removal';
+  readonly trigger: CompressionTrigger = { type: 'threshold', percentage: 0.8 };
+  // ... existing implementation
+}
+
+// Gemini-CLI style - proactive threshold
+export class ProactiveThresholdStrategy implements ICompressionStrategyV2 {
+  readonly name = 'proactive-threshold';
+  readonly trigger: CompressionTrigger = { type: 'threshold', percentage: 0.5 };
+  // ... LLM summary at 50% with 30% preservation
+}
+```
+
+**Configuration in agent YAML**:
+
+```yaml
+context:
+  compression:
+    strategy: reactive-overflow  # or 'middle-removal', 'proactive-threshold'
+    options:
+      preserveLastNTurns: 2
+      pruneProtectTokens: 40000
+```
+
+#### 4. Overflow Detection (Triggers Compression)
+
+Used when strategy trigger is `overflow`:
 
 ```typescript
 function isOverflow(tokens: TokenUsage, model: ModelLimits): boolean {
@@ -197,21 +385,49 @@ function isOverflow(tokens: TokenUsage, model: ModelLimits): boolean {
   return used > usable;
 }
 
-async function compressHistory(): Promise<void> {
-  // LLM-based summarization of old messages
-  const summary = await generateSummary(this.getOldMessages());
+// In main loop - respects strategy's trigger type
+async function checkAndCompress(): Promise<boolean> {
+  const strategy = this.compressionStrategy;
 
-  // Replace old messages with summary
-  await this.contextManager.replaceWithSummary(summary);
+  switch (strategy.trigger.type) {
+    case 'overflow':
+      if (!this.lastStepTokens) return false;
+      if (!isOverflow(this.lastStepTokens, this.modelLimits)) return false;
+      break;
 
-  this.eventBus.emit('context:compressed', {
-    originalTokens: this.lastTokenCount,
-    strategy: 'llm-summary'
-  });
+    case 'threshold':
+      const currentTokens = await this.estimateCurrentTokens();
+      const threshold = this.modelLimits.contextWindow * strategy.trigger.percentage;
+      if (currentTokens < threshold) return false;
+      break;
+
+    case 'manual':
+      return false;  // Only compress on explicit request
+  }
+
+  // Trigger compression
+  const beforeTokens = await this.countTokens();
+  const compressed = await strategy.compress(
+    this.history,
+    this.tokenizer,
+    this.modelLimits.contextWindow
+  );
+
+  // Validate if strategy supports it
+  if (strategy.validate) {
+    const afterTokens = await this.countTokens(compressed);
+    if (!strategy.validate(beforeTokens, afterTokens)) {
+      this.logger.warn('Compression validation failed - tokens increased');
+      // Optionally: revert or try different strategy
+    }
+  }
+
+  this.history = compressed;
+  return true;
 }
 ```
 
-#### 3. Mark-Don't-Delete Pruning
+#### 5. Mark-Don't-Delete Pruning
 
 Preserves history while reducing token count:
 
@@ -270,38 +486,110 @@ function formatToolOutput(tool: ToolResult): string {
 }
 ```
 
-#### 4. Message Queue Service (Mid-Loop Injection)
+#### 6. Message Queue Service with Coalescing
 
-True queue for Claude Code-style user guidance during task execution:
+True queue for Claude Code-style user guidance, with coalescing for multiple rapid messages:
 
 ```typescript
+interface QueuedMessage {
+  id: string;
+  content: string;
+  queuedAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+interface CoalescedMessage {
+  messages: QueuedMessage[];
+  combinedContent: string;
+  firstQueuedAt: number;
+  lastQueuedAt: number;
+}
+
 class MessageQueueService {
   private queue: QueuedMessage[] = [];
   private eventBus: EventBus;
 
   // Called by API endpoint - returns immediately
   async enqueue(message: UserMessage): Promise<{ queued: true; position: number }> {
-    const queuedMsg = {
-      ...message,
-      queuedAt: Date.now(),
+    const queuedMsg: QueuedMessage = {
       id: generateId(),
+      content: message.content,
+      queuedAt: Date.now(),
+      metadata: message.metadata,
     };
     this.queue.push(queuedMsg);
-    this.eventBus.emit('message:queued', { position: this.queue.length });
+    this.eventBus.emit('message:queued', {
+      position: this.queue.length,
+      id: queuedMsg.id
+    });
     return { queued: true, position: this.queue.length };
   }
 
-  // Called by executor between steps
-  async dequeue(): Promise<UserMessage | null> {
-    const msg = this.queue.shift();
-    if (msg) {
-      this.eventBus.emit('message:dequeued', { id: msg.id });
+  /**
+   * Dequeue ALL pending messages and coalesce into single injection.
+   * Called by executor between steps.
+   *
+   * If 3 messages are queued: "stop", "try X instead", "also check Y"
+   * They become ONE combined message to the LLM.
+   */
+  dequeueAll(): CoalescedMessage | null {
+    if (this.queue.length === 0) return null;
+
+    const messages = [...this.queue];
+    this.queue = [];
+
+    // Combine into single message
+    const combined = this.coalesce(messages);
+
+    this.eventBus.emit('message:dequeued', {
+      count: messages.length,
+      ids: messages.map(m => m.id),
+      coalesced: true,
+    });
+
+    return combined;
+  }
+
+  /**
+   * Coalesce multiple messages into one.
+   * Strategy: Join with clear separators, preserving order.
+   */
+  private coalesce(messages: QueuedMessage[]): CoalescedMessage {
+    if (messages.length === 1) {
+      return {
+        messages,
+        combinedContent: messages[0].content,
+        firstQueuedAt: messages[0].queuedAt,
+        lastQueuedAt: messages[0].queuedAt,
+      };
     }
-    return msg ?? null;
+
+    // Multiple messages - combine with separator
+    const combinedContent = messages
+      .map((m, i) => {
+        if (messages.length === 2) {
+          return i === 0
+            ? `First: ${m.content}`
+            : `Also: ${m.content}`;
+        }
+        return `[${i + 1}] ${m.content}`;
+      })
+      .join('\n\n');
+
+    return {
+      messages,
+      combinedContent,
+      firstQueuedAt: messages[0].queuedAt,
+      lastQueuedAt: messages[messages.length - 1].queuedAt,
+    };
   }
 
   hasPending(): boolean {
     return this.queue.length > 0;
+  }
+
+  pendingCount(): number {
+    return this.queue.length;
   }
 
   clear(): void {
@@ -310,7 +598,56 @@ class MessageQueueService {
 }
 ```
 
-#### 5. Cancellation with `defer()` Pattern
+**Usage in main loop**:
+
+```typescript
+while (true) {
+  // 1. CHECK FOR QUEUED MESSAGES - coalesce all pending
+  const coalesced = messageQueue.dequeueAll();
+  if (coalesced) {
+    // Add as single user message with all guidance
+    await contextManager.addUserMessage({
+      role: 'user',
+      content: coalesced.combinedContent,
+      metadata: {
+        coalesced: true,
+        messageCount: coalesced.messages.length,
+        originalMessages: coalesced.messages.map(m => m.id),
+      }
+    });
+
+    // Log for debugging
+    this.logger.info('Injected coalesced user guidance', {
+      count: coalesced.messages.length,
+      firstQueued: coalesced.firstQueuedAt,
+      lastQueued: coalesced.lastQueuedAt,
+    });
+  }
+
+  // 2. Continue with compression check, step execution, etc.
+  // ...
+}
+```
+
+**Example flow**:
+```
+User sends while agent is busy:
+  t=0ms:  "stop what you're doing"
+  t=50ms: "try a different approach"
+  t=100ms: "use the newer API"
+
+Agent loop iteration:
+  → dequeueAll() returns:
+    {
+      messages: [msg1, msg2, msg3],
+      combinedContent: "[1] stop what you're doing\n\n[2] try a different approach\n\n[3] use the newer API",
+      ...
+    }
+  → Single user message injected into context
+  → LLM sees all 3 pieces of guidance at once
+```
+
+#### 7. Cancellation with `defer()` Pattern
 
 TC39 Explicit Resource Management for automatic cleanup:
 
@@ -438,18 +775,25 @@ Check: overflow? queue? continue?
 |--------|---------|-------------------|
 | Tool Execution | Manual (rebuild) | SDK callbacks (simpler) |
 | Persistence | After step | Real-time (stream events) |
-| Compression Trigger | 80% threshold | Actual overflow (accurate) |
+| Compression | Single strategy | Pluggable interface (flexible) |
+| Compression Trigger | 80% threshold only | Strategy-defined (overflow, threshold, manual) |
+| Mid-loop Overflow | Unhandled | Tool output truncation at source |
 | Pruning | Delete messages | Mark with timestamp (preserves history) |
 | Cleanup | Manual state machine | `defer()` pattern (automatic) |
-| Message Queue | True queue | True queue (same) |
+| Message Queue | True queue | True queue with coalescing |
 | Token Counting | Hybrid | Actual + estimate (simpler) |
+
+## Resolved Questions
+
+1. **Large tool results mid-loop**: ✅ RESOLVED - Truncate at source (like OpenCode: bash 30K chars, read 2K lines)
+2. **Compression validation**: ✅ RESOLVED - Added `validate()` method to `ICompressionStrategyV2`
+3. **Customizable compression**: ✅ RESOLVED - Pluggable strategy interface, OpenCode-style as default
 
 ## Open Questions
 
-1. **Large tool results mid-loop**: How to handle if single tool result exceeds context? (See research needed)
-2. **Compression validation**: Should we validate compression reduced tokens? (Gemini-CLI does this)
-3. **Grace period**: Should we add recovery turn on timeout? (Gemini-CLI has 60s grace)
-4. **Parallel tools**: Sequential or parallel tool execution? (Currently sequential via SDK)
+1. **Grace period**: Should we add recovery turn on timeout? (Gemini-CLI has 60s grace)
+2. **Parallel tools**: Sequential or parallel tool execution? (Currently sequential via SDK)
+3. **Coalescing format**: Is `[1] msg1\n\n[2] msg2` the best format for combined messages?
 
 ## File Structure
 
@@ -459,6 +803,7 @@ packages/core/src/
 │   ├── executor/
 │   │   ├── stream-processor.ts      # NEW - Stream event interception
 │   │   ├── turn-executor.ts         # NEW - Main loop with stopWhen
+│   │   ├── tool-output-truncator.ts # NEW - Prevent mid-loop overflow
 │   │   ├── types.ts                 # NEW - Executor types
 │   │   └── index.ts
 │   └── services/
@@ -466,11 +811,15 @@ packages/core/src/
 ├── context/
 │   ├── manager.ts                   # UPDATE - Add compactedAt support
 │   ├── compression/
+│   │   ├── types.ts                 # UPDATE - ICompressionStrategyV2
+│   │   ├── reactive-overflow.ts     # NEW - OpenCode-style (default)
+│   │   ├── middle-removal.ts        # EXISTING - Simple removal
+│   │   ├── proactive-threshold.ts   # NEW - Gemini-CLI style (optional)
 │   │   ├── overflow.ts              # NEW - Overflow detection
 │   │   └── pruning.ts               # NEW - Mark-don't-delete
 │   └── utils.ts                     # UPDATE - formatToolOutput
 ├── session/
-│   ├── message-queue.ts             # NEW - True queue service
+│   ├── message-queue.ts             # NEW - True queue with coalescing
 │   └── index.ts
 └── util/
     └── defer.ts                     # NEW - TC39 cleanup pattern
