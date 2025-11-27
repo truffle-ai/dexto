@@ -187,16 +187,6 @@ if (codingAgents.length > 0) {
 
 ## What's Next?
 
-You've completed the SDK tutorials! You now know how to:
-- ✅ Create and configure agents
-- ✅ Manage sessions and conversations
-- ✅ Serve multiple users
-- ✅ Add tools and capabilities
-- ✅ Handle events for responsive UIs
-- ✅ Load configs from YAML files
-- ✅ Orchestrate multiple agents with registries
+You can now create and manage multiple agents. The next tutorial covers system prompt preparation—how to build modular prompts from files and runtime content instead of one giant string.
 
-**Continue learning:**
-- **[SDK Guide](/docs/guides/dexto-sdk)** - Complete SDK documentation
-- **[MCP Guide](/docs/mcp/overview)** - Deep dive into tools and capabilities
-- **[CLI Examples](/docs/tutorials/cli/examples/multi-agent-systems)** - Build advanced agent systems
+**Continue to:** [System Prompt Preparation](./context-management/prompt-contributors.md)

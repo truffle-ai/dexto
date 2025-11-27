@@ -46,6 +46,11 @@ You've been configuring agents inline with JavaScript objects. That works for de
 
 So far you've worked with one agent at a time. But what if you're building a platform where users choose from specialized agents? Learn to use AgentManager to list, install, and manage multiple agents programmatically—build agent marketplaces, multi-tenant systems, and dynamic agent selection.
 
+### 8. [System Prompt Preparation](./context-management/prompt-contributors.md)
+**Build modular, maintainable system prompts.**
+
+A giant system prompt string becomes a maintenance nightmare. Learn to compose prompts from multiple sources—static text, external files, and runtime content—each handling one piece of the puzzle.
+
 ## What You'll Build
 
 By the end of these tutorials, you'll have:
@@ -56,6 +61,7 @@ By the end of these tutorials, you'll have:
 - ✅ A responsive UI with streaming and progress indicators
 - ✅ Production-ready config management with YAML files
 - ✅ Programmatic agent orchestration and management
+- ✅ Modular system prompts from multiple sources
 
 ## API Reference
 
