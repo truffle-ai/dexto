@@ -657,48 +657,49 @@ packages/core/src/__fixtures__/
 
 ---
 
-## New Files Needed
+## New Files Needed (REVISED)
 
-### Core Agent Loop
+Based on architecture analysis, files are organized by concern level:
 
-```
-packages/core/src/agent/
-├── executor.ts                    # NEW - Main agent loop
-├── executor.test.ts               # NEW - Unit tests
-├── executor.integration.test.ts   # NEW - Integration tests
-├── types.ts                       # UPDATE - Add executor types
-└── index.ts                       # UPDATE - Export executor
-```
-
-### Message Queue
+### Turn Executor (llm/executor/) - Turn-level orchestration
 
 ```
-packages/core/src/agent/
-├── message-queue.ts               # NEW - Queue service
+packages/core/src/llm/executor/
+├── turn-executor.ts               # NEW - Main turn loop with maxSteps:1
+├── turn-executor.test.ts          # NEW - Unit tests
+├── turn-executor.integration.test.ts # NEW - Integration tests
+├── cancellation.ts                # NEW - Turn-level cancellation handler
+├── cancellation.test.ts           # NEW - Unit tests
+├── types.ts                       # NEW - Executor types
+└── index.ts                       # NEW - Exports
+```
+
+**Rationale**: The executor manages a single conversation turn (user → LLM → tools → ... → response). This is SDK-specific (Vercel's streamText/generateText) and replaces logic currently in `vercel.ts`.
+
+### Message Queue (session/) - Session-level concern
+
+```
+packages/core/src/session/
+├── message-queue.ts               # NEW - Queue service for user messages
 ├── message-queue.test.ts          # NEW - Unit tests
 └── index.ts                       # UPDATE - Export queue
 ```
 
-### Cancellation
+**Rationale**: Message queuing is about managing user messages across multiple turns within a session, not about a single turn execution.
 
-```
-packages/core/src/agent/
-├── cancellation.ts                # NEW - Cancellation handler
-├── cancellation.test.ts           # NEW - Unit tests
-└── index.ts                       # UPDATE - Export handler
-```
-
-### Compression (Refactor)
+### Compression (context/compression/) - Already exists, extend
 
 ```
 packages/core/src/context/
 ├── compression/
-│   ├── service.ts                 # NEW - Extracted compression logic
+│   ├── service.ts                 # NEW - Extracted async compression logic
 │   ├── service.test.ts            # NEW - Unit tests
 │   ├── strategies/
 │   │   ├── llm-summary.ts         # NEW - LLM-based summarization
-│   │   ├── prune-tool-outputs.ts  # NEW - OpenCode-style pruning
-│   │   └── types.ts               # NEW - Strategy interface
+│   │   └── prune-tool-outputs.ts  # NEW - OpenCode-style pruning
+│   ├── middle-removal.ts          # EXISTS - Keep
+│   ├── oldest-removal.ts          # EXISTS - Keep
+│   ├── types.ts                   # EXISTS - Extend
 │   └── index.ts                   # NEW - Exports
 ├── manager.ts                     # UPDATE - Use new compression service
 └── utils.ts                       # KEEP - Blob handling stays here
@@ -708,10 +709,13 @@ packages/core/src/context/
 
 ```
 packages/core/src/llm/services/
-├── vercel.ts                      # UPDATE - Remove execute callbacks
-│                                  #        - Use executor instead
-│                                  #        - Remove prepareStep/onStepFinish
-└── base.ts                        # UPDATE - Add executor integration
+├── vercel.ts                      # UPDATE - Use TurnExecutor
+│                                  #        - Remove execute callbacks
+│                                  #        - Remove internal loop logic
+├── anthropic.ts                   # FUTURE - Could use executor pattern
+├── openai.ts                      # FUTURE - Could use executor pattern
+├── factory.ts                     # KEEP - No changes needed
+└── types.ts                       # UPDATE - Add executor-related types
 ```
 
 ### Fixtures
@@ -725,11 +729,403 @@ packages/core/src/__fixtures__/
 
 ### Summary of Changes
 
-| Type | Count | Files |
-|------|-------|-------|
-| NEW | 12 | executor, queue, cancellation, compression service, strategies, fixtures |
-| UPDATE | 5 | agent/types, agent/index, manager.ts, vercel.ts, base.ts |
-| KEEP | All | Blob handling, tool implementations, tokenizers, formatters |
+| Type | Count | Location | Files |
+|------|-------|----------|-------|
+| NEW | 7 | llm/executor/ | turn-executor, cancellation, types, tests |
+| NEW | 2 | session/ | message-queue, tests |
+| NEW | 3 | context/compression/ | service, strategies |
+| UPDATE | 3 | Various | vercel.ts, manager.ts, session/index.ts |
+| KEEP | All | Various | Blob handling, tool implementations, tokenizers, formatters |
+
+---
+
+## LLM Services Architecture
+
+### Current Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         LLM SERVICE FACTORY                              │
+│  createLLMService(config, router, ...)                                   │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  router === 'vercel'              router === 'in-built'                  │
+│         │                                  │                             │
+│         ▼                                  ▼                             │
+│  ┌─────────────────┐              ┌─────────────────┐                   │
+│  │VercelLLMService │              │ OpenAIService   │                   │
+│  │ - openai        │              │ AnthropicService│                   │
+│  │ - anthropic     │              │                 │                   │
+│  │ - google        │              │ (Direct SDK)    │                   │
+│  │ - groq, xai...  │              │                 │                   │
+│  └─────────────────┘              └─────────────────┘                   │
+│         │                                  │                             │
+│         ▼                                  ▼                             │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                    ILLMService Interface                         │    │
+│  │  - completeTask(text, options, image?, file?, stream?)          │    │
+│  │  - getAllTools()                                                 │    │
+│  │  - getConfig()                                                   │    │
+│  │  - getContextManager()                                           │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Proposed Architecture (with TurnExecutor)
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         LLM SERVICE FACTORY                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────┐              ┌─────────────────┐                   │
+│  │VercelLLMService │              │ OpenAIService   │                   │
+│  │                 │              │ AnthropicService│                   │
+│  │  completeTask() │              │                 │                   │
+│  │       │         │              │ (unchanged for  │                   │
+│  │       ▼         │              │  now - Phase 2) │                   │
+│  │  ┌───────────┐  │              │                 │                   │
+│  │  │TurnExecutor│ │              └─────────────────┘                   │
+│  │  │           │  │                                                     │
+│  │  │ - loop    │  │  ◄── NEW: Manages turn with maxSteps:1             │
+│  │  │ - tools   │  │                                                     │
+│  │  │ - cancel  │  │                                                     │
+│  │  └───────────┘  │                                                     │
+│  └─────────────────┘                                                     │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Points**:
+- `TurnExecutor` lives inside `llm/executor/` because it's SDK-specific
+- Only `VercelLLMService` uses it initially (Phase 1)
+- Other services (`OpenAIService`, `AnthropicService`) can adopt it later
+- The `ILLMService` interface stays the same - no breaking changes
+
+---
+
+## DextoAgent Integration
+
+### Current Call Flow
+
+```
+DextoAgent.run(message, image?, file?, sessionId)
+    │
+    ▼
+ChatSession.run(message, image?, file?, stream?)
+    │
+    ▼
+ILLMService.completeTask(text, options, image?, file?, stream?)
+    │
+    ▼
+VercelLLMService.streamText() / generateText()
+    │
+    ▼
+Vercel SDK internal loop (execute callbacks)
+```
+
+### Proposed Call Flow
+
+```
+DextoAgent.run(message, image?, file?, sessionId)
+    │
+    ▼
+ChatSession.run(message, image?, file?, stream?)
+    │
+    ▼
+ILLMService.completeTask(text, options, image?, file?, stream?)
+    │
+    ▼
+VercelLLMService.completeTask()
+    │
+    ▼
+TurnExecutor.execute()                    ◄── NEW
+    │
+    ├── Loop: while (!terminated)
+    │   │
+    │   ├── 1. Check MessageQueue         ◄── NEW (session-level)
+    │   │
+    │   ├── 2. Compress if needed (async) ◄── IMPROVED
+    │   │
+    │   ├── 3. streamText({ maxSteps: 1 })
+    │   │
+    │   ├── 4. Persist assistant message
+    │   │
+    │   ├── 5. Execute tools manually     ◄── MOVED from callbacks
+    │   │
+    │   └── 6. Persist tool results
+    │
+    └── Return final response
+```
+
+### Changes to DextoAgent
+
+**No changes required to DextoAgent itself** - the integration is transparent:
+- `ChatSession` still calls `ILLMService.completeTask()`
+- `completeTask()` now uses `TurnExecutor` internally
+- Events still flow through `SessionEventBus`
+
+### Changes to ChatSession
+
+Minimal changes:
+- Pass `MessageQueueService` to LLM service (for message queuing feature)
+- Handle new events (`context:compressed`, `message:queued`)
+
+```typescript
+// session/chat-session.ts (additions)
+export class ChatSession {
+    private messageQueue: MessageQueueService;  // NEW
+
+    async run(message: string, ...) {
+        // If currently busy, queue the message
+        if (this.llmService.isBusy()) {
+            return this.messageQueue.enqueue(message);
+        }
+        // ... existing logic
+    }
+}
+```
+
+---
+
+## @dexto/server Integration
+
+### Current Server Flow
+
+```
+POST /message-stream
+    │
+    ▼
+agent.stream(message, { sessionId, signal })
+    │
+    ▼
+AsyncIterator<StreamingEvent>
+    │
+    ▼
+streamSSE() → writes events to response
+```
+
+### New Events to Handle
+
+The server routes (`packages/server/src/hono/routes/messages.ts`) already handle all events generically:
+
+```typescript
+// Current code - no changes needed
+for await (const event of iterator) {
+    await stream.writeSSE({
+        event: event.name,
+        data: JSON.stringify(event),
+    });
+}
+```
+
+**New events that will flow through**:
+- `context:compressed` - When compression occurs
+- `message:queued` - When message is queued (if busy)
+- `message:dequeued` - When queued message is processed
+
+### Cancellation Integration
+
+Current cancellation flow works via `AbortController`:
+
+```typescript
+// messages.ts - already implemented
+const abortController = new AbortController();
+const { signal } = abortController;
+
+const iterator = await agent.stream(message, { ..., signal });
+
+// On stream close/error
+abortController.abort();
+```
+
+**Enhancement needed**: The `TurnExecutor` will persist partial state on abort:
+
+```typescript
+// In TurnExecutor
+async cancel(): Promise<CancellationResult> {
+    this.abortController.abort();
+
+    if (this.state === 'streaming' && this.partialText) {
+        // Persist partial assistant message
+        await this.contextManager.addAssistantMessage(
+            this.partialText + ' [interrupted]'
+        );
+    }
+
+    return { cancelled: true, state: this.state, partialText: this.partialText };
+}
+```
+
+### New API Endpoints (Optional)
+
+```typescript
+// Future: packages/server/src/hono/routes/messages.ts
+
+// Queue a message without waiting
+POST /message-queue
+  → { queued: true, position: number }
+
+// Cancel current execution
+POST /message-cancel
+  → { cancelled: true, state: string, partialPersisted: boolean }
+
+// Get queue status
+GET /message-queue/status
+  → { pending: number, messages: QueuedMessage[] }
+```
+
+---
+
+## @dexto/client-sdk Integration
+
+### Current SDK Flow
+
+```typescript
+import { createDextoClient, createMessageStream } from '@dexto/client-sdk';
+
+const client = createDextoClient({ baseUrl: 'http://localhost:3001' });
+
+// Streaming
+const stream = createMessageStream(
+    client.api['message-stream'].$post({ json: { message, sessionId } })
+);
+
+for await (const event of stream) {
+    switch (event.name) {
+        case 'llm:chunk': console.log(event.content); break;
+        case 'llm:tool-call': console.log('Tool:', event.toolName); break;
+        case 'llm:response': console.log('Done:', event.content); break;
+    }
+}
+```
+
+### New Events to Handle
+
+```typescript
+// streaming.ts - MessageStreamEvent already uses StreamingEvent from @dexto/core
+export type MessageStreamEvent = StreamingEvent;
+
+// New event types will be automatically available:
+for await (const event of stream) {
+    switch (event.name) {
+        // Existing
+        case 'llm:chunk': ...
+        case 'llm:tool-call': ...
+        case 'llm:response': ...
+
+        // NEW events from TurnExecutor
+        case 'context:compressed':
+            console.log(`Compressed: ${event.originalTokens} → ${event.compressedTokens}`);
+            break;
+
+        case 'message:queued':
+            console.log(`Message queued at position ${event.position}`);
+            break;
+    }
+}
+```
+
+### New SDK Methods (Optional)
+
+```typescript
+// Future additions to client.ts
+
+// Cancel current message
+await client.api['message-cancel'].$post({ json: { sessionId } });
+
+// Queue message (for busy agent)
+await client.api['message-queue'].$post({ json: { message, sessionId } });
+
+// Check queue status
+const status = await client.api['message-queue'].status.$get({ query: { sessionId } });
+```
+
+---
+
+## WebUI Integration
+
+### Current WebUI Flow
+
+```
+ChatPage.tsx
+    │
+    ▼
+useChatStore() / useMessages()
+    │
+    ├── POST /message-stream
+    │
+    └── Parse SSE events
+        │
+        ├── llm:thinking → Show thinking indicator
+        ├── llm:chunk → Append to message
+        ├── llm:tool-call → Show tool card
+        ├── llm:tool-result → Update tool card
+        └── llm:response → Finalize message
+```
+
+### New UI Elements Needed
+
+1. **Compression Indicator**
+   ```tsx
+   // When context:compressed event received
+   <Toast>
+       Context compressed: {originalTokens} → {compressedTokens} tokens
+   </Toast>
+   ```
+
+2. **Message Queue UI**
+   ```tsx
+   // When message:queued event received
+   <QueueIndicator position={event.position} />
+
+   // In input area when busy
+   <InputArea
+       disabled={isBusy}
+       placeholder={isBusy ? "Agent is busy, message will be queued..." : "Type a message"}
+   />
+   ```
+
+3. **Cancel Button**
+   ```tsx
+   // During streaming
+   <CancelButton onClick={() => cancelMessage(sessionId)} />
+   ```
+
+### State Updates
+
+```typescript
+// packages/webui/src/stores/chat-store.ts (example additions)
+
+interface ChatState {
+    // Existing
+    messages: Message[];
+    isStreaming: boolean;
+
+    // NEW
+    queuedMessages: QueuedMessage[];
+    compressionHistory: CompressionEvent[];
+    partialResponse: string | null;
+}
+
+// Handle new events
+function handleEvent(event: StreamingEvent) {
+    switch (event.name) {
+        case 'context:compressed':
+            addCompressionEvent(event);
+            break;
+
+        case 'message:queued':
+            addToQueue(event);
+            break;
+
+        case 'message:dequeued':
+            removeFromQueue(event.messageId);
+            break;
+    }
+}
+```
 
 ---
 
