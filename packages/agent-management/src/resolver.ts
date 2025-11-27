@@ -69,7 +69,7 @@ async function resolveAgentByName(
             const agentPath = await getAgentConfigPath(manager, agentId);
             return agentPath;
         }
-    } catch (error) {
+    } catch (_error) {
         // Registry doesn't exist or agent not found, continue to auto-install
         logger.debug(`Agent '${agentId}' not found in installed registry`);
     }
@@ -93,10 +93,7 @@ async function resolveAgentByName(
 /**
  * Get config path for an agent from the manager
  */
-async function getAgentConfigPath(manager: AgentManager, agentId: string): Promise<string> {
-    // Create a temporary agent to get its config path
-    const agent = await manager.createAgent(agentId);
-
+async function getAgentConfigPath(_manager: AgentManager, agentId: string): Promise<string> {
     // Extract config path from agent - we need to find the actual config file
     // The agent was created from the config, so we can derive the path from the registry
     const agentsDir = getDextoGlobalPath('agents');

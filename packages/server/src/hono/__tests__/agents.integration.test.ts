@@ -11,6 +11,8 @@ describe('Hono API Integration Tests - Agent Routes', () => {
         id: string;
         name: string;
         description: string;
+        author: string;
+        tags: string[];
         type: 'builtin' | 'custom';
     }> = [];
 
@@ -23,26 +25,23 @@ describe('Hono API Integration Tests - Agent Routes', () => {
                 id: 'test-agent-1',
                 name: 'Test Agent 1',
                 description: 'First test agent',
-                type: 'builtin',
+                author: 'Test Author',
+                tags: ['test'],
+                type: 'builtin' as const,
             },
             {
                 id: 'test-agent-2',
                 name: 'Test Agent 2',
                 description: 'Second test agent',
-                type: 'builtin',
+                author: 'Test Author',
+                tags: ['test'],
+                type: 'builtin' as const,
             },
         ];
 
         vi.spyOn(Dexto, 'listAgents').mockResolvedValue({
             installed: mockAgents,
             available: [],
-            current: { id: 'test-agent-1', name: 'Test Agent 1' },
-        });
-
-        // Mock Dexto.createAgent to return a new agent instance
-        vi.spyOn(Dexto, 'createAgent').mockImplementation(async (_agentId: string) => {
-            const agent = await createTestAgent();
-            return agent;
         });
 
         // Create agentsContext with switching functions
@@ -55,7 +54,8 @@ describe('Hono API Integration Tests - Agent Routes', () => {
                 if (isSwitching) throw new Error('Agent switch in progress');
                 isSwitching = true;
                 try {
-                    const newAgent = await Dexto.createAgent(id);
+                    // Create a new test agent instance (no need to use Dexto.createAgent in tests)
+                    const newAgent = await createTestAgent();
                     await newAgent.start();
                     if (activeAgent.isStarted()) {
                         await activeAgent.stop();

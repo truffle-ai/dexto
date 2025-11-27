@@ -11,7 +11,6 @@ import {
     loadGlobalPreferences,
     resolveBundledScript,
 } from '@dexto/agent-management';
-import { getCLIAgentManager } from '../../utils/agent-helpers.js';
 
 // Zod schema for list-agents command validation
 const ListAgentsCommandSchema = z

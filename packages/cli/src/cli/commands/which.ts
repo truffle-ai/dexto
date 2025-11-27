@@ -23,7 +23,7 @@ function getAvailableAgentNames(): string[] {
         const content = readFileSync(registryPath, 'utf-8');
         const registry = JSON.parse(content);
         return Object.keys(registry.agents || {});
-    } catch (error) {
+    } catch (_error) {
         return [];
     }
 }

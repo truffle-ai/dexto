@@ -246,7 +246,7 @@ export async function installCustomAgent(
     let stat;
     try {
         stat = await fs.stat(resolvedSource);
-    } catch (error) {
+    } catch (_error) {
         throw new Error(`Source path not found: ${resolvedSource}`);
     }
 
@@ -319,7 +319,7 @@ export async function uninstallAgent(agentId: string, options?: InstallOptions):
     // Check if exists
     try {
         await fs.access(targetDir);
-    } catch (error) {
+    } catch (_error) {
         throw new Error(`Agent '${agentId}' is not installed`);
     }
 

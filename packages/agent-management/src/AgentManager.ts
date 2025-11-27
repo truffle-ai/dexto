@@ -31,7 +31,7 @@ const RegistrySchema = z.object({
     ),
 });
 
-type Registry = z.infer<typeof RegistrySchema>;
+type Registry = z.output<typeof RegistrySchema>;
 
 /**
  * AgentManager - Simple registry-based agent lifecycle management

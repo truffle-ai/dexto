@@ -136,7 +136,7 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
     // Check if agent is installed
     try {
         await fs.access(agentDir);
-    } catch (error) {
+    } catch (_error) {
         throw new Error(
             `Agent '${agentId}' is not installed. Install it first with: dexto install ${agentId}`
         );
