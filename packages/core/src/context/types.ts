@@ -28,9 +28,33 @@ export interface FilePart extends FileData {
     type: 'file';
 }
 
+/**
+ * UI Resource content part for MCP-UI interactive components.
+ * Enables MCP servers to return rich, interactive UI (live streams, dashboards, forms).
+ * @see https://mcpui.dev/ for MCP-UI specification
+ */
+export interface UIResourcePart {
+    type: 'ui-resource';
+    /** URI identifying the UI resource, must start with ui:// */
+    uri: string;
+    /** MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom */
+    mimeType: string;
+    /** Inline HTML content or URL (for text/html and text/uri-list) */
+    content?: string;
+    /** Base64-encoded content (alternative to content field) */
+    blob?: string;
+    /** Optional metadata for the UI resource */
+    metadata?: {
+        /** Display title for the UI resource */
+        title?: string;
+        /** Preferred rendering size in pixels */
+        preferredSize?: { width: number; height: number };
+    };
+}
+
 export interface SanitizedToolResult {
     /** Ordered content parts ready for rendering or provider formatting */
-    content: Array<TextPart | ImagePart | FilePart>;
+    content: Array<TextPart | ImagePart | FilePart | UIResourcePart>;
     /**
      * Resource references created during sanitization (e.g. blob store URIs).
      * Consumers can dereference these via ResourceManager APIs.
@@ -73,10 +97,10 @@ export interface InternalMessage {
     /**
      * The content of the message.
      * - String for system, assistant (text only), and tool messages.
-     * - Array of parts for user messages (can include text, images, and files).
+     * - Array of parts for user messages (can include text, images, files, and UI resources).
      * - null if an assistant message only contains tool calls.
      */
-    content: string | null | Array<TextPart | ImagePart | FilePart>;
+    content: string | null | Array<TextPart | ImagePart | FilePart | UIResourcePart>;
 
     /**
      * Optional model reasoning text associated with an assistant response.

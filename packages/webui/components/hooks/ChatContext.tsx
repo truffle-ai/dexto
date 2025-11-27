@@ -11,7 +11,13 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
 import { useGreeting } from './useGreeting';
-import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
+import type {
+    FilePart,
+    ImagePart,
+    SanitizedToolResult,
+    TextPart,
+    UIResourcePart,
+} from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
@@ -98,7 +104,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         };
 
         const deriveResources = (
-            content: Array<TextPart | ImagePart | FilePart>
+            content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
         ): SanitizedToolResult['resources'] => {
             const resources: NonNullable<SanitizedToolResult['resources']> = [];
 

@@ -1,4 +1,11 @@
-import { InternalMessage, TextPart, ImagePart, FilePart, SanitizedToolResult } from './types.js';
+import {
+    InternalMessage,
+    TextPart,
+    ImagePart,
+    FilePart,
+    UIResourcePart,
+    SanitizedToolResult,
+} from './types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
@@ -729,9 +736,15 @@ export async function expandBlobReferences(
 
     // Handle array of parts
     if (Array.isArray(content)) {
-        const expandedParts: Array<TextPart | ImagePart | FilePart> = [];
+        const expandedParts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
 
         for (const part of content) {
+            // UIResourcePart doesn't have blob references - pass through unchanged
+            if (part.type === 'ui-resource') {
+                expandedParts.push(part);
+                continue;
+            }
+
             if (
                 part.type === 'image' &&
                 typeof part.image === 'string' &&
@@ -1264,7 +1277,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
         // Case 2: array of parts or mixed
         if (Array.isArray(result)) {
-            const parts: Array<TextPart | ImagePart | FilePart> = [];
+            const parts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
             for (const item of result as unknown[]) {
                 if (item == null) continue;
 
@@ -1279,7 +1292,11 @@ export async function sanitizeToolResultToContentWithBlobs(
                 if (typeof processedItem === 'string') {
                     parts.push({ type: 'text', text: processedItem });
                 } else if (Array.isArray(processedItem)) {
-                    parts.push(...(processedItem as Array<TextPart | ImagePart | FilePart>));
+                    parts.push(
+                        ...(processedItem as Array<
+                            TextPart | ImagePart | FilePart | UIResourcePart
+                        >)
+                    );
                 }
             }
             return parts as InternalMessage['content'];
@@ -1298,6 +1315,36 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 for (const item of anyObj.content) {
                     if (item && typeof item === 'object') {
+                        // Handle MCP-UI resource type (ui:// URIs for interactive content)
+                        if (item.type === 'resource' && item.resource) {
+                            const resource = item.resource;
+                            const resourceUri = resource.uri as string | undefined;
+
+                            // Check if this is a UI resource (uri starts with ui://)
+                            if (resourceUri && resourceUri.startsWith('ui://')) {
+                                logger.debug(
+                                    `Detected MCP-UI resource: ${resourceUri} (${resource.mimeType})`
+                                );
+                                const uiPart: UIResourcePart = {
+                                    type: 'ui-resource',
+                                    uri: resourceUri,
+                                    mimeType: resource.mimeType || 'text/html',
+                                    content: resource.text,
+                                    blob: resource.blob,
+                                    metadata: {
+                                        title: resource.title,
+                                        preferredSize: resource.preferredSize,
+                                    },
+                                };
+                                // Clean up undefined metadata fields
+                                if (!uiPart.metadata?.title && !uiPart.metadata?.preferredSize) {
+                                    delete uiPart.metadata;
+                                }
+                                processedContent.push(uiPart);
+                                continue;
+                            }
+                        }
+
                         // Handle MCP resource type (embedded resources)
                         if (item.type === 'resource' && item.resource) {
                             const resource = item.resource;

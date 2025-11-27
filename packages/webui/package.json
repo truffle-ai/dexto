@@ -14,6 +14,7 @@
     "@dexto/analytics": "workspace:*",
     "@dexto/client-sdk": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@mcp-ui/client": "^5.14.1",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-checkbox": "^1.3.1",
     "@radix-ui/react-dialog": "^1.1.11",

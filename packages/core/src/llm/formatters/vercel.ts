@@ -80,26 +80,31 @@ export class VercelMessageFormatter implements IMessageFormatter {
                     // by the Vercel SDK. We can forward the array of TextPart/ImagePart directly.
                     if (msg.content !== null) {
                         // Convert internal content types to AI SDK types
+                        // Filter out UIResourcePart - these are for UI rendering, not LLM processing
                         const content =
                             typeof msg.content === 'string'
                                 ? msg.content
-                                : msg.content.map((part) => {
-                                      if (part.type === 'file') {
-                                          return {
-                                              type: 'file' as const,
-                                              data: part.data,
-                                              mediaType: part.mimeType, // Convert mimeType -> mediaType
-                                              ...(part.filename && { filename: part.filename }),
-                                          };
-                                      } else if (part.type === 'image') {
-                                          return {
-                                              type: 'image' as const,
-                                              image: part.image,
-                                              ...(part.mimeType && { mediaType: part.mimeType }), // Convert mimeType -> mediaType
-                                          };
-                                      }
-                                      return part; // TextPart doesn't need conversion
-                                  });
+                                : msg.content
+                                      .filter((part) => part.type !== 'ui-resource')
+                                      .map((part) => {
+                                          if (part.type === 'file') {
+                                              return {
+                                                  type: 'file' as const,
+                                                  data: part.data,
+                                                  mediaType: part.mimeType, // Convert mimeType -> mediaType
+                                                  ...(part.filename && { filename: part.filename }),
+                                              };
+                                          } else if (part.type === 'image') {
+                                              return {
+                                                  type: 'image' as const,
+                                                  image: part.image,
+                                                  ...(part.mimeType && {
+                                                      mediaType: part.mimeType,
+                                                  }), // Convert mimeType -> mediaType
+                                              };
+                                          }
+                                          return part; // TextPart doesn't need conversion
+                                      });
 
                         formatted.push({
                             role: 'user',

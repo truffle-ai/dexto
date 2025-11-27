@@ -3,6 +3,7 @@ import type {
     TextPart as CoreTextPart,
     InternalMessage,
     FilePart,
+    UIResourcePart,
     Issue,
     SanitizedToolResult,
 } from '@dexto/core';
@@ -101,11 +102,23 @@ export function isFilePart(part: unknown): part is FilePart {
     );
 }
 
+export function isUIResourcePart(part: unknown): part is UIResourcePart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'ui-resource'
+    );
+}
+
+// Re-export UIResourcePart for component usage
+export type { UIResourcePart };
+
 // Extend core InternalMessage for WebUI
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart>;
+    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart | UIResourcePart>;
     imageData?: { image: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
