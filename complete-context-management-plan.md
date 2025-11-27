@@ -657,24 +657,27 @@ packages/core/src/__fixtures__/
 
 ---
 
-## New Files Needed (REVISED)
+## New Files Needed (REVISED - Option C: Minimal)
 
-Based on architecture analysis, files are organized by concern level:
+**Design Decision**: Extend existing services instead of creating many new files.
+- Compression stays in ContextManager (add async method)
+- Cancellation is inline in TurnExecutor (not separate file)
+- Only 2 truly new files needed
 
 ### Turn Executor (llm/executor/) - Turn-level orchestration
 
 ```
 packages/core/src/llm/executor/
 ├── turn-executor.ts               # NEW - Main turn loop with maxSteps:1
+│                                  #     - Includes cancellation handling (inline)
+│                                  #     - Includes tool execution
 ├── turn-executor.test.ts          # NEW - Unit tests
 ├── turn-executor.integration.test.ts # NEW - Integration tests
-├── cancellation.ts                # NEW - Turn-level cancellation handler
-├── cancellation.test.ts           # NEW - Unit tests
 ├── types.ts                       # NEW - Executor types
 └── index.ts                       # NEW - Exports
 ```
 
-**Rationale**: The executor manages a single conversation turn (user → LLM → tools → ... → response). This is SDK-specific (Vercel's streamText/generateText) and replaces logic currently in `vercel.ts`.
+**Note**: Cancellation is handled INLINE in TurnExecutor, not as a separate service.
 
 ### Message Queue (session/) - Session-level concern
 
@@ -685,24 +688,25 @@ packages/core/src/session/
 └── index.ts                       # UPDATE - Export queue
 ```
 
-**Rationale**: Message queuing is about managing user messages across multiple turns within a session, not about a single turn execution.
-
-### Compression (context/compression/) - Already exists, extend
+### Compression - EXTEND ContextManager (no new service)
 
 ```
 packages/core/src/context/
 ├── compression/
-│   ├── service.ts                 # NEW - Extracted async compression logic
-│   ├── service.test.ts            # NEW - Unit tests
 │   ├── strategies/
-│   │   ├── llm-summary.ts         # NEW - LLM-based summarization
-│   │   └── prune-tool-outputs.ts  # NEW - OpenCode-style pruning
+│   │   ├── llm-summary.ts         # NEW - LLM-based summarization (optional, Phase 2)
+│   │   └── prune-tool-outputs.ts  # NEW - OpenCode-style pruning (optional, Phase 2)
 │   ├── middle-removal.ts          # EXISTS - Keep
 │   ├── oldest-removal.ts          # EXISTS - Keep
-│   ├── types.ts                   # EXISTS - Extend
-│   └── index.ts                   # NEW - Exports
-├── manager.ts                     # UPDATE - Use new compression service
+│   └── types.ts                   # EXISTS - Extend
+├── manager.ts                     # UPDATE - Add async compression method
 └── utils.ts                       # KEEP - Blob handling stays here
+```
+
+**Note**: No separate CompressionService. ContextManager gets a new async method:
+```typescript
+// In ContextManager
+async compressIfNeeded(): Promise<{ compressed: boolean; metadata?: CompressionMetadata }>
 ```
 
 ### LLM Service Updates
@@ -718,24 +722,130 @@ packages/core/src/llm/services/
 └── types.ts                       # UPDATE - Add executor-related types
 ```
 
-### Fixtures
-
-```
-packages/core/src/__fixtures__/
-├── images/                        # NEW - Test images
-├── tool-results/                  # NEW - MCP response fixtures
-└── messages/                      # NEW - Conversation fixtures
-```
-
-### Summary of Changes
+### Summary of Changes (Minimal)
 
 | Type | Count | Location | Files |
 |------|-------|----------|-------|
-| NEW | 7 | llm/executor/ | turn-executor, cancellation, types, tests |
+| NEW | 4 | llm/executor/ | turn-executor, types, tests, index |
 | NEW | 2 | session/ | message-queue, tests |
-| NEW | 3 | context/compression/ | service, strategies |
+| NEW | 0-2 | context/compression/strategies/ | (optional future: llm-summary, prune) |
 | UPDATE | 3 | Various | vercel.ts, manager.ts, session/index.ts |
 | KEEP | All | Various | Blob handling, tool implementations, tokenizers, formatters |
+
+**Total new files: 6** (down from 12+ in original plan)
+
+---
+
+## Context Module Post-Migration Cleanup
+
+### Current State Analysis
+
+The `context/` module has 11 files, with `manager.ts` at 1207 lines doing too much:
+
+```
+context/
+├── manager.ts          # 1207 lines - multiple responsibilities
+├── utils.ts            # ~800 lines - helper functions (KEEP)
+├── types.ts            # 179 lines - clean types (KEEP)
+├── index.ts            # minimal exports (KEEP)
+├── errors.ts           # error factory (KEEP)
+├── error-codes.ts      # error codes (KEEP)
+├── media-helpers.ts    # media detection (KEEP)
+└── compression/
+    ├── types.ts        # ICompressionStrategy (KEEP)
+    ├── middle-removal.ts   # (KEEP)
+    └── oldest-removal.ts   # (KEEP)
+```
+
+### manager.ts Responsibilities (Pre-Migration)
+
+| Responsibility | Lines | Post-Migration |
+|---------------|-------|----------------|
+| Message history (add/get/reset) | ~200 | **KEEP** |
+| User input processing (blobs) | ~100 | **KEEP** |
+| Token counting (hybrid approach) | ~150 | **SIMPLIFY** |
+| Compression - prepareStep | ~150 | **DELETE** |
+| Compression - async | ~50 | **KEEP** |
+| Message formatting | ~100 | **KEEP** |
+| LLM response processing | ~50 | **DELETE** |
+| Config, logging, misc | ~100 | **KEEP** |
+
+### Methods to DELETE After TurnExecutor Migration
+
+```typescript
+// DELETE: Only exists for Vercel's sync prepareStep callback
+compressMessagesForPrepareStep()  // ~150 lines
+compressHistorySync()              // ~60 lines
+
+// DELETE: TurnExecutor will persist messages directly
+processLLMResponse()               // ~15 lines
+processLLMStreamResponse()         // ~20 lines
+```
+
+**Why these can be deleted:**
+- `compressMessagesForPrepareStep` is complex because it must:
+  1. Parse provider-specific messages back to InternalMessage[]
+  2. Compress synchronously (prepareStep is sync)
+  3. Re-format back to provider format
+- With TurnExecutor, compression happens BETWEEN steps on `InternalMessage[]` directly
+- TurnExecutor handles message persistence, no need for `processLLMResponse`
+
+### Token Tracking Simplification
+
+**Current (complex):**
+```typescript
+private lastActualTokenCount: number = 0;
+private lastActualTokenMessageCount: number = 0;
+private compressionThreshold: number = 0.8;
+
+// Complex hybrid logic tracking which messages correspond to actual counts
+```
+
+**After TurnExecutor (simple):**
+```typescript
+private compressionThreshold: number = 0.8;
+
+// TurnExecutor passes actual token count after each step
+// No need to track message counts - executor knows the step
+async compressIfNeeded(actualTokens: number): Promise<CompressionResult>
+```
+
+### Post-Migration manager.ts
+
+```
+manager.ts: 1207 lines → ~950 lines (-250 lines)
+```
+
+Remaining responsibilities are cohesive:
+- History management (add/get/reset messages)
+- Message adding with blob handling
+- Compression (async only, called by TurnExecutor)
+- Token counting (simplified, actual counts from executor)
+- Formatting (delegates to formatter)
+
+### Files Summary
+
+| File | Action | Reason |
+|------|--------|--------|
+| `manager.ts` | **SHRINK** | Delete prepareStep code, simplify token tracking |
+| `utils.ts` | **KEEP** | Essential (sanitizeToolResult, expandBlobReferences) |
+| `types.ts` | **KEEP** | Clean, well-documented |
+| `compression/*.ts` | **KEEP** | Solid implementations |
+| `media-helpers.ts` | **KEEP** | Used by utils |
+| `errors.ts`, `error-codes.ts` | **KEEP** | Standard pattern |
+
+### Migration Checklist
+
+After TurnExecutor is working:
+
+- [ ] Delete `compressMessagesForPrepareStep()` from manager.ts
+- [ ] Delete `compressHistorySync()` from manager.ts
+- [ ] Delete `processLLMResponse()` from manager.ts
+- [ ] Delete `processLLMStreamResponse()` from manager.ts
+- [ ] Simplify token tracking (remove `lastActualTokenMessageCount`)
+- [ ] Add `compressIfNeeded(actualTokens: number)` method
+- [ ] Update any tests that use deleted methods
+- [ ] Verify compression still works via TurnExecutor
 
 ---
 
