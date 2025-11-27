@@ -3,20 +3,21 @@
 > **Status**: Draft v2
 > **Created**: 2024-11-27
 > **Updated**: 2024-11-27
-> **Related Issues**: Message cancellation, message queuing, context compression
+> **Related Issues**: Messa ge cancellation, message queuing, context compression
 > **Based on**: Research from OpenCode and Gemini-CLI implementations
 
 ## Changes from v1
 
 1. **Architecture Change**: Use `stopWhen: stepCountIs(1)` instead of `maxSteps: 1` without execute callbacks
-2. **Stream Interception**: Add StreamProcessor for real-time persistence during Vercel SDK execution
+2. **Stream Observation**: Add StreamProcessor to OBSERVE stream events (NOT persist - execute callback handles that)
 3. **Compression**: Pluggable strategy interface with reactive overflow detection as default
 4. **Pruning**: Mark tool outputs with `compactedAt` instead of deletion
 5. **Cleanup**: Adopt TC39 `defer()` pattern for cancellation
 6. **Token Estimation**: Simple `length/4` for pruning decisions, actual tokens for compression
 7. **Tool Output Truncation**: Prevent mid-loop overflow at source (like OpenCode)
-8. **Queue Coalescing**: Multiple queued messages combined into single injection
+8. **Queue Coalescing**: Multiple queued messages combined into single injection (supports multimodal)
 9. **Delete Old Code**: Remove existing compression module entirely, rebuild from scratch (no backward compatibility)
+10. **New Types**: Add `UserMessageContent`, `QueuedMessage`, `CoalescedResult` for type safety
 
 ## Migration Note
 
@@ -207,13 +208,124 @@ Step 1:
 
 ### Component Details
 
-#### 1. Stream Processor (Real-time Persistence)
+#### 1. TurnExecutor (Main Agent Loop)
 
-Intercepts all stream events and persists immediately:
+The TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`. This is the main entry point that replaces Vercel's internal loop with our controlled execution.
+
+```typescript
+class TurnExecutor {
+  private streamProcessor: StreamProcessor;
+  private messageQueue: MessageQueueService;
+  private compressionStrategy: ICompressionStrategy;
+  private abortController: AbortController;
+  private contextManager: ContextManager;
+
+  /**
+   * Main agent execution loop.
+   * Uses stopWhen: stepCountIs(1) to regain control after each step.
+   */
+  async execute(sessionId: string): Promise<ExecutorResult> {
+    using _ = defer(() => this.cleanup(sessionId));
+
+    let stepCount = 0;
+    let lastStepTokens: TokenUsage | null = null;
+
+    while (true) {
+      // 1. Check for queued messages (mid-loop injection)
+      const coalesced = this.messageQueue.dequeueAll();
+      if (coalesced) {
+        await this.contextManager.addUserMessage(coalesced.content);
+      }
+
+      // 2. Check for compression need (reactive, based on actual tokens)
+      if (lastStepTokens && this.isOverflow(lastStepTokens)) {
+        await this.compress();
+        continue;  // Start fresh iteration after compression
+      }
+
+      // 3. Execute single step with stream processing
+      const tools = this.createTools();
+      const result = await this.streamProcessor.process(() =>
+        streamText({
+          model: this.model,
+          stopWhen: stepCountIs(1),
+          tools,
+          abortSignal: this.abortController.signal,
+          messages: await this.contextManager.getFormattedMessages(),
+        })
+      );
+
+      // 4. Capture actual tokens for next iteration's overflow check
+      lastStepTokens = result.usage;
+
+      // 5. Check termination conditions
+      if (result.finishReason !== 'tool-calls') break;
+      if (this.abortController.signal.aborted) break;
+      if (++stepCount >= this.maxSteps) break;
+
+      // 6. Prune old tool outputs (mark with compactedAt)
+      await this.pruneOldToolOutputs();
+    }
+
+    return { stepCount, usage: lastStepTokens, finishReason: result.finishReason };
+  }
+
+  /**
+   * Creates tools with execute callbacks and toModelOutput.
+   * Execute returns raw result, toModelOutput formats for LLM.
+   */
+  private createTools(): VercelToolSet {
+    const tools = this.toolManager.getAllTools();
+    return Object.fromEntries(
+      Object.entries(tools).map(([name, tool]) => [
+        name,
+        {
+          inputSchema: jsonSchema(tool.parameters),
+          description: tool.description,
+          execute: async (args, options) => {
+            // Run tool, return raw result with inline images
+            return this.toolManager.executeTool(name, args, this.sessionId);
+          },
+          toModelOutput: (result) => {
+            // Format for LLM - sync, inline data already present
+            return formatToolResultForLLM(result);
+          },
+        },
+      ])
+    );
+  }
+
+  private async cleanup(sessionId: string): Promise<void> {
+    // Cancel pending operations, cleanup resources
+    this.abortController.abort();
+    await this.contextManager.finalizeSession(sessionId);
+  }
+}
+```
+
+**Key Responsibilities**:
+- Owns the main `while(true)` loop
+- Calls StreamProcessor for each step
+- Handles compression decisions between steps (using actual tokens)
+- Manages message queue injection between steps
+- Applies pruning between steps
+- Uses `defer()` for automatic cleanup on exit/error
+
+#### 2. StreamProcessor (Handles ALL Persistence)
+
+**Key Design Decision**: StreamProcessor handles ALL persistence including tool results.
+This ensures correct message ordering since stream events arrive in order:
+`text-delta` → `tool-call` → `tool-result` → `finish-step`
+
+**Why this design**:
+- Stream events arrive in correct order (assistant content → tool call → tool result)
+- Single point of persistence ensures no ordering bugs
+- Execute callback stays minimal (just runs tool)
+- Verified from Vercel AI SDK source: `tool-result` event contains RAW output from execute
 
 ```typescript
 class StreamProcessor {
-  private assistantMessage: AssistantMessage;
+  private assistantMessageId: string | null = null;
   private toolStates: Map<string, ToolState> = new Map();
 
   async process(
@@ -226,35 +338,51 @@ class StreamProcessor {
 
       switch (event.type) {
         case 'text-start':
-          this.assistantMessage = await this.contextManager.createAssistantMessage();
+          // Create assistant message FIRST (correct ordering)
+          this.assistantMessageId = await this.contextManager.createAssistantMessage();
           break;
 
         case 'text-delta':
-          await this.contextManager.appendAssistantText(event.text);
+          // Append to assistant message, emit for UI
+          await this.contextManager.appendAssistantText(this.assistantMessageId, event.text);
           this.eventBus.emit('llm:chunk', { content: event.text });
           break;
 
-        case 'tool-input-start':
-          await this.contextManager.createToolPart(event.id, event.toolName, 'pending');
-          break;
-
         case 'tool-call':
-          await this.contextManager.updateToolState(event.toolCallId, 'running', event.input);
+          // Create tool call record (pending state)
+          await this.contextManager.createToolCall(this.assistantMessageId, {
+            id: event.toolCallId,
+            name: event.toolName,
+            input: event.args,
+            status: 'running',
+          });
           this.eventBus.emit('llm:tool-call', { id: event.toolCallId, name: event.toolName });
           break;
 
         case 'tool-result':
-          await this.contextManager.updateToolState(event.toolCallId, 'completed', event.output);
-          this.eventBus.emit('llm:tool-result', { id: event.toolCallId, result: event.output });
+          // PERSISTENCE HAPPENS HERE - event.output is RAW from execute
+          const sanitized = await sanitizeToolResult(event.output);
+          const withBlobRefs = await this.persistToolMedia(sanitized);
+          const truncated = truncateToolOutput(withBlobRefs);
+
+          await this.contextManager.updateToolResult(event.toolCallId, {
+            status: 'completed',
+            output: truncated,
+          });
+          this.eventBus.emit('llm:tool-result', { id: event.toolCallId, result: truncated });
           break;
 
         case 'tool-error':
-          await this.contextManager.updateToolState(event.toolCallId, 'error', event.error);
+          await this.contextManager.updateToolResult(event.toolCallId, {
+            status: 'error',
+            error: event.error,
+          });
           break;
 
         case 'finish-step':
+          // Capture actual token usage, finalize assistant message
           this.actualTokens = event.usage;
-          await this.contextManager.finalizeAssistantMessage(event.finishReason);
+          await this.contextManager.finalizeAssistantMessage(this.assistantMessageId);
           break;
       }
     }
@@ -264,10 +392,127 @@ class StreamProcessor {
       usage: this.actualTokens,
     };
   }
+
+  /**
+   * Store images/files as blobs, replace with @blob: refs
+   */
+  private async persistToolMedia(result: SanitizedToolResult): Promise<SanitizedToolResult> {
+    const blobStore = this.resourceManager.getBlobStore();
+    const updatedContent = await Promise.all(
+      result.content.map(async (part) => {
+        if (part.type === 'image' && part.data) {
+          const blobId = await blobStore.store(part.data, { mimeType: part.mimeType });
+          return { ...part, image: `@blob:${blobId}` };
+        }
+        return part;
+      })
+    );
+    return { ...result, content: updatedContent };
+  }
 }
 ```
 
-#### 2. Tool Output Truncation (Prevent Mid-Loop Overflow)
+**Tool Result Flow (v2 - StreamProcessor handles persistence)**:
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    TOOL RESULT FLOW (v2)                                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Execute Callback (minimal - async):                                         │
+│    1. Run tool via toolManager.executeTool()                                 │
+│    2. Return raw result with inline images (base64)                          │
+│    3. Does NOT persist, does NOT sanitize                                    │
+│                                                                              │
+│  toModelOutput (sync - formats for LLM):                                     │
+│    1. Called by Vercel SDK when preparing next LLM call                      │
+│    2. Format raw result for LLM consumption                                  │
+│    3. Images already inline (base64), no expansion needed                    │
+│    4. Returns { type: 'content', value: [...multimodal parts...] }           │
+│                                                                              │
+│  StreamProcessor (async - on tool-result event):                             │
+│    1. Receive raw result (same object from execute)                          │
+│    2. sanitizeToolResult() → normalize formats                               │
+│    3. persistToolMedia() → store images as blobs, get @blob: refs            │
+│    4. truncateToolOutput() → apply size limits                               │
+│    5. contextManager.updateToolResult() → persist to history                 │
+│    6. Emit llm:tool-result for UI                                            │
+│                                                                              │
+│  RESULT: LLM sees inline images, storage has @blob: refs                     │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Vercel AI SDK Insight** (verified from source code):
+- `tool-result` stream event contains RAW output from execute callback
+- `toModelOutput` is called SEPARATELY when preparing messages for next LLM call
+- This separation enables StreamProcessor to receive raw data for persistence
+- Source: `ai/packages/ai/src/generate-text/execute-tool-call.ts:116-126`
+
+### Multimodal Considerations (Dexto vs OpenCode)
+
+**Key Difference**: Dexto requires LLM to SEE images (screenshot tools, image analysis).
+OpenCode only stores images but sends TEXT to the LLM.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    OPENCODE vs DEXTO MULTIMODAL                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  OpenCode:                                                                   │
+│    execute() → returns { output: "text", attachments: [images] }             │
+│    toModelOutput() → returns { type: "text", value: result.output }          │
+│    Result: LLM sees TEXT only, images stored but not sent                    │
+│                                                                              │
+│  Dexto:                                                                      │
+│    execute() → returns { content: [text, images inline] }                    │
+│    toModelOutput() → returns { type: "content", value: [multimodal] }        │
+│    Result: LLM sees IMAGES, can analyze screenshots                          │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why `toModelOutput` matters for Dexto**:
+
+`toModelOutput` is a Vercel AI SDK feature that transforms tool results before sending to LLM.
+Dexto currently doesn't use it - execute callback returns content directly to Vercel SDK.
+
+**New pattern with StreamProcessor persistence**:
+1. `execute()` returns raw result with inline base64 images
+2. `toModelOutput()` formats that raw result for LLM (sync, data already present)
+3. `tool-result` event fires with raw result → StreamProcessor persists with @blob: refs
+
+**Why this works**:
+- `toModelOutput` is SYNC but doesn't need async blob expansion
+- Images are already inline in the raw result from execute
+- StreamProcessor handles async blob storage AFTER the fact
+- LLM and storage both get what they need
+
+**Implementation note**: Dexto will need to add `toModelOutput` to tool definitions:
+```typescript
+// In TurnExecutor.createTools()
+{
+  execute: async (args) => {
+    // Returns raw result with inline images
+    return toolManager.executeTool(name, args, sessionId);
+  },
+  toModelOutput: (result) => {
+    // Sync: format inline content for LLM
+    if (hasMultimodalContent(result)) {
+      return {
+        type: 'content',
+        value: result.content.map(part => {
+          if (part.type === 'text') return { type: 'text', text: part.text };
+          if (part.type === 'image') return { type: 'media', data: part.data, mediaType: part.mimeType };
+          return { type: 'text', text: '[unsupported content]' };
+        }),
+      };
+    }
+    return { type: 'text', value: summarizeToolContent(result) };
+  },
+}
+```
+
+#### 3. Tool Output Truncation (Prevent Mid-Loop Overflow)
 
 **Problem**: A single tool result (e.g., `cat` on a huge file) could overflow context mid-loop before compression can react.
 
@@ -320,7 +565,7 @@ tools:
     maxMatches: 1000
 ```
 
-#### 3. Pluggable Compression Strategy (Keep Dexto's Flexibility)
+#### 4. Pluggable Compression Strategy (Keep Dexto's Flexibility)
 
 **Interface** - maintains Dexto's existing `ICompressionStrategy` pattern:
 
@@ -334,9 +579,18 @@ export type CompressionTrigger =
   | { type: 'manual' };                           // Only on explicit request
 
 /**
- * Core compression strategy interface (existing in Dexto)
+ * Compression strategy interface (REPLACES existing Dexto interface)
+ *
+ * Note: We DELETE the old ICompressionStrategy and use this one.
+ * No backward compatibility needed - complete replacement.
  */
 export interface ICompressionStrategy {
+  /** Human-readable name for logging/UI */
+  readonly name: string;
+
+  /** When this strategy should be triggered */
+  readonly trigger: CompressionTrigger;
+
   /**
    * Compress history when triggered
    * @param history Current message history
@@ -349,17 +603,6 @@ export interface ICompressionStrategy {
     tokenizer: ITokenizer,
     maxTokens: number
   ): Promise<InternalMessage[]> | InternalMessage[];
-}
-
-/**
- * Extended interface for new compression strategies
- */
-export interface ICompressionStrategyV2 extends ICompressionStrategy {
-  /** Human-readable name for logging/UI */
-  readonly name: string;
-
-  /** When this strategy should be triggered */
-  readonly trigger: CompressionTrigger;
 
   /** Optional: validate compression was effective */
   validate?(before: number, after: number): boolean;
@@ -369,7 +612,7 @@ export interface ICompressionStrategyV2 extends ICompressionStrategy {
 **Default Strategy: Reactive Overflow (OpenCode-style)**
 
 ```typescript
-export class ReactiveOverflowStrategy implements ICompressionStrategyV2 {
+export class ReactiveOverflowStrategy implements ICompressionStrategy {
   readonly name = 'reactive-overflow';
   readonly trigger: CompressionTrigger = { type: 'overflow' };
 
@@ -426,8 +669,8 @@ ${this.formatMessages(messages)}`;
 **Alternative Strategies (can be swapped via config)**:
 
 ```typescript
-// Existing Dexto strategy - simple middle removal
-export class MiddleRemovalStrategy implements ICompressionStrategyV2 {
+// Existing Dexto strategy - simple middle removal (reimplemented)
+export class MiddleRemovalStrategy implements ICompressionStrategy {
   readonly name = 'middle-removal';
   readonly trigger: CompressionTrigger = { type: 'threshold', percentage: 0.8 };
   // ... existing implementation
@@ -452,7 +695,7 @@ context:
       pruneProtectTokens: 40000
 ```
 
-#### 4. Overflow Detection (Triggers Compression)
+#### 5. Overflow Detection (Triggers Compression)
 
 Used when strategy trigger is `overflow`:
 
@@ -510,7 +753,7 @@ async function checkAndCompress(): Promise<boolean> {
 }
 ```
 
-#### 5. Mark-Don't-Delete Pruning
+#### 6. Mark-Don't-Delete Pruning
 
 Preserves history while reducing token count:
 
@@ -569,7 +812,7 @@ function formatToolOutput(tool: ToolResult): string {
 }
 ```
 
-#### 6. Message Queue Service with Coalescing
+#### 7. Message Queue Service with Coalescing
 
 True queue for Claude Code-style user guidance, with coalescing for multiple rapid messages:
 
@@ -730,7 +973,7 @@ Agent loop iteration:
   → LLM sees all 3 pieces of guidance at once
 ```
 
-#### 7. Cancellation with `defer()` Pattern
+#### 8. Cancellation with `defer()` Pattern
 
 TC39 Explicit Resource Management for automatic cleanup:
 
@@ -815,42 +1058,63 @@ Check: overflow? queue? continue?
 
 ## Migration Path
 
-### Phase 1: Stream Processor ✓
-- [ ] Create StreamProcessor class
-- [ ] Intercept all stream events
-- [ ] Implement real-time persistence via ContextManager
-- [ ] Test message ordering is correct
+### Phase 0: Type Cleanup (Foundation)
+- [ ] Delete old compression module (`packages/core/src/context/compression/`)
+- [ ] Define new types: `UserMessageContent`, `QueuedMessage`, `CoalescedResult`
+- [ ] Define new `ICompressionStrategy` interface with `trigger` field
+- [ ] Add `compactedAt` field to tool result types
 
-### Phase 2: `stopWhen` Integration
-- [ ] Change from current approach to `stopWhen: stepCountIs(1)`
-- [ ] Keep tool execute callbacks
-- [ ] Verify control returns after each step
+### Phase 1: Tool Output Truncation
+- [ ] Implement `truncateToolOutput()` in `llm/executor/tool-output-truncator.ts`
+- [ ] Add per-tool limit configuration to agent YAML schema
+- [ ] Test truncation doesn't break tool results
+
+### Phase 2: StreamProcessor WITH Persistence
+- [ ] Create StreamProcessor class in `llm/executor/stream-processor.ts`
+- [ ] Handle ALL persistence in `tool-result` event handler
+- [ ] Include sanitization, blob storage, truncation
+- [ ] Emit events for UI (`llm:chunk`, `llm:tool-call`, `llm:tool-result`)
+- [ ] Test message ordering is correct (assistant → tool-call → tool-result)
+
+### Phase 3: TurnExecutor Shell
+- [ ] Create TurnExecutor class in `llm/executor/turn-executor.ts`
+- [ ] Implement main loop with `stopWhen: stepCountIs(1)`
+- [ ] Add `toModelOutput` to tool definitions (for multimodal)
+- [ ] Integrate StreamProcessor
+- [ ] Add abort signal handling
 - [ ] Test tool execution still works
 
-### Phase 3: Reactive Compression
-- [ ] Implement `isOverflow()` check using actual tokens
-- [ ] Add LLM-based summarization
-- [ ] Trigger compression after overflow detected
-- [ ] Test compression doesn't lose critical context
+### Phase 4: Reactive Compression
+- [ ] Implement `ReactiveOverflowStrategy` in `context/compression/reactive-overflow.ts`
+- [ ] Add `isOverflow()` check using actual tokens from last step
+- [ ] Implement LLM-based summarization
+- [ ] Add `validate()` method for compression result validation
+- [ ] Test compression triggers at correct time
 
-### Phase 4: Mark-Don't-Delete Pruning
-- [ ] Add `compactedAt` field to tool results
-- [ ] Implement `pruneOldToolOutputs()`
-- [ ] Update `formatToolOutput()` to return placeholder
+### Phase 5: Pruning (compactedAt)
+- [ ] Implement `pruneOldToolOutputs()` in TurnExecutor
+- [ ] Update `formatToolOutput()` to return placeholder for compacted
 - [ ] Test pruning preserves history for debugging
 
-### Phase 5: Message Queue
-- [ ] Create MessageQueueService
-- [ ] Add queue check in main loop
-- [ ] Implement mid-loop message injection
-- [ ] Add API endpoint for queued messages
+### Phase 6: MessageQueue with Multimodal
+- [ ] Create MessageQueueService in `session/message-queue.ts`
+- [ ] Implement multimodal coalescing (text + images + files)
+- [ ] Handle edge cases (all images, large images as blobs)
+- [ ] Add queue check in TurnExecutor main loop
+- [ ] Modify `/api/message` to queue when busy
 - [ ] Test user guidance during task execution
 
-### Phase 6: `defer()` Cleanup
-- [ ] Implement defer utility
-- [ ] Add to executor for automatic cleanup
+### Phase 7: defer() Cleanup
+- [ ] Implement `defer()` utility in `util/defer.ts`
+- [ ] Add to TurnExecutor for automatic cleanup
 - [ ] Test cleanup on normal exit, throw, and abort
 - [ ] Verify no resource leaks
+
+### Phase 8: Integration + Migration
+- [ ] Update `vercel.ts` to use TurnExecutor
+- [ ] Delete old compression methods from ContextManager
+- [ ] Update event emissions
+- [ ] Full integration testing
 
 ## Benefits
 
@@ -1200,13 +1464,47 @@ for await (const event of iterator) {
 - `message:queued` - When message is queued (if busy)
 - `message:dequeued` - When queued messages are injected
 
-**New API endpoints needed:**
+**API Changes - No New Endpoints Needed:**
 
-| Endpoint | Method | Handler |
-|----------|--------|---------|
-| `/api/message/queue` | POST | Queue message while agent busy |
-| `/api/message/queue` | GET | Get queue status |
-| `/api/message/queue` | DELETE | Clear queue |
+The existing `/api/message` endpoint can be modified to queue when busy:
+
+```typescript
+// Modified /api/message endpoint
+app.post('/api/message', async (req, res) => {
+  const { sessionId, content } = req.body;
+  const agentStatus = sessionManager.getStatus(sessionId);
+
+  if (agentStatus === 'busy') {
+    // Queue instead of rejecting
+    const position = await messageQueue.enqueue({ sessionId, content });
+    return res.json({
+      ok: true,
+      queued: true,
+      position,
+      message: `Message queued at position ${position}`,
+    });
+  }
+
+  // Normal processing - start agent execution
+  // ...existing message handling...
+});
+```
+
+**Response when agent is busy:**
+```json
+{
+  "ok": true,
+  "queued": true,
+  "position": 2,
+  "message": "Message queued at position 2"
+}
+```
+
+**Optional: Queue management endpoints** (only if explicitly needed later):
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/message/queue` | GET | Get queue status for session |
+| `/api/message/queue` | DELETE | Clear queued messages |
 
 ### @dexto/client-sdk Integration
 
@@ -1227,18 +1525,16 @@ for await (const event of stream) {
         case 'message:queued':
             console.log(`Message queued at position ${event.position}`);
             break;
+        case 'message:dequeued':
+            console.log(`${event.count} queued messages injected`);
+            break;
     }
 }
 ```
 
-**New SDK methods (optional):**
-```typescript
-// Queue message when agent is busy
-await client.api['message-queue'].$post({ json: { message, sessionId } });
-
-// Get queue status
-const status = await client.api['message-queue'].$get({ query: { sessionId } });
-```
+**SDK behavior change:**
+- `client.sendMessage()` now returns `{ queued: true, position: N }` if agent is busy
+- UI can show "Message queued" indicator based on response
 
 ### WebUI Integration
 
@@ -1409,25 +1705,30 @@ tools:
 | `context:compressed` | `{ strategy, beforeTokens, afterTokens }` | After compression completes |
 | `context:pruned` | `{ count, tokensSaved }` | After tool outputs pruned |
 
-### API Endpoints (New)
+### API Endpoints
 
+**No new endpoints required.** The existing `/api/message` endpoint is modified to:
+- Queue messages when agent is busy (returns `{ queued: true, position: N }`)
+- Process normally when agent is idle
+
+**Optional endpoints** (implement only if needed):
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/message/queue` | POST | Add message to queue while agent is busy |
 | `/api/message/queue` | GET | Get current queue status |
 | `/api/message/queue` | DELETE | Clear queue |
 
 ### Migration Checklist
 
-- [ ] Delete old compression module
+- [ ] Delete old compression module (`packages/core/src/context/compression/`)
 - [ ] Implement TurnExecutor with `stopWhen: stepCountIs(1)`
-- [ ] Implement StreamProcessor for real-time persistence
+- [ ] Implement StreamProcessor with ALL persistence
+- [ ] Add `toModelOutput` to tool definitions (for multimodal)
 - [ ] Add tool output truncation
 - [ ] Implement ReactiveOverflowStrategy (default)
 - [ ] Add `compactedAt` field and pruning logic
-- [ ] Implement MessageQueueService with coalescing
+- [ ] Implement MessageQueueService with coalescing (multimodal support)
 - [ ] Add `defer()` utility
 - [ ] Update `vercel.ts` to use new TurnExecutor
-- [ ] Add new API endpoints
+- [ ] Modify `/api/message` to queue when busy
 - [ ] Update agent YAML schema for compression config
 - [ ] Write tests for all new components
