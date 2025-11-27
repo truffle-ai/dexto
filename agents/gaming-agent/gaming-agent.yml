@@ -100,9 +100,6 @@ llm:
   provider: anthropic
   model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
-  # Context compression - remove oldest messages when hitting token limit
-  # Sonnet 4.5 has 200K context, leave room for output
-  maxInputTokens: 150000
 
 toolConfirmation:
   mode: auto-approve
