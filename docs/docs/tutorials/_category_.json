@@ -1,9 +1,9 @@
 {
   "label": "Tutorials",
   "position": 3,
+  "collapsed": false,
   "link": {
-    "type": "generated-index",
-    "title": "Tutorials",
-    "description": "Tutorials for using Dexto"
+    "type": "doc",
+    "id": "tutorials/index"
   }
 } 

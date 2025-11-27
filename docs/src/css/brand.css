@@ -1,12 +1,59 @@
 /* Brand Theme Variables (Infima overrides) */
 
-/* Geist fonts loaded via <link> tag in docusaurus.config.ts for better performance */
-
 :root {
   color-scheme: light dark;
 
-  /* Primary brand colors – VS Code inspired teal */
-  --ifm-color-primary: #4ec9b0;
+  /* ==============================================
+     Primary Brand Colors - Turquoise / Teal
+     ============================================== */
+  --ifm-color-primary: #14b8a6;          /* Teal-500 */
+  --ifm-color-primary-dark: #0d9488;     /* Teal-600 */
+  --ifm-color-primary-darker: #0f766e;   /* Teal-700 */
+  --ifm-color-primary-darkest: #115e59;  /* Teal-800 */
+  --ifm-color-primary-light: #2dd4bf;    /* Teal-400 */
+  --ifm-color-primary-lighter: #5eead4;  /* Teal-300 */
+  --ifm-color-primary-lightest: #99f6e4; /* Teal-200 */
+
+  /* ==============================================
+     Typography - Geist
+     ============================================== */
+  --ifm-font-family-base: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ifm-font-family-monospace: 'Geist Mono', 'Monaco', 'Menlo', monospace;
+  --ifm-font-size-base: 15px; /* Slightly smaller for density */
+  --ifm-line-height-base: 1.6;
+  --ifm-heading-font-weight: 600;
+
+  /* ==============================================
+     Layout & Spacing
+     ============================================== */
+  --ifm-container-width-xl: 1400px;
+  --ifm-navbar-height: 3.5rem; /* Compact navbar */
+  
+  /* Modern Rounded Corners */
+  --ifm-card-border-radius: 10px;
+  --ifm-button-border-radius: 6px;
+  --ifm-alert-border-radius: 8px;
+  --ifm-code-border-radius: 8px;
+  --ifm-menu-link-border-radius: 6px;
+
+  /* ==============================================
+     Light Mode Defaults
+     ============================================== */
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #ffffff; 
+  --ifm-border-color: #e5e7eb;
+  
+  /* Transitions */
+  --ifm-transition-fast: 200ms ease;
+  --ifm-transition-slow: 400ms ease;
+}
+
+/* ==============================================
+   Dark Mode Overrides - "Rich Dark" Theme
+   ============================================== */
+[data-theme='dark'] {
+  /* Primary Colors */
+  --ifm-color-primary: #2dd4bf;    /* Teal-400 */
   --ifm-color-primary-dark: #14b8a6;
   --ifm-color-primary-darker: #0d9488;
   --ifm-color-primary-darkest: #0f766e;
@@ -14,112 +61,27 @@
   --ifm-color-primary-lighter: #99f6e4;
   --ifm-color-primary-lightest: #ccfbf1;
 
-  /* VS Code color palette */
-  --vscode-bg: #1e1e1e;
-  --vscode-surface: #252526;
-  --vscode-darker: #181818;
-  --vscode-accent: #4ec9b0;
-  --vscode-secondary: #9cdcfe;
-  --vscode-text: #d4d4d4;
-  --vscode-text-secondary: #cccccc;
+  /* Backgrounds - Rich Dark (Not Pure Black) */
+  --ifm-background-color: #0a0a0a !important;         /* Deepest Grey - Readable */
+  --ifm-background-surface-color: #0a0a0a !important; /* Match bg for clean look */
+  
+  /* Borders - Subtle Separation */
+  --ifm-border-color: #262626;             /* Neutral Dark Grey */
+  --sidebar-border-color: #262626;
 
-  /* Neutral greys - adjusted for dark theme */
-  --ifm-color-gray-0: #ffffff;
-  --ifm-color-gray-50: #f9fafb;
-  --ifm-color-gray-100: #f3f4f6;
-  --ifm-color-gray-200: #e5e7eb;
-  --ifm-color-gray-300: #d1d5db;
-  --ifm-color-gray-400: #9ca3af;
-  --ifm-color-gray-500: #6b7280;
-  --ifm-color-gray-600: #4b5563;
-  --ifm-color-gray-700: #374151;
-  --ifm-color-gray-800: #252526;
-  --ifm-color-gray-900: #1e1e1e;
-
-  /* Semantic colours */
-  --ifm-color-success: #10b981;
-  --ifm-color-info: #3b82f6;
-  --ifm-color-warning: #f59e0b;
-  --ifm-color-danger: #ef4444;
-
-  /* Sidebar menu colors */
-  --ifm-menu-color: #747680;
-
-  /* Typography - Geist fonts (matching your website/webui) */
-  --ifm-font-family-base: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    Roboto, Oxygen, sans-serif;
-  --ifm-font-family-monospace: 'Geist Mono', 'Monaco', 'Menlo', 'Ubuntu Mono',
-    monospace;
-  --ifm-font-size-base: 18px;
-  --ifm-line-height-base: 1.6;
-
-  /* Layout */
-  --ifm-container-width-xl: 1400px;
-
-  /* Light mode backgrounds - MUST be explicit since dark mode overrides them */
-  --ifm-background-color: #ffffff;
-  --ifm-background-surface-color: #f9fafb;
-
-  /* Code blocks */
-  --ifm-code-font-size: 0.875rem;
-  --ifm-code-border-radius: 0.5rem;
-  --ifm-code-padding-horizontal: 0.75rem;
-  --ifm-code-padding-vertical: 0.5rem;
-  --docusaurus-highlighted-code-line-bg: rgba(78, 201, 176, 0.1);
-
+  /* Text - Softened White */
+  --ifm-color-content: #ededed;            /* Not harsh pure white */
+  --ifm-color-content-secondary: #a3a3a3;  /* Neutral Grey */
+  --ifm-menu-color: #a3a3a3;
+  
   /* Navbar */
-  --ifm-navbar-height: 4rem;
-  --ifm-navbar-background-color: var(--ifm-background-color);
+  --ifm-navbar-background-color: rgba(10, 10, 10, 0.8);
 
-  /* Components */
-  --ifm-card-border-radius: 0.75rem;
-  --ifm-button-border-radius: 0.5rem;
-  --ifm-alert-border-radius: 0.5rem;
+  /* Code Blocks */
+  --ifm-code-background: #171717; /* Slightly lighter than bg */
+  --docusaurus-highlighted-code-line-bg: rgba(45, 212, 191, 0.1);
 
-  /* Transitions */
-  --ifm-transition-fast: 150ms ease-in-out;
-  --ifm-transition-slow: 250ms ease-in-out;
-
-  /* Light theme background enhancements */
-  --mesh-gradient-1: rgba(78, 201, 176, 0.03);
-  --mesh-gradient-2: rgba(156, 220, 254, 0.02);
-  --grid-opacity: 0.02;
-}
-
-/* Enhanced Dark-mode overrides */
-[data-theme='dark'] {
-  --ifm-color-primary: #4ec9b0;
-  --ifm-color-primary-dark: #14b8a6;
-  --ifm-color-primary-darker: #0d9488;
-  --ifm-color-primary-darkest: #0f766e;
-  --ifm-color-primary-light: #5eead4;
-  --ifm-color-primary-lighter: #99f6e4;
-  --ifm-color-primary-lightest: #f0fdfa;
-
-  /* VS Code dark backgrounds */
-  --ifm-background-color: var(--vscode-bg);
-  --ifm-background-surface-color: var(--vscode-surface);
-
-  /* Enhanced gradients for dark mode */
-  --mesh-gradient-1: rgba(78, 201, 176, 0.08);
-  --mesh-gradient-2: rgba(156, 220, 254, 0.06);
-  --grid-opacity: 0.02;
-
-  /* Code */
-  --ifm-code-background: rgba(78, 201, 176, 0.1);
-  --ifm-code-color: #e2e8f0;
-  --docusaurus-highlighted-code-line-bg: rgba(78, 201, 176, 0.15);
-
-  /* Navbar with glass effect */
-  --ifm-navbar-background-color: rgba(30, 30, 30, 0.85);
-
-  /* Text colors matching VS Code */
-  --ifm-color-content: var(--vscode-text);
-  --ifm-color-content-secondary: var(--vscode-text-secondary);
-  --ifm-font-color-base: var(--vscode-text);
-
-  /* Enhanced surface colors */
-  --ifm-color-gray-700: var(--vscode-surface);
-  --ifm-color-gray-800: var(--vscode-bg);
-  --ifm-color-gray-900: var(--vscode-darker);
+  /* Scrollbars */
+  --ifm-scrollbar-color: #262626;
+  --ifm-scrollbar-hover-color: #404040;
 }

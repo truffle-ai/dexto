@@ -83,7 +83,7 @@ export const LoggerConfigSchema = z
     .object({
         level: z
             .enum(['debug', 'info', 'warn', 'error', 'silly'])
-            .default('info')
+            .default('error')
             .describe('Minimum log level to record'),
         transports: z
             .array(LoggerTransportSchema)

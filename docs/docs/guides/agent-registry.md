@@ -97,7 +97,7 @@ dexto --agent music-agent "Create a lo-fi chill beat for studying"
 
 **Recommended LLM:** OpenAI GPT-5 Mini
 
-**Tutorial:** [Music Agent Tutorial](../tutorials/music-agent.md)
+**Tutorial:** [Music Agent Tutorial](../tutorials/cli/examples/music-agent.md)
 
 ---
 
@@ -263,7 +263,7 @@ dexto --agent database-agent "Show me all users who signed up last month"
 
 **Recommended LLM:** OpenAI GPT-5 Mini
 
-**Tutorial:** [Database Agent Tutorial](../tutorials/database-agent.md)
+**Tutorial:** [Database Agent Tutorial](../tutorials/cli/examples/database-agent.md)
 
 ---
 
@@ -287,7 +287,58 @@ dexto --agent talk2pdf-agent "Summarize the key findings in this research paper"
 
 **Recommended LLM:** OpenAI GPT-5 Mini
 
-**Tutorial:** [Talk2PDF Tutorial](../tutorials/talk2pdf-agent.md)
+**Tutorial:** [Talk2PDF Tutorial](../tutorials/cli/examples/talk2pdf-agent.md)
+
+---
+
+#### 📊 Product Analysis Agent
+
+**ID:** `product-analysis-agent`
+**Best For:** Product analytics, user behavior, feature flags, error tracking
+
+AI agent for product analytics using PostHog MCP server.
+
+**Key Features:**
+- User growth and behavior analysis
+- Feature flag management
+- Error tracking and debugging
+- Annotations for events
+- Funnel and retention analysis
+
+**Example Use:**
+```bash
+dexto --agent product-analysis-agent "Show me user growth trends over the past 30 days"
+```
+
+**Recommended LLM:** Anthropic Claude Sonnet 4.5
+
+**Requires:** `POSTHOG_API_KEY`
+
+---
+
+### Automation & Integration
+
+#### 🔧 Workflow Builder Agent
+
+**ID:** `workflow-builder-agent`
+**Best For:** n8n workflow automation, integrations, scheduled tasks
+
+AI agent for building and managing n8n automation workflows.
+
+**Key Features:**
+- Create workflows from natural language
+- Execution monitoring and debugging
+- Credential guidance for service integrations
+- Workflow templates (social media scheduler, etc.)
+
+**Example Use:**
+```bash
+dexto --agent workflow-builder-agent "Build a social media scheduler that posts from Google Sheets"
+```
+
+**Recommended LLM:** OpenAI GPT-5 Mini
+
+**Requires:** `N8N_MCP_URL`, `N8N_MCP_TOKEN`
 
 ---
 
@@ -392,7 +443,7 @@ dexto --agent product-researcher "Suggest names for a sustainable fashion startu
 
 **Recommended LLM:** Anthropic Claude Sonnet 4.5
 
-**Tutorial:** [Product Name Scout Tutorial](../tutorials/product-name-scout-agent.md)
+**Tutorial:** [Product Name Scout Tutorial](../tutorials/cli/examples/product-name-scout-agent.md)
 
 ---
 
@@ -425,7 +476,7 @@ dexto --agent triage-agent "I need help with my billing"
 
 **Recommended LLM:** OpenAI GPT-5
 
-**Tutorial:** [Building Multi-Agent Systems](../tutorials/building-triage-system.md)
+**Tutorial:** [Building Multi-Agent Systems](../tutorials/cli/examples/building-triage-system.md)
 
 ---
 
