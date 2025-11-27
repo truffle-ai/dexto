@@ -512,6 +512,86 @@ Dexto currently doesn't use it - execute callback returns content directly to Ve
 }
 ```
 
+### Blob Storage Flow (Write vs Read Path)
+
+Understanding how `@blob:` references work is critical for the new architecture.
+
+**Key Insight**: The same raw result is used TWICE for different purposes:
+- `toModelOutput()` uses inline data → LLM sees images
+- StreamProcessor converts to `@blob:` refs → Storage stays small
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                         BLOB STORAGE: WRITE vs READ PATH                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+WRITE PATH (Same Turn as Tool Execution)
+════════════════════════════════════════
+
+  execute() ──► Returns RAW with inline base64 (500KB image)
+       │
+       ├────────► toModelOutput() ──► LLM sees inline base64
+       │          (sync, no blob expansion needed)
+       │
+       └────────► tool-result event ──► StreamProcessor
+                                            │
+                                            ▼
+                                    ┌───────────────────────────┐
+                                    │ 1. sanitizeToolResult()   │
+                                    │ 2. blobStore.store(data)  │
+                                    │    → returns "abc123"     │
+                                    │ 3. Replace with @blob:ref │
+                                    │ 4. Persist to history     │
+                                    └───────────────────────────┘
+                                            │
+                                            ▼
+                                    Storage: { image: "@blob:abc123" }  (tiny!)
+
+
+READ PATH (Subsequent Turns / Session Reload)
+═════════════════════════════════════════════
+
+  getFormattedMessages() called  (manager.ts:675)
+       │
+       ▼
+  Load history from storage
+       │
+       ▼
+  History contains: { image: "@blob:abc123" }
+       │
+       ▼
+  expandBlobReferences() on EACH message  (manager.ts:719)
+       │
+       ▼
+  ┌─────────────────────────────────────────────────────┐
+  │ For each @blob: reference:                          │
+  │   1. blobStore.get("abc123")                        │
+  │   2. Returns actual base64 data                     │
+  │   3. Replace ref with inline data                   │
+  └─────────────────────────────────────────────────────┘
+       │
+       ▼
+  Expanded: { image: "iVBORw0KGgo..." }  (actual data)
+       │
+       ▼
+  formatter.format() ──► LLM sees images
+
+
+SUMMARY
+═══════
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│  Scenario              │ Where Expansion Happens        │ Async OK? │ Already Exists?  │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│  Turn 1 (same turn)    │ toModelOutput() - inline       │ N/A       │ NEW (add)        │
+│  Turn 2+ (from history)│ getFormattedMessages()         │ YES ✓     │ YES ✓            │
+│  Session reload        │ getFormattedMessages()         │ YES ✓     │ YES ✓            │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+NOTE: getFormattedMessages() already calls expandBlobReferences() - this doesn't change!
+Only the WRITE path changes (StreamProcessor handles persistence instead of execute()).
+```
+
 #### 3. Tool Output Truncation (Prevent Mid-Loop Overflow)
 
 **Problem**: A single tool result (e.g., `cat` on a huge file) could overflow context mid-loop before compression can react.
@@ -1054,6 +1134,159 @@ Control returns to our loop
     │
     ▼
 Check: overflow? queue? continue?
+```
+
+## Current vercel.ts Logic to Preserve
+
+The new TurnExecutor and StreamProcessor must preserve these existing behaviors from `vercel.ts`:
+
+### Error Handling (KEEP - migrate to TurnExecutor)
+
+```typescript
+// vercel.ts:635-698 - mapProviderError()
+// Must be preserved in TurnExecutor
+private mapProviderError(err: unknown, phase: 'generate' | 'stream'): Error {
+  if (APICallError.isInstance?.(err)) {
+    const status = err.statusCode;
+    if (status === 429) {
+      return new DextoRuntimeError(LLMErrorCode.RATE_LIMIT_EXCEEDED, ...);
+    }
+    if (status === 408) {
+      return new DextoRuntimeError(LLMErrorCode.GENERATION_FAILED, ErrorType.TIMEOUT, ...);
+    }
+    return new DextoRuntimeError(LLMErrorCode.GENERATION_FAILED, ErrorType.THIRD_PARTY, ...);
+  }
+  return toError(err, this.logger);
+}
+```
+
+**Location in new architecture**: `TurnExecutor.mapProviderError()` or shared error utility
+
+### Reasoning Tokens (KEEP - migrate to StreamProcessor)
+
+```typescript
+// vercel.ts:563-576, 883-894 - reasoning token tracking
+// Must flow through StreamProcessor events
+this.sessionEventBus.emit('llm:response', {
+  content: response.text,
+  reasoning: response.reasoningText,  // ◄── KEEP THIS
+  tokenUsage: {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,  // ◄── KEEP THIS
+    totalTokens: usage.totalTokens,
+  },
+});
+```
+
+**Location in new architecture**: StreamProcessor emits `llm:response` on `finish-step` event
+
+### Token Usage Tracking (KEEP - migrate to StreamProcessor)
+
+```typescript
+// vercel.ts:522-531, 804-813 - per-step token tracking in onStepFinish
+const stepUsage = step.usage;
+if (stepUsage && typeof stepUsage.inputTokens === 'number') {
+  // Use inputTokens as the current context size estimate
+  this.contextManager.updateActualTokenCount(stepUsage.inputTokens);  // ◄── KEEP
+}
+
+// WARNING (vercel.ts:605-607): totalUsage is CUMULATIVE across steps!
+// Do NOT use totalUsage for estimates - use per-step inputTokens
+```
+
+**Location in new architecture**: StreamProcessor captures in `finish-step` event, TurnExecutor uses for overflow detection
+
+### Telemetry/OpenTelemetry (KEEP - migrate to TurnExecutor)
+
+```typescript
+// vercel.ts:351-382 - span attributes and baggage propagation
+const activeSpan = trace.getActiveSpan();
+if (activeSpan) {
+  activeSpan.setAttribute('llm.provider', provider);
+  activeSpan.setAttribute('llm.model', model);
+}
+
+// vercel.ts:585-601, 897-915 - token usage on spans
+if (activeSpan) {
+  activeSpan.setAttributes({
+    'gen_ai.usage.input_tokens': usage.inputTokens,
+    'gen_ai.usage.output_tokens': usage.outputTokens,
+    'gen_ai.usage.reasoning_tokens': usage.reasoningTokens,
+  });
+}
+```
+
+**Location in new architecture**: TurnExecutor handles span setup, StreamProcessor adds token attributes
+
+### Tool Support Validation (KEEP - migrate to TurnExecutor)
+
+```typescript
+// vercel.ts:284-341 - validateToolSupport()
+// Some models don't support tools - must check before using
+const supportsTools = await this.validateToolSupport();
+const effectiveTools = supportsTools ? tools : {};
+```
+
+**Location in new architecture**: `TurnExecutor.createTools()` or initialization
+
+### Streaming Chunks (KEEP - migrate to StreamProcessor)
+
+```typescript
+// vercel.ts:763-777 - onChunk callback
+onChunk: (chunk) => {
+  if (chunk.chunk.type === 'text-delta') {
+    this.sessionEventBus.emit('llm:chunk', {
+      chunkType: 'text',
+      content: chunk.chunk.text,
+    });
+  } else if (chunk.chunk.type === 'reasoning-delta') {
+    this.sessionEventBus.emit('llm:chunk', {
+      chunkType: 'reasoning',
+      content: chunk.chunk.text,
+    });
+  }
+}
+```
+
+**Location in new architecture**: StreamProcessor handles `text-delta` and `reasoning-delta` events
+
+### What Gets REMOVED
+
+| Current Code | Why Removed |
+|--------------|-------------|
+| `prepareStep` compression | Replaced by reactive overflow in TurnExecutor |
+| `onStepFinish` message persistence | Moved to StreamProcessor |
+| `processLLMResponse()` | No longer needed - StreamProcessor handles |
+| `processLLMStreamResponse()` | No longer needed - StreamProcessor handles |
+| Blob expansion in execute callback | Moved to StreamProcessor (for storage) |
+| Tool result persistence in execute | Moved to StreamProcessor |
+
+### Migration Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                     VERCEL.TS LOGIC MIGRATION MAP                                        │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  FROM vercel.ts                    │  TO new component                                  │
+│  ─────────────────────────────────────────────────────────────────────────────────────  │
+│  mapProviderError()                │  TurnExecutor.mapProviderError()                   │
+│  validateToolSupport()             │  TurnExecutor.validateToolSupport()                │
+│  Telemetry span setup              │  TurnExecutor (at execution start)                 │
+│  onChunk (text-delta)              │  StreamProcessor.process() text-delta case         │
+│  onChunk (reasoning-delta)         │  StreamProcessor.process() reasoning-delta case    │
+│  onStepFinish token tracking       │  StreamProcessor.process() finish-step case        │
+│  llm:response emission             │  StreamProcessor (after finish-step)               │
+│  execute() tool result handling    │  StreamProcessor.process() tool-result case        │
+│  formatTools() with execute        │  TurnExecutor.createTools() with toModelOutput     │
+│                                    │                                                    │
+│  prepareStep compression           │  DELETE - replaced by TurnExecutor.compress()      │
+│  processLLMResponse()              │  DELETE - StreamProcessor handles                  │
+│  processLLMStreamResponse()        │  DELETE - StreamProcessor handles                  │
+│  expand blob refs in execute       │  DELETE - StreamProcessor handles for storage      │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Migration Path
