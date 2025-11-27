@@ -892,21 +892,28 @@ function formatToolOutput(tool: ToolResult): string {
 }
 ```
 
-#### 7. Message Queue Service with Coalescing
+#### 7. Message Queue Service with Coalescing (Multimodal Support)
 
-True queue for Claude Code-style user guidance, with coalescing for multiple rapid messages:
+True queue for Claude Code-style user guidance, with coalescing for multiple rapid messages.
+**Supports multimodal content**: text, images, and files.
 
 ```typescript
+// Multimodal content types
+type UserMessageContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string | Uint8Array; mediaType?: string }
+  | { type: 'file'; data: string | Uint8Array; mediaType: string; filename?: string };
+
 interface QueuedMessage {
   id: string;
-  content: string;
+  content: UserMessageContentPart[];  // Multimodal array (not just string!)
   queuedAt: number;
   metadata?: Record<string, unknown>;
 }
 
 interface CoalescedMessage {
   messages: QueuedMessage[];
-  combinedContent: string;
+  combinedContent: UserMessageContentPart[];  // Multimodal combined
   firstQueuedAt: number;
   lastQueuedAt: number;
 }
@@ -957,8 +964,8 @@ class MessageQueueService {
   }
 
   /**
-   * Coalesce multiple messages into one.
-   * Strategy: Join with clear separators, preserving order.
+   * Coalesce multiple messages into one (multimodal-aware).
+   * Strategy: Combine with numbered separators, preserve all media.
    */
   private coalesce(messages: QueuedMessage[]): CoalescedMessage {
     if (messages.length === 1) {
@@ -970,17 +977,34 @@ class MessageQueueService {
       };
     }
 
-    // Multiple messages - combine with separator
-    const combinedContent = messages
-      .map((m, i) => {
-        if (messages.length === 2) {
-          return i === 0
-            ? `First: ${m.content}`
-            : `Also: ${m.content}`;
+    // Multiple messages - combine with numbered prefixes
+    const combinedContent: UserMessageContentPart[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      const prefix = messages.length === 2
+        ? (i === 0 ? 'First' : 'Also')
+        : `[${i + 1}]`;
+
+      // Add prefix as text part
+      combinedContent.push({ type: 'text', text: `${prefix}: ` });
+
+      // Add all content parts from this message
+      for (const part of msg.content) {
+        if (part.type === 'text') {
+          // Append text (could merge with prefix, but keeping separate for clarity)
+          combinedContent.push(part);
+        } else {
+          // Images and files are added as-is
+          combinedContent.push(part);
         }
-        return `[${i + 1}] ${m.content}`;
-      })
-      .join('\n\n');
+      }
+
+      // Add separator between messages
+      if (i < messages.length - 1) {
+        combinedContent.push({ type: 'text', text: '\n\n' });
+      }
+    }
 
     return {
       messages,
@@ -1035,7 +1059,7 @@ while (true) {
 }
 ```
 
-**Example flow**:
+**Example flow (text only)**:
 ```
 User sends while agent is busy:
   t=0ms:  "stop what you're doing"
@@ -1046,16 +1070,55 @@ Agent loop iteration:
   → dequeueAll() returns:
     {
       messages: [msg1, msg2, msg3],
-      combinedContent: "[1] stop what you're doing\n\n[2] try a different approach\n\n[3] use the newer API",
-      ...
+      combinedContent: [
+        { type: 'text', text: '[1]: ' },
+        { type: 'text', text: 'stop what you're doing' },
+        { type: 'text', text: '\n\n' },
+        { type: 'text', text: '[2]: ' },
+        { type: 'text', text: 'try a different approach' },
+        ...
+      ],
     }
   → Single user message injected into context
   → LLM sees all 3 pieces of guidance at once
 ```
 
+**Example flow (multimodal)**:
+```
+User sends while agent is busy:
+  t=0ms:    "stop" (text only)
+  t=50ms:   <screenshot.png> + "look at this error"
+  t=100ms:  "try the newer API"
+
+Agent loop iteration:
+  → dequeueAll() returns:
+    {
+      combinedContent: [
+        { type: 'text', text: '[1]: stop\n\n' },
+        { type: 'text', text: '[2]: ' },
+        { type: 'text', text: 'look at this error' },
+        { type: 'image', data: <base64>, mediaType: 'image/png' },  // ← IMAGE PRESERVED
+        { type: 'text', text: '\n\n' },
+        { type: 'text', text: '[3]: try the newer API' },
+      ],
+    }
+  → Single user message with ALL content (text + images)
+  → LLM sees the screenshot inline with the guidance
+```
+
 #### 8. Cancellation with `defer()` Pattern
 
-TC39 Explicit Resource Management for automatic cleanup:
+TC39 Explicit Resource Management (Stage 3) for automatic cleanup. Similar to Go's `defer`, Python's `with`, C#'s `using`.
+
+**Why use `defer()`?**
+- Can't forget cleanup (automatic on scope exit)
+- Works with early returns, throws, aborts
+- Multiple defers execute in LIFO order
+- Cleaner than try/finally chains
+
+**Requirements:**
+- TypeScript 5.2+ with `"lib": ["ESNext"]`
+- Or polyfill for `Symbol.dispose` / `Symbol.asyncDispose`
 
 ```typescript
 // util/defer.ts
@@ -1288,6 +1351,228 @@ onChunk: (chunk) => {
 │                                                                                         │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## Other LLM Services (anthropic.ts / openai.ts)
+
+The `anthropic.ts` and `openai.ts` services use native SDKs directly (not Vercel AI SDK) and serve as **backup options** for features Vercel may not support.
+
+### Current State
+
+Both are marked "Not actively maintained" and have manual tool loops:
+
+| Aspect | anthropic.ts | openai.ts | vercel.ts |
+|--------|-------------|-----------|-----------|
+| SDK | Native Anthropic SDK | Native OpenAI SDK | Vercel AI SDK |
+| Tool loop | Manual `while (iterations < max)` | Manual `while (iterations < max)` | `streamText` with `stepCountIs(1)` |
+| Mid-loop compression | ❌ Not implemented | ❌ Not implemented | ✅ prepareStep |
+| Stream events | Manual chunk handling | Manual chunk handling | SDK stream events |
+| toModelOutput | ❌ Not needed (no SDK abstraction) | ❌ Not needed | ✅ NEW (add) |
+
+### Migration Approach: Parallel Implementation
+
+We will **NOT** migrate these services to Vercel SDK. Instead, we'll implement equivalent patterns directly:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                     LLM SERVICE ARCHITECTURE (Post-Refactor)                             │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐                │
+│  │   vercel.ts      │     │  anthropic.ts    │     │   openai.ts      │                │
+│  │ (Vercel AI SDK)  │     │ (Native SDK)     │     │ (Native SDK)     │                │
+│  └────────┬─────────┘     └────────┬─────────┘     └────────┬─────────┘                │
+│           │                        │                        │                          │
+│           ▼                        ▼                        ▼                          │
+│  ┌──────────────────────────────────────────────────────────────────────┐              │
+│  │                      TurnExecutor (shared logic)                      │              │
+│  │  - Overflow detection (shared)                                        │              │
+│  │  - Message queue check (shared)                                       │              │
+│  │  - defer() cleanup (shared)                                           │              │
+│  └──────────────────────────────────────────────────────────────────────┘              │
+│           │                        │                        │                          │
+│           ▼                        ▼                        ▼                          │
+│  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐                │
+│  │ StreamProcessor  │     │  ManualProcessor │     │  ManualProcessor │                │
+│  │ (SDK events)     │     │  (loop events)   │     │  (loop events)   │                │
+│  └──────────────────┘     └──────────────────┘     └──────────────────┘                │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Changes Needed for anthropic.ts / openai.ts
+
+#### 1. Add Overflow Detection (Currently Missing)
+
+```typescript
+// In the main loop - add between steps
+while (iterationCount < this.config.maxIterations) {
+  // ... execute step ...
+
+  // NEW: Check for overflow using actual tokens from response
+  if (usage) {
+    const isOverflow = this.checkOverflow(usage.input_tokens);
+    if (isOverflow) {
+      await this.compress();
+    }
+  }
+
+  // ... continue loop ...
+}
+```
+
+#### 2. Add Message Queue Check (Currently Missing)
+
+```typescript
+while (iterationCount < this.config.maxIterations) {
+  // NEW: Check for queued messages at start of each iteration
+  const coalesced = this.messageQueue.dequeueAll();
+  if (coalesced) {
+    await this.contextManager.addUserMessage(coalesced.combinedContent);
+  }
+
+  // ... rest of loop ...
+}
+```
+
+#### 3. Add defer() Cleanup (Currently Missing)
+
+```typescript
+async completeTask(...): Promise<string> {
+  const abortController = new AbortController();
+
+  // NEW: Automatic cleanup
+  using _ = defer(() => {
+    this.messageQueue.clear();
+    this.sessionStatus = 'idle';
+  });
+
+  // ... existing code ...
+}
+```
+
+#### 4. Preserve Existing Event Emissions
+
+Both services already emit events correctly - no changes needed:
+- `llm:thinking` ✅
+- `llm:chunk` ✅
+- `llm:tool-call` ✅
+- `llm:tool-result` ✅
+- `llm:response` ✅
+- `llm:error` ✅
+
+#### 5. Add New Event Emissions
+
+```typescript
+// After compression
+this.sessionEventBus.emit('context:compressed', {
+  originalTokens,
+  compressedTokens,
+  originalMessages,
+  compressedMessages,
+  strategy: 'reactive-overflow',
+  reason: 'token_limit',
+});
+
+// After queue processing
+this.sessionEventBus.emit('message:dequeued', {
+  count: coalesced.messages.length,
+  ids: coalesced.messages.map(m => m.id),
+  coalesced: true,
+});
+```
+
+### Implementation Priority
+
+| Service | Priority | Reason |
+|---------|----------|--------|
+| vercel.ts | HIGH | Primary service, most features |
+| anthropic.ts | MEDIUM | Backup for Anthropic-specific features |
+| openai.ts | LOW | Backup for OpenAI-specific features |
+
+Implement vercel.ts first, then port patterns to native services.
+
+---
+
+## Event Mapping
+
+All events that must be emitted by TurnExecutor/StreamProcessor:
+
+### Session Events (SessionEventMap)
+
+```typescript
+// packages/core/src/events/index.ts - SessionEventMap
+
+// EXISTING EVENTS - Must continue emitting
+'llm:thinking': void;
+'llm:chunk': { chunkType: 'text' | 'reasoning', content: string, isComplete?: boolean };
+'llm:response': { content, reasoning?, provider?, model?, router?, tokenUsage? };
+'llm:tool-call': { toolName, args, callId? };
+'llm:tool-result': { toolName, callId?, success, sanitized, rawResult? };
+'llm:error': { error, context?, recoverable? };
+'llm:switched': { newConfig, router?, historyRetained? };
+'llm:unsupported-input': { errors, provider, model?, fileType?, details? };
+'context:compressed': { originalTokens, compressedTokens, originalMessages, compressedMessages, strategy, reason };
+
+// NEW EVENTS - Add to SessionEventMap
+'context:pruned': { prunedCount: number, savedTokens: number };
+'message:queued': { position: number, id: string };
+'message:dequeued': { count: number, ids: string[], coalesced: boolean };
+```
+
+### Event Emission Locations (New Architecture)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              EVENT EMISSION MAP                                          │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  TurnExecutor                                                                           │
+│  ├── 'llm:thinking'           → At start of execute()                                   │
+│  ├── 'context:compressed'     → After compression in main loop                          │
+│  ├── 'context:pruned'         → After pruneOldToolOutputs()                             │
+│  └── 'llm:error'              → On mapProviderError() catch                             │
+│                                                                                         │
+│  StreamProcessor                                                                        │
+│  ├── 'llm:chunk'              → On text-delta, reasoning-delta events                   │
+│  ├── 'llm:tool-call'          → On tool-call event                                      │
+│  ├── 'llm:tool-result'        → On tool-result event (after persistence)                │
+│  └── 'llm:response'           → On finish-step event (with token usage)                 │
+│                                                                                         │
+│  MessageQueueService                                                                    │
+│  ├── 'message:queued'         → On enqueue()                                            │
+│  └── 'message:dequeued'       → On dequeueAll()                                         │
+│                                                                                         │
+│  DextoAgent (existing)                                                                  │
+│  ├── 'llm:switched'           → On switchLLM() (no change)                              │
+│  └── 'llm:unsupported-input'  → On input validation (no change)                         │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Event Type Updates Needed
+
+Add to `packages/core/src/events/index.ts`:
+
+```typescript
+// Add to SessionEventMap
+'context:pruned': {
+  prunedCount: number;
+  savedTokens: number;
+};
+
+'message:queued': {
+  position: number;
+  id: string;
+};
+
+'message:dequeued': {
+  count: number;
+  ids: string[];
+  coalesced: boolean;
+};
+```
+
+---
 
 ## Migration Path
 
@@ -1670,6 +1955,66 @@ describe('Blob Flow Integration', () => {
     it('should expand blob refs before LLM call');
     it('should count image tokens correctly');
     it('should filter unsupported media types');
+});
+```
+
+#### 9. Event Emission Tests
+**File**: `packages/core/src/llm/executor/events.integration.test.ts`
+
+```typescript
+describe('Event Emission', () => {
+    describe('existing events (must not break)', () => {
+        it('should emit llm:thinking at start');
+        it('should emit llm:chunk for text-delta');
+        it('should emit llm:chunk for reasoning-delta');
+        it('should emit llm:tool-call when tool starts');
+        it('should emit llm:tool-result when tool completes');
+        it('should emit llm:response with token usage on finish');
+        it('should emit llm:error on provider errors');
+    });
+
+    describe('new events', () => {
+        it('should emit context:compressed after compression');
+        it('should emit context:pruned after pruning');
+        it('should emit message:queued when message enqueued');
+        it('should emit message:dequeued when messages injected');
+    });
+
+    describe('event payloads', () => {
+        it('llm:response should include reasoningTokens');
+        it('llm:tool-result should include sanitized result');
+        it('context:compressed should include strategy name');
+    });
+});
+```
+
+#### 10. Other LLM Services Tests
+**Existing files** (update with new features):
+- `packages/core/src/llm/services/anthropic.integration.test.ts`
+- `packages/core/src/llm/services/openai.integration.test.ts`
+
+```typescript
+// Add to existing test files
+describe('Post-Refactor Features', () => {
+    describe('overflow detection', () => {
+        it('should detect overflow from API response');
+        it('should trigger compression on overflow');
+    });
+
+    describe('message queue', () => {
+        it('should check queue at loop start');
+        it('should inject coalesced messages');
+    });
+
+    describe('defer cleanup', () => {
+        it('should cleanup on completion');
+        it('should cleanup on abort');
+    });
+
+    describe('new events', () => {
+        it('should emit context:compressed');
+        it('should emit message:dequeued');
+    });
 });
 ```
 
