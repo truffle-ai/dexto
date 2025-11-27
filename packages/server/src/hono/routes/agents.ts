@@ -12,8 +12,9 @@ import {
     saveProviderApiKey,
     reloadAgentConfigFromFile,
     enrichAgentConfig,
+    deriveDisplayName,
+    Dexto,
 } from '@dexto/agent-management';
-import { Dexto, deriveDisplayName } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import path from 'path';
@@ -563,7 +564,6 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                         description: metadata.description,
                         author: metadata.author,
                         tags: metadata.tags,
-                        ...(metadata.main ? { main: metadata.main } : {}),
                     },
                     injectPreferences
                 );

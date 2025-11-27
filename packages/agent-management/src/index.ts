@@ -41,6 +41,9 @@ export {
     type InstallOptions,
 } from './installation.js';
 
+// Static API for agent management
+export { Dexto } from './Dexto.js';
+
 // Path utilities (duplicated from core for short-term compatibility)
 export {
     getDextoPath,
