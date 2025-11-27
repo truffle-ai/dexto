@@ -117,7 +117,7 @@ function startWebUI() {
                     browserOpened = true;
                     // Extract URL from Vite output (e.g., "Local:   http://localhost:3001/")
                     const urlMatch = line.match(/http:\/\/localhost:\d+/);
-                    const webUrl = urlMatch ? urlMatch[0] : 'http://localhost:3000';
+                    const webUrl = urlMatch ? urlMatch[0] : `http://localhost:${webuiPort}`;
                     console.log(`\n🌐 Opening browser at ${webUrl}...`);
                     open(webUrl, { wait: false }).catch((err) => {
                         console.log(`   Could not open browser automatically: ${err.message}`);
