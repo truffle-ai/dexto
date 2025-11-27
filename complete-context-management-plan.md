@@ -291,6 +291,448 @@ user → asst(tool:A,B) → tool:A → tool:B → asst(tool:C) → tool:C
 3. **Compression strategy**: LLM summary vs prune tool outputs vs hybrid?
 4. **Queue persistence**: Should queued messages survive server restart?
 
+---
+
+## Tool Modifications
+
+### Current Tool Wrapping (vercel.ts lines 121-200)
+
+Currently, tools are wrapped with `execute` callbacks in `vercel.ts`:
+
+```typescript
+// Current: Tools have execute callbacks
+acc[toolName] = {
+    inputSchema: jsonSchema(tool.parameters),
+    execute: async (args: unknown, options: { toolCallId: string }) => {
+        // This runs INSIDE Vercel's loop, BEFORE onStepFinish
+        const result = await this.toolManager.executeTool(toolName, args, sessionId);
+        await this.contextManager.addToolResult(callId, toolName, result);
+        return expandedResult;
+    },
+};
+```
+
+### Required Changes
+
+#### 1. Remove `execute` from tool definitions
+
+```typescript
+// New: Tools WITHOUT execute callbacks
+acc[toolName] = {
+    inputSchema: jsonSchema(tool.parameters),
+    // NO execute - we handle this in our loop
+};
+```
+
+#### 2. Tools Affected
+
+All tools flow through `ToolManager.executeTool()`, so the change is centralized:
+
+| Tool Source | Location | Change Required |
+|-------------|----------|-----------------|
+| MCP Tools | `packages/core/src/mcp/manager.ts` | None - just schema |
+| Internal Tools | `packages/core/src/tools/internal-tools/` | None - just schema |
+
+**Internal Tools (12 files):**
+- `ask-user-tool.ts`
+- `bash-exec-tool.ts`
+- `bash-output-tool.ts`
+- `delegate-to-url-tool.ts`
+- `edit-file-tool.ts`
+- `glob-files-tool.ts`
+- `grep-content-tool.ts`
+- `kill-process-tool.ts`
+- `read-file-tool.ts`
+- `search-history-tool.ts`
+- `write-file-tool.ts`
+
+**No changes needed to tool implementations** - only the wrapping in `vercel.ts` changes.
+
+#### 3. New Tool Execution in Executor
+
+```typescript
+// In AgentExecutor
+async executeTools(toolCalls: ToolCall[]): Promise<ToolResult[]> {
+    const results: ToolResult[] = [];
+
+    for (const toolCall of toolCalls) {
+        // Emit event before execution
+        this.eventBus.emit('llm:tool-call', {
+            id: toolCall.toolCallId,
+            name: toolCall.toolName,
+            arguments: toolCall.input,
+        });
+
+        // Execute via ToolManager (handles MCP vs internal routing)
+        const rawResult = await this.toolManager.executeTool(
+            toolCall.toolName,
+            toolCall.input as Record<string, unknown>,
+            this.sessionId
+        );
+
+        // Sanitize and persist (handles blob storage)
+        const sanitized = await this.contextManager.addToolResult(
+            toolCall.toolCallId,
+            toolCall.toolName,
+            rawResult
+        );
+
+        // Emit event after execution
+        this.eventBus.emit('llm:tool-result', {
+            id: toolCall.toolCallId,
+            name: toolCall.toolName,
+            result: sanitized,
+        });
+
+        results.push({
+            toolCallId: toolCall.toolCallId,
+            result: sanitized,
+        });
+    }
+
+    return results;
+}
+```
+
+---
+
+## Blob/Storage/Resources Integration
+
+### Current Flow (Working)
+
+The blob handling flow is already well-architected. Here's how it works:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      RESOURCE/BLOB FLOW                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  USER INPUT (images, files)                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ContextManager.addUserMessage()                                      │   │
+│  │   └─ processUserInput() → stores large data as @blob:xyz             │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  TOOL RESULTS (images, MCP resources)                                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ContextManager.addToolResult()                                       │   │
+│  │   └─ sanitizeToolResult() (context/utils.ts:1731)                    │   │
+│  │       ├─ normalizeToolResult() - normalize various formats           │   │
+│  │       ├─ persistToolMedia() - store images/files as blobs            │   │
+│  │       └─ Returns SanitizedToolResult with @blob:xyz references       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  SENDING TO LLM                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ContextManager.getFormattedMessages()                                │   │
+│  │   └─ expandBlobReferences() (context/utils.ts:712)                   │   │
+│  │       ├─ Resolves @blob:xyz → actual base64 data                     │   │
+│  │       ├─ Filters by allowedMediaTypes (model capabilities)           │   │
+│  │       └─ Returns expanded content ready for LLM                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Functions (context/utils.ts)
+
+| Function | Line | Purpose |
+|----------|------|---------|
+| `sanitizeToolResult()` | 1731 | Main entry - sanitize any tool output |
+| `normalizeToolResult()` | 1107 | Convert various formats to standard structure |
+| `persistToolMedia()` | 1166 | Store images/files as blobs |
+| `expandBlobReferences()` | 712 | Resolve @blob:xyz before sending to LLM |
+| `countMessagesTokens()` | 445 | Estimate tokens including images |
+
+### MCP Resource Handling
+
+MCP tools can return various content types:
+
+```typescript
+// MCP can return:
+{
+  content: [
+    { type: 'text', text: '...' },
+    { type: 'image', data: 'base64...', mimeType: 'image/png' },
+    { type: 'resource', uri: 'file:///path', mimeType: '...' },
+  ]
+}
+```
+
+`sanitizeToolResult()` handles all these, storing large content as blobs.
+
+### Verification Steps for New Loop
+
+1. **User Input Flow** - Already works, no changes needed
+   - [ ] Verify images are stored as blobs via `processUserInput()`
+   - [ ] Verify blob references persist correctly
+
+2. **Tool Result Flow** - Needs verification with new execution point
+   - [ ] Verify `addToolResult()` is called AFTER `addAssistantMessage()`
+   - [ ] Verify MCP image results are stored as blobs
+   - [ ] Verify blob references are returned (not raw base64)
+
+3. **LLM Formatting Flow** - Already works, no changes needed
+   - [ ] Verify `expandBlobReferences()` resolves all refs
+   - [ ] Verify model capability filtering works
+   - [ ] Verify images are sent as actual base64 to LLM
+
+4. **Token Counting** - Needs verification
+   - [ ] Verify image tokens estimated correctly (provider-specific)
+   - [ ] Verify blob refs don't count as text tokens
+
+### Changes Needed
+
+**None for blob handling** - the existing infrastructure works. The only change is WHERE we call `addToolResult()` (in our loop instead of Vercel's callback).
+
+```typescript
+// Before (in execute callback):
+execute: async (args, options) => {
+    const result = await toolManager.executeTool(...);
+    await contextManager.addToolResult(...);  // Called here
+    return result;
+}
+
+// After (in our loop):
+for (const toolCall of response.toolCalls) {
+    const result = await toolManager.executeTool(...);
+    await contextManager.addToolResult(...);  // Called here instead
+}
+```
+
+---
+
+## Tests Needed
+
+### Unit Tests
+
+#### 1. AgentExecutor Tests
+**File**: `packages/core/src/agent/executor.test.ts`
+
+```typescript
+describe('AgentExecutor', () => {
+    describe('single step execution', () => {
+        it('should call LLM with maxSteps: 1');
+        it('should return toolCalls when LLM wants tools');
+        it('should persist assistant message before tool results');
+        it('should execute tools in order');
+        it('should continue loop when tools return');
+        it('should terminate when no tool calls');
+        it('should terminate when max steps reached');
+    });
+
+    describe('message ordering', () => {
+        it('should persist: user → asst → tool (correct order)');
+        it('should NOT persist: user → tool → asst (wrong order)');
+        it('should handle multiple tool calls in single step');
+    });
+
+    describe('cancellation', () => {
+        it('should abort on signal during streaming');
+        it('should persist partial response on cancel');
+        it('should let current tool finish before stopping');
+        it('should not start new tools after abort');
+    });
+
+    describe('compression integration', () => {
+        it('should check compression before each LLM call');
+        it('should compress when over threshold');
+        it('should use actual token count when available');
+    });
+});
+```
+
+#### 2. CompressionService Tests
+**File**: `packages/core/src/context/compression.test.ts`
+
+```typescript
+describe('CompressionService', () => {
+    describe('threshold detection', () => {
+        it('should not compress under threshold');
+        it('should compress over threshold');
+        it('should use actual tokens when provided');
+        it('should fall back to estimation');
+    });
+
+    describe('split point finding', () => {
+        it('should split at assistant message boundary');
+        it('should not split in middle of tool chain');
+        it('should preserve last 30% of history');
+    });
+
+    describe('summary generation', () => {
+        it('should generate LLM summary of old messages');
+        it('should include key context in summary');
+        it('should reject if summary increases tokens');
+    });
+});
+```
+
+#### 3. MessageQueueService Tests
+**File**: `packages/core/src/agent/message-queue.test.ts`
+
+```typescript
+describe('MessageQueueService', () => {
+    it('should enqueue messages');
+    it('should dequeue in FIFO order');
+    it('should return null when empty');
+    it('should emit message:queued event');
+    it('should report pending count');
+});
+```
+
+#### 4. CancellationHandler Tests
+**File**: `packages/core/src/agent/cancellation.test.ts`
+
+```typescript
+describe('CancellationHandler', () => {
+    describe('state tracking', () => {
+        it('should track idle state');
+        it('should track streaming state');
+        it('should track executing_tools state');
+    });
+
+    describe('partial response', () => {
+        it('should accumulate text chunks');
+        it('should track tool calls');
+        it('should persist partial on cancel');
+    });
+
+    describe('abort handling', () => {
+        it('should trigger abort controller');
+        it('should return correct persisted state');
+    });
+});
+```
+
+### Integration Tests
+
+#### 5. Full Loop Integration
+**File**: `packages/core/src/agent/executor.integration.test.ts`
+
+```typescript
+describe('AgentExecutor Integration', () => {
+    it('should complete simple text response');
+    it('should handle single tool call');
+    it('should handle multi-step tool chain');
+    it('should handle MCP tool with image result');
+    it('should compress during long conversation');
+    it('should persist all messages to database');
+    it('should recover from mid-execution crash');
+});
+```
+
+#### 6. Blob Flow Integration
+**File**: `packages/core/src/context/blob-flow.integration.test.ts`
+
+```typescript
+describe('Blob Flow Integration', () => {
+    it('should store user image as blob');
+    it('should store MCP image result as blob');
+    it('should expand blob refs before LLM call');
+    it('should count image tokens correctly');
+    it('should filter unsupported media types');
+});
+```
+
+### Test Fixtures Needed
+
+```
+packages/core/src/__fixtures__/
+├── images/
+│   ├── small-image.png      # < 50KB (for token estimation tests)
+│   ├── large-image.png      # > 50KB
+│   └── screenshot.png       # GameBoy-style for gaming agent tests
+├── tool-results/
+│   ├── mcp-image-response.json
+│   ├── mcp-text-response.json
+│   └── mcp-mixed-response.json
+└── messages/
+    ├── simple-conversation.json
+    ├── tool-chain-conversation.json
+    └── long-conversation.json  # For compression tests
+```
+
+---
+
+## New Files Needed
+
+### Core Agent Loop
+
+```
+packages/core/src/agent/
+├── executor.ts                    # NEW - Main agent loop
+├── executor.test.ts               # NEW - Unit tests
+├── executor.integration.test.ts   # NEW - Integration tests
+├── types.ts                       # UPDATE - Add executor types
+└── index.ts                       # UPDATE - Export executor
+```
+
+### Message Queue
+
+```
+packages/core/src/agent/
+├── message-queue.ts               # NEW - Queue service
+├── message-queue.test.ts          # NEW - Unit tests
+└── index.ts                       # UPDATE - Export queue
+```
+
+### Cancellation
+
+```
+packages/core/src/agent/
+├── cancellation.ts                # NEW - Cancellation handler
+├── cancellation.test.ts           # NEW - Unit tests
+└── index.ts                       # UPDATE - Export handler
+```
+
+### Compression (Refactor)
+
+```
+packages/core/src/context/
+├── compression/
+│   ├── service.ts                 # NEW - Extracted compression logic
+│   ├── service.test.ts            # NEW - Unit tests
+│   ├── strategies/
+│   │   ├── llm-summary.ts         # NEW - LLM-based summarization
+│   │   ├── prune-tool-outputs.ts  # NEW - OpenCode-style pruning
+│   │   └── types.ts               # NEW - Strategy interface
+│   └── index.ts                   # NEW - Exports
+├── manager.ts                     # UPDATE - Use new compression service
+└── utils.ts                       # KEEP - Blob handling stays here
+```
+
+### LLM Service Updates
+
+```
+packages/core/src/llm/services/
+├── vercel.ts                      # UPDATE - Remove execute callbacks
+│                                  #        - Use executor instead
+│                                  #        - Remove prepareStep/onStepFinish
+└── base.ts                        # UPDATE - Add executor integration
+```
+
+### Fixtures
+
+```
+packages/core/src/__fixtures__/
+├── images/                        # NEW - Test images
+├── tool-results/                  # NEW - MCP response fixtures
+└── messages/                      # NEW - Conversation fixtures
+```
+
+### Summary of Changes
+
+| Type | Count | Files |
+|------|-------|-------|
+| NEW | 12 | executor, queue, cancellation, compression service, strategies, fixtures |
+| UPDATE | 5 | agent/types, agent/index, manager.ts, vercel.ts, base.ts |
+| KEEP | All | Blob handling, tool implementations, tokenizers, formatters |
+
+---
+
 ## References
 
 - [Vercel AI SDK Tool Calling](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)
