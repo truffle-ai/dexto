@@ -10622,7 +10622,7 @@
                               "error",
                               "silly"
                             ],
-                            "default": "info",
+                            "default": "error",
                             "description": "Minimum log level to record"
                           },
                           "transports": {
@@ -10744,7 +10744,7 @@
                           }
                         },
                         "default": {
-                          "level": "info",
+                          "level": "error",
                           "transports": [
                             {
                               "type": "console",
@@ -11207,7 +11207,7 @@
                         "properties": {
                           "enabled": {
                             "type": "boolean",
-                            "default": true,
+                            "default": false,
                             "description": "Enable elicitation support (ask_user tool and MCP server elicitations). When disabled, elicitation requests will be rejected."
                           },
                           "timeout": {

@@ -3,15 +3,17 @@
 /**
  * Development server that:
  * 1. Builds all packages (turbo handles dependency graph)
- * 2. Runs the CLI directly from dist/index.js in server mode (API on port 3001)
+ * 2. Runs the CLI directly from dist/index.js in server mode (API on port 3001 by default)
  * 3. Starts Vite dev server for WebUI with hot reload (port 3000)
  * 4. Opens browser automatically when WebUI is ready
  *
  * Vite proxies /api/* requests to the API server (configured in vite.config.ts)
  *
  * Usage:
- *   pnpm dev                                    # Use default agent
+ *   pnpm dev                                    # Use default agent on port 3001
  *   pnpm dev -- --agent examples/resources-demo-server/agent.yml
+ *   pnpm dev -- --port 6767                     # Custom API port
+ *   pnpm dev -- --agent my-agent.yml --port 6767
  */
 
 import { execSync, spawn, ChildProcess } from 'child_process';
@@ -30,6 +32,10 @@ let webuiStarted = false;
 const args = process.argv.slice(2);
 const agentIndex = args.indexOf('--agent');
 const agentPath = agentIndex !== -1 && agentIndex + 1 < args.length ? args[agentIndex + 1] : null;
+const portIndex = args.indexOf('--port');
+const apiPort = portIndex !== -1 && portIndex + 1 < args.length ? args[portIndex + 1] : '3001';
+// WebUI port is API port - 1 (so API 3001 → WebUI 3000, API 6767 → WebUI 6766)
+const webuiPort = String(parseInt(apiPort, 10) - 1);
 
 // Cleanup function
 function cleanup() {
@@ -65,12 +71,12 @@ try {
 console.log('🚀 Starting development servers...\n');
 
 // Start API server directly from dist
-const cliArgs = [cliPath, '--mode', 'server'];
+const cliArgs = [cliPath, '--mode', 'server', '--port', apiPort];
 if (agentPath) {
-    console.log(`📡 Starting API server on port 3001 with agent: ${agentPath}...`);
+    console.log(`📡 Starting API server on port ${apiPort} with agent: ${agentPath}...`);
     cliArgs.push('--agent', agentPath);
 } else {
-    console.log('📡 Starting API server on port 3001...');
+    console.log(`📡 Starting API server on port ${apiPort}...`);
 }
 
 apiProcess = spawn('node', cliArgs, {
@@ -78,8 +84,7 @@ apiProcess = spawn('node', cliArgs, {
     cwd: rootDir,
     env: {
         ...process.env,
-        PORT: '3001',
-        API_PORT: '3001',
+        PORT: apiPort,
         DEXTO_DEV_MODE: 'true', // Force use of repo config for development
     },
 });
@@ -89,13 +94,14 @@ function startWebUI() {
     if (webuiStarted) return;
     webuiStarted = true;
 
-    console.log('\n🎨 Starting WebUI dev server on port 3000...');
+    console.log('\n🎨 Starting WebUI dev server...');
 
-    webuiProcess = spawn('pnpm', ['run', 'dev'], {
+    webuiProcess = spawn('pnpm', ['exec', 'vite', '--port', webuiPort], {
         cwd: join(rootDir, 'packages', 'webui'),
         stdio: ['inherit', 'pipe', 'pipe'],
         env: {
             ...process.env,
+            DEXTO_API_PORT: apiPort,
         },
     });
 
@@ -109,7 +115,9 @@ function startWebUI() {
                 // Open browser when Vite is ready (looks for "Local:" message)
                 if (!browserOpened && line.includes('Local:')) {
                     browserOpened = true;
-                    const webUrl = 'http://localhost:3000';
+                    // Extract URL from Vite output (e.g., "Local:   http://localhost:3001/")
+                    const urlMatch = line.match(/http:\/\/localhost:\d+/);
+                    const webUrl = urlMatch ? urlMatch[0] : `http://localhost:${webuiPort}`;
                     console.log(`\n🌐 Opening browser at ${webUrl}...`);
                     open(webUrl, { wait: false }).catch((err) => {
                         console.log(`   Could not open browser automatically: ${err.message}`);
@@ -135,8 +143,8 @@ function startWebUI() {
     });
 
     console.log('\n✨ Development servers ready!');
-    console.log('   API:   http://localhost:3001 (from dist build)');
-    console.log('   WebUI: http://localhost:3000 (hot reload enabled)');
+    console.log(`   API:   http://localhost:${apiPort} (from dist build)`);
+    console.log('   WebUI: Starting... (see Vite output for URL)');
     console.log('\nPress Ctrl+C to stop all servers\n');
 }
 

@@ -102,9 +102,13 @@ export class ToolManager {
 
         // Initialize internal tools if configured
         if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
-            this.internalToolsProvider = new InternalToolsProvider(
-                options.internalToolsServices || {},
+            // Include approvalManager in services for internal tools
+            const internalToolsServices = {
+                ...options.internalToolsServices,
                 approvalManager,
+            };
+            this.internalToolsProvider = new InternalToolsProvider(
+                internalToolsServices,
                 options.internalToolsConfig,
                 this.logger
             );
