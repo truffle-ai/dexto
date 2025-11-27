@@ -24,6 +24,7 @@ const cliPath = join(rootDir, 'packages/cli/dist/index.js');
 let apiProcess: ChildProcess | null = null;
 let webuiProcess: ChildProcess | null = null;
 let browserOpened = false;
+let webuiStarted = false;
 
 // Parse command-line arguments
 const args = process.argv.slice(2);
@@ -83,32 +84,11 @@ apiProcess = spawn('node', cliArgs, {
     },
 });
 
-// Prefix API output
-if (apiProcess.stdout) {
-    apiProcess.stdout.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(Boolean);
-        lines.forEach((line: string) => {
-            console.log(`[API] ${line}`);
-        });
-    });
-}
+// Function to start WebUI (called when API is ready)
+function startWebUI() {
+    if (webuiStarted) return;
+    webuiStarted = true;
 
-if (apiProcess.stderr) {
-    apiProcess.stderr.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(Boolean);
-        lines.forEach((line: string) => {
-            console.error(`[API] ${line}`);
-        });
-    });
-}
-
-apiProcess.on('error', (err) => {
-    console.error('❌ Failed to start API server:', err);
-    cleanup();
-});
-
-// Give API server time to start
-setTimeout(() => {
     console.log('\n🎨 Starting WebUI dev server on port 3000...');
 
     webuiProcess = spawn('pnpm', ['run', 'dev'], {
@@ -158,4 +138,41 @@ setTimeout(() => {
     console.log('   API:   http://localhost:3001 (from dist build)');
     console.log('   WebUI: http://localhost:3000 (hot reload enabled)');
     console.log('\nPress Ctrl+C to stop all servers\n');
-}, 2000); // Wait 2 seconds for API to initialize
+}
+
+// Prefix API output
+if (apiProcess.stdout) {
+    apiProcess.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(Boolean);
+        lines.forEach((line: string) => {
+            console.log(`[API] ${line}`);
+
+            // Start WebUI when API server is ready
+            if (!webuiStarted && line.includes('Server running at')) {
+                startWebUI();
+            }
+        });
+    });
+}
+
+if (apiProcess.stderr) {
+    apiProcess.stderr.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(Boolean);
+        lines.forEach((line: string) => {
+            console.error(`[API] ${line}`);
+        });
+    });
+}
+
+apiProcess.on('error', (err) => {
+    console.error('❌ Failed to start API server:', err);
+    cleanup();
+});
+
+// Fallback: Start WebUI after 60 seconds if API ready signal not detected
+setTimeout(() => {
+    if (!webuiStarted) {
+        console.log('\n⚠️  API ready signal not detected after 60s, starting WebUI anyway...');
+        startWebUI();
+    }
+}, 60000);
