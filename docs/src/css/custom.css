@@ -7,15 +7,23 @@
    Variables & Theme Tokens
    ========================================== */
 :root {
-  --dexto-glass-bg: rgba(255, 255, 255, 0.75);
+  --dexto-glass-bg: rgba(255, 255, 255, 0.95);
   --dexto-glass-border: rgba(15, 23, 42, 0.08);
   --dexto-panel-bg: var(--ifm-background-surface-color);
   --dexto-panel-border: var(--ifm-border-color);
 }
 
-[data-theme='dark'] {
+html[data-theme='dark'] {
   --dexto-glass-bg: rgba(8, 8, 8, 0.82);
   --dexto-glass-border: rgba(255, 255, 255, 0.06);
+}
+
+/* Fallback for dark mode if data-theme attribute isn't set */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --dexto-glass-bg: rgba(8, 8, 8, 0.82);
+    --dexto-glass-border: rgba(255, 255, 255, 0.06);
+  }
 }
 
 /* ==========================================
@@ -473,7 +481,7 @@ body {
   color: currentColor;
   mask: none;
   display: block;
-  transform: rotate(90deg);
+  transform: rotate(-90deg);
   transition: transform 0.15s ease;
 }
 
