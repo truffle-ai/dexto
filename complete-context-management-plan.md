@@ -906,6 +906,402 @@ packages/core/src/
     └── defer.ts                     # NEW - TC39 cleanup pattern
 ```
 
+---
+
+## Blob/Storage/Resources Integration
+
+### Current Flow (No Changes Needed)
+
+The blob handling flow remains unchanged with v2. The key insight is that we're KEEPING execute callbacks, so blob handling still works the same way:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      RESOURCE/BLOB FLOW                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  USER INPUT (images, files)                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ContextManager.addUserMessage()                                      │   │
+│  │   └─ processUserInput() → stores large data as @blob:xyz             │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  TOOL RESULTS (images, MCP resources)                                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ execute callback (STILL IN PLACE with v2)                            │   │
+│  │   └─ ContextManager.addToolResult()                                  │   │
+│  │       ├─ sanitizeToolResult() (context/utils.ts)                     │   │
+│  │       ├─ persistToolMedia() - store images/files as blobs            │   │
+│  │       └─ Returns SanitizedToolResult with @blob:xyz references       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  SENDING TO LLM                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ContextManager.getFormattedMessages()                                │   │
+│  │   └─ expandBlobReferences() (context/utils.ts)                       │   │
+│  │       ├─ Resolves @blob:xyz → actual base64 data                     │   │
+│  │       ├─ Filters by allowedMediaTypes (model capabilities)           │   │
+│  │       └─ Returns expanded content ready for LLM                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Functions (context/utils.ts)
+
+| Function | Purpose |
+|----------|---------|
+| `sanitizeToolResult()` | Main entry - sanitize any tool output |
+| `normalizeToolResult()` | Convert various formats to standard structure |
+| `persistToolMedia()` | Store images/files as blobs |
+| `expandBlobReferences()` | Resolve @blob:xyz before sending to LLM |
+| `countMessagesTokens()` | Estimate tokens including images |
+
+### Why No Changes Needed
+
+With `stopWhen: stepCountIs(1)`, we KEEP execute callbacks:
+- Tool execution still happens inside Vercel's step
+- `addToolResult()` is still called in the execute callback
+- StreamProcessor intercepts events for ORDERING, not execution
+- Blob handling remains in execute callback (correct location)
+
+The only change is that StreamProcessor ensures correct persistence ORDER:
+1. Assistant message persisted (via `text-delta` events)
+2. Tool results persisted (via execute callback + `tool-result` event)
+
+### Verification Steps
+
+- [ ] Verify images are stored as blobs via `processUserInput()`
+- [ ] Verify MCP image results are stored as blobs in execute callback
+- [ ] Verify `expandBlobReferences()` resolves all refs before LLM call
+- [ ] Verify image tokens estimated correctly (provider-specific)
+
+---
+
+## Tests Needed
+
+### Unit Tests
+
+#### 1. TurnExecutor Tests
+**File**: `packages/core/src/llm/executor/turn-executor.test.ts`
+
+```typescript
+describe('TurnExecutor', () => {
+    describe('single step execution', () => {
+        it('should call streamText with stopWhen: stepCountIs(1)');
+        it('should return control after each step');
+        it('should continue loop when finishReason is tool-calls');
+        it('should terminate when finishReason is not tool-calls');
+        it('should terminate when max steps reached');
+        it('should terminate on abort signal');
+    });
+
+    describe('message queue integration', () => {
+        it('should check queue at start of each iteration');
+        it('should inject coalesced messages into context');
+        it('should handle empty queue gracefully');
+    });
+
+    describe('compression integration', () => {
+        it('should check overflow after each step');
+        it('should trigger compression when overflow detected');
+        it('should use actual tokens from API response');
+        it('should retry step after compression');
+    });
+
+    describe('cleanup with defer()', () => {
+        it('should cleanup on normal completion');
+        it('should cleanup on error');
+        it('should cleanup on abort');
+        it('should clear message queue on cleanup');
+    });
+});
+```
+
+#### 2. StreamProcessor Tests
+**File**: `packages/core/src/llm/executor/stream-processor.test.ts`
+
+```typescript
+describe('StreamProcessor', () => {
+    describe('event handling', () => {
+        it('should handle text-start event');
+        it('should handle text-delta events');
+        it('should handle tool-input-start event');
+        it('should handle tool-call event');
+        it('should handle tool-result event');
+        it('should handle tool-error event');
+        it('should handle finish-step event');
+    });
+
+    describe('persistence', () => {
+        it('should persist assistant message on text events');
+        it('should persist tool state changes');
+        it('should capture actual token usage from finish-step');
+    });
+
+    describe('abort handling', () => {
+        it('should check abort signal on each event');
+        it('should throw on aborted signal');
+    });
+
+    describe('tool output truncation', () => {
+        it('should truncate outputs exceeding maxChars');
+        it('should mark truncated outputs');
+        it('should respect per-tool limits');
+    });
+});
+```
+
+#### 3. MessageQueueService Tests
+**File**: `packages/core/src/session/message-queue.test.ts`
+
+```typescript
+describe('MessageQueueService', () => {
+    describe('enqueue', () => {
+        it('should add message to queue');
+        it('should return position in queue');
+        it('should emit message:queued event');
+    });
+
+    describe('dequeueAll', () => {
+        it('should return null when empty');
+        it('should return single message as-is');
+        it('should coalesce multiple messages');
+        it('should clear queue after dequeue');
+        it('should emit message:dequeued event');
+    });
+
+    describe('coalescing', () => {
+        it('should format 2 messages with First/Also');
+        it('should format 3+ messages with [1]/[2]/[3]');
+        it('should preserve message order');
+        it('should track original message IDs');
+    });
+});
+```
+
+#### 4. Compression Strategy Tests
+**File**: `packages/core/src/context/compression/reactive-overflow.test.ts`
+
+```typescript
+describe('ReactiveOverflowStrategy', () => {
+    describe('trigger', () => {
+        it('should have overflow trigger type');
+    });
+
+    describe('compress', () => {
+        it('should generate LLM summary of old messages');
+        it('should preserve recent messages');
+        it('should create summary message with metadata');
+    });
+
+    describe('validate', () => {
+        it('should return true when tokens reduced');
+        it('should return false when tokens increased');
+    });
+});
+
+describe('isOverflow', () => {
+    it('should return false when under limit');
+    it('should return true when over usable limit');
+    it('should account for output buffer');
+    it('should include cache read tokens');
+});
+```
+
+#### 5. Pruning Tests
+**File**: `packages/core/src/context/compression/pruning.test.ts`
+
+```typescript
+describe('pruneOldToolOutputs', () => {
+    it('should not prune when under PRUNE_PROTECT');
+    it('should prune when over PRUNE_PROTECT');
+    it('should only prune if savings exceed PRUNE_MINIMUM');
+    it('should mark pruned tools with compactedAt');
+    it('should stop at summary message');
+    it('should preserve last 2 turns');
+});
+
+describe('formatToolOutput', () => {
+    it('should return output when not compacted');
+    it('should return placeholder when compacted');
+});
+```
+
+#### 6. defer() Tests
+**File**: `packages/core/src/util/defer.test.ts`
+
+```typescript
+describe('defer', () => {
+    it('should call cleanup on normal scope exit');
+    it('should call cleanup on throw');
+    it('should call cleanup on return');
+    it('should support async cleanup functions');
+    it('should work with Symbol.dispose');
+    it('should work with Symbol.asyncDispose');
+});
+```
+
+### Integration Tests
+
+#### 7. Full Loop Integration
+**File**: `packages/core/src/llm/executor/turn-executor.integration.test.ts`
+
+```typescript
+describe('TurnExecutor Integration', () => {
+    it('should complete simple text response');
+    it('should handle single tool call');
+    it('should handle multi-step tool chain');
+    it('should handle MCP tool with image result');
+    it('should compress during long conversation');
+    it('should inject queued messages mid-loop');
+    it('should persist all messages to database');
+});
+```
+
+#### 8. Blob Flow Integration
+**File**: `packages/core/src/context/blob-flow.integration.test.ts`
+
+```typescript
+describe('Blob Flow Integration', () => {
+    it('should store user image as blob');
+    it('should store MCP image result as blob');
+    it('should expand blob refs before LLM call');
+    it('should count image tokens correctly');
+    it('should filter unsupported media types');
+});
+```
+
+---
+
+## Integration Points
+
+### @dexto/server Integration
+
+The server routes handle all events generically via SSE:
+
+```typescript
+// Current code - no changes needed for event handling
+for await (const event of iterator) {
+    await stream.writeSSE({
+        event: event.name,
+        data: JSON.stringify(event),
+    });
+}
+```
+
+**New events that will flow through automatically:**
+- `context:compressed` - When compression occurs
+- `context:pruned` - When tool outputs are pruned
+- `message:queued` - When message is queued (if busy)
+- `message:dequeued` - When queued messages are injected
+
+**New API endpoints needed:**
+
+| Endpoint | Method | Handler |
+|----------|--------|---------|
+| `/api/message/queue` | POST | Queue message while agent busy |
+| `/api/message/queue` | GET | Get queue status |
+| `/api/message/queue` | DELETE | Clear queue |
+
+### @dexto/client-sdk Integration
+
+New events are automatically available via `StreamingEvent`:
+
+```typescript
+for await (const event of stream) {
+    switch (event.name) {
+        // Existing events
+        case 'llm:chunk': ...
+        case 'llm:tool-call': ...
+        case 'llm:response': ...
+
+        // NEW events
+        case 'context:compressed':
+            console.log(`Compressed: ${event.beforeTokens} → ${event.afterTokens}`);
+            break;
+        case 'message:queued':
+            console.log(`Message queued at position ${event.position}`);
+            break;
+    }
+}
+```
+
+**New SDK methods (optional):**
+```typescript
+// Queue message when agent is busy
+await client.api['message-queue'].$post({ json: { message, sessionId } });
+
+// Get queue status
+const status = await client.api['message-queue'].$get({ query: { sessionId } });
+```
+
+### WebUI Integration
+
+**New UI elements needed:**
+
+1. **Compression Indicator**
+   ```tsx
+   <Toast>Context compressed: {beforeTokens} → {afterTokens} tokens</Toast>
+   ```
+
+2. **Queue Indicator**
+   ```tsx
+   <QueueBadge count={queuedMessages.length} />
+   ```
+
+3. **Input State When Busy**
+   ```tsx
+   <InputArea
+       placeholder={isBusy ? "Message will be queued..." : "Type a message"}
+   />
+   ```
+
+---
+
+## Context Module Post-Migration Cleanup
+
+### Methods to DELETE from manager.ts
+
+After TurnExecutor is working, these methods become obsolete:
+
+```typescript
+// DELETE: Only exists for Vercel's sync prepareStep callback
+compressMessagesForPrepareStep()  // Complex sync compression
+compressHistorySync()              // Sync wrapper
+
+// DELETE: TurnExecutor handles this via StreamProcessor
+processLLMResponse()               // No longer needed
+processLLMStreamResponse()         // No longer needed
+```
+
+### Token Tracking Simplification
+
+**Current (complex):**
+```typescript
+private lastActualTokenCount: number = 0;
+private lastActualTokenMessageCount: number = 0;
+// Complex hybrid logic tracking message counts
+```
+
+**After TurnExecutor (simple):**
+```typescript
+// TurnExecutor passes actual token count after each step
+async checkOverflow(actualTokens: TokenUsage): Promise<boolean>
+```
+
+### Post-Migration Checklist
+
+- [ ] Delete `compressMessagesForPrepareStep()` from manager.ts
+- [ ] Delete `compressHistorySync()` from manager.ts
+- [ ] Delete `processLLMResponse()` from manager.ts
+- [ ] Delete `processLLMStreamResponse()` from manager.ts
+- [ ] Simplify token tracking (remove message count tracking)
+- [ ] Update tests that use deleted methods
+
+---
+
 ## References
 
 ### Local Source Code
