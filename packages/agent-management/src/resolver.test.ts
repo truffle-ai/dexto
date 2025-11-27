@@ -196,7 +196,9 @@ describe('Agent Resolver', () => {
                 new Error('Agent not found in bundled registry')
             );
 
-            await expect(resolveAgentPath('non-existent-agent')).rejects.toThrow('Agent not found');
+            await expect(resolveAgentPath('non-existent-agent')).rejects.toThrow(
+                "Agent 'non-existent-agent' not found in registry"
+            );
         });
     });
 

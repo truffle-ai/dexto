@@ -21,7 +21,8 @@ import { installBundledAgent } from './installation.js';
  * @param autoInstall Whether to automatically install missing agents from bundled registry (default: true)
  * @param injectPreferences Whether to inject preferences during auto-installation (default: true)
  * @returns Resolved absolute path to agent config
- * @throws ConfigError for any resolution failures
+ * @throws {ConfigError} For path/config issues (file not found, unknown context, setup incomplete)
+ * @throws {RegistryError} For agent lookup failures (agent not found, not installed)
  */
 export async function resolveAgentPath(
     nameOrPath?: string,
@@ -260,6 +261,8 @@ async function resolveDefaultAgentForGlobalCLI(
 
 /**
  * Update default agent preference
+ * @param agentName The agent name to set as the new default
+ * @throws {RegistryError} If the agent is not found in installed or bundled registry
  */
 export async function updateDefaultAgentPreference(agentName: string): Promise<void> {
     // Validate agent exists in bundled or installed registry
