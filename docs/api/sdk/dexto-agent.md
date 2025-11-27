@@ -178,8 +178,15 @@ await agent.start();
 
 const session = await agent.createSession();
 
-// Basic text input
-const response = await agent.run(
+// Recommended: Use generate() for most use cases
+const response = await agent.generate(
+  "Explain quantum computing",
+  { sessionId: session.id }
+);
+console.log(response.content);
+
+// Lower-level run() method (returns just the text)
+const responseText = await agent.run(
   "Explain quantum computing",
   undefined,  // no image
   undefined,  // no file

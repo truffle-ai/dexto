@@ -17,8 +17,6 @@ const agent = new DextoAgent({
         model: 'gpt-5-mini',
         apiKey: process.env.OPENAI_API_KEY || '',
     },
-    // Logger defaults to level: 'error' (only shows errors, suppresses info/debug/warn)
-    // To enable more verbose logging, add: logger: { level: 'info' }
 });
 
 await agent.start();

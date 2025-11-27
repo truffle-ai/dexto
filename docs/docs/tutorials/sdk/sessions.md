@@ -5,11 +5,19 @@ title: "Working with Sessions"
 
 # Working with Sessions
 
-In the Quick Start, your agent answered one question and forgot everything. Real applications need memory—the ability to reference earlier messages, build context, and maintain coherent conversations. That's what sessions give you.
+Sessions give your agent working memory—the ability to reference earlier messages in the current conversation, build context, and maintain coherent multi-turn interactions. Every conversation in Dexto happens within a session.
 
-## The Problem: Stateless Agents
+:::info What is Working Memory?
+**Working memory** is the conversation history maintained within a session. It's the context the agent uses to understand and respond to your current conversation—like remembering what you said two messages ago.
 
-Here's what happens without sessions:
+This is distinct from other types of memory (like long-term facts or user preferences), which you'll learn about in later tutorials.
+:::
+
+## What Sessions Do
+
+A session maintains conversation history (working memory). Messages in the same session can reference each other. Messages in different sessions are completely isolated.
+
+Here's a conversation with working memory:
 
 ```typescript
 const agent = new DextoAgent({
@@ -26,17 +34,19 @@ console.log(response.content);
 // "Your name is Sarah."
 ```
 
-Now remove the session:
+The agent remembers because both messages used the same `sessionId`.
+
+Now create a new session—this has no working memory of the first conversation:
 
 ```typescript
-await agent.generate('My name is Sarah.'); // No sessionId
-const response = await agent.generate('What is my name?'); // No sessionId
+const newSession = await agent.createSession();
+const response = await agent.generate('What is my name?', { sessionId: newSession.id });
 
 console.log(response.content);
 // "I don't have that information."
 ```
 
-**Sessions are how agents remember.** Each session maintains its own conversation history. Without one, every message is treated as a fresh conversation.
+**Different sessions = isolated working memory.** This is how one agent can handle multiple users or conversation threads simultaneously—each with their own conversation context.
 
 ## Creating Sessions
 
@@ -201,8 +211,8 @@ await agent.deleteSession(sessionId);
 
 ## What's Next?
 
-You now know how to give your agent memory. But what if you have hundreds of users all talking to the same agent? You could create a new agent instance for each user, but that's wasteful.
+You now know how to give your agent working memory. But what if you have hundreds of users all talking to the same agent? You could create a new agent instance for each user, but that's wasteful.
 
-In the next tutorial, you'll learn how one agent can serve multiple users simultaneously—each with their own isolated session.
+In the next tutorial, you'll learn how one agent can serve multiple users simultaneously—each with their own isolated session and working memory.
 
 **Continue to:** [Multi-User Chat Endpoint](./multi-user-chat.md)

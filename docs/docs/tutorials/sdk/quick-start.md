@@ -64,36 +64,62 @@ You should see a concise explanation of TypeScript. If you do, **you're done**. 
 
 ## What Just Happened?
 
+Let's break down each step:
+
+### 1. Configure the Agent
+
 ```typescript
-// Create agent with LLM config
 const agent = new DextoAgent({
   llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY }
 });
 ```
-Configure which LLM to use. That's it for setup.
+
+**What it does:** Configure which LLM to use. That's it for setup—no complex initialization code needed.
+
+---
+
+### 2. Start the Agent
 
 ```typescript
 await agent.start();
 ```
-Initializes internal services (LLM client, storage, event system).
+
+**What it does:** Initializes internal services (LLM client, storage, event system). The agent is now ready to process messages.
+
+---
+
+### 3. Create a Session
 
 ```typescript
 const session = await agent.createSession();
 ```
-Creates a conversation context to hold message history.
+
+**What it does:** Creates a conversation session to maintain working memory. Each session tracks its own conversation history.
+
+---
+
+### 4. Generate a Response
 
 ```typescript
-const response = await agent.generate('message', { sessionId: session.id });
+const response = await agent.generate('What is TypeScript?', { sessionId: session.id });
 console.log(response.content);
 ```
-Send a message and get the AI response.
+
+**What it does:** Send a message and get the AI response. The response includes the content, token usage, and any tool calls made.
+
+---
+
+### 5. Stop the Agent
 
 ```typescript
 await agent.stop();
 ```
-Clean up resources when you're done.
 
-Every Dexto agent follows this pattern: **configure → start → create session → generate → stop**.
+**What it does:** Clean up resources when you're done. Always call this to properly shut down services.
+
+---
+
+**The Pattern:** Every Dexto agent follows this lifecycle: **configure → start → create session → generate → stop**.
 
 ## Try Different Providers
 
