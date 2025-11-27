@@ -48,6 +48,8 @@ dexto install --all
 - `pdf-agent` – Document analysis and conversation
 - `product-researcher` – Product naming and branding research
 - `triage-agent` – Multi-agent customer support routing
+- `workflow-builder-agent` – n8n workflow automation
+- `product-analysis-agent` – PostHog product analytics
 
 ### Installing from a Local File
 
