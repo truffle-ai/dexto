@@ -1,5 +1,16 @@
 # @dexto/core
 
+## 1.3.0
+
+### Minor Changes
+
+- eb266af: Migrate WebUI from next-js to vite. Fix any typing in web UI. Improve types in core. minor renames in event schemas
+
+### Patch Changes
+
+- e2f770b: Add changeset for updated schema defaults and updated docs.
+- f843b62: Change otel and storage deps to peer dependencies with dynamic imports to reduce bloat
+
 ## 1.2.6
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @dexto/webui
 
+## 1.3.0
+
+### Minor Changes
+
+- eb266af: Migrate WebUI from next-js to vite. Fix any typing in web UI. Improve types in core. minor renames in event schemas
+
+### Patch Changes
+
+- 215ae5b: Add new chat, search chats buttons, add rename, copy session ids, update UI to not have overlapping buttons for different layouts with session panel open
+- 338da3f: Update model switcher UI
+- 66ce8c2: Added changeset for ink-cli upgrades and metadata patch in webui
+- Updated dependencies [e2f770b]
+- Updated dependencies [f843b62]
+- Updated dependencies [eb266af]
+    - @dexto/core@1.3.0
+    - @dexto/client-sdk@1.3.0
+    - @dexto/analytics@1.3.0
+
 ## 1.2.6
 
 ### Patch Changes
