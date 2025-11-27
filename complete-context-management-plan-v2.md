@@ -16,6 +16,15 @@
 6. **Token Estimation**: Simple `length/4` for pruning decisions, actual tokens for compression
 7. **Tool Output Truncation**: Prevent mid-loop overflow at source (like OpenCode)
 8. **Queue Coalescing**: Multiple queued messages combined into single injection
+9. **Delete Old Code**: Remove existing compression module entirely, rebuild from scratch (no backward compatibility)
+
+## Migration Note
+
+**Delete existing compression code** - we are rebuilding context management from scratch:
+- Remove `packages/core/src/context/compression/` entirely
+- Remove compression-related code from `ContextManager`
+- No need for backward compatibility with existing strategies
+- Fresh implementation based on OpenCode patterns
 
 ## Problem Statement
 
@@ -73,6 +82,78 @@ This gives us:
 - Control returns after each step (LLM call + tool executions)
 - Real-time persistence via stream event interception
 - Full control between steps for compression, queue checking, etc.
+
+### What is a "Step" in Vercel AI SDK?
+
+**A step = ONE LLM call + ALL tool executions from that call**
+
+```
+┌─────────────────────── ONE STEP ───────────────────────┐
+│                                                        │
+│  LLM Call                                              │
+│    ↓                                                   │
+│  Response: "I'll help. Let me use 3 tools..."         │
+│    + tool_call_1 (bash)                               │
+│    + tool_call_2 (read)                               │
+│    + tool_call_3 (grep)                               │
+│    ↓                                                   │
+│  ALL tools execute (via callbacks)                    │
+│    ↓                                                   │
+│  Step finishes → control returns                      │
+│                                                        │
+└────────────────────────────────────────────────────────┘
+```
+
+From the Vercel AI SDK docs:
+> "Each step involves the model processing messages and potentially making tool calls...
+> Tool calls work as follows within each step: Model Generation → Tool Execution → Loop Decision"
+
+**Key points:**
+- LLM can return **multiple tool calls** in one response
+- **ALL** those tool calls execute before step finishes
+- Control returns to our loop only AFTER the complete step
+
+### Mid-Step Overflow Handling
+
+**We adopt OpenCode's approach: Trust tool truncation, check overflow AFTER each step.**
+
+```
+Step 1:
+  LLM → returns 5 tool calls
+  Tool 1 executes → output truncated at source (30K chars)
+  Tool 2 executes → output truncated at source (2K lines)
+  Tool 3 executes → ...
+  Tool 4 executes → ...
+  Tool 5 executes → ...
+
+  Step finishes → capture actual token count
+     ↓
+  isOverflow(lastStepTokens)?
+     YES → compress before next step
+     NO  → continue
+```
+
+**Why this works:**
+1. **Tool truncation prevents worst cases** - no single tool can add more than ~30K tokens
+2. **Overflow detected after step** - triggers compression before next LLM call
+3. **Simple and battle-tested** - same approach OpenCode uses in production
+
+**Limitation:** If multiple large tool outputs in one step overflow context, the API call may fail. This is acceptable because:
+- Tool truncation makes this unlikely
+- API error is caught and surfaced to user
+- Alternative (pre-step estimation) adds significant complexity
+
+**If API fails due to context overflow:**
+```typescript
+} catch (e) {
+  if (isContextOverflowError(e)) {
+    // Force compression and retry
+    await forceCompress();
+    continue;  // Retry the step
+  }
+  throw e;
+}
+```
 
 ## Proposed Architecture
 
@@ -827,7 +908,20 @@ packages/core/src/
 
 ## References
 
+### Local Source Code
 - OpenCode source: `/Users/karaj/Projects/opencode`
 - Gemini-CLI source: `/Users/karaj/Projects/gemini-cli`
-- [Vercel AI SDK Tool Calling](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)
 - Research reports: `opencode-research-findings.md`, `gemini-cli-research-findings.md`
+
+### Vercel AI SDK Documentation
+- [AI SDK Core: stepCountIs](https://ai-sdk.dev/docs/reference/ai-sdk-core/step-count-is) - Step counting function reference
+- [Agents: Loop Control](https://ai-sdk.dev/docs/agents/loop-control) - How agent loops work, stopWhen, prepareStep
+- [AI SDK Core: Tool Calling](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) - Tool execution and callbacks
+- [Multi-Step & Generative UI](https://vercel.com/academy/ai-sdk/multi-step-and-generative-ui) - Multi-step patterns
+- [How to build AI Agents with Vercel](https://docs.vercel.com/guides/how-to-build-ai-agents-with-vercel-and-the-ai-sdk) - Agent architecture guide
+
+### Key Insights from Research
+1. **Step definition**: One LLM call + all tool executions from that call
+2. **Mid-step overflow**: Not handled - rely on tool truncation at source
+3. **Overflow detection**: After step completes using actual token counts from API response
+4. **Compression trigger**: Reactive (on overflow) using actual tokens, not estimates
