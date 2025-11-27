@@ -23,7 +23,7 @@ Dexto combines a configuration-driven framework, robust runtime, and seamless de
 
 - **Framework** – Define agent behavior in YAML. Instantly swap models and tools without touching code.
 - **Runtime** – Execution with orchestration, session management, conversation memory, and multimodal support.
-- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and a TypeScript SDK.
+- **Interfaces & Tooling** – Native support for CLI, Web, APIs, and the Dexto Agent SDK.
 
 #### With Dexto, you can build:
 
@@ -328,9 +328,9 @@ You can configure things like LLM, system prompt, MCP servers, storage, sessions
 See our [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide) for complete setup instructions.
 
 
-## Programmatic API
+## Dexto Agent SDK
 
-Install the `@dexto/core` library, and build applications with the `DextoAgent` class. Everything the CLI can do, your code can too.
+Build AI agents programmatically with the `@dexto/core` package. Everything the CLI can do, your code can too.
 
 ```bash
 npm install @dexto/core
@@ -349,18 +349,23 @@ const agent = new DextoAgent({
 });
 await agent.start();
 
-// Run tasks
-const response = await agent.run('List the 5 largest files in this repo');
-console.log(response);
+// Create a session for the conversation
+const session = await agent.createSession();
 
-// Hold conversations
-await agent.run('Write a haiku about TypeScript');
-await agent.run('Make it funnier');
+// Use generate() for simple request/response
+const response = await agent.generate('What is TypeScript?', {
+  sessionId: session.id
+});
+console.log(response.content);
+
+// Conversations maintain context within a session
+await agent.generate('Write a haiku about it', { sessionId: session.id });
+await agent.generate('Make it funnier', { sessionId: session.id });
 
 await agent.stop();
 ```
 
-See our [TypeScript SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
+See our [Dexto Agent SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
 
 ---
 
@@ -376,7 +381,7 @@ await agent.start();
 
 // Create and manage sessions
 const session = await agent.createSession('user-123');
-await agent.run('Hello, how can you help me?', undefined, 'user-123');
+await agent.generate('Hello, how can you help me?', { sessionId: session.id });
 
 // List and manage sessions
 const sessions = await agent.listSessions();

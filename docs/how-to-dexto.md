@@ -198,16 +198,21 @@ const config = await loadAgentConfig();
 const agent = new DextoAgent(config);
 await agent.start(); // Initializes services like MCP servers
 
-// Run a single task
-const response = await agent.run('List the 3 largest files in the current directory.');
-console.log(response);
+// Create a session for the conversation
+const session = await agent.createSession();
 
-// Hold a conversation (state is maintained automatically)
-await agent.run('Write a function that adds two numbers.');
-await agent.run('Now add type annotations to it.');
+// Run a single task
+const response = await agent.generate('List the 3 largest files in the current directory.', {
+  sessionId: session.id
+});
+console.log(response.content);
+
+// Hold a conversation (state is maintained within the session)
+await agent.generate('Write a function that adds two numbers.', { sessionId: session.id });
+await agent.generate('Now add type annotations to it.', { sessionId: session.id });
 
 // Reset the conversation history
-await agent.resetConversation();
+await agent.resetConversation(session.id);
 
 // Stop the agent and disconnect services
 await agent.stop();

@@ -1,6 +1,6 @@
 # @dexto/core
 
-TypeScript SDK for building agentic applications programmatically. This package powers the Dexto CLI and lets you embed the same agent runtime in your own apps.
+The Dexto Agent SDK for building agentic applications programmatically. This package powers the Dexto CLI and lets you embed the same agent runtime in your own apps.
 
 ## Installation
 
@@ -49,19 +49,24 @@ const agent = new DextoAgent({
 });
 await agent.start();
 
-// Run tasks
-const response = await agent.run('List the 5 largest files in this repo');
-console.log(response);
+// Create a session for the conversation
+const session = await agent.createSession();
 
-// Hold conversations
-await agent.run('Write a haiku about TypeScript');
-await agent.run('Make it funnier');
+// Use generate() for simple request/response
+const response = await agent.generate('What is TypeScript?', {
+  sessionId: session.id
+});
+console.log(response.content);
+
+// Conversations maintain context within a session
+await agent.generate('Write a haiku about it', { sessionId: session.id });
+await agent.generate('Make it funnier', { sessionId: session.id });
 
 await agent.stop();
 ```
 
-See the TypeScript SDK docs for full examples with MCP tools, sessions, and advanced features:
-https://docs.dexto.ai/api/category/typescript-sdk/
+See the Dexto Agent SDK docs for full examples with MCP tools, sessions, and advanced features:
+https://docs.dexto.ai/api/category/dexto-sdk/
 
 ---
 
@@ -75,7 +80,7 @@ await agent.start();
 
 // Create and manage sessions
 const session = await agent.createSession('user-123');
-await agent.run('Hello, how can you help me?', undefined, 'user-123');
+await agent.generate('Hello, how can you help me?', { sessionId: session.id });
 
 // List and manage sessions
 const sessions = await agent.listSessions();
@@ -141,15 +146,18 @@ Delegate tasks to other A2A-compliant agents using the built-in `delegate_to_url
 ```typescript
 const agent = new DextoAgent({
   llm: { /* ... */ },
-  internalTools: ['delegate_to_url'] // Enable delegation tool
+  internalTools: ['delegate_to_url'], // Enable delegation tool
+  toolConfirmation: { mode: 'auto-approve' }
 });
 await agent.start();
 
+const session = await agent.createSession();
+
 // Delegate via natural language
-await agent.run(`
+await agent.generate(`
   Please delegate this task to the PDF analyzer agent at http://localhost:3001:
   "Extract all tables from the Q4 sales report"
-`);
+`, { sessionId: session.id });
 
 // Or call the tool directly
 const tools = await agent.getAllTools();

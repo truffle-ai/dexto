@@ -80,7 +80,7 @@ export const ElicitationConfigSchema = z
     .object({
         enabled: z
             .boolean()
-            .default(true)
+            .default(false)
             .describe(
                 'Enable elicitation support (ask_user tool and MCP server elicitations). When disabled, elicitation requests will be rejected.'
             ),

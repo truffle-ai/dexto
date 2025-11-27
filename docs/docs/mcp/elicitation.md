@@ -23,9 +23,15 @@ This enables dynamic, context-aware data collection without requiring all parame
 
 ## Configuration
 
-Elicitation is automatically enabled when you connect MCP servers:
+Elicitation must be explicitly enabled in your agent configuration. It is disabled by default:
 
 ```yaml
+# Enable elicitation support
+elicitation:
+  enabled: true  # Default: false
+  timeout: 120000  # Optional: timeout in milliseconds (default: 120000)
+
+# Connect MCP servers that support elicitation
 mcpServers:
   my-server:
     type: stdio
@@ -33,7 +39,7 @@ mcpServers:
     args: ["-y", "my-mcp-server"]
 ```
 
-No additional setup required - servers that support elicitation can use it immediately.
+**Important:** Without `elicitation.enabled: true`, servers cannot request user input and elicitation requests will be rejected.
 
 ## Elicitation Schema
 

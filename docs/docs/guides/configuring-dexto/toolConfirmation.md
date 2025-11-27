@@ -21,6 +21,10 @@ The tool confirmation system provides security and oversight by controlling whic
 - **Storage type** - Where to remember approvals (persistent vs session-only)
 - **Tool policies** - Fine-grained allow/deny lists
 
+:::note Elicitation vs Tool Confirmation
+**Tool confirmation** controls whether tools require approval before execution. **Elicitation** is a separate feature that controls whether MCP servers can request user input during interactions. These are independent settings - see [Elicitation Configuration](./agent-yml.md#elicitation-configuration) for details.
+:::
+
 ## Confirmation Modes
 
 | Mode | Behavior | Use Case |

@@ -1,0 +1,10 @@
+{
+  "label": "Example Agents",
+  "position": 2,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Example Agents",
+    "description": "Step-by-step tutorials for building agents with YAML configuration and the CLI."
+  }
+}

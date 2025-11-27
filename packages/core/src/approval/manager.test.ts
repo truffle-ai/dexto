@@ -353,7 +353,7 @@ describe('ApprovalManager', () => {
             });
         });
 
-        it('should respect elicitation enabled:true as default', () => {
+        it('should respect explicitly set elicitation enabled value', () => {
             const manager = new ApprovalManager(
                 {
                     toolConfirmation: {
