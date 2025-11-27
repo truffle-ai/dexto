@@ -925,3 +925,110 @@ packages/core/src/
 2. **Mid-step overflow**: Not handled - rely on tool truncation at source
 3. **Overflow detection**: After step completes using actual token counts from API response
 4. **Compression trigger**: Reactive (on overflow) using actual tokens, not estimates
+
+---
+
+## Implementation Summary
+
+### New Components to Build
+
+| # | Component | File | Description |
+|---|-----------|------|-------------|
+| 1 | **TurnExecutor** | `llm/executor/turn-executor.ts` | Main agent loop using `stopWhen: stepCountIs(1)` |
+| 2 | **StreamProcessor** | `llm/executor/stream-processor.ts` | Real-time persistence via stream event interception |
+| 3 | **ToolOutputTruncator** | `llm/executor/tool-output-truncator.ts` | Truncate tool outputs at source to prevent overflow |
+| 4 | **ReactiveOverflowStrategy** | `context/compression/reactive-overflow.ts` | Default compression: LLM summary on overflow |
+| 5 | **OverflowDetector** | `context/compression/overflow.ts` | Check if actual tokens exceed context limit |
+| 6 | **Pruner** | `context/compression/pruning.ts` | Mark old tool outputs with `compactedAt` |
+| 7 | **MessageQueueService** | `session/message-queue.ts` | True queue with coalescing for mid-loop injection |
+| 8 | **defer()** | `util/defer.ts` | TC39 cleanup pattern for automatic resource cleanup |
+
+### Features by Category
+
+#### 🔄 Agent Loop Control
+| Feature | Description | Inspired By |
+|---------|-------------|-------------|
+| Single-step execution | `stopWhen: stepCountIs(1)` - control after each LLM call | OpenCode |
+| Stream event interception | Persist messages in real-time during stream | OpenCode |
+| Correct message ordering | Assistant message → tool results (fixed) | OpenCode |
+| Automatic cleanup | `defer()` pattern for guaranteed cleanup | OpenCode (TC39) |
+
+#### 📦 Context Management
+| Feature | Description | Inspired By |
+|---------|-------------|-------------|
+| Tool output truncation | Bash: 30K chars, Read: 2K lines - prevent overflow | OpenCode |
+| Reactive overflow detection | Compress AFTER overflow using actual tokens | OpenCode |
+| Mark-don't-delete pruning | `compactedAt` timestamp, placeholder text | OpenCode |
+| Two-tier token counting | Actual (API) for overflow, estimate (length/4) for pruning | OpenCode |
+
+#### 🗜️ Compression System
+| Feature | Description | Inspired By |
+|---------|-------------|-------------|
+| Pluggable strategies | `ICompressionStrategyV2` interface | Dexto (existing) |
+| Configurable triggers | `overflow`, `threshold`, `manual` | New |
+| Compression validation | `validate(before, after)` - ensure tokens reduced | Gemini-CLI |
+| LLM-based summarization | Generate summary of old messages | OpenCode |
+
+#### 📬 Message Queue
+| Feature | Description | Inspired By |
+|---------|-------------|-------------|
+| Mid-loop injection | User messages added between steps | Claude Code |
+| Queue coalescing | Multiple messages → single combined injection | New |
+| Immediate API response | `{ queued: true, position: N }` | New |
+
+#### ⚙️ Configuration (agent YAML)
+```yaml
+context:
+  compression:
+    strategy: reactive-overflow  # or 'middle-removal', 'proactive-threshold'
+    options:
+      preserveLastNTurns: 2
+      pruneProtectTokens: 40000
+
+tools:
+  bash:
+    maxOutputChars: 30000
+  read:
+    maxLines: 2000
+    maxLineLength: 2000
+```
+
+### Code to Delete
+
+| Path | Reason |
+|------|--------|
+| `packages/core/src/context/compression/` | Rebuild from scratch |
+| Compression code in `ContextManager` | Replace with new system |
+| `prepareStep` compression logic in `vercel.ts` | Move to TurnExecutor |
+
+### Event Bus Events (New/Updated)
+
+| Event | Payload | When |
+|-------|---------|------|
+| `message:queued` | `{ id, position }` | User message added to queue |
+| `message:dequeued` | `{ count, ids, coalesced }` | Messages injected into context |
+| `context:compressed` | `{ strategy, beforeTokens, afterTokens }` | After compression completes |
+| `context:pruned` | `{ count, tokensSaved }` | After tool outputs pruned |
+
+### API Endpoints (New)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/message/queue` | POST | Add message to queue while agent is busy |
+| `/api/message/queue` | GET | Get current queue status |
+| `/api/message/queue` | DELETE | Clear queue |
+
+### Migration Checklist
+
+- [ ] Delete old compression module
+- [ ] Implement TurnExecutor with `stopWhen: stepCountIs(1)`
+- [ ] Implement StreamProcessor for real-time persistence
+- [ ] Add tool output truncation
+- [ ] Implement ReactiveOverflowStrategy (default)
+- [ ] Add `compactedAt` field and pruning logic
+- [ ] Implement MessageQueueService with coalescing
+- [ ] Add `defer()` utility
+- [ ] Update `vercel.ts` to use new TurnExecutor
+- [ ] Add new API endpoints
+- [ ] Update agent YAML schema for compression config
+- [ ] Write tests for all new components
