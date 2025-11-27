@@ -1,8 +1,9 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { logger, DextoAgent, AgentError } from '@dexto/core';
+import { logger, DextoAgent, DextoValidationError, zodToIssues } from '@dexto/core';
 import { loadAgentConfig, enrichAgentConfig } from './config/index.js';
-import { z } from 'zod';
+import { RegistryError } from './registry/errors.js';
+import { z, ZodError } from 'zod';
 
 /**
  * Agent metadata - describes an agent in the registry
@@ -110,12 +111,17 @@ export class AgentManager {
             return this.registry;
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                throw AgentError.apiValidationError(
-                    `Registry file not found: ${this.registryPath}`
+                throw RegistryError.registryNotFound(this.registryPath, 'File does not exist');
+            }
+            if (error instanceof ZodError) {
+                throw RegistryError.registryParseError(
+                    this.registryPath,
+                    `Invalid registry schema: ${error.errors.map((e) => e.message).join(', ')}`
                 );
             }
-            throw AgentError.apiValidationError(
-                `Failed to load registry: ${error instanceof Error ? error.message : String(error)}`
+            throw RegistryError.registryParseError(
+                this.registryPath,
+                error instanceof Error ? error.message : String(error)
             );
         }
     }
@@ -138,7 +144,8 @@ export class AgentManager {
      */
     listAgents(): AgentMetadata[] {
         if (!this.registry) {
-            throw AgentError.apiValidationError(
+            throw RegistryError.registryNotFound(
+                this.registryPath,
                 'Registry not loaded. Call loadRegistry() first or use async methods.'
             );
         }
@@ -158,7 +165,8 @@ export class AgentManager {
      * @param id Agent ID from registry
      * @returns Promise resolving to DextoAgent instance (not started)
      *
-     * @throws {AgentError} If agent not found or config loading fails
+     * @throws {DextoRuntimeError} If agent not found or config loading fails
+     * @throws {DextoValidationError} If agent config validation fails
      *
      * @example
      * ```typescript
@@ -178,9 +186,7 @@ export class AgentManager {
         const entry = registry.agents.find((a) => a.id === id);
         if (!entry) {
             const available = registry.agents.map((a) => a.id);
-            throw AgentError.apiValidationError(
-                `Agent '${id}' not found in registry. Available agents: ${available.join(', ')}`
-            );
+            throw RegistryError.agentNotFound(id, available);
         }
 
         // Resolve config path relative to registry location
@@ -195,8 +201,19 @@ export class AgentManager {
             logger.info(`Creating agent: ${id} from ${configPath}`);
             return new DextoAgent(enrichedConfig, configPath);
         } catch (error) {
-            throw AgentError.apiValidationError(
-                `Failed to create agent '${id}': ${error instanceof Error ? error.message : String(error)}`
+            // Convert ZodError to DextoValidationError for better error messages
+            if (error instanceof ZodError) {
+                const issues = zodToIssues(error, 'error');
+                throw new DextoValidationError(issues);
+            }
+            // Re-throw DextoRuntimeError and DextoValidationError as-is
+            if (error instanceof Error && error.name.startsWith('Dexto')) {
+                throw error;
+            }
+            // Wrap other errors
+            throw RegistryError.installationFailed(
+                id,
+                error instanceof Error ? error.message : String(error)
             );
         }
     }
@@ -219,7 +236,8 @@ export class AgentManager {
      */
     hasAgent(id: string): boolean {
         if (!this.registry) {
-            throw AgentError.apiValidationError(
+            throw RegistryError.registryNotFound(
+                this.registryPath,
                 'Registry not loaded. Call loadRegistry() first or use async methods.'
             );
         }

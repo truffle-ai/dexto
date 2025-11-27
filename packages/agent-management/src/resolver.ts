@@ -11,6 +11,7 @@ import {
 import { logger } from '@dexto/core';
 import { loadGlobalPreferences, globalPreferencesExist } from './preferences/loader.js';
 import { ConfigError } from './config/index.js';
+import { RegistryError } from './registry/errors.js';
 import { AgentManager } from './AgentManager.js';
 import { installBundledAgent } from './installation.js';
 
@@ -81,14 +82,14 @@ async function resolveAgentByName(
             logger.info(`Auto-installing agent '${agentId}' from bundled registry`);
             const configPath = await installBundledAgent(agentId, { injectPreferences });
             return configPath;
-        } catch (error) {
-            throw new Error(
-                `Agent '${agentId}' not found in installed or bundled registries: ${error instanceof Error ? error.message : String(error)}`
-            );
+        } catch (_error) {
+            // installBundledAgent throws RegistryError.agentNotFound if not in bundled registry
+            // Re-throw with context that we checked both registries
+            throw RegistryError.agentNotFound(agentId, []);
         }
     }
 
-    throw new Error(`Agent '${agentId}' not installed. Run: dexto agents install ${agentId}`);
+    throw RegistryError.agentNotInstalledAutoInstallDisabled(agentId, []);
 }
 
 /**
@@ -105,7 +106,8 @@ async function getAgentConfigPath(agentId: string): Promise<string> {
     const agentEntry = registry.agents.find((a: any) => a.id === agentId);
 
     if (!agentEntry) {
-        throw new Error(`Agent '${agentId}' not found in registry`);
+        const available = registry.agents.map((a: any) => a.id);
+        throw RegistryError.agentNotFound(agentId, available);
     }
 
     return path.resolve(path.dirname(installedRegistryPath), agentEntry.configPath);
@@ -300,7 +302,5 @@ export async function updateDefaultAgentPreference(agentName: string): Promise<v
     }
 
     // Agent not found in either registry
-    throw new Error(
-        `Agent '${agentName}' not found in installed or bundled registries. Install it first or check the agent ID.`
-    );
+    throw RegistryError.agentNotFound(agentName, []);
 }

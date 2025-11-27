@@ -4,6 +4,8 @@ import { logger } from '@dexto/core';
 import { getDextoGlobalPath, resolveBundledScript, copyDirectory } from './utils/path.js';
 import { loadGlobalPreferences } from './preferences/loader.js';
 import { writePreferencesToAgent } from './writer.js';
+import { RegistryError } from './registry/errors.js';
+import { ConfigError } from './config/errors.js';
 import type { AgentMetadata } from './AgentManager.js';
 
 export interface InstallOptions {
@@ -57,7 +59,7 @@ async function saveUserRegistry(registryPath: string, registry: { agents: any[] 
  * @param options Installation options
  * @returns Path to the installed agent's main config file
  *
- * @throws {Error} If agent not found in bundled registry or installation fails
+ * @throws {DextoRuntimeError} If agent not found in bundled registry or installation fails
  *
  * @example
  * ```typescript
@@ -80,8 +82,9 @@ export async function installBundledAgent(
         const content = await fs.readFile(bundledRegistryPath, 'utf-8');
         bundledRegistry = JSON.parse(content);
     } catch (error) {
-        throw new Error(
-            `Failed to load bundled registry: ${error instanceof Error ? error.message : String(error)}`
+        throw RegistryError.registryParseError(
+            bundledRegistryPath,
+            error instanceof Error ? error.message : String(error)
         );
     }
 
@@ -89,9 +92,7 @@ export async function installBundledAgent(
 
     if (!agentEntry) {
         const available = Object.keys(bundledRegistry.agents);
-        throw new Error(
-            `Agent '${agentId}' not found in bundled registry. Available: ${available.join(', ')}`
-        );
+        throw RegistryError.agentNotFound(agentId, available);
     }
 
     const targetDir = path.join(agentsDir, agentId);
@@ -170,8 +171,9 @@ export async function installBundledAgent(
             // Ignore cleanup errors
         }
 
-        throw new Error(
-            `Installation failed for '${agentId}': ${error instanceof Error ? error.message : String(error)}`
+        throw RegistryError.installationFailed(
+            agentId,
+            error instanceof Error ? error.message : String(error)
         );
     }
 }
@@ -185,7 +187,7 @@ export async function installBundledAgent(
  * @param options Installation options
  * @returns Path to the installed agent's main config file
  *
- * @throws {Error} If agent ID already exists or installation fails
+ * @throws {DextoRuntimeError} If agent ID already exists or installation fails
  *
  * @example
  * ```typescript
@@ -215,17 +217,15 @@ export async function installCustomAgent(
         const bundledRegistry = JSON.parse(bundledContent);
 
         if (agentId in bundledRegistry.agents) {
-            throw new Error(
-                `Custom agent name '${agentId}' conflicts with builtin agent. Choose a different ID.`
-            );
+            throw RegistryError.customAgentNameConflict(agentId);
         }
     } catch (error) {
-        // If it's our conflict error, rethrow it
+        // If it's a RegistryError (our conflict error), rethrow it
         if (error instanceof Error && error.message.includes('conflicts with builtin')) {
             throw error;
         }
         // Otherwise, bundled registry might not exist (testing scenario), continue
-        logger.warn(
+        logger.debug(
             `Could not validate against bundled registry: ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -233,7 +233,7 @@ export async function installCustomAgent(
     // Check if already exists
     try {
         await fs.access(targetDir);
-        throw new Error(`Agent '${agentId}' already exists`);
+        throw RegistryError.agentAlreadyExists(agentId);
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
             throw error;
@@ -247,7 +247,7 @@ export async function installCustomAgent(
     try {
         stat = await fs.stat(resolvedSource);
     } catch (_error) {
-        throw new Error(`Source path not found: ${resolvedSource}`);
+        throw ConfigError.fileNotFound(resolvedSource);
     }
 
     // Ensure agents directory exists
@@ -290,8 +290,9 @@ export async function installCustomAgent(
             // Ignore cleanup errors
         }
 
-        throw new Error(
-            `Failed to install custom agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
+        throw RegistryError.installationFailed(
+            agentId,
+            error instanceof Error ? error.message : String(error)
         );
     }
 }
@@ -302,7 +303,7 @@ export async function installCustomAgent(
  * @param agentId ID of the agent to uninstall
  * @param options Installation options
  *
- * @throws {Error} If agent not found or uninstallation fails
+ * @throws {DextoRuntimeError} If agent not installed
  *
  * @example
  * ```typescript
@@ -320,7 +321,7 @@ export async function uninstallAgent(agentId: string, options?: InstallOptions):
     try {
         await fs.access(targetDir);
     } catch (_error) {
-        throw new Error(`Agent '${agentId}' is not installed`);
+        throw RegistryError.agentNotInstalled(agentId);
     }
 
     // Remove from disk
