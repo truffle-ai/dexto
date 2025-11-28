@@ -15,7 +15,7 @@ vi.mock('@dexto/agent-management', async (importOriginal) => {
     const actual = await importOriginal<any>();
     return {
         ...actual,
-        resolveBundledScript: vi.fn(),
+        loadBundledRegistryAgents: vi.fn(),
     };
 });
 
@@ -30,7 +30,6 @@ vi.mock('../../utils/agent-helpers.js', () => ({
 vi.mock('fs', () => ({
     existsSync: vi.fn(),
     statSync: vi.fn(),
-    readFileSync: vi.fn(),
 }));
 
 // Mock @clack/prompts
@@ -54,35 +53,36 @@ import {
     installCustomAgent,
     listInstalledAgents,
 } from '../../utils/agent-helpers.js';
-import { resolveBundledScript } from '@dexto/agent-management';
+import { loadBundledRegistryAgents } from '@dexto/agent-management';
 
 describe('Install Command', () => {
     let consoleSpy: any;
     const mockBundledRegistry = {
         'test-agent': {
+            id: 'test-agent',
             name: 'Test Agent',
             description: 'Test agent',
             author: 'Test',
             tags: ['test'],
             source: 'test.yml',
+            type: 'builtin' as const,
         },
         'other-agent': {
+            id: 'other-agent',
             name: 'Other Agent',
             description: 'Other agent',
             author: 'Test',
             tags: ['test'],
             source: 'other.yml',
+            type: 'builtin' as const,
         },
     };
 
     beforeEach(() => {
         vi.clearAllMocks();
 
-        // Mock resolveBundledScript to return a fake path
-        vi.mocked(resolveBundledScript).mockReturnValue('/mock/bundled/agents/agent-registry.json');
-
-        // Mock fs.readFileSync to return bundled registry
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ agents: mockBundledRegistry }));
+        // Mock loadBundledRegistryAgents to return the mock registry directly
+        vi.mocked(loadBundledRegistryAgents).mockReturnValue(mockBundledRegistry);
 
         // Mock agent helper functions
         vi.mocked(installBundledAgent).mockResolvedValue('/mock/path/agent.yml');
