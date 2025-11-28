@@ -168,14 +168,10 @@ export class YourProviderService implements ILLMService {
                 iterationCount++;
                 logger.debug(`LLM Iteration ${iterationCount}`);
 
-                // Get formatted messages from ContextManager (handles history, compression, formatting)
-                const messages = await this.contextManager.getFormattedMessages({ 
+                // Get formatted messages from ContextManager (handles history, filtering, formatting)
+                const messages = await this.contextManager.getFormattedMessages({
                     mcpManager: this.mcpManager // May be needed for certain formatters
-                }); 
-                
-                // Estimate and log token count (optional but useful)
-                const currentTokens = this.contextManager.getTokenCount();
-                logger.debug(`Estimated tokens being sent: ${currentTokens}`);
+                });
 
                 logger.silly("Messages sent to provider:", messages);
                 logger.silly("Formatted tools:", formattedTools);

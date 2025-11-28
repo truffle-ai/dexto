@@ -58,13 +58,16 @@
 - [x] Defensive `extractImageData`/`extractFileData` for raw results
 - [ ] Test tool execution still works (deferred to Phase 8 integration)
 
-### Phase 4: Reactive Compression 🔲
+### Phase 4: Reactive Compression ✅
 
-- [ ] Implement `ReactiveOverflowStrategy` in `context/compression/reactive-overflow.ts`
-- [ ] Add `isOverflow()` check using actual tokens from last step
-- [ ] Implement LLM-based summarization
-- [ ] Add `validate()` method for compression result validation
-- [ ] Test compression triggers at correct time
+- [x] Implement `ReactiveOverflowStrategy` in `context/compression/reactive-overflow.ts`
+- [x] Add `isOverflow()` in `context/compression/overflow.ts` using actual tokens
+- [x] Implement LLM-based summarization using `generateText`
+- [x] Add `validate()` method for compression result validation
+- [x] Add `filterCompacted()` in `context/utils.ts` for read-time filtering
+- [x] Wire `filterCompacted()` into `ContextManager.getFormattedMessagesWithCompression()`
+- [x] Add TODO comments for Phase 8 cleanup
+- [ ] Wire overflow check and compression into TurnExecutor (deferred - needs TurnExecutor integration)
 
 ### Phase 5: Pruning (compactedAt) 🔲
 
@@ -160,23 +163,45 @@ tools: {
 - `extractImageData()` - checks both `image` and `data` fields
 - `extractFileData()` - handles various buffer types
 
+### 8. Compression Persistence Model (Phase 4)
+**Issue**: Initial approach was to replace history with compressed version, requiring a new `replaceHistory()` method on `IConversationHistoryProvider`.
+
+**Resolution**: Adopt OpenCode-style additive approach instead:
+- **Add summary message** with `metadata.isSummary: true` (use existing `addMessage()`)
+- **Filter at read-time** via `filterCompacted()` in `getFormattedMessages()`
+- **No history replacement** - original messages preserved in storage
+- **Mark old tool outputs** with `compactedAt` timestamp (Phase 5: Pruning)
+
+**Benefits**:
+- No interface changes needed
+- Non-destructive (full audit trail preserved)
+- Recovery possible if needed
+- Consistent with battle-tested OpenCode approach
+
+**Key insight from OpenCode analysis**: They use `filterCompacted()` to logically truncate history at read-time, stopping at the most recent summary message. This means LLM never sees pre-compression history, but it remains in storage.
+
 ---
 
-## Files Changed (Phase 0-2)
+## Files Changed (Phase 0-4)
 
 ### New Files
-- `packages/core/src/llm/executor/stream-processor.ts`
-- `packages/core/src/llm/executor/tool-output-truncator.ts`
-- `packages/core/src/llm/executor/tool-output-truncator.test.ts`
-- `packages/core/src/llm/executor/types.ts`
+- `packages/core/src/llm/executor/stream-processor.ts` (Phase 2)
+- `packages/core/src/llm/executor/tool-output-truncator.ts` (Phase 1)
+- `packages/core/src/llm/executor/tool-output-truncator.test.ts` (Phase 1)
+- `packages/core/src/llm/executor/types.ts` (Phase 2)
+- `packages/core/src/llm/executor/turn-executor.ts` (Phase 3)
+- `packages/core/src/context/compression/overflow.ts` (Phase 4)
+- `packages/core/src/context/compression/reactive-overflow.ts` (Phase 4)
 - `packages/core/src/session/types.ts`
 
 ### Modified Files
 - `packages/core/src/agent/schemas.ts` - Added `tools` field
 - `packages/core/src/context/compression/types.ts` - New `ICompressionStrategy` interface
-- `packages/core/src/context/manager.ts` - New methods, stubbed compression
+- `packages/core/src/context/manager.ts` - Added `filterCompacted()` to history retrieval, TODO comments for Phase 8, removed dead code
 - `packages/core/src/context/types.ts` - Added `compactedAt`, `metadata`
+- `packages/core/src/context/utils.ts` - Added `filterCompacted()`, `formatToolOutputForDisplay()`
 - `packages/core/src/llm/types.ts` - Added `TokenUsage`
+- `packages/core/src/llm/services/README.md` - Removed outdated token counting example
 - `packages/core/src/logger/v2/types.ts` - Added `EXECUTOR` component
 - `packages/core/src/session/history/database.ts` - Added `updateMessage()`
 - `packages/core/src/session/history/memory.ts` - Added `updateMessage()`
@@ -188,10 +213,17 @@ tools: {
 - `packages/core/src/context/compression/middle-removal.ts`
 - `packages/core/src/context/compression/oldest-removal.ts`
 
+### Dead Code Removed (Phase 4)
+- `ContextManager.getTotalTokenCount()` - never used
+- `ContextManager.getTokenCount()` - only in README example
+- `ContextManager.shouldCompress()` - never used
+- `ContextManager.compressHistoryIfNeeded()` - stubbed and no longer called
+
 ---
 
 ## Next Steps
 
-1. **Phase 3**: Implement `TurnExecutor` with `stopWhen: stepCountIs(1)` loop
-2. Wire up `StreamProcessor` inside `TurnExecutor`
-3. Add `toModelOutput` for multimodal tool results
+1. **Phase 5**: Implement `pruneOldToolOutputs()` for marking old tool outputs with `compactedAt`
+2. **Phase 6**: MessageQueue with multimodal coalescing
+3. **Phase 7**: defer() cleanup pattern
+4. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, delete legacy compression code

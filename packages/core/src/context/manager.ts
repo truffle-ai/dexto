@@ -14,6 +14,7 @@ import {
     sanitizeToolResult,
     expandBlobReferences,
     isLikelyBase64String,
+    filterCompacted,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -70,6 +71,8 @@ export class ContextManager<TMessage = unknown> {
      * Actual token count from the last LLM response.
      * Used for more accurate token estimation in hybrid approach.
      * This is the REAL token count from the API - far more accurate than our estimates.
+     *
+     * TODO Phase 8: Delete - TurnExecutor tracks tokens via TokenUsage from API response
      */
     private lastActualTokenCount: number = 0;
 
@@ -77,17 +80,23 @@ export class ContextManager<TMessage = unknown> {
      * Message count that corresponds to lastActualTokenCount.
      * Used to identify which messages are "new" since we got the actual count.
      * In tool loops: actualTokens came from step N, new messages are for step N+1.
+     *
+     * TODO Phase 8: Delete - TurnExecutor tracks tokens via TokenUsage from API response
      */
     private lastActualTokenMessageCount: number = 0;
 
     /**
      * Compression threshold as a percentage of maxInputTokens.
      * When estimated tokens exceed (maxInputTokens * threshold), compression is triggered.
+     *
+     * TODO Phase 8: Delete - TurnExecutor uses actual API tokens for overflow detection
      */
     private compressionThreshold: number = 0.8; // 80% threshold
 
     /**
      * Tokenizer used for counting tokens and enabling compression (if specified)
+     *
+     * TODO Phase 8: Review if still needed - may be useful for token estimation display only
      */
     private tokenizer: ITokenizer;
 
@@ -95,6 +104,8 @@ export class ContextManager<TMessage = unknown> {
      * The sequence of compression strategies to apply when maxInputTokens is exceeded.
      * The order in this array matters, as strategies are applied sequentially until
      * the token count is within the limit.
+     *
+     * TODO Phase 8: Delete - TurnExecutor uses reactive compression strategies directly
      */
     private compressionStrategies: ICompressionStrategy[];
 
@@ -247,66 +258,6 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Returns the current token count of the conversation history.
-     * @returns Promise that resolves to the number of tokens in the current history
-     */
-    async getTokenCount(): Promise<number> {
-        const history = await this.historyProvider.getHistory();
-        return countMessagesTokens(history, this.tokenizer, undefined, this.logger);
-    }
-
-    /**
-     * Returns the total token count that will be sent to the LLM provider,
-     * including system prompt, formatted messages, and provider-specific overhead.
-     * This provides a more accurate estimate than getTokenCount() alone.
-     *
-     * @param context The DynamicContributorContext for system prompt contributors
-     * @returns Promise that resolves to the total number of tokens that will be sent to the provider
-     */
-    async getTotalTokenCount(context: DynamicContributorContext): Promise<number> {
-        try {
-            // Get system prompt
-            const systemPrompt = await this.getSystemPrompt(context);
-
-            // Get conversation history
-            let history = await this.historyProvider.getHistory();
-
-            // Count system prompt tokens
-            const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
-
-            // Compress history if it exceeds the token limit
-            history = await this.compressHistoryIfNeeded(history, systemPromptTokens);
-
-            // Count history message tokens (after compression)
-            const historyTokens = countMessagesTokens(
-                history,
-                this.tokenizer,
-                undefined,
-                this.logger
-            );
-
-            // Add a small overhead for provider-specific formatting
-            // This accounts for any additional structure the formatter adds
-            const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05); // 5% overhead
-
-            const totalTokens = systemPromptTokens + historyTokens + formattingOverhead;
-
-            this.logger.debug(
-                `Token breakdown - System: ${systemPromptTokens}, History: ${historyTokens}, Overhead: ${formattingOverhead}, Total: ${totalTokens}`
-            );
-
-            return totalTokens;
-        } catch (error) {
-            this.logger.error(
-                `Error calculating total token count: ${error instanceof Error ? error.message : String(error)}`,
-                { error }
-            );
-            // Fallback to history-only count
-            return this.getTokenCount();
-        }
-    }
-
-    /**
      * Returns the configured maximum number of input tokens for the conversation.
      */
     getMaxInputTokens(): number {
@@ -346,29 +297,13 @@ export class ContextManager<TMessage = unknown> {
      * Updates the actual token count from the last LLM response.
      * This enables hybrid token counting for more accurate estimates.
      *
+     * TODO Phase 8: Delete - TurnExecutor tracks tokens via TokenUsage from API response
+     *
      * @param actualTokens The actual token count reported by the LLM provider
      */
     updateActualTokenCount(actualTokens: number): void {
         this.lastActualTokenCount = actualTokens;
         this.logger.debug(`Updated actual token count to: ${actualTokens}`);
-    }
-
-    /**
-     * Estimates if new input would trigger compression using hybrid approach.
-     * Combines actual tokens from last response with estimated tokens for new input.
-     *
-     * @param newInputTokens Estimated tokens for the new user input
-     * @returns True if compression should be triggered
-     */
-    shouldCompress(newInputTokens: number): boolean {
-        const estimatedTotal = this.lastActualTokenCount + newInputTokens;
-        const compressionTrigger = this.maxInputTokens * this.compressionThreshold;
-
-        this.logger.debug(
-            `Compression check: actual=${this.lastActualTokenCount}, newInput=${newInputTokens}, total=${estimatedTotal}, trigger=${compressionTrigger}`
-        );
-
-        return estimatedTotal > compressionTrigger;
     }
 
     /**
@@ -812,7 +747,7 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Gets the conversation ready for LLM consumption with proper flow:
      * 1. Get system prompt
-     * 2. Get history and compress if needed
+     * 2. Get history and filter (exclude pre-summary messages)
      * 3. Format messages
      * This method implements the correct ordering to avoid circular dependencies.
      *
@@ -832,11 +767,18 @@ export class ContextManager<TMessage = unknown> {
         const systemPrompt = await this.getSystemPrompt(contributorContext);
         const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
 
-        // Step 2: Get history and compress if needed
-        let history = await this.historyProvider.getHistory();
-        history = await this.compressHistoryIfNeeded(history, systemPromptTokens);
+        // Step 2: Get history and filter (OpenCode-style: exclude pre-summary messages)
+        const fullHistory = await this.historyProvider.getHistory();
+        const history = filterCompacted(fullHistory);
 
-        // Step 3: Format messages with compressed history
+        // Log if filtering occurred
+        if (history.length < fullHistory.length) {
+            this.logger.debug(
+                `filterCompacted: Reduced history from ${fullHistory.length} to ${history.length} messages (summary present)`
+            );
+        }
+
+        // Step 3: Format messages with filtered history
         const formattedMessages = await this.getFormattedMessages(
             contributorContext,
             llmContext,
@@ -844,7 +786,7 @@ export class ContextManager<TMessage = unknown> {
             history
         ); // Type cast happens here via TMessage generic
 
-        // Calculate final token usage
+        // TODO Phase 8: Remove token estimation - TurnExecutor uses actual API tokens for overflow detection
         const historyTokens = countMessagesTokens(history, this.tokenizer, undefined, this.logger);
         const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05);
         const tokensUsed = systemPromptTokens + historyTokens + formattingOverhead;
@@ -887,22 +829,6 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Checks if history compression is needed based on token count and applies strategies.
-     *
-     * @param history The conversation history to potentially compress
-     * @param systemPromptTokens The actual token count of the system prompt
-     * @returns The potentially compressed history
-     */
-    async compressHistoryIfNeeded(
-        history: InternalMessage[],
-        systemPromptTokens: number
-    ): Promise<InternalMessage[]> {
-        // STUBBED: Compression is now handled by TurnExecutor via reactive strategies
-        // This method will be removed in a future cleanup
-        return history;
-    }
-
-    /**
      * Result of mid-loop compression including metadata for event emission
      */
     public static readonly NO_COMPRESSION = Symbol('NO_COMPRESSION');
@@ -910,6 +836,8 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Compresses provider-specific messages mid-loop during multi-step tool calling.
      * Used by Vercel SDK's prepareStep callback to prevent context overflow during tool loops.
+     *
+     * TODO Phase 8: Delete this method - TurnExecutor handles compression via reactive strategies
      *
      * Flow:
      * 1. Extract system prompt from messages (if present)
@@ -1075,6 +1003,8 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Synchronous version of compressHistoryIfNeeded for use in prepareStep callback.
      * Note: prepareStep in Vercel SDK is synchronous, so we can't use async compression strategies.
+     *
+     * TODO Phase 8: Delete this method - TurnExecutor handles compression via reactive strategies
      *
      * @param history The conversation history to compress
      * @param systemPromptTokens Token count of system prompt

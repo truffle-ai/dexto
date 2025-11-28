@@ -1858,3 +1858,61 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
     }
     return String(content ?? '');
 }
+
+/**
+ * Filter history to exclude messages before the most recent summary.
+ * This implements OpenCode-style read-time compression.
+ *
+ * When a summary message exists (with metadata.isSummary === true),
+ * this function returns only the summary message and everything after it.
+ * This effectively hides old messages from the LLM while preserving them in storage.
+ *
+ * @param history The full conversation history
+ * @returns Filtered history starting from the most recent summary (or full history if no summary)
+ */
+export function filterCompacted(history: InternalMessage[]): InternalMessage[] {
+    // Find the most recent summary message (search backwards for efficiency)
+    let summaryIndex = -1;
+    for (let i = history.length - 1; i >= 0; i--) {
+        const msg = history[i];
+        if (msg?.metadata?.isSummary === true) {
+            summaryIndex = i;
+            break;
+        }
+    }
+
+    // If no summary found, return full history
+    if (summaryIndex === -1) {
+        return history;
+    }
+
+    // Return summary + everything after it
+    return history.slice(summaryIndex);
+}
+
+/**
+ * Format tool output for display, respecting compactedAt marker.
+ * If a tool message has been compacted (pruned), return a placeholder.
+ *
+ * @param message The tool message to format
+ * @returns The content string or placeholder if compacted
+ */
+export function formatToolOutputForDisplay(message: InternalMessage): string {
+    if (message.compactedAt) {
+        return '[Old tool result content cleared]';
+    }
+
+    if (typeof message.content === 'string') {
+        return message.content;
+    }
+
+    if (Array.isArray(message.content)) {
+        // Extract text parts
+        return message.content
+            .filter((part): part is TextPart => part.type === 'text')
+            .map((part) => part.text)
+            .join('\n');
+    }
+
+    return '[no content]';
+}

@@ -645,7 +645,106 @@ tools:
     maxMatches: 1000
 ```
 
-#### 4. Pluggable Compression Strategy (Keep Dexto's Flexibility)
+#### 4. Compression Persistence Model (OpenCode-style)
+
+**Key Insight from OpenCode Analysis**: OpenCode does NOT replace/overwrite history. Instead, they use an additive approach with read-time filtering.
+
+**How it works:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                     COMPRESSION PERSISTENCE MODEL                                         │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  BEFORE COMPRESSION:                                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │ [user] msg 1                                                                     │   │
+│  │ [assistant] msg 2                                                                │   │
+│  │ [tool] msg 3 (large output)                                                      │   │
+│  │ [user] msg 4                                                                     │   │
+│  │ [assistant] msg 5                                                                │   │
+│  │ [tool] msg 6 (large output)                                                      │   │
+│  │ [user] msg 7  ← recent                                                           │   │
+│  │ [assistant] msg 8  ← recent                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+│  AFTER COMPRESSION (storage):                                                           │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │ [user] msg 1                                                                     │   │
+│  │ [assistant] msg 2                                                                │   │
+│  │ [tool] msg 3 (compactedAt: timestamp)  ← marked, not deleted                     │   │
+│  │ [user] msg 4                                                                     │   │
+│  │ [assistant] msg 5                                                                │   │
+│  │ [tool] msg 6 (compactedAt: timestamp)  ← marked, not deleted                     │   │
+│  │ [assistant] SUMMARY (metadata.isSummary: true, summarizedUpTo: msg6.id)  ← NEW   │   │
+│  │ [user] msg 7  ← preserved                                                        │   │
+│  │ [assistant] msg 8  ← preserved                                                   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+│  WHAT LLM SEES (after filterCompacted):                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │ [assistant] SUMMARY  ← starts here                                               │   │
+│  │ [user] msg 7                                                                     │   │
+│  │ [assistant] msg 8                                                                │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation approach:**
+
+1. **Add summary message** - Use existing `addMessage()` with `metadata.isSummary: true`
+2. **Mark old tool outputs** - Set `compactedAt` timestamp (already in schema)
+3. **Filter at read-time** - `filterCompacted()` in `getFormattedMessages()` stops at summary
+4. **No history replacement** - All original messages preserved in storage
+
+**Benefits:**
+- **Recovery**: Full history available if needed for debugging/audit
+- **Non-destructive**: No risk of data loss from failed compression
+- **Simpler implementation**: No `replaceHistory()` method needed
+- **Consistent with OpenCode**: Battle-tested approach
+
+**Filter function (add to context/utils.ts or manager.ts):**
+
+```typescript
+/**
+ * Filter history to exclude messages before the most recent summary.
+ * This implements OpenCode-style read-time compression.
+ */
+function filterCompacted(history: InternalMessage[]): InternalMessage[] {
+  // Find the most recent summary message
+  let summaryIndex = -1;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i]?.metadata?.isSummary === true) {
+      summaryIndex = i;
+      break;
+    }
+  }
+
+  // If no summary found, return full history
+  if (summaryIndex === -1) {
+    return history;
+  }
+
+  // Return summary + everything after it
+  return history.slice(summaryIndex);
+}
+```
+
+**Compacted tool output display:**
+
+```typescript
+function formatToolOutput(tool: InternalMessage): string {
+  if (tool.compactedAt) {
+    return '[Old tool result content cleared]';
+  }
+  return typeof tool.content === 'string' ? tool.content : JSON.stringify(tool.content);
+}
+```
+
+---
+
+#### 5. Pluggable Compression Strategy (Keep Dexto's Flexibility)
 
 **Interface** - maintains Dexto's existing `ICompressionStrategy` pattern:
 
@@ -691,39 +790,63 @@ export interface ICompressionStrategy {
 
 **Default Strategy: Reactive Overflow (OpenCode-style)**
 
+**Note**: The strategy returns the summary message to add. The caller (TurnExecutor)
+is responsible for:
+1. Adding the summary message via `contextManager.addMessage()`
+2. Optionally marking old tool outputs with `compactedAt` (Phase 5: Pruning)
+3. Read-time filtering happens automatically in `getFormattedMessages()`
+
 ```typescript
 export class ReactiveOverflowStrategy implements ICompressionStrategy {
   readonly name = 'reactive-overflow';
   readonly trigger: CompressionTrigger = { type: 'overflow' };
 
   constructor(
-    private readonly llmService: ILLMService,
+    private readonly model: LanguageModel,  // Vercel AI SDK model for summarization
     private readonly options: {
       preserveLastNTurns?: number;  // Default: 2
-      pruneProtectTokens?: number;  // Default: 40K
+      maxSummaryTokens?: number;    // Default: 2000
     } = {}
   ) {}
 
+  /**
+   * Generate a summary message for the old portion of history.
+   *
+   * IMPORTANT: This does NOT replace history. It returns a summary message
+   * that the caller should ADD to history. Read-time filtering (filterCompacted)
+   * will then exclude pre-summary messages when formatting for LLM.
+   *
+   * @returns Array with single summary message to add, or empty if nothing to summarize
+   */
   async compress(
     history: InternalMessage[],
     tokenizer: ITokenizer,
     maxTokens: number
   ): Promise<InternalMessage[]> {
-    // 1. Generate LLM summary of old messages
-    const oldMessages = this.getMessagesToSummarize(history);
-    const summary = await this.generateSummary(oldMessages);
+    // 1. Identify messages to summarize (everything except recent turns)
+    const { toSummarize, toKeep } = this.splitHistory(history);
 
-    // 2. Replace old messages with summary message
+    if (toSummarize.length === 0) {
+      return [];  // Nothing to compress
+    }
+
+    // 2. Generate LLM summary of old messages
+    const summary = await this.generateSummary(toSummarize);
+
+    // 3. Create summary message (will be ADDED to history, not replace)
     const summaryMessage: InternalMessage = {
       role: 'assistant',
-      content: summary,
-      metadata: { isSummary: true, summarizedAt: Date.now() }
+      content: `[Previous conversation summary]\n${summary}`,
+      metadata: {
+        isSummary: true,
+        summarizedAt: Date.now(),
+        summarizedMessageCount: toSummarize.length,
+      }
     };
 
-    // 3. Keep recent messages
-    const recentMessages = this.getRecentMessages(history);
-
-    return [summaryMessage, ...recentMessages];
+    // Return just the summary message - caller adds it to history
+    // filterCompacted() will handle excluding old messages at read-time
+    return [summaryMessage];
   }
 
   validate(beforeTokens: number, afterTokens: number): boolean {
@@ -731,9 +854,17 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
     return afterTokens < beforeTokens;
   }
 
+  private splitHistory(history: InternalMessage[]): {
+    toSummarize: InternalMessage[];
+    toKeep: InternalMessage[];
+  } {
+    // Keep last N turns (user + assistant pairs)
+    const turnsToKeep = this.options.preserveLastNTurns ?? 2;
+    // ... implementation finds turn boundaries
+  }
+
   private async generateSummary(messages: InternalMessage[]): Promise<string> {
-    // Use configured LLM to summarize
-    const prompt = `Summarize this conversation, focusing on:
+    const prompt = `Summarize this conversation concisely, focusing on:
 - What was accomplished
 - Current state and context
 - What needs to happen next
@@ -741,7 +872,13 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
 Conversation:
 ${this.formatMessages(messages)}`;
 
-    return this.llmService.complete(prompt, { maxTokens: 2000 });
+    const result = await generateText({
+      model: this.model,
+      prompt,
+      maxTokens: this.options.maxSummaryTokens ?? 2000,
+    });
+
+    return result.text;
   }
 }
 ```
@@ -809,26 +946,46 @@ async function checkAndCompress(): Promise<boolean> {
       return false;  // Only compress on explicit request
   }
 
-  // Trigger compression
-  const beforeTokens = await this.countTokens();
-  const compressed = await strategy.compress(
-    this.history,
+  // Get current history for compression
+  const history = await this.contextManager.getHistory();
+  const beforeTokens = countMessagesTokens(history, this.tokenizer);
+
+  // Generate summary message(s) - does NOT modify history
+  const summaryMessages = await strategy.compress(
+    history,
     this.tokenizer,
     this.modelLimits.contextWindow
   );
 
-  // Validate if strategy supports it
-  if (strategy.validate) {
-    const afterTokens = await this.countTokens(compressed);
-    if (!strategy.validate(beforeTokens, afterTokens)) {
-      this.logger.warn('Compression validation failed - tokens may have increased');
-      // Proceed anyway - LLM will attempt with current context
-      // API error handling in main loop catches overflow if it occurs
-      // Rationale: Hard failures hurt UX more than suboptimal compression
-    }
+  // If nothing to compress, skip
+  if (summaryMessages.length === 0) {
+    return false;
   }
 
-  this.history = compressed;
+  // ADD summary message(s) to history (OpenCode-style: additive, not replacement)
+  for (const msg of summaryMessages) {
+    await this.contextManager.addMessage(msg);
+  }
+
+  // Emit compression event
+  const afterHistory = filterCompacted(await this.contextManager.getHistory());
+  const afterTokens = countMessagesTokens(afterHistory, this.tokenizer);
+
+  this.eventBus.emit('context:compressed', {
+    originalTokens: beforeTokens,
+    compressedTokens: afterTokens,
+    originalMessages: history.length,
+    compressedMessages: afterHistory.length,
+    strategy: strategy.name,
+    reason: 'overflow',
+  });
+
+  // Validate if strategy supports it
+  if (strategy.validate && !strategy.validate(beforeTokens, afterTokens)) {
+    this.logger.warn('Compression validation failed - tokens may have increased');
+    // Proceed anyway - filterCompacted will still exclude old messages
+  }
+
   return true;
 }
 ```
