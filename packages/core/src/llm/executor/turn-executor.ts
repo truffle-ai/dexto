@@ -172,6 +172,10 @@ export class TurnExecutor {
                         ...(this.config.temperature !== undefined && {
                             temperature: this.config.temperature,
                         }),
+                        // Log stream-level errors (tool errors, API errors during streaming)
+                        onError: (error) => {
+                            this.logger.error('Stream error', { error });
+                        },
                     })
                 );
 

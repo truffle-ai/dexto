@@ -183,6 +183,35 @@ export class StreamProcessor {
                         });
                         break;
 
+                    case 'tool-error':
+                        // Tool execution failed - emit error event with tool context
+                        this.logger.error('Tool execution failed', {
+                            toolName: event.toolName,
+                            toolCallId: event.toolCallId,
+                            error: event.error,
+                        });
+
+                        this.eventBus.emit('llm:tool-result', {
+                            toolName: event.toolName,
+                            callId: event.toolCallId,
+                            success: false,
+                            error:
+                                event.error instanceof Error
+                                    ? event.error.message
+                                    : String(event.error),
+                        });
+
+                        this.eventBus.emit('llm:error', {
+                            error:
+                                event.error instanceof Error
+                                    ? event.error
+                                    : new Error(String(event.error)),
+                            context: `Tool execution failed: ${event.toolName}`,
+                            toolCallId: event.toolCallId,
+                            recoverable: true, // Tool errors are typically recoverable
+                        });
+                        break;
+
                     case 'error':
                         this.eventBus.emit('llm:error', {
                             error:
@@ -195,6 +224,14 @@ export class StreamProcessor {
             }
         } catch (error) {
             this.logger.error('Stream processing failed', { error });
+
+            // Emit error event so UI knows about the failure
+            this.eventBus.emit('llm:error', {
+                error: error instanceof Error ? error : new Error(String(error)),
+                context: 'StreamProcessor',
+                recoverable: false,
+            });
+
             throw error;
         }
 

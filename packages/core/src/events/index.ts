@@ -312,8 +312,11 @@ export interface AgentEventMap {
         toolName: string;
         callId?: string;
         success: boolean;
-        sanitized: SanitizedToolResult;
+        /** Sanitized result - present when success=true */
+        sanitized?: SanitizedToolResult;
         rawResult?: unknown;
+        /** Error message - present when success=false */
+        error?: string;
         sessionId: string;
     };
 
@@ -322,6 +325,8 @@ export interface AgentEventMap {
         error: Error;
         context?: string;
         recoverable?: boolean;
+        /** Tool call ID if error occurred during tool execution */
+        toolCallId?: string;
         sessionId: string;
     };
 
@@ -454,8 +459,11 @@ export interface SessionEventMap {
         toolName: string;
         callId?: string;
         success: boolean;
-        sanitized: SanitizedToolResult;
+        /** Sanitized result - present when success=true */
+        sanitized?: SanitizedToolResult;
         rawResult?: unknown;
+        /** Error message - present when success=false */
+        error?: string;
     };
 
     /** LLM service error */
@@ -463,6 +471,8 @@ export interface SessionEventMap {
         error: Error;
         context?: string;
         recoverable?: boolean;
+        /** Tool call ID if error occurred during tool execution */
+        toolCallId?: string;
     };
 
     /** LLM service switched */
