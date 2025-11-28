@@ -5,12 +5,10 @@ import {
     loadAgentConfig,
     enrichAgentConfig,
     deriveDisplayName,
-    getDextoGlobalPath,
     listInstalledAgents,
     loadBundledRegistryAgents,
     getAgentRegistry,
 } from '@dexto/agent-management';
-import { promises as fs } from 'fs';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
