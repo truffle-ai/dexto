@@ -16,6 +16,25 @@ import { AgentManager } from './AgentManager.js';
 import { installBundledAgent } from './installation.js';
 
 /**
+ * Entry in the installed agents registry (registry.json)
+ */
+interface InstalledAgentEntry {
+    id: string;
+    name: string;
+    description: string;
+    configPath: string;
+    author: string;
+    tags: string[];
+}
+
+/**
+ * Installed agents registry format
+ */
+interface InstalledRegistry {
+    agents: InstalledAgentEntry[];
+}
+
+/**
  * Resolve agent path with automatic installation if needed
  * @param nameOrPath Optional agent name or explicit path
  * @param autoInstall Whether to automatically install missing agents from bundled registry (default: true)
@@ -72,9 +91,9 @@ async function resolveAgentByName(
             const agentPath = await getAgentConfigPath(agentId);
             return agentPath;
         }
-    } catch (_error) {
+    } catch (error) {
         // Registry doesn't exist or agent not found, continue to auto-install
-        logger.debug(`Agent '${agentId}' not found in installed registry`);
+        logger.debug(`Agent '${agentId}' not found in installed registry: ${error}`);
     }
 
     // Auto-install from bundled if available
@@ -83,9 +102,10 @@ async function resolveAgentByName(
             logger.info(`Auto-installing agent '${agentId}' from bundled registry`);
             const configPath = await installBundledAgent(agentId, { injectPreferences });
             return configPath;
-        } catch (_error) {
+        } catch (error) {
             // installBundledAgent throws RegistryError.agentNotFound if not in bundled registry
             // Re-throw with context that we checked both registries
+            logger.debug(`Failed to auto-install agent '${agentId}': ${error}`);
             throw RegistryError.agentNotFound(agentId, []);
         }
     }
@@ -103,11 +123,11 @@ async function getAgentConfigPath(agentId: string): Promise<string> {
     const installedRegistryPath = path.join(agentsDir, 'registry.json');
 
     const registryContent = await fs.readFile(installedRegistryPath, 'utf-8');
-    const registry = JSON.parse(registryContent);
-    const agentEntry = registry.agents.find((a: any) => a.id === agentId);
+    const registry = JSON.parse(registryContent) as InstalledRegistry;
+    const agentEntry = registry.agents.find((a) => a.id === agentId);
 
     if (!agentEntry) {
-        const available = registry.agents.map((a: any) => a.id);
+        const available = registry.agents.map((a) => a.id);
         throw RegistryError.agentNotFound(agentId, available);
     }
 
@@ -270,38 +290,27 @@ export async function updateDefaultAgentPreference(agentName: string): Promise<v
     const installedRegistryPath = path.join(agentsDir, 'registry.json');
     const bundledRegistryPath = resolveBundledScript('agents/agent-registry.json');
 
-    // Check installed registry
-    try {
-        const installedManager = new AgentManager(installedRegistryPath);
-        await installedManager.loadRegistry();
-        if (installedManager.hasAgent(agentName)) {
-            // Valid, update preferences
-            const { updateGlobalPreferences } = await import('./preferences/loader.js');
-            await updateGlobalPreferences({
-                defaults: { defaultAgent: agentName },
-            });
-            logger.info(`Updated default agent preference to: ${agentName}`);
-            return;
-        }
-    } catch {
-        // Not in installed, check bundled
-    }
+    // Check both registries
+    const registriesToCheck = [
+        { path: installedRegistryPath, name: 'installed' },
+        { path: bundledRegistryPath, name: 'bundled' },
+    ];
 
-    // Check bundled registry
-    try {
-        const bundledManager = new AgentManager(bundledRegistryPath);
-        await bundledManager.loadRegistry();
-        if (bundledManager.hasAgent(agentName)) {
-            // Valid, update preferences
-            const { updateGlobalPreferences } = await import('./preferences/loader.js');
-            await updateGlobalPreferences({
-                defaults: { defaultAgent: agentName },
-            });
-            logger.info(`Updated default agent preference to: ${agentName}`);
-            return;
+    for (const registry of registriesToCheck) {
+        try {
+            const manager = new AgentManager(registry.path);
+            await manager.loadRegistry();
+            if (manager.hasAgent(agentName)) {
+                const { updateGlobalPreferences } = await import('./preferences/loader.js');
+                await updateGlobalPreferences({
+                    defaults: { defaultAgent: agentName },
+                });
+                logger.info(`Updated default agent preference to: ${agentName}`);
+                return;
+            }
+        } catch (error) {
+            logger.debug(`Agent '${agentName}' not found in ${registry.name} registry: ${error}`);
         }
-    } catch {
-        // Not found
     }
 
     // Agent not found in either registry
