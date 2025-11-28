@@ -8,6 +8,7 @@ import {
     getDextoGlobalPath,
     listInstalledAgents,
     loadBundledRegistryAgents,
+    getAgentRegistry,
 } from '@dexto/agent-management';
 import { promises as fs } from 'fs';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -91,27 +92,14 @@ async function listAgents(): Promise<{
 /**
  * Create an agent from an agent ID
  * Replacement for old Dexto.createAgent()
+ * Uses registry.resolveAgent() which auto-installs if needed
  */
 async function createAgentFromId(agentId: string): Promise<DextoAgent> {
-    const globalAgentsDir = getDextoGlobalPath('agents');
-    const agentDir = `${globalAgentsDir}/${agentId}`;
-
-    // Check if agent is installed
     try {
-        await fs.access(agentDir);
-    } catch (_error) {
-        throw new Error(
-            `Agent '${agentId}' is not installed. Install it first with: dexto install ${agentId}`
-        );
-    }
+        // Use registry to resolve agent path (auto-installs if not present)
+        const registry = getAgentRegistry();
+        const agentPath = await registry.resolveAgent(agentId, true, true);
 
-    // Find the main config file
-    const bundledRegistry = loadBundledRegistryAgents();
-    const registryEntry = bundledRegistry[agentId];
-    const mainFile = registryEntry?.main || 'agent.yml';
-    const agentPath = `${agentDir}/${mainFile}`;
-
-    try {
         // Load and enrich agent config
         const config = await loadAgentConfig(agentPath);
         const enrichedConfig = enrichAgentConfig(config, agentPath, {
