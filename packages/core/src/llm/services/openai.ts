@@ -177,6 +177,27 @@ export class OpenAIService implements ILLMService {
                         reasoningTokens += usage.completion_tokens_details?.reasoning_tokens ?? 0;
                     }
 
+                    // Overflow detection: check if we're approaching context limit
+                    const maxInputTokens = this.contextManager.getMaxInputTokens();
+                    const OVERFLOW_THRESHOLD = 0.95; // 95% of max
+                    if (inputTokens > maxInputTokens * OVERFLOW_THRESHOLD) {
+                        this.logger.warn(
+                            `Context overflow detected: ${inputTokens} tokens used (${Math.round((inputTokens / maxInputTokens) * 100)}% of ${maxInputTokens} max). ` +
+                                `Stopping tool loop to prevent API error.`
+                        );
+                        // Return with current response
+                        const responseText = message.content || '';
+                        const finalContent = stream ? fullResponse + responseText : responseText;
+                        this.sessionEventBus.emit('llm:response', {
+                            content: finalContent,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: 'in-built',
+                            tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
+                        });
+                        return finalContent || 'Context limit reached during tool execution.';
+                    }
+
                     // If there are no tool calls, we're done
                     if (!message.tool_calls || message.tool_calls.length === 0) {
                         const responseText = message.content || '';

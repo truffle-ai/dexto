@@ -218,6 +218,26 @@ export class AnthropicService implements ILLMService {
                         }
                     }
 
+                    // Overflow detection: check if we're approaching context limit
+                    const maxInputTokens = this.contextManager.getMaxInputTokens();
+                    const OVERFLOW_THRESHOLD = 0.95; // 95% of max
+                    if (usage && usage.input_tokens > maxInputTokens * OVERFLOW_THRESHOLD) {
+                        this.logger.warn(
+                            `Context overflow detected: ${usage.input_tokens} tokens used (${Math.round((usage.input_tokens / maxInputTokens) * 100)}% of ${maxInputTokens} max). ` +
+                                `Stopping tool loop to prevent API error.`
+                        );
+                        // Return with current text content
+                        fullResponse += textContent;
+                        this.sessionEventBus.emit('llm:response', {
+                            content: fullResponse,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: 'in-built',
+                            ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
+                        });
+                        return fullResponse || 'Context limit reached during tool execution.';
+                    }
+
                     // Process assistant message
                     if (toolUses.length > 0) {
                         // Transform all tool uses into the format expected by ContextManager

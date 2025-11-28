@@ -381,4 +381,43 @@ tools: {
 
 1. **Phase 8 Step 6**: Full integration testing - verify tool execution, streaming, telemetry, compression, pruning
 2. Consider adding `/api/message` queue integration when busy (deferred from Phase 6)
-3. Migrate anthropic.ts and openai.ts to TurnExecutor (then remove @deprecated items)
+3. **Minimal parity for native SDKs**: Add overflow detection + tool truncation to anthropic.ts/openai.ts
+
+---
+
+## Future: Full SDK Feature Parity (Deferred)
+
+When/if native SDK services need full TurnExecutor feature parity, implement SDK-agnostic architecture:
+
+### Architecture
+```
+TurnExecutor → StreamProcessor → IStreamAdapter → SDK-specific adapters
+```
+
+### New Components Needed
+1. **LLMStreamEvent** - Normalized event union type (`text-delta`, `tool-call-start`, `finish`, etc.)
+2. **IStreamAdapter<TStream>** - Interface to normalize SDK streams to common events
+3. **ILLMClient** - Interface to create streams with the right adapter
+4. **SDK Adapters** - VercelStreamAdapter, AnthropicStreamAdapter, OpenAIStreamAdapter
+5. **SDK Clients** - VercelLLMClient, AnthropicLLMClient, OpenAILLMClient
+6. **UnifiedLLMService** - Single service that uses injected client
+
+### File Structure
+```
+packages/core/src/llm/executor/
+├── adapters/
+│   ├── types.ts, stream-events.ts
+│   ├── vercel.ts, anthropic.ts, openai.ts
+├── clients/
+│   ├── types.ts
+│   ├── vercel.ts, anthropic.ts, openai.ts
+├── stream-processor.ts  (SDK-agnostic)
+├── turn-executor.ts     (SDK-agnostic)
+```
+
+### Benefits
+- Single TurnExecutor/StreamProcessor for all SDKs
+- Full feature parity (overflow, compression, queue, pruning)
+- Easy to add new SDKs
+
+### Effort: ~2-3 days
