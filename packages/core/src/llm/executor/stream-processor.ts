@@ -174,7 +174,7 @@ export class StreamProcessor {
                         }
 
                         this.eventBus.emit('llm:response', {
-                            content: '', // Content already streamed via chunks
+                            content: this.accumulatedText,
                             ...(this.reasoningText && { reasoning: this.reasoningText }),
                             provider: this.config.provider,
                             model: this.config.model,
