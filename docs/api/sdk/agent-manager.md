@@ -10,7 +10,7 @@ The `AgentManager` class provides registry-based agent lifecycle management. It 
 import { AgentManager } from '@dexto/agent-management';
 ```
 
-
+:::note When to use AgentManager
 **`AgentManager`** - Registry-based. Use when you have a `registry.json` with multiple predefined agents.
 :::
 
