@@ -299,6 +299,7 @@ export function useChat(
                 case 'llm:chunk': {
                     const text = event.content || '';
                     const chunkType = event.chunkType;
+                    //console.log('llm:chunk', event);
 
                     setMessages((ms) => {
                         if (chunkType === 'reasoning') {
@@ -350,6 +351,7 @@ export function useChat(
 
                 case 'llm:response': {
                     setProcessing(event.sessionId, false);
+                    console.log('llm:response', event);
                     const text = event.content || '';
                     const usage = event.tokenUsage;
                     const model = event.model;
