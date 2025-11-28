@@ -8,11 +8,11 @@
  * - CLI tools with multiple agent options
  * - Projects with several predefined agents users can choose from
  *
- * FOR INLINE/DYNAMIC CONFIGS: Use `Dexto.createAgent(config)` instead.
+ * FOR INLINE/DYNAMIC CONFIGS: Use `AgentFactory.createAgent(config)` instead.
  * This is better when configs come from a database, API, or are constructed
  * programmatically without a registry file.
  *
- * @see Dexto.createAgent() for inline config creation
+ * @see AgentFactory.createAgent() for inline config creation
  * @see https://docs.dexto.ai/api/sdk/agent-manager for full documentation
  */
 
@@ -37,18 +37,22 @@ export interface AgentMetadata {
 /**
  * Registry file schema
  */
-const RegistrySchema = z.object({
-    agents: z.array(
-        z.object({
-            id: z.string(),
-            name: z.string(),
-            description: z.string(),
-            configPath: z.string(),
-            author: z.string().optional(),
-            tags: z.array(z.string()).optional(),
-        })
-    ),
-});
+const RegistrySchema = z
+    .object({
+        agents: z.array(
+            z
+                .object({
+                    id: z.string(),
+                    name: z.string(),
+                    description: z.string(),
+                    configPath: z.string(),
+                    author: z.string().optional(),
+                    tags: z.array(z.string()).optional(),
+                })
+                .strict()
+        ),
+    })
+    .strict();
 
 type Registry = z.output<typeof RegistrySchema>;
 

@@ -205,5 +205,5 @@ try {
 ## See Also
 
 - [AgentManager API](./agent-manager.md) - Higher-level registry-based management
-- [Dexto Static API](./dexto-static-api.md) - Agent installation functions
+- [AgentFactory API](./agent-factory.md) - Agent installation functions
 - [Loading Agent Configs Tutorial](/docs/tutorials/sdk/config-files) - Step-by-step guide

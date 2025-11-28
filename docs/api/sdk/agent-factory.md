@@ -2,19 +2,13 @@
 sidebar_position: 7
 ---
 
-# Dexto Static API
+# AgentFactory API
 
-The `Dexto` namespace provides static methods for agent creation, installation, and management. Use these functions to create agents from inline configs, install agents from the bundled registry, install custom agents, and manage installed agents.
+The `AgentFactory` namespace provides static methods for agent creation, installation, and management. Use these functions to create agents from inline configs, install agents from the bundled registry, install custom agents, and manage installed agents.
 
 ```typescript
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 ```
-
-:::tip Dexto vs AgentManager
-**`Dexto.createAgent(config)`** - Inline/dynamic configs (from DB, API, or code). No registry needed.
-
-**`AgentManager`** - Registry-based. Use when you have a `registry.json` with multiple predefined agents.
-:::
 
 ---
 
@@ -23,7 +17,7 @@ import { Dexto } from '@dexto/agent-management';
 Creates a `DextoAgent` from an inline configuration object. Use this when you have a config from a database, API, or constructed programmatically and don't need a registry file.
 
 ```typescript
-async function Dexto.createAgent(
+async function AgentFactory.createAgent(
   config: AgentConfig,
   options?: CreateAgentOptions
 ): Promise<DextoAgent>
@@ -39,10 +33,10 @@ async function Dexto.createAgent(
 
 **Example:**
 ```typescript
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 
 // Create from inline config
-const agent = await Dexto.createAgent({
+const agent = await AgentFactory.createAgent({
   llm: {
     provider: 'openai',
     model: 'gpt-4o',
@@ -53,11 +47,11 @@ const agent = await Dexto.createAgent({
 await agent.start();
 
 // With custom agent ID (affects log/storage paths)
-const agent = await Dexto.createAgent(config, { agentId: 'my-custom-agent' });
+const agent = await AgentFactory.createAgent(config, { agentId: 'my-custom-agent' });
 
 // From database
 const configFromDb = await db.getAgentConfig(userId);
-const agent = await Dexto.createAgent(configFromDb, { agentId: `user-${userId}` });
+const agent = await AgentFactory.createAgent(configFromDb, { agentId: `user-${userId}` });
 await agent.start();
 ```
 
@@ -68,7 +62,7 @@ await agent.start();
 Lists all installed and available agents from the bundled registry.
 
 ```typescript
-async function Dexto.listAgents(): Promise<{
+async function AgentFactory.listAgents(): Promise<{
   installed: AgentInfo[];
   available: AgentInfo[];
 }>
@@ -89,9 +83,9 @@ interface AgentInfo {
 
 **Example:**
 ```typescript
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 
-const { installed, available } = await Dexto.listAgents();
+const { installed, available } = await AgentFactory.listAgents();
 
 console.log('Installed agents:');
 installed.forEach(agent => {
@@ -111,7 +105,7 @@ available.forEach(agent => {
 Installs an agent from the bundled registry to the local agents directory (`~/.dexto/agents/`).
 
 ```typescript
-async function Dexto.installAgent(
+async function AgentFactory.installAgent(
   agentId: string,
   options?: InstallOptions
 ): Promise<string>
@@ -129,14 +123,14 @@ async function Dexto.installAgent(
 
 **Example:**
 ```typescript
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 
 // Install a bundled agent
-const configPath = await Dexto.installAgent('coding-agent');
+const configPath = await AgentFactory.installAgent('coding-agent');
 console.log(`Installed to: ${configPath}`);
 
 // Install without injecting preferences
-const configPath = await Dexto.installAgent('research-agent', {
+const configPath = await AgentFactory.installAgent('research-agent', {
   injectPreferences: false
 });
 ```
@@ -154,7 +148,7 @@ const configPath = await Dexto.installAgent('research-agent', {
 Installs a custom agent from a local file or directory path.
 
 ```typescript
-async function Dexto.installCustomAgent(
+async function AgentFactory.installCustomAgent(
   agentId: string,
   sourcePath: string,
   metadata: {
@@ -186,10 +180,10 @@ async function Dexto.installCustomAgent(
 
 **Example:**
 ```typescript
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 
 // Install from a single YAML file
-const configPath = await Dexto.installCustomAgent(
+const configPath = await AgentFactory.installCustomAgent(
   'my-support-agent',
   '/path/to/support-agent.yml',
   {
@@ -200,7 +194,7 @@ const configPath = await Dexto.installCustomAgent(
 );
 
 // Install from a directory (for agents with multiple files)
-const configPath = await Dexto.installCustomAgent(
+const configPath = await AgentFactory.installCustomAgent(
   'my-complex-agent',
   '/path/to/agent-directory/',
   {
@@ -233,7 +227,7 @@ my-agent/
 Removes an installed agent from disk and the user registry.
 
 ```typescript
-async function Dexto.uninstallAgent(agentId: string): Promise<void>
+async function AgentFactory.uninstallAgent(agentId: string): Promise<void>
 ```
 
 | Parameter | Type | Description |
@@ -244,10 +238,10 @@ async function Dexto.uninstallAgent(agentId: string): Promise<void>
 
 **Example:**
 ```typescript
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 
 // Uninstall an agent
-await Dexto.uninstallAgent('my-custom-agent');
+await AgentFactory.uninstallAgent('my-custom-agent');
 console.log('Agent uninstalled');
 ```
 
@@ -281,22 +275,22 @@ interface InstallOptions {
 ## Complete Example
 
 ```typescript
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 import { AgentManager } from '@dexto/agent-management';
 
 async function setupAgents() {
   // List what's available
-  const { installed, available } = await Dexto.listAgents();
+  const { installed, available } = await AgentFactory.listAgents();
   console.log(`${installed.length} installed, ${available.length} available`);
 
   // Install a bundled agent if not already installed
   if (!installed.some(a => a.id === 'coding-agent')) {
-    await Dexto.installAgent('coding-agent');
+    await AgentFactory.installAgent('coding-agent');
     console.log('Installed coding-agent');
   }
 
   // Install a custom agent
-  await Dexto.installCustomAgent(
+  await AgentFactory.installCustomAgent(
     'team-agent',
     './my-agents/team-agent.yml',
     {

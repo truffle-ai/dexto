@@ -10,8 +10,6 @@ The `AgentManager` class provides registry-based agent lifecycle management. It 
 import { AgentManager } from '@dexto/agent-management';
 ```
 
-:::tip Dexto vs AgentManager
-**`Dexto.createAgent(config)`** - Inline/dynamic configs (from DB, API, or code). No registry needed.
 
 **`AgentManager`** - Registry-based. Use when you have a `registry.json` with multiple predefined agents.
 :::
@@ -263,5 +261,5 @@ try {
 ## See Also
 
 - [Config Utilities](./config-utilities.md) - Lower-level config loading functions
-- [Dexto Static API](./dexto-static-api.md) - Agent installation and management
+- [AgentFactory API](./agent-factory.md) - Agent installation and management
 - [Agent Orchestration Tutorial](/docs/tutorials/sdk/orchestration) - Step-by-step guide

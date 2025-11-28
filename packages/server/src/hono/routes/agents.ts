@@ -13,7 +13,7 @@ import {
     reloadAgentConfigFromFile,
     enrichAgentConfig,
     deriveDisplayName,
-    Dexto,
+    AgentFactory,
 } from '@dexto/agent-management';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
@@ -533,7 +533,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
     return app
         .openapi(listRoute, async (ctx) => {
-            const agents = await Dexto.listAgents();
+            const agents = await AgentFactory.listAgents();
             const currentId = getActiveAgentId() ?? null;
             return ctx.json({
                 installed: agents.installed,
@@ -556,7 +556,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
                 const { id, displayName, sourcePath, metadata, injectPreferences } =
                     body as ReturnType<typeof CustomAgentInstallSchema.parse>;
 
-                await Dexto.installCustomAgent(
+                await AgentFactory.installCustomAgent(
                     id,
                     sourcePath,
                     {
@@ -574,7 +574,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
             } else {
                 // Registry agent installation
                 const { id } = body as z.output<typeof AgentIdentifierSchema>;
-                await Dexto.installAgent(id);
+                await AgentFactory.installAgent(id);
                 const agentInfo = await resolveAgentInfo(id);
                 return ctx.json(
                     {
@@ -596,7 +596,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         })
         .openapi(validateNameRoute, async (ctx) => {
             const { id } = ctx.req.valid('json');
-            const agents = await Dexto.listAgents();
+            const agents = await AgentFactory.listAgents();
 
             // Check if name exists in installed agents
             const installedAgent = agents.installed.find((a) => a.id === id);
@@ -622,7 +622,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
         })
         .openapi(uninstallRoute, async (ctx) => {
             const { id, force } = ctx.req.valid('json');
-            await Dexto.uninstallAgent(id, force);
+            await AgentFactory.uninstallAgent(id, force);
             return ctx.json({ uninstalled: true as const, id });
         })
         .openapi(customCreateRoute, async (ctx) => {
@@ -670,7 +670,7 @@ export function createAgentsRouter(getAgent: () => DextoAgent, context: AgentsRo
 
             try {
                 // Install the custom agent
-                await Dexto.installCustomAgent(
+                await AgentFactory.installCustomAgent(
                     id,
                     tmpFile,
                     {

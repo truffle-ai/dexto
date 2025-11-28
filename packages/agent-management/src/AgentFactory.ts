@@ -1,14 +1,14 @@
 /**
- * Dexto - Static convenience API for agent operations
+ * AgentFactory - Static convenience API for agent operations
  *
  * USE THIS WHEN: You need a simple, direct way to create agents or manage installations.
  * No registry file required for agent creation.
  *
  * Key methods:
- * - `Dexto.createAgent(config)` - Create agent from inline config (DB, API, dynamic)
- * - `Dexto.installAgent(id)` - Install agent from bundled registry
- * - `Dexto.uninstallAgent(id)` - Remove installed agent
- * - `Dexto.listAgents()` - List installed/available agents
+ * - `AgentFactory.createAgent(config)` - Create agent from inline config (DB, API, dynamic)
+ * - `AgentFactory.installAgent(id)` - Install agent from bundled registry
+ * - `AgentFactory.uninstallAgent(id)` - Remove installed agent
+ * - `AgentFactory.listAgents()` - List installed/available agents
  *
  * Examples:
  * - SaaS platforms with per-tenant configs from database
@@ -21,7 +21,7 @@
  * and need discovery/selection capabilities.
  *
  * @see AgentManager for registry-based agent management
- * @see https://docs.dexto.ai/api/sdk/dexto-static-api for full documentation
+ * @see https://docs.dexto.ai/api/sdk/agent-factory for full documentation
  */
 
 import { promises as fs } from 'fs';
@@ -51,7 +51,7 @@ export interface CreateAgentOptions {
  * Static API for agent management operations
  * Provides convenient methods for listing, installing, and uninstalling agents
  */
-export const Dexto = {
+export const AgentFactory = {
     /**
      * List all agents (installed and available from bundled registry)
      */
@@ -137,7 +137,7 @@ export const Dexto = {
      * @example
      * ```typescript
      * // Create from inline config
-     * const agent = await Dexto.createAgent({
+     * const agent = await AgentFactory.createAgent({
      *   llm: {
      *     provider: 'openai',
      *     model: 'gpt-4o',
@@ -148,11 +148,11 @@ export const Dexto = {
      * await agent.start();
      *
      * // With custom agent ID (affects log/storage paths)
-     * const agent = await Dexto.createAgent(config, { agentId: 'my-custom-agent' });
+     * const agent = await AgentFactory.createAgent(config, { agentId: 'my-custom-agent' });
      *
      * // From database
      * const configFromDb = await db.getAgentConfig(userId);
-     * const agent = await Dexto.createAgent(configFromDb, { agentId: `user-${userId}` });
+     * const agent = await AgentFactory.createAgent(configFromDb, { agentId: `user-${userId}` });
      * ```
      */
     async createAgent(config: AgentConfig, options?: CreateAgentOptions): Promise<DextoAgent> {

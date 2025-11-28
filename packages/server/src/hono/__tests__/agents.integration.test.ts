@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createTestAgent, startTestServer, httpRequest, type TestServer } from './test-fixtures.js';
 import { DextoAgent } from '@dexto/core';
-import { Dexto } from '@dexto/agent-management';
+import { AgentFactory } from '@dexto/agent-management';
 import type { CreateDextoAppOptions } from '../index.js';
 
 describe('Hono API Integration Tests - Agent Routes', () => {
@@ -19,7 +19,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
     beforeAll(async () => {
         initialAgent = await createTestAgent();
 
-        // Mock Dexto.listAgents to return test agents
+        // Mock AgentFactory.listAgents to return test agents
         mockAgents = [
             {
                 id: 'test-agent-1',
@@ -39,7 +39,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
             },
         ];
 
-        vi.spyOn(Dexto, 'listAgents').mockResolvedValue({
+        vi.spyOn(AgentFactory, 'listAgents').mockResolvedValue({
             installed: mockAgents,
             available: [],
         });
@@ -54,7 +54,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
                 if (isSwitching) throw new Error('Agent switch in progress');
                 isSwitching = true;
                 try {
-                    // Create a new test agent instance (no need to use Dexto.createAgent in tests)
+                    // Create a new test agent instance (no need to use AgentFactory.createAgent in tests)
                     const newAgent = await createTestAgent();
                     await newAgent.start();
                     if (activeAgent.isStarted()) {
