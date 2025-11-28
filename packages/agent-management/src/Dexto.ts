@@ -1,6 +1,34 @@
+/**
+ * Dexto - Static convenience API for agent operations
+ *
+ * USE THIS WHEN: You need a simple, direct way to create agents or manage installations.
+ * No registry file required for agent creation.
+ *
+ * Key methods:
+ * - `Dexto.createAgent(config)` - Create agent from inline config (DB, API, dynamic)
+ * - `Dexto.installAgent(id)` - Install agent from bundled registry
+ * - `Dexto.uninstallAgent(id)` - Remove installed agent
+ * - `Dexto.listAgents()` - List installed/available agents
+ *
+ * Examples:
+ * - SaaS platforms with per-tenant configs from database
+ * - Dynamically constructed agent configurations
+ * - Quick scripts and demos
+ * - Single-agent applications
+ *
+ * FOR REGISTRY-BASED MULTI-AGENT SCENARIOS: Use `AgentManager` instead.
+ * This is better when you have a registry.json with multiple predefined agents
+ * and need discovery/selection capabilities.
+ *
+ * @see AgentManager for registry-based agent management
+ * @see https://docs.dexto.ai/api/sdk/dexto-static-api for full documentation
+ */
+
 import { promises as fs } from 'fs';
+import { DextoAgent, type AgentConfig } from '@dexto/core';
 import { getDextoGlobalPath, resolveBundledScript } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
+import { enrichAgentConfig } from './config/index.js';
 import {
     installBundledAgent,
     installCustomAgent,
@@ -8,6 +36,16 @@ import {
     type InstallOptions,
 } from './installation.js';
 import type { AgentMetadata } from './AgentManager.js';
+
+/**
+ * Options for creating an agent from inline config
+ */
+export interface CreateAgentOptions {
+    /** Override agent ID (otherwise derived from agentCard.name or defaults to 'inline-agent') */
+    agentId?: string;
+    /** Whether this is interactive CLI mode (affects logger defaults) */
+    isInteractiveCli?: boolean;
+}
 
 /**
  * Static API for agent management operations
@@ -84,6 +122,62 @@ export const Dexto = {
      */
     async uninstallAgent(agentId: string, _force?: boolean): Promise<void> {
         return uninstallAgent(agentId);
+    },
+
+    /**
+     * Create an agent from an inline configuration object
+     *
+     * Use this when you have a config from a database, API, or constructed programmatically
+     * and don't need a registry file. The agent is returned unstarted.
+     *
+     * @param config - Agent configuration object
+     * @param options - Optional creation options
+     * @returns Promise resolving to DextoAgent instance (not started)
+     *
+     * @example
+     * ```typescript
+     * // Create from inline config
+     * const agent = await Dexto.createAgent({
+     *   llm: {
+     *     provider: 'openai',
+     *     model: 'gpt-4o',
+     *     apiKey: process.env.OPENAI_API_KEY
+     *   },
+     *   systemPrompt: 'You are a helpful assistant.'
+     * });
+     * await agent.start();
+     *
+     * // With custom agent ID (affects log/storage paths)
+     * const agent = await Dexto.createAgent(config, { agentId: 'my-custom-agent' });
+     *
+     * // From database
+     * const configFromDb = await db.getAgentConfig(userId);
+     * const agent = await Dexto.createAgent(configFromDb, { agentId: `user-${userId}` });
+     * ```
+     */
+    async createAgent(config: AgentConfig, options?: CreateAgentOptions): Promise<DextoAgent> {
+        // If agentId provided, inject it into config's agentCard.name for enrichment
+        // This affects path derivation in enrichAgentConfig
+        let configToEnrich = config;
+        if (options?.agentId) {
+            configToEnrich = {
+                ...config,
+                agentCard: {
+                    ...(config.agentCard || {}),
+                    name: options.agentId,
+                },
+            } as AgentConfig;
+        }
+
+        // Enrich with runtime paths (logs, database, blob storage)
+        const enrichedConfig = enrichAgentConfig(
+            configToEnrich,
+            undefined, // No config path for inline configs
+            options?.isInteractiveCli ?? false
+        );
+
+        // Create and return unstarted agent
+        return new DextoAgent(enrichedConfig);
     },
 };
 

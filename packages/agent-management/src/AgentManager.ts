@@ -1,3 +1,21 @@
+/**
+ * AgentManager - Registry-based agent lifecycle management
+ *
+ * USE THIS WHEN: You have a registry.json file with multiple predefined agents
+ * and need discovery/selection capabilities (listAgents, hasAgent, createAgent by ID).
+ *
+ * Examples:
+ * - CLI tools with multiple agent options
+ * - Projects with several predefined agents users can choose from
+ *
+ * FOR INLINE/DYNAMIC CONFIGS: Use `Dexto.createAgent(config)` instead.
+ * This is better when configs come from a database, API, or are constructed
+ * programmatically without a registry file.
+ *
+ * @see Dexto.createAgent() for inline config creation
+ * @see https://docs.dexto.ai/api/sdk/agent-manager for full documentation
+ */
+
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger, DextoAgent, DextoValidationError, zodToIssues } from '@dexto/core';
@@ -50,8 +68,8 @@ type Registry = z.output<typeof RegistrySchema>;
  * const agents = manager.listAgents();
  * console.log(agents); // [{ id: 'coding-agent', name: '...', ... }]
  *
- * // Create an agent instance
- * const agent = await manager.createAgent('coding-agent');
+ * // Load an agent instance
+ * const agent = await manager.loadAgent('coding-agent');
  * await agent.start();
  * ```
  */
@@ -83,7 +101,7 @@ export class AgentManager {
      * Load registry from file (lazy loaded, cached)
      *
      * Call this before using sync methods like `listAgents()` or `hasAgent()`.
-     * Alternatively, calling `createAgent()` will automatically load the registry.
+     * Alternatively, calling `loadAgent()` will automatically load the registry.
      *
      * @returns The loaded registry
      *
@@ -160,7 +178,7 @@ export class AgentManager {
     }
 
     /**
-     * Create a DextoAgent instance from registry
+     * Load a DextoAgent instance from registry
      *
      * @param id Agent ID from registry
      * @returns Promise resolving to DextoAgent instance (not started)
@@ -171,7 +189,7 @@ export class AgentManager {
      * @example
      * ```typescript
      * const manager = new AgentManager('./registry.json');
-     * const agent = await manager.createAgent('coding-agent');
+     * const agent = await manager.loadAgent('coding-agent');
      * await agent.start();
      *
      * // Use the agent
@@ -179,7 +197,7 @@ export class AgentManager {
      * const response = await agent.generate('Write a function', { sessionId: session.id });
      * ```
      */
-    async createAgent(id: string): Promise<DextoAgent> {
+    async loadAgent(id: string): Promise<DextoAgent> {
         const registry = await this.loadRegistry();
 
         // Find agent in registry
@@ -197,8 +215,8 @@ export class AgentManager {
             const config = await loadAgentConfig(configPath);
             const enrichedConfig = enrichAgentConfig(config, configPath);
 
-            // Create agent instance
-            logger.info(`Creating agent: ${id} from ${configPath}`);
+            // Load agent instance
+            logger.info(`Loading agent: ${id} from ${configPath}`);
             return new DextoAgent(enrichedConfig, configPath);
         } catch (error) {
             // Convert ZodError to DextoValidationError for better error messages
@@ -230,7 +248,7 @@ export class AgentManager {
      * await manager.loadRegistry();
      *
      * if (manager.hasAgent('coding-agent')) {
-     *   const agent = await manager.createAgent('coding-agent');
+     *   const agent = await manager.loadAgent('coding-agent');
      * }
      * ```
      */

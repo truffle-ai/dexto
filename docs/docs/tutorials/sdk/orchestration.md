@@ -79,7 +79,7 @@ console.log(agents);
 // ]
 
 // Create an agent by ID
-const agent = await manager.createAgent('coding-agent');
+const agent = await manager.loadAgent('coding-agent');
 await agent.start();
 
 const session = await agent.createSession();
@@ -118,7 +118,7 @@ const agents = manager.listAgents();
 // Check if an agent exists
 if (manager.hasAgent('coding-agent')) {
   // Create a DextoAgent instance
-  const agent = await manager.createAgent('coding-agent');
+  const agent = await manager.loadAgent('coding-agent');
   await agent.start();
 }
 ```
@@ -132,8 +132,8 @@ const manager = new AgentManager('./agents/registry.json');
 
 // Create agents upfront
 const agents = {
-  code: await manager.createAgent('coding-agent'),
-  support: await manager.createAgent('support-agent'),
+  code: await manager.loadAgent('coding-agent'),
+  support: await manager.loadAgent('support-agent'),
 };
 
 // Start them all
@@ -168,7 +168,7 @@ const supportAgents = agents.filter(a =>
 
 // Create the first match
 if (codingAgents.length > 0) {
-  const agent = await manager.createAgent(codingAgents[0].id);
+  const agent = await manager.loadAgent(codingAgents[0].id);
 }
 ```
 

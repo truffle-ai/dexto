@@ -109,10 +109,10 @@ For content computed when the agent runs:
 - id: datetime
   type: dynamic
   priority: 3
-  source: datetime
+  source: dateTime
 ```
 
-The built-in `datetime` source adds the current date and time, so your agent knows "today."
+The built-in `dateTime` source adds the current date and time, so your agent knows "today."
 
 ## A Complete Example
 
@@ -146,7 +146,7 @@ systemPrompt:
     - id: datetime
       type: dynamic
       priority: 20
-      source: datetime
+      source: dateTime
 ```
 
 The final prompt includes:

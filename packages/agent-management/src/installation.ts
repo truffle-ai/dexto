@@ -1,3 +1,10 @@
+// TODO: Consider whether installation.ts belongs in agent-management or cli package.
+// Currently here because resolver.ts needs auto-install for resolveAgentPath(name, autoInstall=true).
+// Options to evaluate:
+// 1. Keep here - installation is part of "agent management" domain
+// 2. Move to CLI - cleaner separation, remove auto-install from resolver
+// 3. Create @dexto/installation package - both agent-management and CLI import from it
+
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from '@dexto/core';

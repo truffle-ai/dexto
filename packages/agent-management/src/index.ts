@@ -42,7 +42,7 @@ export {
 } from './installation.js';
 
 // Static API for agent management
-export { Dexto } from './Dexto.js';
+export { Dexto, type CreateAgentOptions } from './Dexto.js';
 
 // Path utilities (duplicated from core for short-term compatibility)
 export {
