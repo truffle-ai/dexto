@@ -7,11 +7,19 @@ import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
+import { LLMProvider, LLMRouter } from '../types.js';
+
+export interface StreamProcessorConfig {
+    provider: LLMProvider;
+    model: string;
+    router: LLMRouter;
+}
 
 export class StreamProcessor {
     private assistantMessageId: string | null = null;
     private actualTokens: import('../types.js').TokenUsage | null = null;
     private finishReason: string = 'unknown';
+    private reasoningText: string = '';
     private logger: IDextoLogger;
 
     constructor(
@@ -19,6 +27,7 @@ export class StreamProcessor {
         private eventBus: SessionEventBus,
         private resourceManager: ResourceManager,
         private abortSignal: AbortSignal,
+        private config: StreamProcessorConfig,
         logger: IDextoLogger
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
@@ -51,6 +60,16 @@ export class StreamProcessor {
 
                         this.eventBus.emit('llm:chunk', {
                             chunkType: 'text',
+                            content: event.text,
+                        });
+                        break;
+
+                    case 'reasoning-delta':
+                        // Handle reasoning delta (extended thinking from Claude, etc.)
+                        this.reasoningText += event.text;
+
+                        this.eventBus.emit('llm:chunk', {
+                            chunkType: 'reasoning',
                             content: event.text,
                         });
                         break;
@@ -117,6 +136,10 @@ export class StreamProcessor {
                             inputTokens: event.totalUsage.inputTokens ?? 0,
                             outputTokens: event.totalUsage.outputTokens ?? 0,
                             totalTokens: event.totalUsage.totalTokens ?? 0,
+                            // Capture reasoning tokens if available (from Claude extended thinking, etc.)
+                            ...(event.totalUsage.reasoningTokens !== undefined && {
+                                reasoningTokens: event.totalUsage.reasoningTokens,
+                            }),
                         };
                         this.actualTokens = usage;
 
@@ -131,7 +154,11 @@ export class StreamProcessor {
                         }
 
                         this.eventBus.emit('llm:response', {
-                            content: '', // Content already streamed
+                            content: '', // Content already streamed via chunks
+                            ...(this.reasoningText && { reasoning: this.reasoningText }),
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: this.config.router,
                             tokenUsage: usage,
                         });
                         break;

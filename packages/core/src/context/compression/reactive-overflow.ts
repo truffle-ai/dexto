@@ -94,7 +94,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
      * @returns Array with single summary message to add, or empty if nothing to summarize
      */
     async compress(
-        history: InternalMessage[],
+        history: readonly InternalMessage[],
         tokenizer: ITokenizer,
         _maxTokens: number
     ): Promise<InternalMessage[]> {
@@ -160,9 +160,9 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
      * Split history into messages to summarize and messages to keep.
      * Keeps the last N turns (user + assistant pairs) intact.
      */
-    private splitHistory(history: InternalMessage[]): {
-        toSummarize: InternalMessage[];
-        toKeep: InternalMessage[];
+    private splitHistory(history: readonly InternalMessage[]): {
+        toSummarize: readonly InternalMessage[];
+        toKeep: readonly InternalMessage[];
     } {
         const turnsToKeep = this.options.preserveLastNTurns;
 
@@ -200,7 +200,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
     /**
      * Generate an LLM summary of the messages.
      */
-    private async generateSummary(messages: InternalMessage[]): Promise<string> {
+    private async generateSummary(messages: readonly InternalMessage[]): Promise<string> {
         const formattedConversation = this.formatMessagesForSummary(messages);
         const prompt = this.options.summaryPrompt.replace('{conversation}', formattedConversation);
 
@@ -222,7 +222,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
     /**
      * Format messages for the summary prompt.
      */
-    private formatMessagesForSummary(messages: InternalMessage[]): string {
+    private formatMessagesForSummary(messages: readonly InternalMessage[]): string {
         return messages
             .map((msg) => {
                 const role = msg.role.toUpperCase();
@@ -266,7 +266,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
     /**
      * Create a fallback summary if LLM call fails.
      */
-    private createFallbackSummary(messages: InternalMessage[]): string {
+    private createFallbackSummary(messages: readonly InternalMessage[]): string {
         const userMessages = messages.filter((m) => m.role === 'user');
         const toolCalls = messages.filter((m) => m.toolCalls && m.toolCalls.length > 0);
 

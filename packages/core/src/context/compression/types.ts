@@ -30,7 +30,7 @@ export interface ICompressionStrategy {
      * @returns The potentially compressed message history.
      */
     compress(
-        history: InternalMessage[],
+        history: readonly InternalMessage[],
         tokenizer: ITokenizer,
         maxTokens: number
     ): Promise<InternalMessage[]> | InternalMessage[];

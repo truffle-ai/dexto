@@ -443,7 +443,7 @@ async function resolveBlobReferenceToParts(
  * @throws Error if token counting fails within the tokenizer.
  */
 export function countMessagesTokens(
-    history: InternalMessage[],
+    history: readonly InternalMessage[],
     tokenizer: ITokenizer,
     overheadPerMessage: number = DEFAULT_OVERHEAD_PER_MESSAGE,
     logger: IDextoLogger
@@ -1870,7 +1870,7 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
  * @param history The full conversation history
  * @returns Filtered history starting from the most recent summary (or full history if no summary)
  */
-export function filterCompacted(history: InternalMessage[]): InternalMessage[] {
+export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
     // Find the most recent summary message (search backwards for efficiency)
     let summaryIndex = -1;
     for (let i = history.length - 1; i >= 0; i--) {
@@ -1881,9 +1881,9 @@ export function filterCompacted(history: InternalMessage[]): InternalMessage[] {
         }
     }
 
-    // If no summary found, return full history
+    // If no summary found, return full history (slice returns mutable copy)
     if (summaryIndex === -1) {
-        return history;
+        return history.slice();
     }
 
     // Return summary + everything after it

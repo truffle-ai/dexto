@@ -261,6 +261,13 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Returns the tokenizer used for token estimation.
+     */
+    getTokenizer(): ITokenizer {
+        return this.tokenizer;
+    }
+
+    /**
      * Updates the actual token count from the last LLM response.
      * This enables hybrid token counting for more accurate estimates.
      *

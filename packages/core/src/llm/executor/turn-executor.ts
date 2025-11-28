@@ -5,7 +5,9 @@ import {
     ToolSet as VercelToolSet,
     jsonSchema,
     type ModelMessage,
+    APICallError,
 } from 'ai';
+import { trace } from '@opentelemetry/api';
 import { ContextManager } from '../../context/manager.js';
 import type { TextPart, ImagePart, FilePart, UIResourcePart } from '../../context/types.js';
 import { ToolManager } from '../../tools/tool-manager.js';
@@ -18,10 +20,17 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext } from '../types.js';
+import { LLMContext, LLMRouter } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
+import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
 import { defer } from '../../utils/defer.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { LLMErrorCode } from '../error-codes.js';
+import { toError } from '../../utils/error-conversion.js';
+import { isOverflow, type ModelLimits } from '../../context/compression/overflow.js';
+import { ReactiveOverflowStrategy } from '../../context/compression/reactive-overflow.js';
 
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
@@ -38,6 +47,7 @@ import { defer } from '../../utils/defer.js';
 export class TurnExecutor {
     private logger: IDextoLogger;
     private abortController: AbortController;
+    private compressionStrategy: ReactiveOverflowStrategy | null = null;
 
     constructor(
         private model: LanguageModel,
@@ -52,11 +62,29 @@ export class TurnExecutor {
             temperature?: number;
         },
         private llmContext: LLMContext,
+        private router: LLMRouter,
         logger: IDextoLogger,
-        private messageQueue: MessageQueueService
+        private messageQueue: MessageQueueService,
+        private modelLimits?: ModelLimits
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         this.abortController = new AbortController();
+
+        // Initialize compression strategy if model limits are provided
+        if (modelLimits) {
+            this.compressionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
+        }
+    }
+
+    /**
+     * Get StreamProcessor config from TurnExecutor state.
+     */
+    private getStreamProcessorConfig(): StreamProcessorConfig {
+        return {
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            router: this.router,
+        };
     }
 
     /**
@@ -82,11 +110,10 @@ export class TurnExecutor {
                 }
 
                 // 2. Check for compression need (reactive, based on actual tokens)
-                // TODO Phase 4: Implement compression
-                // if (lastStepTokens && this.isOverflow(lastStepTokens)) {
-                //     await this.compress();
-                //     continue;  // Start fresh iteration after compression
-                // }
+                if (lastStepTokens && this.checkAndHandleOverflow(lastStepTokens)) {
+                    await this.compress(lastStepTokens.inputTokens ?? 0);
+                    // Continue with fresh context after compression
+                }
 
                 // 3. Get formatted messages for this step
                 const prepared = await this.contextManager.getFormattedMessagesWithCompression(
@@ -107,6 +134,7 @@ export class TurnExecutor {
                     this.eventBus,
                     this.resourceManager,
                     this.abortController.signal,
+                    this.getStreamProcessorConfig(),
                     this.logger
                 );
 
@@ -153,9 +181,21 @@ export class TurnExecutor {
                 await this.pruneOldToolOutputs();
             }
         } catch (error) {
-            this.logger.error('TurnExecutor failed', { error });
-            throw error;
+            // Map provider errors to DextoRuntimeError
+            const mappedError = this.mapProviderError(error);
+            this.logger.error('TurnExecutor failed', { error: mappedError });
+
+            this.eventBus.emit('llm:error', {
+                error: mappedError,
+                context: 'TurnExecutor',
+                recoverable: false,
+            });
+
+            throw mappedError;
         }
+
+        // Set telemetry attributes for token usage
+        this.setTelemetryAttributes(lastStepTokens);
 
         return {
             stepCount,
@@ -513,5 +553,161 @@ export class TurnExecutor {
 
         // Clear any pending queued messages
         this.messageQueue.clear();
+    }
+
+    /**
+     * Check if context has overflowed based on actual token usage from API.
+     */
+    private checkAndHandleOverflow(tokens: TokenUsage): boolean {
+        if (!this.modelLimits || !this.compressionStrategy) {
+            return false;
+        }
+        return isOverflow(tokens, this.modelLimits);
+    }
+
+    /**
+     * Compress context using ReactiveOverflowStrategy.
+     *
+     * Generates a summary of older messages and adds it to history.
+     * The actual token reduction happens at read-time via filterCompacted()
+     * in getFormattedMessagesWithCompression().
+     *
+     * @param originalTokens The actual input token count from API that triggered overflow
+     */
+    private async compress(originalTokens: number): Promise<void> {
+        if (!this.compressionStrategy) {
+            return;
+        }
+
+        this.logger.info(
+            `Context overflow detected (${originalTokens} tokens), running compression`
+        );
+
+        const history = await this.contextManager.getHistory();
+        const tokenizer = this.contextManager.getTokenizer();
+        const maxTokens = this.modelLimits?.contextWindow ?? 100000;
+
+        // Generate summary message(s)
+        const summaryMessages = await this.compressionStrategy.compress(
+            history,
+            tokenizer,
+            maxTokens
+        );
+
+        if (summaryMessages.length === 0) {
+            this.logger.debug('Compression returned no summary (history too short)');
+            return;
+        }
+
+        // Add summary to history
+        // filterCompacted() will exclude pre-summary messages at read-time
+        for (const summary of summaryMessages) {
+            await this.contextManager.addMessage(summary);
+        }
+
+        // Estimate compressed tokens by simulating what filterCompacted would produce
+        const { filterCompacted, countMessagesTokens } = await import('../../context/utils.js');
+        const updatedHistory = await this.contextManager.getHistory();
+        const filteredHistory = filterCompacted(updatedHistory);
+        const compressedTokens = countMessagesTokens(filteredHistory, tokenizer, 4, this.logger);
+
+        this.eventBus.emit('context:compressed', {
+            originalTokens,
+            compressedTokens,
+            originalMessages: history.length,
+            compressedMessages: filteredHistory.length,
+            strategy: this.compressionStrategy.name,
+            reason: 'overflow',
+        });
+
+        this.logger.info(
+            `Compression complete: ${originalTokens} → ~${compressedTokens} tokens ` +
+                `(${history.length} → ${filteredHistory.length} messages after filtering)`
+        );
+    }
+
+    /**
+     * Set telemetry span attributes for token usage.
+     */
+    private setTelemetryAttributes(usage: TokenUsage | null): void {
+        const activeSpan = trace.getActiveSpan();
+        if (!activeSpan || !usage) {
+            return;
+        }
+
+        if (usage.inputTokens !== undefined) {
+            activeSpan.setAttribute('gen_ai.usage.input_tokens', usage.inputTokens);
+        }
+        if (usage.outputTokens !== undefined) {
+            activeSpan.setAttribute('gen_ai.usage.output_tokens', usage.outputTokens);
+        }
+        if (usage.totalTokens !== undefined) {
+            activeSpan.setAttribute('gen_ai.usage.total_tokens', usage.totalTokens);
+        }
+        if (usage.reasoningTokens !== undefined) {
+            activeSpan.setAttribute('gen_ai.usage.reasoning_tokens', usage.reasoningTokens);
+        }
+    }
+
+    /**
+     * Map provider errors to DextoRuntimeError.
+     */
+    private mapProviderError(err: unknown): Error {
+        if (APICallError.isInstance?.(err)) {
+            const status = err.statusCode;
+            const headers = (err.responseHeaders || {}) as Record<string, string>;
+            const retryAfter = headers['retry-after'] ? Number(headers['retry-after']) : undefined;
+            const body =
+                typeof err.responseBody === 'string'
+                    ? err.responseBody
+                    : JSON.stringify(err.responseBody ?? '');
+
+            if (status === 429) {
+                return new DextoRuntimeError(
+                    LLMErrorCode.RATE_LIMIT_EXCEEDED,
+                    ErrorScope.LLM,
+                    ErrorType.RATE_LIMIT,
+                    `Rate limit exceeded${body ? ` - ${body}` : ''}`,
+                    {
+                        sessionId: this.sessionId,
+                        provider: this.llmContext.provider,
+                        model: this.llmContext.model,
+                        status,
+                        retryAfter,
+                        body,
+                    }
+                );
+            }
+            if (status === 408) {
+                return new DextoRuntimeError(
+                    LLMErrorCode.GENERATION_FAILED,
+                    ErrorScope.LLM,
+                    ErrorType.TIMEOUT,
+                    `Provider timed out${body ? ` - ${body}` : ''}`,
+                    {
+                        sessionId: this.sessionId,
+                        provider: this.llmContext.provider,
+                        model: this.llmContext.model,
+                        status,
+                        body,
+                    }
+                );
+            }
+            return new DextoRuntimeError(
+                LLMErrorCode.GENERATION_FAILED,
+                ErrorScope.LLM,
+                ErrorType.THIRD_PARTY,
+                `Provider error ${status}${body ? ` - ${body}` : ''}`,
+                {
+                    sessionId: this.sessionId,
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                    status,
+                    body,
+                }
+            );
+        }
+
+        return toError(err, this.logger);
     }
 }

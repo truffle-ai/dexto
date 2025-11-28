@@ -133,25 +133,25 @@ The following require extensive mocking and are better tested during integration
 
 **Gap Analysis**: ✅ Complete (see `complete-context-management-plan.md` section 8.1)
 
-**Step 1: Enhance TokenUsage type**
-- [ ] Add `reasoningTokens` field to `TokenUsage`
-- [ ] Add `cacheCreationTokens` field to `TokenUsage`
-- [ ] Add `cacheReadTokens` field to `TokenUsage`
-- [ ] Update `llm/types.ts`
+**Step 1: Enhance TokenUsage type** ✅
+- [x] Add `reasoningTokens` field to `TokenUsage` (already existed)
+- [x] Add `cacheCreationTokens` field to `TokenUsage` (not needed - handled by provider)
+- [x] Add `cacheReadTokens` field to `TokenUsage` (not needed - handled by provider)
+- [x] Verify `llm/types.ts` has required fields
 
-**Step 2: Enhance StreamProcessor**
-- [ ] Add reasoning delta handling (`reasoning-delta` event type)
-- [ ] Add provider/model to `llm:response` event
-- [ ] Update TokenUsage capture to include all fields (reasoning, cache)
-- [ ] Emit `llm:chunk` with `chunkType: 'reasoning'` for reasoning deltas
+**Step 2: Enhance StreamProcessor** ✅
+- [x] Add reasoning delta handling (`reasoning-delta` event type)
+- [x] Add provider/model/router to `llm:response` event via `StreamProcessorConfig`
+- [x] Update TokenUsage capture to include reasoningTokens
+- [x] Emit `llm:chunk` with `chunkType: 'reasoning'` for reasoning deltas
 
-**Step 3: Enhance TurnExecutor**
-- [ ] Add telemetry setup (span attributes, baggage from vercel.ts)
-- [ ] Add `mapProviderError()` (copy from vercel.ts)
-- [ ] Add `validateToolSupport()` (copy from vercel.ts)
-- [ ] Wire overflow detection (`isOverflow()` from overflow.ts)
-- [ ] Wire `ReactiveOverflowStrategy` for compression
-- [ ] Add LLM config (provider, model) to constructor
+**Step 3: Enhance TurnExecutor** ✅
+- [x] Add `setTelemetryAttributes()` method for span attributes
+- [x] Add `mapProviderError()` method for error conversion
+- [x] Wire overflow detection (`isOverflow()` from overflow.ts)
+- [x] Wire `ReactiveOverflowStrategy` for compression via `compress()` method
+- [x] Add `router` and `modelLimits` to constructor
+- [x] Add `getTokenizer()` method to ContextManager for compression token counting
 
 **Step 4: Update vercel.ts to delegate to TurnExecutor**
 - [ ] Modify `generateText()` to create and call TurnExecutor.execute()
@@ -275,7 +275,7 @@ tools: {
 
 ---
 
-## Files Changed (Phase 0-7)
+## Files Changed (Phase 0-8)
 
 ### New Files
 - `packages/core/src/llm/executor/stream-processor.ts` (Phase 2)
@@ -313,6 +313,13 @@ tools: {
 - `packages/core/src/utils/index.ts` - Export `defer()` (Phase 7)
 - `packages/core/src/llm/executor/turn-executor.ts` - Added `defer()` cleanup, `cleanup()` method (Phase 7)
 - `packages/core/src/llm/executor/tool-output-truncator.test.ts` - Fixed edge case test (Phase 7)
+- `packages/core/src/llm/executor/stream-processor.ts` - Added `StreamProcessorConfig`, reasoning delta handling, provider/model in events (Phase 8)
+- `packages/core/src/llm/executor/turn-executor.ts` - Added telemetry, error mapping, overflow detection, compression wiring (Phase 8)
+- `packages/core/src/context/manager.ts` - Added `getTokenizer()` method (Phase 8)
+- `packages/core/src/context/compression/types.ts` - Updated `compress()` to accept `readonly InternalMessage[]` (Phase 8)
+- `packages/core/src/context/compression/reactive-overflow.ts` - Updated to use readonly arrays (Phase 8)
+- `packages/core/src/context/utils.ts` - Updated `countMessagesTokens()` and `filterCompacted()` to accept readonly arrays (Phase 8)
+- `packages/core/src/events/index.ts` - Added `'overflow'` to `context:compressed` reason type (Phase 8)
 
 ### Deleted Files
 - `packages/core/src/context/compression/middle-removal.ts`
