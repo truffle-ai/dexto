@@ -3,9 +3,8 @@ import { IMessageFormatter } from '@core/llm/formatters/types.js';
 import { LLMContext } from '../llm/types.js';
 import { InternalMessage, ImageData, FileData } from './types.js';
 import { ITokenizer } from '../llm/tokenizer/types.js';
-import { ICompressionStrategy } from './compression/types.js';
-import { MiddleRemovalStrategy } from './compression/middle-removal.js';
-import { OldestRemovalStrategy } from './compression/oldest-removal.js';
+import type { ICompressionStrategy } from '../llm/executor/types.js';
+import { MiddleRemovalStrategy } from '../llm/executor/strategies/middle-removal.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
@@ -133,10 +132,7 @@ export class ContextManager<TMessage = unknown> {
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
         logger: IDextoLogger,
-        compressionStrategies: ICompressionStrategy[] = [
-            new MiddleRemovalStrategy({}, logger),
-            new OldestRemovalStrategy({}, logger),
-        ]
+        compressionStrategies: ICompressionStrategy[] = []
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -145,9 +141,14 @@ export class ContextManager<TMessage = unknown> {
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
         this.sessionId = sessionId;
-        this.compressionStrategies = compressionStrategies;
         this.resourceManager = resourceManager;
         this.logger = logger.createChild(DextoLogComponent.CONTEXT);
+
+        // Use MiddleRemovalStrategy as default if no strategies provided
+        this.compressionStrategies =
+            compressionStrategies.length > 0
+                ? compressionStrategies
+                : [new MiddleRemovalStrategy({}, logger)];
 
         this.logger.debug(
             `ContextManager: Initialized for session ${sessionId} - history will be managed by ${historyProvider.constructor.name}`
@@ -465,16 +466,19 @@ export class ContextManager<TMessage = unknown> {
             message.timestamp = Date.now();
         }
 
-        this.logger.debug(
-            `ContextManager: Adding message to history provider: ${JSON.stringify(message, null, 2)}`
-        );
+        // Concise log for debugging message order
+        const msgSummary = this.summarizeMessage(message);
+        this.logger.debug(`ContextManager: +${msgSummary}`);
 
         // Save to history provider
         await this.historyProvider.saveMessage(message);
 
-        // Get updated history for logging
+        // Log concise history summary showing message order
         const history = await this.historyProvider.getHistory();
-        this.logger.debug(`ContextManager: History now contains ${history.length} messages`);
+        const historySummary = history
+            .map((m, i) => `${i + 1}.${this.summarizeMessage(m)}`)
+            .join(' → ');
+        this.logger.debug(`ContextManager: History[${history.length}]: ${historySummary}`);
 
         // Note: Compression is currently handled lazily in getFormattedMessages
     }
@@ -857,7 +861,8 @@ export class ContextManager<TMessage = unknown> {
             try {
                 // Pass a copy of the history to avoid potential side effects within the strategy
                 // The strategy should return the new, potentially compressed, history
-                workingHistory = strategy.compress(
+                // Note: await handles both sync and async strategies
+                workingHistory = await strategy.compress(
                     [...workingHistory],
                     this.tokenizer,
                     targetHistoryTokens // Use target tokens that account for system prompt
@@ -1097,11 +1102,19 @@ export class ContextManager<TMessage = unknown> {
             this.logger.debug(`ContextManager prepareStep: Applying ${strategyName}...`);
 
             try {
-                workingHistory = strategy.compress(
+                const result = strategy.compress(
                     [...workingHistory],
                     this.tokenizer,
                     targetHistoryTokens
                 );
+                // prepareStep callback must be synchronous, so async strategies cannot be used here
+                if (result instanceof Promise) {
+                    this.logger.warn(
+                        `ContextManager prepareStep: Strategy ${strategyName} returned a Promise but prepareStep is synchronous. Skipping.`
+                    );
+                    continue;
+                }
+                workingHistory = result;
                 lastSuccessfulStrategy = strategyName;
             } catch (error) {
                 this.logger.error(
@@ -1171,6 +1184,36 @@ export class ContextManager<TMessage = unknown> {
                 );
                 // Continue processing other messages rather than failing completely
             }
+        }
+    }
+
+    /**
+     * Creates a concise summary of a message for debugging logs.
+     * Shows role and key identifiers without message content.
+     *
+     * Examples:
+     * - user
+     * - asst
+     * - asst(tool:get_screen,press_button)
+     * - tool:get_screen
+     */
+    private summarizeMessage(message: InternalMessage): string {
+        switch (message.role) {
+            case 'user':
+                return 'user';
+            case 'assistant': {
+                if (message.toolCalls && message.toolCalls.length > 0) {
+                    const toolNames = message.toolCalls.map((tc) => tc.function.name).join(',');
+                    return `asst(tool:${toolNames})`;
+                }
+                return 'asst';
+            }
+            case 'tool':
+                return `tool:${message.name || 'unknown'}`;
+            case 'system':
+                return 'system';
+            default:
+                return `unknown(${message.role})`;
         }
     }
 }

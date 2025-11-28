@@ -20,7 +20,7 @@ import {
 } from '../../context/utils.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
-import { ImageData, FileData } from '../../context/types.js';
+import { ImageData, FileData, InternalMessage } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
@@ -34,6 +34,9 @@ import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
+// TurnExecutor integration
+import { TurnExecutor, createVercelStepExecutor } from '../executor/index.js';
+import type { CoalescedMessage } from '../executor/types.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -58,6 +61,11 @@ export class VercelLLMService implements ILLMService {
     private readonly sessionId: string;
     private toolSupportCache: Map<string, boolean> = new Map();
     private logger: IDextoLogger;
+    // Additional properties for TurnExecutor integration
+    private formatter: VercelMessageFormatter;
+    private resourceManager: import('../../resources/index.js').ResourceManager;
+    private tokenizer: import('../tokenizer/types.js').ITokenizer;
+    private maxInputTokens: number;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -83,20 +91,19 @@ export class VercelLLMService implements ILLMService {
         this.toolManager = toolManager;
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
+        this.resourceManager = resourceManager;
 
         // Create properly-typed ContextManager for Vercel
-        const formatter = new VercelMessageFormatter(this.logger);
-        const tokenizer = createTokenizer(config.provider, this.getModelId(), this.logger);
-        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
-
-        // Use the provided ResourceManager
+        this.formatter = new VercelMessageFormatter(this.logger);
+        this.tokenizer = createTokenizer(config.provider, this.getModelId(), this.logger);
+        this.maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         this.contextManager = new ContextManager<ModelMessage>(
             config,
-            formatter,
+            this.formatter,
             systemPromptManager,
-            maxInputTokens,
-            tokenizer,
+            this.maxInputTokens,
+            this.tokenizer,
             historyProvider,
             sessionId,
             resourceManager,
@@ -456,6 +463,7 @@ export class VercelLLMService implements ILLMService {
         }
 
         let stepIteration = 0;
+        let toolsWereUsed = false; // Track if any tools were called during the loop
 
         const estimatedTokens = Math.ceil(JSON.stringify(messages, null, 2).length / 4);
         this.logger.debug(
@@ -529,6 +537,26 @@ export class VercelLLMService implements ILLMService {
                         this.contextManager.updateActualTokenCount(stepUsage.inputTokens);
                     }
 
+                    // Add assistant message to context if tools were called in this step
+                    // Tool RESULTS are already added via addToolResult() in execute() callback
+                    // We only need to add the assistant message with the tool CALLS here
+                    if (step.toolCalls && step.toolCalls.length > 0) {
+                        toolsWereUsed = true;
+                        const toolCalls = step.toolCalls.map((tc) => ({
+                            id: tc.toolCallId,
+                            type: 'function' as const,
+                            function: {
+                                name: tc.toolName,
+                                // Vercel SDK uses 'input' for tool arguments (can be object or string)
+                                arguments:
+                                    typeof tc.input === 'string'
+                                        ? tc.input
+                                        : JSON.stringify(tc.input),
+                            },
+                        }));
+                        await this.contextManager.addAssistantMessage(step.text || null, toolCalls);
+                    }
+
                     // Do not emit intermediate llm:response; generateText is non-stream so we only emit once after completion.
                     // toolCall and toolResult events are now emitted immediately in execute() function
                 },
@@ -580,10 +608,22 @@ export class VercelLLMService implements ILLMService {
                 activeSpan.setAttributes(attributes);
             }
 
-            // Persist and update token count
-            await this.contextManager.processLLMResponse(response);
-            if (typeof response.totalUsage.totalTokens === 'number') {
-                this.contextManager.updateActualTokenCount(response.totalUsage.totalTokens);
+            // Persist messages to context history
+            // NOTE: Do NOT update actual token count with totalUsage here!
+            // totalUsage is CUMULATIVE across all steps in tool loops (can be millions).
+            // Per-step token counts are already updated correctly in onStepFinish.
+            if (toolsWereUsed) {
+                // Tool results were already added via addToolResult() during execution.
+                // Assistant messages with tool calls were added in onStepFinish.
+                // Only add the final text response if there is one (after all tools completed).
+                if (response.text) {
+                    await this.contextManager.addAssistantMessage(response.text, undefined, {
+                        ...(response.reasoningText && { reasoning: response.reasoningText }),
+                    });
+                }
+            } else {
+                // No tools were used - use processLLMResponse to add the simple text response
+                await this.contextManager.processLLMResponse(response);
             }
 
             // Return the plain text of the response
@@ -937,5 +977,149 @@ export class VercelLLMService implements ILLMService {
      */
     getContextManager(): ContextManager<unknown> {
         return this.contextManager;
+    }
+
+    /**
+     * Complete a task using the new TurnExecutor architecture.
+     *
+     * This method uses the controlled step execution pattern with:
+     * - Single-step execution (stopWhen: stepCountIs(1))
+     * - Reactive compression based on actual tokens
+     * - Tool output pruning between steps
+     *
+     * @param textInput The user's text input
+     * @param options Execution options including abort signal
+     * @param imageData Optional image data
+     * @param fileData Optional file data
+     * @returns The assistant's final response
+     */
+    async completeTaskWithExecutor(
+        textInput: string,
+        options: { signal?: AbortSignal },
+        imageData?: ImageData,
+        fileData?: FileData
+    ): Promise<string> {
+        // Get active span and context for telemetry
+        const activeSpan = trace.getActiveSpan();
+        const currentContext = context.active();
+
+        const provider = this.config.provider;
+        const model = this.getModelId();
+
+        if (activeSpan) {
+            activeSpan.setAttribute('llm.provider', provider);
+            activeSpan.setAttribute('llm.model', model);
+            activeSpan.setAttribute('llm.executor', 'TurnExecutor');
+        }
+
+        // Add to baggage for child span propagation
+        const existingBaggage = propagation.getBaggage(currentContext);
+        const baggageEntries: Record<string, import('@opentelemetry/api').BaggageEntry> = {};
+
+        if (existingBaggage) {
+            existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                baggageEntries[key] = entry;
+            });
+        }
+
+        baggageEntries['llm.provider'] = { value: provider };
+        baggageEntries['llm.model'] = { value: model };
+
+        const updatedContext = propagation.setBaggage(
+            currentContext,
+            propagation.createBaggage(baggageEntries)
+        );
+
+        return await context.with(updatedContext, async () => {
+            // 1. Add user message to context
+            await this.contextManager.addUserMessage(textInput, imageData, fileData);
+
+            // 2. Get tools for the step executor
+            const tools = await this.toolManager.getAllTools();
+
+            // 3. Emit thinking event
+            this.sessionEventBus.emit('llm:thinking');
+
+            // 4. Create the step executor using the vercel adapter
+            const stepExecutor = createVercelStepExecutor({
+                model: this.model,
+                llmConfig: this.config,
+                tools,
+                sessionEventBus: this.sessionEventBus,
+                sessionId: this.sessionId,
+                formatter: this.formatter,
+                resourceManager: this.resourceManager,
+                contextManager: this.contextManager,
+                logger: this.logger,
+                executeTool: async (toolName, args, sessionId) => {
+                    return await this.toolManager.executeTool(toolName, args, sessionId);
+                },
+                getSystemPrompt: async () => {
+                    const prompt = await this.contextManager.getFormattedSystemPrompt({
+                        mcpManager: this.toolManager.getMcpManager(),
+                    });
+                    // Coerce undefined to null for type compatibility
+                    return prompt ?? null;
+                },
+            });
+
+            // 5. Create TurnExecutor with dependencies
+            const turnExecutor = new TurnExecutor(
+                {
+                    maxSteps: this.config.maxIterations,
+                    maxInputTokens: this.maxInputTokens,
+                    sessionId: this.sessionId,
+                },
+                {
+                    stepExecutor,
+                    getMessages: async () => {
+                        const history = await this.contextManager.getHistory();
+                        return [...history] as InternalMessage[];
+                    },
+                    addMessage: async (coalesced: CoalescedMessage) => {
+                        // Convert coalesced message to user message
+                        // Extract text content
+                        const textParts = coalesced.combinedContent
+                            .filter((p) => p.type === 'text')
+                            .map((p) => (p as { type: 'text'; text: string }).text);
+                        const text = textParts.join('\n');
+
+                        // Extract first image and file if present
+                        const imagePart = coalesced.combinedContent.find((p) => p.type === 'image');
+                        const filePart = coalesced.combinedContent.find((p) => p.type === 'file');
+
+                        await this.contextManager.addUserMessage(
+                            text,
+                            imagePart as ImageData | undefined,
+                            filePart as FileData | undefined
+                        );
+                    },
+                    dequeueMessages: () => null, // No message queue for now
+                    compressionStrategies: [], // Use default from context manager
+                    tokenizer: this.tokenizer,
+                    logger: this.logger,
+                }
+            );
+
+            // 6. Execute the turn
+            const result = await turnExecutor.execute();
+
+            this.logger.debug(
+                `TurnExecutor completed: ${result.stepsExecuted} steps, ` +
+                    `finishReason=${result.finishReason}, ` +
+                    `compressionTriggered=${result.compressionTriggered}`
+            );
+
+            // 7. Handle abort
+            if (options?.signal?.aborted) {
+                return result.text || '';
+            }
+
+            // 8. Return the response
+            return (
+                result.text ||
+                `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`
+            );
+        });
     }
 }

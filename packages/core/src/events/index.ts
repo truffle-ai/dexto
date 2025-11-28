@@ -29,6 +29,9 @@ export const AGENT_EVENT_NAMES = [
     'resource:cache-invalidated',
     'approval:request',
     'approval:response',
+    'context:pruned',
+    'message:queued',
+    'message:dequeued',
 ] as const;
 
 /**
@@ -44,6 +47,9 @@ export const SESSION_EVENT_NAMES = [
     'llm:switched',
     'llm:unsupported-input',
     'context:compressed',
+    'context:pruned',
+    'message:queued',
+    'message:dequeued',
 ] as const;
 
 /**
@@ -79,6 +85,11 @@ export const STREAMING_EVENTS = [
 
     // Context management events
     'context:compressed',
+    'context:pruned',
+
+    // Message queue events (for user guidance during agent execution)
+    'message:queued',
+    'message:dequeued',
 
     // Session metadata
     'session:title-updated',
@@ -346,6 +357,28 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Old tool outputs were pruned (marked with compactedAt) */
+    'context:pruned': {
+        prunedCount: number;
+        savedTokens: number;
+        sessionId: string;
+    };
+
+    /** A message was queued because the agent is busy */
+    'message:queued': {
+        position: number;
+        id: string;
+        sessionId: string;
+    };
+
+    /** Queued messages were dequeued and injected into the conversation */
+    'message:dequeued': {
+        count: number;
+        ids: string[];
+        coalesced: boolean;
+        sessionId: string;
+    };
+
     // State events
     /** Fired when agent runtime state changes */
     'state:changed': {
@@ -459,6 +492,32 @@ export interface SessionEventMap {
         compressedMessages: number;
         strategy: string;
         reason: 'token_limit' | 'message_limit';
+    };
+
+    /** Old tool outputs were pruned (marked with compactedAt) */
+    'context:pruned': {
+        /** Number of tool outputs that were pruned */
+        prunedCount: number;
+        /** Estimated tokens saved by pruning */
+        savedTokens: number;
+    };
+
+    /** A message was queued because the agent is busy */
+    'message:queued': {
+        /** Position in the queue (1-indexed) */
+        position: number;
+        /** Unique ID of the queued message */
+        id: string;
+    };
+
+    /** Queued messages were dequeued and injected into the conversation */
+    'message:dequeued': {
+        /** Number of messages that were dequeued */
+        count: number;
+        /** IDs of the dequeued messages */
+        ids: string[];
+        /** Whether the messages were coalesced into one */
+        coalesced: boolean;
     };
 }
 
