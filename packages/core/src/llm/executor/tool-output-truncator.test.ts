@@ -23,10 +23,15 @@ describe('tool-output-truncator', () => {
         });
 
         it('should use default limit if not provided', () => {
-            const output = 'a'.repeat(120001);
+            // Use input significantly larger than default limit (120,000)
+            // so the truncation saves more chars than the appended message adds
+            const output = 'a'.repeat(150000);
             const result = truncateStringOutput(output);
             expect(result.truncated).toBe(true);
+            // Output should be ~120,000 + truncation message (~104 chars) = ~120,104
+            // which is less than original 150,000
             expect(result.output.length).toBeLessThan(output.length);
+            expect(result.output).toContain('[Output truncated');
         });
     });
 

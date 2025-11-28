@@ -21,6 +21,7 @@ import { DynamicContributorContext } from '../../systemPrompt/types.js';
 import { LLMContext } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { CoalescedMessage } from '../../session/types.js';
+import { defer } from '../../utils/defer.js';
 
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
@@ -63,8 +64,8 @@ export class TurnExecutor {
      * Uses stopWhen: stepCountIs(1) to regain control after each step.
      */
     async execute(contributorContext: DynamicContributorContext): Promise<ExecutorResult> {
-        // TODO Phase 7: Add defer() for automatic cleanup
-        // using _ = defer(() => this.cleanup());
+        // Automatic cleanup when scope exits (normal, throw, or return)
+        using _ = defer(() => this.cleanup());
 
         let stepCount = 0;
         let lastStepTokens: TokenUsage | null = null;
@@ -498,10 +499,19 @@ export class TurnExecutor {
         }, 0);
     }
 
-    // TODO Phase 7: Implement cleanup with defer()
-    // private cleanup(): void {
-    //     this.abortController.abort();
-    //     this.messageQueue.clear();
-    //     // Additional resource cleanup
-    // }
+    /**
+     * Cleanup resources when execution scope exits.
+     * Called automatically via defer() on normal exit, throw, or abort.
+     */
+    private cleanup(): void {
+        this.logger.debug('TurnExecutor cleanup triggered');
+
+        // Abort any pending operations
+        if (!this.abortController.signal.aborted) {
+            this.abortController.abort();
+        }
+
+        // Clear any pending queued messages
+        this.messageQueue.clear();
+    }
 }

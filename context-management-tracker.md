@@ -15,7 +15,7 @@
 | Phase 5: Pruning | ✅ Complete | `pruneOldToolOutputs()`, `markMessagesAsCompacted()` |
 | Phase 6: MessageQueue | ✅ Complete | `MessageQueueService`, multimodal coalescing |
 | Phase 6.5: Unit Tests | ✅ Complete | MessageQueueService + filterCompacted tests |
-| Phase 7: defer() Cleanup | 🔲 Not Started | TC39 pattern |
+| Phase 7: defer() Cleanup | ✅ Complete | TC39 pattern, TurnExecutor cleanup |
 | Phase 8: Integration | 🔲 Not Started | Update `vercel.ts` |
 
 ---
@@ -114,12 +114,20 @@ The following require extensive mocking and are better tested during integration
 - ReactiveOverflowStrategy tests (LLM mocking)
 - Overflow detection tests (not yet wired into TurnExecutor)
 
-### Phase 7: defer() Cleanup 🔲
+### Phase 7: defer() Cleanup ✅
 
-- [ ] Implement `defer()` utility in `util/defer.ts`
-- [ ] Add to TurnExecutor for automatic cleanup
-- [ ] Test cleanup on normal exit, throw, and abort
-- [ ] Verify no resource leaks
+- [x] Implement `defer()` utility in `utils/defer.ts`
+- [x] Export from `utils/index.ts`
+- [x] Add to TurnExecutor for automatic cleanup
+- [x] Implement `cleanup()` method in TurnExecutor (aborts pending ops, clears queue)
+- [x] Write comprehensive tests (`utils/defer.test.ts` - 14 tests)
+  - Sync dispose via `using` keyword
+  - Async dispose via `await using` keyword
+  - LIFO execution order
+  - Cleanup on throw, return, normal exit
+  - Symbol.dispose and Symbol.asyncDispose interfaces
+- [x] Verify typecheck passes
+- [x] Fix pre-existing test bug in `tool-output-truncator.test.ts`
 
 ### Phase 8: Integration + Migration 🔲
 
@@ -229,7 +237,7 @@ tools: {
 
 ---
 
-## Files Changed (Phase 0-6.5)
+## Files Changed (Phase 0-7)
 
 ### New Files
 - `packages/core/src/llm/executor/stream-processor.ts` (Phase 2)
@@ -242,6 +250,8 @@ tools: {
 - `packages/core/src/session/types.ts`
 - `packages/core/src/session/message-queue.ts` (Phase 6)
 - `packages/core/src/session/message-queue.test.ts` (Phase 6.5)
+- `packages/core/src/utils/defer.ts` (Phase 7)
+- `packages/core/src/utils/defer.test.ts` (Phase 7)
 
 ### Modified Files
 - `packages/core/src/agent/schemas.ts` - Added `tools` field
@@ -262,6 +272,9 @@ tools: {
 - `packages/core/src/session/history/types.ts` - Added `updateMessage()` to interface
 - `packages/core/src/tools/schemas.ts` - Added `ToolLimitsSchema`, `ToolsConfigSchema`
 - `packages/agent-management/src/writer.test.ts` - Updated for new schema
+- `packages/core/src/utils/index.ts` - Export `defer()` (Phase 7)
+- `packages/core/src/llm/executor/turn-executor.ts` - Added `defer()` cleanup, `cleanup()` method (Phase 7)
+- `packages/core/src/llm/executor/tool-output-truncator.test.ts` - Fixed edge case test (Phase 7)
 
 ### Deleted Files
 - `packages/core/src/context/compression/middle-removal.ts`
@@ -277,5 +290,4 @@ tools: {
 
 ## Next Steps
 
-1. **Phase 7**: defer() cleanup pattern
-2. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, wire compression, full integration testing
+1. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, wire compression, full integration testing
