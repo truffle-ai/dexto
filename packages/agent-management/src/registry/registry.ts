@@ -222,6 +222,11 @@ export class LocalAgentRegistry implements AgentRegistry {
         }
     }
 
+    // TODO: Consider removing install/uninstall methods from LocalAgentRegistry class.
+    // Installing/uninstalling from registry to local agents/ is better suited as a CLI command.
+    // A bundler/opinionated project structure should help - agents/ will by default be their registry.
+    // For now these methods remain for backward compatibility.
+
     /**
      * Install agent atomically using temp + rename pattern
      * @param agentId ID of the agent to install
@@ -665,4 +670,22 @@ export function getAgentRegistry(): LocalAgentRegistry {
         cachedRegistry = new LocalAgentRegistry();
     }
     return cachedRegistry;
+}
+
+/**
+ * Load bundled agent registry (agents field only)
+ * Returns empty object on error - use for non-critical lookups like display names
+ */
+export function loadBundledRegistryAgents(): Record<string, AgentRegistryEntry> {
+    try {
+        const registryPath = resolveBundledScript('agents/agent-registry.json');
+        const content = readFileSync(registryPath, 'utf-8');
+        const registry = JSON.parse(content);
+        return registry.agents || {};
+    } catch (error) {
+        logger.warn(
+            `Could not load bundled registry: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return {};
+    }
 }

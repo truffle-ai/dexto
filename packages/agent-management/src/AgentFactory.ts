@@ -26,8 +26,9 @@
 
 import { promises as fs } from 'fs';
 import { DextoAgent, type AgentConfig } from '@dexto/core';
-import { getDextoGlobalPath, resolveBundledScript } from './utils/path.js';
+import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
+import { loadBundledRegistryAgents } from './registry/registry.js';
 import { enrichAgentConfig } from './config/index.js';
 import {
     installBundledAgent,
@@ -56,12 +57,12 @@ export const AgentFactory = {
      * List all agents (installed and available from bundled registry)
      */
     async listAgents() {
-        const bundledRegistry = await loadBundledRegistry();
+        const bundledAgents = loadBundledRegistryAgents();
         const installed = await listInstalledAgents();
 
         // Build installed agent list
         const installedAgents = installed.map((id) => {
-            const bundledEntry = bundledRegistry.agents[id];
+            const bundledEntry = bundledAgents[id];
             return {
                 id,
                 name: bundledEntry?.name || deriveDisplayName(id),
@@ -73,7 +74,7 @@ export const AgentFactory = {
         });
 
         // Build available agent list (not installed)
-        const availableAgents = Object.entries(bundledRegistry.agents)
+        const availableAgents = Object.entries(bundledAgents)
             .filter(([id]) => !installed.includes(id))
             .map(([id, entry]: [string, any]) => ({
                 id,
@@ -182,12 +183,6 @@ export const AgentFactory = {
 };
 
 // Helper functions
-async function loadBundledRegistry() {
-    const bundledRegistryPath = resolveBundledScript('agents/agent-registry.json');
-    const content = await fs.readFile(bundledRegistryPath, 'utf-8');
-    return JSON.parse(content);
-}
-
 async function listInstalledAgents(): Promise<string[]> {
     const agentsDir = getDextoGlobalPath('agents');
     try {

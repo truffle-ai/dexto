@@ -5,11 +5,10 @@ import {
     loadAgentConfig,
     enrichAgentConfig,
     deriveDisplayName,
-    resolveBundledScript,
     getDextoGlobalPath,
     listInstalledAgents,
+    loadBundledRegistryAgents,
 } from '@dexto/agent-management';
-import { readFileSync } from 'fs';
 import { promises as fs } from 'fs';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
@@ -28,23 +27,6 @@ import {
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
-
-/**
- * Load bundled agent registry
- */
-function loadBundledRegistry(): Record<string, any> {
-    try {
-        const registryPath = resolveBundledScript('agents/agent-registry.json');
-        const content = readFileSync(registryPath, 'utf-8');
-        const registry = JSON.parse(content);
-        return registry.agents || {};
-    } catch (error) {
-        logger.warn(
-            `Could not load bundled registry: ${error instanceof Error ? error.message : String(error)}`
-        );
-        return {};
-    }
-}
 
 /**
  * List all agents (installed and available)
@@ -68,7 +50,7 @@ async function listAgents(): Promise<{
         type: 'builtin' | 'custom';
     }>;
 }> {
-    const bundledRegistry = loadBundledRegistry();
+    const bundledRegistry = loadBundledRegistryAgents();
     const installedNames = await listInstalledAgents();
 
     // Build installed agents list with metadata
@@ -124,7 +106,7 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
     }
 
     // Find the main config file
-    const bundledRegistry = loadBundledRegistry();
+    const bundledRegistry = loadBundledRegistryAgents();
     const registryEntry = bundledRegistry[agentId];
     const mainFile = registryEntry?.main || 'agent.yml';
     const agentPath = `${agentDir}/${mainFile}`;

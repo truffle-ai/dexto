@@ -1,6 +1,6 @@
 // packages/cli/src/cli/commands/list-agents.ts
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import path from 'path';
 import chalk from 'chalk';
@@ -9,7 +9,7 @@ import {
     getDextoGlobalPath,
     globalPreferencesExist,
     loadGlobalPreferences,
-    resolveBundledScript,
+    loadBundledRegistryAgents,
 } from '@dexto/agent-management';
 
 // Zod schema for list-agents command validation
@@ -48,23 +48,6 @@ interface AvailableAgentInfo {
 }
 
 /**
- * Load bundled agent registry
- */
-function loadBundledRegistry(): Record<string, any> {
-    try {
-        const registryPath = resolveBundledScript('agents/agent-registry.json');
-        const content = readFileSync(registryPath, 'utf-8');
-        const registry = JSON.parse(content);
-        return registry.agents || {};
-    } catch (error) {
-        console.warn(
-            `Warning: Could not load bundled registry: ${error instanceof Error ? error.message : String(error)}`
-        );
-        return {};
-    }
-}
-
-/**
  * Get information about installed agents
  */
 async function getInstalledAgents(): Promise<InstalledAgentInfo[]> {
@@ -74,7 +57,7 @@ async function getInstalledAgents(): Promise<InstalledAgentInfo[]> {
         return [];
     }
 
-    const bundledRegistry = loadBundledRegistry();
+    const bundledRegistry = loadBundledRegistryAgents();
     const installedAgents: InstalledAgentInfo[] = [];
 
     try {
@@ -155,7 +138,7 @@ async function getInstalledAgents(): Promise<InstalledAgentInfo[]> {
  * Get information about available agents from registry
  */
 function getAvailableAgents(): AvailableAgentInfo[] {
-    const bundledRegistry = loadBundledRegistry();
+    const bundledRegistry = loadBundledRegistryAgents();
 
     return Object.entries(bundledRegistry)
         .map(([name, data]) => ({

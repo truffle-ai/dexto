@@ -1,5 +1,5 @@
 // Agent registry
-export { getAgentRegistry } from './registry/registry.js';
+export { getAgentRegistry, loadBundledRegistryAgents } from './registry/registry.js';
 export type { AgentRegistry, AgentRegistryEntry, Registry } from './registry/types.js';
 export { deriveDisplayName } from './registry/types.js';
 export { RegistryError } from './registry/errors.js';
