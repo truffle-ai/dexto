@@ -1,24 +1,34 @@
 /**
  * TurnExecutor - Main agent execution loop with controlled step execution.
  *
- * Orchestrates the agent loop using `stopWhen: stepCountIs(1)` to regain control
- * after each LLM step. This enables:
- * - Mid-loop message injection from the queue
- * - Reactive compression based on actual token counts
- * - Tool output pruning between steps
- * - Proper cleanup on abort/error
+ * According to complete-context-management-plan.md:
+ * - TurnExecutor OWNS the streamText call
+ * - TurnExecutor creates tools via createTools() with minimal execute + toModelOutput
+ * - Uses streamProcessor.process(() => streamText({...}))
  *
  * @see /complete-context-management-plan.md
  */
 
+import {
+    streamText,
+    type LanguageModel,
+    stepCountIs,
+    type ToolSet as VercelToolSet,
+    jsonSchema,
+} from 'ai';
+import type { ContextManager } from '../../context/manager.js';
+import type { ToolSet } from '../../tools/types.js';
 import type { InternalMessage } from '../../context/types.js';
 import type { ICompressionStrategy, TurnResult, CoalescedMessage } from './types.js';
 import type { ITokenizer } from '../tokenizer/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
+import type { SessionEventBus } from '../../events/index.js';
 import { eventBus } from '../../events/index.js';
+import { StreamProcessor } from './stream-processor.js';
 import { pruneOldToolOutputs } from './strategies/tool-output-pruning.js';
 import { deferAsync } from '../../utils/defer.js';
+import { summarizeToolContentForText } from '../../context/utils.js';
 
 /**
  * Token usage from a single step.
@@ -29,41 +39,6 @@ export interface StepUsage {
     reasoningTokens?: number;
     totalTokens: number;
 }
-
-/**
- * Result from executing a single step.
- */
-export interface StepResult {
-    /** Final text from this step */
-    text: string;
-    /** Reasoning text if model supports it */
-    reasoning?: string;
-    /** How this step ended */
-    finishReason: 'stop' | 'tool-calls' | 'length' | 'content-filter' | 'error';
-    /** Token usage for this step */
-    usage: StepUsage;
-    /** Whether tool calls were made */
-    hasToolCalls: boolean;
-}
-
-/**
- * Function type for executing a single step.
- * This abstracts away the specific LLM service implementation.
- */
-export type StepExecutor = (
-    messages: InternalMessage[],
-    signal: AbortSignal
-) => Promise<StepResult>;
-
-/**
- * Function type for getting formatted messages from context.
- */
-export type MessageProvider = () => Promise<InternalMessage[]>;
-
-/**
- * Function type for adding a user message to context.
- */
-export type MessageAdder = (content: CoalescedMessage) => Promise<void>;
 
 /**
  * Configuration for TurnExecutor.
@@ -83,26 +58,45 @@ export interface TurnExecutorConfig {
 
     /** Session ID for event emission */
     sessionId: string;
+
+    /** Temperature for LLM (optional) */
+    temperature?: number;
+
+    /** Max output tokens (optional) */
+    maxOutputTokens?: number;
 }
 
 /**
  * Dependencies for TurnExecutor.
  */
 export interface TurnExecutorDeps {
-    /** Function to execute a single LLM step */
-    stepExecutor: StepExecutor;
+    /** The Vercel language model */
+    model: LanguageModel;
 
-    /** Function to get current message history */
-    getMessages: MessageProvider;
+    /** Context manager for message history */
+    contextManager: ContextManager<unknown>;
 
-    /** Function to add a coalesced message to history */
-    addMessage: MessageAdder;
+    /** Tool definitions from ToolManager */
+    tools: ToolSet;
+
+    /** Function to execute a tool */
+    executeTool: (
+        toolName: string,
+        args: Record<string, unknown>,
+        sessionId: string
+    ) => Promise<unknown>;
+
+    /** Session event bus for UI events */
+    sessionEventBus: SessionEventBus;
 
     /** Function to check for queued messages */
     dequeueMessages: () => CoalescedMessage | null;
 
     /** Function to clear queued messages (for cleanup on abort/error) */
     clearMessageQueue?: () => void;
+
+    /** Function to add a coalesced message to history */
+    addMessage: (content: CoalescedMessage) => Promise<void>;
 
     /** Compression strategies to apply */
     compressionStrategies: ICompressionStrategy[];
@@ -112,22 +106,35 @@ export interface TurnExecutorDeps {
 
     /** Logger instance */
     logger: IDextoLogger;
+
+    /** Function to get system prompt */
+    getSystemPrompt: () => Promise<string | null>;
+
+    /** Function to get formatted messages */
+    getFormattedMessages: () => Promise<InternalMessage[]>;
 }
 
 /**
  * TurnExecutor orchestrates the agent execution loop.
  *
- * Key features:
- * - Controlled step execution with `stopWhen: stepCountIs(1)`
- * - Mid-loop message injection from queue
- * - Reactive compression based on actual tokens
- * - Tool output pruning between steps
- * - Automatic cleanup via defer() pattern
+ * Key design from plan:
+ * - OWNS the streamText call (not delegated)
+ * - Creates tools via createTools() with minimal execute + toModelOutput
+ * - Uses StreamProcessor.process() for persistence
  */
 export class TurnExecutor {
-    private readonly config: Required<TurnExecutorConfig>;
+    private readonly config: {
+        maxSteps: number;
+        maxInputTokens: number;
+        compressionThreshold: number;
+        pruneProtectTokens: number;
+        sessionId: string;
+        temperature?: number;
+        maxOutputTokens?: number;
+    };
     private readonly deps: TurnExecutorDeps;
     private readonly logger: IDextoLogger;
+    private readonly streamProcessor: StreamProcessor;
     private abortController: AbortController | null = null;
 
     constructor(config: TurnExecutorConfig, deps: TurnExecutorDeps) {
@@ -138,39 +145,45 @@ export class TurnExecutor {
             pruneProtectTokens: config.pruneProtectTokens ?? 40000,
             sessionId: config.sessionId,
         };
+        if (config.temperature !== undefined) {
+            this.config.temperature = config.temperature;
+        }
+        if (config.maxOutputTokens !== undefined) {
+            this.config.maxOutputTokens = config.maxOutputTokens;
+        }
         this.deps = deps;
         this.logger = deps.logger.createChild(DextoLogComponent.CONTEXT);
+
+        // Create StreamProcessor with direct ContextManager access
+        this.streamProcessor = new StreamProcessor({
+            contextManager: deps.contextManager,
+            sessionEventBus: deps.sessionEventBus,
+            sessionId: config.sessionId,
+            logger: deps.logger,
+        });
     }
 
     /**
      * Execute a turn (complete agent response to user input).
-     *
-     * This runs the main agent loop:
-     * 1. Check for queued messages
-     * 2. Check for overflow and compress if needed
-     * 3. Execute single step
-     * 4. Check termination conditions
-     * 5. Prune old tool outputs
-     * 6. Repeat until done
-     *
-     * Uses TC39 Explicit Resource Management (`await using`) for automatic cleanup.
-     *
-     * @returns Result of the turn execution
      */
     async execute(): Promise<TurnResult> {
         this.abortController = new AbortController();
         const signal = this.abortController.signal;
 
         // Automatic cleanup using TC39 Explicit Resource Management
-        // This ensures full cleanup regardless of how the method exits
         await using _ = deferAsync(async () => {
             this.cleanup();
         });
 
         let stepCount = 0;
         let lastStepUsage: StepUsage | null = null;
-        let lastResult: StepResult | null = null;
+        let lastText = '';
+        let lastReasoning: string | undefined;
+        let lastFinishReason: TurnResult['finishReason'] = 'stop';
         let compressionTriggered = false;
+
+        // Create tools once (minimal execute + toModelOutput)
+        const tools = this.createTools();
 
         try {
             while (true) {
@@ -190,32 +203,49 @@ export class TurnExecutor {
                     );
                     await this.compress();
                     compressionTriggered = true;
-                    // Continue to execute step with compressed context
                 }
 
-                // 3. Get current messages and execute single step
-                const messages = await this.deps.getMessages();
-                lastResult = await this.deps.stepExecutor(messages, signal);
-                stepCount++;
+                // 3. Get messages and execute single step via StreamProcessor
+                const messages = await this.deps.getFormattedMessages();
+                const systemPrompt = await this.deps.getSystemPrompt();
 
-                // 4. Capture actual tokens for next iteration
-                lastStepUsage = lastResult.usage;
+                const result = await this.streamProcessor.process(
+                    () =>
+                        streamText({
+                            model: this.deps.model,
+                            messages: this.formatMessagesForVercel(messages, systemPrompt),
+                            tools,
+                            abortSignal: signal,
+                            stopWhen: stepCountIs(1),
+                            ...(this.config.temperature !== undefined && {
+                                temperature: this.config.temperature,
+                            }),
+                            ...(this.config.maxOutputTokens !== undefined && {
+                                maxTokens: this.config.maxOutputTokens,
+                            }),
+                        }),
+                    signal
+                );
+
+                stepCount++;
+                lastStepUsage = result.usage;
+                lastText = result.text;
+                lastReasoning = result.reasoning;
+                lastFinishReason = this.mapFinishReason(result.finishReason, result.hasToolCalls);
 
                 this.logger.debug(
-                    `TurnExecutor: Step ${stepCount} finished - reason: ${lastResult.finishReason}, ` +
+                    `TurnExecutor: Step ${stepCount} finished - reason: ${result.finishReason}, ` +
                         `tokens: ${lastStepUsage.inputTokens} in, ${lastStepUsage.outputTokens} out`
                 );
 
-                // 5. Check termination conditions
-                if (lastResult.finishReason !== 'tool-calls') {
-                    this.logger.debug(
-                        `TurnExecutor: Terminating - finish reason: ${lastResult.finishReason}`
-                    );
+                // 4. Check termination conditions
+                if (result.finishReason !== 'tool-calls') {
                     break;
                 }
 
                 if (signal.aborted) {
                     this.logger.debug('TurnExecutor: Terminating - aborted');
+                    lastFinishReason = 'abort';
                     break;
                 }
 
@@ -223,22 +253,36 @@ export class TurnExecutor {
                     this.logger.debug(
                         `TurnExecutor: Terminating - max steps reached (${this.config.maxSteps})`
                     );
+                    lastFinishReason = 'max-steps';
                     break;
                 }
 
-                // 6. Prune old tool outputs between steps
+                // 5. Prune old tool outputs between steps
                 await this.pruneToolOutputs();
             }
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 this.logger.debug('TurnExecutor: Execution aborted');
-                return this.buildResult(lastResult, stepCount, 'abort', compressionTriggered);
+                lastFinishReason = 'abort';
+            } else {
+                this.logger.error(`TurnExecutor: Error during execution: ${String(error)}`);
+                lastFinishReason = 'error';
             }
-            this.logger.error(`TurnExecutor: Error during execution: ${String(error)}`);
-            return this.buildResult(lastResult, stepCount, 'error', compressionTriggered);
         }
 
-        return this.buildResult(lastResult, stepCount, undefined, compressionTriggered);
+        const turnResult: TurnResult = {
+            text: lastText,
+            finishReason: lastFinishReason,
+            usage: lastStepUsage ?? { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            stepsExecuted: stepCount,
+            compressionTriggered,
+        };
+
+        if (lastReasoning) {
+            turnResult.reasoning = lastReasoning;
+        }
+
+        return turnResult;
     }
 
     /**
@@ -252,27 +296,114 @@ export class TurnExecutor {
     }
 
     /**
-     * Clean up resources after execution (called automatically via defer).
-     * - Clears the message queue to prevent stale messages
-     * - Resets the abort controller
+     * Create tools with minimal execute callback + toModelOutput.
+     *
+     * Per the plan:
+     * - execute: just runs the tool, returns raw result
+     * - toModelOutput: formats result for LLM (sync)
+     */
+    private createTools(): VercelToolSet {
+        const tools = this.deps.tools;
+
+        return Object.keys(tools).reduce<VercelToolSet>((acc, toolName) => {
+            const tool = tools[toolName];
+            if (!tool) return acc;
+
+            acc[toolName] = {
+                inputSchema: jsonSchema(tool.parameters),
+                ...(tool.description && { description: tool.description }),
+
+                // MINIMAL execute - just run the tool, return raw result
+                execute: async (args: unknown) => {
+                    return this.deps.executeTool(
+                        toolName,
+                        args as Record<string, unknown>,
+                        this.config.sessionId
+                    );
+                },
+
+                // Format for LLM - sync, inline data already present
+                toModelOutput: (result: unknown) => {
+                    return summarizeToolContentForText(result as string | null);
+                },
+            };
+
+            return acc;
+        }, {});
+    }
+
+    /**
+     * Format internal messages for Vercel AI SDK.
+     */
+    private formatMessagesForVercel(
+        messages: InternalMessage[],
+        systemPrompt: string | null
+    ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+        const formatted: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+
+        if (systemPrompt) {
+            formatted.push({ role: 'system', content: systemPrompt });
+        }
+
+        for (const msg of messages) {
+            if (msg.role === 'system' || msg.role === 'user' || msg.role === 'assistant') {
+                const content =
+                    typeof msg.content === 'string'
+                        ? msg.content
+                        : Array.isArray(msg.content)
+                          ? msg.content
+                                .filter(
+                                    (p): p is { type: 'text'; text: string } => p.type === 'text'
+                                )
+                                .map((p) => p.text)
+                                .join('\n')
+                          : '';
+                if (content) {
+                    formatted.push({ role: msg.role, content });
+                }
+            }
+        }
+
+        return formatted;
+    }
+
+    /**
+     * Map stream finish reason to turn finish reason.
+     * Only maps when semantically different (tool-calls at max steps = max-steps).
+     */
+    private mapFinishReason(
+        streamReason: 'stop' | 'tool-calls' | 'length' | 'content-filter' | 'error',
+        hasToolCalls: boolean
+    ): TurnResult['finishReason'] {
+        // If ended with tool-calls but we're returning, it means max steps
+        if (streamReason === 'tool-calls' && hasToolCalls) {
+            return 'max-steps';
+        }
+        // Length and content-filter are errors
+        if (streamReason === 'length' || streamReason === 'content-filter') {
+            return 'error';
+        }
+        // Pass through stop and error
+        return streamReason as TurnResult['finishReason'];
+    }
+
+    /**
+     * Clean up resources after execution.
      */
     private cleanup(): void {
         this.logger.debug('TurnExecutor: Cleanup started');
 
-        // Clear any pending queued messages
         if (this.deps.clearMessageQueue) {
             this.deps.clearMessageQueue();
             this.logger.debug('TurnExecutor: Message queue cleared');
         }
 
-        // Reset abort controller
         this.abortController = null;
-
         this.logger.debug('TurnExecutor: Cleanup completed');
     }
 
     /**
-     * Check if we're in overflow (actual tokens exceed threshold).
+     * Check if we're in overflow.
      */
     private isOverflow(usage: StepUsage): boolean {
         const threshold = this.config.maxInputTokens * this.config.compressionThreshold;
@@ -283,7 +414,7 @@ export class TurnExecutor {
      * Apply compression strategies sequentially.
      */
     private async compress(): Promise<void> {
-        const messages = await this.deps.getMessages();
+        const messages = await this.deps.getFormattedMessages();
         let workingHistory = [...messages];
         const beforeTokens = this.countTokens(workingHistory);
 
@@ -297,12 +428,9 @@ export class TurnExecutor {
                     this.config.maxInputTokens
                 );
 
-                // Handle async strategies
                 workingHistory = result instanceof Promise ? await result : result;
-
                 const afterTokens = this.countTokens(workingHistory);
 
-                // Validate if strategy provides validation
                 if (strategy.validate && !strategy.validate(beforeTokens, afterTokens)) {
                     this.logger.warn(
                         `TurnExecutor: Strategy ${strategy.name} validation failed ` +
@@ -311,7 +439,6 @@ export class TurnExecutor {
                     continue;
                 }
 
-                // Check if we're under threshold now
                 if (afterTokens <= this.config.maxInputTokens * this.config.compressionThreshold) {
                     this.logger.info(
                         `TurnExecutor: Compression successful with ${strategy.name} ` +
@@ -339,14 +466,13 @@ export class TurnExecutor {
     }
 
     /**
-     * Prune old tool outputs to free up context space.
+     * Prune old tool outputs.
      */
     private async pruneToolOutputs(): Promise<void> {
-        const messages = await this.deps.getMessages();
+        const messages = await this.deps.getFormattedMessages();
 
-        // pruneOldToolOutputs mutates messages in place
         pruneOldToolOutputs(
-            messages as InternalMessage[], // Cast needed since getMessages returns readonly
+            messages as InternalMessage[],
             this.deps.tokenizer,
             this.config.sessionId,
             this.deps.logger,
@@ -371,56 +497,5 @@ export class TurnExecutor {
             }
         }
         return total;
-    }
-
-    /**
-     * Build the final turn result.
-     */
-    private buildResult(
-        lastResult: StepResult | null,
-        stepsExecuted: number,
-        overrideReason?: 'abort' | 'error',
-        compressionTriggered: boolean = false
-    ): TurnResult {
-        const finishReason = overrideReason ?? this.mapFinishReason(lastResult?.finishReason);
-
-        const result: TurnResult = {
-            text: lastResult?.text ?? '',
-            finishReason,
-            usage: lastResult?.usage ?? {
-                inputTokens: 0,
-                outputTokens: 0,
-                totalTokens: 0,
-            },
-            stepsExecuted,
-            compressionTriggered,
-        };
-
-        // Only include reasoning if present (exactOptionalPropertyTypes)
-        if (lastResult?.reasoning) {
-            result.reasoning = lastResult.reasoning;
-        }
-
-        return result;
-    }
-
-    /**
-     * Map step finish reason to turn finish reason.
-     */
-    private mapFinishReason(
-        stepReason: StepResult['finishReason'] | undefined
-    ): TurnResult['finishReason'] {
-        switch (stepReason) {
-            case 'stop':
-                return 'stop';
-            case 'tool-calls':
-                return 'max-steps'; // If we ended with tool-calls, we hit max steps
-            case 'length':
-            case 'content-filter':
-            case 'error':
-                return 'error';
-            default:
-                return 'stop';
-        }
     }
 }

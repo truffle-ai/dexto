@@ -59,32 +59,8 @@ export type {
 
 // Turn Executor
 export { TurnExecutor } from './turn-executor.js';
-export type {
-    StepUsage,
-    StepResult,
-    StepExecutor,
-    MessageProvider,
-    MessageAdder,
-    TurnExecutorConfig,
-    TurnExecutorDeps,
-} from './turn-executor.js';
+export type { StepUsage, TurnExecutorConfig, TurnExecutorDeps } from './turn-executor.js';
 
 // Stream Processor
 export { StreamProcessor } from './stream-processor.js';
-export type {
-    StreamEventType,
-    StreamEvent,
-    TextDeltaEvent,
-    ReasoningDeltaEvent,
-    ToolCallEvent,
-    ToolResultEvent,
-    ErrorEvent,
-    FinishStepEvent,
-    FullStreamEvent,
-    StreamEventHandlers,
-    StreamProcessorResult,
-} from './stream-processor.js';
-
-// Vercel Adapter
-export { createVercelStepExecutor } from './vercel-adapter.js';
-export type { VercelAdapterConfig, CreateTurnExecutorDepsOptions } from './vercel-adapter.js';
+export type { StreamProcessorConfig, StreamProcessorResult } from './stream-processor.js';
