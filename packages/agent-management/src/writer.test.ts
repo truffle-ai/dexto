@@ -111,16 +111,17 @@ describe('Config Writer', () => {
             const complexConfig = {
                 ...sampleConfig,
                 tools: {
-                    searchWeb: { enabled: true, settings: { maxResults: 10 } },
-                    executeCode: { enabled: false },
-                    customTool: {
-                        enabled: true,
-                        config: {
-                            nested: {
-                                deeply: {
-                                    value: 'test',
-                                },
-                            },
+                    bash: { maxOutputChars: 30000 },
+                    read: { maxLines: 2000, maxLineLength: 2000 },
+                },
+                // Test deep nesting via mcpServers which supports complex structures
+                mcpServers: {
+                    customServer: {
+                        type: 'stdio' as const,
+                        command: 'node',
+                        args: ['server.js'],
+                        env: {
+                            NESTED_CONFIG: 'test-value',
                         },
                     },
                 },
@@ -129,8 +130,8 @@ describe('Config Writer', () => {
             await writeConfigFile(tempConfigPath, complexConfig);
             const content = await fs.readFile(tempConfigPath, 'utf-8');
 
-            expect(content).toContain('maxResults: 10');
-            expect(content).toContain('value: test');
+            expect(content).toContain('maxOutputChars: 30000');
+            expect(content).toContain('NESTED_CONFIG: test-value');
         });
     });
 

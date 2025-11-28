@@ -175,4 +175,16 @@ export interface InternalMessage {
      * Only present in tool messages.
      */
     name?: string;
+
+    /**
+     * Timestamp when the tool output was compacted/pruned.
+     * Only present in tool messages that have been pruned.
+     */
+    compactedAt?: number;
+
+    /**
+     * Optional metadata for the message.
+     * Used for tracking summary status, original message IDs, etc.
+     */
+    metadata?: Record<string, unknown>;
 }

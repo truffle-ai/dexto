@@ -4,8 +4,8 @@ import { LLMContext } from '../llm/types.js';
 import { InternalMessage, ImageData, FileData } from './types.js';
 import { ITokenizer } from '../llm/tokenizer/types.js';
 import { ICompressionStrategy } from './compression/types.js';
-import { MiddleRemovalStrategy } from './compression/middle-removal.js';
-import { OldestRemovalStrategy } from './compression/oldest-removal.js';
+// import { MiddleRemovalStrategy } from './compression/middle-removal.js';
+// import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
@@ -133,10 +133,7 @@ export class ContextManager<TMessage = unknown> {
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
         logger: IDextoLogger,
-        compressionStrategies: ICompressionStrategy[] = [
-            new MiddleRemovalStrategy({}, logger),
-            new OldestRemovalStrategy({}, logger),
-        ]
+        compressionStrategies: ICompressionStrategy[] = []
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -392,6 +389,106 @@ export class ContextManager<TMessage = unknown> {
     async getHistory(): Promise<Readonly<InternalMessage[]>> {
         const history = await this.historyProvider.getHistory();
         return [...history];
+    }
+
+    /**
+     * Appends text to an existing assistant message.
+     * Used for streaming responses.
+     */
+    async appendAssistantText(messageId: string, text: string): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        const messageIndex = history.findIndex((m) => m.id === messageId);
+
+        if (messageIndex === -1) {
+            throw new Error(`Message with ID ${messageId} not found`);
+        }
+
+        const message = history[messageIndex];
+        if (!message) {
+            throw new Error(
+                `Message with ID ${messageId} found at index ${messageIndex} but is undefined`
+            );
+        }
+
+        if (message.role !== 'assistant') {
+            throw new Error(`Message with ID ${messageId} is not an assistant message`);
+        }
+
+        // Append text
+        if (typeof message.content === 'string') {
+            message.content += text;
+        } else if (message.content === null) {
+            message.content = text;
+        } else {
+            // Should not happen for assistant messages unless we support multimodal assistant output
+            throw new Error('Cannot append text to non-string assistant message content');
+        }
+
+        await this.historyProvider.updateMessage(message);
+    }
+
+    /**
+     * Adds a tool call to an existing assistant message.
+     * Used for streaming responses.
+     */
+    async addToolCall(
+        messageId: string,
+        toolCall: NonNullable<InternalMessage['toolCalls']>[number]
+    ): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        const messageIndex = history.findIndex((m) => m.id === messageId);
+
+        if (messageIndex === -1) {
+            throw new Error(`Message with ID ${messageId} not found`);
+        }
+
+        const message = history[messageIndex];
+        if (!message) {
+            throw new Error(
+                `Message with ID ${messageId} found at index ${messageIndex} but is undefined`
+            );
+        }
+
+        if (message.role !== 'assistant') {
+            throw new Error(`Message with ID ${messageId} is not an assistant message`);
+        }
+
+        if (!message.toolCalls) {
+            message.toolCalls = [];
+        }
+
+        message.toolCalls.push(toolCall);
+        await this.historyProvider.updateMessage(message);
+    }
+
+    /**
+     * Updates an existing assistant message with new properties.
+     * Used for finalizing streaming responses (e.g. adding token usage).
+     */
+    async updateAssistantMessage(
+        messageId: string,
+        updates: Partial<InternalMessage>
+    ): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        const messageIndex = history.findIndex((m) => m.id === messageId);
+
+        if (messageIndex === -1) {
+            throw new Error(`Message with ID ${messageId} not found`);
+        }
+
+        const message = history[messageIndex];
+        if (!message) {
+            throw new Error(
+                `Message with ID ${messageId} found at index ${messageIndex} but is undefined`
+            );
+        }
+
+        if (message.role !== 'assistant') {
+            throw new Error(`Message with ID ${messageId} is not an assistant message`);
+        }
+
+        Object.assign(message, updates);
+        await this.historyProvider.updateMessage(message);
     }
 
     /**
@@ -818,79 +915,9 @@ export class ContextManager<TMessage = unknown> {
         history: InternalMessage[],
         systemPromptTokens: number
     ): Promise<InternalMessage[]> {
-        let currentTotalTokens: number = countMessagesTokens(
-            history,
-            this.tokenizer,
-            undefined,
-            this.logger
-        );
-        currentTotalTokens += systemPromptTokens;
-
-        this.logger.debug(`ContextManager: Checking if history compression is needed.`);
-        this.logger.debug(
-            `History tokens: ${countMessagesTokens(history, this.tokenizer, undefined, this.logger)}, System prompt tokens: ${systemPromptTokens}, Total: ${currentTotalTokens}`
-        );
-
-        // If counting failed or we are within limits, do nothing
-        if (currentTotalTokens <= this.maxInputTokens) {
-            this.logger.debug(
-                `ContextManager: History compression not needed. Total token count: ${currentTotalTokens}, Max tokens: ${this.maxInputTokens}`
-            );
-            return history;
-        }
-
-        this.logger.info(
-            `ContextManager: History exceeds token limit (${currentTotalTokens} > ${this.maxInputTokens}). Applying compression strategies sequentially.`
-        );
-
-        const initialLength = history.length;
-        let workingHistory = [...history];
-
-        // Calculate target tokens for history (leave room for system prompt)
-        const targetHistoryTokens = this.maxInputTokens - systemPromptTokens;
-
-        // Iterate through the configured compression strategies sequentially
-        for (const strategy of this.compressionStrategies) {
-            const strategyName = strategy.constructor.name; // Get the class name for logging
-            this.logger.debug(`ContextManager: Applying ${strategyName}...`);
-
-            try {
-                // Pass a copy of the history to avoid potential side effects within the strategy
-                // The strategy should return the new, potentially compressed, history
-                workingHistory = strategy.compress(
-                    [...workingHistory],
-                    this.tokenizer,
-                    targetHistoryTokens // Use target tokens that account for system prompt
-                );
-            } catch (error) {
-                this.logger.error(
-                    `ContextManager: Error applying ${strategyName}: ${error instanceof Error ? error.message : String(error)}`,
-                    { error }
-                );
-                // Decide if we should stop or try the next strategy. Let's stop for now.
-                break;
-            }
-
-            // Recalculate tokens after applying the strategy
-            const historyTokens = countMessagesTokens(
-                workingHistory,
-                this.tokenizer,
-                undefined,
-                this.logger
-            );
-            currentTotalTokens = historyTokens + systemPromptTokens;
-            const messagesRemoved = initialLength - workingHistory.length;
-
-            // If counting failed or we are now within limits, stop applying strategies
-            if (currentTotalTokens <= this.maxInputTokens) {
-                this.logger.debug(
-                    `ContextManager: Compression successful after ${strategyName}. New total count: ${currentTotalTokens}, messages removed: ${messagesRemoved}`
-                );
-                break;
-            }
-        }
-
-        return workingHistory;
+        // STUBBED: Compression is now handled by TurnExecutor via reactive strategies
+        // This method will be removed in a future cleanup
+        return history;
     }
 
     /**
@@ -1075,59 +1102,8 @@ export class ContextManager<TMessage = unknown> {
         history: InternalMessage[],
         systemPromptTokens: number
     ): { history: InternalMessage[]; strategyUsed: string } {
-        let currentTotalTokens = countMessagesTokens(
-            history,
-            this.tokenizer,
-            undefined,
-            this.logger
-        );
-        currentTotalTokens += systemPromptTokens;
-
-        if (currentTotalTokens <= this.maxInputTokens) {
-            return { history, strategyUsed: 'none' };
-        }
-
-        const initialLength = history.length;
-        let workingHistory = [...history];
-        const targetHistoryTokens = this.maxInputTokens - systemPromptTokens;
-        let lastSuccessfulStrategy = 'unknown';
-
-        for (const strategy of this.compressionStrategies) {
-            const strategyName = strategy.constructor.name;
-            this.logger.debug(`ContextManager prepareStep: Applying ${strategyName}...`);
-
-            try {
-                workingHistory = strategy.compress(
-                    [...workingHistory],
-                    this.tokenizer,
-                    targetHistoryTokens
-                );
-                lastSuccessfulStrategy = strategyName;
-            } catch (error) {
-                this.logger.error(
-                    `ContextManager prepareStep: Error applying ${strategyName}: ${error instanceof Error ? error.message : String(error)}`
-                );
-                break;
-            }
-
-            const historyTokens = countMessagesTokens(
-                workingHistory,
-                this.tokenizer,
-                undefined,
-                this.logger
-            );
-            currentTotalTokens = historyTokens + systemPromptTokens;
-            const messagesRemoved = initialLength - workingHistory.length;
-
-            if (currentTotalTokens <= this.maxInputTokens) {
-                this.logger.debug(
-                    `ContextManager prepareStep: Compression successful after ${strategyName}. New total: ${currentTotalTokens}, removed: ${messagesRemoved}`
-                );
-                break;
-            }
-        }
-
-        return { history: workingHistory, strategyUsed: lastSuccessfulStrategy };
+        // STUBBED: Sync compression is disabled as we move to reactive async compression
+        return { history, strategyUsed: 'none' };
     }
 
     /**

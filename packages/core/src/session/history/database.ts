@@ -84,6 +84,47 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
         }
     }
 
+    async updateMessage(message: InternalMessage): Promise<void> {
+        const key = this.getMessagesKey();
+        try {
+            // Inefficient update: read all, update, write all
+            // TODO: Optimize this when Database interface supports updating items
+            const messages = await this.database.getRange<InternalMessage>(key, 0, 10000);
+            const index = messages.findIndex((m) => m.id === message.id);
+
+            if (index !== -1) {
+                messages[index] = message;
+                // Overwrite the entire list
+                // We assume database.set() can handle the array if the backend supports it,
+                // OR we need to delete and re-append.
+                // Since Database interface has append(), it implies a list structure.
+                // set() might not work for lists depending on implementation.
+                // SAFEST approach: delete and re-append all.
+                await this.database.delete(key);
+                for (const msg of messages) {
+                    await this.database.append(key, msg);
+                }
+
+                this.logger.debug(
+                    `DatabaseHistoryProvider: Updated message ${message.id} for session ${this.sessionId}`
+                );
+            } else {
+                this.logger.warn(
+                    `DatabaseHistoryProvider: Message ${message.id} not found for update in session ${this.sessionId}`
+                );
+            }
+        } catch (error) {
+            this.logger.error(
+                `DatabaseHistoryProvider: Error updating message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
+            );
+            throw SessionError.storageFailed(
+                this.sessionId,
+                'update message',
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
     async clearHistory(): Promise<void> {
         const key = this.getMessagesKey();
         try {

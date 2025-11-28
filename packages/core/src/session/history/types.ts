@@ -11,6 +11,9 @@ export interface IConversationHistoryProvider {
     /** Append a message to this session's history */
     saveMessage(message: InternalMessage): Promise<void>;
 
+    /** Update an existing message in this session's history */
+    updateMessage(message: InternalMessage): Promise<void>;
+
     /** Clear all messages for this session */
     clearHistory(): Promise<void>;
 }

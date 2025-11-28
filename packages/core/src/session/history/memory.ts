@@ -18,6 +18,13 @@ export class MemoryHistoryProvider implements IConversationHistoryProvider {
         this.messages.push(message);
     }
 
+    async updateMessage(message: InternalMessage): Promise<void> {
+        const index = this.messages.findIndex((m) => m.id === message.id);
+        if (index !== -1) {
+            this.messages[index] = message;
+        }
+    }
+
     async clearHistory(): Promise<void> {
         this.messages = [];
     }

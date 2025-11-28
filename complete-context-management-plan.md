@@ -3,7 +3,7 @@
 > **Status**: Draft v2
 > **Created**: 2024-11-27
 > **Updated**: 2024-11-27
-> **Related Issues**: Messa ge cancellation, message queuing, context compression
+> **Related Issues**: Message cancellation, message queuing, context compression
 > **Based on**: Research from OpenCode and Gemini-CLI implementations
 
 ## Changes from v1
