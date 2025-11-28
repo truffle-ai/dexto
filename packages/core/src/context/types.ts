@@ -175,15 +175,4 @@ export interface InternalMessage {
      * Only present in tool messages.
      */
     name?: string;
-
-    /**
-     * Timestamp when this tool output was compacted (pruned).
-     * When set, the content should be replaced with a placeholder like
-     * "[Old tool result content cleared]" when formatting for LLM.
-     * Only present in tool messages.
-     *
-     * Part of mark-don't-delete pruning strategy.
-     * @see /complete-context-management-plan.md
-     */
-    compactedAt?: number;
 }
