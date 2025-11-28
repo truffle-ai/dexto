@@ -1,7 +1,7 @@
 # Context Management Refactor - Progress Tracker
 
 > **Based on**: `complete-context-management-plan.md`
-> **Last Updated**: 2025-11-28 (Phase 8 Step 4 complete)
+> **Last Updated**: 2025-11-28 (Phase 8 Step 5 complete)
 
 ## Phase Status
 
@@ -164,15 +164,17 @@ The following require extensive mocking and are better tested during integration
   - Added TODO for future multimodal LLM output support
 - [x] Fix types without `any` or casting (use `VercelToolSet`, `exactOptionalPropertyTypes`)
 
-**Step 5: Clean up ContextManager**
-- [ ] Delete `lastActualTokenCount` property
-- [ ] Delete `lastActualTokenMessageCount` property
-- [ ] Delete `compressionThreshold` property
-- [ ] Delete `compressionStrategies` property
-- [ ] Delete `updateActualTokenCount()` method
-- [ ] Delete `compressMessagesForPrepareStep()` method
-- [ ] Delete `compressHistorySync()` method
-- [ ] Review `processLLMResponse()` / `processLLMStreamResponse()` - still needed?
+**Step 5: Clean up ContextManager** ✅
+- [x] Delete `lastActualTokenMessageCount` property
+- [x] Delete `compressionThreshold` property
+- [x] Delete `compressionStrategies` property + constructor parameter
+- [x] Delete `compressMessagesForPrepareStep()` method (~150 lines)
+- [x] Delete `compressHistorySync()` method
+- [x] Delete `processLLMResponse()` method
+- [x] Delete `processLLMStreamResponse()` method
+- [x] Delete `NO_COMPRESSION` symbol
+- [x] Keep `lastActualTokenCount` property with `@deprecated` (used by anthropic.ts/openai.ts)
+- [x] Keep `updateActualTokenCount()` method with `@deprecated` (used by anthropic.ts/openai.ts)
 
 **Step 6: Testing**
 - [ ] Verify tool execution still works
@@ -347,6 +349,7 @@ tools: {
 - `packages/core/src/llm/executor/types.ts` - Added `text` field to `ExecutorResult` and `StreamProcessorResult` with multimodal TODO (Phase 8 Step 4)
 - `packages/core/src/llm/executor/stream-processor.ts` - Added text accumulation, `VercelToolSet` typing, `streaming` parameter (Phase 8 Step 4)
 - `packages/core/src/llm/executor/turn-executor.ts` - Added `validateToolSupport()`, text tracking, config type fix for `exactOptionalPropertyTypes` (Phase 8 Step 4)
+- `packages/core/src/context/manager.ts` - Removed dead code: compressionStrategies, compressMessagesForPrepareStep, compressHistorySync, processLLM methods; kept updateActualTokenCount with @deprecated (Phase 8 Step 5)
 
 ### Deleted Files
 - `packages/core/src/context/compression/middle-removal.ts`
@@ -358,10 +361,24 @@ tools: {
 - `ContextManager.shouldCompress()` - never used
 - `ContextManager.compressHistoryIfNeeded()` - stubbed and no longer called
 
+### Dead Code Removed (Phase 8 Step 5)
+- `ContextManager.lastActualTokenMessageCount` - no longer needed
+- `ContextManager.compressionThreshold` - TurnExecutor uses actual API tokens
+- `ContextManager.compressionStrategies` - TurnExecutor uses reactive strategies
+- `ContextManager.compressMessagesForPrepareStep()` - ~150 lines, replaced by TurnExecutor
+- `ContextManager.compressHistorySync()` - replaced by reactive compression
+- `ContextManager.processLLMResponse()` - StreamProcessor handles persistence
+- `ContextManager.processLLMStreamResponse()` - StreamProcessor handles persistence
+- `ContextManager.NO_COMPRESSION` symbol - no longer needed
+
+### Kept with @deprecated (Phase 8 Step 5)
+- `ContextManager.lastActualTokenCount` - still used by anthropic.ts/openai.ts
+- `ContextManager.updateActualTokenCount()` - still used by anthropic.ts/openai.ts
+
 ---
 
 ## Next Steps
 
-1. **Phase 8 Step 5**: Clean up ContextManager dead code (see Step 5 checklist above)
-2. **Phase 8 Step 6**: Full integration testing - verify tool execution, streaming, telemetry, compression, pruning
-3. Consider adding `/api/message` queue integration when busy (deferred from Phase 6)
+1. **Phase 8 Step 6**: Full integration testing - verify tool execution, streaming, telemetry, compression, pruning
+2. Consider adding `/api/message` queue integration when busy (deferred from Phase 6)
+3. Migrate anthropic.ts and openai.ts to TurnExecutor (then remove @deprecated items)

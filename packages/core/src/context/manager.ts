@@ -64,46 +64,15 @@ export class ContextManager<TMessage = unknown> {
     private maxInputTokens: number;
 
     /**
-     * Actual token count from the last LLM response.
-     * Used for more accurate token estimation in hybrid approach.
-     * This is the REAL token count from the API - far more accurate than our estimates.
-     *
-     * TODO Phase 8: Delete - TurnExecutor tracks tokens via TokenUsage from API response
-     */
-    private lastActualTokenCount: number = 0;
-
-    /**
-     * Message count that corresponds to lastActualTokenCount.
-     * Used to identify which messages are "new" since we got the actual count.
-     * In tool loops: actualTokens came from step N, new messages are for step N+1.
-     *
-     * TODO Phase 8: Delete - TurnExecutor tracks tokens via TokenUsage from API response
-     */
-    private lastActualTokenMessageCount: number = 0;
-
-    /**
-     * Compression threshold as a percentage of maxInputTokens.
-     * When estimated tokens exceed (maxInputTokens * threshold), compression is triggered.
-     *
-     * TODO Phase 8: Delete - TurnExecutor uses actual API tokens for overflow detection
-     */
-    private compressionThreshold: number = 0.8; // 80% threshold
-
-    /**
-     * Tokenizer used for counting tokens and enabling compression (if specified)
-     *
-     * TODO Phase 8: Review if still needed - may be useful for token estimation display only
+     * Tokenizer used for counting tokens (used by TurnExecutor for compression)
      */
     private tokenizer: ITokenizer;
 
     /**
-     * The sequence of compression strategies to apply when maxInputTokens is exceeded.
-     * The order in this array matters, as strategies are applied sequentially until
-     * the token count is within the limit.
-     *
-     * TODO Phase 8: Delete - TurnExecutor uses reactive compression strategies directly
+     * @deprecated Used by anthropic.ts and openai.ts. Will be removed when those
+     * services are migrated to TurnExecutor.
      */
-    private compressionStrategies: ICompressionStrategy[];
+    private lastActualTokenCount: number = 0;
 
     private historyProvider: IConversationHistoryProvider;
     private readonly sessionId: string;
@@ -122,12 +91,11 @@ export class ContextManager<TMessage = unknown> {
      * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
      * @param systemPromptManager SystemPromptManager instance for the conversation
-     * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
-     * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
+     * @param maxInputTokens Maximum token limit for the conversation history.
+     * @param tokenizer Tokenizer implementation used for counting tokens.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
      * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
-     * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
-     * @param resourceManager Optional ResourceManager for resolving blob references in messages
+     * @param resourceManager ResourceManager for resolving blob references in messages
      * @param logger Logger instance for logging
      */
     constructor(
@@ -139,8 +107,7 @@ export class ContextManager<TMessage = unknown> {
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
-        logger: IDextoLogger,
-        compressionStrategies: ICompressionStrategy[] = []
+        logger: IDextoLogger
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -149,7 +116,6 @@ export class ContextManager<TMessage = unknown> {
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
         this.sessionId = sessionId;
-        this.compressionStrategies = compressionStrategies;
         this.resourceManager = resourceManager;
         this.logger = logger.createChild(DextoLogComponent.CONTEXT);
 
@@ -269,15 +235,14 @@ export class ContextManager<TMessage = unknown> {
 
     /**
      * Updates the actual token count from the last LLM response.
-     * This enables hybrid token counting for more accurate estimates.
      *
-     * TODO Phase 8: Delete - TurnExecutor tracks tokens via TokenUsage from API response
+     * @deprecated Used by anthropic.ts and openai.ts. Will be removed when those
+     * services are migrated to TurnExecutor (which tracks tokens via TokenUsage).
      *
      * @param actualTokens The actual token count reported by the LLM provider
      */
     updateActualTokenCount(actualTokens: number): void {
         this.lastActualTokenCount = actualTokens;
-        this.logger.debug(`Updated actual token count to: ${actualTokens}`);
     }
 
     /**
@@ -861,239 +826,5 @@ export class ContextManager<TMessage = unknown> {
         this.logger.debug(
             `ContextManager: Conversation history cleared for session ${this.sessionId}`
         );
-    }
-
-    /**
-     * Result of mid-loop compression including metadata for event emission
-     */
-    public static readonly NO_COMPRESSION = Symbol('NO_COMPRESSION');
-
-    /**
-     * Compresses provider-specific messages mid-loop during multi-step tool calling.
-     * Used by Vercel SDK's prepareStep callback to prevent context overflow during tool loops.
-     *
-     * TODO Phase 8: Delete this method - TurnExecutor handles compression via reactive strategies
-     *
-     * Flow:
-     * 1. Extract system prompt from messages (if present)
-     * 2. Parse remaining messages to InternalMessage[]
-     * 3. Compress if over token limit
-     * 4. Format back to provider-specific format
-     * 5. Re-add system prompt
-     *
-     * @param messages Provider-specific messages (e.g., ModelMessage[] for Vercel)
-     * @param llmContext Context with provider/model info for formatting
-     * @returns Object with compressed messages and metadata, or null if no compression needed
-     */
-    compressMessagesForPrepareStep(
-        messages: TMessage[],
-        llmContext: import('../llm/types.js').LLMContext
-    ): {
-        messages: TMessage[];
-        compressed: boolean;
-        metadata?: {
-            originalTokens: number;
-            compressedTokens: number;
-            originalMessages: number;
-            compressedMessages: number;
-            strategy: string;
-        };
-    } {
-        // Check if formatter supports parseMessages (currently only Vercel)
-        if (!this.formatter.parseMessages) {
-            this.logger.debug(
-                'ContextManager: Formatter does not support parseMessages, skipping mid-loop compression'
-            );
-            return { messages, compressed: false };
-        }
-
-        // Extract system message if present (always first in Vercel format)
-        const rawMessages = messages as unknown[];
-        let systemPrompt: string | null = null;
-        let messagesToParse = rawMessages;
-
-        if (rawMessages.length > 0) {
-            const firstMsg = rawMessages[0] as { role?: string; content?: unknown };
-            if (firstMsg.role === 'system' && typeof firstMsg.content === 'string') {
-                systemPrompt = firstMsg.content;
-                messagesToParse = rawMessages.slice(1);
-            }
-        }
-
-        // Parse to InternalMessage[]
-        const internalMessages = this.formatter.parseMessages(messagesToParse);
-        const currentMessageCount = internalMessages.length;
-
-        // Calculate tokens using HYBRID approach:
-        // - If we have actual tokens from previous step, use that + estimate only NEW messages
-        // - This is far more accurate than re-estimating everything (especially for images!)
-        const systemPromptTokens = systemPrompt ? this.tokenizer.countTokens(systemPrompt) : 0;
-        let totalTokens: number;
-        let estimationMethod: string;
-
-        if (
-            this.lastActualTokenCount > 0 &&
-            currentMessageCount > this.lastActualTokenMessageCount
-        ) {
-            // HYBRID: Use actual count from API + estimate only new messages
-            // lastActualTokenCount already includes system prompt from previous step
-            const newMessages = internalMessages.slice(this.lastActualTokenMessageCount);
-            const newTokens = countMessagesTokens(
-                newMessages,
-                this.tokenizer,
-                undefined,
-                this.logger
-            );
-            totalTokens = this.lastActualTokenCount + newTokens;
-            estimationMethod = 'hybrid';
-
-            this.logger.debug(
-                `ContextManager prepareStep (hybrid): prevActual=${this.lastActualTokenCount}, ` +
-                    `newMsgs=${newMessages.length}, newTokens=${newTokens}, total=${totalTokens}, max=${this.maxInputTokens}`
-            );
-        } else if (
-            this.lastActualTokenCount > 0 &&
-            currentMessageCount === this.lastActualTokenMessageCount
-        ) {
-            // Same messages as before - use actual count directly
-            totalTokens = this.lastActualTokenCount;
-            estimationMethod = 'actual';
-
-            this.logger.debug(
-                `ContextManager prepareStep (actual): ${totalTokens}, max=${this.maxInputTokens}`
-            );
-        } else {
-            // Fallback: Full estimation (first step or after compression reset)
-            const historyTokens = countMessagesTokens(
-                internalMessages,
-                this.tokenizer,
-                undefined,
-                this.logger
-            );
-            totalTokens = systemPromptTokens + historyTokens;
-            estimationMethod = 'full-estimate';
-
-            this.logger.debug(
-                `ContextManager prepareStep (full): system=${systemPromptTokens}, history=${historyTokens}, total=${totalTokens}, max=${this.maxInputTokens}`
-            );
-        }
-
-        // Update message count tracking for next iteration
-        // This count will correspond to the next actual token count we receive
-        this.lastActualTokenMessageCount = currentMessageCount;
-
-        // Check if compression is needed (using threshold)
-        const compressionTrigger = this.maxInputTokens * this.compressionThreshold;
-        if (totalTokens <= compressionTrigger) {
-            this.logger.debug(
-                `ContextManager prepareStep: No compression needed (${totalTokens} <= ${compressionTrigger}) [${estimationMethod}]`
-            );
-            return { messages, compressed: false };
-        }
-
-        // Apply compression
-        this.logger.info(
-            `ContextManager prepareStep: Compressing mid-loop (${totalTokens} > ${compressionTrigger}) [${estimationMethod}]`
-        );
-        const { history: compressedHistory, strategyUsed } = this.compressHistorySync(
-            internalMessages,
-            systemPromptTokens
-        );
-
-        // Format back to provider-specific format
-        const formattedMessages = this.formatter.format(
-            compressedHistory,
-            llmContext,
-            systemPrompt
-        ) as TMessage[];
-
-        const newHistoryTokens = countMessagesTokens(
-            compressedHistory,
-            this.tokenizer,
-            undefined,
-            this.logger
-        );
-        this.logger.info(
-            `ContextManager prepareStep: Compressed from ${internalMessages.length} to ${compressedHistory.length} messages (${totalTokens} -> ${systemPromptTokens + newHistoryTokens} tokens)`
-        );
-
-        // Reset tracking after compression - we don't have accurate actual counts anymore
-        // Next step will get fresh actual counts from the API
-        this.lastActualTokenCount = 0;
-        this.lastActualTokenMessageCount = 0;
-
-        return {
-            messages: formattedMessages,
-            compressed: true,
-            metadata: {
-                originalTokens: totalTokens,
-                compressedTokens: systemPromptTokens + newHistoryTokens,
-                originalMessages: internalMessages.length,
-                compressedMessages: compressedHistory.length,
-                strategy: strategyUsed,
-            },
-        };
-    }
-
-    /**
-     * Synchronous version of compressHistoryIfNeeded for use in prepareStep callback.
-     * Note: prepareStep in Vercel SDK is synchronous, so we can't use async compression strategies.
-     *
-     * TODO Phase 8: Delete this method - TurnExecutor handles compression via reactive strategies
-     *
-     * @param history The conversation history to compress
-     * @param systemPromptTokens Token count of system prompt
-     * @returns Object with compressed history and strategy name that succeeded
-     */
-    private compressHistorySync(
-        history: InternalMessage[],
-        systemPromptTokens: number
-    ): { history: InternalMessage[]; strategyUsed: string } {
-        // STUBBED: Sync compression is disabled as we move to reactive async compression
-        return { history, strategyUsed: 'none' };
-    }
-
-    /**
-     * Parses a raw LLM stream response, converts it into internal messages and adds them to the history.
-     *
-     * @param response The stream response from the LLM provider
-     */
-    async processLLMStreamResponse(response: unknown): Promise<void> {
-        // Use type-safe access to parseStreamResponse method
-        if (this.formatter.parseStreamResponse) {
-            const msgs = (await this.formatter.parseStreamResponse(response)) ?? [];
-            for (const msg of msgs) {
-                try {
-                    await this.addMessage(msg);
-                } catch (error) {
-                    this.logger.error(
-                        `ContextManager: Failed to process LLM stream response message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                    // Continue processing other messages rather than failing completely
-                }
-            }
-        } else {
-            // Fallback to regular processing
-            await this.processLLMResponse(response);
-        }
-    }
-
-    /**
-     * Parses a raw LLM response, converts it into internal messages and adds them to the history.
-     *
-     * @param response The response from the LLM provider
-     */
-    async processLLMResponse(response: unknown): Promise<void> {
-        const msgs = this.formatter.parseResponse(response) ?? [];
-        for (const msg of msgs) {
-            try {
-                await this.addMessage(msg);
-            } catch (error) {
-                this.logger.error(
-                    `ContextManager: Failed to process LLM response message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
-                );
-                // Continue processing other messages rather than failing completely
-            }
-        }
     }
 }
