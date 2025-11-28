@@ -731,10 +731,22 @@ function filterCompacted(history: InternalMessage[]): InternalMessage[] {
 }
 ```
 
-**Compacted tool output display:**
+**Compacted tool output handling:**
+
+Tool messages marked with `compactedAt` are transformed at format time in `getFormattedMessagesWithCompression()`.
+The original content is preserved in storage - only the LLM sees the placeholder.
 
 ```typescript
-function formatToolOutput(tool: InternalMessage): string {
+// In getFormattedMessagesWithCompression() - transform compacted tool messages
+history = history.map(msg => {
+  if (msg.role === 'tool' && msg.compactedAt) {
+    return { ...msg, content: '[Old tool result content cleared]' };
+  }
+  return msg;
+});
+
+// Helper for display purposes (e.g., UI)
+function formatToolOutputForDisplay(tool: InternalMessage): string {
   if (tool.compactedAt) {
     return '[Old tool result content cleared]';
   }
@@ -992,62 +1004,159 @@ async function checkAndCompress(): Promise<boolean> {
 
 #### 6. Mark-Don't-Delete Pruning
 
-Preserves history while reducing token count:
+Preserves history while reducing token count. Tool outputs are marked with `compactedAt` timestamp
+but original content is preserved in storage for debugging/audit. Transformation happens at format time.
+
+**Important**: In Dexto's data model, tool results are stored as **separate messages** with `role: 'tool'`,
+not as embedded `toolResults` arrays in assistant messages. The algorithm below reflects this.
 
 ```typescript
-interface ToolResult {
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-  output: string;
-  status: 'pending' | 'running' | 'completed' | 'error';
-  compactedAt?: number;  // NEW: timestamp when output was pruned
-}
-
+// Constants for pruning thresholds
 const PRUNE_PROTECT = 40_000;  // Keep last 40K tokens of tool outputs
 const PRUNE_MINIMUM = 20_000;  // Only prune if we can save 20K+
 
-async function pruneOldToolOutputs(): Promise<void> {
-  const history = await this.getHistory();
+/**
+ * Estimates tokens using simple heuristic (length/4).
+ * Used for pruning decisions only - actual token counts come from API.
+ */
+function estimateTokens(content: InternalMessage['content']): number {
+  if (typeof content === 'string') {
+    return Math.ceil(content.length / 4);
+  }
+  if (Array.isArray(content)) {
+    return content.reduce((sum, part) => {
+      if (part.type === 'text') return sum + Math.ceil(part.text.length / 4);
+      // Images/files contribute ~1000 tokens estimate
+      return sum + 1000;
+    }, 0);
+  }
+  return 0;
+}
+
+/**
+ * Prunes old tool outputs by marking them with compactedAt timestamp.
+ * Does NOT modify content - transformation happens at format time.
+ *
+ * Algorithm:
+ * 1. Go backwards through history (most recent first)
+ * 2. Stop at summary message (only process post-summary messages)
+ * 3. Count tool message tokens
+ * 4. If total exceeds PRUNE_PROTECT, mark older ones for pruning
+ * 5. Only prune if savings exceed PRUNE_MINIMUM
+ */
+async function pruneOldToolOutputs(): Promise<{ prunedCount: number; savedTokens: number }> {
+  const history = await this.contextManager.getHistory();
   let totalToolTokens = 0;
   let prunedTokens = 0;
-  const toPrune: ToolResult[] = [];
+  const toPrune: string[] = [];  // Message IDs to mark
 
-  // Go backwards through history
-  for (const msg of [...history].reverse()) {
-    if (msg.role === 'assistant' && msg.isSummary) break;  // Stop at summary
+  // Go backwards through history (most recent first)
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (!msg) continue;
 
-    for (const tool of msg.toolResults?.reverse() ?? []) {
-      if (tool.status !== 'completed') continue;
-      if (tool.compactedAt) break;  // Already pruned
+    // Stop at summary message - only prune AFTER the summary
+    if (msg.metadata?.isSummary === true) break;
 
-      const tokens = estimateTokens(tool.output);  // length/4
-      totalToolTokens += tokens;
+    // Only process tool messages
+    if (msg.role !== 'tool') continue;
 
-      if (totalToolTokens > PRUNE_PROTECT) {
-        prunedTokens += tokens;
-        toPrune.push(tool);
-      }
+    // Skip already pruned messages
+    if (msg.compactedAt) continue;
+
+    const tokens = estimateTokens(msg.content);
+    totalToolTokens += tokens;
+
+    // If we've exceeded protection threshold, mark for pruning
+    if (totalToolTokens > PRUNE_PROTECT) {
+      prunedTokens += tokens;
+      toPrune.push(msg.id);
     }
   }
 
   // Only prune if significant savings
-  if (prunedTokens > PRUNE_MINIMUM) {
-    for (const tool of toPrune) {
-      tool.compactedAt = Date.now();
-      await this.updateToolResult(tool);
-    }
-  }
-}
+  if (prunedTokens > PRUNE_MINIMUM && toPrune.length > 0) {
+    await this.contextManager.markMessagesAsCompacted(toPrune);
 
-// When formatting for LLM
-function formatToolOutput(tool: ToolResult): string {
-  if (tool.compactedAt) {
-    return '[Old tool result content cleared]';
+    this.eventBus.emit('context:pruned', {
+      prunedCount: toPrune.length,
+      savedTokens: prunedTokens,
+    });
+
+    return { prunedCount: toPrune.length, savedTokens: prunedTokens };
   }
-  return tool.output;
+
+  return { prunedCount: 0, savedTokens: 0 };
 }
 ```
+
+**ContextManager method for marking messages:**
+
+```typescript
+/**
+ * Marks tool messages as compacted (pruned).
+ * Sets the compactedAt timestamp - content transformation happens at format time.
+ * Original content is preserved in storage for debugging/audit.
+ *
+ * @param messageIds Array of message IDs to mark as compacted
+ * @returns Number of messages successfully marked
+ */
+async markMessagesAsCompacted(messageIds: string[]): Promise<number> {
+  if (messageIds.length === 0) return 0;
+
+  const history = await this.historyProvider.getHistory();
+  const timestamp = Date.now();
+  let markedCount = 0;
+
+  for (const messageId of messageIds) {
+    const message = history.find((m) => m.id === messageId);
+    if (!message) continue;
+    if (message.role !== 'tool') continue;  // Only mark tool messages
+    if (message.compactedAt) continue;  // Already marked
+
+    message.compactedAt = timestamp;
+    await this.historyProvider.updateMessage(message);
+    markedCount++;
+  }
+
+  return markedCount;
+}
+```
+
+**Transformation at format time (in getFormattedMessagesWithCompression):**
+
+The key insight is that `compactedAt` only MARKS the message - we transform the content at format time
+to preserve original content in storage while sending placeholder to LLM.
+
+```typescript
+async getFormattedMessagesWithCompression(...): Promise<{...}> {
+  // Step 1: Get system prompt
+  const systemPrompt = await this.getSystemPrompt(contributorContext);
+
+  // Step 2: Get history and filter (exclude pre-summary messages)
+  const fullHistory = await this.historyProvider.getHistory();
+  let history = filterCompacted(fullHistory);
+
+  // Step 3: Transform compacted tool messages (NEW - respects compactedAt)
+  // Original content preserved in storage, placeholder sent to LLM
+  history = history.map(msg => {
+    if (msg.role === 'tool' && msg.compactedAt) {
+      return { ...msg, content: '[Old tool result content cleared]' };
+    }
+    return msg;
+  });
+
+  // Step 4: Format messages with transformed history
+  const formattedMessages = await this.getFormattedMessages(...);
+
+  return { formattedMessages, systemPrompt, tokensUsed };
+}
+```
+
+This approach ensures:
+- **Original content preserved**: Storage retains full tool output for debugging/audit
+- **Token savings**: LLM receives placeholder text instead of large outputs
+- **Non-destructive**: `compactedAt` is a marker, not a content replacement
 
 #### 7. Message Queue Service with Coalescing (Multimodal Support)
 
@@ -1767,9 +1876,12 @@ Add to `packages/core/src/events/index.ts`:
 - [ ] Test compression triggers at correct time
 
 ### Phase 5: Pruning (compactedAt)
-- [ ] Implement `pruneOldToolOutputs()` in TurnExecutor
-- [ ] Update `formatToolOutput()` to return placeholder for compacted
-- [ ] Test pruning preserves history for debugging
+- [ ] Add `markMessagesAsCompacted()` method to ContextManager
+- [ ] Add compacted tool message transformation in `getFormattedMessagesWithCompression()`
+- [ ] Implement `pruneOldToolOutputs()` in TurnExecutor (uses message IDs, not embedded toolResults)
+- [ ] Wire `pruneOldToolOutputs()` into TurnExecutor main loop (after step completion)
+- [ ] Add `context:pruned` event emission
+- [ ] Test pruning preserves original content in storage while sending placeholder to LLM
 
 ### Phase 6: MessageQueue with Multimodal
 - [ ] Create MessageQueueService in `session/message-queue.ts`
