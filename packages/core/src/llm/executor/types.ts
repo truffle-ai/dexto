@@ -103,22 +103,21 @@ export interface CoalescedMessage {
 }
 
 // ============================================================================
-// Tool Output Configuration
+// TurnExecutor Types
 // ============================================================================
 
 /**
- * Configuration for tool output truncation.
- * Used to prevent oversized tool outputs from consuming the context window.
+ * Configuration for TurnExecutor.
  */
-export interface ToolOutputConfig {
-    /** Maximum characters per tool output (default: 120000, ~30K tokens) */
-    maxChars?: number;
+export interface TurnExecutorConfig {
+    /** Maximum number of steps (LLM calls) per turn */
+    maxSteps: number;
 
-    /** Per-tool character limits (overrides maxChars for specific tools) */
-    perToolLimits?: Record<string, number>;
+    /** Maximum characters per tool output (truncation limit) */
+    maxToolOutputChars: number;
 
-    /** Maximum lines for file reading tools (default: 2000) */
-    maxLines?: number;
+    /** Per-tool output limits (overrides maxToolOutputChars) */
+    toolOutputLimits?: Record<string, number>;
 }
 
 /**

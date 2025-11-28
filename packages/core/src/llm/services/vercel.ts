@@ -35,7 +35,7 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
 // TurnExecutor integration
-import { TurnExecutor } from '../executor/index.js';
+import { TurnExecutor, createVercelStepExecutor } from '../executor/index.js';
 import type { CoalescedMessage } from '../executor/types.js';
 
 /**
@@ -1034,42 +1034,57 @@ export class VercelLLMService implements ILLMService {
             // 1. Add user message to context
             await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
-            // 2. Get tools
+            // 2. Get tools for the step executor
             const tools = await this.toolManager.getAllTools();
 
             // 3. Emit thinking event
             this.sessionEventBus.emit('llm:thinking');
 
-            // 4. Create TurnExecutor with new architecture
-            // TurnExecutor now owns streamText call and creates tools internally
+            // 4. Create the step executor using the vercel adapter
+            const stepExecutor = createVercelStepExecutor({
+                model: this.model,
+                llmConfig: this.config,
+                tools,
+                sessionEventBus: this.sessionEventBus,
+                sessionId: this.sessionId,
+                formatter: this.formatter,
+                resourceManager: this.resourceManager,
+                contextManager: this.contextManager,
+                logger: this.logger,
+                executeTool: async (toolName, args, sessionId) => {
+                    return await this.toolManager.executeTool(toolName, args, sessionId);
+                },
+                getSystemPrompt: async () => {
+                    const prompt = await this.contextManager.getFormattedSystemPrompt({
+                        mcpManager: this.toolManager.getMcpManager(),
+                    });
+                    // Coerce undefined to null for type compatibility
+                    return prompt ?? null;
+                },
+            });
+
+            // 5. Create TurnExecutor with dependencies
             const turnExecutor = new TurnExecutor(
                 {
                     maxSteps: this.config.maxIterations,
                     maxInputTokens: this.maxInputTokens,
                     sessionId: this.sessionId,
-                    ...(this.config.temperature !== undefined && {
-                        temperature: this.config.temperature,
-                    }),
-                    ...(typeof this.config.maxOutputTokens === 'number' && {
-                        maxOutputTokens: this.config.maxOutputTokens,
-                    }),
                 },
                 {
-                    model: this.model,
-                    contextManager: this.contextManager,
-                    tools,
-                    executeTool: async (toolName, args, sessionId) => {
-                        return await this.toolManager.executeTool(toolName, args, sessionId);
+                    stepExecutor,
+                    getMessages: async () => {
+                        const history = await this.contextManager.getHistory();
+                        return [...history] as InternalMessage[];
                     },
-                    sessionEventBus: this.sessionEventBus,
-                    dequeueMessages: () => null, // No message queue for now
                     addMessage: async (coalesced: CoalescedMessage) => {
                         // Convert coalesced message to user message
+                        // Extract text content
                         const textParts = coalesced.combinedContent
                             .filter((p) => p.type === 'text')
                             .map((p) => (p as { type: 'text'; text: string }).text);
                         const text = textParts.join('\n');
 
+                        // Extract first image and file if present
                         const imagePart = coalesced.combinedContent.find((p) => p.type === 'image');
                         const filePart = coalesced.combinedContent.find((p) => p.type === 'file');
 
@@ -1079,23 +1094,14 @@ export class VercelLLMService implements ILLMService {
                             filePart as FileData | undefined
                         );
                     },
+                    dequeueMessages: () => null, // No message queue for now
                     compressionStrategies: [], // Use default from context manager
                     tokenizer: this.tokenizer,
                     logger: this.logger,
-                    getSystemPrompt: async () => {
-                        const prompt = await this.contextManager.getFormattedSystemPrompt({
-                            mcpManager: this.toolManager.getMcpManager(),
-                        });
-                        return prompt ?? null;
-                    },
-                    getFormattedMessages: async () => {
-                        const history = await this.contextManager.getHistory();
-                        return [...history] as InternalMessage[];
-                    },
                 }
             );
 
-            // 5. Execute the turn
+            // 6. Execute the turn
             const result = await turnExecutor.execute();
 
             this.logger.debug(
@@ -1104,12 +1110,12 @@ export class VercelLLMService implements ILLMService {
                     `compressionTriggered=${result.compressionTriggered}`
             );
 
-            // 6. Handle abort
+            // 7. Handle abort
             if (options?.signal?.aborted) {
                 return result.text || '';
             }
 
-            // 7. Return the response
+            // 8. Return the response
             return (
                 result.text ||
                 `Reached maximum number of steps (${this.config.maxIterations}) without a final response.`

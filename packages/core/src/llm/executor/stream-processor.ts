@@ -1,43 +1,142 @@
 /**
- * StreamProcessor - Handles ALL persistence via stream events.
+ * StreamProcessor - Handles stream events and manages persistence.
  *
- * According to complete-context-management-plan.md:
- * - StreamProcessor has direct ContextManager access
- * - ALL persistence happens here via stream events
- * - Execute callback is minimal (just runs tool)
+ * Processes the fullStream from Vercel AI SDK, handling:
+ * - Text deltas (assistant response streaming)
+ * - Tool calls and results
+ * - Token usage capture
+ * - Event emission for UI updates
  *
- * Event handling:
- * - text-delta: emit llm:chunk
- * - tool-call: emit llm:tool-call
- * - tool-result: sanitize, persist, truncate, emit llm:tool-result
- * - finish-step: add assistant message, capture tokens
+ * Key design: StreamProcessor handles ALL persistence to ensure correct ordering.
+ * Stream events arrive in order: text-delta → tool-call → tool-result → finish-step
  *
  * @see /complete-context-management-plan.md
  */
 
-import type { StreamTextResult, ToolSet as VercelToolSet } from 'ai';
-import type { ContextManager } from '../../context/manager.js';
-import type { SessionEventBus } from '../../events/index.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import type { StepUsage } from './turn-executor.js';
-import { truncateToolResult } from './strategies/tool-output-truncator.js';
+import type { StepResult, StepUsage } from './turn-executor.js';
 
 /**
- * Configuration for StreamProcessor.
+ * Stream event types from Vercel AI SDK fullStream.
  */
-export interface StreamProcessorConfig {
-    /** Context manager for persistence */
-    contextManager: ContextManager<unknown>;
+export type StreamEventType =
+    | 'text-start'
+    | 'text-delta'
+    | 'reasoning-delta'
+    | 'tool-call'
+    | 'tool-call-streaming-start'
+    | 'tool-call-delta'
+    | 'tool-result'
+    | 'error'
+    | 'finish-message'
+    | 'finish-step';
 
-    /** Session event bus for UI events */
-    sessionEventBus: SessionEventBus;
+/**
+ * Base stream event structure.
+ */
+export interface StreamEvent {
+    type: StreamEventType;
+}
 
-    /** Session ID for context */
-    sessionId: string;
+/**
+ * Text delta event.
+ */
+export interface TextDeltaEvent extends StreamEvent {
+    type: 'text-delta';
+    text: string;
+}
 
-    /** Logger instance */
-    logger: IDextoLogger;
+/**
+ * Reasoning delta event (for models with reasoning).
+ */
+export interface ReasoningDeltaEvent extends StreamEvent {
+    type: 'reasoning-delta';
+    text: string;
+}
+
+/**
+ * Tool call event.
+ */
+export interface ToolCallEvent extends StreamEvent {
+    type: 'tool-call';
+    toolCallId: string;
+    toolName: string;
+    args: Record<string, unknown>;
+}
+
+/**
+ * Tool result event.
+ */
+export interface ToolResultEvent extends StreamEvent {
+    type: 'tool-result';
+    toolCallId: string;
+    toolName: string;
+    result: unknown;
+}
+
+/**
+ * Error event.
+ */
+export interface ErrorEvent extends StreamEvent {
+    type: 'error';
+    error: Error;
+}
+
+/**
+ * Finish step event with usage.
+ */
+export interface FinishStepEvent extends StreamEvent {
+    type: 'finish-step';
+    finishReason: 'stop' | 'tool-calls' | 'length' | 'content-filter' | 'error';
+    usage: {
+        inputTokens: number;
+        outputTokens: number;
+        reasoningTokens?: number;
+        totalTokens: number;
+    };
+}
+
+/**
+ * Union of all event types.
+ */
+export type FullStreamEvent =
+    | StreamEvent
+    | TextDeltaEvent
+    | ReasoningDeltaEvent
+    | ToolCallEvent
+    | ToolResultEvent
+    | ErrorEvent
+    | FinishStepEvent;
+
+/**
+ * Event handlers for stream processing.
+ */
+export interface StreamEventHandlers {
+    /** Called when text streaming starts */
+    onTextStart?: () => void | Promise<void>;
+
+    /** Called for each text chunk */
+    onTextDelta?: (text: string) => void | Promise<void>;
+
+    /** Called for each reasoning chunk */
+    onReasoningDelta?: (text: string) => void | Promise<void>;
+
+    /** Called when a tool is called */
+    onToolCall?: (
+        toolCallId: string,
+        toolName: string,
+        args: Record<string, unknown>
+    ) => void | Promise<void>;
+
+    /** Called when a tool returns a result */
+    onToolResult?: (toolCallId: string, toolName: string, result: unknown) => void | Promise<void>;
+
+    /** Called on error */
+    onError?: (error: Error) => void | Promise<void>;
+
+    /** Called when step finishes */
+    onStepFinish?: (finishReason: string, usage: StepUsage) => void | Promise<void>;
 }
 
 /**
@@ -48,251 +147,211 @@ export interface StreamProcessorResult {
     text: string;
 
     /** Accumulated reasoning text */
-    reasoning?: string;
+    reasoning: string;
 
     /** Finish reason from the step */
-    finishReason: 'stop' | 'tool-calls' | 'length' | 'content-filter' | 'error';
+    finishReason: StepResult['finishReason'];
 
     /** Token usage */
     usage: StepUsage;
 
+    /** Tool calls made during this step */
+    toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }>;
+
     /** Whether any tool calls were made */
     hasToolCalls: boolean;
-
-    /** Tool calls made during this step */
-    toolCalls: Array<{
-        id: string;
-        name: string;
-        args: Record<string, unknown>;
-    }>;
 }
 
 /**
- * StreamProcessor handles stream events and owns ALL persistence.
+ * StreamProcessor handles the fullStream from Vercel AI SDK.
  *
- * Key design from plan:
- * - Has direct ContextManager access
- * - ALL persistence happens in event handlers
- * - Execute callback just runs tool, returns raw result
+ * It accumulates text, tracks tool calls, and invokes handlers for each event.
+ * The handlers can be used to:
+ * - Persist messages to history
+ * - Emit events for UI updates
+ * - Process tool results
  */
 export class StreamProcessor {
-    private readonly contextManager: ContextManager<unknown>;
-    private readonly sessionEventBus: SessionEventBus;
-    private readonly sessionId: string;
     private readonly logger: IDextoLogger;
+    private readonly handlers: StreamEventHandlers;
+    private readonly abortSignal: AbortSignal | undefined;
 
-    constructor(config: StreamProcessorConfig) {
-        this.contextManager = config.contextManager;
-        this.sessionEventBus = config.sessionEventBus;
-        this.sessionId = config.sessionId;
-        this.logger = config.logger.createChild(DextoLogComponent.CONTEXT);
+    // Accumulated state during processing
+    private text: string = '';
+    private reasoning: string = '';
+    private toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+    private finishReason: StepResult['finishReason'] = 'stop';
+    private usage: StepUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+    constructor(handlers: StreamEventHandlers, logger: IDextoLogger, abortSignal?: AbortSignal) {
+        this.handlers = handlers;
+        this.logger = logger.createChild(DextoLogComponent.CONTEXT);
+        this.abortSignal = abortSignal;
     }
 
     /**
-     * Process a stream from streamText.
+     * Process a stream of events.
      *
-     * Takes a function that returns the stream (lazy evaluation).
-     * Handles all persistence via stream events.
-     *
-     * @param streamFn Function that creates the stream
-     * @param signal Abort signal for cancellation
-     * @returns Result with text, usage, tool calls
+     * @param stream AsyncIterable of stream events
+     * @returns Accumulated result from the stream
      */
-    async process(
-        streamFn: () => StreamTextResult<VercelToolSet, unknown>,
-        signal?: AbortSignal
-    ): Promise<StreamProcessorResult> {
-        // Accumulated state
-        let text = '';
-        let reasoning = '';
-        let finishReason: StreamProcessorResult['finishReason'] = 'stop';
-        let usage: StepUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-        const toolCalls: StreamProcessorResult['toolCalls'] = [];
-        const toolResults = new Map<string, unknown>();
-
-        // Create the stream
-        const stream = streamFn();
+    async process(stream: AsyncIterable<FullStreamEvent>): Promise<StreamProcessorResult> {
+        this.reset();
 
         try {
-            // Process fullStream events
-            for await (const event of stream.fullStream) {
+            for await (const event of stream) {
                 // Check for abort
-                if (signal?.aborted) {
+                if (this.abortSignal?.aborted) {
                     this.logger.debug('StreamProcessor: Aborted during processing');
-                    finishReason = 'stop';
+                    this.finishReason = 'stop';
                     break;
                 }
 
-                switch (event.type) {
-                    case 'text-delta': {
-                        text += event.text;
-                        this.sessionEventBus.emit('llm:chunk', {
-                            chunkType: 'text',
-                            content: event.text,
-                            isComplete: false,
-                        });
-                        break;
-                    }
-
-                    case 'reasoning-delta': {
-                        // Reasoning delta events
-                        reasoning += event.text;
-                        this.sessionEventBus.emit('llm:chunk', {
-                            chunkType: 'reasoning',
-                            content: event.text,
-                            isComplete: false,
-                        });
-                        break;
-                    }
-
-                    case 'tool-call': {
-                        this.logger.debug(
-                            `StreamProcessor: Tool call - ${event.toolName} (${event.toolCallId})`
-                        );
-                        const args = event.input as Record<string, unknown>;
-                        toolCalls.push({
-                            id: event.toolCallId,
-                            name: event.toolName,
-                            args,
-                        });
-                        this.sessionEventBus.emit('llm:tool-call', {
-                            toolName: event.toolName,
-                            args,
-                            callId: event.toolCallId,
-                        });
-                        break;
-                    }
-
-                    case 'tool-result': {
-                        // ALL PERSISTENCE HAPPENS HERE
-                        this.logger.debug(
-                            `StreamProcessor: Tool result - ${event.toolName} (${event.toolCallId})`
-                        );
-
-                        // Store raw result for later (used in assistant message)
-                        const rawResult = event.output;
-                        toolResults.set(event.toolCallId, rawResult);
-
-                        // Truncate oversized outputs at source
-                        const { result: truncatedResult, truncated } = truncateToolResult(
-                            rawResult,
-                            event.toolName
-                        );
-                        if (truncated) {
-                            this.logger.debug(
-                                `StreamProcessor: Truncated output for ${event.toolName}`
-                            );
-                        }
-
-                        // Persist to context manager (handles sanitization & blob storage)
-                        const persisted = await this.contextManager.addToolResult(
-                            event.toolCallId,
-                            event.toolName,
-                            truncatedResult,
-                            { success: true }
-                        );
-
-                        // Emit event for UI
-                        this.sessionEventBus.emit('llm:tool-result', {
-                            toolName: event.toolName,
-                            callId: event.toolCallId,
-                            success: true,
-                            sanitized: persisted,
-                        });
-                        break;
-                    }
-
-                    case 'error': {
-                        this.logger.error(`StreamProcessor: Error event - ${event.error}`);
-                        finishReason = 'error';
-                        break;
-                    }
-
-                    case 'finish-step': {
-                        this.logger.debug(
-                            `StreamProcessor: Step finished - reason: ${event.finishReason}`
-                        );
-
-                        // Capture finish reason directly (no pointless mapping)
-                        finishReason = event.finishReason as StreamProcessorResult['finishReason'];
-
-                        // Capture token usage
-                        if (event.usage) {
-                            const inputTokens = event.usage.inputTokens ?? 0;
-                            const outputTokens = event.usage.outputTokens ?? 0;
-                            usage = {
-                                inputTokens,
-                                outputTokens,
-                                totalTokens: inputTokens + outputTokens,
-                            };
-                        }
-
-                        // Add assistant message with tool calls
-                        if (toolCalls.length > 0) {
-                            const formattedToolCalls = toolCalls.map((tc) => ({
-                                id: tc.id,
-                                type: 'function' as const,
-                                function: {
-                                    name: tc.name,
-                                    arguments: JSON.stringify(tc.args),
-                                },
-                            }));
-                            await this.contextManager.addAssistantMessage(
-                                text || null,
-                                formattedToolCalls
-                            );
-                        } else if (text) {
-                            // No tool calls, just text response
-                            await this.contextManager.addAssistantMessage(text, undefined);
-                        }
-                        break;
-                    }
-
-                    // Ignore informational events
-                    case 'start':
-                    case 'finish':
-                        break;
-
-                    default:
-                        // Log unknown events for debugging
-                        this.logger.debug(
-                            `StreamProcessor: Unknown event type: ${(event as { type: string }).type}`
-                        );
-                }
+                await this.handleEvent(event);
             }
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 this.logger.debug('StreamProcessor: Stream aborted');
-                finishReason = 'stop';
+                this.finishReason = 'stop';
             } else {
                 this.logger.error(`StreamProcessor: Error processing stream: ${String(error)}`);
-                finishReason = 'error';
+                this.finishReason = 'error';
+                if (this.handlers.onError && error instanceof Error) {
+                    await this.handlers.onError(error);
+                }
             }
         }
 
-        // Emit final response event
-        this.sessionEventBus.emit('llm:response', {
-            content: text,
-            ...(reasoning && { reasoning }),
-            tokenUsage: {
-                ...(usage.inputTokens && { inputTokens: usage.inputTokens }),
-                ...(usage.outputTokens && { outputTokens: usage.outputTokens }),
-                ...(usage.totalTokens && { totalTokens: usage.totalTokens }),
-            },
-        });
-
-        const result: StreamProcessorResult = {
-            text,
-            finishReason,
-            usage,
-            hasToolCalls: toolCalls.length > 0,
-            toolCalls,
+        return {
+            text: this.text,
+            reasoning: this.reasoning,
+            finishReason: this.finishReason,
+            usage: this.usage,
+            toolCalls: this.toolCalls,
+            hasToolCalls: this.toolCalls.length > 0,
         };
+    }
 
-        if (reasoning) {
-            result.reasoning = reasoning;
+    /**
+     * Handle a single stream event.
+     */
+    private async handleEvent(event: FullStreamEvent): Promise<void> {
+        switch (event.type) {
+            case 'text-start':
+                this.logger.debug('StreamProcessor: Text started');
+                if (this.handlers.onTextStart) {
+                    await this.handlers.onTextStart();
+                }
+                break;
+
+            case 'text-delta': {
+                const textEvent = event as TextDeltaEvent;
+                this.text += textEvent.text;
+                if (this.handlers.onTextDelta) {
+                    await this.handlers.onTextDelta(textEvent.text);
+                }
+                break;
+            }
+
+            case 'reasoning-delta': {
+                const reasoningEvent = event as ReasoningDeltaEvent;
+                this.reasoning += reasoningEvent.text;
+                if (this.handlers.onReasoningDelta) {
+                    await this.handlers.onReasoningDelta(reasoningEvent.text);
+                }
+                break;
+            }
+
+            case 'tool-call': {
+                const toolEvent = event as ToolCallEvent;
+                this.logger.debug(
+                    `StreamProcessor: Tool call - ${toolEvent.toolName} (${toolEvent.toolCallId})`
+                );
+                this.toolCalls.push({
+                    id: toolEvent.toolCallId,
+                    name: toolEvent.toolName,
+                    args: toolEvent.args,
+                });
+                if (this.handlers.onToolCall) {
+                    await this.handlers.onToolCall(
+                        toolEvent.toolCallId,
+                        toolEvent.toolName,
+                        toolEvent.args
+                    );
+                }
+                break;
+            }
+
+            case 'tool-result': {
+                const resultEvent = event as ToolResultEvent;
+                this.logger.debug(
+                    `StreamProcessor: Tool result - ${resultEvent.toolName} (${resultEvent.toolCallId})`
+                );
+                if (this.handlers.onToolResult) {
+                    await this.handlers.onToolResult(
+                        resultEvent.toolCallId,
+                        resultEvent.toolName,
+                        resultEvent.result
+                    );
+                }
+                break;
+            }
+
+            case 'error': {
+                const errorEvent = event as ErrorEvent;
+                this.logger.error(`StreamProcessor: Error event - ${errorEvent.error.message}`);
+                this.finishReason = 'error';
+                if (this.handlers.onError) {
+                    await this.handlers.onError(errorEvent.error);
+                }
+                break;
+            }
+
+            case 'finish-step': {
+                const finishEvent = event as FinishStepEvent;
+                this.logger.debug(
+                    `StreamProcessor: Step finished - reason: ${finishEvent.finishReason}, ` +
+                        `tokens: ${finishEvent.usage.inputTokens} in, ${finishEvent.usage.outputTokens} out`
+                );
+                this.finishReason = finishEvent.finishReason;
+                this.usage = {
+                    inputTokens: finishEvent.usage.inputTokens,
+                    outputTokens: finishEvent.usage.outputTokens,
+                    totalTokens: finishEvent.usage.totalTokens,
+                };
+                // Only include reasoningTokens if present (exactOptionalPropertyTypes)
+                if (finishEvent.usage.reasoningTokens !== undefined) {
+                    this.usage.reasoningTokens = finishEvent.usage.reasoningTokens;
+                }
+                if (this.handlers.onStepFinish) {
+                    await this.handlers.onStepFinish(finishEvent.finishReason, this.usage);
+                }
+                break;
+            }
+
+            case 'tool-call-streaming-start':
+            case 'tool-call-delta':
+            case 'finish-message':
+                // These events are informational, no action needed
+                this.logger.debug(`StreamProcessor: Ignoring event type: ${event.type}`);
+                break;
+
+            default: {
+                // Handle any unknown event types gracefully
+                const unknownEvent = event as StreamEvent;
+                this.logger.debug(`StreamProcessor: Unknown event type: ${unknownEvent.type}`);
+            }
         }
+    }
 
-        return result;
+    /**
+     * Reset state for processing a new stream.
+     */
+    private reset(): void {
+        this.text = '';
+        this.reasoning = '';
+        this.toolCalls = [];
+        this.finishReason = 'stop';
+        this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     }
 }

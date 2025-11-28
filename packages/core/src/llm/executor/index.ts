@@ -17,8 +17,8 @@ export type {
     UserMessageContentPart,
     QueuedMessage,
     CoalescedMessage,
-    // Tool Output
-    ToolOutputConfig,
+    // TurnExecutor
+    TurnExecutorConfig,
     TurnResult,
     // Tool Result Extensions
     ToolResultMetadata,
@@ -35,18 +35,11 @@ export {
     // ReactiveOverflow strategy (async, LLM-based)
     ReactiveOverflowStrategy,
     createSummaryPrompt,
-    // Tool output pruning utilities (for OLD outputs)
+    // Tool output pruning utilities
     pruneOldToolOutputs,
     formatToolOutputContent,
     isCompacted,
     getCompactedPlaceholder,
-    // Tool output truncation utilities (for NEW outputs)
-    truncateToolOutput,
-    truncateToolResult,
-    truncateByLines,
-    DEFAULT_MAX_TOOL_OUTPUT_CHARS,
-    DEFAULT_MAX_TOOL_OUTPUT_LINES,
-    DEFAULT_TOOL_LIMITS,
 } from './strategies/index.js';
 export type {
     MiddleRemovalOptions,
@@ -54,13 +47,36 @@ export type {
     SummaryGenerator,
     ToolOutputPruningOptions,
     PruneResult,
-    TruncateResult,
 } from './strategies/index.js';
 
 // Turn Executor
 export { TurnExecutor } from './turn-executor.js';
-export type { StepUsage, TurnExecutorConfig, TurnExecutorDeps } from './turn-executor.js';
+export type {
+    StepUsage,
+    StepResult,
+    StepExecutor,
+    MessageProvider,
+    MessageAdder,
+    TurnExecutorConfig as TurnExecutorConfigOptions,
+    TurnExecutorDeps,
+} from './turn-executor.js';
 
 // Stream Processor
 export { StreamProcessor } from './stream-processor.js';
-export type { StreamProcessorConfig, StreamProcessorResult } from './stream-processor.js';
+export type {
+    StreamEventType,
+    StreamEvent,
+    TextDeltaEvent,
+    ReasoningDeltaEvent,
+    ToolCallEvent,
+    ToolResultEvent,
+    ErrorEvent,
+    FinishStepEvent,
+    FullStreamEvent,
+    StreamEventHandlers,
+    StreamProcessorResult,
+} from './stream-processor.js';
+
+// Vercel Adapter
+export { createVercelStepExecutor } from './vercel-adapter.js';
+export type { VercelAdapterConfig, CreateTurnExecutorDepsOptions } from './vercel-adapter.js';
