@@ -1903,15 +1903,15 @@ Add to `packages/core/src/events/index.ts`:
 
 | Feature | vercel.ts Location | Status in TurnExecutor/StreamProcessor |
 |---------|-------------------|---------------------------------------|
-| **Telemetry setup** | Lines 393-420 (span attributes, baggage) | ❌ Missing |
-| **Error mapping** | `mapProviderError()` lines 622-684 | ❌ Missing |
-| **Tool validation** | `validateToolSupport()` lines 304-361 | ❌ Missing |
-| **Reasoning delta** | Lines 779-786 (`reasoning-delta` in onChunk) | ❌ Missing in StreamProcessor |
-| **Reasoning tokens** | Lines 483, 853-854 (reasoningTokens tracking) | ❌ Missing in TokenUsage |
-| **Provider/model in llm:response** | Lines 598-605, 894-901 | ❌ Missing in StreamProcessor |
-| **Cache tokens** | Lines 478-481 (cacheCreationTokens, cacheReadTokens) | ❌ Missing in TokenUsage |
-| **Streaming chunks** | Lines 770-795 (llm:chunk emissions) | ✅ Partial (text only, no reasoning) |
-| **prepareStep compression** | Lines 512-539, 733-760 | ❌ Need to wire overflow.ts |
+| **Telemetry setup** | Lines 393-420 (span attributes, baggage) | ✅ `setTelemetryAttributes()` |
+| **Error mapping** | `mapProviderError()` lines 622-684 | ✅ `mapProviderError()` |
+| **Tool validation** | `validateToolSupport()` lines 304-361 | ⏳ Move to TurnExecutor |
+| **Reasoning delta** | Lines 779-786 (`reasoning-delta` in onChunk) | ✅ StreamProcessor handles |
+| **Reasoning tokens** | Lines 483, 853-854 (reasoningTokens tracking) | ✅ TokenUsage has field |
+| **Provider/model in llm:response** | Lines 598-605, 894-901 | ✅ StreamProcessorConfig |
+| **Cache tokens** | Lines 478-481 (cacheCreationTokens, cacheReadTokens) | ℹ️ Handled by provider |
+| **Streaming chunks** | Lines 770-795 (llm:chunk emissions) | ✅ StreamProcessor |
+| **prepareStep compression** | Lines 512-539, 733-760 | ✅ ReactiveOverflowStrategy |
 
 **What TurnExecutor HAS that vercel.ts doesn't:**
 - `defer()` cleanup (Phase 7) ✅
@@ -1930,32 +1930,59 @@ Keep vercel.ts as the public API, have it delegate to TurnExecutor internally.
 
 #### 8.3 Implementation Steps
 
-**Step 1: Enhance TokenUsage type**
-- [ ] Add `reasoningTokens` field
-- [ ] Add `cacheCreationTokens` field
-- [ ] Add `cacheReadTokens` field
-- [ ] Update `llm/types.ts`
+**Step 1: Enhance TokenUsage type** ✅ COMPLETE
+- [x] `reasoningTokens` field already exists
+- [x] Cache tokens handled by provider (not needed in TokenUsage)
+- [x] Verified `llm/types.ts` has required fields
 
-**Step 2: Enhance StreamProcessor**
-- [ ] Add reasoning delta handling (`reasoning-delta` event type)
-- [ ] Add provider/model to llm:response event
-- [ ] Update TokenUsage capture to include all fields (reasoning, cache)
-- [ ] Emit `llm:chunk` with `chunkType: 'reasoning'` for reasoning deltas
+**Step 2: Enhance StreamProcessor** ✅ COMPLETE
+- [x] Added `reasoning-delta` event handling
+- [x] Added `StreamProcessorConfig` with provider/model/router
+- [x] Emit `llm:chunk` with `chunkType: 'reasoning'` for reasoning deltas
+- [x] Include reasoningTokens in token usage capture
 
-**Step 3: Enhance TurnExecutor**
-- [ ] Add telemetry setup (copy span/baggage setup from vercel.ts)
-- [ ] Add `mapProviderError()` (copy from vercel.ts)
-- [ ] Add `validateToolSupport()` (copy from vercel.ts or import)
-- [ ] Wire overflow detection (`isOverflow()` from overflow.ts)
-- [ ] Wire `ReactiveOverflowStrategy` for compression
-- [ ] Add LLM config (provider, model) to constructor
+**Step 3: Enhance TurnExecutor** ✅ COMPLETE
+- [x] Added `setTelemetryAttributes()` for span attributes
+- [x] Added `mapProviderError()` for error conversion
+- [x] Wire overflow detection via `checkAndHandleOverflow()`
+- [x] Wire `ReactiveOverflowStrategy` via `compress()` method
+- [x] Added `router` and `modelLimits` constructor parameters
+- [x] Added `getTokenizer()` to ContextManager for token estimation
 
-**Step 4: Update vercel.ts to delegate to TurnExecutor**
-- [ ] Modify `generateText()` to create and call TurnExecutor.execute()
-- [ ] Modify `streamText()` to create and call TurnExecutor.execute()
-- [ ] Remove internal loop logic from vercel.ts
-- [ ] Keep `completeTask()` as the public entry point
-- [ ] Keep `formatTools()` for now (TurnExecutor uses it)
+**Step 4: Update vercel.ts to delegate to TurnExecutor** ⏳ IN PROGRESS
+
+*Key Design Decisions:*
+
+**4.1 Unified streaming approach:**
+- Both `generateText()` and `streamText()` will use TurnExecutor internally
+- TurnExecutor always uses Vercel's `streamText` (works for both modes)
+- Add `streaming: boolean` parameter to control `llm:chunk` event emission
+- Non-streaming just awaits final result without emitting chunks
+
+**4.2 Code to REMOVE from vercel.ts (~580 lines):**
+
+| Function | Lines | Reason |
+|----------|-------|--------|
+| `formatTools()` | ~120 | Replaced by TurnExecutor's `createTools()` |
+| `mapProviderError()` | ~40 | Moved to TurnExecutor |
+| `validateToolSupport()` | ~20 | Move to TurnExecutor |
+| `generateText()` body | ~200 | Replace with TurnExecutor delegation |
+| `streamText()` body | ~200 | Replace with TurnExecutor delegation |
+
+**4.3 Code to KEEP in vercel.ts:**
+- `completeTask()` - entry point, adds user message, calls TurnExecutor
+- Constructor and initialization
+- `getModelId()` helper
+
+**4.4 Implementation steps:**
+- [ ] Move `validateToolSupport()` to TurnExecutor
+- [ ] Add `streaming: boolean` parameter to TurnExecutor.execute()
+- [ ] Update StreamProcessor to conditionally emit chunks based on streaming flag
+- [ ] Replace `generateText()` body with TurnExecutor delegation
+- [ ] Replace `streamText()` body with TurnExecutor delegation
+- [ ] Delete `formatTools()` from vercel.ts
+- [ ] Delete `mapProviderError()` from vercel.ts
+- [ ] Update `completeTask()` to create TurnExecutor and call execute()
 
 **Step 5: Clean up ContextManager**
 - [ ] Delete `lastActualTokenCount` property
