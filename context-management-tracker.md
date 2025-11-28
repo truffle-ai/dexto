@@ -14,6 +14,7 @@
 | Phase 4: Reactive Compression | ✅ Complete | `ReactiveOverflowStrategy`, `filterCompacted()` |
 | Phase 5: Pruning | ✅ Complete | `pruneOldToolOutputs()`, `markMessagesAsCompacted()` |
 | Phase 6: MessageQueue | ✅ Complete | `MessageQueueService`, multimodal coalescing |
+| Phase 6.5: Unit Tests | 🔲 Not Started | Tests for Phases 1-6 modules |
 | Phase 7: defer() Cleanup | 🔲 Not Started | TC39 pattern |
 | Phase 8: Integration | 🔲 Not Started | Update `vercel.ts` |
 
@@ -88,6 +89,51 @@
 - [x] Make `MessageQueueService` a mandatory parameter for TurnExecutor
 - [ ] Modify `/api/message` to queue when busy (deferred - needs API layer integration)
 - [ ] Test user guidance during task execution (deferred - needs integration testing)
+
+### Phase 6.5: Unit Tests for Context Management 🔲
+
+Unit tests for new modules created in Phases 1-6.
+
+#### MessageQueueService Tests (`session/message-queue.test.ts`)
+- [ ] `enqueue()` - adds message, returns position/id, emits event, handles metadata
+- [ ] `dequeueAll()` - returns null when empty, returns CoalescedMessage, clears queue, emits event
+- [ ] Coalescing - single message as-is, two messages "First/Also", 3+ numbered, multimodal preserved
+- [ ] `hasPending()` / `pendingCount()` - return correct values
+- [ ] `clear()` - empties queue
+
+#### Overflow Detection Tests (`context/compression/overflow.test.ts`)
+- [ ] `isOverflow()` - true when over limit, false when under, handles undefined tokens
+- [ ] `getCompressionTarget()` - correct target calculation, default 70%, respects limits
+
+#### filterCompacted Tests (add to `context/utils.test.ts`)
+- [ ] Returns all messages if no summary
+- [ ] Returns summary + messages after it
+- [ ] Handles multiple summaries (most recent wins)
+- [ ] Handles empty history
+
+#### StreamProcessor Tests (`llm/executor/stream-processor.test.ts`)
+- [ ] text-delta → appendAssistantText, emits llm:chunk
+- [ ] tool-call → addToolCall with correct structure, emits llm:tool-call
+- [ ] tool-result → sanitize, truncate, persist, emits llm:tool-result
+- [ ] finish → captures token usage, emits llm:response
+- [ ] error handling
+- [ ] Abort signal respected
+
+#### ReactiveOverflowStrategy Tests (`context/compression/reactive-overflow.test.ts`)
+- [ ] `shouldCompress()` - returns correct boolean based on context state
+- [ ] `compress()` - generates summary via LLM, returns valid InternalMessage
+- [ ] `validate()` - validates compression results
+- [ ] Error handling for LLM failures
+
+#### TurnExecutor Tests (`llm/executor/turn-executor.test.ts`)
+- [ ] Main loop terminates on `finishReason !== 'tool-calls'`
+- [ ] Main loop terminates on abort signal
+- [ ] Main loop terminates on maxSteps
+- [ ] Message queue injection - dequeues and injects into context
+- [ ] `pruneOldToolOutputs()` - marks correct messages with compactedAt
+- [ ] `formatToolResultForLLM()` - handles text, multimodal, errors
+- [ ] `extractImageData()` / `extractFileData()` - handles various formats
+- [ ] `abort()` - sets abort signal correctly
 
 ### Phase 7: defer() Cleanup 🔲
 
@@ -247,5 +293,6 @@ tools: {
 
 ## Next Steps
 
-1. **Phase 7**: defer() cleanup pattern
-2. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, delete legacy compression code, simplify ContextManager
+1. **Phase 6.5**: Unit tests for Phases 1-6 modules
+2. **Phase 7**: defer() cleanup pattern
+3. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, delete legacy compression code, simplify ContextManager
