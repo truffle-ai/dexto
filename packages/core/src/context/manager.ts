@@ -23,11 +23,7 @@ import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 
-// TODO: Unify LLM response handling approaches across providers
-// Currently vercel vs anthropic/openai handle getting LLM responses quite differently:
-// - anthropic/openai add tool responses and assistant responses using individual methods
-// - vercel uses processLLMResponse and processStreamResponse
-// This should be unified to make the codebase more consistent and easier to maintain
+// TODO Phase 8: Simplify this class - review what can be deleted once TurnExecutor is integrated
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -265,35 +261,6 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Updates the ContextManager configuration when LLM config changes.
-     * This is called when DextoAgent.switchLLM() updates the LLM configuration.
-     *
-     * @param newMaxInputTokens New maximum token limit
-     * @param newTokenizer Optional new tokenizer if provider changed
-     * @param newFormatter Optional new formatter if provider/router changed
-     */
-    updateConfig(
-        newMaxInputTokens: number,
-        newTokenizer?: ITokenizer,
-        newFormatter?: IMessageFormatter
-    ): void {
-        const oldMaxInputTokens = this.maxInputTokens;
-        this.maxInputTokens = newMaxInputTokens;
-
-        if (newTokenizer) {
-            this.tokenizer = newTokenizer;
-        }
-
-        if (newFormatter) {
-            this.formatter = newFormatter;
-        }
-
-        this.logger.debug(
-            `ContextManager config updated: maxInputTokens ${oldMaxInputTokens} -> ${newMaxInputTokens}`
-        );
-    }
-
-    /**
      * Updates the actual token count from the last LLM response.
      * This enables hybrid token counting for more accurate estimates.
      *
@@ -427,6 +394,61 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Marks tool messages as compacted (pruned).
+     * Sets the compactedAt timestamp - content transformation happens at format time
+     * in getFormattedMessagesWithCompression(). Original content is preserved in
+     * storage for debugging/audit.
+     *
+     * Used by TurnExecutor's pruneOldToolOutputs() to reclaim token space
+     * by marking old tool outputs that are no longer needed for context.
+     *
+     * @param messageIds Array of message IDs to mark as compacted
+     * @returns Number of messages successfully marked
+     */
+    async markMessagesAsCompacted(messageIds: string[]): Promise<number> {
+        if (messageIds.length === 0) {
+            return 0;
+        }
+
+        const history = await this.historyProvider.getHistory();
+        const timestamp = Date.now();
+        let markedCount = 0;
+
+        for (const messageId of messageIds) {
+            const message = history.find((m) => m.id === messageId);
+
+            if (!message) {
+                this.logger.warn(`markMessagesAsCompacted: Message ${messageId} not found`);
+                continue;
+            }
+
+            if (message.role !== 'tool') {
+                this.logger.warn(
+                    `markMessagesAsCompacted: Message ${messageId} is not a tool message (role=${message.role})`
+                );
+                continue;
+            }
+
+            if (message.compactedAt) {
+                // Already compacted, skip
+                continue;
+            }
+
+            message.compactedAt = timestamp;
+            await this.historyProvider.updateMessage(message);
+            markedCount++;
+        }
+
+        if (markedCount > 0) {
+            this.logger.debug(
+                `markMessagesAsCompacted: Marked ${markedCount} messages as compacted`
+            );
+        }
+
+        return markedCount;
+    }
+
+    /**
      * Adds a message to the conversation history.
      * Performs validation based on message role and required fields.
      * Note: Compression based on token limits is applied lazily when calling `getFormattedMessages`, not immediately upon adding.
@@ -479,9 +501,9 @@ export class ContextManager<TMessage = unknown> {
                 break;
 
             case 'system':
-                // System messages should ideally be handled via setSystemPrompt
+                // System messages should be handled via SystemPromptManager, not added to history
                 this.logger.warn(
-                    'ContextManager: Adding system message directly to history. Use setSystemPrompt instead.'
+                    'ContextManager: Adding system message directly to history. Use SystemPromptManager instead.'
                 );
                 if (typeof message.content !== 'string' || message.content.trim() === '') {
                     throw ContextError.systemMessageContentInvalid();
@@ -664,15 +686,6 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Sets the system prompt for the conversation
-     *
-     * @param prompt The system prompt text
-     */
-    setSystemPrompt(_prompt: string): void {
-        // This method is no longer used with systemPromptContributors
-    }
-
-    /**
      * Gets the conversation history formatted for the target LLM provider.
      * Applies compression strategies sequentially if the manager is configured with a `maxInputTokens` limit
      * and a `tokenizer`, and the current token count exceeds the limit. Compression happens *before* formatting.
@@ -769,7 +782,7 @@ export class ContextManager<TMessage = unknown> {
 
         // Step 2: Get history and filter (OpenCode-style: exclude pre-summary messages)
         const fullHistory = await this.historyProvider.getHistory();
-        const history = filterCompacted(fullHistory);
+        let history = filterCompacted(fullHistory);
 
         // Log if filtering occurred
         if (history.length < fullHistory.length) {
@@ -778,7 +791,22 @@ export class ContextManager<TMessage = unknown> {
             );
         }
 
-        // Step 3: Format messages with filtered history
+        // Step 3: Transform compacted tool messages (respects compactedAt marker)
+        // Original content is preserved in storage, placeholder sent to LLM
+        const compactedCount = history.filter((m) => m.role === 'tool' && m.compactedAt).length;
+        if (compactedCount > 0) {
+            history = history.map((msg) => {
+                if (msg.role === 'tool' && msg.compactedAt) {
+                    return { ...msg, content: '[Old tool result content cleared]' };
+                }
+                return msg;
+            });
+            this.logger.debug(
+                `Transformed ${compactedCount} compacted tool messages to placeholders`
+            );
+        }
+
+        // Step 4: Format messages with filtered and transformed history
         const formattedMessages = await this.getFormattedMessages(
             contributorContext,
             llmContext,

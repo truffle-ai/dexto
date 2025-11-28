@@ -44,6 +44,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:switched',
     'llm:unsupported-input',
     'context:compressed',
+    'context:pruned',
 ] as const;
 
 /**
@@ -79,6 +80,7 @@ export const STREAMING_EVENTS = [
 
     // Context management events
     'context:compressed',
+    'context:pruned',
 
     // Session metadata
     'session:title-updated',
@@ -346,6 +348,13 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
+    'context:pruned': {
+        prunedCount: number;
+        savedTokens: number;
+        sessionId: string;
+    };
+
     // State events
     /** Fired when agent runtime state changes */
     'state:changed': {
@@ -459,6 +468,12 @@ export interface SessionEventMap {
         compressedMessages: number;
         strategy: string;
         reason: 'token_limit' | 'message_limit';
+    };
+
+    /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
+    'context:pruned': {
+        prunedCount: number;
+        savedTokens: number;
     };
 }
 

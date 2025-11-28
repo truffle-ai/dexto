@@ -7,6 +7,7 @@ import {
     type ModelMessage,
 } from 'ai';
 import { ContextManager } from '../../context/manager.js';
+import type { TextPart, ImagePart, FilePart, UIResourcePart } from '../../context/types.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
@@ -146,8 +147,7 @@ export class TurnExecutor {
                 }
 
                 // 8. Prune old tool outputs (mark with compactedAt)
-                // TODO Phase 5: Implement pruning
-                // await this.pruneOldToolOutputs();
+                await this.pruneOldToolOutputs();
             }
         } catch (error) {
             this.logger.error('TurnExecutor failed', { error });
@@ -382,10 +382,96 @@ export class TurnExecutor {
     //     // Use compression strategy to compress history
     // }
 
-    // TODO Phase 5: Implement pruning
-    // private async pruneOldToolOutputs(): Promise<void> {
-    //     // Mark old tool outputs with compactedAt
-    // }
+    /**
+     * Constants for pruning thresholds
+     */
+    private static readonly PRUNE_PROTECT = 40_000; // Keep last 40K tokens of tool outputs
+    private static readonly PRUNE_MINIMUM = 20_000; // Only prune if we can save 20K+
+
+    /**
+     * Prunes old tool outputs by marking them with compactedAt timestamp.
+     * Does NOT modify content - transformation happens at format time in
+     * ContextManager.getFormattedMessagesWithCompression().
+     *
+     * Algorithm:
+     * 1. Go backwards through history (most recent first)
+     * 2. Stop at summary message (only process post-summary messages)
+     * 3. Count tool message tokens
+     * 4. If total exceeds PRUNE_PROTECT, mark older ones for pruning
+     * 5. Only prune if savings exceed PRUNE_MINIMUM
+     */
+    private async pruneOldToolOutputs(): Promise<{ prunedCount: number; savedTokens: number }> {
+        const history = await this.contextManager.getHistory();
+        let totalToolTokens = 0;
+        let prunedTokens = 0;
+        const toPrune: string[] = []; // Message IDs to mark
+
+        // Go backwards through history (most recent first)
+        for (let i = history.length - 1; i >= 0; i--) {
+            const msg = history[i];
+            if (!msg) continue;
+
+            // Stop at summary message - only prune AFTER the summary
+            if (msg.metadata?.isSummary === true) break;
+
+            // Only process tool messages
+            if (msg.role !== 'tool') continue;
+
+            // Skip already pruned messages
+            if (msg.compactedAt) continue;
+
+            // Tool message content is always an array after sanitization
+            if (!Array.isArray(msg.content)) continue;
+
+            const tokens = this.estimateToolTokens(msg.content);
+            totalToolTokens += tokens;
+
+            // If we've exceeded protection threshold, mark for pruning
+            if (totalToolTokens > TurnExecutor.PRUNE_PROTECT && msg.id) {
+                prunedTokens += tokens;
+                toPrune.push(msg.id);
+            }
+        }
+
+        // Only prune if significant savings
+        if (prunedTokens > TurnExecutor.PRUNE_MINIMUM && toPrune.length > 0) {
+            const markedCount = await this.contextManager.markMessagesAsCompacted(toPrune);
+
+            this.eventBus.emit('context:pruned', {
+                prunedCount: markedCount,
+                savedTokens: prunedTokens,
+            });
+
+            this.logger.debug(`Pruned ${markedCount} tool outputs, saving ~${prunedTokens} tokens`);
+
+            return { prunedCount: markedCount, savedTokens: prunedTokens };
+        }
+
+        return { prunedCount: 0, savedTokens: 0 };
+    }
+
+    /**
+     * Estimates tokens for tool message content using simple heuristic (length/4).
+     * Used for pruning decisions only - actual token counts come from API.
+     *
+     * Tool message content is always Array<TextPart | ImagePart | FilePart | UIResourcePart>
+     * after sanitization via SanitizedToolResult.
+     */
+    private estimateToolTokens(
+        content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
+    ): number {
+        return content.reduce((sum, part) => {
+            if (part.type === 'text') {
+                return sum + Math.ceil(part.text.length / 4);
+            }
+            // Images/files contribute ~1000 tokens estimate
+            if (part.type === 'image' || part.type === 'file') {
+                return sum + 1000;
+            }
+            // UIResourcePart - minimal token contribution
+            return sum;
+        }, 0);
+    }
 
     // TODO Phase 7: Implement cleanup with defer()
     // private cleanup(): void {

@@ -1900,6 +1900,7 @@ Add to `packages/core/src/events/index.ts`:
 ### Phase 8: Integration + Migration
 - [ ] Update `vercel.ts` to use TurnExecutor
 - [ ] Delete old compression methods from ContextManager
+- [ ] Simplify ContextManager - review what can be deleted once TurnExecutor is integrated
 - [ ] Update event emissions
 - [ ] Full integration testing
 

@@ -1,7 +1,7 @@
 # Context Management Refactor - Progress Tracker
 
 > **Based on**: `complete-context-management-plan.md`
-> **Last Updated**: 2024-11-28
+> **Last Updated**: 2025-11-28
 
 ## Phase Status
 
@@ -11,8 +11,8 @@
 | Phase 1: Tool Output Truncation | ✅ Complete | `truncateToolResult()` implemented |
 | Phase 2: StreamProcessor | ✅ Complete | Handles persistence via stream events |
 | Phase 3: TurnExecutor Shell | ✅ Complete | Main loop, toModelOutput, abort handling |
-| Phase 4: Reactive Compression | 🔲 Not Started | `ReactiveOverflowStrategy` |
-| Phase 5: Pruning | 🔲 Not Started | Mark with `compactedAt` |
+| Phase 4: Reactive Compression | ✅ Complete | `ReactiveOverflowStrategy`, `filterCompacted()` |
+| Phase 5: Pruning | ✅ Complete | `pruneOldToolOutputs()`, `markMessagesAsCompacted()` |
 | Phase 6: MessageQueue | 🔲 Not Started | Multimodal coalescing |
 | Phase 7: defer() Cleanup | 🔲 Not Started | TC39 pattern |
 | Phase 8: Integration | 🔲 Not Started | Update `vercel.ts` |
@@ -69,11 +69,14 @@
 - [x] Add TODO comments for Phase 8 cleanup
 - [ ] Wire overflow check and compression into TurnExecutor (deferred - needs TurnExecutor integration)
 
-### Phase 5: Pruning (compactedAt) 🔲
+### Phase 5: Pruning (compactedAt) ✅
 
-- [ ] Implement `pruneOldToolOutputs()` in TurnExecutor
-- [ ] Update `formatToolOutput()` to return placeholder for compacted
-- [ ] Test pruning preserves history for debugging
+- [x] Add `markMessagesAsCompacted()` method to ContextManager
+- [x] Add compacted tool message transformation in `getFormattedMessagesWithCompression()`
+- [x] Implement `pruneOldToolOutputs()` in TurnExecutor (uses message IDs, proper typing)
+- [x] Wire `pruneOldToolOutputs()` into TurnExecutor main loop
+- [x] Add `context:pruned` event to `SessionEventMap`, `AgentEventMap`, and `STREAMING_EVENTS`
+- [x] Delete dead code: `updateConfig()`, `setSystemPrompt()`
 
 ### Phase 6: MessageQueue with Multimodal 🔲
 
@@ -95,6 +98,7 @@
 
 - [ ] Update `vercel.ts` to use TurnExecutor
 - [ ] Delete stubbed compression methods from ContextManager
+- [ ] Simplify ContextManager - review what can be deleted once TurnExecutor is integrated
 - [ ] Update event emissions
 - [ ] Full integration testing
 
@@ -182,7 +186,7 @@ tools: {
 
 ---
 
-## Files Changed (Phase 0-4)
+## Files Changed (Phase 0-5)
 
 ### New Files
 - `packages/core/src/llm/executor/stream-processor.ts` (Phase 2)
@@ -197,10 +201,12 @@ tools: {
 ### Modified Files
 - `packages/core/src/agent/schemas.ts` - Added `tools` field
 - `packages/core/src/context/compression/types.ts` - New `ICompressionStrategy` interface
-- `packages/core/src/context/manager.ts` - Added `filterCompacted()` to history retrieval, TODO comments for Phase 8, removed dead code
+- `packages/core/src/context/manager.ts` - Added `filterCompacted()` to history retrieval, `markMessagesAsCompacted()`, compacted transformation, TODO comments for Phase 8, removed dead code (`updateConfig`, `setSystemPrompt`)
 - `packages/core/src/context/types.ts` - Added `compactedAt`, `metadata`
 - `packages/core/src/context/utils.ts` - Added `filterCompacted()`, `formatToolOutputForDisplay()`
+- `packages/core/src/events/index.ts` - Added `context:pruned` event to `SessionEventMap`, `AgentEventMap`, `STREAMING_EVENTS`
 - `packages/core/src/llm/types.ts` - Added `TokenUsage`
+- `packages/core/src/llm/executor/turn-executor.ts` - Added `pruneOldToolOutputs()`, `estimateToolTokens()`, wired into main loop
 - `packages/core/src/llm/services/README.md` - Removed outdated token counting example
 - `packages/core/src/logger/v2/types.ts` - Added `EXECUTOR` component
 - `packages/core/src/session/history/database.ts` - Added `updateMessage()`
@@ -223,7 +229,6 @@ tools: {
 
 ## Next Steps
 
-1. **Phase 5**: Implement `pruneOldToolOutputs()` for marking old tool outputs with `compactedAt`
-2. **Phase 6**: MessageQueue with multimodal coalescing
-3. **Phase 7**: defer() cleanup pattern
-4. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, delete legacy compression code
+1. **Phase 6**: MessageQueue with multimodal coalescing
+2. **Phase 7**: defer() cleanup pattern
+3. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, delete legacy compression code, simplify ContextManager
