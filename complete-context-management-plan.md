@@ -1898,11 +1898,138 @@ Add to `packages/core/src/events/index.ts`:
 - [ ] Verify no resource leaks
 
 ### Phase 8: Integration + Migration
-- [ ] Update `vercel.ts` to use TurnExecutor
-- [ ] Delete old compression methods from ContextManager
-- [ ] Simplify ContextManager - review what can be deleted once TurnExecutor is integrated
-- [ ] Update event emissions
-- [ ] Full integration testing
+
+#### 8.1 Gap Analysis: vercel.ts vs TurnExecutor/StreamProcessor
+
+| Feature | vercel.ts Location | Status in TurnExecutor/StreamProcessor |
+|---------|-------------------|---------------------------------------|
+| **Telemetry setup** | Lines 393-420 (span attributes, baggage) | ❌ Missing |
+| **Error mapping** | `mapProviderError()` lines 622-684 | ❌ Missing |
+| **Tool validation** | `validateToolSupport()` lines 304-361 | ❌ Missing |
+| **Reasoning delta** | Lines 779-786 (`reasoning-delta` in onChunk) | ❌ Missing in StreamProcessor |
+| **Reasoning tokens** | Lines 483, 853-854 (reasoningTokens tracking) | ❌ Missing in TokenUsage |
+| **Provider/model in llm:response** | Lines 598-605, 894-901 | ❌ Missing in StreamProcessor |
+| **Cache tokens** | Lines 478-481 (cacheCreationTokens, cacheReadTokens) | ❌ Missing in TokenUsage |
+| **Streaming chunks** | Lines 770-795 (llm:chunk emissions) | ✅ Partial (text only, no reasoning) |
+| **prepareStep compression** | Lines 512-539, 733-760 | ❌ Need to wire overflow.ts |
+
+**What TurnExecutor HAS that vercel.ts doesn't:**
+- `defer()` cleanup (Phase 7) ✅
+- `pruneOldToolOutputs()` (Phase 5) ✅
+- MessageQueue integration (Phase 6) ✅
+- `stopWhen: stepCountIs(1)` step-by-step control ✅
+
+#### 8.2 Migration Strategy: Option B (Gradual Migration)
+
+Keep vercel.ts as the public API, have it delegate to TurnExecutor internally.
+
+**Benefits:**
+- Safer, easier to rollback
+- Can preserve backwards compatibility
+- Incremental testing possible
+
+#### 8.3 Implementation Steps
+
+**Step 1: Enhance TokenUsage type**
+- [ ] Add `reasoningTokens` field
+- [ ] Add `cacheCreationTokens` field
+- [ ] Add `cacheReadTokens` field
+- [ ] Update `llm/types.ts`
+
+**Step 2: Enhance StreamProcessor**
+- [ ] Add reasoning delta handling (`reasoning-delta` event type)
+- [ ] Add provider/model to llm:response event
+- [ ] Update TokenUsage capture to include all fields (reasoning, cache)
+- [ ] Emit `llm:chunk` with `chunkType: 'reasoning'` for reasoning deltas
+
+**Step 3: Enhance TurnExecutor**
+- [ ] Add telemetry setup (copy span/baggage setup from vercel.ts)
+- [ ] Add `mapProviderError()` (copy from vercel.ts)
+- [ ] Add `validateToolSupport()` (copy from vercel.ts or import)
+- [ ] Wire overflow detection (`isOverflow()` from overflow.ts)
+- [ ] Wire `ReactiveOverflowStrategy` for compression
+- [ ] Add LLM config (provider, model) to constructor
+
+**Step 4: Update vercel.ts to delegate to TurnExecutor**
+- [ ] Modify `generateText()` to create and call TurnExecutor.execute()
+- [ ] Modify `streamText()` to create and call TurnExecutor.execute()
+- [ ] Remove internal loop logic from vercel.ts
+- [ ] Keep `completeTask()` as the public entry point
+- [ ] Keep `formatTools()` for now (TurnExecutor uses it)
+
+**Step 5: Clean up ContextManager**
+- [ ] Delete `lastActualTokenCount` property
+- [ ] Delete `lastActualTokenMessageCount` property
+- [ ] Delete `compressionThreshold` property
+- [ ] Delete `compressionStrategies` property
+- [ ] Delete `updateActualTokenCount()` method
+- [ ] Delete `compressMessagesForPrepareStep()` method
+- [ ] Delete `compressHistorySync()` method
+- [ ] Review `processLLMResponse()` / `processLLMStreamResponse()` - still needed?
+
+**Step 6: Testing**
+- [ ] Verify tool execution still works
+- [ ] Verify streaming works
+- [ ] Verify telemetry attributes are correct
+- [ ] Verify compression triggers correctly
+- [ ] Verify pruning works
+- [ ] Run full test suite
+
+#### 8.4 Files to Modify
+
+```
+packages/core/src/
+├── llm/
+│   ├── types.ts                      # UPDATE - Add TokenUsage fields
+│   ├── executor/
+│   │   ├── stream-processor.ts       # UPDATE - Add reasoning, provider/model
+│   │   ├── turn-executor.ts          # UPDATE - Add telemetry, error mapping, compression
+│   │   └── types.ts                  # UPDATE - Add ExecutorConfig type
+│   └── services/
+│       └── vercel.ts                 # UPDATE - Delegate to TurnExecutor
+├── context/
+│   └── manager.ts                    # UPDATE - Delete dead code
+└── events/
+    └── index.ts                      # Verify event types match
+```
+
+#### 8.5 Code to Delete (marked with TODO Phase 8)
+
+**ContextManager properties (packages/core/src/context/manager.ts):**
+```typescript
+// DELETE these properties:
+private lastActualTokenCount: number = 0;           // line ~73
+private lastActualTokenMessageCount: number = 0;    // line ~82
+private compressionThreshold: number;               // line ~90
+private compressionStrategies: ...;                 // line ~106
+
+// DELETE these methods:
+updateActualTokenCount()                            // lines ~271-274
+compressMessagesForPrepareStep()                    // lines ~881-1029
+compressHistorySync()                               // lines ~1041-1047
+```
+
+#### 8.6 Telemetry Preservation
+
+Must preserve these telemetry attributes from vercel.ts:
+
+```typescript
+// Span attributes (set at start of completeTask)
+activeSpan.setAttribute('llm.provider', provider);
+activeSpan.setAttribute('llm.model', model);
+
+// Baggage for child span propagation
+baggageEntries['llm.provider'] = { value: provider };
+baggageEntries['llm.model'] = { value: model };
+
+// Token usage attributes (set at end)
+activeSpan.setAttribute('gen_ai.usage.input_tokens', inputTokens);
+activeSpan.setAttribute('gen_ai.usage.output_tokens', outputTokens);
+activeSpan.setAttribute('gen_ai.usage.total_tokens', totalTokens);
+activeSpan.setAttribute('gen_ai.usage.reasoning_tokens', reasoningTokens);
+activeSpan.setAttribute('gen_ai.usage.cache_creation_input_tokens', cacheCreationTokens);
+activeSpan.setAttribute('gen_ai.usage.cache_read_input_tokens', cacheReadTokens);
+```
 
 ## Benefits
 

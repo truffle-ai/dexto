@@ -16,7 +16,7 @@
 | Phase 6: MessageQueue | ✅ Complete | `MessageQueueService`, multimodal coalescing |
 | Phase 6.5: Unit Tests | ✅ Complete | MessageQueueService + filterCompacted tests |
 | Phase 7: defer() Cleanup | ✅ Complete | TC39 pattern, TurnExecutor cleanup |
-| Phase 8: Integration | 🔲 Not Started | Update `vercel.ts` |
+| Phase 8: Integration | 🟡 In Progress | Gap analysis complete, implementation starting |
 
 ---
 
@@ -129,16 +129,54 @@ The following require extensive mocking and are better tested during integration
 - [x] Verify typecheck passes
 - [x] Fix pre-existing test bug in `tool-output-truncator.test.ts`
 
-### Phase 8: Integration + Migration 🔲
+### Phase 8: Integration + Migration 🟡
 
-- [ ] Update `vercel.ts` to use TurnExecutor
-- [ ] Delete stubbed compression methods from ContextManager
-- [ ] Simplify ContextManager - review what can be deleted once TurnExecutor is integrated
-- [ ] Update event emissions
-- [ ] Wire overflow detection (`isOverflow`) into TurnExecutor
-- [ ] Wire ReactiveOverflowStrategy into TurnExecutor
-- [ ] Full integration testing (StreamProcessor, TurnExecutor, compression)
-- [ ] Consider multimodal compression improvements (currently text-only summaries)
+**Gap Analysis**: ✅ Complete (see `complete-context-management-plan.md` section 8.1)
+
+**Step 1: Enhance TokenUsage type**
+- [ ] Add `reasoningTokens` field to `TokenUsage`
+- [ ] Add `cacheCreationTokens` field to `TokenUsage`
+- [ ] Add `cacheReadTokens` field to `TokenUsage`
+- [ ] Update `llm/types.ts`
+
+**Step 2: Enhance StreamProcessor**
+- [ ] Add reasoning delta handling (`reasoning-delta` event type)
+- [ ] Add provider/model to `llm:response` event
+- [ ] Update TokenUsage capture to include all fields (reasoning, cache)
+- [ ] Emit `llm:chunk` with `chunkType: 'reasoning'` for reasoning deltas
+
+**Step 3: Enhance TurnExecutor**
+- [ ] Add telemetry setup (span attributes, baggage from vercel.ts)
+- [ ] Add `mapProviderError()` (copy from vercel.ts)
+- [ ] Add `validateToolSupport()` (copy from vercel.ts)
+- [ ] Wire overflow detection (`isOverflow()` from overflow.ts)
+- [ ] Wire `ReactiveOverflowStrategy` for compression
+- [ ] Add LLM config (provider, model) to constructor
+
+**Step 4: Update vercel.ts to delegate to TurnExecutor**
+- [ ] Modify `generateText()` to create and call TurnExecutor.execute()
+- [ ] Modify `streamText()` to create and call TurnExecutor.execute()
+- [ ] Remove internal loop logic from vercel.ts
+- [ ] Keep `completeTask()` as the public entry point
+- [ ] Keep `formatTools()` for now (TurnExecutor uses it)
+
+**Step 5: Clean up ContextManager**
+- [ ] Delete `lastActualTokenCount` property
+- [ ] Delete `lastActualTokenMessageCount` property
+- [ ] Delete `compressionThreshold` property
+- [ ] Delete `compressionStrategies` property
+- [ ] Delete `updateActualTokenCount()` method
+- [ ] Delete `compressMessagesForPrepareStep()` method
+- [ ] Delete `compressHistorySync()` method
+- [ ] Review `processLLMResponse()` / `processLLMStreamResponse()` - still needed?
+
+**Step 6: Testing**
+- [ ] Verify tool execution still works
+- [ ] Verify streaming works
+- [ ] Verify telemetry attributes are correct
+- [ ] Verify compression triggers correctly
+- [ ] Verify pruning works
+- [ ] Run full test suite
 
 ---
 
