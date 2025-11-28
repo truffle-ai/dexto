@@ -1,6 +1,7 @@
 import {
     LanguageModel,
     streamText,
+    generateText,
     stepCountIs,
     ToolSet as VercelToolSet,
     jsonSchema,
@@ -33,6 +34,13 @@ import { isOverflow, type ModelLimits } from '../../context/compression/overflow
 import { ReactiveOverflowStrategy } from '../../context/compression/reactive-overflow.js';
 
 /**
+ * Static cache for tool support validation.
+ * Persists across TurnExecutor instances to avoid repeated validation calls.
+ * Key format: "provider:model:baseURL"
+ */
+const toolSupportCache = new Map<string, boolean>();
+
+/**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
  *
  * This is the main entry point that replaces Vercel's internal loop with our
@@ -58,8 +66,9 @@ export class TurnExecutor {
         private sessionId: string,
         private config: {
             maxSteps: number;
-            maxOutputTokens?: number;
-            temperature?: number;
+            maxOutputTokens?: number | undefined;
+            temperature?: number | undefined;
+            baseURL?: string | undefined;
         },
         private llmContext: LLMContext,
         private router: LLMRouter,
@@ -90,16 +99,26 @@ export class TurnExecutor {
     /**
      * Main agent execution loop.
      * Uses stopWhen: stepCountIs(1) to regain control after each step.
+     *
+     * @param contributorContext Context for system prompt contributors
+     * @param streaming If true, emits llm:chunk events during streaming. Default true.
      */
-    async execute(contributorContext: DynamicContributorContext): Promise<ExecutorResult> {
+    async execute(
+        contributorContext: DynamicContributorContext,
+        streaming: boolean = true
+    ): Promise<ExecutorResult> {
         // Automatic cleanup when scope exits (normal, throw, or return)
         using _ = defer(() => this.cleanup());
 
         let stepCount = 0;
         let lastStepTokens: TokenUsage | null = null;
         let lastFinishReason = 'unknown';
+        let lastText = '';
 
         this.eventBus.emit('llm:thinking');
+
+        // Check tool support once before the loop
+        const supportsTools = await this.validateToolSupport();
 
         try {
             while (true) {
@@ -126,7 +145,8 @@ export class TurnExecutor {
                 );
 
                 // 4. Create tools with execute callbacks and toModelOutput
-                const tools = await this.createTools();
+                // Use empty object if model doesn't support tools
+                const tools = supportsTools ? await this.createTools() : {};
 
                 // 5. Execute single step with stream processing
                 const streamProcessor = new StreamProcessor(
@@ -135,7 +155,8 @@ export class TurnExecutor {
                     this.resourceManager,
                     this.abortController.signal,
                     this.getStreamProcessorConfig(),
-                    this.logger
+                    this.logger,
+                    streaming
                 );
 
                 const result = await streamProcessor.process(() =>
@@ -154,9 +175,10 @@ export class TurnExecutor {
                     })
                 );
 
-                // 6. Capture actual tokens for next iteration's overflow check
+                // 6. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;
                 lastFinishReason = result.finishReason;
+                lastText = result.text;
 
                 this.logger.debug(
                     `Step ${stepCount}: Finished with reason="${result.finishReason}", ` +
@@ -198,6 +220,7 @@ export class TurnExecutor {
         this.setTelemetryAttributes(lastStepTokens);
 
         return {
+            text: lastText,
             stepCount,
             usage: lastStepTokens,
             finishReason: lastFinishReason,
@@ -232,6 +255,72 @@ export class TurnExecutor {
             firstQueued: coalesced.firstQueuedAt,
             lastQueued: coalesced.lastQueuedAt,
         });
+    }
+
+    /**
+     * Validates if the current model supports tools.
+     * Uses a static cache to avoid repeated validation calls.
+     *
+     * For models using custom baseURL endpoints, makes a test call to verify tool support.
+     * Built-in providers without baseURL are assumed to support tools.
+     */
+    private async validateToolSupport(): Promise<boolean> {
+        const modelKey = `${this.llmContext.provider}:${this.llmContext.model}:${this.config.baseURL ?? ''}`;
+
+        // Check cache first
+        if (toolSupportCache.has(modelKey)) {
+            return toolSupportCache.get(modelKey)!;
+        }
+
+        // Only test tool support for providers using custom baseURL endpoints
+        // Built-in providers without baseURL have known tool support
+        if (!this.config.baseURL) {
+            this.logger.debug(`Skipping tool validation for ${modelKey} - no custom baseURL`);
+            toolSupportCache.set(modelKey, true);
+            return true;
+        }
+
+        this.logger.debug(`Testing tool support for custom endpoint model: ${modelKey}`);
+
+        // Create a minimal test tool
+        const testTool = {
+            test_tool: {
+                inputSchema: jsonSchema({
+                    type: 'object',
+                    properties: {},
+                    additionalProperties: false,
+                }),
+                execute: async () => ({ result: 'test' }),
+            },
+        };
+
+        try {
+            // Make a minimal generateText call with tools to test support
+            await generateText({
+                model: this.model,
+                messages: [{ role: 'user', content: 'Hello' }],
+                tools: testTool,
+                stopWhen: stepCountIs(1),
+            });
+
+            // If we get here, tools are supported
+            toolSupportCache.set(modelKey, true);
+            this.logger.debug(`Model ${modelKey} supports tools`);
+            return true;
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('does not support tools')) {
+                toolSupportCache.set(modelKey, false);
+                this.logger.debug(`Model ${modelKey} does not support tools`);
+                return false;
+            }
+            // Other errors - assume tools are supported and let the actual call handle it
+            this.logger.debug(
+                `Tool validation error for ${modelKey}, assuming supported: ${errorMessage}`
+            );
+            toolSupportCache.set(modelKey, true);
+            return true;
+        }
     }
 
     /**

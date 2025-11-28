@@ -1,4 +1,4 @@
-import { StreamTextResult } from 'ai';
+import { StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { ContextManager } from '../../context/manager.js';
 import { SessionEventBus } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
@@ -20,21 +20,32 @@ export class StreamProcessor {
     private actualTokens: import('../types.js').TokenUsage | null = null;
     private finishReason: string = 'unknown';
     private reasoningText: string = '';
+    private accumulatedText: string = '';
     private logger: IDextoLogger;
 
+    /**
+     * @param contextManager Context manager for message persistence
+     * @param eventBus Event bus for emitting events
+     * @param resourceManager Resource manager for blob storage
+     * @param abortSignal Abort signal for cancellation
+     * @param config Provider/model configuration
+     * @param logger Logger instance
+     * @param streaming If true, emits llm:chunk events. Default true.
+     */
     constructor(
         private contextManager: ContextManager,
         private eventBus: SessionEventBus,
         private resourceManager: ResourceManager,
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
-        logger: IDextoLogger
+        logger: IDextoLogger,
+        private streaming: boolean = true
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
     }
 
     async process(
-        streamFn: () => StreamTextResult<Record<string, any>, any>
+        streamFn: () => StreamTextResult<VercelToolSet, unknown>
     ): Promise<StreamProcessorResult> {
         const stream = streamFn();
 
@@ -58,20 +69,29 @@ export class StreamProcessor {
                             event.text
                         );
 
-                        this.eventBus.emit('llm:chunk', {
-                            chunkType: 'text',
-                            content: event.text,
-                        });
+                        // Accumulate text for return value
+                        this.accumulatedText += event.text;
+
+                        // Only emit chunks in streaming mode
+                        if (this.streaming) {
+                            this.eventBus.emit('llm:chunk', {
+                                chunkType: 'text',
+                                content: event.text,
+                            });
+                        }
                         break;
 
                     case 'reasoning-delta':
                         // Handle reasoning delta (extended thinking from Claude, etc.)
                         this.reasoningText += event.text;
 
-                        this.eventBus.emit('llm:chunk', {
-                            chunkType: 'reasoning',
-                            content: event.text,
-                        });
+                        // Only emit chunks in streaming mode
+                        if (this.streaming) {
+                            this.eventBus.emit('llm:chunk', {
+                                chunkType: 'reasoning',
+                                content: event.text,
+                            });
+                        }
                         break;
 
                     case 'tool-call':
@@ -179,6 +199,7 @@ export class StreamProcessor {
         }
 
         return {
+            text: this.accumulatedText,
             finishReason: this.finishReason,
             usage: this.actualTokens,
         };
