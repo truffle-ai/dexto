@@ -329,7 +329,9 @@ async function bootstrapAgentFromGlobalOpts() {
     );
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
-    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath);
+    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+        logLevel: 'info', // CLI uses info-level logging for visibility
+    });
 
     // Override approval config for read-only commands (never run conversations)
     // This avoids needing to set up unused approval handlers
@@ -838,11 +840,10 @@ program
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
-                    const enrichedConfig = enrichAgentConfig(
-                        mergedConfig,
-                        resolvedPath,
-                        isInteractiveCli
-                    );
+                    const enrichedConfig = enrichAgentConfig(mergedConfig, resolvedPath, {
+                        isInteractiveCli,
+                        logLevel: 'info', // CLI uses info-level logging for visibility
+                    });
 
                     // Validate enriched config with interactive setup if needed (for API key issues)
                     validatedConfig = await validateAgentConfig(

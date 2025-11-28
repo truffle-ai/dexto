@@ -220,7 +220,7 @@ export class AgentManager {
             const enrichedConfig = enrichAgentConfig(config, configPath);
 
             // Load agent instance
-            logger.info(`Loading agent: ${id} from ${configPath}`);
+            logger.debug(`Loading agent: ${id} from ${configPath}`);
             return new DextoAgent(enrichedConfig, configPath);
         } catch (error) {
             // Convert ZodError to DextoValidationError for better error messages

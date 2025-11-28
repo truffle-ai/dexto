@@ -132,7 +132,9 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
     try {
         // Load and enrich agent config
         const config = await loadAgentConfig(agentPath);
-        const enrichedConfig = enrichAgentConfig(config, agentPath);
+        const enrichedConfig = enrichAgentConfig(config, agentPath, {
+            logLevel: 'info', // Server uses info-level logging for visibility
+        });
 
         // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
@@ -377,7 +379,9 @@ export async function initializeHonoApi(
             const config = await loadAgentConfig(filePath);
 
             // 3. Enrich config with per-agent paths (logs, storage, etc.)
-            const enrichedConfig = enrichAgentConfig(config, filePath);
+            const enrichedConfig = enrichAgentConfig(config, filePath, {
+                logLevel: 'info', // Server uses info-level logging for visibility
+            });
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             newAgent = new DextoAgent(enrichedConfig, filePath);
