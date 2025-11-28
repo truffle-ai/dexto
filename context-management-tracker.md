@@ -1,7 +1,7 @@
 # Context Management Refactor - Progress Tracker
 
 > **Based on**: `complete-context-management-plan.md`
-> **Last Updated**: 2025-11-28
+> **Last Updated**: 2025-11-28 (Phase 8 Step 4 complete)
 
 ## Phase Status
 
@@ -153,12 +153,16 @@ The following require extensive mocking and are better tested during integration
 - [x] Add `router` and `modelLimits` to constructor
 - [x] Add `getTokenizer()` method to ContextManager for compression token counting
 
-**Step 4: Update vercel.ts to delegate to TurnExecutor**
-- [ ] Modify `generateText()` to create and call TurnExecutor.execute()
-- [ ] Modify `streamText()` to create and call TurnExecutor.execute()
-- [ ] Remove internal loop logic from vercel.ts
-- [ ] Keep `completeTask()` as the public entry point
-- [ ] Keep `formatTools()` for now (TurnExecutor uses it)
+**Step 4: Update vercel.ts to delegate to TurnExecutor** ✅
+- [x] Rewrite vercel.ts to delegate to TurnExecutor (~945 → ~240 lines)
+- [x] `completeTask()` now creates TurnExecutor and calls execute()
+- [x] Remove internal loop logic, `formatTools()`, `mapProviderError()` from vercel.ts
+- [x] Add `validateToolSupport()` to TurnExecutor with static cache
+- [x] Implement text return pattern:
+  - StreamProcessor accumulates text from `text-delta` events
+  - TurnExecutor captures and returns text in ExecutorResult
+  - Added TODO for future multimodal LLM output support
+- [x] Fix types without `any` or casting (use `VercelToolSet`, `exactOptionalPropertyTypes`)
 
 **Step 5: Clean up ContextManager**
 - [ ] Delete `lastActualTokenCount` property
@@ -273,6 +277,25 @@ tools: {
 
 **Usage**: Callers must provide a `MessageQueueService` instance. If queuing isn't needed, the queue simply remains empty.
 
+### 10. Text Return Pattern (Phase 8 Step 4)
+**Issue**: `completeTask()` returns a string, but TurnExecutor's `ExecutorResult` didn't include text.
+
+**Analysis of options**:
+- **Option A**: Track text in StreamProcessor and return in ExecutorResult ✅ CHOSEN
+- **Option B**: Read final text from history after execute() - unnecessary async overhead
+- **Option C**: Change API to return ExecutorResult - breaking change to callers
+- **Option D**: Text already emitted via events - FALSE, callers need return value
+
+**Resolution**:
+- StreamProcessor accumulates text from `text-delta` events (`this.accumulatedText += event.text`)
+- Returns `text` in `StreamProcessorResult`
+- TurnExecutor captures and returns in `ExecutorResult`
+- Added TODO for future multimodal LLM output support (some LLMs generate images, audio, etc.)
+
+**Callers that use the string return value**:
+- `chat-session.ts:335` - passes to plugins, returns to user
+- `title-generator.ts:61` - uses for title extraction
+
 ---
 
 ## Files Changed (Phase 0-8)
@@ -320,6 +343,10 @@ tools: {
 - `packages/core/src/context/compression/reactive-overflow.ts` - Updated to use readonly arrays (Phase 8)
 - `packages/core/src/context/utils.ts` - Updated `countMessagesTokens()` and `filterCompacted()` to accept readonly arrays (Phase 8)
 - `packages/core/src/events/index.ts` - Added `'overflow'` to `context:compressed` reason type (Phase 8)
+- `packages/core/src/llm/services/vercel.ts` - Major rewrite: delegates to TurnExecutor (~945 → ~240 lines) (Phase 8 Step 4)
+- `packages/core/src/llm/executor/types.ts` - Added `text` field to `ExecutorResult` and `StreamProcessorResult` with multimodal TODO (Phase 8 Step 4)
+- `packages/core/src/llm/executor/stream-processor.ts` - Added text accumulation, `VercelToolSet` typing, `streaming` parameter (Phase 8 Step 4)
+- `packages/core/src/llm/executor/turn-executor.ts` - Added `validateToolSupport()`, text tracking, config type fix for `exactOptionalPropertyTypes` (Phase 8 Step 4)
 
 ### Deleted Files
 - `packages/core/src/context/compression/middle-removal.ts`
@@ -335,4 +362,6 @@ tools: {
 
 ## Next Steps
 
-1. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, wire compression, full integration testing
+1. **Phase 8 Step 5**: Clean up ContextManager dead code (see Step 5 checklist above)
+2. **Phase 8 Step 6**: Full integration testing - verify tool execution, streaming, telemetry, compression, pruning
+3. Consider adding `/api/message` queue integration when busy (deferred from Phase 6)
