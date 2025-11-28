@@ -101,6 +101,9 @@ export interface TurnExecutorDeps {
     /** Function to check for queued messages */
     dequeueMessages: () => CoalescedMessage | null;
 
+    /** Function to clear queued messages (for cleanup on abort/error) */
+    clearMessageQueue?: () => void;
+
     /** Compression strategies to apply */
     compressionStrategies: ICompressionStrategy[];
 
@@ -159,9 +162,9 @@ export class TurnExecutor {
         const signal = this.abortController.signal;
 
         // Automatic cleanup using TC39 Explicit Resource Management
-        // This ensures abortController is cleaned up regardless of how the method exits
+        // This ensures full cleanup regardless of how the method exits
         await using _ = deferAsync(async () => {
-            this.abortController = null;
+            this.cleanup();
         });
 
         let stepCount = 0;
@@ -246,6 +249,26 @@ export class TurnExecutor {
             this.logger.debug('TurnExecutor: Abort requested');
             this.abortController.abort();
         }
+    }
+
+    /**
+     * Clean up resources after execution (called automatically via defer).
+     * - Clears the message queue to prevent stale messages
+     * - Resets the abort controller
+     */
+    private cleanup(): void {
+        this.logger.debug('TurnExecutor: Cleanup started');
+
+        // Clear any pending queued messages
+        if (this.deps.clearMessageQueue) {
+            this.deps.clearMessageQueue();
+            this.logger.debug('TurnExecutor: Message queue cleared');
+        }
+
+        // Reset abort controller
+        this.abortController = null;
+
+        this.logger.debug('TurnExecutor: Cleanup completed');
     }
 
     /**

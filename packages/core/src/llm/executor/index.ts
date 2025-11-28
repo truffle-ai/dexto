@@ -17,8 +17,8 @@ export type {
     UserMessageContentPart,
     QueuedMessage,
     CoalescedMessage,
-    // TurnExecutor
-    TurnExecutorConfig,
+    // Tool Output
+    ToolOutputConfig,
     TurnResult,
     // Tool Result Extensions
     ToolResultMetadata,
@@ -35,11 +35,18 @@ export {
     // ReactiveOverflow strategy (async, LLM-based)
     ReactiveOverflowStrategy,
     createSummaryPrompt,
-    // Tool output pruning utilities
+    // Tool output pruning utilities (for OLD outputs)
     pruneOldToolOutputs,
     formatToolOutputContent,
     isCompacted,
     getCompactedPlaceholder,
+    // Tool output truncation utilities (for NEW outputs)
+    truncateToolOutput,
+    truncateToolResult,
+    truncateByLines,
+    DEFAULT_MAX_TOOL_OUTPUT_CHARS,
+    DEFAULT_MAX_TOOL_OUTPUT_LINES,
+    DEFAULT_TOOL_LIMITS,
 } from './strategies/index.js';
 export type {
     MiddleRemovalOptions,
@@ -47,6 +54,7 @@ export type {
     SummaryGenerator,
     ToolOutputPruningOptions,
     PruneResult,
+    TruncateResult,
 } from './strategies/index.js';
 
 // Turn Executor
@@ -57,7 +65,7 @@ export type {
     StepExecutor,
     MessageProvider,
     MessageAdder,
-    TurnExecutorConfig as TurnExecutorConfigOptions,
+    TurnExecutorConfig,
     TurnExecutorDeps,
 } from './turn-executor.js';
 

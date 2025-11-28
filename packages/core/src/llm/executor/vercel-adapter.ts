@@ -36,6 +36,7 @@ import type { LLMContext } from '../types.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from '../../tools/error-codes.js';
+import { truncateToolResult } from './strategies/tool-output-truncator.js';
 
 /**
  * Configuration for creating a Vercel step executor.
@@ -252,11 +253,22 @@ function formatToolsForVercel(config: VercelAdapterConfig): VercelToolSet {
                         config.sessionId
                     );
 
-                    // Persist result and emit event
+                    // Truncate oversized outputs at source (before persistence)
+                    const { result: truncatedResult, truncated } = truncateToolResult(
+                        rawResult,
+                        toolName
+                    );
+                    if (truncated) {
+                        logger.debug(
+                            `[vercel-adapter] Truncated output for ${toolName} (tool output too large)`
+                        );
+                    }
+
+                    // Persist result and emit event (use truncated result)
                     const persisted = await config.contextManager.addToolResult(
                         callId,
                         toolName,
-                        rawResult,
+                        truncatedResult,
                         { success: true }
                     );
 
