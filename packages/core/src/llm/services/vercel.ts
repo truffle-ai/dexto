@@ -17,6 +17,7 @@ import {
     summarizeToolContentForText,
     getImageData,
     expandBlobReferences,
+    sanitizeToolResult,
 } from '../../context/utils.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
@@ -140,14 +141,21 @@ export class VercelLLMService implements ILLMService {
                                 this.sessionId
                             );
 
-                            // Persist result and emit event immediately after tool execution
-                            // This sanitizes the result, persists blobs to storage, and returns sanitized parts
-                            const persisted = await this.contextManager.addToolResult(
-                                callId,
-                                toolName,
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            // Sanitize first, then persist
+                            const persisted = await sanitizeToolResult(
                                 rawResult,
-                                { success: true }
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: callId,
+                                    success: true,
+                                },
+                                this.logger
                             );
+                            await this.contextManager.addToolResult(callId, toolName, persisted);
 
                             this.logger.debug(
                                 `[vercel] Emitting toolResult event for ${toolName} with callId ${callId}`
@@ -248,11 +256,23 @@ export class VercelLLMService implements ILLMService {
 
                             // Persist error result and emit event immediately
                             try {
-                                const persisted = await this.contextManager.addToolResult(
+                                // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                                const persisted = await sanitizeToolResult(
+                                    errorResult,
+                                    {
+                                        blobStore: this.contextManager
+                                            .getResourceManager()
+                                            .getBlobStore(),
+                                        toolName,
+                                        toolCallId: callId,
+                                        success: false,
+                                    },
+                                    this.logger
+                                );
+                                await this.contextManager.addToolResult(
                                     callId,
                                     toolName,
-                                    errorResult,
-                                    { success: false }
+                                    persisted
                                 );
 
                                 this.sessionEventBus.emit('llm:tool-result', {

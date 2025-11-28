@@ -6,6 +6,7 @@ import { ToolSet } from '../../tools/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ContextManager } from '../../context/manager.js';
+import { sanitizeToolResult } from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -282,11 +283,23 @@ export class OpenAIService implements ILLMService {
                             this.logger.error(`Error parsing arguments for ${toolName}:`, {
                                 error: e instanceof Error ? e.message : String(e),
                             });
-                            const sanitized = await this.contextManager.addToolResult(
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
+                                { error: `Failed to parse arguments: ${e}` },
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolCall.id,
+                                    success: false,
+                                },
+                                this.logger
+                            );
+                            await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
-                                { error: `Failed to parse arguments: ${e}` },
-                                { success: false }
+                                sanitized
                             );
                             // Notify failure so UI & logging subscribers stay in sync
                             this.sessionEventBus.emit('llm:tool-result', {
@@ -316,12 +329,23 @@ export class OpenAIService implements ILLMService {
                                 this.sessionId
                             );
 
-                            // Add tool result to message manager
-                            const sanitized = await this.contextManager.addToolResult(
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
+                                result,
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolCall.id,
+                                    success: true,
+                                },
+                                this.logger
+                            );
+                            await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
-                                result,
-                                { success: true }
+                                sanitized
                             );
 
                             // Notify tool result
@@ -340,12 +364,23 @@ export class OpenAIService implements ILLMService {
                                 `Tool execution error for ${toolName}: ${errorMessage}`
                             );
 
-                            // Add error as tool result
-                            const sanitized = await this.contextManager.addToolResult(
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
+                                { error: errorMessage },
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolCall.id,
+                                    success: false,
+                                },
+                                this.logger
+                            );
+                            await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
-                                { error: errorMessage },
-                                { success: false }
+                                sanitized
                             );
 
                             this.sessionEventBus.emit('llm:tool-result', {

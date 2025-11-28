@@ -690,40 +690,24 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Adds a tool result message to the conversation
+     * Adds a tool result message to the conversation.
+     * The result must already be sanitized - this method only persists it.
      *
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
-     * @param result The result returned by the tool
+     * @param sanitizedResult The already-sanitized result to store
      * @throws Error if required parameters are missing
      */
     async addToolResult(
         toolCallId: string,
         name: string,
-        result: unknown,
-        options?: { success?: boolean }
-    ): Promise<SanitizedToolResult> {
+        sanitizedResult: SanitizedToolResult
+    ): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
-        const blobService = this.resourceManager.getBlobStore();
-        const sanitizeOptions: {
-            blobStore?: import('../storage/blob/types.js').BlobStore;
-            toolName: string;
-            toolCallId: string;
-            success?: boolean;
-        } = {
-            blobStore: blobService,
-            toolName: name,
-            toolCallId,
-        };
-        if (options?.success !== undefined) {
-            sanitizeOptions.success = options.success;
-        }
 
-        const sanitized = await sanitizeToolResult(result, sanitizeOptions, this.logger);
-
-        const summary = sanitized.content
+        const summary = sanitizedResult.content
             .map((p) =>
                 p.type === 'text'
                     ? `text(${p.text.length})`
@@ -738,12 +722,10 @@ export class ContextManager<TMessage = unknown> {
 
         await this.addMessage({
             role: 'tool',
-            content: sanitized.content,
+            content: sanitizedResult.content,
             toolCallId,
             name,
         });
-
-        return sanitized;
     }
 
     /**

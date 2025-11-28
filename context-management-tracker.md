@@ -10,7 +10,7 @@
 | Phase 0: Type Cleanup | ✅ Complete | Foundation types in place |
 | Phase 1: Tool Output Truncation | ✅ Complete | `truncateToolResult()` implemented |
 | Phase 2: StreamProcessor | ✅ Complete | Handles persistence via stream events |
-| Phase 3: TurnExecutor Shell | 🔲 Not Started | Main loop with `stopWhen: stepCountIs(1)` |
+| Phase 3: TurnExecutor Shell | ✅ Complete | Main loop, toModelOutput, abort handling |
 | Phase 4: Reactive Compression | 🔲 Not Started | `ReactiveOverflowStrategy` |
 | Phase 5: Pruning | 🔲 Not Started | Mark with `compactedAt` |
 | Phase 6: MessageQueue | 🔲 Not Started | Multimodal coalescing |
@@ -48,14 +48,15 @@
 - [x] Add `updateMessage()` to history providers (database, memory)
 - [x] Add new ContextManager methods (`appendAssistantText`, `addToolCall`, `updateAssistantMessage`)
 
-### Phase 3: TurnExecutor Shell 🔲
+### Phase 3: TurnExecutor Shell ✅
 
-- [ ] Create `TurnExecutor` class in `llm/executor/turn-executor.ts`
-- [ ] Implement main loop with `stopWhen: stepCountIs(1)`
-- [ ] Add `toModelOutput` to tool definitions (for multimodal)
-- [ ] Integrate StreamProcessor
-- [ ] Add abort signal handling
-- [ ] Test tool execution still works
+- [x] Create `TurnExecutor` class in `llm/executor/turn-executor.ts`
+- [x] Implement main loop with `stopWhen: stepCountIs(1)`
+- [x] Add `toModelOutput` to tool definitions (for multimodal)
+- [x] Integrate StreamProcessor
+- [x] Add abort signal handling
+- [x] Defensive `extractImageData`/`extractFileData` for raw results
+- [ ] Test tool execution still works (deferred to Phase 8 integration)
 
 ### Phase 4: Reactive Compression 🔲
 
@@ -141,6 +142,23 @@ tools: {
   read: { maxLines: 2000, maxLineLength: 2000 },
 }
 ```
+
+### 6. addToolResult Refactored (Phase 3)
+**Decision**: `ContextManager.addToolResult` now only persists - caller sanitizes first.
+
+**Old signature**: `addToolResult(callId, name, rawResult, options) → SanitizedToolResult`
+**New signature**: `addToolResult(callId, name, sanitizedResult) → void`
+
+**Rationale**: Single responsibility - ContextManager just stores, sanitization happens at call site.
+
+**Temp fix applied to**: `vercel.ts`, `anthropic.ts`, `openai.ts` (will be removed in Phase 8 when TurnExecutor replaces them).
+
+### 7. toModelOutput Handles Raw Results
+**Issue**: `toModelOutput` receives RAW tool results (before sanitization), so can't use typed helpers like `getImageData`.
+
+**Resolution**: Created defensive extraction methods in TurnExecutor:
+- `extractImageData()` - checks both `image` and `data` fields
+- `extractFileData()` - handles various buffer types
 
 ---
 

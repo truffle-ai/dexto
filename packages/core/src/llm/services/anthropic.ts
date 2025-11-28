@@ -6,6 +6,7 @@ import { ToolSet } from '../../tools/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ContextManager } from '../../context/manager.js';
+import { sanitizeToolResult } from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
@@ -303,13 +304,21 @@ export class AnthropicService implements ILLMService {
                                 this.sessionId
                             );
 
-                            // Add tool result to message manager
-                            const sanitized = await this.contextManager.addToolResult(
-                                toolUseId,
-                                toolName,
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            // Sanitize first, then persist
+                            const sanitized = await sanitizeToolResult(
                                 result,
-                                { success: true }
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolUseId,
+                                    success: true,
+                                },
+                                this.logger
                             );
+                            await this.contextManager.addToolResult(toolUseId, toolName, sanitized);
 
                             // Notify tool result
                             this.sessionEventBus.emit('llm:tool-result', {
@@ -327,13 +336,20 @@ export class AnthropicService implements ILLMService {
                                 `Tool execution error for ${toolName}: ${errorMessage}`
                             );
 
-                            // Add error as tool result
-                            const sanitized = await this.contextManager.addToolResult(
-                                toolUseId,
-                                toolName,
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
                                 { error: errorMessage },
-                                { success: false }
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolUseId,
+                                    success: false,
+                                },
+                                this.logger
                             );
+                            await this.contextManager.addToolResult(toolUseId, toolName, sanitized);
 
                             this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
