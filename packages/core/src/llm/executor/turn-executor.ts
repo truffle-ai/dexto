@@ -19,6 +19,8 @@ import type { SessionEventBus } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
 import { LLMContext } from '../types.js';
+import type { MessageQueueService } from '../../session/message-queue.js';
+import type { CoalescedMessage } from '../../session/types.js';
 
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
@@ -49,7 +51,8 @@ export class TurnExecutor {
             temperature?: number;
         },
         private llmContext: LLMContext,
-        logger: IDextoLogger
+        logger: IDextoLogger,
+        private messageQueue: MessageQueueService
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         this.abortController = new AbortController();
@@ -72,11 +75,10 @@ export class TurnExecutor {
         try {
             while (true) {
                 // 1. Check for queued messages (mid-loop injection)
-                // TODO Phase 6: Implement message queue
-                // const coalesced = this.messageQueue.dequeueAll();
-                // if (coalesced) {
-                //     await this.contextManager.addUserMessage(coalesced.content);
-                // }
+                const coalesced = this.messageQueue.dequeueAll();
+                if (coalesced) {
+                    await this.injectQueuedMessages(coalesced);
+                }
 
                 // 2. Check for compression need (reactive, based on actual tokens)
                 // TODO Phase 4: Implement compression
@@ -166,6 +168,29 @@ export class TurnExecutor {
      */
     abort(): void {
         this.abortController.abort();
+    }
+
+    /**
+     * Inject coalesced queued messages into the context as a single user message.
+     * This enables "Claude Code-style" mid-task user guidance.
+     */
+    private async injectQueuedMessages(coalesced: CoalescedMessage): Promise<void> {
+        // Add as single user message with all guidance
+        await this.contextManager.addMessage({
+            role: 'user',
+            content: coalesced.combinedContent,
+            metadata: {
+                coalesced: coalesced.messages.length > 1,
+                messageCount: coalesced.messages.length,
+                originalMessageIds: coalesced.messages.map((m) => m.id),
+            },
+        });
+
+        this.logger.info(`Injected ${coalesced.messages.length} queued message(s) into context`, {
+            count: coalesced.messages.length,
+            firstQueued: coalesced.firstQueuedAt,
+            lastQueued: coalesced.lastQueuedAt,
+        });
     }
 
     /**
@@ -476,6 +501,7 @@ export class TurnExecutor {
     // TODO Phase 7: Implement cleanup with defer()
     // private cleanup(): void {
     //     this.abortController.abort();
-    //     // Clear message queue, cleanup resources
+    //     this.messageQueue.clear();
+    //     // Additional resource cleanup
     // }
 }

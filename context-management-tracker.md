@@ -13,7 +13,7 @@
 | Phase 3: TurnExecutor Shell | ✅ Complete | Main loop, toModelOutput, abort handling |
 | Phase 4: Reactive Compression | ✅ Complete | `ReactiveOverflowStrategy`, `filterCompacted()` |
 | Phase 5: Pruning | ✅ Complete | `pruneOldToolOutputs()`, `markMessagesAsCompacted()` |
-| Phase 6: MessageQueue | 🔲 Not Started | Multimodal coalescing |
+| Phase 6: MessageQueue | ✅ Complete | `MessageQueueService`, multimodal coalescing |
 | Phase 7: defer() Cleanup | 🔲 Not Started | TC39 pattern |
 | Phase 8: Integration | 🔲 Not Started | Update `vercel.ts` |
 
@@ -78,14 +78,16 @@
 - [x] Add `context:pruned` event to `SessionEventMap`, `AgentEventMap`, and `STREAMING_EVENTS`
 - [x] Delete dead code: `updateConfig()`, `setSystemPrompt()`
 
-### Phase 6: MessageQueue with Multimodal 🔲
+### Phase 6: MessageQueue with Multimodal ✅
 
-- [ ] Create `MessageQueueService` in `session/message-queue.ts`
-- [ ] Implement multimodal coalescing (text + images + files)
-- [ ] Handle edge cases (all images, large images as blobs)
-- [ ] Add queue check in TurnExecutor main loop
-- [ ] Modify `/api/message` to queue when busy
-- [ ] Test user guidance during task execution
+- [x] Create `MessageQueueService` in `session/message-queue.ts`
+- [x] Implement multimodal coalescing (text + images + files)
+- [x] Handle edge cases (empty messages, single message optimization)
+- [x] Add `message:queued` and `message:dequeued` events to `events/index.ts`
+- [x] Add queue check in TurnExecutor main loop
+- [x] Make `MessageQueueService` a mandatory parameter for TurnExecutor
+- [ ] Modify `/api/message` to queue when busy (deferred - needs API layer integration)
+- [ ] Test user guidance during task execution (deferred - needs integration testing)
 
 ### Phase 7: defer() Cleanup 🔲
 
@@ -184,9 +186,22 @@ tools: {
 
 **Key insight from OpenCode analysis**: They use `filterCompacted()` to logically truncate history at read-time, stopping at the most recent summary message. This means LLM never sees pre-compression history, but it remains in storage.
 
+### 9. MessageQueueService is Mandatory (Phase 6)
+**Issue**: Should `MessageQueueService` be optional or required in TurnExecutor?
+
+**Decision**: Made it **mandatory** parameter.
+
+**Rationale**:
+- TurnExecutor is the new architecture (Phase 8 will fully integrate it)
+- `MessageQueueService` is stateless and cheap - just holds an empty array if unused
+- Core feature of the "controlled loop" design philosophy
+- Cleaner code without null checks
+
+**Usage**: Callers must provide a `MessageQueueService` instance. If queuing isn't needed, the queue simply remains empty.
+
 ---
 
-## Files Changed (Phase 0-5)
+## Files Changed (Phase 0-6)
 
 ### New Files
 - `packages/core/src/llm/executor/stream-processor.ts` (Phase 2)
@@ -197,6 +212,7 @@ tools: {
 - `packages/core/src/context/compression/overflow.ts` (Phase 4)
 - `packages/core/src/context/compression/reactive-overflow.ts` (Phase 4)
 - `packages/core/src/session/types.ts`
+- `packages/core/src/session/message-queue.ts` (Phase 6)
 
 ### Modified Files
 - `packages/core/src/agent/schemas.ts` - Added `tools` field
@@ -204,7 +220,9 @@ tools: {
 - `packages/core/src/context/manager.ts` - Added `filterCompacted()` to history retrieval, `markMessagesAsCompacted()`, compacted transformation, TODO comments for Phase 8, removed dead code (`updateConfig`, `setSystemPrompt`)
 - `packages/core/src/context/types.ts` - Added `compactedAt`, `metadata`
 - `packages/core/src/context/utils.ts` - Added `filterCompacted()`, `formatToolOutputForDisplay()`
-- `packages/core/src/events/index.ts` - Added `context:pruned` event to `SessionEventMap`, `AgentEventMap`, `STREAMING_EVENTS`
+- `packages/core/src/events/index.ts` - Added `context:pruned`, `message:queued`, `message:dequeued` events to `SessionEventMap`, `AgentEventMap`, `STREAMING_EVENTS`
+- `packages/core/src/session/index.ts` - Export `MessageQueueService`, `UserMessage`, `QueuedMessage`, `CoalescedMessage`, `UserMessageContentPart`
+- `packages/core/src/llm/executor/turn-executor.ts` - Added `MessageQueueService` as mandatory parameter, `injectQueuedMessages()` method
 - `packages/core/src/llm/types.ts` - Added `TokenUsage`
 - `packages/core/src/llm/executor/turn-executor.ts` - Added `pruneOldToolOutputs()`, `estimateToolTokens()`, wired into main loop
 - `packages/core/src/llm/services/README.md` - Removed outdated token counting example
@@ -229,6 +247,5 @@ tools: {
 
 ## Next Steps
 
-1. **Phase 6**: MessageQueue with multimodal coalescing
-2. **Phase 7**: defer() cleanup pattern
-3. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, delete legacy compression code, simplify ContextManager
+1. **Phase 7**: defer() cleanup pattern
+2. **Phase 8**: Integration - wire TurnExecutor into vercel.ts, delete legacy compression code, simplify ContextManager

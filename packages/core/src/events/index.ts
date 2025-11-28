@@ -45,6 +45,8 @@ export const SESSION_EVENT_NAMES = [
     'llm:unsupported-input',
     'context:compressed',
     'context:pruned',
+    'message:queued',
+    'message:dequeued',
 ] as const;
 
 /**
@@ -81,6 +83,10 @@ export const STREAMING_EVENTS = [
     // Context management events
     'context:compressed',
     'context:pruned',
+
+    // Message queue events (for mid-task user guidance)
+    'message:queued',
+    'message:dequeued',
 
     // Session metadata
     'session:title-updated',
@@ -355,6 +361,21 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** User message was queued during agent execution */
+    'message:queued': {
+        position: number;
+        id: string;
+        sessionId: string;
+    };
+
+    /** Queued messages were dequeued and injected into context */
+    'message:dequeued': {
+        count: number;
+        ids: string[];
+        coalesced: boolean;
+        sessionId: string;
+    };
+
     // State events
     /** Fired when agent runtime state changes */
     'state:changed': {
@@ -474,6 +495,19 @@ export interface SessionEventMap {
     'context:pruned': {
         prunedCount: number;
         savedTokens: number;
+    };
+
+    /** User message was queued during agent execution */
+    'message:queued': {
+        position: number;
+        id: string;
+    };
+
+    /** Queued messages were dequeued and injected into context */
+    'message:dequeued': {
+        count: number;
+        ids: string[];
+        coalesced: boolean;
     };
 }
 
