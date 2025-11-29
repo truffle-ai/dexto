@@ -75,17 +75,18 @@ async function listAgents(): Promise<{
         }
     });
 
-    // Build available agents list (all from bundled registry)
-    const available = Object.entries(bundledRegistry).map(
-        ([id, entry]: [string, AgentRegistryEntry]) => ({
+    // Build available agents list (exclude already-installed agents)
+    const installedSet = new Set(installedNames);
+    const available = Object.entries(bundledRegistry)
+        .filter(([id]) => !installedSet.has(id))
+        .map(([id, entry]: [string, AgentRegistryEntry]) => ({
             id,
             name: entry.name || deriveDisplayName(id),
             description: entry.description || 'No description',
             author: entry.author,
             tags: entry.tags || [],
             type: 'builtin' as const,
-        })
-    );
+        }));
 
     return { installed, available };
 }
