@@ -36,6 +36,21 @@ LLMs only generate text—they can't read files, search the web, or query databa
 
 Without events, your UI is blind—users see nothing while waiting for responses. Events let you show loading states, stream text in real-time, display tool usage, and handle errors gracefully. Includes complete SSE examples.
 
+### 6. [Loading Agent Configs](./config-files.md)
+**Move from inline configs to production-ready YAML files.**
+
+You've been configuring agents inline with JavaScript objects. That works for demos, but production apps need reusable, shareable configs. Learn to load agent configs from YAML files, understand config enrichment, and manage multi-environment setups—the same pattern used by Dexto's built-in agents.
+
+### 7. [Agent Orchestration](./orchestration.md)
+**Manage multiple agents programmatically.**
+
+So far you've worked with one agent at a time. But what if you're building a platform where users choose from specialized agents? Learn to use AgentManager to list, install, and manage multiple agents programmatically—build agent marketplaces, multi-tenant systems, and dynamic agent selection.
+
+### 8. [System Prompt Preparation](./context-management/prompt-contributors.md)
+**Build modular, maintainable system prompts.**
+
+A giant system prompt string becomes a maintenance nightmare. Learn to compose prompts from multiple sources—static text, external files, and runtime content—each handling one piece of the puzzle.
+
 ## What You'll Build
 
 By the end of these tutorials, you'll have:
@@ -44,6 +59,9 @@ By the end of these tutorials, you'll have:
 - ✅ Multi-user support with isolated sessions
 - ✅ Real-world capabilities (file access, web search, databases)
 - ✅ A responsive UI with streaming and progress indicators
+- ✅ Production-ready config management with YAML files
+- ✅ Programmatic agent orchestration and management
+- ✅ Modular system prompts from multiple sources
 
 ## API Reference
 

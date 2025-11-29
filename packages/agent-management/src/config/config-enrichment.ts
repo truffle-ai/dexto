@@ -44,6 +44,16 @@ export function deriveAgentId(config: AgentConfig, configPath?: string): string 
 }
 
 /**
+ * Options for enriching agent configuration
+ */
+export interface EnrichAgentConfigOptions {
+    /** Whether this is interactive CLI mode (affects logger transports - file only vs console+file) */
+    isInteractiveCli?: boolean;
+    /** Override log level (defaults to 'error' for SDK, CLI/server can override to 'info') */
+    logLevel?: 'error' | 'warn' | 'info' | 'debug';
+}
+
+/**
  * Enriches agent configuration with per-agent file paths.
  * This function is called before creating the DextoAgent instance.
  *
@@ -54,14 +64,18 @@ export function deriveAgentId(config: AgentConfig, configPath?: string): string 
  *
  * @param config Agent configuration from YAML file + CLI overrides
  * @param configPath Path to the agent config file (used for agent ID derivation)
- * @param isInteractiveCli Whether this is interactive CLI mode (affects logger defaults) - defaults to false
+ * @param options Enrichment options (isInteractiveCli, logLevel)
  * @returns Enriched configuration with explicit per-agent paths
  */
 export function enrichAgentConfig(
     config: AgentConfig,
     configPath?: string,
-    isInteractiveCli: boolean = false
+    options: EnrichAgentConfigOptions | boolean = {}
 ): AgentConfig {
+    // Handle backward compatibility: boolean arg was isInteractiveCli
+    const opts: EnrichAgentConfigOptions =
+        typeof options === 'boolean' ? { isInteractiveCli: options } : options;
+    const { isInteractiveCli = false, logLevel = 'error' } = opts;
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths
@@ -100,7 +114,7 @@ export function enrichAgentConfig(
               ];
 
         enriched.logger = {
-            level: 'info',
+            level: logLevel,
             transports,
         };
     } else {

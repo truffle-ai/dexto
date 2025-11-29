@@ -1,0 +1,20 @@
+{
+  "agents": [
+    {
+      "id": "coding-agent",
+      "name": "Coding Assistant",
+      "description": "Expert coding assistant for development tasks",
+      "configPath": "./coding-agent.yml",
+      "author": "Dexto Team",
+      "tags": ["coding", "development"]
+    },
+    {
+      "id": "support-agent",
+      "name": "Support Assistant",
+      "description": "Friendly customer support agent",
+      "configPath": "./support-agent.yml",
+      "author": "Dexto Team",
+      "tags": ["support", "customer-service"]
+    }
+  ]
+}

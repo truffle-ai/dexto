@@ -1,5 +1,5 @@
 // Agent registry
-export { getAgentRegistry } from './registry/registry.js';
+export { getAgentRegistry, loadBundledRegistryAgents } from './registry/registry.js';
 export type { AgentRegistry, AgentRegistryEntry, Registry } from './registry/types.js';
 export { deriveDisplayName } from './registry/types.js';
 export { RegistryError } from './registry/errors.js';
@@ -29,11 +29,20 @@ export {
     type LLMOverrides,
 } from './writer.js';
 
-// Agent orchestrator
-export { AgentOrchestrator } from './AgentOrchestrator.js';
+// Agent manager (simple registry-based lifecycle management)
+export { AgentManager, type AgentMetadata } from './AgentManager.js';
 
-// Re-export for backward compatibility
-export { AgentOrchestrator as Dexto } from './AgentOrchestrator.js';
+// Installation utilities
+export {
+    installBundledAgent,
+    installCustomAgent,
+    uninstallAgent,
+    listInstalledAgents,
+    type InstallOptions,
+} from './installation.js';
+
+// Static API for agent management
+export { AgentFactory, type CreateAgentOptions } from './AgentFactory.js';
 
 // Path utilities (duplicated from core for short-term compatibility)
 export {

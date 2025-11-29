@@ -1,8 +1,13 @@
 import os from 'node:os';
 import type { AgentCard } from '@dexto/core';
 import { createAgentCard, logger, AgentError, DextoAgent } from '@dexto/core';
-import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
-import { Dexto, deriveDisplayName } from '@dexto/agent-management';
+import {
+    loadAgentConfig,
+    enrichAgentConfig,
+    deriveDisplayName,
+    getAgentRegistry,
+    AgentFactory,
+} from '@dexto/agent-management';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
@@ -20,6 +25,61 @@ import {
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
+
+/**
+ * List all agents (installed and available)
+ * Replacement for old Dexto.listAgents()
+ */
+async function listAgents(): Promise<{
+    installed: Array<{
+        id: string;
+        name: string;
+        description: string;
+        author?: string;
+        tags?: string[];
+        type: 'builtin' | 'custom';
+    }>;
+    available: Array<{
+        id: string;
+        name: string;
+        description: string;
+        author?: string;
+        tags?: string[];
+        type: 'builtin' | 'custom';
+    }>;
+}> {
+    return AgentFactory.listAgents({
+        descriptionFallback: 'No description',
+        customAgentDescriptionFallback: 'Custom agent',
+    });
+}
+
+/**
+ * Create an agent from an agent ID
+ * Replacement for old Dexto.createAgent()
+ * Uses registry.resolveAgent() which auto-installs if needed
+ */
+async function createAgentFromId(agentId: string): Promise<DextoAgent> {
+    try {
+        // Use registry to resolve agent path (auto-installs if not present)
+        const registry = getAgentRegistry();
+        const agentPath = await registry.resolveAgent(agentId, true, true);
+
+        // Load and enrich agent config
+        const config = await loadAgentConfig(agentPath);
+        const enrichedConfig = enrichAgentConfig(config, agentPath, {
+            logLevel: 'info', // Server uses info-level logging for visibility
+        });
+
+        // Create agent instance
+        logger.info(`Creating agent: ${agentId} from ${agentPath}`);
+        return new DextoAgent(enrichedConfig, agentPath);
+    } catch (error) {
+        throw new Error(
+            `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+}
 
 function resolvePort(listenPort?: number): number {
     if (typeof listenPort === 'number') {
@@ -99,7 +159,7 @@ export async function initializeHonoApi(
      * Helper to resolve agent ID to { id, name } by looking up in registry
      */
     async function resolveAgentInfo(agentId: string): Promise<{ id: string; name: string }> {
-        const agents = await Dexto.listAgents();
+        const agents = await listAgents();
         const agent =
             agents.installed.find((a) => a.id === agentId) ??
             agents.available.find((a) => a.id === agentId);
@@ -207,7 +267,7 @@ export async function initializeHonoApi(
             await Telemetry.shutdownGlobal();
 
             // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
-            newAgent = await Dexto.createAgent(agentId);
+            newAgent = await createAgentFromId(agentId);
 
             // 3. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, bridge);
@@ -254,7 +314,9 @@ export async function initializeHonoApi(
             const config = await loadAgentConfig(filePath);
 
             // 3. Enrich config with per-agent paths (logs, storage, etc.)
-            const enrichedConfig = enrichAgentConfig(config, filePath);
+            const enrichedConfig = enrichAgentConfig(config, filePath, {
+                logLevel: 'info', // Server uses info-level logging for visibility
+            });
 
             // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
             newAgent = new DextoAgent(enrichedConfig, filePath);
