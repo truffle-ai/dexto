@@ -39,6 +39,16 @@ import {
 import type { AgentMetadata } from './AgentManager.js';
 
 /**
+ * Options for listing agents
+ */
+export interface ListAgentsOptions {
+    /** Fallback description when not provided */
+    descriptionFallback?: string;
+    /** Fallback description for custom agents */
+    customAgentDescriptionFallback?: string;
+}
+
+/**
  * Options for creating an agent from inline config
  */
 export interface CreateAgentOptions {
@@ -55,10 +65,14 @@ export interface CreateAgentOptions {
 export const AgentFactory = {
     /**
      * List all agents (installed and available from bundled registry)
+     * @param options - Optional fallback values for descriptions
      */
-    async listAgents() {
+    async listAgents(options?: ListAgentsOptions) {
         const bundledAgents = loadBundledRegistryAgents();
         const installed = await listInstalledAgents();
+        const descriptionFallback = options?.descriptionFallback ?? '';
+        const customAgentDescriptionFallback =
+            options?.customAgentDescriptionFallback ?? descriptionFallback;
 
         // Build installed agent list
         const installedAgents = installed.map((id) => {
@@ -66,7 +80,9 @@ export const AgentFactory = {
             return {
                 id,
                 name: bundledEntry?.name || deriveDisplayName(id),
-                description: bundledEntry?.description || '',
+                description:
+                    bundledEntry?.description ||
+                    (bundledEntry ? descriptionFallback : customAgentDescriptionFallback),
                 author: bundledEntry?.author || '',
                 tags: bundledEntry?.tags || [],
                 type: bundledEntry ? ('builtin' as const) : ('custom' as const),
@@ -74,12 +90,13 @@ export const AgentFactory = {
         });
 
         // Build available agent list (not installed)
+        const installedSet = new Set(installed);
         const availableAgents = Object.entries(bundledAgents)
-            .filter(([id]) => !installed.includes(id))
+            .filter(([id]) => !installedSet.has(id))
             .map(([id, entry]: [string, any]) => ({
                 id,
                 name: entry.name,
-                description: entry.description || '',
+                description: entry.description || descriptionFallback,
                 author: entry.author || '',
                 tags: entry.tags || [],
                 type: 'builtin' as const,

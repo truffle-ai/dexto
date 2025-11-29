@@ -5,10 +5,8 @@ import {
     loadAgentConfig,
     enrichAgentConfig,
     deriveDisplayName,
-    listInstalledAgents,
-    loadBundledRegistryAgents,
     getAgentRegistry,
-    type AgentRegistryEntry,
+    AgentFactory,
 } from '@dexto/agent-management';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
@@ -50,45 +48,10 @@ async function listAgents(): Promise<{
         type: 'builtin' | 'custom';
     }>;
 }> {
-    const bundledRegistry = loadBundledRegistryAgents();
-    const installedNames = await listInstalledAgents();
-
-    // Build installed agents list with metadata
-    const installed = installedNames.map((agentId) => {
-        const registryEntry = bundledRegistry[agentId];
-        if (registryEntry) {
-            return {
-                id: agentId,
-                name: registryEntry.name || deriveDisplayName(agentId),
-                description: registryEntry.description || 'No description',
-                author: registryEntry.author,
-                tags: registryEntry.tags || [],
-                type: 'builtin' as const,
-            };
-        } else {
-            return {
-                id: agentId,
-                name: deriveDisplayName(agentId),
-                description: 'Custom agent',
-                type: 'custom' as const,
-            };
-        }
+    return AgentFactory.listAgents({
+        descriptionFallback: 'No description',
+        customAgentDescriptionFallback: 'Custom agent',
     });
-
-    // Build available agents list (exclude already-installed agents)
-    const installedSet = new Set(installedNames);
-    const available = Object.entries(bundledRegistry)
-        .filter(([id]) => !installedSet.has(id))
-        .map(([id, entry]: [string, AgentRegistryEntry]) => ({
-            id,
-            name: entry.name || deriveDisplayName(id),
-            description: entry.description || 'No description',
-            author: entry.author,
-            tags: entry.tags || [],
-            type: 'builtin' as const,
-        }));
-
-    return { installed, available };
 }
 
 /**
