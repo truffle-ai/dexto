@@ -8,6 +8,7 @@ import {
     listInstalledAgents,
     loadBundledRegistryAgents,
     getAgentRegistry,
+    type AgentRegistryEntry,
 } from '@dexto/agent-management';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
@@ -75,14 +76,16 @@ async function listAgents(): Promise<{
     });
 
     // Build available agents list (all from bundled registry)
-    const available = Object.entries(bundledRegistry).map(([id, entry]: [string, any]) => ({
-        id,
-        name: entry.name || deriveDisplayName(id),
-        description: entry.description || 'No description',
-        author: entry.author,
-        tags: entry.tags || [],
-        type: 'builtin' as const,
-    }));
+    const available = Object.entries(bundledRegistry).map(
+        ([id, entry]: [string, AgentRegistryEntry]) => ({
+            id,
+            name: entry.name || deriveDisplayName(id),
+            description: entry.description || 'No description',
+            author: entry.author,
+            tags: entry.tags || [],
+            type: 'builtin' as const,
+        })
+    );
 
     return { installed, available };
 }
