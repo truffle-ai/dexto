@@ -29,6 +29,7 @@ export interface Message {
     content: string;
     timestamp: Date;
     isStreaming?: boolean;
+    isCancelled?: boolean; // True if the message was cancelled by the user
     toolResult?: string; // Tool result preview (first 4-5 lines)
     toolStatus?: ToolStatus; // Status for tool messages (running/finished)
 }

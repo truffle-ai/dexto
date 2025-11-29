@@ -43,6 +43,11 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                     </Text>
                     <Box flexDirection="column" flexGrow={1}>
                         <Text color="white">{message.content || ' '}</Text>
+                        {message.isCancelled && (
+                            <Text color="yellow" dimColor>
+                                {'[Cancelled]'}
+                            </Text>
+                        )}
                     </Box>
                 </Box>
                 <Text>{''}</Text>

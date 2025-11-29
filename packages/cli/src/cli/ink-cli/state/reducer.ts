@@ -221,7 +221,11 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ...state,
                 streamingMessage: null,
                 messages: streamingId
-                    ? state.messages.filter((msg) => msg.id !== streamingId)
+                    ? state.messages.map((msg) =>
+                          msg.id === streamingId
+                              ? { ...msg, isStreaming: false, isCancelled: true }
+                              : msg
+                      )
                     : state.messages,
                 ui: {
                     ...state.ui,
