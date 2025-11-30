@@ -471,6 +471,7 @@ export function useChat(
 
                     const errorObj = event.error || {};
                     const message = errorObj.message || 'Unknown error';
+                    console.log('llm:error', event);
 
                     setError(event.sessionId, {
                         id: generateUniqueId(),
