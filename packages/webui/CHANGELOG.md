@@ -1,5 +1,16 @@
 # @dexto/webui
 
+## 1.3.1
+
+### Patch Changes
+
+- bd5c097: Add features check for internal tools, fix coding agent and logger agent elicitation
+- Updated dependencies [bd5c097]
+- Updated dependencies [3b4b919]
+    - @dexto/core@1.3.1
+    - @dexto/analytics@1.3.1
+    - @dexto/client-sdk@1.3.1
+
 ## 1.3.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # @dexto/server
 
+## 1.3.1
+
+### Patch Changes
+
+- 7a64414: Updated agent-management to use AgentManager instead of AgentOrchestrator.
+- Updated dependencies [bd5c097]
+- Updated dependencies [7a64414]
+- Updated dependencies [3b4b919]
+    - @dexto/core@1.3.1
+    - @dexto/agent-management@1.3.1
+
 ## 1.3.0
 
 ### Minor Changes
