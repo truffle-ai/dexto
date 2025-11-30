@@ -63,9 +63,7 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                 </Box>
                 {message.toolResult && (
                     <Box marginLeft={2} marginTop={0} flexDirection="column">
-                        <Text color="gray" dimColor>
-                            {message.toolResult}
-                        </Text>
+                        <Text color="gray">{message.toolResult}</Text>
                     </Box>
                 )}
                 <Text>{''}</Text>

@@ -4,8 +4,17 @@
  * Used by ModelSelector and SessionSelector
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
-import { Box, Text, useInput } from 'ink';
+import {
+    useState,
+    useEffect,
+    useRef,
+    useMemo,
+    useCallback,
+    forwardRef,
+    useImperativeHandle,
+    type ReactNode,
+} from 'react';
+import { Box, Text, type Key } from 'ink';
 
 export interface BaseSelectorProps<T> {
     items: T[];
@@ -21,26 +30,37 @@ export interface BaseSelectorProps<T> {
     loadingMessage?: string;
     emptyMessage?: string;
     borderColor?: string;
+    onTab?: (item: T) => void; // Optional Tab key handler
+    supportsTab?: boolean; // Whether to show Tab in instructions
+}
+
+export interface BaseSelectorHandle {
+    handleInput: (input: string, key: Key) => boolean;
 }
 
 /**
  * Generic selector component with keyboard navigation and scrolling
  */
-export function BaseSelector<T>({
-    items,
-    isVisible,
-    isLoading = false,
-    selectedIndex,
-    onSelectIndex,
-    onSelect,
-    onClose,
-    formatItem,
-    title,
-    maxVisibleItems = 10,
-    loadingMessage = 'Loading...',
-    emptyMessage = 'No items found',
-    borderColor = 'cyan',
-}: BaseSelectorProps<T>) {
+function BaseSelectorInner<T>(
+    {
+        items,
+        isVisible,
+        isLoading = false,
+        selectedIndex,
+        onSelectIndex,
+        onSelect,
+        onClose,
+        formatItem,
+        title,
+        maxVisibleItems = 10,
+        loadingMessage = 'Loading...',
+        emptyMessage = 'No items found',
+        borderColor = 'cyan',
+        onTab,
+        supportsTab = false,
+    }: BaseSelectorProps<T>,
+    ref: React.Ref<BaseSelectorHandle>
+) {
     const [scrollOffset, setScrollOffset] = useState(0);
     const selectedIndexRef = useRef(selectedIndex);
 
@@ -72,43 +92,61 @@ export function BaseSelector<T>({
         return items.slice(scrollOffset, scrollOffset + maxVisibleItems);
     }, [items, scrollOffset, maxVisibleItems]);
 
-    // Handle keyboard navigation
-    useInput(
-        (_inputChar, key) => {
-            if (!isVisible) return;
+    // Expose handleInput method via ref
+    useImperativeHandle(
+        ref,
+        () => ({
+            handleInput: (_input: string, key: Key): boolean => {
+                if (!isVisible) return false;
 
-            const itemsLength = items.length;
-            if (itemsLength === 0) return;
-
-            if (key.upArrow) {
-                const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
-                handleSelectIndex(nextIndex);
-            }
-
-            if (key.downArrow) {
-                const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
-                handleSelectIndex(nextIndex);
-            }
-
-            if (key.escape) {
-                onClose();
-            }
-
-            if (key.return && itemsLength > 0) {
-                const item = items[selectedIndexRef.current];
-                if (item !== undefined) {
-                    onSelect(item);
+                // Escape always works, regardless of item count
+                if (key.escape) {
+                    onClose();
+                    return true;
                 }
-            }
-        },
-        { isActive: isVisible }
+
+                const itemsLength = items.length;
+                if (itemsLength === 0) return false;
+
+                if (key.upArrow) {
+                    const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
+                    handleSelectIndex(nextIndex);
+                    return true;
+                }
+
+                if (key.downArrow) {
+                    const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
+                    handleSelectIndex(nextIndex);
+                    return true;
+                }
+
+                if (key.tab && onTab) {
+                    const item = items[selectedIndexRef.current];
+                    if (item !== undefined) {
+                        onTab(item);
+                        return true;
+                    }
+                }
+
+                if (key.return && itemsLength > 0) {
+                    const item = items[selectedIndexRef.current];
+                    if (item !== undefined) {
+                        onSelect(item);
+                        return true;
+                    }
+                }
+
+                return false;
+            },
+        }),
+        [isVisible, items, handleSelectIndex, onClose, onSelect, onTab]
     );
 
     if (!isVisible) return null;
 
     if (isLoading) {
         return (
-            <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
+            <Box paddingX={0} paddingY={0}>
                 <Text dimColor>{loadingMessage}</Text>
             </Box>
         );
@@ -116,55 +154,39 @@ export function BaseSelector<T>({
 
     if (items.length === 0) {
         return (
-            <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
+            <Box paddingX={0} paddingY={0}>
                 <Text dimColor>{emptyMessage}</Text>
             </Box>
         );
     }
 
-    const hasMoreAbove = scrollOffset > 0;
-    const hasMoreBelow = scrollOffset + maxVisibleItems < items.length;
+    // Build instruction text based on features
+    const instructions = supportsTab
+        ? '↑↓ navigate, Tab load, Enter select, Esc close'
+        : '↑↓ navigate, Enter select, Esc close';
 
     return (
-        <Box
-            borderStyle="single"
-            borderColor={borderColor}
-            flexDirection="column"
-            height={Math.min(maxVisibleItems + 3, items.length + 3)}
-        >
-            <Box paddingX={1} paddingY={0}>
-                <Text dimColor>
-                    {title} ({selectedIndex + 1}/{items.length}) - ↑↓ to navigate, Enter to select,
-                    Esc to close
+        <Box flexDirection="column">
+            <Box paddingX={0} paddingY={0}>
+                <Text color={borderColor} bold>
+                    {title} ({selectedIndex + 1}/{items.length}) - {instructions}
                 </Text>
             </Box>
-            {hasMoreAbove && (
-                <Box paddingX={1} paddingY={0}>
-                    <Text dimColor>... ↑ ({scrollOffset} more above)</Text>
-                </Box>
-            )}
             {visibleItems.map((item, visibleIndex) => {
                 const actualIndex = scrollOffset + visibleIndex;
                 const isSelected = actualIndex === selectedIndex;
 
                 return (
-                    <Box
-                        key={actualIndex}
-                        paddingX={1}
-                        paddingY={0}
-                        backgroundColor={isSelected ? 'yellow' : undefined}
-                    >
+                    <Box key={actualIndex} paddingX={0} paddingY={0}>
                         {formatItem(item, isSelected)}
                     </Box>
                 );
             })}
-            {hasMoreBelow && (
-                <Box paddingX={1} paddingY={0}>
-                    <Text dimColor>
-                        ... ↓ ({items.length - scrollOffset - maxVisibleItems} more below)
-                    </Text>
-                </Box>
-            )}
         </Box>
     );
 }
+
+// Export with proper generic type support
+export const BaseSelector = forwardRef(BaseSelectorInner) as <T>(
+    props: BaseSelectorProps<T> & { ref?: React.Ref<BaseSelectorHandle> }
+) => ReturnType<typeof BaseSelectorInner>;

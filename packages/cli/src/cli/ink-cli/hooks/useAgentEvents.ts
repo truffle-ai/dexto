@@ -225,15 +225,20 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
 
         // Handle session creation (e.g., from /clear command)
         // This maintains separation of concerns: commands emit events, UI handles state
-        const handleSessionCreated = (payload: { sessionId: string; switchTo: boolean }) => {
+        const handleSessionCreated = (payload: { sessionId: string | null; switchTo: boolean }) => {
             if (payload.switchTo) {
-                // Clear current messages and switch to new session
-                dispatch({ type: 'SESSION_CLEAR' });
-                dispatch({
-                    type: 'SESSION_SET',
-                    sessionId: payload.sessionId,
-                    hasActiveSession: true,
-                });
+                if (payload.sessionId === null) {
+                    // Clear without creating a new session (deferred creation)
+                    dispatch({ type: 'SESSION_CLEAR' });
+                } else {
+                    // Clear current messages and switch to new session
+                    dispatch({ type: 'SESSION_CLEAR' });
+                    dispatch({
+                        type: 'SESSION_SET',
+                        sessionId: payload.sessionId,
+                        hasActiveSession: true,
+                    });
+                }
             }
         };
         // Subscribe to events

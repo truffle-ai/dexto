@@ -3,9 +3,11 @@
  * Simple input area - Shift+Enter for newlines, Enter to submit
  */
 
-import React from 'react';
-import { Box, Text } from 'ink';
-import { MultiLineTextInput } from '../MultiLineTextInput.js';
+import React, { forwardRef } from 'react';
+import { Box } from 'ink';
+import { MultiLineTextInput, type MultiLineTextInputHandle } from '../MultiLineTextInput.js';
+
+export type InputAreaHandle = MultiLineTextInputHandle;
 
 interface InputAreaProps {
     value: string;
@@ -20,29 +22,35 @@ interface InputAreaProps {
     onHistoryNavigate?: ((direction: 'up' | 'down') => void) | undefined;
 }
 
-export function InputArea({
-    value,
-    onChange,
-    onSubmit,
-    isProcessing,
-    isDisabled,
-    placeholder,
-    history,
-    historyIndex,
-    onHistoryNavigate,
-}: InputAreaProps) {
-    return (
-        <Box flexDirection="column">
-            <MultiLineTextInput
-                value={value}
-                onChange={onChange}
-                onSubmit={onSubmit}
-                placeholder={placeholder}
-                isDisabled={isDisabled || isProcessing}
-                history={history}
-                historyIndex={historyIndex}
-                onHistoryNavigate={onHistoryNavigate}
-            />
-        </Box>
-    );
-}
+export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
+    (
+        {
+            value,
+            onChange,
+            onSubmit,
+            isProcessing,
+            isDisabled,
+            placeholder,
+            history,
+            historyIndex,
+            onHistoryNavigate,
+        },
+        ref
+    ) => {
+        return (
+            <Box flexDirection="column">
+                <MultiLineTextInput
+                    ref={ref}
+                    value={value}
+                    onChange={onChange}
+                    onSubmit={onSubmit}
+                    placeholder={placeholder}
+                    isDisabled={isDisabled}
+                    history={history}
+                    historyIndex={historyIndex}
+                    onHistoryNavigate={onHistoryNavigate}
+                />
+            </Box>
+        );
+    }
+);
