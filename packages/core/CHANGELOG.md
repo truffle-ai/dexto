@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.3.1
+
+### Patch Changes
+
+- bd5c097: Add features check for internal tools, fix coding agent and logger agent elicitation
+- 3b4b919: Fixed Ink CLI bugs and updated state management system.
+
 ## 1.3.0
 
 ### Minor Changes
