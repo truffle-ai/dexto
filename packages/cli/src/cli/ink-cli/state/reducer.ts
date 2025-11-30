@@ -407,14 +407,17 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
 
         // Approval actions
         case 'APPROVAL_REQUEST':
+            console.log('[reducer] APPROVAL_REQUEST received:', action.approval);
             // If there's already a pending approval, queue this one
             if (state.approval !== null) {
+                console.log('[reducer] Queuing approval, already have one pending');
                 return {
                     ...state,
                     approvalQueue: [...state.approvalQueue, action.approval],
                 };
             }
             // Otherwise, show it immediately
+            console.log('[reducer] Setting approval in state');
             return {
                 ...state,
                 approval: action.approval,

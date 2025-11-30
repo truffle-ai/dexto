@@ -172,6 +172,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             timestamp: Date;
             metadata: Record<string, any>;
         }) => {
+            console.log('[useAgentEvents] Approval request received:', event);
             // Handle both tool confirmation and command confirmation approvals in ink-cli
             if (
                 event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
@@ -192,10 +193,13 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
                     approval.timeout = event.timeout;
                 }
 
+                console.log('[useAgentEvents] Dispatching APPROVAL_REQUEST:', approval);
                 dispatch({
                     type: 'APPROVAL_REQUEST',
                     approval,
                 });
+            } else {
+                console.log('[useAgentEvents] Approval type not handled:', event.type);
             }
         };
 

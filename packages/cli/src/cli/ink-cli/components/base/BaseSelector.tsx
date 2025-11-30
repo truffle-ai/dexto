@@ -4,8 +4,17 @@
  * Used by ModelSelector and SessionSelector
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
-import { Box, Text, useInput } from 'ink';
+import {
+    useState,
+    useEffect,
+    useRef,
+    useMemo,
+    useCallback,
+    forwardRef,
+    useImperativeHandle,
+    type ReactNode,
+} from 'react';
+import { Box, Text, type Key } from 'ink';
 
 export interface BaseSelectorProps<T> {
     items: T[];
@@ -23,24 +32,31 @@ export interface BaseSelectorProps<T> {
     borderColor?: string;
 }
 
+export interface BaseSelectorHandle {
+    handleInput: (input: string, key: Key) => boolean;
+}
+
 /**
  * Generic selector component with keyboard navigation and scrolling
  */
-export function BaseSelector<T>({
-    items,
-    isVisible,
-    isLoading = false,
-    selectedIndex,
-    onSelectIndex,
-    onSelect,
-    onClose,
-    formatItem,
-    title,
-    maxVisibleItems = 10,
-    loadingMessage = 'Loading...',
-    emptyMessage = 'No items found',
-    borderColor = 'cyan',
-}: BaseSelectorProps<T>) {
+function BaseSelectorInner<T>(
+    {
+        items,
+        isVisible,
+        isLoading = false,
+        selectedIndex,
+        onSelectIndex,
+        onSelect,
+        onClose,
+        formatItem,
+        title,
+        maxVisibleItems = 10,
+        loadingMessage = 'Loading...',
+        emptyMessage = 'No items found',
+        borderColor = 'cyan',
+    }: BaseSelectorProps<T>,
+    ref: React.Ref<BaseSelectorHandle>
+) {
     const [scrollOffset, setScrollOffset] = useState(0);
     const selectedIndexRef = useRef(selectedIndex);
 
@@ -72,36 +88,45 @@ export function BaseSelector<T>({
         return items.slice(scrollOffset, scrollOffset + maxVisibleItems);
     }, [items, scrollOffset, maxVisibleItems]);
 
-    // Handle keyboard navigation
-    useInput(
-        (_inputChar, key) => {
-            if (!isVisible) return;
+    // Expose handleInput method via ref
+    useImperativeHandle(
+        ref,
+        () => ({
+            handleInput: (_input: string, key: Key): boolean => {
+                if (!isVisible) return false;
 
-            const itemsLength = items.length;
-            if (itemsLength === 0) return;
+                const itemsLength = items.length;
+                if (itemsLength === 0) return false;
 
-            if (key.upArrow) {
-                const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
-                handleSelectIndex(nextIndex);
-            }
-
-            if (key.downArrow) {
-                const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
-                handleSelectIndex(nextIndex);
-            }
-
-            if (key.escape) {
-                onClose();
-            }
-
-            if (key.return && itemsLength > 0) {
-                const item = items[selectedIndexRef.current];
-                if (item !== undefined) {
-                    onSelect(item);
+                if (key.upArrow) {
+                    const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
+                    handleSelectIndex(nextIndex);
+                    return true;
                 }
-            }
-        },
-        { isActive: isVisible }
+
+                if (key.downArrow) {
+                    const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
+                    handleSelectIndex(nextIndex);
+                    return true;
+                }
+
+                if (key.escape) {
+                    onClose();
+                    return true;
+                }
+
+                if (key.return && itemsLength > 0) {
+                    const item = items[selectedIndexRef.current];
+                    if (item !== undefined) {
+                        onSelect(item);
+                        return true;
+                    }
+                }
+
+                return false;
+            },
+        }),
+        [isVisible, items, handleSelectIndex, onClose, onSelect]
     );
 
     if (!isVisible) return null;
@@ -168,3 +193,8 @@ export function BaseSelector<T>({
         </Box>
     );
 }
+
+// Export with proper generic type support
+export const BaseSelector = forwardRef(BaseSelectorInner) as <T>(
+    props: BaseSelectorProps<T> & { ref?: React.Ref<BaseSelectorHandle> }
+) => ReturnType<typeof BaseSelectorInner>;

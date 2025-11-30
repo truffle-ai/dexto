@@ -4,16 +4,20 @@
  * Eliminates ~200 lines of code by using base component
  */
 
-import React, { useState, useEffect } from 'react';
-import { Text } from 'ink';
+import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
+import { Text, type Key } from 'ink';
 import { logger, type DextoAgent, type LLMProvider } from '@dexto/core';
-import { BaseSelector } from '../base/BaseSelector.js';
+import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
 interface ModelSelectorProps {
     isVisible: boolean;
     onSelectModel: (provider: LLMProvider, model: string) => void;
     onClose: () => void;
     agent: DextoAgent;
+}
+
+export interface ModelSelectorHandle {
+    handleInput: (input: string, key: Key) => boolean;
 }
 
 interface ModelOption {
@@ -29,12 +33,22 @@ interface ModelOption {
  * Model selector - now a thin wrapper around BaseSelector
  * Provides data fetching and formatting only
  */
-export default function ModelSelector({
-    isVisible,
-    onSelectModel,
-    onClose,
-    agent,
-}: ModelSelectorProps) {
+const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(function ModelSelector(
+    { isVisible, onSelectModel, onClose, agent },
+    ref
+) {
+    const baseSelectorRef = useRef<BaseSelectorHandle>(null);
+
+    // Forward handleInput to BaseSelector
+    useImperativeHandle(
+        ref,
+        () => ({
+            handleInput: (input: string, key: Key): boolean => {
+                return baseSelectorRef.current?.handleInput(input, key) ?? false;
+            },
+        }),
+        []
+    );
     const [models, setModels] = useState<ModelOption[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -134,6 +148,7 @@ export default function ModelSelector({
 
     return (
         <BaseSelector
+            ref={baseSelectorRef}
             items={models}
             isVisible={isVisible}
             isLoading={isLoading}
@@ -148,4 +163,6 @@ export default function ModelSelector({
             emptyMessage="No models found"
         />
     );
-}
+});
+
+export default ModelSelector;

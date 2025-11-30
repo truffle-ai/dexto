@@ -950,6 +950,17 @@ program
                             const approvalCoordinator = new ApprovalCoordinator();
                             const handler = createManualApprovalHandler(approvalCoordinator);
                             agent.setApprovalHandler(handler);
+
+                            // Bridge approval events between coordinator and agent event bus for Ink CLI
+                            // Forward requests from coordinator to event bus (for UI to receive)
+                            approvalCoordinator.on('approval:request', (request) => {
+                                agent.agentEventBus.emit('approval:request', request);
+                            });
+                            // Forward responses from event bus to coordinator (for handler to receive)
+                            agent.agentEventBus.on('approval:response', (response) => {
+                                approvalCoordinator.emitResponse(response);
+                            });
+
                             logger.debug('Event-based approval handler configured for Ink CLI');
                         }
 

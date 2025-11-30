@@ -14,8 +14,9 @@
  * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
-import { useReducer, useMemo, useEffect } from 'react';
+import { useReducer, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Box, render } from 'ink';
+import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 
@@ -23,7 +24,7 @@ import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 import { cliReducer, createInitialState, type StartupInfo } from './state/index.js';
 
 // Custom hooks
-import { useAgentEvents, useKeyboardShortcuts } from './hooks/index.js';
+import { useAgentEvents, useInputOrchestrator } from './hooks/index.js';
 
 // Services
 import { InputService, MessageService } from './services/index.js';
@@ -33,13 +34,12 @@ import { getStartupInfo, convertHistoryToUIMessages } from './utils/messageForma
 
 // Components
 import { ChatView } from './components/chat/ChatView.js';
-import { Footer } from './components/chat/Footer.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { StatusBar } from './components/StatusBar.js';
 
 // Containers
-import { InputContainer } from './containers/InputContainer.js';
-import { OverlayContainer } from './containers/OverlayContainer.js';
+import { InputContainer, type InputContainerHandle } from './containers/InputContainer.js';
+import { OverlayContainer, type OverlayContainerHandle } from './containers/OverlayContainer.js';
 
 interface InkCLIProps {
     agent: DextoAgent;
@@ -73,6 +73,10 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     const inputService = useMemo(() => new InputService(), []);
     const messageService = useMemo(() => new MessageService(), []);
 
+    // Refs to container components for unified input handling
+    const inputContainerRef = useRef<InputContainerHandle>(null);
+    const overlayContainerRef = useRef<OverlayContainerHandle>(null);
+
     // Setup event bus subscriptions
     useAgentEvents({ agent, dispatch, isCancelling: state.ui.isCancelling });
 
@@ -81,8 +85,33 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 
     // Input history navigation is now handled by MultiLineTextInput component
 
-    // Setup global keyboard shortcuts
-    useKeyboardShortcuts({ state, dispatch, agent });
+    // Create input handlers for the orchestrator
+    // Approval handler - routes to OverlayContainer
+    const approvalHandler = useCallback((input: string, key: Key): boolean => {
+        return overlayContainerRef.current?.handleInput(input, key) ?? false;
+    }, []);
+
+    // Overlay handler - routes to OverlayContainer
+    const overlayHandler = useCallback((input: string, key: Key): boolean => {
+        return overlayContainerRef.current?.handleInput(input, key) ?? false;
+    }, []);
+
+    // Main input handler - routes to InputContainer
+    const inputHandler = useCallback((input: string, key: Key): boolean => {
+        return inputContainerRef.current?.handleInput(input, key) ?? false;
+    }, []);
+
+    // Setup unified input orchestrator (replaces useKeyboardShortcuts)
+    useInputOrchestrator({
+        state,
+        dispatch,
+        agent,
+        handlers: {
+            approval: approvalHandler,
+            overlay: overlayHandler,
+            input: inputHandler,
+        },
+    });
 
     // Hydrate conversation history when resuming a session
     useEffect(() => {
@@ -113,35 +142,44 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     }, [agent, dispatch, initialSessionId, state.messages.length, state.session.hasActiveSession]);
 
     // Detect overlays based on input (with guards to prevent infinite loop)
+    // Debounced to prevent excessive re-renders during fast typing
     useEffect(() => {
         // Don't detect overlays if processing or approval is active
         if (state.ui.isProcessing || state.approval) return;
 
-        const autocompleteType = inputService.detectAutocompleteType(state.input.value);
-        const selectorType = inputService.detectInteractiveSelector(state.input.value);
+        // Debounce overlay detection to prevent flickering during fast typing
+        const timeoutId = setTimeout(() => {
+            const autocompleteType = inputService.detectAutocompleteType(state.input.value);
+            const selectorType = inputService.detectInteractiveSelector(state.input.value);
 
-        // Determine what overlay should be shown
-        let desiredOverlay: typeof state.ui.activeOverlay = 'none';
+            // Determine what overlay should be shown
+            let desiredOverlay: typeof state.ui.activeOverlay = 'none';
 
-        // Priority: selector > autocomplete
-        if (selectorType === 'model') {
-            desiredOverlay = 'model-selector';
-        } else if (selectorType === 'session') {
-            desiredOverlay = 'session-selector';
-        } else if (autocompleteType === 'slash') {
-            desiredOverlay = 'slash-autocomplete';
-        } else if (autocompleteType === 'resource') {
-            desiredOverlay = 'resource-autocomplete';
-        }
-
-        // Only dispatch if overlay needs to change
-        if (desiredOverlay !== state.ui.activeOverlay && state.ui.activeOverlay !== 'approval') {
-            if (desiredOverlay === 'none') {
-                dispatch({ type: 'CLOSE_OVERLAY' });
-            } else {
-                dispatch({ type: 'SHOW_OVERLAY', overlay: desiredOverlay });
+            // Priority: selector > autocomplete
+            if (selectorType === 'model') {
+                desiredOverlay = 'model-selector';
+            } else if (selectorType === 'session') {
+                desiredOverlay = 'session-selector';
+            } else if (autocompleteType === 'slash') {
+                desiredOverlay = 'slash-autocomplete';
+            } else if (autocompleteType === 'resource') {
+                desiredOverlay = 'resource-autocomplete';
             }
-        }
+
+            // Only dispatch if overlay needs to change
+            if (
+                desiredOverlay !== state.ui.activeOverlay &&
+                state.ui.activeOverlay !== 'approval'
+            ) {
+                if (desiredOverlay === 'none') {
+                    dispatch({ type: 'CLOSE_OVERLAY' });
+                } else {
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: desiredOverlay });
+                }
+            }
+        }, 50); // 50ms debounce - fast enough to feel responsive, slow enough to prevent flicker
+
+        return () => clearTimeout(timeoutId);
     }, [
         state.input.value,
         state.ui.isProcessing,
@@ -177,24 +215,23 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
                     exitWarningShown={state.ui.exitWarningShown}
                 />
 
-                {/* Overlays (approval, selectors, autocomplete) */}
-                <OverlayContainer
-                    state={state}
-                    dispatch={dispatch}
-                    agent={agent}
-                    inputService={inputService}
-                />
-
                 {/* Input area */}
                 <InputContainer
+                    ref={inputContainerRef}
                     state={state}
                     dispatch={dispatch}
                     agent={agent}
                     inputService={inputService}
                 />
 
-                {/* Footer */}
-                <Footer />
+                {/* Overlays (approval, selectors, autocomplete) - displayed below input */}
+                <OverlayContainer
+                    ref={overlayContainerRef}
+                    state={state}
+                    dispatch={dispatch}
+                    agent={agent}
+                    inputService={inputService}
+                />
             </Box>
         </ErrorBoundary>
     );
