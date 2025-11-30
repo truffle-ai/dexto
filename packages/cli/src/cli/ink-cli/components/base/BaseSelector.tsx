@@ -30,6 +30,8 @@ export interface BaseSelectorProps<T> {
     loadingMessage?: string;
     emptyMessage?: string;
     borderColor?: string;
+    onTab?: (item: T) => void; // Optional Tab key handler
+    supportsTab?: boolean; // Whether to show Tab in instructions
 }
 
 export interface BaseSelectorHandle {
@@ -54,6 +56,8 @@ function BaseSelectorInner<T>(
         loadingMessage = 'Loading...',
         emptyMessage = 'No items found',
         borderColor = 'cyan',
+        onTab,
+        supportsTab = false,
     }: BaseSelectorProps<T>,
     ref: React.Ref<BaseSelectorHandle>
 ) {
@@ -95,6 +99,12 @@ function BaseSelectorInner<T>(
             handleInput: (_input: string, key: Key): boolean => {
                 if (!isVisible) return false;
 
+                // Escape always works, regardless of item count
+                if (key.escape) {
+                    onClose();
+                    return true;
+                }
+
                 const itemsLength = items.length;
                 if (itemsLength === 0) return false;
 
@@ -110,9 +120,12 @@ function BaseSelectorInner<T>(
                     return true;
                 }
 
-                if (key.escape) {
-                    onClose();
-                    return true;
+                if (key.tab && onTab) {
+                    const item = items[selectedIndexRef.current];
+                    if (item !== undefined) {
+                        onTab(item);
+                        return true;
+                    }
                 }
 
                 if (key.return && itemsLength > 0) {
@@ -126,14 +139,14 @@ function BaseSelectorInner<T>(
                 return false;
             },
         }),
-        [isVisible, items, handleSelectIndex, onClose, onSelect]
+        [isVisible, items, handleSelectIndex, onClose, onSelect, onTab]
     );
 
     if (!isVisible) return null;
 
     if (isLoading) {
         return (
-            <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
+            <Box paddingX={0} paddingY={0}>
                 <Text dimColor>{loadingMessage}</Text>
             </Box>
         );
@@ -141,55 +154,34 @@ function BaseSelectorInner<T>(
 
     if (items.length === 0) {
         return (
-            <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
+            <Box paddingX={0} paddingY={0}>
                 <Text dimColor>{emptyMessage}</Text>
             </Box>
         );
     }
 
-    const hasMoreAbove = scrollOffset > 0;
-    const hasMoreBelow = scrollOffset + maxVisibleItems < items.length;
+    // Build instruction text based on features
+    const instructions = supportsTab
+        ? '↑↓ navigate, Tab load, Enter select, Esc close'
+        : '↑↓ navigate, Enter select, Esc close';
 
     return (
-        <Box
-            borderStyle="single"
-            borderColor={borderColor}
-            flexDirection="column"
-            height={Math.min(maxVisibleItems + 3, items.length + 3)}
-        >
-            <Box paddingX={1} paddingY={0}>
-                <Text dimColor>
-                    {title} ({selectedIndex + 1}/{items.length}) - ↑↓ to navigate, Enter to select,
-                    Esc to close
+        <Box flexDirection="column">
+            <Box paddingX={0} paddingY={0}>
+                <Text color={borderColor} bold>
+                    {title} ({selectedIndex + 1}/{items.length}) - {instructions}
                 </Text>
             </Box>
-            {hasMoreAbove && (
-                <Box paddingX={1} paddingY={0}>
-                    <Text dimColor>... ↑ ({scrollOffset} more above)</Text>
-                </Box>
-            )}
             {visibleItems.map((item, visibleIndex) => {
                 const actualIndex = scrollOffset + visibleIndex;
                 const isSelected = actualIndex === selectedIndex;
 
                 return (
-                    <Box
-                        key={actualIndex}
-                        paddingX={1}
-                        paddingY={0}
-                        backgroundColor={isSelected ? 'yellow' : undefined}
-                    >
+                    <Box key={actualIndex} paddingX={0} paddingY={0}>
                         {formatItem(item, isSelected)}
                     </Box>
                 );
             })}
-            {hasMoreBelow && (
-                <Box paddingX={1} paddingY={0}>
-                    <Text dimColor>
-                        ... ↓ ({items.length - scrollOffset - maxVisibleItems} more below)
-                    </Text>
-                </Box>
-            )}
         </Box>
     );
 }

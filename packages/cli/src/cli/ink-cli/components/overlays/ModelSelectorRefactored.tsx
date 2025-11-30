@@ -115,25 +115,25 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     // Format model item for display
     const formatItem = (model: ModelOption, isSelected: boolean) => (
         <>
-            <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
+            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                 {model.displayName || model.name}
             </Text>
-            <Text color={isSelected ? 'black' : 'gray'} dimColor={!isSelected}>
+            <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                 {' '}
                 ({model.provider})
             </Text>
-            <Text color={isSelected ? 'black' : 'gray'} dimColor={!isSelected}>
+            <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                 {' '}
                 • {model.maxInputTokens.toLocaleString()} tokens
             </Text>
             {model.isDefault && (
-                <Text color={isSelected ? 'black' : 'gray'} dimColor={!isSelected}>
+                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                     {' '}
                     [DEFAULT]
                 </Text>
             )}
             {model.isCurrent && (
-                <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                     {' '}
                     ← Current
                 </Text>

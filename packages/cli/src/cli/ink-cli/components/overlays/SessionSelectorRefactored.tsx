@@ -123,10 +123,18 @@ const SessionSelector = forwardRef<SessionSelectorHandle, SessionSelectorProps>(
         // Format session for display
         const formatSession = (session: SessionOption): string => {
             const parts: string[] = [];
+
+            // Add title if available, otherwise use "Session" as fallback
             if (session.metadata?.title) {
                 parts.push(session.metadata.title);
+            } else {
+                parts.push('Session');
             }
+
+            // Always show short ID
             parts.push(session.id.slice(0, 8));
+
+            // Show last activity time if available
             if (session.metadata?.lastActivity) {
                 const now = Date.now();
                 const diff = now - session.metadata.lastActivity;
@@ -149,11 +157,11 @@ const SessionSelector = forwardRef<SessionSelectorHandle, SessionSelectorProps>(
         // Format session item for display
         const formatItem = (session: SessionOption, isSelected: boolean) => (
             <>
-                <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                     {formatSession(session)}
                 </Text>
                 {session.isCurrent && (
-                    <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                         {' '}
                         ← Current
                     </Text>

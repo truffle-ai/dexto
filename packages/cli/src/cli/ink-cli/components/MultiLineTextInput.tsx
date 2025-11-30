@@ -115,12 +115,25 @@ export const MultiLineTextInput = forwardRef<MultiLineTextInputHandle, MultiLine
             valueRef.current = value;
         }, [value]);
 
-        // Keep cursor valid when value changes externally (e.g., from history navigation)
-        // Only adjust if cursor would be past end of value, to avoid jumping during typing
+        // Keep cursor valid when value changes externally (e.g., from history navigation, Tab load)
+        // Track previous value length to detect autocomplete loads
+        const prevValueLengthRef = useRef(value.length);
+
         useEffect(() => {
-            if (cursorPos > value.length) {
-                setCursorPos(value.length);
+            const prevLength = prevValueLengthRef.current;
+            const newLength = value.length;
+
+            // If cursor would be past end, move it to end
+            if (cursorPos > newLength) {
+                setCursorPos(newLength);
             }
+            // If value significantly increased (Tab load), move cursor to end
+            // This handles Tab autocomplete while preserving normal typing behavior
+            else if (newLength > prevLength + 1 && cursorPos <= prevLength) {
+                setCursorPos(newLength);
+            }
+
+            prevValueLengthRef.current = newLength;
         }, [value, cursorPos]);
 
         // Calculate line info for cursor positioning

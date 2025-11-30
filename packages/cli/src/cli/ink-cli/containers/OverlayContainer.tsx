@@ -49,13 +49,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const { ui, input, approval } = state;
         const eventBus = agent.agentEventBus;
 
-        console.log(
-            '[OverlayContainer] Render - approval:',
-            approval,
-            'activeOverlay:',
-            ui.activeOverlay
-        );
-
         // Refs to overlay components for input handling
         const approvalRef = useRef<ApprovalPromptHandle>(null);
         const slashAutocompleteRef = useRef<SlashCommandAutocompleteHandle>(null);
@@ -213,14 +206,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         return;
                     }
 
+                    // Clear messages immediately before any async operations
+                    // This ensures old conversation is cleared before showing new session
+                    dispatch({ type: 'SESSION_CLEAR' });
+
                     dispatch({
-                        type: 'MESSAGE_ADD',
-                        message: {
-                            id: generateMessageId('system'),
-                            role: 'system',
-                            content: `🔄 Switching to session ${newSessionId.slice(0, 8)}...`,
-                            timestamp: new Date(),
-                        },
+                        type: 'SESSION_SET',
+                        sessionId: newSessionId,
+                        hasActiveSession: true,
                     });
 
                     // Verify session exists
@@ -228,15 +221,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     if (!session) {
                         throw new Error(`Session ${newSessionId} not found`);
                     }
-
-                    // Clear messages and update sessionId (WebUI pattern - no loadSessionAsDefault)
-                    dispatch({ type: 'SESSION_CLEAR' }); // Clears messages
-
-                    dispatch({
-                        type: 'SESSION_SET',
-                        sessionId: newSessionId,
-                        hasActiveSession: true,
-                    });
 
                     // Load session history
                     const history = await agent.getSessionHistory(newSessionId);
@@ -325,6 +309,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         const handleSystemCommandSelect = useCallback(
             async (command: string) => {
+                // Check if this is an interactive command that should show a selector
+                // instead of being executed
+                if (command === 'model') {
+                    // Update input to full command so auto-detection keeps selector open
+                    dispatch({ type: 'INPUT_CHANGE', value: '/model' });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'model-selector' });
+                    return;
+                }
+                if (command === 'resume' || command === 'switch') {
+                    // Update input to full command so auto-detection keeps selector open
+                    dispatch({ type: 'INPUT_CHANGE', value: `/${command}` });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-selector' });
+                    return;
+                }
+
                 const commandText = `/${command}`;
                 dispatch({ type: 'CLOSE_OVERLAY' });
                 dispatch({ type: 'INPUT_CLEAR' });

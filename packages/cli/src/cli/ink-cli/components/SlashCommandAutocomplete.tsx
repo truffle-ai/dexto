@@ -357,11 +357,21 @@ export const SlashCommandAutocomplete = forwardRef<
                     return true;
                 }
 
-                // Tab: Load command into input (for editing before execution)
+                // Tab: For interactive commands (model, resume, switch), execute them like Enter
+                // For other commands, load into input for editing
                 if (key.tab) {
                     const item = combinedItems[selectedIndexRef.current];
                     if (!item) return false;
-                    if (item.kind === 'create') {
+
+                    // Check if this is an interactive command that should be executed
+                    const interactiveCommands = ['model', 'resume', 'switch'];
+                    const isInteractiveCommand =
+                        item.kind === 'system' && interactiveCommands.includes(item.command.name);
+
+                    if (isInteractiveCommand && item.kind === 'system') {
+                        // Execute interactive command (same as Enter)
+                        onSelectSystemCommand?.(item.command.name);
+                    } else if (item.kind === 'create') {
                         // For create, load the command name into input
                         onLoadIntoInput?.(`/${commandQuery || 'name'}`);
                     } else if (item.kind === 'system') {

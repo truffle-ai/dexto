@@ -317,11 +317,9 @@ export const resumeCommand: CommandDefinition = {
         // In interactive CLI, /resume always triggers the interactive selector
         // The selector is shown via detectInteractiveSelector in inputParsing.ts
         // This handler should not be called in ink-cli (selector shows instead)
-        // If called in headless mode, show help
         const helpText = [
             '📋 Resume Session',
-            '\nIn interactive mode: Type /resume to show the session selector',
-            'In headless mode: Use `dexto -r <sessionId>` instead\n',
+            '\nType /resume to show the session selector\n',
         ].join('\n');
 
         console.log(chalk.blue(helpText));

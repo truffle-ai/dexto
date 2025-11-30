@@ -3,7 +3,7 @@
  * Smart container for input area - handles submission and state
  */
 
-import React, { useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useCallback, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { InputArea, type InputAreaHandle } from '../components/input/InputArea.js';
@@ -39,6 +39,14 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Track pending session creation to prevent race conditions
         // when multiple messages are sent before first session is created
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+
+        // Clear the session creation ref when session is cleared (e.g., via /clear)
+        // This ensures we create a NEW session instead of reusing the old one
+        useEffect(() => {
+            if (session.id === null) {
+                sessionCreationPromiseRef.current = null;
+            }
+        }, [session.id]);
 
         // Expose handleInput method via ref - delegates to InputArea
         useImperativeHandle(
@@ -184,7 +192,20 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             throw new Error('Failed to create or retrieve session');
                         }
 
+                        // Check if this is the first message (message count is 0 or 1)
+                        const metadata = await agent.getSessionMetadata(currentSessionId);
+                        const isFirstMessage = !metadata || metadata.messageCount <= 0;
+
                         await agent.run(trimmed, undefined, undefined, currentSessionId);
+
+                        // Generate title for new sessions after first message
+                        // Fire and forget to avoid blocking the response
+                        if (isFirstMessage) {
+                            agent.generateSessionTitle(currentSessionId).catch((error) => {
+                                // Log but don't fail - title generation is optional
+                                console.error('Failed to generate session title:', error);
+                            });
+                        }
 
                         // Response will come via event bus
                         // SUBMIT_COMPLETE will be dispatched by event handler
@@ -210,11 +231,12 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Only enable history navigation when not processing and no overlay
         const canNavigateHistory = !ui.isProcessing && !approval && ui.activeOverlay === 'none';
 
-        // Disable input only for processing/approval states
+        // Disable input only for approval states
+        // Allow typing during processing, but handleSubmit will prevent submission
         // Note: We no longer disable for overlays because:
         // 1. We use a unified orchestrator (no useInput conflicts)
         // 2. Overlay handlers return false for unhandled keys, allowing fall-through
-        const isInputDisabled = ui.isProcessing || !!approval;
+        const isInputDisabled = !!approval;
 
         return (
             <InputArea

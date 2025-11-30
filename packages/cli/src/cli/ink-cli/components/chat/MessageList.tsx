@@ -36,7 +36,7 @@ export function MessageList({ messages, maxVisible = 50 }: MessageListProps) {
             )}
             {visibleMessages.length === 0 && (
                 <Box marginY={2}>
-                    <Text dimColor>
+                    <Text color="greenBright">
                         Welcome to Dexto CLI! Type your message below or use /help for commands.
                     </Text>
                 </Box>

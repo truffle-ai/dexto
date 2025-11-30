@@ -275,7 +275,7 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
 
         if (isLoading) {
             return (
-                <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
+                <Box paddingX={0} paddingY={0}>
                     <Text dimColor>Loading resources...</Text>
                 </Box>
             );
@@ -283,7 +283,7 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
 
         if (filteredResources.length === 0) {
             return (
-                <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
+                <Box paddingX={0} paddingY={0}>
                     <Text dimColor>
                         {mentionQuery
                             ? `No resources match "${mentionQuery}"`
@@ -293,28 +293,16 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
             );
         }
 
-        const hasMoreAbove = scrollOffset > 0;
-        const hasMoreBelow = scrollOffset + MAX_VISIBLE_ITEMS < filteredResources.length;
         const totalItems = filteredResources.length;
 
         return (
-            <Box
-                borderStyle="single"
-                borderColor="yellow"
-                flexDirection="column"
-                height={MAX_VISIBLE_ITEMS + 3}
-            >
-                <Box paddingX={1} paddingY={0}>
-                    <Text dimColor>
-                        Resources ({selectedIndex + 1}/{totalItems}) - ↑↓ to navigate, Tab to load,
-                        Enter to select, Esc to close
+            <Box flexDirection="column">
+                <Box paddingX={0} paddingY={0}>
+                    <Text color="yellow" bold>
+                        Resources ({selectedIndex + 1}/{totalItems}) - ↑↓ navigate, Tab load, Enter
+                        select, Esc close
                     </Text>
                 </Box>
-                {hasMoreAbove && (
-                    <Box paddingX={1} paddingY={0}>
-                        <Text dimColor>... ↑ ({scrollOffset} more above)</Text>
-                    </Box>
-                )}
                 {visibleResources.map((resource, visibleIndex) => {
                     const actualIndex = scrollOffset + visibleIndex;
                     const isSelected = actualIndex === selectedIndex;
@@ -324,24 +312,19 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
                     const isImage = (resource.mimeType || '').startsWith('image/');
 
                     return (
-                        <Box
-                            key={resource.uri}
-                            paddingX={1}
-                            paddingY={0}
-                            backgroundColor={isSelected ? 'yellow' : undefined}
-                        >
+                        <Box key={resource.uri} paddingX={0} paddingY={0}>
                             <Box flexDirection="column">
                                 <Box>
                                     {isImage && (
-                                        <Text color={isSelected ? 'black' : 'gray'}>🖼️ </Text>
+                                        <Text color={isSelected ? 'cyan' : 'gray'}>🖼️ </Text>
                                     )}
-                                    <Text color={isSelected ? 'black' : 'gray'} bold={isSelected}>
+                                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                         {displayName}
                                     </Text>
                                     {resource.serverName && (
                                         <Box marginLeft={1}>
                                             <Text
-                                                color={isSelected ? 'black' : 'gray'}
+                                                color={isSelected ? 'white' : 'gray'}
                                                 dimColor={!isSelected}
                                             >
                                                 [{resource.serverName}]
@@ -351,7 +334,7 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
                                 </Box>
                                 <Box marginLeft={isImage ? 3 : 0}>
                                     <Text
-                                        color={isSelected ? 'black' : 'gray'}
+                                        color={isSelected ? 'white' : 'gray'}
                                         dimColor={!isSelected}
                                     >
                                         {resource.uri}
@@ -360,7 +343,7 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
                                 {resource.description && (
                                     <Box marginLeft={isImage ? 3 : 0}>
                                         <Text
-                                            color={isSelected ? 'black' : 'gray'}
+                                            color={isSelected ? 'white' : 'gray'}
                                             dimColor={!isSelected}
                                         >
                                             {resource.description}
@@ -371,13 +354,6 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
                         </Box>
                     );
                 })}
-                {hasMoreBelow && (
-                    <Box paddingX={1} paddingY={0}>
-                        <Text dimColor>
-                            ... ↓ ({totalItems - scrollOffset - MAX_VISIBLE_ITEMS} more below)
-                        </Text>
-                    </Box>
-                )}
             </Box>
         );
     }

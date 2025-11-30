@@ -91,13 +91,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const command = approval.metadata.command as string | undefined;
 
         return (
-            <Box
-                borderStyle="single"
-                borderColor="yellow"
-                paddingX={1}
-                paddingY={0}
-                flexDirection="column"
-            >
+            <Box paddingX={0} paddingY={0} flexDirection="column">
                 {/* Compact header with context */}
                 <Box flexDirection="column" marginBottom={0}>
                     <Box flexDirection="row">
