@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TurnExecutor } from './turn-executor.js';
-import type { LanguageModel, ProviderMetadata } from 'ai';
+import type { LanguageModel } from 'ai';
 import type { ContextManager } from '../../context/manager.js';
 import type { ToolManager } from '../../tools/tool-manager.js';
 import type { SessionEventBus } from '../../events/index.js';
@@ -8,9 +8,13 @@ import type { ResourceManager } from '../../resources/index.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import type { LLMContext, LLMRouter } from '../types.js';
-import type { Message } from '../../context/types.js';
+import type { InternalMessage, TextPart } from '../../context/types.js';
 import type { ModelLimits } from '../../context/compression/overflow.js';
 import type { CoalescedMessage } from '../../session/types.js';
+import type { DynamicContributorContext } from '../../systemPrompt/types.js';
+
+// Local type alias for test readability
+type Message = InternalMessage;
 
 // Mock dependencies
 vi.mock('ai', () => ({
@@ -203,8 +207,10 @@ describe('TurnExecutor', () => {
     const defaultLLMContext: LLMContext = {
         provider: 'openai',
         model: 'gpt-4',
-        maxOutputTokens: 4096,
     };
+
+    // Mock for DynamicContributorContext - empty object satisfies the interface for testing
+    const mockContributorContext = {} as DynamicContributorContext;
 
     const defaultRouter: LLMRouter = 'vercel';
 
@@ -222,9 +228,10 @@ describe('TurnExecutor', () => {
         // Default mock for streamText
         vi.mocked(streamText).mockImplementation(
             () =>
-                createMockStreamResult({ text: 'Hello', finishReason: 'stop' }) as ReturnType<
-                    typeof streamText
-                >
+                createMockStreamResult({
+                    text: 'Hello',
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>
         );
 
         executor = new TurnExecutor(
@@ -248,7 +255,7 @@ describe('TurnExecutor', () => {
 
     describe('Basic Execution', () => {
         it('should execute a single step and return result', async () => {
-            const result = await executor.execute({}, true);
+            const result = await executor.execute(mockContributorContext, true);
 
             expect(result.finishReason).toBe('stop');
             expect(result.stepCount).toBe(0);
@@ -261,20 +268,20 @@ describe('TurnExecutor', () => {
         });
 
         it('should emit llm:thinking event at start', async () => {
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(mockEventBus.emit).toHaveBeenCalledWith('llm:thinking');
         });
 
         it('should call getFormattedMessagesWithCompression for each step', async () => {
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(mockContextManager.getFormattedMessagesWithCompression).toHaveBeenCalled();
         });
 
         it('should pass streaming flag to StreamProcessor', async () => {
             // Execute with streaming = false
-            await executor.execute({}, false);
+            await executor.execute(mockContributorContext, false);
 
             // StreamProcessor should not emit chunk events
             expect(mockEventBus.emit).not.toHaveBeenCalledWith('llm:chunk', expect.anything());
@@ -297,15 +304,15 @@ describe('TurnExecutor', () => {
                                 input: {},
                             },
                         ],
-                    }) as ReturnType<typeof streamText>;
+                    }) as unknown as ReturnType<typeof streamText>;
                 }
                 return createMockStreamResult({
                     text: 'Final',
                     finishReason: 'stop',
-                }) as ReturnType<typeof streamText>;
+                }) as unknown as ReturnType<typeof streamText>;
             });
 
-            const result = await executor.execute({}, true);
+            const result = await executor.execute(mockContributorContext, true);
 
             expect(result.finishReason).toBe('stop');
             expect(result.stepCount).toBe(2); // Two tool-call steps before stop
@@ -334,10 +341,10 @@ describe('TurnExecutor', () => {
                         text: 'Tool step',
                         finishReason: 'tool-calls',
                         toolCalls: [{ toolCallId: 'call-1', toolName: 'test', input: {} }],
-                    }) as ReturnType<typeof streamText>
+                    }) as unknown as ReturnType<typeof streamText>
             );
 
-            const result = await limitedExecutor.execute({}, true);
+            const result = await limitedExecutor.execute(mockContributorContext, true);
 
             // Should stop after 2 steps (maxSteps=2)
             expect(result.stepCount).toBe(2);
@@ -373,7 +380,7 @@ describe('TurnExecutor', () => {
 
     describe('Tool Support Validation', () => {
         it('should skip tool validation for providers without baseURL', async () => {
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             // generateText should not be called for validation
             expect(generateText).not.toHaveBeenCalled();
@@ -398,7 +405,7 @@ describe('TurnExecutor', () => {
                 {} as Awaited<ReturnType<typeof generateText>>
             );
 
-            await executorWithBaseURL.execute({}, true);
+            await executorWithBaseURL.execute(mockContributorContext, true);
 
             // generateText should be called to test tool support
             expect(generateText).toHaveBeenCalledWith(
@@ -429,7 +436,7 @@ describe('TurnExecutor', () => {
                 createMockMessageQueue()
             );
 
-            await executor1.execute({}, true);
+            await executor1.execute(mockContributorContext, true);
 
             // Create second executor with same baseURL - should use cache
             const executor2 = new TurnExecutor(
@@ -446,7 +453,7 @@ describe('TurnExecutor', () => {
                 createMockMessageQueue()
             );
 
-            await executor2.execute({}, true);
+            await executor2.execute(mockContributorContext, true);
 
             // generateText should only be called once due to caching (same baseURL)
             expect(generateText).toHaveBeenCalledTimes(1);
@@ -469,7 +476,7 @@ describe('TurnExecutor', () => {
 
             vi.mocked(generateText).mockRejectedValue(new Error('Model does not support tools'));
 
-            await executorWithBaseURL.execute({}, true);
+            await executorWithBaseURL.execute(mockContributorContext, true);
 
             // Should still execute but with empty tools
             expect(streamText).toHaveBeenCalledWith(
@@ -510,7 +517,7 @@ describe('TurnExecutor', () => {
                 mockMessageQueue
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(mockToolManager.getAllTools).toHaveBeenCalled();
             expect(streamText).toHaveBeenCalledWith(
@@ -625,17 +632,18 @@ describe('TurnExecutor', () => {
 
     describe('Message Queue Injection', () => {
         it('should inject queued messages at start of step', async () => {
+            const now = Date.now();
             const queuedMessage: CoalescedMessage = {
-                combinedContent: 'User guidance: Focus on performance',
+                combinedContent: [{ type: 'text', text: 'User guidance: Focus on performance' }],
                 messages: [
                     {
                         id: 'msg-1',
-                        content: 'Focus on performance',
-                        queuedAt: new Date(),
+                        content: [{ type: 'text', text: 'Focus on performance' }],
+                        queuedAt: now,
                     },
                 ],
-                firstQueuedAt: new Date(),
-                lastQueuedAt: new Date(),
+                firstQueuedAt: now,
+                lastQueuedAt: now,
             };
 
             mockMessageQueue = createMockMessageQueue(queuedMessage);
@@ -653,12 +661,12 @@ describe('TurnExecutor', () => {
                 mockMessageQueue
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(mockContextManager.addMessage).toHaveBeenCalledWith(
                 expect.objectContaining({
                     role: 'user',
-                    content: 'User guidance: Focus on performance',
+                    content: [{ type: 'text', text: 'User guidance: Focus on performance' }],
                     metadata: expect.objectContaining({
                         coalesced: false,
                         messageCount: 1,
@@ -668,14 +676,15 @@ describe('TurnExecutor', () => {
         });
 
         it('should coalesce multiple queued messages', async () => {
+            const now = Date.now();
             const queuedMessage: CoalescedMessage = {
-                combinedContent: 'Message 1\n\nMessage 2',
+                combinedContent: [{ type: 'text', text: 'Message 1\n\nMessage 2' }],
                 messages: [
-                    { id: 'msg-1', content: 'Message 1', queuedAt: new Date() },
-                    { id: 'msg-2', content: 'Message 2', queuedAt: new Date() },
+                    { id: 'msg-1', content: [{ type: 'text', text: 'Message 1' }], queuedAt: now },
+                    { id: 'msg-2', content: [{ type: 'text', text: 'Message 2' }], queuedAt: now },
                 ],
-                firstQueuedAt: new Date(),
-                lastQueuedAt: new Date(),
+                firstQueuedAt: now,
+                lastQueuedAt: now,
             };
 
             mockMessageQueue = createMockMessageQueue(queuedMessage);
@@ -693,7 +702,7 @@ describe('TurnExecutor', () => {
                 mockMessageQueue
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(mockContextManager.addMessage).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -716,10 +725,10 @@ describe('TurnExecutor', () => {
                         text: 'Response',
                         finishReason: 'stop',
                         usage: { inputTokens: 95000, outputTokens: 1000, totalTokens: 96000 },
-                    }) as ReturnType<typeof streamText>
+                    }) as unknown as ReturnType<typeof streamText>
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             // No compression event should be emitted
             expect(mockEventBus.emit).not.toHaveBeenCalledWith(
@@ -750,7 +759,7 @@ describe('TurnExecutor', () => {
             );
 
             // Execute normally - compression won't trigger with low token usage
-            await executorWithLimits.execute({}, true);
+            await executorWithLimits.execute(mockContributorContext, true);
 
             // Executor should complete without errors when model limits are provided
             expect(mockEventBus.emit).toHaveBeenCalledWith('llm:thinking');
@@ -768,15 +777,15 @@ describe('TurnExecutor', () => {
                         text: 'Step 1',
                         finishReason: 'tool-calls',
                         toolCalls: [{ toolCallId: 'call-1', toolName: 'test', input: {} }],
-                    }) as ReturnType<typeof streamText>;
+                    }) as unknown as ReturnType<typeof streamText>;
                 }
                 return createMockStreamResult({
                     text: 'Done',
                     finishReason: 'stop',
-                }) as ReturnType<typeof streamText>;
+                }) as unknown as ReturnType<typeof streamText>;
             });
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             // getHistory is called for pruning check after tool-calls step
             expect(mockContextManager.getHistory).toHaveBeenCalled();
@@ -823,14 +832,14 @@ describe('TurnExecutor', () => {
                     return createMockStreamResult({
                         finishReason: 'tool-calls',
                         toolCalls: [{ toolCallId: 'call-1', toolName: 'test', input: {} }],
-                    }) as ReturnType<typeof streamText>;
+                    }) as unknown as ReturnType<typeof streamText>;
                 }
-                return createMockStreamResult({ finishReason: 'stop' }) as ReturnType<
+                return createMockStreamResult({ finishReason: 'stop' }) as unknown as ReturnType<
                     typeof streamText
                 >;
             });
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             // markMessagesAsCompacted should only consider messages after summary
             // In this case, only 1 tool message after summary
@@ -862,7 +871,7 @@ describe('TurnExecutor', () => {
                 mockMessageQueue
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             // Should not try to prune already-pruned messages
             expect(mockContextManager.markMessagesAsCompacted).not.toHaveBeenCalled();
@@ -884,7 +893,7 @@ describe('TurnExecutor', () => {
                 throw rateLimitError;
             });
 
-            await expect(executor.execute({}, true)).rejects.toMatchObject({
+            await expect(executor.execute(mockContributorContext, true)).rejects.toMatchObject({
                 code: 'llm_rate_limit_exceeded',
                 type: 'rate_limit',
             });
@@ -904,7 +913,7 @@ describe('TurnExecutor', () => {
                 throw timeoutError;
             });
 
-            await expect(executor.execute({}, true)).rejects.toMatchObject({
+            await expect(executor.execute(mockContributorContext, true)).rejects.toMatchObject({
                 code: 'llm_generation_failed',
                 type: 'timeout',
             });
@@ -924,7 +933,7 @@ describe('TurnExecutor', () => {
                 throw serverError;
             });
 
-            await expect(executor.execute({}, true)).rejects.toMatchObject({
+            await expect(executor.execute(mockContributorContext, true)).rejects.toMatchObject({
                 code: 'llm_generation_failed',
                 type: 'third_party',
             });
@@ -935,7 +944,7 @@ describe('TurnExecutor', () => {
                 throw new Error('Unexpected error');
             });
 
-            await expect(executor.execute({}, true)).rejects.toThrow();
+            await expect(executor.execute(mockContributorContext, true)).rejects.toThrow();
 
             expect(mockEventBus.emit).toHaveBeenCalledWith(
                 'llm:error',
@@ -968,10 +977,10 @@ describe('TurnExecutor', () => {
                             outputTokens: 50,
                             totalTokens: 150,
                         },
-                    }) as ReturnType<typeof streamText>
+                    }) as unknown as ReturnType<typeof streamText>
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(mockSpan.setAttribute).toHaveBeenCalledWith('gen_ai.usage.input_tokens', 100);
             expect(mockSpan.setAttribute).toHaveBeenCalledWith('gen_ai.usage.output_tokens', 50);
@@ -1003,10 +1012,10 @@ describe('TurnExecutor', () => {
                             },
                         };
                     })(),
-                } as ReturnType<typeof streamText>;
+                } as unknown as ReturnType<typeof streamText>;
             });
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(mockSpan.setAttribute).toHaveBeenCalledWith('gen_ai.usage.reasoning_tokens', 20);
         });
@@ -1014,7 +1023,7 @@ describe('TurnExecutor', () => {
 
     describe('Cleanup', () => {
         it('should cleanup on normal completion', async () => {
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             // Message queue should be cleared
             expect(mockMessageQueue.clear).toHaveBeenCalled();
@@ -1025,7 +1034,7 @@ describe('TurnExecutor', () => {
                 throw new Error('Test error');
             });
 
-            await expect(executor.execute({}, true)).rejects.toThrow();
+            await expect(executor.execute(mockContributorContext, true)).rejects.toThrow();
 
             // Message queue should be cleared even on error
             expect(mockMessageQueue.clear).toHaveBeenCalled();
@@ -1033,7 +1042,7 @@ describe('TurnExecutor', () => {
 
         it('should abort pending operations on cleanup', async () => {
             // Execute normally - cleanup should abort controller
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             // After execution, abort controller should be aborted
             // (This is internal state, tested via side effects)
@@ -1058,7 +1067,7 @@ describe('TurnExecutor', () => {
                 mockMessageQueue
             );
 
-            const result = await executor.execute({}, true);
+            const result = await executor.execute(mockContributorContext, true);
 
             expect(result.finishReason).toBe('stop');
             expect(streamText).toHaveBeenCalledWith(
@@ -1083,10 +1092,10 @@ describe('TurnExecutor', () => {
                             },
                         };
                     })(),
-                } as ReturnType<typeof streamText>;
+                } as unknown as ReturnType<typeof streamText>;
             });
 
-            const result = await executor.execute({}, true);
+            const result = await executor.execute(mockContributorContext, true);
 
             expect(result.usage).toEqual({
                 inputTokens: 0,
@@ -1116,7 +1125,7 @@ describe('TurnExecutor', () => {
                 mockMessageQueue
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
             expect(streamText).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -1146,9 +1155,10 @@ describe('TurnExecutor', () => {
                 mockMessageQueue
             );
 
-            await executor.execute({}, true);
+            await executor.execute(mockContributorContext, true);
 
-            const streamTextCall = vi.mocked(streamText).mock.calls[0][0];
+            const streamTextCall = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(streamTextCall).toBeDefined();
             expect(streamTextCall).not.toHaveProperty('maxOutputTokens');
             expect(streamTextCall).not.toHaveProperty('temperature');
         });
