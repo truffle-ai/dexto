@@ -60,6 +60,19 @@ export interface ToolResult {
 }
 
 /**
+ * Extended tool execution result with approval metadata.
+ * Returned by ToolManager.executeTool() to include approval tracking.
+ */
+export interface ToolExecutionResult {
+    /** The actual result data from tool execution */
+    result: unknown;
+    /** Whether this tool required user approval before execution */
+    requireApproval?: boolean;
+    /** The approval status (only present if requireApproval is true) */
+    approvalStatus?: 'approved' | 'rejected';
+}
+
+/**
  * Interface for any provider of tools
  */
 export interface ToolProvider {

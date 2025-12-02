@@ -328,7 +328,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 { path: '/test' },
                 undefined
             );
-            expect(result).toBe('success');
+            expect(result.result).toBe('success');
         });
 
         it('should skip confirmation for tools in allowed list', async () => {
@@ -353,7 +353,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 undefined
             );
             expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
-            expect(result).toBe('success');
+            expect(result.result).toBe('success');
         });
 
         it('should auto-approve when mode is auto-approve', async () => {
@@ -374,7 +374,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
             expect(mockMcpManager.executeTool).toHaveBeenCalled();
-            expect(result).toBe('success');
+            expect(result.result).toBe('success');
         });
 
         it('should auto-deny when mode is auto-deny', async () => {
@@ -711,7 +711,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                     'filesystem--read_file',
@@ -745,7 +745,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
                     'mcp--filesystem--read_file',
                     undefined
@@ -780,7 +780,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
             });
         });
@@ -831,7 +831,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockMcpManager.executeTool).toHaveBeenCalled();
             });
         });
@@ -858,7 +858,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockMcpManager.executeTool).toHaveBeenCalled();
             });
 
@@ -910,7 +910,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
             });
 
@@ -941,7 +941,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
             });
         });
@@ -998,7 +998,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 const result = await toolManager.executeTool('mcp--read_file', { path: '/test' });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
             });
 
@@ -1024,7 +1024,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     path: '/test',
                 });
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                     'filesystem--read_file',
@@ -1110,7 +1110,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 // This should NOT match because it doesn't end with --read_file
                 const result = await toolManager.executeTool('mcp--read_file_metadata', {});
 
-                expect(result).toBe('success');
+                expect(result.result).toBe('success');
                 // Should require approval since it doesn't match the policy
                 expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
             });

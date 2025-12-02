@@ -229,15 +229,15 @@ export class AnthropicService implements ILLMService {
                         await this.contextManager.addAssistantMessage(
                             textContent,
                             formattedToolCalls,
-                            {
-                                tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-                            }
+                            totalTokens > 0 ? { tokenUsage: { totalTokens } } : undefined
                         );
                     } else {
                         // Add regular assistant message
-                        await this.contextManager.addAssistantMessage(textContent, undefined, {
-                            tokenUsage: totalTokens > 0 ? { totalTokens } : undefined,
-                        });
+                        await this.contextManager.addAssistantMessage(
+                            textContent,
+                            undefined,
+                            totalTokens > 0 ? { tokenUsage: { totalTokens } } : undefined
+                        );
                     }
 
                     // If no tools were used, we're done
@@ -293,18 +293,19 @@ export class AnthropicService implements ILLMService {
 
                         // Execute tool
                         try {
-                            const result = await this.toolManager.executeTool(
-                                toolName,
-                                args,
-                                this.sessionId
-                            );
+                            const { result, requireApproval, approvalStatus } =
+                                await this.toolManager.executeTool(toolName, args, this.sessionId);
 
-                            // Add tool result to message manager
+                            // Add tool result to message manager (includes approval metadata)
                             const sanitized = await this.contextManager.addToolResult(
                                 toolUseId,
                                 toolName,
                                 result,
-                                { success: true }
+                                {
+                                    success: true,
+                                    ...(requireApproval !== undefined && { requireApproval }),
+                                    ...(approvalStatus !== undefined && { approvalStatus }),
+                                }
                             );
 
                             // Notify tool result
@@ -313,6 +314,8 @@ export class AnthropicService implements ILLMService {
                                 callId: toolUseId,
                                 success: true,
                                 sanitized,
+                                ...(requireApproval !== undefined && { requireApproval }),
+                                ...(approvalStatus !== undefined && { approvalStatus }),
                                 ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
                             });
                         } catch (error) {

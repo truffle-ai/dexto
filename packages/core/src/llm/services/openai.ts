@@ -178,17 +178,20 @@ export class OpenAIService implements ILLMService {
                         const finalContent = stream ? fullResponse + responseText : responseText;
 
                         // Add assistant message to history (include streamed prefix if any)
-                        await this.contextManager.addAssistantMessage(finalContent, undefined, {
-                            tokenUsage:
-                                totalTokens > 0
-                                    ? {
+                        await this.contextManager.addAssistantMessage(
+                            finalContent,
+                            undefined,
+                            totalTokens > 0
+                                ? {
+                                      tokenUsage: {
                                           totalTokens,
                                           inputTokens,
                                           outputTokens,
                                           reasoningTokens,
-                                      }
-                                    : undefined,
-                        });
+                                      },
+                                  }
+                                : undefined
+                        );
 
                         // Update ContextManager with actual token count
                         if (totalTokens > 0) {
@@ -306,18 +309,19 @@ export class OpenAIService implements ILLMService {
 
                         // Execute tool
                         try {
-                            const result = await this.toolManager.executeTool(
-                                toolName,
-                                args,
-                                this.sessionId
-                            );
+                            const { result, requireApproval, approvalStatus } =
+                                await this.toolManager.executeTool(toolName, args, this.sessionId);
 
-                            // Add tool result to message manager
+                            // Add tool result to message manager (includes approval metadata)
                             const sanitized = await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
                                 result,
-                                { success: true }
+                                {
+                                    success: true,
+                                    ...(requireApproval !== undefined && { requireApproval }),
+                                    ...(approvalStatus !== undefined && { approvalStatus }),
+                                }
                             );
 
                             // Notify tool result
@@ -326,6 +330,8 @@ export class OpenAIService implements ILLMService {
                                 callId: toolCall.id,
                                 success: true,
                                 sanitized,
+                                ...(requireApproval !== undefined && { requireApproval }),
+                                ...(approvalStatus !== undefined && { approvalStatus }),
                                 ...(shouldIncludeRawToolResult() ? { rawResult: result } : {}),
                             });
                         } catch (error) {
@@ -365,17 +371,20 @@ export class OpenAIService implements ILLMService {
                 );
                 const finalResponse =
                     fullResponse || 'Task completed but reached maximum tool call iterations.';
-                await this.contextManager.addAssistantMessage(finalResponse, undefined, {
-                    tokenUsage:
-                        totalTokens > 0
-                            ? {
+                await this.contextManager.addAssistantMessage(
+                    finalResponse,
+                    undefined,
+                    totalTokens > 0
+                        ? {
+                              tokenUsage: {
                                   totalTokens,
                                   inputTokens,
                                   outputTokens,
                                   reasoningTokens,
-                              }
-                            : undefined,
-                });
+                              },
+                          }
+                        : undefined
+                );
 
                 // Update ContextManager with actual token count
                 if (totalTokens > 0) {

@@ -114,17 +114,8 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     toolResult?: ToolResult;
     toolResultMeta?: SanitizedToolResult['meta'];
     toolResultSuccess?: boolean;
-    tokenUsage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        reasoningTokens?: number;
-        totalTokens?: number;
-    };
-    reasoning?: string;
-    model?: string;
-    provider?: LLMProvider;
-    router?: LLMRouter;
     sessionId?: string;
+    // Note: tokenUsage, reasoning, model, provider, router are now in metadata field (inherited from InternalMessage)
 }
 
 // Separate error state interface
@@ -293,7 +284,10 @@ export function useChat(
                             if (last && last.role === 'assistant') {
                                 const updated = {
                                     ...last,
-                                    reasoning: (last.reasoning || '') + text,
+                                    metadata: {
+                                        ...last.metadata,
+                                        reasoning: (last.metadata?.reasoning || '') + text,
+                                    },
                                     createdAt: Date.now(),
                                 };
                                 return [...ms.slice(0, -1), updated];
@@ -304,7 +298,7 @@ export function useChat(
                                     id: generateUniqueId(),
                                     role: 'assistant',
                                     content: '',
-                                    reasoning: text,
+                                    metadata: { reasoning: text },
                                     createdAt: Date.now(),
                                 },
                             ];
@@ -350,10 +344,13 @@ export function useChat(
                             const updatedMsg: Message = {
                                 ...lastMsg,
                                 content: finalContent,
-                                tokenUsage: usage,
-                                ...(model && { model }),
-                                ...(provider && { provider }),
-                                ...(router && { router }),
+                                metadata: {
+                                    ...lastMsg.metadata,
+                                    ...(usage && { tokenUsage: usage }),
+                                    ...(model && { model }),
+                                    ...(provider && { provider }),
+                                    ...(router && { router }),
+                                },
                                 createdAt: Date.now(),
                             };
                             return [...ms.slice(0, -1), updatedMsg];
@@ -589,11 +586,21 @@ export function useChat(
                             content: data.response || '',
                             createdAt: Date.now(),
                             sessionId,
-                            ...(data.tokenUsage && { tokenUsage: data.tokenUsage }),
-                            ...(data.reasoning && { reasoning: data.reasoning }),
-                            ...(data.model && { model: data.model }),
-                            ...(data.provider && { provider: data.provider }),
-                            ...(data.router && { router: data.router }),
+                            ...(data.tokenUsage ||
+                            data.reasoning ||
+                            data.model ||
+                            data.provider ||
+                            data.router
+                                ? {
+                                      metadata: {
+                                          ...(data.tokenUsage && { tokenUsage: data.tokenUsage }),
+                                          ...(data.reasoning && { reasoning: data.reasoning }),
+                                          ...(data.model && { model: data.model }),
+                                          ...(data.provider && { provider: data.provider }),
+                                          ...(data.router && { router: data.router }),
+                                      },
+                                  }
+                                : {}),
                         },
                     ]);
 

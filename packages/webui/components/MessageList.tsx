@@ -609,8 +609,8 @@ export default function MessageList({
                                         <div className={cn(contentWrapperClass, 'min-w-0')}>
                                             {/* Reasoning panel (assistant only) - display at top */}
                                             {isAi &&
-                                                typeof msg.reasoning === 'string' &&
-                                                msg.reasoning.trim().length > 0 && (
+                                                typeof msg.metadata?.reasoning === 'string' &&
+                                                msg.metadata.reasoning.trim().length > 0 && (
                                                     <div className="mb-3 border border-orange-200/50 dark:border-orange-400/20 rounded-lg bg-gradient-to-br from-orange-50/30 to-amber-50/20 dark:from-orange-900/20 dark:to-amber-900/10">
                                                         <div className="px-3 py-2 border-b border-orange-200/30 dark:border-orange-400/20 bg-orange-100/50 dark:bg-orange-900/30 rounded-t-lg flex items-center justify-between">
                                                             <button
@@ -638,13 +638,13 @@ export default function MessageList({
                                                             </button>
                                                             <div className="flex items-center gap-1">
                                                                 <CopyButton
-                                                                    value={msg.reasoning}
+                                                                    value={msg.metadata.reasoning}
                                                                     tooltip="Copy reasoning"
                                                                     copiedTooltip="Copied!"
                                                                     className="opacity-70 hover:opacity-100 transition-opacity"
                                                                 />
                                                                 <SpeakButton
-                                                                    value={msg.reasoning}
+                                                                    value={msg.metadata.reasoning}
                                                                     tooltip="Speak reasoning"
                                                                     stopTooltip="Stop"
                                                                     className="opacity-70 hover:opacity-100 transition-opacity"
@@ -654,7 +654,7 @@ export default function MessageList({
                                                         {(reasoningExpanded[msgKey] ?? true) && (
                                                             <div className="px-3 py-2">
                                                                 <pre className="whitespace-pre-wrap break-words text-xs text-orange-800/80 dark:text-orange-200/70 leading-relaxed font-mono">
-                                                                    {msg.reasoning}
+                                                                    {msg.metadata.reasoning}
                                                                 </pre>
                                                             </div>
                                                         )}
@@ -1217,76 +1217,90 @@ export default function MessageList({
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span>{timestampStr}</span>
                                                 {isAi &&
-                                                    msg.tokenUsage?.totalTokens !== undefined && (
+                                                    msg.metadata?.tokenUsage?.totalTokens !==
+                                                        undefined && (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-xs cursor-default">
                                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                                    {msg.tokenUsage.totalTokens}{' '}
+                                                                    {
+                                                                        msg.metadata.tokenUsage
+                                                                            .totalTokens
+                                                                    }{' '}
                                                                     tokens
                                                                 </span>
                                                             </TooltipTrigger>
                                                             <TooltipContent side="bottom">
                                                                 <div className="flex flex-col gap-0.5">
-                                                                    {msg.tokenUsage.inputTokens !==
+                                                                    {msg.metadata.tokenUsage
+                                                                        .inputTokens !==
                                                                         undefined && (
                                                                         <div>
                                                                             Input:{' '}
                                                                             {
-                                                                                msg.tokenUsage
+                                                                                msg.metadata
+                                                                                    .tokenUsage
                                                                                     .inputTokens
                                                                             }
                                                                         </div>
                                                                     )}
-                                                                    {msg.tokenUsage.outputTokens !==
+                                                                    {msg.metadata.tokenUsage
+                                                                        .outputTokens !==
                                                                         undefined && (
                                                                         <div>
                                                                             Output:{' '}
                                                                             {
-                                                                                msg.tokenUsage
+                                                                                msg.metadata
+                                                                                    .tokenUsage
                                                                                     .outputTokens
                                                                             }
                                                                         </div>
                                                                     )}
-                                                                    {msg.tokenUsage
+                                                                    {msg.metadata.tokenUsage
                                                                         .reasoningTokens !==
                                                                         undefined && (
                                                                         <div>
                                                                             Reasoning:{' '}
                                                                             {
-                                                                                msg.tokenUsage
+                                                                                msg.metadata
+                                                                                    .tokenUsage
                                                                                     .reasoningTokens
                                                                             }
                                                                         </div>
                                                                     )}
                                                                     <div className="font-medium mt-0.5">
                                                                         Total:{' '}
-                                                                        {msg.tokenUsage.totalTokens}
+                                                                        {
+                                                                            msg.metadata.tokenUsage
+                                                                                .totalTokens
+                                                                        }
                                                                     </div>
                                                                 </div>
                                                             </TooltipContent>
                                                         </Tooltip>
                                                     )}
-                                                {isAi && msg.model && (
+                                                {isAi && msg.metadata?.model && (
                                                     <Tooltip>
                                                         <TooltipTrigger>
                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs cursor-default">
-                                                                {msg.model}
+                                                                {msg.metadata.model}
                                                             </span>
                                                         </TooltipTrigger>
                                                         <TooltipContent side="bottom">
                                                             <div className="space-y-1">
                                                                 <div className="font-medium">
-                                                                    Model: {msg.model}
+                                                                    Model: {msg.metadata.model}
                                                                 </div>
-                                                                {msg.provider && (
+                                                                {msg.metadata.provider && (
                                                                     <div className="font-medium">
-                                                                        Provider: {msg.provider}
+                                                                        Provider:{' '}
+                                                                        {msg.metadata.provider}
                                                                     </div>
                                                                 )}
-                                                                {msg.router && (
+                                                                {msg.metadata.router && (
                                                                     <div className="font-medium">
-                                                                        Router: {msg.router}
+                                                                        Router:{' '}
+                                                                        {msg.metadata.router}
                                                                     </div>
                                                                 )}
                                                             </div>

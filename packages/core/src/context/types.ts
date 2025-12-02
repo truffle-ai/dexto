@@ -48,6 +48,61 @@ export interface SanitizedToolResult {
     };
 }
 
+/**
+ * Token usage accounting for LLM responses
+ */
+export interface TokenUsage {
+    inputTokens?: number;
+    outputTokens?: number;
+    reasoningTokens?: number;
+    totalTokens?: number;
+}
+
+/**
+ * Tool approval tracking metadata
+ */
+export interface ApprovalMetadata {
+    /** Whether this tool call required user approval before execution */
+    requireApproval?: boolean;
+    /** The approval status (only present if requireApproval is true) */
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+}
+
+/**
+ * LLM execution metadata
+ */
+export interface LLMMetadata {
+    /** Model identifier for assistant messages */
+    model?: string;
+    /** Provider identifier for assistant messages */
+    provider?: LLMProvider;
+    /** Router metadata for assistant messages */
+    router?: LLMRouter;
+}
+
+/**
+ * Extensible metadata for messages.
+ * Allows adding new features without modifying the core InternalMessage type.
+ */
+export interface MessageMetadata extends ApprovalMetadata, LLMMetadata {
+    /** Token usage accounting for this assistant response */
+    tokenUsage?: TokenUsage;
+
+    /** Model reasoning text associated with an assistant response */
+    reasoning?: string;
+
+    // Future extensibility: branching, editing, versioning, etc.
+    /** Parent message ID for branching/threading */
+    parentMessageId?: string;
+    /** Edit timestamp if message was edited */
+    editedAt?: number;
+    /** Branch ID for conversation branching */
+    branchId?: string;
+
+    /** Allow custom metadata fields for future extensions */
+    [key: string]: unknown;
+}
+
 export interface InternalMessage {
     /**
      * Unique message identifier (UUID).
@@ -77,37 +132,6 @@ export interface InternalMessage {
      * - null if an assistant message only contains tool calls.
      */
     content: string | null | Array<TextPart | ImagePart | FilePart>;
-
-    /**
-     * Optional model reasoning text associated with an assistant response.
-     * Present when the provider supports reasoning and returns a final reasoning trace.
-     */
-    reasoning?: string;
-
-    /**
-     * Optional token usage accounting for this assistant response.
-     */
-    tokenUsage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        reasoningTokens?: number;
-        totalTokens?: number;
-    };
-
-    /**
-     * Optional model identifier for assistant messages.
-     * Indicates which LLM model generated this response.
-     */
-    model?: string;
-
-    /** Optional provider identifier for assistant messages. */
-    provider?: LLMProvider;
-
-    /**
-     * Optional router metadata for assistant messages.
-     * Indicates which router was used to route the request.
-     */
-    router?: LLMRouter;
 
     /**
      * Tool calls made by the assistant.
@@ -151,4 +175,13 @@ export interface InternalMessage {
      * Only present in tool messages.
      */
     name?: string;
+
+    /**
+     * Extensible metadata for the message.
+     * Contains approval tracking, LLM metadata, token usage, and custom fields.
+     *
+     * This field enables adding new features without modifying the core type.
+     * New metadata should be added here instead of as top-level fields.
+     */
+    metadata?: MessageMetadata;
 }
