@@ -426,13 +426,19 @@ export class ContextManager<TMessage = unknown> {
                     }
                 }
 
-                // Enrich assistant messages with LLM config metadata
+                // Enrich assistant messages with LLM config metadata (only if not already set by formatter)
                 if (!message.metadata) {
                     message.metadata = {};
                 }
-                message.metadata.provider = this.llmConfig.provider;
-                message.metadata.router = this.llmConfig.router;
-                message.metadata.model = this.llmConfig.model;
+                if (message.metadata.provider === undefined) {
+                    message.metadata.provider = this.llmConfig.provider;
+                }
+                if (message.metadata.router === undefined) {
+                    message.metadata.router = this.llmConfig.router;
+                }
+                if (message.metadata.model === undefined) {
+                    message.metadata.model = this.llmConfig.model;
+                }
                 break;
 
             case 'tool':

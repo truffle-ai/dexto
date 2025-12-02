@@ -5193,62 +5193,6 @@
                             ],
                             "description": "Message content (string, null, or array of parts)"
                           },
-                          "reasoning": {
-                            "type": "string",
-                            "description": "Optional model reasoning text"
-                          },
-                          "tokenUsage": {
-                            "type": "object",
-                            "properties": {
-                              "inputTokens": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of input tokens"
-                              },
-                              "outputTokens": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of output tokens"
-                              },
-                              "reasoningTokens": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of reasoning tokens"
-                              },
-                              "totalTokens": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "description": "Total tokens used"
-                              }
-                            },
-                            "additionalProperties": false,
-                            "description": "Optional token usage accounting"
-                          },
-                          "model": {
-                            "type": "string",
-                            "description": "Model identifier for assistant messages"
-                          },
-                          "provider": {
-                            "type": "string",
-                            "enum": [
-                              "openai",
-                              "openai-compatible",
-                              "anthropic",
-                              "google",
-                              "groq",
-                              "xai",
-                              "cohere"
-                            ],
-                            "description": "Provider identifier for assistant messages"
-                          },
-                          "router": {
-                            "type": "string",
-                            "enum": [
-                              "vercel",
-                              "in-built"
-                            ],
-                            "description": "Router metadata for assistant messages"
-                          },
                           "toolCalls": {
                             "type": "array",
                             "items": {
@@ -5302,6 +5246,96 @@
                           "name": {
                             "type": "string",
                             "description": "Name of the tool that produced this result"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "requireApproval": {
+                                "type": "boolean",
+                                "description": "Whether this tool call required user approval before execution"
+                              },
+                              "approvalStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "approved",
+                                  "rejected"
+                                ],
+                                "description": "The approval status (only present if requireApproval is true)"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier for assistant messages"
+                              },
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "openai",
+                                  "openai-compatible",
+                                  "anthropic",
+                                  "google",
+                                  "groq",
+                                  "xai",
+                                  "cohere"
+                                ],
+                                "description": "Provider identifier for assistant messages"
+                              },
+                              "router": {
+                                "type": "string",
+                                "enum": [
+                                  "vercel",
+                                  "in-built"
+                                ],
+                                "description": "Router metadata for assistant messages"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Token usage accounting"
+                              },
+                              "reasoning": {
+                                "type": "string",
+                                "description": "Model reasoning text"
+                              },
+                              "parentMessageId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Parent message ID for branching/threading"
+                              },
+                              "editedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Edit timestamp if message was edited"
+                              },
+                              "branchId": {
+                                "type": "string",
+                                "description": "Branch ID for conversation branching"
+                              }
+                            },
+                            "description": "Extensible metadata (approval tracking, LLM metadata, token usage, custom fields)"
                           }
                         },
                         "required": [
@@ -5737,62 +5771,6 @@
                                 ],
                                 "description": "Message content (string, null, or array of parts)"
                               },
-                              "reasoning": {
-                                "type": "string",
-                                "description": "Optional model reasoning text"
-                              },
-                              "tokenUsage": {
-                                "type": "object",
-                                "properties": {
-                                  "inputTokens": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of input tokens"
-                                  },
-                                  "outputTokens": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of output tokens"
-                                  },
-                                  "reasoningTokens": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of reasoning tokens"
-                                  },
-                                  "totalTokens": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Total tokens used"
-                                  }
-                                },
-                                "additionalProperties": false,
-                                "description": "Optional token usage accounting"
-                              },
-                              "model": {
-                                "type": "string",
-                                "description": "Model identifier for assistant messages"
-                              },
-                              "provider": {
-                                "type": "string",
-                                "enum": [
-                                  "openai",
-                                  "openai-compatible",
-                                  "anthropic",
-                                  "google",
-                                  "groq",
-                                  "xai",
-                                  "cohere"
-                                ],
-                                "description": "Provider identifier for assistant messages"
-                              },
-                              "router": {
-                                "type": "string",
-                                "enum": [
-                                  "vercel",
-                                  "in-built"
-                                ],
-                                "description": "Router metadata for assistant messages"
-                              },
                               "toolCalls": {
                                 "type": "array",
                                 "items": {
@@ -5846,6 +5824,96 @@
                               "name": {
                                 "type": "string",
                                 "description": "Name of the tool that produced this result"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "requireApproval": {
+                                    "type": "boolean",
+                                    "description": "Whether this tool call required user approval before execution"
+                                  },
+                                  "approvalStatus": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected"
+                                    ],
+                                    "description": "The approval status (only present if requireApproval is true)"
+                                  },
+                                  "model": {
+                                    "type": "string",
+                                    "description": "Model identifier for assistant messages"
+                                  },
+                                  "provider": {
+                                    "type": "string",
+                                    "enum": [
+                                      "openai",
+                                      "openai-compatible",
+                                      "anthropic",
+                                      "google",
+                                      "groq",
+                                      "xai",
+                                      "cohere"
+                                    ],
+                                    "description": "Provider identifier for assistant messages"
+                                  },
+                                  "router": {
+                                    "type": "string",
+                                    "enum": [
+                                      "vercel",
+                                      "in-built"
+                                    ],
+                                    "description": "Router metadata for assistant messages"
+                                  },
+                                  "tokenUsage": {
+                                    "type": "object",
+                                    "properties": {
+                                      "inputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of input tokens"
+                                      },
+                                      "outputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of output tokens"
+                                      },
+                                      "reasoningTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of reasoning tokens"
+                                      },
+                                      "totalTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Total tokens used"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Token usage accounting"
+                                  },
+                                  "reasoning": {
+                                    "type": "string",
+                                    "description": "Model reasoning text"
+                                  },
+                                  "parentMessageId": {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "description": "Parent message ID for branching/threading"
+                                  },
+                                  "editedAt": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true,
+                                    "description": "Edit timestamp if message was edited"
+                                  },
+                                  "branchId": {
+                                    "type": "string",
+                                    "description": "Branch ID for conversation branching"
+                                  }
+                                },
+                                "description": "Extensible metadata (approval tracking, LLM metadata, token usage, custom fields)"
                               }
                             },
                             "required": [
@@ -6084,62 +6152,6 @@
                                     ],
                                     "description": "Message content (string, null, or array of parts)"
                                   },
-                                  "reasoning": {
-                                    "type": "string",
-                                    "description": "Optional model reasoning text"
-                                  },
-                                  "tokenUsage": {
-                                    "type": "object",
-                                    "properties": {
-                                      "inputTokens": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "description": "Number of input tokens"
-                                      },
-                                      "outputTokens": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "description": "Number of output tokens"
-                                      },
-                                      "reasoningTokens": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "description": "Number of reasoning tokens"
-                                      },
-                                      "totalTokens": {
-                                        "type": "integer",
-                                        "minimum": 0,
-                                        "description": "Total tokens used"
-                                      }
-                                    },
-                                    "additionalProperties": false,
-                                    "description": "Optional token usage accounting"
-                                  },
-                                  "model": {
-                                    "type": "string",
-                                    "description": "Model identifier for assistant messages"
-                                  },
-                                  "provider": {
-                                    "type": "string",
-                                    "enum": [
-                                      "openai",
-                                      "openai-compatible",
-                                      "anthropic",
-                                      "google",
-                                      "groq",
-                                      "xai",
-                                      "cohere"
-                                    ],
-                                    "description": "Provider identifier for assistant messages"
-                                  },
-                                  "router": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ],
-                                    "description": "Router metadata for assistant messages"
-                                  },
                                   "toolCalls": {
                                     "type": "array",
                                     "items": {
@@ -6193,6 +6205,96 @@
                                   "name": {
                                     "type": "string",
                                     "description": "Name of the tool that produced this result"
+                                  },
+                                  "metadata": {
+                                    "type": "object",
+                                    "properties": {
+                                      "requireApproval": {
+                                        "type": "boolean",
+                                        "description": "Whether this tool call required user approval before execution"
+                                      },
+                                      "approvalStatus": {
+                                        "type": "string",
+                                        "enum": [
+                                          "pending",
+                                          "approved",
+                                          "rejected"
+                                        ],
+                                        "description": "The approval status (only present if requireApproval is true)"
+                                      },
+                                      "model": {
+                                        "type": "string",
+                                        "description": "Model identifier for assistant messages"
+                                      },
+                                      "provider": {
+                                        "type": "string",
+                                        "enum": [
+                                          "openai",
+                                          "openai-compatible",
+                                          "anthropic",
+                                          "google",
+                                          "groq",
+                                          "xai",
+                                          "cohere"
+                                        ],
+                                        "description": "Provider identifier for assistant messages"
+                                      },
+                                      "router": {
+                                        "type": "string",
+                                        "enum": [
+                                          "vercel",
+                                          "in-built"
+                                        ],
+                                        "description": "Router metadata for assistant messages"
+                                      },
+                                      "tokenUsage": {
+                                        "type": "object",
+                                        "properties": {
+                                          "inputTokens": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "Number of input tokens"
+                                          },
+                                          "outputTokens": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "Number of output tokens"
+                                          },
+                                          "reasoningTokens": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "Number of reasoning tokens"
+                                          },
+                                          "totalTokens": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "Total tokens used"
+                                          }
+                                        },
+                                        "additionalProperties": false,
+                                        "description": "Token usage accounting"
+                                      },
+                                      "reasoning": {
+                                        "type": "string",
+                                        "description": "Model reasoning text"
+                                      },
+                                      "parentMessageId": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "description": "Parent message ID for branching/threading"
+                                      },
+                                      "editedAt": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "exclusiveMinimum": true,
+                                        "description": "Edit timestamp if message was edited"
+                                      },
+                                      "branchId": {
+                                        "type": "string",
+                                        "description": "Branch ID for conversation branching"
+                                      }
+                                    },
+                                    "description": "Extensible metadata (approval tracking, LLM metadata, token usage, custom fields)"
                                   }
                                 },
                                 "required": [
