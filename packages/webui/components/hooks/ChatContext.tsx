@@ -89,12 +89,8 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
             content: msg.content,
             createdAt: Date.now() - (history.length - index) * 1000, // Approximate timestamps
             sessionId: sessionId,
-            // Preserve token usage, reasoning, model, and router metadata from storage
-            tokenUsage: msg.tokenUsage,
-            reasoning: msg.reasoning,
-            model: msg.model,
-            router: msg.router,
-            provider: msg.provider,
+            // Preserve metadata from storage (includes token usage, reasoning, model, router, provider)
+            ...(msg.metadata && { metadata: msg.metadata }),
         };
 
         const deriveResources = (

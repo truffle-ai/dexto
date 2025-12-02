@@ -213,18 +213,25 @@ export class VercelMessageFormatter implements IMessageFormatter {
         if (lastAssistant) {
             const usage = await response.totalUsage;
             const reasoningText = await response.reasoningText;
-            if (reasoningText) {
-                lastAssistant.reasoning = reasoningText;
-            }
-            if (usage) {
-                lastAssistant.tokenUsage = {
-                    ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
-                    ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
-                    ...(usage.reasoningTokens !== undefined && {
-                        reasoningTokens: usage.reasoningTokens,
-                    }),
-                    ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
-                };
+            if (reasoningText || usage) {
+                if (!lastAssistant.metadata) {
+                    lastAssistant.metadata = {};
+                }
+                if (reasoningText) {
+                    lastAssistant.metadata.reasoning = reasoningText;
+                }
+                if (usage) {
+                    lastAssistant.metadata.tokenUsage = {
+                        ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                        ...(usage.outputTokens !== undefined && {
+                            outputTokens: usage.outputTokens,
+                        }),
+                        ...(usage.reasoningTokens !== undefined && {
+                            reasoningTokens: usage.reasoningTokens,
+                        }),
+                        ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
+                    };
+                }
             }
             // provider/router/model is enriched by ContextManager from current config
         }
@@ -362,21 +369,29 @@ export class VercelMessageFormatter implements IMessageFormatter {
         const reasoningText = anyResp.reasoningText;
         const modelId = response.response?.modelId;
         if (lastAssistant) {
-            if (typeof reasoningText === 'string' && reasoningText.length > 0) {
-                lastAssistant.reasoning = reasoningText;
-            }
-            if (usage) {
-                lastAssistant.tokenUsage = {
-                    ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
-                    ...(usage.outputTokens !== undefined && { outputTokens: usage.outputTokens }),
-                    ...(usage.reasoningTokens !== undefined && {
-                        reasoningTokens: usage.reasoningTokens,
-                    }),
-                    ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
-                };
-            }
-            if (modelId) {
-                lastAssistant.model = modelId;
+            const hasReasoningText = typeof reasoningText === 'string' && reasoningText.length > 0;
+            if (hasReasoningText || usage || modelId) {
+                if (!lastAssistant.metadata) {
+                    lastAssistant.metadata = {};
+                }
+                if (hasReasoningText) {
+                    lastAssistant.metadata.reasoning = reasoningText;
+                }
+                if (usage) {
+                    lastAssistant.metadata.tokenUsage = {
+                        ...(usage.inputTokens !== undefined && { inputTokens: usage.inputTokens }),
+                        ...(usage.outputTokens !== undefined && {
+                            outputTokens: usage.outputTokens,
+                        }),
+                        ...(usage.reasoningTokens !== undefined && {
+                            reasoningTokens: usage.reasoningTokens,
+                        }),
+                        ...(usage.totalTokens !== undefined && { totalTokens: usage.totalTokens }),
+                    };
+                }
+                if (modelId) {
+                    lastAssistant.metadata.model = modelId;
+                }
             }
             // Router is enriched by ContextManager from current config
         }

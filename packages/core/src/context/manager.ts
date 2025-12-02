@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { IMessageFormatter } from '@core/llm/formatters/types.js';
 import { LLMContext } from '../llm/types.js';
-import { InternalMessage, ImageData, FileData } from './types.js';
+import { InternalMessage, ImageData, FileData, TokenUsage } from './types.js';
 import { ITokenizer } from '../llm/tokenizer/types.js';
 import { ICompressionStrategy } from './compression/types.js';
 import { MiddleRemovalStrategy } from './compression/middle-removal.js';
@@ -427,9 +427,12 @@ export class ContextManager<TMessage = unknown> {
                 }
 
                 // Enrich assistant messages with LLM config metadata
-                message.provider = this.llmConfig.provider;
-                message.router = this.llmConfig.router;
-                message.model = this.llmConfig.model;
+                if (!message.metadata) {
+                    message.metadata = {};
+                }
+                message.metadata.provider = this.llmConfig.provider;
+                message.metadata.router = this.llmConfig.router;
+                message.metadata.model = this.llmConfig.model;
                 break;
 
             case 'tool':
@@ -565,7 +568,7 @@ export class ContextManager<TMessage = unknown> {
         content: string | null,
         toolCalls?: InternalMessage['toolCalls'],
         metadata?: {
-            tokenUsage?: InternalMessage['tokenUsage'];
+            tokenUsage?: TokenUsage;
             reasoning?: string;
         }
     ): Promise<void> {
@@ -575,12 +578,19 @@ export class ContextManager<TMessage = unknown> {
         }
         // Further validation happens within addMessage
         // addMessage will populate llm config metadata also
+        const messageMetadata: import('./types.js').MessageMetadata | undefined =
+            metadata?.tokenUsage || metadata?.reasoning
+                ? {
+                      ...(metadata.tokenUsage && { tokenUsage: metadata.tokenUsage }),
+                      ...(metadata.reasoning && { reasoning: metadata.reasoning }),
+                  }
+                : undefined;
+
         await this.addMessage({
             role: 'assistant' as const,
             content,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
-            ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
-            ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
+            ...(messageMetadata && { metadata: messageMetadata }),
         });
     }
 
@@ -596,7 +606,11 @@ export class ContextManager<TMessage = unknown> {
         toolCallId: string,
         name: string,
         result: unknown,
-        options?: { success?: boolean }
+        options?: {
+            success?: boolean;
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        }
     ): Promise<SanitizedToolResult> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
@@ -629,11 +643,25 @@ export class ContextManager<TMessage = unknown> {
             .join(', ');
         this.logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
 
+        // Build metadata object with approval tracking if provided
+        const metadata: import('./types.js').MessageMetadata | undefined =
+            options?.requireApproval !== undefined || options?.approvalStatus !== undefined
+                ? {
+                      ...(options.requireApproval !== undefined && {
+                          requireApproval: options.requireApproval,
+                      }),
+                      ...(options.approvalStatus !== undefined && {
+                          approvalStatus: options.approvalStatus,
+                      }),
+                  }
+                : undefined;
+
         await this.addMessage({
             role: 'tool',
             content: sanitized.content,
             toolCallId,
             name,
+            ...(metadata && { metadata }),
         });
 
         return sanitized;

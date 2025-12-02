@@ -111,6 +111,47 @@ export const TokenUsageSchema = z
     .strict()
     .describe('Token usage accounting');
 
+export const MessageMetadataSchema = z
+    .object({
+        // Tool approval tracking
+        requireApproval: z
+            .boolean()
+            .optional()
+            .describe('Whether this tool call required user approval before execution'),
+        approvalStatus: z
+            .enum(['pending', 'approved', 'rejected'])
+            .optional()
+            .describe('The approval status (only present if requireApproval is true)'),
+
+        // LLM execution metadata
+        model: z.string().optional().describe('Model identifier for assistant messages'),
+        provider: z
+            .enum(LLM_PROVIDERS)
+            .optional()
+            .describe('Provider identifier for assistant messages'),
+        router: z.enum(LLM_ROUTERS).optional().describe('Router metadata for assistant messages'),
+
+        // Token usage and reasoning
+        tokenUsage: TokenUsageSchema.optional().describe('Token usage accounting'),
+        reasoning: z.string().optional().describe('Model reasoning text'),
+
+        // Future extensibility: branching, editing, versioning
+        parentMessageId: z
+            .string()
+            .uuid()
+            .optional()
+            .describe('Parent message ID for branching/threading'),
+        editedAt: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Edit timestamp if message was edited'),
+        branchId: z.string().optional().describe('Branch ID for conversation branching'),
+    })
+    .passthrough() // Allow custom metadata fields for future extensions
+    .describe('Extensible metadata for messages');
+
 export const InternalMessageSchema = z
     .object({
         id: z.string().uuid().optional().describe('Unique message identifier (UUID)'),
@@ -121,17 +162,12 @@ export const InternalMessageSchema = z
         content: z
             .union([z.string(), z.null(), z.array(ContentPartSchema)])
             .describe('Message content (string, null, or array of parts)'),
-        reasoning: z.string().optional().describe('Optional model reasoning text'),
-        tokenUsage: TokenUsageSchema.optional().describe('Optional token usage accounting'),
-        model: z.string().optional().describe('Model identifier for assistant messages'),
-        provider: z
-            .enum(LLM_PROVIDERS)
-            .optional()
-            .describe('Provider identifier for assistant messages'),
-        router: z.enum(LLM_ROUTERS).optional().describe('Router metadata for assistant messages'),
         toolCalls: z.array(ToolCallSchema).optional().describe('Tool calls made by the assistant'),
         toolCallId: z.string().optional().describe('ID of the tool call this message responds to'),
         name: z.string().optional().describe('Name of the tool that produced this result'),
+        metadata: MessageMetadataSchema.optional().describe(
+            'Extensible metadata (approval tracking, LLM metadata, token usage, custom fields)'
+        ),
     })
     .strict()
     .describe('Internal message representation');
@@ -143,6 +179,7 @@ export type FilePart = z.output<typeof FilePartSchema>;
 export type ContentPart = z.output<typeof ContentPartSchema>;
 export type ToolCall = z.output<typeof ToolCallSchema>;
 export type TokenUsage = z.output<typeof TokenUsageSchema>;
+export type MessageMetadata = z.output<typeof MessageMetadataSchema>;
 export type InternalMessage = z.output<typeof InternalMessageSchema>;
 
 // ============================================================================

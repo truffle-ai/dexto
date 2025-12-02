@@ -303,6 +303,10 @@ export interface AgentEventMap {
         sanitized: SanitizedToolResult;
         rawResult?: unknown;
         sessionId: string;
+        /** Whether this tool required user approval before execution */
+        requireApproval?: boolean;
+        /** The approval status (only present if requireApproval is true) */
+        approvalStatus?: 'approved' | 'rejected';
     };
 
     /** LLM service error */
@@ -411,6 +415,10 @@ export interface SessionEventMap {
         success: boolean;
         sanitized: SanitizedToolResult;
         rawResult?: unknown;
+        /** Whether this tool required user approval before execution */
+        requireApproval?: boolean;
+        /** The approval status (only present if requireApproval is true) */
+        approvalStatus?: 'approved' | 'rejected';
     };
 
     /** LLM service error */

@@ -130,7 +130,11 @@ export class VercelLLMService implements ILLMService {
                                 callId,
                             });
 
-                            const rawResult = await this.toolManager.executeTool(
+                            const {
+                                result: rawResult,
+                                requireApproval,
+                                approvalStatus,
+                            } = await this.toolManager.executeTool(
                                 toolName,
                                 args as Record<string, unknown>,
                                 this.sessionId
@@ -142,7 +146,11 @@ export class VercelLLMService implements ILLMService {
                                 callId,
                                 toolName,
                                 rawResult,
-                                { success: true }
+                                {
+                                    success: true,
+                                    ...(requireApproval !== undefined && { requireApproval }),
+                                    ...(approvalStatus !== undefined && { approvalStatus }),
+                                }
                             );
 
                             this.logger.debug(
@@ -153,6 +161,8 @@ export class VercelLLMService implements ILLMService {
                                 callId,
                                 success: true,
                                 sanitized: persisted,
+                                ...(requireApproval !== undefined && { requireApproval }),
+                                ...(approvalStatus !== undefined && { approvalStatus }),
                                 ...(shouldIncludeRawToolResult() ? { rawResult } : {}),
                             });
 
