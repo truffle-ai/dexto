@@ -131,19 +131,26 @@ export class TurnExecutor {
         // Check tool support once before the loop
         const supportsTools = await this.validateToolSupport();
 
+        // Track current abort handler to remove between iterations (prevents listener accumulation)
+        let currentAbortHandler: (() => void) | null = null;
+
         try {
             while (true) {
-                // 0. Create fresh abort controller for this step
+                // 0. Clean up previous iteration's abort handler (if any)
+                if (currentAbortHandler && this.externalSignal) {
+                    this.externalSignal.removeEventListener('abort', currentAbortHandler);
+                }
+
+                // Create fresh abort controller for this step
                 // This allows soft cancel (abort current step) while continuing with queued messages
                 this.stepAbortController = new AbortController();
 
                 // Link external signal to this step only (if not already aborted for hard cancel)
+                currentAbortHandler = () => this.stepAbortController.abort();
                 if (this.externalSignal && !this.externalSignal.aborted) {
-                    this.externalSignal.addEventListener(
-                        'abort',
-                        () => this.stepAbortController.abort(),
-                        { once: true }
-                    );
+                    this.externalSignal.addEventListener('abort', currentAbortHandler, {
+                        once: true,
+                    });
                 }
 
                 // 1. Check for queued messages (mid-loop injection)
