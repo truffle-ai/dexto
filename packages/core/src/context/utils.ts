@@ -386,21 +386,22 @@ async function resolveBlobReferenceToParts(
             const resolvedMime = mimeType ?? 'application/octet-stream';
 
             if (resolvedMime.startsWith('image/')) {
-                const dataUri = `data:${resolvedMime};base64,${base64Data}`;
+                // Return raw base64, NOT data URI format
+                // LLM APIs (Anthropic, OpenAI, etc.) expect raw base64, not data:... URIs
                 const imagePart: ImagePart = {
                     type: 'image',
-                    image: dataUri,
+                    image: base64Data,
                     mimeType: resolvedMime,
                 };
                 parts.push(imagePart);
                 continue;
             }
 
+            // Return raw base64 for all file types - mimeType is provided separately
+            // LLM APIs expect raw base64, not data:... URIs
             const filePart: FilePart = {
                 type: 'file',
-                data: resolvedMime.startsWith('audio/')
-                    ? `data:${resolvedMime};base64,${base64Data}`
-                    : base64Data,
+                data: base64Data,
                 mimeType: resolvedMime,
             };
             if (typeof item.filename === 'string' && item.filename.length > 0) {
