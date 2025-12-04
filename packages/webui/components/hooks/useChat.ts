@@ -515,6 +515,36 @@ export function useChat(
                     );
                     break;
                 }
+
+                case 'message:dequeued': {
+                    // Queued message was processed - add as user message to UI
+                    // Extract text content from the combined content array
+                    const textContent = event.content
+                        .filter(
+                            (part): part is { type: 'text'; text: string } => part.type === 'text'
+                        )
+                        .map((part) => part.text)
+                        .join('\n');
+
+                    if (textContent || event.content.length > 0) {
+                        const userId = generateUniqueId();
+                        lastUserMessageIdRef.current = userId;
+                        lastMessageIdRef.current = userId;
+                        setMessages((ms) => [
+                            ...ms,
+                            {
+                                id: userId,
+                                role: 'user',
+                                content: textContent || '[attachment]',
+                                createdAt: Date.now(),
+                                sessionId: event.sessionId,
+                            },
+                        ]);
+                        // Update sessions cache
+                        updateSessionActivity(event.sessionId);
+                    }
+                    break;
+                }
             }
         },
         [
@@ -704,9 +734,23 @@ export function useChat(
     );
 
     const cancel = useCallback(
-        (sessionId?: string) => {
+        async (sessionId?: string) => {
             if (!sessionId) return;
+
+            // 1. Abort client-side stream to stop receiving events
             abortSession(sessionId);
+
+            // 2. Tell server to cancel the LLM stream
+            try {
+                await client.api.sessions[':sessionId'].cancel.$post({
+                    param: { sessionId },
+                });
+            } catch (err) {
+                // Server cancel is best-effort - log but don't throw
+                console.warn('Failed to cancel server-side:', err);
+            }
+
+            // 3. Update UI state
             setProcessing(sessionId, false);
             setStatus(sessionId, 'closed');
             pendingToolCallsRef.current.clear();

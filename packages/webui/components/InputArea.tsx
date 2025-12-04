@@ -37,7 +37,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { useLLMCatalog } from './hooks/useLLM';
 import { useResolvePrompt } from './hooks/usePrompts';
 import { useInputHistory } from './hooks/useInputHistory';
-import { useQueuedMessages, useRemoveQueuedMessage } from './hooks/useQueue';
+import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
 import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
 
 interface InputAreaProps {
@@ -96,6 +96,7 @@ export default function InputArea({
     // Queue management
     const { data: queueData } = useQueuedMessages(currentSessionId);
     const { mutate: removeQueuedMessage } = useRemoveQueuedMessage();
+    const { mutate: queueMessage } = useQueueMessage();
     const queuedMessages = queueData?.messages ?? [];
 
     // Analytics tracking
@@ -263,6 +264,23 @@ export default function InputArea({
             }
         }
 
+        // Auto-queue: if session is busy processing, queue the message instead of sending
+        if (processing && currentSessionId) {
+            queueMessage({
+                sessionId: currentSessionId,
+                message: trimmed || undefined,
+                imageData: imageData ?? undefined,
+                fileData: fileData ?? undefined,
+            });
+            // Add to input history for Up arrow recall
+            addToHistory(trimmed);
+            setText('');
+            setImageData(null);
+            setFileData(null);
+            setShowSlashCommands(false);
+            return;
+        }
+
         onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
         // Add to input history for Up arrow recall
         addToHistory(trimmed);
@@ -371,18 +389,21 @@ export default function InputArea({
             }
         }
 
-        // Alt+Up: Edit last queued message (like Codex)
-        if (e.key === 'ArrowUp' && e.altKey && queuedMessages.length > 0) {
-            e.preventDefault();
-            handleEditLastQueued();
-            return;
-        }
-
-        // Up/Down for input history navigation (shell-style)
+        // Up: First check queue, then fall back to input history
+        // Only handle when cursor is on first line (no newline before cursor)
         if (e.key === 'ArrowUp' && !e.altKey && !e.ctrlKey && !e.metaKey) {
             const cursorPos = textareaRef.current?.selectionStart ?? 0;
-            if (shouldHandleNavigation(text, cursorPos)) {
+            const textBeforeCursor = text.slice(0, cursorPos);
+            const isOnFirstLine = !textBeforeCursor.includes('\n');
+
+            if (isOnFirstLine) {
                 e.preventDefault();
+                // First priority: pop from queue if available
+                if (queuedMessages.length > 0) {
+                    handleEditLastQueued();
+                    return;
+                }
+                // Second priority: navigate input history
                 const historyText = navigateUp(text);
                 if (historyText !== null) {
                     setText(historyText);
