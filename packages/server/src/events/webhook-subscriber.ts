@@ -56,7 +56,8 @@ export class WebhookEventSubscriber implements EventSubscriber {
 
         // Increase max listeners since we intentionally share this signal across multiple events
         // This prevents the MaxListenersExceededWarning
-        const MAX_SHARED_SIGNAL_LISTENERS = 20;
+        // INTEGRATION_EVENTS currently has 24 events, so we set this higher with buffer
+        const MAX_SHARED_SIGNAL_LISTENERS = 50;
         setMaxListeners(MAX_SHARED_SIGNAL_LISTENERS, signal);
 
         // Subscribe to all INTEGRATION_EVENTS (tier 2 visibility)
