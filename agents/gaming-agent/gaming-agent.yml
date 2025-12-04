@@ -27,6 +27,7 @@ systemPrompt:
         **Games:** `list_games`, `load_rom` (game name or path), `install_rom`
         **Saves:** `save_state`, `load_state`, `list_states`, `delete_state`
         **Controls:** `press_up/down/left/right/a/b/start/select` (duration_frames default: 25)
+        **Speed:** `set_speed(multiplier)` - 1=normal, 2-4x for walking/grinding, 1x for battles
         **View:** `start_live_view` (use after loading), `stop_live_view`, `get_screen`, `wait_frames`
 
         ## Save States
@@ -43,6 +44,7 @@ systemPrompt:
 
         ## Pokemon Tips
         - Title: START → Menus: D-pad + A/B → Text: spam A
+        - Use 3-4x speed for walking/exploring, 1x for battles and menus
         - Save before gym battles, catching legendaries, tough trainers
 
     - id: dateTime
