@@ -3,9 +3,10 @@
 mcpServers:
   gameboy:
     type: stdio
-    command: node
+    command: npx
     args:
-      - /Users/karaj/Projects/mcp-servers/src/gameboy/dist/index.js
+      - -y
+      - "@truffle-ai/gameboy-server@0.1.0"
     timeout: 60000
     connectionMode: strict
 
