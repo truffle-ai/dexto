@@ -132,4 +132,35 @@ export class ContextError {
             'Set minMessagesToKeep to zero or positive value'
         );
     }
+
+    // Message lookup errors
+    static messageNotFound(messageId: string) {
+        return new DextoRuntimeError(
+            ContextErrorCode.MESSAGE_NOT_FOUND,
+            ErrorScope.CONTEXT,
+            ErrorType.NOT_FOUND,
+            `Message with ID ${messageId} not found`,
+            { messageId }
+        );
+    }
+
+    static messageNotAssistant(messageId: string) {
+        return new DextoRuntimeError(
+            ContextErrorCode.MESSAGE_NOT_ASSISTANT,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            `Message with ID ${messageId} is not an assistant message`,
+            { messageId }
+        );
+    }
+
+    static assistantContentNotString() {
+        return new DextoRuntimeError(
+            ContextErrorCode.ASSISTANT_CONTENT_NOT_STRING,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            'Cannot append text to non-string assistant message content',
+            {}
+        );
+    }
 }

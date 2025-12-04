@@ -270,18 +270,16 @@ export class ContextManager<TMessage = unknown> {
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
         if (messageIndex === -1) {
-            throw new Error(`Message with ID ${messageId} not found`);
+            throw ContextError.messageNotFound(messageId);
         }
 
         const message = history[messageIndex];
         if (!message) {
-            throw new Error(
-                `Message with ID ${messageId} found at index ${messageIndex} but is undefined`
-            );
+            throw ContextError.messageNotFound(messageId);
         }
 
         if (message.role !== 'assistant') {
-            throw new Error(`Message with ID ${messageId} is not an assistant message`);
+            throw ContextError.messageNotAssistant(messageId);
         }
 
         // Append text
@@ -291,7 +289,7 @@ export class ContextManager<TMessage = unknown> {
             message.content = text;
         } else {
             // Should not happen for assistant messages unless we support multimodal assistant output
-            throw new Error('Cannot append text to non-string assistant message content');
+            throw ContextError.assistantContentNotString();
         }
 
         await this.historyProvider.updateMessage(message);
@@ -309,18 +307,16 @@ export class ContextManager<TMessage = unknown> {
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
         if (messageIndex === -1) {
-            throw new Error(`Message with ID ${messageId} not found`);
+            throw ContextError.messageNotFound(messageId);
         }
 
         const message = history[messageIndex];
         if (!message) {
-            throw new Error(
-                `Message with ID ${messageId} found at index ${messageIndex} but is undefined`
-            );
+            throw ContextError.messageNotFound(messageId);
         }
 
         if (message.role !== 'assistant') {
-            throw new Error(`Message with ID ${messageId} is not an assistant message`);
+            throw ContextError.messageNotAssistant(messageId);
         }
 
         if (!message.toolCalls) {
@@ -343,18 +339,16 @@ export class ContextManager<TMessage = unknown> {
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
         if (messageIndex === -1) {
-            throw new Error(`Message with ID ${messageId} not found`);
+            throw ContextError.messageNotFound(messageId);
         }
 
         const message = history[messageIndex];
         if (!message) {
-            throw new Error(
-                `Message with ID ${messageId} found at index ${messageIndex} but is undefined`
-            );
+            throw ContextError.messageNotFound(messageId);
         }
 
         if (message.role !== 'assistant') {
-            throw new Error(`Message with ID ${messageId} is not an assistant message`);
+            throw ContextError.messageNotAssistant(messageId);
         }
 
         Object.assign(message, updates);

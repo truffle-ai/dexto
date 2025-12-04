@@ -179,11 +179,14 @@ export class OpenAIService implements ILLMService {
                     }
 
                     // Overflow detection: check if we're approaching context limit
+                    // Use latest usage.prompt_tokens (not cumulative) - each API response's
+                    // prompt_tokens represents the TOTAL input for that specific call
                     const maxInputTokens = this.contextManager.getMaxInputTokens();
                     const OVERFLOW_THRESHOLD = 0.95; // 95% of max
-                    if (inputTokens > maxInputTokens * OVERFLOW_THRESHOLD) {
+                    const latestInputTokens = usage?.prompt_tokens ?? 0;
+                    if (latestInputTokens > maxInputTokens * OVERFLOW_THRESHOLD) {
                         this.logger.warn(
-                            `Context overflow detected: ${inputTokens} tokens used (${Math.round((inputTokens / maxInputTokens) * 100)}% of ${maxInputTokens} max). ` +
+                            `Context overflow detected: ${latestInputTokens} tokens used (${Math.round((latestInputTokens / maxInputTokens) * 100)}% of ${maxInputTokens} max). ` +
                                 `Stopping tool loop to prevent API error.`
                         );
                         // Return with current response
