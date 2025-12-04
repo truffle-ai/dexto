@@ -108,7 +108,7 @@ export class VercelLLMService implements ILLMService {
     /**
      * Create a TurnExecutor instance for executing the agent loop.
      */
-    private createTurnExecutor(): TurnExecutor {
+    private createTurnExecutor(externalSignal?: AbortSignal): TurnExecutor {
         return new TurnExecutor(
             this.model,
             this.toolManager,
@@ -125,8 +125,9 @@ export class VercelLLMService implements ILLMService {
             { provider: this.config.provider, model: this.getModelId() },
             'vercel',
             this.logger,
-            this.messageQueue
-            // modelLimits not passed - TurnExecutor will use defaults
+            this.messageQueue,
+            undefined, // modelLimits - TurnExecutor will use defaults
+            externalSignal
         );
     }
 
@@ -179,8 +180,8 @@ export class VercelLLMService implements ILLMService {
             // Add user message, with optional image and file data
             await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
-            // Create executor (uses session-level messageQueue)
-            const executor = this.createTurnExecutor();
+            // Create executor (uses session-level messageQueue, pass external abort signal)
+            const executor = this.createTurnExecutor(options.signal);
 
             // Execute with streaming flag
             const contributorContext = { mcpManager: this.toolManager.getMcpManager() };

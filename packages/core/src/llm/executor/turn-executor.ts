@@ -74,10 +74,22 @@ export class TurnExecutor {
         private router: LLMRouter,
         logger: IDextoLogger,
         private messageQueue: MessageQueueService,
-        private modelLimits?: ModelLimits
+        private modelLimits?: ModelLimits,
+        private externalSignal?: AbortSignal
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         this.abortController = new AbortController();
+
+        // Link external abort signal to internal controller
+        if (externalSignal) {
+            if (externalSignal.aborted) {
+                this.abortController.abort();
+            } else {
+                externalSignal.addEventListener('abort', () => this.abortController.abort(), {
+                    once: true,
+                });
+            }
+        }
 
         // Initialize compression strategy if model limits are provided
         if (modelLimits) {
