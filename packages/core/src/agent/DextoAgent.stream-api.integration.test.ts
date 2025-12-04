@@ -138,7 +138,8 @@ describe('DextoAgent.stream() API', () => {
                 expect(events[0]).toBeDefined();
                 expect(events[events.length - 1]).toBeDefined();
                 expect(events[0]!.name).toBe('llm:thinking');
-                expect(events[events.length - 1]!.name).toBe('llm:response');
+                // Last event is run:complete (added in lifecycle updates)
+                expect(events[events.length - 1]!.name).toBe('run:complete');
 
                 // Validate message-start event
                 // First event is typically llm:thinking
@@ -146,12 +147,12 @@ describe('DextoAgent.stream() API', () => {
                 expect(startEvent).toBeDefined();
                 expect(startEvent?.sessionId).toBe(env.sessionId);
 
-                // Final event should be llm:response with usage stats
-                const completeEvent = events[events.length - 1];
-                expect(completeEvent).toBeDefined();
-                if (completeEvent && completeEvent.name === 'llm:response') {
-                    expect(completeEvent.content).toBeTruthy();
-                    expect(completeEvent.tokenUsage?.totalTokens).toBeGreaterThan(0);
+                // Find the llm:response event (second to last, before run:complete)
+                const responseEvent = events.find((e) => e.name === 'llm:response');
+                expect(responseEvent).toBeDefined();
+                if (responseEvent && responseEvent.name === 'llm:response') {
+                    expect(responseEvent.content).toBeTruthy();
+                    expect(responseEvent.tokenUsage?.totalTokens).toBeGreaterThan(0);
                 }
             } finally {
                 await cleanupTestEnvironment(env);
@@ -218,7 +219,8 @@ describe('DextoAgent.stream() API', () => {
                 expect(events[0]).toBeDefined();
                 expect(events[events.length - 1]).toBeDefined();
                 expect(events[0]!.name).toBe('llm:thinking');
-                expect(events[events.length - 1]!.name).toBe('llm:response');
+                // Last event is run:complete (added in lifecycle updates)
+                expect(events[events.length - 1]!.name).toBe('run:complete');
             } finally {
                 await cleanupTestEnvironment(env);
             }
@@ -280,7 +282,8 @@ describe('DextoAgent.stream() API', () => {
                     expect(events[0]).toBeDefined();
                     expect(events[events.length - 1]).toBeDefined();
                     expect(events[0]!.name).toBe('llm:thinking');
-                    expect(events[events.length - 1]!.name).toBe('llm:response');
+                    // Last event is run:complete (added in lifecycle updates)
+                    expect(events[events.length - 1]!.name).toBe('run:complete');
                 } finally {
                     await cleanupTestEnvironment(env);
                 }

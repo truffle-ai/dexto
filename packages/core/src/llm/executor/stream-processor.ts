@@ -117,7 +117,7 @@ export class StreamProcessor {
                         });
                         break;
 
-                    case 'tool-result':
+                    case 'tool-result': {
                         // PERSISTENCE HAPPENS HERE
                         const rawResult = event.output;
 
@@ -150,6 +150,7 @@ export class StreamProcessor {
                             rawResult: rawResult,
                         });
                         break;
+                    }
 
                     case 'finish-step':
                         // Track token usage from completed steps for partial runs
@@ -178,7 +179,7 @@ export class StreamProcessor {
                         }
                         break;
 
-                    case 'finish':
+                    case 'finish': {
                         this.finishReason = event.finishReason;
                         const usage = {
                             inputTokens: event.totalUsage.inputTokens ?? 0,
@@ -211,6 +212,7 @@ export class StreamProcessor {
                             finishReason: this.finishReason,
                         });
                         break;
+                    }
 
                     case 'tool-error':
                         // Tool execution failed - emit error event with tool context
@@ -241,7 +243,7 @@ export class StreamProcessor {
                         });
                         break;
 
-                    case 'error':
+                    case 'error': {
                         const err =
                             event.error instanceof Error
                                 ? event.error
@@ -251,6 +253,7 @@ export class StreamProcessor {
                             error: err,
                         });
                         break;
+                    }
 
                     case 'abort':
                         // Vercel SDK emits 'abort' when the stream is cancelled
@@ -277,10 +280,9 @@ export class StreamProcessor {
             }
         } catch (error) {
             // Check if this is an abort error (intentional cancellation)
+            // Note: DOMException extends Error in Node.js 17+, so the first check covers it
             const isAbortError =
-                (error instanceof Error && error.name === 'AbortError') ||
-                (error instanceof DOMException && error.name === 'AbortError') ||
-                this.abortSignal.aborted;
+                (error instanceof Error && error.name === 'AbortError') || this.abortSignal.aborted;
 
             if (isAbortError) {
                 // Emit final response with accumulated content on cancellation

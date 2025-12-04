@@ -68,13 +68,9 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
 
     private readonly model: LanguageModel;
     private readonly options: Required<ReactiveOverflowOptions>;
-    private readonly logger: IDextoLogger | undefined;
+    private readonly logger: IDextoLogger;
 
-    constructor(
-        model: LanguageModel,
-        options: ReactiveOverflowOptions = {},
-        logger?: IDextoLogger
-    ) {
+    constructor(model: LanguageModel, options: ReactiveOverflowOptions = {}, logger: IDextoLogger) {
         this.model = model;
         this.options = { ...DEFAULT_OPTIONS, ...options };
         this.logger = logger;
@@ -95,12 +91,12 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
      */
     async compress(
         history: readonly InternalMessage[],
-        tokenizer: ITokenizer,
+        _tokenizer: ITokenizer,
         _maxTokens: number
     ): Promise<InternalMessage[]> {
         // Don't compress if history is too short
         if (history.length <= 2) {
-            this.logger?.debug('ReactiveOverflowStrategy: History too short, skipping compression');
+            this.logger.debug('ReactiveOverflowStrategy: History too short, skipping compression');
             return [];
         }
 
@@ -109,11 +105,11 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
 
         // If nothing to summarize, return empty (no summary needed)
         if (toSummarize.length === 0) {
-            this.logger?.debug('ReactiveOverflowStrategy: No messages to summarize');
+            this.logger.debug('ReactiveOverflowStrategy: No messages to summarize');
             return [];
         }
 
-        this.logger?.info(
+        this.logger.info(
             `ReactiveOverflowStrategy: Summarizing ${toSummarize.length} messages, keeping ${toKeep.length}`
         );
 
@@ -149,7 +145,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
     validate(beforeTokens: number, afterTokens: number): boolean {
         const isEffective = afterTokens < beforeTokens;
         if (!isEffective) {
-            this.logger?.warn(
+            this.logger.warn(
                 `ReactiveOverflowStrategy validation failed: before=${beforeTokens}, after=${afterTokens}`
             );
         }
@@ -213,7 +209,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
 
             return `[Previous conversation summary]\n${result.text}`;
         } catch (error) {
-            this.logger?.error('ReactiveOverflowStrategy: Failed to generate summary', { error });
+            this.logger.error('ReactiveOverflowStrategy: Failed to generate summary', { error });
             // Fallback: return a simple truncated version
             return this.createFallbackSummary(messages);
         }

@@ -56,13 +56,10 @@ export function truncateToolResult(
     result: SanitizedToolResult,
     options: TruncationOptions = {}
 ): SanitizedToolResult {
-    let wasTruncated = false;
-
     const newContent = result.content.map((part) => {
         if (part.type === 'text') {
             const { output, truncated } = truncateStringOutput(part.text, options);
             if (truncated) {
-                wasTruncated = true;
                 return { ...part, text: output };
             }
         }

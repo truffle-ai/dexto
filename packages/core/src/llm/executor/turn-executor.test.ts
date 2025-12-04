@@ -8,7 +8,7 @@ import type { ResourceManager } from '../../resources/index.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import type { LLMContext, LLMRouter } from '../types.js';
-import type { InternalMessage, TextPart } from '../../context/types.js';
+import type { InternalMessage } from '../../context/types.js';
 import type { ModelLimits } from '../../context/compression/overflow.js';
 import type { CoalescedMessage } from '../../session/types.js';
 import type { DynamicContributorContext } from '../../systemPrompt/types.js';

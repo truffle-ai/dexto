@@ -773,14 +773,14 @@ describe('StreamProcessor', () => {
     });
 
     describe('Abort Signal', () => {
-        test('throws when signal is aborted', async () => {
+        test('completes with accumulated content when abort signal fires mid-stream', async () => {
             const mocks = createMocks();
 
-            // Create a stream that will yield events slowly
+            // Create a stream that will yield events then abort
             const slowStream = {
                 fullStream: (async function* () {
                     yield { type: 'text-delta', text: 'Hello' };
-                    // Abort happens here
+                    // Abort signal fires but stream continues (SDK behavior)
                     mocks.abortController.abort();
                     yield { type: 'text-delta', text: ' world' };
                 })(),
@@ -796,7 +796,37 @@ describe('StreamProcessor', () => {
                 true
             );
 
-            await expect(processor.process(() => slowStream as never)).rejects.toThrow();
+            // Resolves with accumulated content
+            const result = await processor.process(() => slowStream as never);
+            expect(result.text).toBe('Hello world');
+        });
+
+        test('emits partial response with cancelled finish reason when stream emits abort event', async () => {
+            const mocks = createMocks();
+
+            // Create a stream that emits an abort event (SDK-level cancellation)
+            const abortingStream = {
+                fullStream: (async function* () {
+                    yield { type: 'text-delta', text: 'Hello' };
+                    // Stream itself signals abort (e.g., network disconnect, timeout)
+                    yield { type: 'abort' };
+                })(),
+            };
+
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            // Emits partial response with cancelled finish reason
+            const result = await processor.process(() => abortingStream as never);
+            expect(result.text).toBe('Hello');
+            expect(result.finishReason).toBe('cancelled');
         });
     });
 

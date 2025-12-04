@@ -7,33 +7,34 @@ import { ContentPartSchema } from '../schemas/responses.js';
 // These use required mimeType to avoid exactOptionalPropertyTypes issues
 const TextPartInputSchema = z
     .object({
-        type: z.literal('text'),
-        text: z.string(),
+        type: z.literal('text').describe('Content part type'),
+        text: z.string().describe('The text content'),
     })
-    .strict();
+    .strict()
+    .describe('A text content part');
 
 const ImagePartInputSchema = z
     .object({
-        type: z.literal('image'),
-        image: z.string(),
-        mimeType: z.string(),
+        type: z.literal('image').describe('Content part type'),
+        image: z.string().describe('Base64-encoded image data'),
+        mimeType: z.string().describe('MIME type of the image'),
     })
-    .strict();
+    .strict()
+    .describe('An image content part');
 
 const FilePartInputSchema = z
     .object({
-        type: z.literal('file'),
-        data: z.string(),
-        mimeType: z.string(),
-        filename: z.string().optional(),
+        type: z.literal('file').describe('Content part type'),
+        data: z.string().describe('Base64-encoded file data'),
+        mimeType: z.string().describe('MIME type of the file'),
+        filename: z.string().optional().describe('Optional filename'),
     })
-    .strict();
+    .strict()
+    .describe('A file content part');
 
-const UserContentPartInputSchema = z.discriminatedUnion('type', [
-    TextPartInputSchema,
-    ImagePartInputSchema,
-    FilePartInputSchema,
-]);
+const UserContentPartInputSchema = z
+    .discriminatedUnion('type', [TextPartInputSchema, ImagePartInputSchema, FilePartInputSchema])
+    .describe('A user message content part (text, image, or file)');
 
 // Schema for queued message in responses
 const QueuedMessageSchema = z
