@@ -3,8 +3,6 @@ import { IMessageFormatter } from '@core/llm/formatters/types.js';
 import { LLMContext } from '../llm/types.js';
 import { InternalMessage, ImageData, FileData } from './types.js';
 import { ITokenizer } from '../llm/tokenizer/types.js';
-// import { MiddleRemovalStrategy } from './compression/middle-removal.js';
-// import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
