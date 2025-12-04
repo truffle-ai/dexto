@@ -544,6 +544,10 @@ export function useChat(
                         // Update sessions cache
                         updateSessionActivity(event.sessionId);
                     }
+                    // Immediately invalidate queue cache so UI removes the message
+                    queryClient.invalidateQueries({
+                        queryKey: queryKeys.queue.list(event.sessionId),
+                    });
                     break;
                 }
 
