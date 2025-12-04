@@ -87,6 +87,13 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
     async updateMessage(message: InternalMessage): Promise<void> {
         const key = this.getMessagesKey();
         try {
+            // Guard against undefined id - could match another message with undefined id
+            if (!message.id) {
+                this.logger.warn(
+                    `DatabaseHistoryProvider: Ignoring update for message without id in session ${this.sessionId}`
+                );
+                return;
+            }
             // Inefficient update: read all, update, write all
             // TODO: Optimize this when Database interface supports updating items
             const messages = await this.database.getRange<InternalMessage>(key, 0, 10000);

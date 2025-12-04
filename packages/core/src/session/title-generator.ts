@@ -36,7 +36,7 @@ export async function generateSessionTitle(
     }
 
     try {
-        const history = new MemoryHistoryProvider();
+        const history = new MemoryHistoryProvider(logger);
         const bus = new SessionEventBus();
         const tempService = createLLMService(
             config,
