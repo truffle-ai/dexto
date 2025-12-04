@@ -855,7 +855,11 @@ export class DextoAgent {
         const responseListener = (data: AgentEventMap['llm:response']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:response', ...data });
-            completed = true;
+            // Only mark completed when the agent run is truly done
+            // 'tool-calls' means more steps are coming, so don't terminate yet
+            if (data.finishReason !== 'tool-calls') {
+                completed = true;
+            }
         };
         this.agentEventBus.on('llm:response', responseListener, { signal: cleanupSignal });
         listeners.push({ event: 'llm:response', listener: responseListener });

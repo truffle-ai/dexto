@@ -180,6 +180,7 @@ export class StreamProcessor {
                             model: this.config.model,
                             router: this.config.router,
                             tokenUsage: usage,
+                            finishReason: this.finishReason,
                         });
                         break;
 
@@ -213,11 +214,13 @@ export class StreamProcessor {
                         break;
 
                     case 'error':
+                        const err =
+                            event.error instanceof Error
+                                ? event.error
+                                : new Error(String(event.error));
+                        this.logger.error(`LLM error: ${err.toString()}}`);
                         this.eventBus.emit('llm:error', {
-                            error:
-                                event.error instanceof Error
-                                    ? event.error
-                                    : new Error(String(event.error)),
+                            error: err,
                         });
                         break;
                 }

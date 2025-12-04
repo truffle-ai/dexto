@@ -296,6 +296,8 @@ export interface AgentEventMap {
             reasoningTokens?: number;
             totalTokens?: number;
         };
+        /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
+        finishReason?: string;
         sessionId: string;
     };
 
@@ -445,6 +447,8 @@ export interface SessionEventMap {
             reasoningTokens?: number;
             totalTokens?: number;
         };
+        /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
+        finishReason?: string;
     };
 
     /** LLM service requested a tool call */

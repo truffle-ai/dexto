@@ -220,8 +220,11 @@ export function useChat(
         [queryClient]
     );
 
-    // Track the last user message id to anchor errors inline in the UI
+    // Track message IDs for error anchoring
+    // lastUserMessageIdRef: tracks the most recent user message (for other purposes)
+    // lastMessageIdRef: tracks the most recent message of ANY type (for error positioning)
     const lastUserMessageIdRef = useRef<string | null>(null);
+    const lastMessageIdRef = useRef<string | null>(null);
     const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
@@ -312,10 +315,13 @@ export function useChat(
                                 };
                                 return [...ms.slice(0, -1), updated];
                             }
+                            // Creating new assistant message - track its ID for error anchoring
+                            const newId = generateUniqueId();
+                            lastMessageIdRef.current = newId;
                             return [
                                 ...ms,
                                 {
-                                    id: generateUniqueId(),
+                                    id: newId,
                                     role: 'assistant',
                                     content: '',
                                     reasoning: text,
@@ -335,10 +341,13 @@ export function useChat(
                                 };
                                 return [...ms.slice(0, -1), updated];
                             }
+                            // Creating new assistant message - track its ID for error anchoring
+                            const newId = generateUniqueId();
+                            lastMessageIdRef.current = newId;
                             return [
                                 ...ms,
                                 {
-                                    id: generateUniqueId(),
+                                    id: newId,
                                     role: 'assistant',
                                     content: text,
                                     createdAt: Date.now(),
@@ -383,12 +392,15 @@ export function useChat(
 
                 case 'llm:tool-call': {
                     const { toolName, args, callId } = event;
+                    // Track tool message ID for error anchoring
+                    const toolMsgId = generateUniqueId();
+                    lastMessageIdRef.current = toolMsgId;
                     setMessages((ms) => {
                         const newIndex = ms.length;
                         const newMessages: Message[] = [
                             ...ms,
                             {
-                                id: generateUniqueId(),
+                                id: toolMsgId,
                                 role: 'tool',
                                 content: null,
                                 toolName,
@@ -480,7 +492,9 @@ export function useChat(
                         context: event.context,
                         recoverable: event.recoverable,
                         sessionId: event.sessionId,
-                        anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        // Use lastMessageIdRef to anchor error to the most recent message
+                        // (not just user messages), so errors appear in correct position
+                        anchorMessageId: lastMessageIdRef.current || undefined,
                     });
                     setProcessing(event.sessionId, false);
                     setStatus(event.sessionId, 'closed');
@@ -539,6 +553,7 @@ export function useChat(
             // Add user message to state
             const userId = generateUniqueId();
             lastUserMessageIdRef.current = userId;
+            lastMessageIdRef.current = userId; // Track for error anchoring
             setMessages((ms) => [
                 ...ms,
                 {
