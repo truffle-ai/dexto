@@ -12618,7 +12618,7 @@
                     "description": "Optional file data"
                   }
                 },
-                "description": "Request body for queueing a message"
+                "description": "Request body for queueing a message. At least one of message, imageData, or fileData must be provided."
               }
             }
           }
