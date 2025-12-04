@@ -278,6 +278,8 @@ export default function InputArea({
             setImageData(null);
             setFileData(null);
             setShowSlashCommands(false);
+            // Keep focus in input for quick follow-up messages
+            textareaRef.current?.focus();
             return;
         }
 
@@ -289,7 +291,8 @@ export default function InputArea({
         setFileData(null);
         // Ensure guidance window closes after submit
         setShowSlashCommands(false);
-        // Height handled by CSS; no imperative adjustments.
+        // Keep focus in input for quick follow-up messages
+        textareaRef.current?.focus();
     };
 
     const applyMentionSelection = (index: number, selectedResource?: UIResourceMetadata) => {
