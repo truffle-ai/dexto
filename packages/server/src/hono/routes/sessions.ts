@@ -145,9 +145,32 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         method: 'post',
         path: '/sessions/{sessionId}/cancel',
         summary: 'Cancel Session Run',
-        description: 'Cancels an in-flight agent run for the specified session',
+        description:
+            'Cancels an in-flight agent run for the specified session. ' +
+            'By default (soft cancel), only the current LLM call is cancelled and queued messages continue processing. ' +
+            'Set clearQueue=true for hard cancel to also clear any queued messages.',
         tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
+        request: {
+            params: z.object({ sessionId: z.string().describe('Session identifier') }),
+            body: {
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                clearQueue: z
+                                    .boolean()
+                                    .optional()
+                                    .default(false)
+                                    .describe(
+                                        'If true (hard cancel), clears queued messages. If false (soft cancel, default), queued messages continue processing.'
+                                    ),
+                            })
+                            .strict(),
+                    },
+                },
+                required: false,
+            },
+        },
         responses: {
             200: {
                 description: 'Cancel operation result',
@@ -157,6 +180,14 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                             .object({
                                 cancelled: z.boolean().describe('Whether a run was cancelled'),
                                 sessionId: z.string().describe('Session ID'),
+                                queueCleared: z
+                                    .boolean()
+                                    .describe('Whether queued messages were cleared'),
+                                clearedCount: z
+                                    .number()
+                                    .describe(
+                                        'Number of queued messages cleared (0 if soft cancel)'
+                                    ),
                             })
                             .strict(),
                     },
@@ -355,11 +386,41 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         .openapi(cancelRoute, async (ctx) => {
             const agent = getAgent();
             const { sessionId } = ctx.req.valid('param');
+
+            // Get clearQueue from body, default to false (soft cancel)
+            let clearQueue = false;
+            try {
+                const body = ctx.req.valid('json');
+                clearQueue = body?.clearQueue ?? false;
+            } catch {
+                // No body or invalid body - use default (soft cancel)
+            }
+
+            // If hard cancel, clear the queue first
+            let clearedCount = 0;
+            if (clearQueue) {
+                try {
+                    clearedCount = await agent.clearMessageQueue(sessionId);
+                    agent.logger.debug(
+                        `Hard cancel: cleared ${clearedCount} queued message(s) for session: ${sessionId}`
+                    );
+                } catch {
+                    // Session might not exist or queue not accessible - continue with cancel
+                }
+            }
+
+            // Then cancel the current run
             const cancelled = await agent.cancel(sessionId);
             if (!cancelled) {
                 agent.logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
             }
-            return ctx.json({ cancelled, sessionId });
+
+            return ctx.json({
+                cancelled,
+                sessionId,
+                queueCleared: clearQueue,
+                clearedCount,
+            });
         })
         .openapi(loadRoute, async (ctx) => {
             const agent = getAgent();

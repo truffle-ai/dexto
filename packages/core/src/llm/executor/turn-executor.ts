@@ -54,7 +54,11 @@ const toolSupportCache = new Map<string, boolean>();
  */
 export class TurnExecutor {
     private logger: IDextoLogger;
-    private abortController: AbortController;
+    /**
+     * Per-step abort controller. Created fresh for each iteration of the loop.
+     * This allows soft cancel (abort current step) while still continuing with queued messages.
+     */
+    private stepAbortController: AbortController;
     private compressionStrategy: ReactiveOverflowStrategy | null = null;
 
     constructor(
@@ -78,18 +82,13 @@ export class TurnExecutor {
         private externalSignal?: AbortSignal
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
-        this.abortController = new AbortController();
+        // Initial controller - will be replaced per-step in execute()
+        this.stepAbortController = new AbortController();
 
-        // Link external abort signal to internal controller
-        if (externalSignal) {
-            if (externalSignal.aborted) {
-                this.abortController.abort();
-            } else {
-                externalSignal.addEventListener('abort', () => this.abortController.abort(), {
-                    once: true,
-                });
-            }
-        }
+        // NOTE: We intentionally do NOT link external signal here permanently.
+        // Instead, we link it per-step in execute() so that:
+        // - Soft cancel: aborts current step, but queue can continue with fresh controller
+        // - Hard cancel (external aborted + clearQueue): checked explicitly in loop
 
         // Initialize compression strategy if model limits are provided
         if (modelLimits) {
@@ -134,6 +133,19 @@ export class TurnExecutor {
 
         try {
             while (true) {
+                // 0. Create fresh abort controller for this step
+                // This allows soft cancel (abort current step) while continuing with queued messages
+                this.stepAbortController = new AbortController();
+
+                // Link external signal to this step only (if not already aborted for hard cancel)
+                if (this.externalSignal && !this.externalSignal.aborted) {
+                    this.externalSignal.addEventListener(
+                        'abort',
+                        () => this.stepAbortController.abort(),
+                        { once: true }
+                    );
+                }
+
                 // 1. Check for queued messages (mid-loop injection)
                 const coalesced = this.messageQueue.dequeueAll();
                 if (coalesced) {
@@ -165,7 +177,7 @@ export class TurnExecutor {
                     this.contextManager,
                     this.eventBus,
                     this.resourceManager,
-                    this.abortController.signal,
+                    this.stepAbortController.signal,
                     this.getStreamProcessorConfig(),
                     this.logger,
                     streaming
@@ -176,7 +188,7 @@ export class TurnExecutor {
                         model: this.model,
                         stopWhen: stepCountIs(1),
                         tools,
-                        abortSignal: this.abortController.signal,
+                        abortSignal: this.stepAbortController.signal,
                         messages: prepared.formattedMessages,
                         ...(this.config.maxOutputTokens !== undefined && {
                             maxOutputTokens: this.config.maxOutputTokens,
@@ -205,22 +217,27 @@ export class TurnExecutor {
                 if (result.finishReason !== 'tool-calls') {
                     // Check queue before terminating - process queued messages if any
                     const queuedOnTerminate = this.messageQueue.dequeueAll();
-                    if (queuedOnTerminate) {
+                    // Only continue with queue if external signal is NOT aborted (soft cancel)
+                    // If external is aborted (hard cancel), skip queue and exit
+                    if (queuedOnTerminate && !this.externalSignal?.aborted) {
                         this.logger.debug(
                             `Continuing: ${queuedOnTerminate.messages.length} queued message(s) to process`
                         );
                         await this.injectQueuedMessages(queuedOnTerminate);
-                        continue; // Keep looping - process queued messages
+                        continue; // Keep looping with fresh controller - process queued messages
                     }
                     this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
                     break;
                 }
-                if (this.abortController.signal.aborted) {
-                    this.logger.debug('Terminating: abort signal received');
+                // Hard cancel check during tool-calls - external signal aborted
+                if (this.externalSignal?.aborted) {
+                    this.logger.debug('Terminating: hard cancel - external abort signal received');
+                    lastFinishReason = 'cancelled';
                     break;
                 }
                 if (++stepCount >= this.config.maxSteps) {
                     this.logger.debug(`Terminating: reached maxSteps (${this.config.maxSteps})`);
+                    lastFinishReason = 'max-steps';
                     break;
                 }
 
@@ -238,11 +255,24 @@ export class TurnExecutor {
                 recoverable: false,
             });
 
+            // Emit run:complete with error before throwing
+            this.eventBus.emit('run:complete', {
+                finishReason: 'error',
+                stepCount,
+                error: mappedError,
+            });
+
             throw mappedError;
         }
 
         // Set telemetry attributes for token usage
         this.setTelemetryAttributes(lastStepTokens);
+
+        // Emit run:complete event - the entire run is now finished
+        this.eventBus.emit('run:complete', {
+            finishReason: lastFinishReason,
+            stepCount,
+        });
 
         return {
             text: lastText,
@@ -253,10 +283,11 @@ export class TurnExecutor {
     }
 
     /**
-     * Abort the current execution.
+     * Abort the current step execution.
+     * Note: For full run cancellation, use the external abort signal.
      */
     abort(): void {
-        this.abortController.abort();
+        this.stepAbortController.abort();
     }
 
     /**
@@ -660,9 +691,9 @@ export class TurnExecutor {
     private cleanup(): void {
         this.logger.debug('TurnExecutor cleanup triggered');
 
-        // Abort any pending operations
-        if (!this.abortController.signal.aborted) {
-            this.abortController.abort();
+        // Abort any pending operations for current step
+        if (!this.stepAbortController.signal.aborted) {
+            this.stepAbortController.abort();
         }
 
         // Clear any pending queued messages

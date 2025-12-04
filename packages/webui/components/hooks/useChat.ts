@@ -359,7 +359,8 @@ export function useChat(
                 }
 
                 case 'llm:response': {
-                    setProcessing(event.sessionId, false);
+                    // NOTE: Don't set processing=false here - wait for run:complete
+                    // This allows queued messages to continue processing after this response
                     console.log('llm:response', event);
                     const text = event.content || '';
                     const usage = event.tokenUsage;
@@ -542,6 +543,24 @@ export function useChat(
                         ]);
                         // Update sessions cache
                         updateSessionActivity(event.sessionId);
+                    }
+                    break;
+                }
+
+                case 'run:complete': {
+                    // Agent run fully completed (no more steps, no queued messages)
+                    // NOW set processing to false - not on llm:response
+                    console.log('run:complete', event);
+                    setProcessing(event.sessionId, false);
+                    setStatus(event.sessionId, 'closed');
+
+                    // If there was an error, it's already been handled by llm:error
+                    // Just log it here for debugging
+                    if (event.error) {
+                        console.log(
+                            `Run ended with error (finishReason=${event.finishReason}):`,
+                            event.error
+                        );
                     }
                     break;
                 }
@@ -733,21 +752,23 @@ export function useChat(
         [setError, setProcessing]
     );
 
-    const cancel = useCallback(async (sessionId?: string) => {
+    const cancel = useCallback(async (sessionId?: string, clearQueue: boolean = false) => {
         if (!sessionId) return;
 
         // Tell server to cancel the LLM stream
-        // DON'T abort client-side stream - let server send final llm:response with partial content
+        // Soft cancel (default): Only cancel current response, queued messages continue
+        // Hard cancel (clearQueue=true): Cancel current response AND clear all queued messages
         try {
             await client.api.sessions[':sessionId'].cancel.$post({
                 param: { sessionId },
+                json: { clearQueue },
             });
         } catch (err) {
             // Server cancel is best-effort - log but don't throw
             console.warn('Failed to cancel server-side:', err);
         }
 
-        // UI state will be updated when server sends final llm:response event
+        // UI state will be updated when server sends run:complete event
         pendingToolCallsRef.current.clear();
     }, []);
 

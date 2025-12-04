@@ -855,11 +855,9 @@ export class DextoAgent {
         const responseListener = (data: AgentEventMap['llm:response']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:response', ...data });
-            // Only mark completed when the agent run is truly done
-            // 'tool-calls' means more steps are coming, so don't terminate yet
-            if (data.finishReason !== 'tool-calls') {
-                completed = true;
-            }
+            // NOTE: We no longer set completed=true here.
+            // The iterator closes when run:complete is received, not llm:response.
+            // This allows queued messages to be processed after an LLM response.
         };
         this.agentEventBus.on('llm:response', responseListener, { signal: cleanupSignal });
         listeners.push({ event: 'llm:response', listener: responseListener });
@@ -942,6 +940,18 @@ export class DextoAgent {
             signal: cleanupSignal,
         });
         listeners.push({ event: 'message:dequeued', listener: messageDequeuedListener });
+
+        // Run lifecycle event - emitted when TurnExecutor truly finishes
+        // This is when we close the iterator (not on llm:response)
+        const runCompleteListener = (data: AgentEventMap['run:complete']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'run:complete', ...data });
+            completed = true; // NOW close the iterator
+        };
+        this.agentEventBus.on('run:complete', runCompleteListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'run:complete', listener: runCompleteListener });
 
         // Start run in background (fire-and-forget)
         // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })

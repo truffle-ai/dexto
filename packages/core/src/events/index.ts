@@ -49,6 +49,7 @@ export const SESSION_EVENT_NAMES = [
     'message:dequeued',
     'message:updated',
     'message:removed',
+    'run:complete',
 ] as const;
 
 /**
@@ -89,6 +90,9 @@ export const STREAMING_EVENTS = [
     // Message queue events (for mid-task user guidance)
     'message:queued',
     'message:dequeued',
+
+    // Run lifecycle events
+    'run:complete',
 
     // Session metadata
     'session:title-updated',
@@ -400,6 +404,17 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Agent run completed (all steps done, no queued messages remaining) */
+    'run:complete': {
+        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
+        finishReason: string;
+        /** Number of steps executed */
+        stepCount: number;
+        /** Error that caused termination (only if finishReason === 'error') */
+        error?: Error;
+        sessionId: string;
+    };
+
     // State events
     /** Fired when agent runtime state changes */
     'state:changed': {
@@ -552,6 +567,16 @@ export interface SessionEventMap {
     /** Queued message was removed from queue */
     'message:removed': {
         id: string;
+    };
+
+    /** Agent run completed (all steps done, no queued messages remaining) */
+    'run:complete': {
+        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
+        finishReason: string;
+        /** Number of steps executed */
+        stepCount: number;
+        /** Error that caused termination (only if finishReason === 'error') */
+        error?: Error;
     };
 }
 
