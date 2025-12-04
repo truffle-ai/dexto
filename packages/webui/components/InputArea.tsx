@@ -85,13 +85,13 @@ export default function InputArea({
 
     // Input history for Up/Down navigation
     const {
-        addToHistory,
+        invalidateHistory,
         navigateUp,
         navigateDown,
         resetCursor,
         shouldHandleNavigation,
         isBrowsing,
-    } = useInputHistory();
+    } = useInputHistory(currentSessionId);
 
     // Queue management
     const { data: queueData } = useQueuedMessages(currentSessionId);
@@ -272,8 +272,8 @@ export default function InputArea({
                 imageData: imageData ?? undefined,
                 fileData: fileData ?? undefined,
             });
-            // Add to input history for Up arrow recall
-            addToHistory(trimmed);
+            // Invalidate history cache so it refetches with new message
+            invalidateHistory();
             setText('');
             setImageData(null);
             setFileData(null);
@@ -284,8 +284,8 @@ export default function InputArea({
         }
 
         onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
-        // Add to input history for Up arrow recall
-        addToHistory(trimmed);
+        // Invalidate history cache so it refetches with new message
+        invalidateHistory();
         setText('');
         setImageData(null);
         setFileData(null);
@@ -346,7 +346,7 @@ export default function InputArea({
         [currentSessionId, removeQueuedMessage]
     );
 
-    // Handle Alt+Up to edit most recent queued message
+    // Handle Up arrow to edit most recent queued message (when input empty/on first line)
     const handleEditLastQueued = useCallback(() => {
         if (queuedMessages.length === 0) return false;
 

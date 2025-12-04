@@ -47,13 +47,9 @@ export function QueuedMessagesDisplay({
                     </span>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <kbd className="px-1 py-0.5 bg-muted border border-border rounded text-[10px]">
-                            Alt
-                        </kbd>
-                        <span>+</span>
-                        <kbd className="px-1 py-0.5 bg-muted border border-border rounded text-[10px]">
                             <ArrowUp className="h-2.5 w-2.5 inline" />
                         </kbd>
-                        <span className="ml-1">edit</span>
+                        <span className="ml-1">to edit</span>
                     </div>
                 </div>
 

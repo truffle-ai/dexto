@@ -1,6 +1,59 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { client } from '@/lib/client';
+import { queryKeys } from '@/lib/queryKeys';
 
 const MAX_HISTORY_SIZE = 100;
+
+/**
+ * Hook to fetch user messages from session history
+ */
+function useSessionUserMessages(sessionId: string | null) {
+    return useQuery({
+        queryKey: queryKeys.sessions.history(sessionId ?? ''),
+        queryFn: async () => {
+            if (!sessionId) return [];
+            const response = await client.api.sessions[':sessionId'].history.$get({
+                param: { sessionId },
+            });
+            if (!response.ok) return [];
+
+            const data = await response.json();
+            const historyMessages = data.history || [];
+
+            // Extract text content from user messages
+            const userTexts: string[] = [];
+            for (const msg of historyMessages) {
+                if (msg.role !== 'user') continue;
+                if (!msg.content || !Array.isArray(msg.content)) continue;
+
+                const textParts = msg.content
+                    .filter(
+                        (part): part is { type: 'text'; text: string } =>
+                            part.type === 'text' && typeof part.text === 'string'
+                    )
+                    .map((part) => part.text.trim())
+                    .filter((t) => t.length > 0);
+
+                if (textParts.length > 0) {
+                    userTexts.push(textParts.join('\n'));
+                }
+            }
+
+            // Deduplicate consecutive entries
+            const deduplicated: string[] = [];
+            for (const text of userTexts) {
+                if (deduplicated.length === 0 || deduplicated[deduplicated.length - 1] !== text) {
+                    deduplicated.push(text);
+                }
+            }
+
+            return deduplicated.slice(-MAX_HISTORY_SIZE);
+        },
+        enabled: !!sessionId,
+        staleTime: 30000, // Consider fresh for 30s
+    });
+}
 
 /**
  * Hook for managing input history with shell-style navigation.
@@ -8,42 +61,41 @@ const MAX_HISTORY_SIZE = 100;
  * - Up arrow: Navigate to older entries
  * - Down arrow: Navigate to newer entries
  * - History cursor resets when user types new input
+ * - Loads previous user messages from session history via TanStack Query
  *
  * Similar to Codex CLI's chat_composer_history.rs
  */
-export function useInputHistory() {
-    // History entries (newest at end)
-    const [history, setHistory] = useState<string[]>([]);
-    // Current position in history (-1 means not browsing, 0 = newest, length-1 = oldest)
+export function useInputHistory(sessionId: string | null) {
+    const queryClient = useQueryClient();
+
+    // Fetch historical user messages from session
+    const { data: history = [] } = useSessionUserMessages(sessionId);
+
+    // Current position in history (-1 means not browsing, 0 = oldest, length-1 = newest)
     const [cursor, setCursor] = useState<number>(-1);
     // Track the text that was in input before browsing started
     const savedInputRef = useRef<string>('');
     // Track last recalled text to prevent hijacking normal editing
     const lastRecalledRef = useRef<string | null>(null);
 
-    /**
-     * Add a message to history (call after sending)
-     */
-    const addToHistory = useCallback((text: string) => {
-        const trimmed = text.trim();
-        if (!trimmed) return;
-
-        setHistory((prev) => {
-            // Don't add duplicates of the most recent entry
-            if (prev.length > 0 && prev[prev.length - 1] === trimmed) {
-                return prev;
-            }
-            const next = [...prev, trimmed];
-            // Limit history size
-            if (next.length > MAX_HISTORY_SIZE) {
-                next.shift();
-            }
-            return next;
-        });
-        // Reset cursor after adding
+    // Reset cursor when session changes
+    useEffect(() => {
         setCursor(-1);
         lastRecalledRef.current = null;
-    }, []);
+        savedInputRef.current = '';
+    }, [sessionId]);
+
+    /**
+     * Invalidate history cache after sending a message.
+     * Call this after successfully sending to refresh the history.
+     */
+    const invalidateHistory = useCallback(() => {
+        if (sessionId) {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.sessions.history(sessionId),
+            });
+        }
+    }, [queryClient, sessionId]);
 
     /**
      * Check if we should handle navigation (up/down) vs normal cursor movement.
@@ -53,9 +105,7 @@ export function useInputHistory() {
      */
     const shouldHandleNavigation = useCallback(
         (currentText: string, cursorPosition: number): boolean => {
-            // Empty input - always handle
             if (!currentText) return true;
-            // At start of input AND text matches what we recalled
             if (cursorPosition === 0 && lastRecalledRef.current === currentText) {
                 return true;
             }
@@ -100,7 +150,6 @@ export function useInputHistory() {
      * Returns the text to display, or null if back to current input
      */
     const navigateDown = useCallback((): string | null => {
-        // Not browsing
         if (cursor === -1) return null;
 
         // At newest entry - return to saved input
@@ -131,7 +180,7 @@ export function useInputHistory() {
     return {
         history,
         cursor,
-        addToHistory,
+        invalidateHistory,
         navigateUp,
         navigateDown,
         resetCursor,
