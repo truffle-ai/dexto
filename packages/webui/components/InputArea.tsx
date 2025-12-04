@@ -323,6 +323,9 @@ export default function InputArea({
             if (!currentSessionId) return;
 
             // Extract text content from message
+            // TODO: Use shared types from @dexto/core once API schemas align with core types.
+            // Currently core types allow multiple formats (string | URL | Buffer etc.) while
+            // API schemas use string-only for JSON serialization.
             const textContent = message.content
                 .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
                 .map((part) => part.text)
