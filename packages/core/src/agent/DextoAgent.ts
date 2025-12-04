@@ -924,6 +924,25 @@ export class DextoAgent {
         });
         listeners.push({ event: 'approval:response', listener: approvalResponseListener });
 
+        // Message queue events (for mid-task user guidance)
+        const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'message:queued', ...data });
+        };
+        this.agentEventBus.on('message:queued', messageQueuedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'message:queued', listener: messageQueuedListener });
+
+        const messageDequeuedListener = (data: AgentEventMap['message:dequeued']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'message:dequeued', ...data });
+        };
+        this.agentEventBus.on('message:dequeued', messageDequeuedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'message:dequeued', listener: messageDequeuedListener });
+
         // Start run in background (fire-and-forget)
         // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
         const imageDataForRun = imageData
