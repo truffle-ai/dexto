@@ -95,7 +95,8 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         method: 'get',
         path: '/sessions/{sessionId}/history',
         summary: 'Get Session History',
-        description: 'Retrieves the conversation history for a session',
+        description:
+            'Retrieves the conversation history for a session along with processing status',
         tags: ['sessions'],
         request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
         responses: {
@@ -108,6 +109,11 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                                 history: z
                                     .array(InternalMessageSchema)
                                     .describe('Array of messages in conversation history'),
+                                isBusy: z
+                                    .boolean()
+                                    .describe(
+                                        'Whether the session is currently processing a message'
+                                    ),
                             })
                             .strict(),
                     },
@@ -201,7 +207,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         path: '/sessions/{sessionId}/load',
         summary: 'Load Session',
         description:
-            'Validates and retrieves session information. The client should track the active session.',
+            'Validates and retrieves session information including processing status. The client should track the active session.',
         tags: ['sessions'],
         request: {
             params: z.object({ sessionId: z.string().describe('Session identifier') }),
@@ -213,7 +219,13 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                     'application/json': {
                         schema: z
                             .object({
-                                session: SessionMetadataSchema.describe('Session metadata'),
+                                session: SessionMetadataSchema.extend({
+                                    isBusy: z
+                                        .boolean()
+                                        .describe(
+                                            'Whether the session is currently processing a message'
+                                        ),
+                                }).describe('Session metadata with processing status'),
                             })
                             .strict(),
                     },
@@ -371,11 +383,17 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
         .openapi(historyRoute, async (ctx) => {
             const agent = getAgent();
             const { sessionId } = ctx.req.param();
-            const history = await agent.getSessionHistory(sessionId);
+            const [history, isBusy] = await Promise.all([
+                agent.getSessionHistory(sessionId),
+                agent.isSessionBusy(sessionId),
+            ]);
             // TODO: Improve type alignment between core and server schemas.
             // Core's InternalMessage has union types (string | Uint8Array | Buffer | URL)
             // for binary data, but JSON responses are always base64 strings.
-            return ctx.json({ history: history as z.output<typeof InternalMessageSchema>[] });
+            return ctx.json({
+                history: history as z.output<typeof InternalMessageSchema>[],
+                isBusy,
+            });
         })
         .openapi(deleteRoute, async (ctx) => {
             const agent = getAgent();
@@ -432,8 +450,9 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                 return ctx.json({ error: `Session not found: ${sessionId}` }, 404);
             }
 
-            // Return session metadata
+            // Return session metadata with processing status
             const metadata = await agent.getSessionMetadata(sessionId);
+            const isBusy = await agent.isSessionBusy(sessionId);
             return ctx.json(
                 {
                     session: {
@@ -442,6 +461,7 @@ export function createSessionsRouter(getAgent: () => DextoAgent) {
                         lastActivity: metadata?.lastActivity || null,
                         messageCount: metadata?.messageCount || 0,
                         title: metadata?.title || null,
+                        isBusy,
                     },
                 },
                 200

@@ -70,7 +70,9 @@ interface ChatContextType {
 }
 
 // Helper function to fetch and convert session history to UI messages
-async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
+async function fetchSessionHistory(
+    sessionId: string
+): Promise<{ messages: Message[]; isBusy: boolean }> {
     const response = await client.api.sessions[':sessionId'].history.$get({
         param: { sessionId },
     });
@@ -79,7 +81,10 @@ async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
     }
     const data = await response.json();
     const history = data.history || [];
-    return convertHistoryToMessages(history, sessionId);
+    return {
+        messages: convertHistoryToMessages(history, sessionId),
+        isBusy: data.isBusy ?? false,
+    };
 }
 
 // Helper function to convert session history API response to UI messages
@@ -513,13 +518,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         queryKey: queryKeys.sessions.history(currentSessionId || ''),
         queryFn: async () => {
             if (!currentSessionId) {
-                return [];
+                return { messages: [], isBusy: false };
             }
             try {
                 return await fetchSessionHistory(currentSessionId);
             } catch {
-                // Return empty array for 404 or other errors
-                return [];
+                // Return empty result for 404 or other errors
+                return { messages: [], isBusy: false };
             }
         },
         enabled: false, // Manual refetch only
@@ -531,8 +536,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (sessionHistoryData && currentSessionId) {
             setMessages((prev) => {
                 const hasSessionMsgs = prev.some((m) => m.sessionId === currentSessionId);
-                return hasSessionMsgs ? prev : sessionHistoryData;
+                return hasSessionMsgs ? prev : sessionHistoryData.messages;
             });
+            // Cancel any active run on page refresh (we can't reconnect to the stream)
+            if (sessionHistoryData.isBusy) {
+                client.api.sessions[':sessionId'].cancel
+                    .$post({
+                        param: { sessionId: currentSessionId },
+                        json: { clearQueue: true },
+                    })
+                    .catch((e) => console.warn('Failed to cancel busy session:', e));
+            }
         }
     }, [sessionHistoryData, currentSessionId, setMessages]);
 
@@ -545,8 +559,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                         try {
                             return await fetchSessionHistory(sessionId);
                         } catch {
-                            // Return empty array for 404 or other errors
-                            return [];
+                            // Return empty result for 404 or other errors
+                            return { messages: [], isBusy: false };
                         }
                     },
                     retry: false,
@@ -554,14 +568,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
                 setMessages((prev) => {
                     const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
-                    return hasSessionMsgs ? prev : result;
+                    return hasSessionMsgs ? prev : result.messages;
                 });
+
+                // Cancel any active run on page refresh (we can't reconnect to the stream)
+                // This ensures clean state - user can see history and send new messages
+                // TODO: Implement stream reconnection instead of cancelling
+                // - Add GET /sessions/{sessionId}/events SSE endpoint for listen-only mode
+                // - Connect to event stream when isBusy=true to resume receiving updates
+                if (result.isBusy) {
+                    try {
+                        await client.api.sessions[':sessionId'].cancel.$post({
+                            param: { sessionId },
+                            json: { clearQueue: true }, // Hard cancel - clear queue too
+                        });
+                    } catch (e) {
+                        console.warn('Failed to cancel busy session on load:', e);
+                    }
+                }
             } catch (error) {
                 console.error('Error loading session history:', error);
                 setMessages([]);
             }
         },
-        [setMessages, queryClient]
+        [setMessages, queryClient, setSessionProcessing]
     );
 
     // Switch to a different session and load it on the backend
