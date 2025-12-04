@@ -153,4 +153,25 @@ export class ToolError {
             { toolName, reason }
         );
     }
+
+    /**
+     * Tool requires features which are currently disabled
+     */
+    static featureDisabled(
+        toolName: string,
+        missingFeatures: string[],
+        message: string
+    ): DextoRuntimeError<{ toolName: string; missingFeatures: string[] }> {
+        return new DextoRuntimeError(
+            ToolErrorCode.FEATURE_DISABLED,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            message,
+            { toolName, missingFeatures },
+            [
+                `Remove '${toolName}' from internalTools in your agent config`,
+                `Or enable required features: ${missingFeatures.map((f) => `${f}.enabled: true`).join(', ')}`,
+            ]
+        );
+    }
 }

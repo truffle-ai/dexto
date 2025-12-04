@@ -1,5 +1,26 @@
 # dexto
 
+## 1.3.0
+
+### Minor Changes
+
+- eb266af: Migrate WebUI from next-js to vite. Fix any typing in web UI. Improve types in core. minor renames in event schemas
+
+### Patch Changes
+
+- e2f770b: Add changeset for updated schema defaults and updated docs.
+- 306f5de: Fix cursor navigation in CLI input. Users can now use left/right arrow keys, Home/End keys to navigate within the input text. Fixed by replacing CustomInput with CustomTextInput which uses ink-text-input with built-in cursor support.
+- 6886db4: Add workflow builder/n8n agent and product analysis/posthog agent
+- 66ce8c2: Added changeset for ink-cli upgrades and metadata patch in webui
+- f843b62: Change otel and storage deps to peer dependencies with dynamic imports to reduce bloat
+- Updated dependencies [e2f770b]
+- Updated dependencies [f843b62]
+- Updated dependencies [eb266af]
+    - @dexto/core@1.3.0
+    - @dexto/server@1.3.0
+    - @dexto/agent-management@1.3.0
+    - @dexto/analytics@1.3.0
+
 ## 1.2.6
 
 ### Patch Changes

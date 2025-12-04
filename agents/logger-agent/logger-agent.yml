@@ -72,6 +72,11 @@ toolConfirmation:
   timeout: 120000
   allowedToolsStorage: memory
 
+# Elicitation configuration - required for ask_user tool
+elicitation:
+  enabled: true
+  timeout: 120000
+
 # Internal tools
 internalTools:
   - ask_user

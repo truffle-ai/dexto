@@ -1,0 +1,9 @@
+{
+  "label": "System Prompt Preparation",
+  "position": 9,
+  "collapsed": false,
+  "link": {
+    "type": "doc",
+    "id": "tutorials/sdk/context-management/prompt-contributors"
+  }
+}

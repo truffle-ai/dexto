@@ -1,5 +1,19 @@
 # @dexto/server
 
+## 1.3.0
+
+### Minor Changes
+
+- eb266af: Migrate WebUI from next-js to vite. Fix any typing in web UI. Improve types in core. minor renames in event schemas
+
+### Patch Changes
+
+- Updated dependencies [e2f770b]
+- Updated dependencies [f843b62]
+- Updated dependencies [eb266af]
+    - @dexto/core@1.3.0
+    - @dexto/agent-management@1.3.0
+
 ## 1.2.6
 
 ### Patch Changes

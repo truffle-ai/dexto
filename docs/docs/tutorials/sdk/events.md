@@ -182,14 +182,8 @@ See the [Events API Reference](/api/sdk/events) for complete details.
 
 ## What's Next?
 
-You've completed the essential SDK tutorials! You now know how to:
-- ✅ Create and configure agents
-- ✅ Manage conversations with sessions
-- ✅ Serve multiple users
-- ✅ Give agents real capabilities with tools
-- ✅ Build responsive UIs with events
+You've mastered the core SDK capabilities—creating agents, managing sessions, serving users, adding tools, and handling events. But you've been configuring everything inline with JavaScript objects.
 
-**Keep learning:**
-- **[API Reference](/api/sdk/dexto-agent)** - Full DextoAgent API
-- **[MCP Guide](/docs/mcp/overview)** - Deep dive into tools
-- Build something and share it!
+Production applications need more: reusable configs, environment management, and programmatic agent orchestration. The next tutorials cover these production patterns.
+
+**Continue to:** [Loading Agent Configs](./config-files.md)

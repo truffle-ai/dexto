@@ -4,8 +4,8 @@ import { existsSync, statSync } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import * as p from '@clack/prompts';
-import { getDextoGlobalPath } from '@dexto/agent-management';
-import { getAgentRegistry } from '@dexto/agent-management';
+import { getDextoGlobalPath, loadBundledRegistryAgents } from '@dexto/agent-management';
+import { installBundledAgent, installCustomAgent } from '../../utils/agent-helpers.js';
 import { capture } from '../../analytics/index.js';
 
 // Zod schema for install command validation
@@ -153,8 +153,6 @@ function validateInstallCommand(
     agents: string[],
     options: Partial<InstallCommandOptions>
 ): InstallCommandOptions {
-    const registry = getAgentRegistry();
-
     // Basic structure validation
     const validated = InstallCommandSchema.parse({
         ...options,
@@ -162,7 +160,7 @@ function validateInstallCommand(
     });
 
     // Business logic validation
-    const availableAgents = registry.getAvailableAgents();
+    const availableAgents = loadBundledRegistryAgents();
     if (!validated.all && validated.agents.length === 0) {
         throw new Error(
             `No agents specified. Use agent names or --all flag.  Available agents: ${Object.keys(availableAgents).join(', ')}`
@@ -175,7 +173,7 @@ function validateInstallCommand(
         const registryNames = validated.agents.filter((agent) => !isFilePath(agent));
 
         // Validate registry names exist in registry
-        const invalidAgents = registryNames.filter((agent) => !registry.hasAgent(agent));
+        const invalidAgents = registryNames.filter((agent) => !(agent in availableAgents));
         if (invalidAgents.length > 0) {
             throw new Error(
                 `Unknown agents: ${invalidAgents.join(', ')}. ` +
@@ -202,13 +200,13 @@ export async function handleInstallCommand(
 ): Promise<void> {
     // Validate command with Zod
     const validated = validateInstallCommand(agents, options);
-    const registry = getAgentRegistry();
 
     // Determine which agents to install
     let agentsToInstall: string[];
     if (validated.all) {
         // --all flag only works with registry agents, not file paths
-        agentsToInstall = Object.keys(registry.getAvailableAgents());
+        const availableAgents = loadBundledRegistryAgents();
+        agentsToInstall = Object.keys(availableAgents);
         console.log(`📋 Installing all ${agentsToInstall.length} available agents...`);
     } else {
         agentsToInstall = validated.agents;
@@ -245,41 +243,6 @@ export async function handleInstallCommand(
                 // Prompt for metadata
                 const metadata = await promptForMetadata(suggestedName);
 
-                // Prompt for main field if installing from directory
-                let main: string | undefined;
-                if (isDirectory) {
-                    const mainInput = await p.text({
-                        message: 'Main config file:',
-                        placeholder: 'agent.yml',
-                        defaultValue: 'agent.yml',
-                        validate: (value) => {
-                            if (!value || value.trim().length === 0) {
-                                return 'Main config file is required';
-                            }
-
-                            // Validate it's a YAML file
-                            if (!value.endsWith('.yml') && !value.endsWith('.yaml')) {
-                                return 'Main file must be a .yml or .yaml file';
-                            }
-
-                            // Validate that main file exists in source directory
-                            const mainPath = path.join(resolvedPath, value);
-                            if (!existsSync(mainPath)) {
-                                return `File not found: ${value}`;
-                            }
-
-                            return undefined;
-                        },
-                    });
-
-                    if (p.isCancel(mainInput)) {
-                        p.cancel('Installation cancelled');
-                        process.exit(0);
-                    }
-
-                    main = mainInput as string;
-                }
-
                 // Check if already installed (unless --force)
                 const globalAgentsDir = getDextoGlobalPath('agents');
                 const installedPath = path.join(globalAgentsDir, metadata.agentName);
@@ -299,16 +262,18 @@ export async function handleInstallCommand(
                 }
 
                 // Install custom agent
-                await registry.installCustomAgentFromPath(
+                await installCustomAgent(
                     metadata.agentName,
                     resolvedPath,
                     {
+                        name: metadata.agentName,
                         description: metadata.description,
                         author: metadata.author,
                         tags: metadata.tags,
-                        ...(main ? { main } : {}),
                     },
-                    validated.injectPreferences
+                    {
+                        injectPreferences: validated.injectPreferences,
+                    }
                 );
 
                 successCount++;
@@ -343,7 +308,9 @@ export async function handleInstallCommand(
                     continue;
                 }
 
-                await registry.installAgent(agentInput, validated.injectPreferences);
+                await installBundledAgent(agentInput, {
+                    injectPreferences: validated.injectPreferences,
+                });
                 successCount++;
                 console.log(`✅ ${agentInput} installed successfully`);
                 installed.push(agentInput);

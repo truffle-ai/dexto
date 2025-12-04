@@ -2,9 +2,8 @@ import { ToolExecutionContext, ToolSet, InternalTool } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
-import { InternalToolsServices, getInternalToolInfo } from './registry.js';
+import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
 import type { InternalToolsConfig } from '../schemas.js';
-import type { ApprovalManager } from '../../approval/manager.js';
 
 /**
  * Provider for built-in internal tools that are part of the core system
@@ -21,18 +20,15 @@ import type { ApprovalManager } from '../../approval/manager.js';
 export class InternalToolsProvider {
     private services: InternalToolsServices;
     private tools: Map<string, InternalTool> = new Map(); // ← Store original InternalTool
-    private approvalManager: ApprovalManager;
     private config: InternalToolsConfig;
     private logger: IDextoLogger;
 
     constructor(
         services: InternalToolsServices,
-        approvalManager: ApprovalManager,
         config: InternalToolsConfig = [],
         logger: IDextoLogger
     ) {
         this.services = services;
-        this.approvalManager = approvalManager;
         this.config = config;
         this.logger = logger;
         this.logger.debug('InternalToolsProvider initialized with config:', { config });
@@ -67,10 +63,9 @@ export class InternalToolsProvider {
      * Register all available internal tools based on available services and configuration
      */
     private registerInternalTools(): void {
-        // Augment services with approvalManager
-        const servicesWithApproval = {
-            ...this.services,
-            approvalManager: this.approvalManager,
+        // Build feature flags from services
+        const featureFlags: Record<AgentFeature, boolean> = {
+            elicitation: this.services.approvalManager?.getConfig().elicitation.enabled ?? false,
         };
 
         for (const toolName of this.config) {
@@ -78,7 +73,7 @@ export class InternalToolsProvider {
 
             // Check if all required services are available
             const missingServices = toolInfo.requiredServices.filter(
-                (serviceKey) => !servicesWithApproval[serviceKey]
+                (serviceKey) => !this.services[serviceKey]
             );
 
             if (missingServices.length > 0) {
@@ -88,9 +83,23 @@ export class InternalToolsProvider {
                 continue;
             }
 
+            // Check if all required features are enabled - fail hard if not
+            const missingFeatures = (toolInfo.requiredFeatures ?? []).filter(
+                (feature) => !featureFlags[feature]
+            );
+
+            if (missingFeatures.length > 0) {
+                throw ToolError.featureDisabled(
+                    toolName,
+                    missingFeatures,
+                    `Tool '${toolName}' requires features which are currently disabled: ${missingFeatures.join(', ')}. ` +
+                        `Either remove '${toolName}' from internalTools, or enable: ${missingFeatures.map((f) => `${f}.enabled: true`).join(', ')}`
+                );
+            }
+
             try {
                 // Create the tool using its factory and store directly
-                const tool = toolInfo.factory(servicesWithApproval);
+                const tool = toolInfo.factory(this.services);
                 this.tools.set(toolName, tool); // ← Store original InternalTool directly
                 this.logger.debug(`Registered ${toolName} internal tool`);
             } catch (error) {

@@ -199,7 +199,7 @@ export interface AgentEventMap {
 
     /** Fired when a new session is created and should become active */
     'session:created': {
-        sessionId: string;
+        sessionId: string | null; // null means clear without creating (deferred creation)
         switchTo: boolean; // Whether UI should switch to this session
     };
 

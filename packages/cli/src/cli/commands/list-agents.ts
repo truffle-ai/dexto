@@ -6,10 +6,10 @@ import path from 'path';
 import chalk from 'chalk';
 import { z } from 'zod';
 import {
-    getAgentRegistry,
     getDextoGlobalPath,
     globalPreferencesExist,
     loadGlobalPreferences,
+    loadBundledRegistryAgents,
 } from '@dexto/agent-management';
 
 // Zod schema for list-agents command validation
@@ -57,49 +57,57 @@ async function getInstalledAgents(): Promise<InstalledAgentInfo[]> {
         return [];
     }
 
-    const registry = getAgentRegistry();
+    const bundledRegistry = loadBundledRegistryAgents();
     const installedAgents: InstalledAgentInfo[] = [];
 
     try {
         const entries = await fs.readdir(globalAgentsDir, { withFileTypes: true });
 
         for (const entry of entries) {
-            if (entry.isDirectory() || entry.name.endsWith('.yml')) {
-                const agentName = entry.isDirectory()
-                    ? entry.name
-                    : path.basename(entry.name, '.yml');
+            // Skip registry.json and temp files
+            if (entry.name === 'registry.json' || entry.name.includes('.tmp.')) {
+                continue;
+            }
 
+            if (entry.isDirectory()) {
+                const agentName = entry.name;
                 const agentPath = path.join(globalAgentsDir, entry.name);
 
                 try {
-                    // Try to resolve main config to get metadata
-                    const mainConfigPath = entry.isDirectory()
-                        ? registry.resolveMainConfig(agentPath, agentName)
-                        : agentPath;
+                    // For directory agents, try to find main config
+                    // Check bundled registry for main field, default to agent.yml
+                    const bundledEntry = bundledRegistry[agentName];
+                    const mainFile = bundledEntry?.main || 'agent.yml';
+                    const mainConfigPath = path.join(agentPath, mainFile);
 
-                    // Get install date from directory/file stats
+                    // If main config doesn't exist, skip
+                    if (!existsSync(mainConfigPath)) {
+                        console.warn(
+                            `Warning: Could not find main config for agent '${agentName}' at ${mainConfigPath}`
+                        );
+                        continue;
+                    }
+
+                    // Get install date from directory stats
                     const stats = await fs.stat(agentPath);
 
                     // Try to extract LLM info from config
                     let llmProvider: string | undefined;
                     let llmModel: string | undefined;
 
-                    if (existsSync(mainConfigPath)) {
-                        try {
-                            const configContent = await fs.readFile(mainConfigPath, 'utf-8');
-                            const configMatch = configContent.match(/provider:\s*([^\n\r]+)/);
-                            const modelMatch = configContent.match(/model:\s*([^\n\r]+)/);
+                    try {
+                        const configContent = await fs.readFile(mainConfigPath, 'utf-8');
+                        const configMatch = configContent.match(/provider:\s*([^\n\r]+)/);
+                        const modelMatch = configContent.match(/model:\s*([^\n\r]+)/);
 
-                            llmProvider = configMatch?.[1]?.trim();
-                            llmModel = modelMatch?.[1]?.trim();
-                        } catch (_error) {
-                            // Ignore config parsing errors
-                        }
+                        llmProvider = configMatch?.[1]?.trim();
+                        llmModel = modelMatch?.[1]?.trim();
+                    } catch (_error) {
+                        // Ignore config parsing errors
                     }
 
-                    // Get description from registry if available
-                    const registryData = registry.getAvailableAgents()[agentName];
-                    const description = registryData?.description || 'Custom agent';
+                    // Get description from bundled registry if available
+                    const description = bundledEntry?.description || 'Custom agent';
 
                     const agentInfo: InstalledAgentInfo = {
                         name: agentName,
@@ -130,16 +138,15 @@ async function getInstalledAgents(): Promise<InstalledAgentInfo[]> {
  * Get information about available agents from registry
  */
 function getAvailableAgents(): AvailableAgentInfo[] {
-    const registry = getAgentRegistry();
-    const availableAgents = registry.getAvailableAgents();
+    const bundledRegistry = loadBundledRegistryAgents();
 
-    return Object.entries(availableAgents)
+    return Object.entries(bundledRegistry)
         .map(([name, data]) => ({
             name,
-            description: data.description,
-            author: data.author,
-            tags: data.tags,
-            type: data.type,
+            description: data.description || 'No description',
+            author: data.author || 'Unknown',
+            tags: data.tags || [],
+            type: 'builtin' as const,
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -1,6 +1,6 @@
 {
   "name": "@dexto/core",
-  "version": "1.2.6",
+  "version": "1.3.0",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -61,18 +61,42 @@
     "tsx": "^4.19.2"
   },
   "peerDependenciesMeta": {
-    "@opentelemetry/auto-instrumentations-node": { "optional": true },
-    "@opentelemetry/core": { "optional": true },
-    "@opentelemetry/exporter-trace-otlp-grpc": { "optional": true },
-    "@opentelemetry/exporter-trace-otlp-http": { "optional": true },
-    "@opentelemetry/resources": { "optional": true },
-    "@opentelemetry/sdk-node": { "optional": true },
-    "@opentelemetry/sdk-trace-base": { "optional": true },
-    "@opentelemetry/semantic-conventions": { "optional": true },
-    "better-sqlite3": { "optional": true },
-    "ioredis": { "optional": true },
-    "pg": { "optional": true },
-    "tsx": { "optional": true }
+    "@opentelemetry/auto-instrumentations-node": {
+      "optional": true
+    },
+    "@opentelemetry/core": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-grpc": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-http": {
+      "optional": true
+    },
+    "@opentelemetry/resources": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-node": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-base": {
+      "optional": true
+    },
+    "@opentelemetry/semantic-conventions": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "tsx": {
+      "optional": true
+    }
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",

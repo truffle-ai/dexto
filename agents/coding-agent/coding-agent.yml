@@ -79,6 +79,11 @@ toolConfirmation:
     # alwaysDeny:
     #   - internal--bash_exec--rm -rf*  # Prevent recursive deletion
 
+# Elicitation configuration - required for ask_user tool
+elicitation:
+  enabled: true
+  timeout: 120000
+
 # Internal tools - all coding tools enabled
 internalTools:
   - ask_user       # Ask questions and collect input

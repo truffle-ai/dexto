@@ -183,15 +183,19 @@ export const generalCommands: CommandDefinition[] = [
         aliases: ['new'],
         handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
             try {
-                // Create a new session instead of deleting history
-                // This clears the viewable conversation without deleting the old session
-                const newSession = await agent.createSession();
+                // Clear the viewable conversation without creating a new session yet
+                // Session will be created when user sends their first message (deferred creation)
+                // This prevents empty sessions from cluttering the session list
+                agent.agentEventBus.emit('session:created', {
+                    sessionId: null,
+                    switchTo: true,
+                });
 
-                const output = `🔄 Started new session: ${newSession.id.slice(0, 8)}\n💡 Previous session preserved. Use /resume to switch back.`;
+                const output = `🔄 Started new conversation\n💡 Previous session preserved. Use /resume to switch back.`;
                 console.log(chalk.green(output));
                 return formatForInkCli(output);
             } catch (error) {
-                const errorMsg = `Failed to start new session: ${error instanceof Error ? error.message : String(error)}`;
+                const errorMsg = `Failed to start new conversation: ${error instanceof Error ? error.message : String(error)}`;
                 logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
