@@ -328,8 +328,34 @@ export default function InputArea({
                 .map((part) => part.text)
                 .join('\n');
 
+            // Extract image attachment if present
+            const imagePart = message.content.find(
+                (part): part is { type: 'image'; image: string; mimeType: string } =>
+                    part.type === 'image'
+            );
+
+            // Extract file attachment if present
+            const filePart = message.content.find(
+                (
+                    part
+                ): part is { type: 'file'; data: string; mimeType: string; filename?: string } =>
+                    part.type === 'file'
+            );
+
             // Load into input
             setText(textContent);
+            setImageData(
+                imagePart ? { image: imagePart.image, mimeType: imagePart.mimeType } : null
+            );
+            setFileData(
+                filePart
+                    ? {
+                          data: filePart.data,
+                          mimeType: filePart.mimeType,
+                          filename: filePart.filename,
+                      }
+                    : null
+            );
 
             // Remove from queue
             removeQueuedMessage({ sessionId: currentSessionId, messageId: message.id });
