@@ -733,31 +733,23 @@ export function useChat(
         [setError, setProcessing]
     );
 
-    const cancel = useCallback(
-        async (sessionId?: string) => {
-            if (!sessionId) return;
+    const cancel = useCallback(async (sessionId?: string) => {
+        if (!sessionId) return;
 
-            // 1. Abort client-side stream to stop receiving events
-            abortSession(sessionId);
+        // Tell server to cancel the LLM stream
+        // DON'T abort client-side stream - let server send final llm:response with partial content
+        try {
+            await client.api.sessions[':sessionId'].cancel.$post({
+                param: { sessionId },
+            });
+        } catch (err) {
+            // Server cancel is best-effort - log but don't throw
+            console.warn('Failed to cancel server-side:', err);
+        }
 
-            // 2. Tell server to cancel the LLM stream
-            try {
-                await client.api.sessions[':sessionId'].cancel.$post({
-                    param: { sessionId },
-                });
-            } catch (err) {
-                // Server cancel is best-effort - log but don't throw
-                console.warn('Failed to cancel server-side:', err);
-            }
-
-            // 3. Update UI state
-            setProcessing(sessionId, false);
-            setStatus(sessionId, 'closed');
-            pendingToolCallsRef.current.clear();
-            suppressNextErrorRef.current = true;
-        },
-        [abortSession, setProcessing, setStatus]
-    );
+        // UI state will be updated when server sends final llm:response event
+        pendingToolCallsRef.current.clear();
+    }, []);
 
     return {
         messages,

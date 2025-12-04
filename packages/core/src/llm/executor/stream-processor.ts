@@ -7,7 +7,7 @@ import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import { LLMProvider, LLMRouter } from '../types.js';
+import { LLMProvider, LLMRouter, TokenUsage } from '../types.js';
 
 export interface StreamProcessorConfig {
     provider: LLMProvider;
@@ -17,7 +17,7 @@ export interface StreamProcessorConfig {
 
 export class StreamProcessor {
     private assistantMessageId: string | null = null;
-    private actualTokens: import('../types.js').TokenUsage | null = null;
+    private actualTokens: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     private finishReason: string = 'unknown';
     private reasoningText: string = '';
     private accumulatedText: string = '';
@@ -51,7 +51,8 @@ export class StreamProcessor {
 
         try {
             for await (const event of stream.fullStream) {
-                this.abortSignal.throwIfAborted();
+                // Don't call throwIfAborted() here - let Vercel SDK handle abort gracefully
+                // and emit 'abort' event which we handle below in the switch
 
                 switch (event.type) {
                     case 'text-delta':
@@ -150,6 +151,33 @@ export class StreamProcessor {
                         });
                         break;
 
+                    case 'finish-step':
+                        // Track token usage from completed steps for partial runs
+                        // TODO: Token usage for cancelled mid-step responses is unavailable.
+                        // LLM providers only send token counts in their final response chunk.
+                        // If we abort mid-stream, that chunk never arrives. The tokens are
+                        // still billed by the provider, but we can't report them.
+                        if (event.usage) {
+                            // Accumulate usage across steps
+                            this.actualTokens = {
+                                inputTokens:
+                                    (this.actualTokens.inputTokens ?? 0) +
+                                    (event.usage.inputTokens ?? 0),
+                                outputTokens:
+                                    (this.actualTokens.outputTokens ?? 0) +
+                                    (event.usage.outputTokens ?? 0),
+                                totalTokens:
+                                    (this.actualTokens.totalTokens ?? 0) +
+                                    (event.usage.totalTokens ?? 0),
+                                ...(event.usage.reasoningTokens !== undefined && {
+                                    reasoningTokens:
+                                        (this.actualTokens.reasoningTokens ?? 0) +
+                                        event.usage.reasoningTokens,
+                                }),
+                            };
+                        }
+                        break;
+
                     case 'finish':
                         this.finishReason = event.finishReason;
                         const usage = {
@@ -223,9 +251,61 @@ export class StreamProcessor {
                             error: err,
                         });
                         break;
+
+                    case 'abort':
+                        // Vercel SDK emits 'abort' when the stream is cancelled
+                        // Emit final response with accumulated content
+                        this.logger.debug('Stream aborted, emitting partial response');
+                        this.finishReason = 'cancelled';
+                        this.eventBus.emit('llm:response', {
+                            content: this.accumulatedText,
+                            ...(this.reasoningText && { reasoning: this.reasoningText }),
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: this.config.router,
+                            tokenUsage: this.actualTokens,
+                            finishReason: 'cancelled',
+                        });
+
+                        // Return immediately - stream will close after abort event
+                        return {
+                            text: this.accumulatedText,
+                            finishReason: 'cancelled',
+                            usage: this.actualTokens,
+                        };
                 }
             }
         } catch (error) {
+            // Check if this is an abort error (intentional cancellation)
+            const isAbortError =
+                (error instanceof Error && error.name === 'AbortError') ||
+                (error instanceof DOMException && error.name === 'AbortError') ||
+                this.abortSignal.aborted;
+
+            if (isAbortError) {
+                // Emit final response with accumulated content on cancellation
+                this.logger.debug('Stream cancelled, emitting partial response');
+                this.finishReason = 'cancelled';
+
+                this.eventBus.emit('llm:response', {
+                    content: this.accumulatedText,
+                    ...(this.reasoningText && { reasoning: this.reasoningText }),
+                    provider: this.config.provider,
+                    model: this.config.model,
+                    router: this.config.router,
+                    tokenUsage: this.actualTokens,
+                    finishReason: 'cancelled',
+                });
+
+                // Don't throw - cancellation is intentional, not an error
+                return {
+                    text: this.accumulatedText,
+                    finishReason: 'cancelled',
+                    usage: this.actualTokens,
+                };
+            }
+
+            // Non-abort errors are real failures
             this.logger.error('Stream processing failed', { error });
 
             // Emit error event so UI knows about the failure

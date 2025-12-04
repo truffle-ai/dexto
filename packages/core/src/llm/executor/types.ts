@@ -23,7 +23,7 @@ export interface StreamProcessorResult {
      */
     text: string;
     finishReason: string;
-    usage: TokenUsage | null;
+    usage: TokenUsage;
 }
 
 export interface ToolState {
