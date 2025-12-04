@@ -16,6 +16,7 @@ import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
 import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
 import { createApprovalsRouter } from './routes/approvals.js';
+import { createQueueRouter } from './routes/queue.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -115,7 +116,8 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route('/api', createResourcesRouter(getAgent))
         .route('/api', createMemoryRouter(getAgent))
         .route('/api', createApprovalsRouter(getAgent, approvalCoordinator))
-        .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext));
+        .route('/api', createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
+        .route('/api', createQueueRouter(getAgent));
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
@@ -200,6 +202,10 @@ export function createDextoApp(options: CreateDextoAppOptions) {
             {
                 name: 'agents',
                 description: 'Install, switch, and manage agent configurations',
+            },
+            {
+                name: 'queue',
+                description: 'Manage message queue for busy sessions',
             },
         ],
     });

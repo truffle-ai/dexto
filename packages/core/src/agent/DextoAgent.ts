@@ -1044,6 +1044,71 @@ export class DextoAgent {
     }
 
     /**
+     * Get all queued messages for a session.
+     * @param sessionId Session id
+     * @returns Array of queued messages
+     */
+    public async getQueuedMessages(
+        sessionId: string
+    ): Promise<import('../session/types.js').QueuedMessage[]> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.getQueuedMessages();
+    }
+
+    /**
+     * Update a queued message's content.
+     * @param sessionId Session id
+     * @param messageId The ID of the queued message to update
+     * @param content New content for the message
+     * @returns true if message was found and updated, false otherwise
+     */
+    public async updateQueuedMessage(
+        sessionId: string,
+        messageId: string,
+        content: import('../session/types.js').UserMessageContentPart[]
+    ): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.updateQueuedMessage(messageId, content);
+    }
+
+    /**
+     * Remove a queued message.
+     * @param sessionId Session id
+     * @param messageId The ID of the queued message to remove
+     * @returns true if message was found and removed, false otherwise
+     */
+    public async removeQueuedMessage(sessionId: string, messageId: string): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.removeQueuedMessage(messageId);
+    }
+
+    /**
+     * Clear all queued messages for a session.
+     * @param sessionId Session id
+     * @returns Number of messages that were cleared
+     */
+    public async clearMessageQueue(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.clearMessageQueue();
+    }
+
+    /**
      * Cancels the currently running turn for a session.
      * Safe to call even if no run is in progress.
      * @param sessionId Session id (required)

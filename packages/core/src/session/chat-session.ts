@@ -631,6 +631,51 @@ export class ChatSession {
     }
 
     /**
+     * Get all messages currently in the queue.
+     * @returns Array of queued messages
+     * @throws Error if the router doesn't support message queueing
+     */
+    public getQueuedMessages(): import('./types.js').QueuedMessage[] {
+        return this.llmService.getMessageQueue().getAll();
+    }
+
+    /**
+     * Update the content of a queued message.
+     * @param id Message ID to update
+     * @param content New content for the message
+     * @returns true if message was found and updated; false otherwise
+     * @throws Error if the router doesn't support message queueing
+     */
+    public updateQueuedMessage(
+        id: string,
+        content: import('./types.js').UserMessageContentPart[]
+    ): boolean {
+        return this.llmService.getMessageQueue().update(id, content);
+    }
+
+    /**
+     * Remove a queued message.
+     * @param id Message ID to remove
+     * @returns true if message was found and removed; false otherwise
+     * @throws Error if the router doesn't support message queueing
+     */
+    public removeQueuedMessage(id: string): boolean {
+        return this.llmService.getMessageQueue().remove(id);
+    }
+
+    /**
+     * Clear all queued messages.
+     * @returns Number of messages that were cleared
+     * @throws Error if the router doesn't support message queueing
+     */
+    public clearMessageQueue(): number {
+        const queue = this.llmService.getMessageQueue();
+        const count = queue.pendingCount();
+        queue.clear();
+        return count;
+    }
+
+    /**
      * Cancel the currently running turn for this session, if any.
      * Returns true if a run was in progress and was signaled to abort.
      */
