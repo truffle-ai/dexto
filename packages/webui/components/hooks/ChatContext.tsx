@@ -591,7 +591,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 setMessages([]);
             }
         },
-        [setMessages, queryClient, setSessionProcessing]
+        [setMessages, queryClient]
     );
 
     // Switch to a different session and load it on the backend

@@ -42,7 +42,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { MarkdownText } from './ui/markdown-text';
 import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';
-import { UIResourceRendererWrapper, UIResourceFallback } from './ui/ui-resource-renderer';
+import { UIResourceRendererWrapper } from './ui/ui-resource-renderer';
 import {
     useResourceContent,
     type ResourceState,

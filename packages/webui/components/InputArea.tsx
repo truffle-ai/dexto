@@ -84,20 +84,14 @@ export default function InputArea({
         useChatContext();
 
     // Input history for Up/Down navigation
-    const {
-        invalidateHistory,
-        navigateUp,
-        navigateDown,
-        resetCursor,
-        shouldHandleNavigation,
-        isBrowsing,
-    } = useInputHistory(currentSessionId);
+    const { invalidateHistory, navigateUp, navigateDown, resetCursor, isBrowsing } =
+        useInputHistory(currentSessionId);
 
     // Queue management
     const { data: queueData } = useQueuedMessages(currentSessionId);
     const { mutate: removeQueuedMessage } = useRemoveQueuedMessage();
     const { mutate: queueMessage } = useQueueMessage();
-    const queuedMessages = queueData?.messages ?? [];
+    const queuedMessages = useMemo(() => queueData?.messages ?? [], [queueData?.messages]);
 
     // Analytics tracking
     const analytics = useAnalytics();

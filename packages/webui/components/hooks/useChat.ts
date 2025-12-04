@@ -579,6 +579,7 @@ export function useChat(
             handleApprovalResponse,
             updateSessionActivity,
             updateSessionTitle,
+            queryClient,
         ]
     );
 
