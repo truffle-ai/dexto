@@ -698,6 +698,7 @@ export function useChat(
             setMessages([]);
             setError(sessionId, null);
             lastUserMessageIdRef.current = null;
+            lastMessageIdRef.current = null;
             pendingToolCallsRef.current.clear();
             setProcessing(sessionId, false);
         },
