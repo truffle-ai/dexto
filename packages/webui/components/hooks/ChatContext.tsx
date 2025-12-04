@@ -93,7 +93,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
             id: `session-${sessionId}-${index}`,
             role: msg.role,
             content: msg.content,
-            createdAt: Date.now() - (history.length - index) * 1000, // Approximate timestamps
+            createdAt: msg.timestamp ?? Date.now() - (history.length - index) * 1000,
             sessionId: sessionId,
             // Preserve token usage, reasoning, model, and router metadata from storage
             tokenUsage: msg.tokenUsage,
@@ -167,7 +167,9 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                         id: `session-${sessionId}-${index}-tool-${toolIndex}`,
                         role: 'tool',
                         content: null,
-                        createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
+                        createdAt:
+                            (msg.timestamp ?? Date.now() - (history.length - index) * 1000) +
+                            toolIndex,
                         sessionId,
                         toolName,
                         toolArgs,
