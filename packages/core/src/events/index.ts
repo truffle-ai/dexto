@@ -382,6 +382,8 @@ export interface AgentEventMap {
         count: number;
         ids: string[];
         coalesced: boolean;
+        /** Combined content of all dequeued messages (for UI display) */
+        content: import('../session/types.js').UserMessageContentPart[];
         sessionId: string;
     };
 
@@ -537,6 +539,8 @@ export interface SessionEventMap {
         count: number;
         ids: string[];
         coalesced: boolean;
+        /** Combined content of all dequeued messages (for UI display) */
+        content: import('../session/types.js').UserMessageContentPart[];
     };
 
     /** Queued message content was updated */

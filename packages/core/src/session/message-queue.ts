@@ -121,6 +121,7 @@ export class MessageQueueService {
             count: messages.length,
             ids: messages.map((m) => m.id),
             coalesced: messages.length > 1,
+            content: combined.combinedContent,
         });
 
         return combined;

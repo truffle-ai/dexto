@@ -133,6 +133,7 @@ describe('MessageQueueService', () => {
                 count: 2,
                 ids: expect.arrayContaining([expect.stringMatching(/^msg_/)]),
                 coalesced: true,
+                content: expect.any(Array),
             });
         });
 
@@ -145,6 +146,7 @@ describe('MessageQueueService', () => {
                 count: 1,
                 ids: expect.any(Array),
                 coalesced: false,
+                content: [{ type: 'text', text: 'solo' }],
             });
         });
     });
