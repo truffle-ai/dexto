@@ -2,19 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
     Message,
-    TextPart,
-    AudioPart,
     isToolResultError,
     isToolResultContent,
-    isTextPart,
-    isImagePart,
-    isAudioPart,
-    isFilePart,
-    isUIResourcePart,
     ErrorMessage,
     ToolResult,
 } from './hooks/useChat';
-import type { UIResourcePart } from '@dexto/core';
+import { isTextPart, isImagePart, isAudioPart, isFilePart, isUIResourcePart } from '../types';
+import type { TextPart, AudioPart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {

@@ -1,12 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type {
-    TextPart as CoreTextPart,
-    InternalMessage,
-    FilePart,
-    UIResourcePart,
-    Issue,
-    SanitizedToolResult,
-} from '@dexto/core';
+import type { InternalMessage, Issue, SanitizedToolResult } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -17,30 +10,16 @@ import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { useApproval } from './ApprovalContext.js';
 import type { Session } from './useSessions.js';
 
-// Reuse the identical TextPart from core
-export type TextPart = CoreTextPart;
-
-// TODO: Remove these WebUI-specific types and derive from server schema instead.
-// Per WebUI CLAUDE.md: "Server Schemas = Single Source of Truth"
-// These should be replaced with types derived from Hono client response types.
-export interface ImagePart {
-    type: 'image';
-    image: string;
-    mimeType?: string;
-}
-
-export interface AudioPart {
-    type: 'audio';
-    data: string;
-    mimeType: string;
-    filename?: string;
-}
-
-export interface FileData {
-    data: string;
-    mimeType: string;
-    filename?: string;
-}
+// Content part types and guards - import from centralized types.ts
+import { isTextPart, isImagePart, isFilePart } from '../../types.js';
+import type {
+    TextPart,
+    ImagePart,
+    FilePart,
+    AudioPart,
+    FileData,
+    UIResourcePart,
+} from '../../types.js';
 
 // Tool result types
 export interface ToolResultError {
@@ -64,55 +43,6 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
         Array.isArray((result as ToolResultContent).content)
     );
 }
-
-// Type guards for content parts
-export function isTextPart(part: unknown): part is TextPart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'text'
-    );
-}
-
-export function isImagePart(part: unknown): part is ImagePart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'image'
-    );
-}
-
-export function isAudioPart(part: unknown): part is AudioPart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'audio'
-    );
-}
-
-export function isFilePart(part: unknown): part is FilePart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'file'
-    );
-}
-
-export function isUIResourcePart(part: unknown): part is UIResourcePart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'ui-resource'
-    );
-}
-
-// Re-export UIResourcePart for component usage
-export type { UIResourcePart };
 
 // Extend core InternalMessage for WebUI
 export interface Message extends Omit<InternalMessage, 'content'> {
@@ -521,11 +451,15 @@ export function useChat(
                     // Queued message was processed - add as user message to UI
                     // Extract text content from the combined content array
                     const textContent = event.content
-                        .filter(
-                            (part): part is { type: 'text'; text: string } => part.type === 'text'
-                        )
+                        .filter(isTextPart)
                         .map((part) => part.text)
                         .join('\n');
+
+                    // Extract image attachment if present
+                    const imagePart = event.content.find(isImagePart);
+
+                    // Extract file attachment if present
+                    const filePart = event.content.find(isFilePart);
 
                     if (textContent || event.content.length > 0) {
                         const userId = generateUniqueId();
@@ -539,6 +473,19 @@ export function useChat(
                                 content: textContent || '[attachment]',
                                 createdAt: Date.now(),
                                 sessionId: event.sessionId,
+                                imageData: imagePart
+                                    ? {
+                                          image: imagePart.image,
+                                          mimeType: imagePart.mimeType ?? 'image/jpeg',
+                                      }
+                                    : undefined,
+                                fileData: filePart
+                                    ? {
+                                          data: filePart.data,
+                                          mimeType: filePart.mimeType,
+                                          filename: filePart.filename,
+                                      }
+                                    : undefined,
                             },
                         ]);
                         // Update sessions cache

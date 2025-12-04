@@ -28,6 +28,7 @@ import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import { isTextPart, isImagePart, isFilePart } from '../types';
 import CreatePromptModal from './CreatePromptModal';
 import CreateMemoryModal from './CreateMemoryModal';
 import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
@@ -323,32 +324,23 @@ export default function InputArea({
             if (!currentSessionId) return;
 
             // Extract text content from message
-            // TODO: Use shared types from @dexto/core once API schemas align with core types.
-            // Currently core types allow multiple formats (string | URL | Buffer etc.) while
-            // API schemas use string-only for JSON serialization.
             const textContent = message.content
-                .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+                .filter(isTextPart)
                 .map((part) => part.text)
                 .join('\n');
 
             // Extract image attachment if present
-            const imagePart = message.content.find(
-                (part): part is { type: 'image'; image: string; mimeType: string } =>
-                    part.type === 'image'
-            );
+            const imagePart = message.content.find(isImagePart);
 
             // Extract file attachment if present
-            const filePart = message.content.find(
-                (
-                    part
-                ): part is { type: 'file'; data: string; mimeType: string; filename?: string } =>
-                    part.type === 'file'
-            );
+            const filePart = message.content.find(isFilePart);
 
             // Load into input
             setText(textContent);
             setImageData(
-                imagePart ? { image: imagePart.image, mimeType: imagePart.mimeType } : null
+                imagePart
+                    ? { image: imagePart.image, mimeType: imagePart.mimeType ?? 'image/jpeg' }
+                    : null
             );
             setFileData(
                 filePart
