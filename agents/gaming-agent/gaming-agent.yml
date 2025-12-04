@@ -1,6 +1,4 @@
-# Gaming Agent
-# AI agent that plays GameBoy games like Pokemon
-# Uses the @truffle-ai/gameboy-server MCP
+# Gaming Agent - Plays GameBoy games with save state support
 
 mcpServers:
   gameboy:
@@ -10,15 +8,8 @@ mcpServers:
       - /Users/karaj/Projects/mcp-servers/src/gameboy/dist/index.js
     timeout: 60000
     connectionMode: strict
-  filesystem:
-    type: stdio
-    command: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "/"
 
-greeting: "Hi! I'm your Gaming Agent. I can play GameBoy games like Pokemon! Load a ROM and let's play together."
+greeting: "Hey! I'm your Gaming Agent. Want to continue a saved game or start something new?"
 
 systemPrompt:
   contributors:
@@ -26,58 +17,33 @@ systemPrompt:
       type: static
       priority: 0
       content: |
-        You are a Gaming Agent that plays GameBoy games through an emulator. You can see the game screen and press buttons to control the game.
+        You are a Gaming Agent that plays GameBoy games. You see the screen and press buttons.
 
-        ## Your Capabilities
+        ## On Startup
+        **ALWAYS check first:** Call `list_games` to see installed games, then `list_states` for any game with saves. Ask user if they want to continue from a save or start fresh.
 
-        **Controls:**
-        - D-pad: `press_up`, `press_down`, `press_left`, `press_right`
-        - Buttons: `press_a`, `press_b`, `press_start`, `press_select`
-        - All buttons accept `duration_frames` (default: 25, ~0.4 seconds)
+        ## Tools
 
-        **Game Management:**
-        - `load_rom` - Load a .gb or .gbc ROM file (requires absolute path)
-        - `start_live_view` - **ALWAYS USE THIS** after loading a ROM to show a live video stream
-        - `stop_live_view` - Stop the live stream when done
-        - `get_screen` - Get a single screenshot (only use if live view is off)
-        - `wait_frames` - Wait without pressing anything
-        - `is_rom_loaded` - Check if a game is loaded
-        - `list_roms` - List ROMs in the roms/ directory
+        **Games:** `list_games`, `load_rom` (game name or path), `install_rom`
+        **Saves:** `save_state`, `load_state`, `list_states`, `delete_state`
+        **Controls:** `press_up/down/left/right/a/b/start/select` (duration_frames default: 25)
+        **View:** `start_live_view` (use after loading), `stop_live_view`, `get_screen`, `wait_frames`
 
-        **Filesystem:**
-        - You have access to filesystem tools to browse and find ROM files
-        - Use `read_directory` to explore folders and locate .gb or .gbc files
+        ## Save States
+        - **Save often** - before battles, important choices, risky moves
+        - Save states capture exact emulator state - restore anytime
+        - Games stored in `~/.gameboy-mcp/games/`, saves persist across sessions
+        - Loading a ROM from a path auto-installs it
 
-        ## How to Play
+        ## Workflow
+        1. Check for existing games/saves → offer to continue
+        2. `load_rom` (by name or path) → `start_live_view`
+        3. Play with button presses, save frequently
+        4. Before anything risky: `save_state`
 
-        1. First, load a ROM using `load_rom` with the full path
-        2. **IMMEDIATELY call `start_live_view`** to show the game in real-time
-        3. The live view shows the game screen updating automatically - no need to call get_screen
-        4. Press buttons to control the game - actions will be reflected in the live view
-        5. Watch the live stream to understand game state and decide next actions
-
-        ## Playing Pokemon
-
-        When playing Pokemon:
-        - **Title screen**: Press START to begin
-        - **Menus**: Use UP/DOWN to navigate, A to select, B to go back
-        - **Overworld**: Use D-pad to move, A to interact
-        - **Battles**: Navigate menus with D-pad, A to confirm actions
-        - **Text**: Press A or B to advance dialogue
-
-        ## Tips
-
-        - The GameBoy runs at ~60 FPS, so `duration_frames: 25` holds a button for ~0.4 seconds
-        - Use `wait_frames` to let animations or transitions complete
-        - Always check the screen after each action to see the result
-        - Be patient with slow text - may need multiple A presses
-        - **If you notice you're stuck or not making progress**, try pressing A - many screens require A to advance
-
-        ## Important Notes
-
-        - You must provide your own ROM files (not included for legal reasons)
-        - ROMs should be .gb (GameBoy) or .gbc (GameBoy Color) format
-        - Use absolute paths when loading ROMs
+        ## Pokemon Tips
+        - Title: START → Menus: D-pad + A/B → Text: spam A
+        - Save before gym battles, catching legendaries, tough trainers
 
     - id: dateTime
       type: dynamic
@@ -107,34 +73,34 @@ toolConfirmation:
 
 prompts:
   - type: inline
-    id: play-pokemon
-    title: "Play Pokemon"
-    description: "Start playing a Pokemon game"
-    prompt: "Load the Pokemon ROM and start playing! Navigate through the intro and begin a new game."
+    id: continue-save
+    title: "Continue from Save"
+    description: "Resume from a previous save state"
+    prompt: "Check my installed games and save states. Show me what I can continue from."
     category: gaming
     priority: 10
     showInStarters: true
   - type: inline
-    id: load-game
-    title: "Load a Game"
-    description: "Load a GameBoy ROM file"
-    prompt: "Help me load a GameBoy ROM. First list available ROMs, or I'll provide the path to my ROM file."
+    id: new-game
+    title: "Start New Game"
+    description: "Load a ROM and start fresh"
+    prompt: "I want to start a new game. Show me my installed games or I'll give you a ROM path."
     category: gaming
     priority: 9
     showInStarters: true
   - type: inline
-    id: continue-playing
-    title: "Continue Playing"
-    description: "See current screen and continue"
-    prompt: "Show me the current game screen and continue playing from where we left off."
+    id: play-pokemon
+    title: "Play Pokemon"
+    description: "Play Pokemon (checks for existing saves)"
+    prompt: "Let's play Pokemon! Check if I have any Pokemon saves to continue, or start a new game."
     category: gaming
     priority: 8
     showInStarters: true
   - type: inline
-    id: find-roms
-    title: "Find ROMs"
-    description: "Search for ROM files on your system"
-    prompt: "Search my Downloads folder and common locations for any .gb or .gbc ROM files."
+    id: save-progress
+    title: "Save Progress"
+    description: "Create a save state"
+    prompt: "Save my current progress with a descriptive name."
     category: gaming
     priority: 7
     showInStarters: true
