@@ -216,10 +216,10 @@ export class TurnExecutor {
                 // 7. Check termination conditions
                 if (result.finishReason !== 'tool-calls') {
                     // Check queue before terminating - process queued messages if any
+                    // Note: Hard cancel clears the queue BEFORE aborting, so if messages exist
+                    // here it means soft cancel - we should continue processing them
                     const queuedOnTerminate = this.messageQueue.dequeueAll();
-                    // Only continue with queue if external signal is NOT aborted (soft cancel)
-                    // If external is aborted (hard cancel), skip queue and exit
-                    if (queuedOnTerminate && !this.externalSignal?.aborted) {
+                    if (queuedOnTerminate) {
                         this.logger.debug(
                             `Continuing: ${queuedOnTerminate.messages.length} queued message(s) to process`
                         );
@@ -229,8 +229,8 @@ export class TurnExecutor {
                     this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
                     break;
                 }
-                // Hard cancel check during tool-calls - external signal aborted
-                if (this.externalSignal?.aborted) {
+                // Hard cancel check during tool-calls - if queue is empty and signal aborted, exit
+                if (this.externalSignal?.aborted && !this.messageQueue.hasPending()) {
                     this.logger.debug('Terminating: hard cancel - external abort signal received');
                     lastFinishReason = 'cancelled';
                     break;
