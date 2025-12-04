@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
@@ -36,6 +36,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { useLLMCatalog } from './hooks/useLLM';
 import { useResolvePrompt } from './hooks/usePrompts';
+import { useInputHistory } from './hooks/useInputHistory';
+import { useQueuedMessages, useRemoveQueuedMessage } from './hooks/useQueue';
+import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
 
 interface InputAreaProps {
     onSend: (
@@ -79,6 +82,21 @@ export default function InputArea({
     // Get current session context to ensure model switch applies to the correct session
     const { currentSessionId, isStreaming, setStreaming, cancel, processing, currentLLM } =
         useChatContext();
+
+    // Input history for Up/Down navigation
+    const {
+        addToHistory,
+        navigateUp,
+        navigateDown,
+        resetCursor,
+        shouldHandleNavigation,
+        isBrowsing,
+    } = useInputHistory();
+
+    // Queue management
+    const { data: queueData } = useQueuedMessages(currentSessionId);
+    const { mutate: removeQueuedMessage } = useRemoveQueuedMessage();
+    const queuedMessages = queueData?.messages ?? [];
 
     // Analytics tracking
     const analytics = useAnalytics();
@@ -246,6 +264,8 @@ export default function InputArea({
         }
 
         onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
+        // Add to input history for Up arrow recall
+        addToHistory(trimmed);
         setText('');
         setImageData(null);
         setFileData(null);
@@ -282,6 +302,42 @@ export default function InputArea({
         });
     };
 
+    // Edit a queued message: remove from queue and load into input
+    const handleEditQueuedMessage = useCallback(
+        (message: (typeof queuedMessages)[number]) => {
+            if (!currentSessionId) return;
+
+            // Extract text content from message
+            const textContent = message.content
+                .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+                .map((part) => part.text)
+                .join('\n');
+
+            // Load into input
+            setText(textContent);
+
+            // Remove from queue
+            removeQueuedMessage({ sessionId: currentSessionId, messageId: message.id });
+
+            // Focus textarea
+            textareaRef.current?.focus();
+        },
+        [currentSessionId, removeQueuedMessage]
+    );
+
+    // Handle Alt+Up to edit most recent queued message
+    const handleEditLastQueued = useCallback(() => {
+        if (queuedMessages.length === 0) return false;
+
+        // Get the most recently queued message (last in array)
+        const lastMessage = queuedMessages[queuedMessages.length - 1];
+        if (lastMessage) {
+            handleEditQueuedMessage(lastMessage);
+            return true;
+        }
+        return false;
+    }, [queuedMessages, handleEditQueuedMessage]);
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         // If mention menu open, handle navigation
         if (showMention) {
@@ -315,6 +371,47 @@ export default function InputArea({
             }
         }
 
+        // Alt+Up: Edit last queued message (like Codex)
+        if (e.key === 'ArrowUp' && e.altKey && queuedMessages.length > 0) {
+            e.preventDefault();
+            handleEditLastQueued();
+            return;
+        }
+
+        // Up/Down for input history navigation (shell-style)
+        if (e.key === 'ArrowUp' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            const cursorPos = textareaRef.current?.selectionStart ?? 0;
+            if (shouldHandleNavigation(text, cursorPos)) {
+                e.preventDefault();
+                const historyText = navigateUp(text);
+                if (historyText !== null) {
+                    setText(historyText);
+                    // Move cursor to end
+                    requestAnimationFrame(() => {
+                        const len = historyText.length;
+                        textareaRef.current?.setSelectionRange(len, len);
+                    });
+                }
+                return;
+            }
+        }
+
+        if (e.key === 'ArrowDown' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            if (isBrowsing) {
+                e.preventDefault();
+                const historyText = navigateDown();
+                if (historyText !== null) {
+                    setText(historyText);
+                    // Move cursor to end
+                    requestAnimationFrame(() => {
+                        const len = historyText.length;
+                        textareaRef.current?.setSelectionRange(len, len);
+                    });
+                }
+                return;
+            }
+        }
+
         // If memory hint is showing, handle Escape to dismiss
         if (showMemoryHint && e.key === 'Escape') {
             e.preventDefault();
@@ -344,6 +441,9 @@ export default function InputArea({
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
         setText(value);
+
+        // Reset history browsing when user types
+        resetCursor();
 
         // Guidance UX: keep slash guidance window open while the user is constructing
         // a slash command (i.e., as long as the input starts with '/' and has no newline).
@@ -770,6 +870,22 @@ export default function InputArea({
                     }}
                 >
                     <ChatInputContainer>
+                        {/* Queued messages display (shows when messages are pending) */}
+                        {queuedMessages.length > 0 && (
+                            <QueuedMessagesDisplay
+                                messages={queuedMessages}
+                                onEditMessage={handleEditQueuedMessage}
+                                onRemoveMessage={(messageId) => {
+                                    if (currentSessionId) {
+                                        removeQueuedMessage({
+                                            sessionId: currentSessionId,
+                                            messageId,
+                                        });
+                                    }
+                                }}
+                            />
+                        )}
+
                         {/* Attachments strip (inside bubble, above editor) */}
                         {(imageData || fileData) && (
                             <div className="px-4 pt-4">
