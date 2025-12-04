@@ -48,6 +48,8 @@ const QueuedMessageSchema = z
     .describe('A message waiting in the queue');
 
 // Schema for queue message request body
+// TODO: Refactor to use z.union() or z.discriminatedUnion() so the "at least one required"
+// constraint is visible in OpenAPI spec. Currently .refine() only validates at runtime.
 const QueueMessageBodySchema = z
     .object({
         message: z.string().optional().describe('Text message to queue'),
@@ -74,7 +76,9 @@ const QueueMessageBodySchema = z
         },
         { message: 'Must provide either message text, image data, or file data' }
     )
-    .describe('Request body for queueing a message');
+    .describe(
+        'Request body for queueing a message. At least one of message, imageData, or fileData must be provided.'
+    );
 
 // Schema for update request body
 const UpdateQueuedMessageBodySchema = z
