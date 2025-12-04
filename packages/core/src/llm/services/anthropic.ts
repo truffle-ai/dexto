@@ -18,6 +18,7 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
+import type { MessageQueueService } from '../../session/message-queue.js';
 
 /**
  * Anthropic implementation of LLMService
@@ -662,5 +663,15 @@ export class AnthropicService implements ILLMService {
      */
     getContextManager(): ContextManager<unknown> {
         return this.contextManager;
+    }
+
+    /**
+     * Message queueing is not supported for Anthropic native router.
+     * Use the Vercel router for message queueing support.
+     */
+    getMessageQueue(): MessageQueueService {
+        throw new Error(
+            'Message queueing is not supported with Anthropic native router. Use router: "vercel" for this feature.'
+        );
     }
 }

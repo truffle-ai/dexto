@@ -1012,6 +1012,38 @@ export class DextoAgent {
     }
 
     /**
+     * Check if a session is currently processing a message.
+     * @param sessionId Session id
+     * @returns true if the session is busy processing; false otherwise
+     */
+    public async isSessionBusy(sessionId: string): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        return session?.isBusy() ?? false;
+    }
+
+    /**
+     * Queue a message for processing when a session is busy.
+     * The message will be injected into the conversation when the current turn completes.
+     *
+     * @param sessionId Session id
+     * @param message The user message to queue
+     * @returns Queue position and message ID
+     * @throws Error if router doesn't support message queueing
+     */
+    public async queueMessage(
+        sessionId: string,
+        message: import('../session/message-queue.js').UserMessage
+    ): Promise<{ queued: true; position: number; id: string }> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.queueMessage(message);
+    }
+
+    /**
      * Cancels the currently running turn for a session.
      * Safe to call even if no run is in progress.
      * @param sessionId Session id (required)

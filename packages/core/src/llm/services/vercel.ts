@@ -48,6 +48,7 @@ export class VercelLLMService implements ILLMService {
     private readonly sessionId: string;
     private logger: IDextoLogger;
     private resourceManager: ResourceManager;
+    private messageQueue: MessageQueueService;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -74,6 +75,9 @@ export class VercelLLMService implements ILLMService {
         this.sessionEventBus = sessionEventBus;
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
+
+        // Create session-level message queue for mid-task user messages
+        this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
@@ -104,7 +108,7 @@ export class VercelLLMService implements ILLMService {
     /**
      * Create a TurnExecutor instance for executing the agent loop.
      */
-    private createTurnExecutor(messageQueue: MessageQueueService): TurnExecutor {
+    private createTurnExecutor(): TurnExecutor {
         return new TurnExecutor(
             this.model,
             this.toolManager,
@@ -121,7 +125,7 @@ export class VercelLLMService implements ILLMService {
             { provider: this.config.provider, model: this.getModelId() },
             'vercel',
             this.logger,
-            messageQueue
+            this.messageQueue
             // modelLimits not passed - TurnExecutor will use defaults
         );
     }
@@ -175,9 +179,8 @@ export class VercelLLMService implements ILLMService {
             // Add user message, with optional image and file data
             await this.contextManager.addUserMessage(textInput, imageData, fileData);
 
-            // Create message queue and executor
-            const messageQueue = new MessageQueueService(this.sessionEventBus);
-            const executor = this.createTurnExecutor(messageQueue);
+            // Create executor (uses session-level messageQueue)
+            const executor = this.createTurnExecutor();
 
             // Execute with streaming flag
             const contributorContext = { mcpManager: this.toolManager.getMcpManager() };
@@ -236,5 +239,12 @@ export class VercelLLMService implements ILLMService {
      */
     getContextManager(): ContextManager<unknown> {
         return this.contextManager;
+    }
+
+    /**
+     * Get the message queue for external access (e.g., queueing messages while busy)
+     */
+    getMessageQueue(): MessageQueueService {
+        return this.messageQueue;
     }
 }

@@ -47,6 +47,8 @@ export const SESSION_EVENT_NAMES = [
     'context:pruned',
     'message:queued',
     'message:dequeued',
+    'message:updated',
+    'message:removed',
 ] as const;
 
 /**
@@ -383,6 +385,19 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Queued message content was updated */
+    'message:updated': {
+        id: string;
+        content: import('../session/types.js').UserMessageContentPart[];
+        sessionId: string;
+    };
+
+    /** Queued message was removed from queue */
+    'message:removed': {
+        id: string;
+        sessionId: string;
+    };
+
     // State events
     /** Fired when agent runtime state changes */
     'state:changed': {
@@ -522,6 +537,17 @@ export interface SessionEventMap {
         count: number;
         ids: string[];
         coalesced: boolean;
+    };
+
+    /** Queued message content was updated */
+    'message:updated': {
+        id: string;
+        content: import('../session/types.js').UserMessageContentPart[];
+    };
+
+    /** Queued message was removed from queue */
+    'message:removed': {
+        id: string;
     };
 }
 

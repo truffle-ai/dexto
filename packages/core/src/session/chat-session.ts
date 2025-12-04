@@ -22,6 +22,7 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { InternalMessage } from '../context/types.js';
+import type { UserMessage } from './message-queue.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -366,19 +367,27 @@ export class ChatSession {
             // Return modified response from plugins
             return modifiedResponsePayload.content;
         } catch (error) {
-            // If this was an intentional cancellation, emit a recoverable error event and return empty string
+            // If this was an intentional cancellation, return partial response from history
             const aborted =
                 (error instanceof Error && error.name === 'AbortError') ||
                 (typeof error === 'object' && error !== null && (error as any).aborted === true);
             if (aborted) {
-                // TODO: Remove emit errors, cancellation is a normal state and not an error state.
-                // LLMService.completeTask should return the partial computed response till then
-                // and not error out in case the execution was cancelled.
                 this.eventBus.emit('llm:error', {
                     error: new Error('Run cancelled'),
                     context: 'user_cancelled',
                     recoverable: true,
                 });
+
+                // Return partial content that was persisted during streaming
+                try {
+                    const history = await this.getHistory();
+                    const lastAssistant = history.filter((m) => m.role === 'assistant').pop();
+                    if (lastAssistant && typeof lastAssistant.content === 'string') {
+                        return lastAssistant.content;
+                    }
+                } catch {
+                    this.logger.debug('Failed to retrieve partial response from history on cancel');
+                }
                 return '';
             }
 
@@ -599,6 +608,26 @@ export class ChatSession {
         this.forwarders.clear();
 
         this.logger.debug(`Session ${this.id} disposed successfully`);
+    }
+
+    /**
+     * Check if this session is currently processing a message.
+     * Returns true if a run is in progress and has not been aborted.
+     */
+    public isBusy(): boolean {
+        return this.currentRunController !== null && !this.currentRunController.signal.aborted;
+    }
+
+    /**
+     * Queue a message for processing when the session is busy.
+     * The message will be injected into the conversation when the current turn completes.
+     *
+     * @param message The user message to queue
+     * @returns Queue position and message ID
+     * @throws Error if the router doesn't support message queueing
+     */
+    public queueMessage(message: UserMessage): { queued: true; position: number; id: string } {
+        return this.llmService.getMessageQueue().enqueue(message);
     }
 
     /**

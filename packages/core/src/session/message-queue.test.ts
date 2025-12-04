@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageQueueService } from './message-queue.js';
 import type { SessionEventBus } from '../events/index.js';
 import type { UserMessageContentPart } from './types.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 // Create a mock SessionEventBus
 function createMockEventBus(): SessionEventBus {
@@ -14,13 +15,29 @@ function createMockEventBus(): SessionEventBus {
     } as unknown as SessionEventBus;
 }
 
+// Create a mock logger
+function createMockLogger(): IDextoLogger {
+    return {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        fatal: vi.fn(),
+        child: vi.fn().mockReturnThis(),
+        setLevel: vi.fn(),
+        getLevel: vi.fn().mockReturnValue('info'),
+    } as unknown as IDextoLogger;
+}
+
 describe('MessageQueueService', () => {
     let eventBus: SessionEventBus;
+    let logger: IDextoLogger;
     let queue: MessageQueueService;
 
     beforeEach(() => {
         eventBus = createMockEventBus();
-        queue = new MessageQueueService(eventBus);
+        logger = createMockLogger();
+        queue = new MessageQueueService(eventBus, logger);
     });
 
     describe('enqueue()', () => {
@@ -266,6 +283,148 @@ describe('MessageQueueService', () => {
             expect(queue.hasPending()).toBe(false);
             expect(queue.pendingCount()).toBe(0);
             expect(queue.dequeueAll()).toBeNull();
+        });
+    });
+
+    describe('getAll()', () => {
+        it('should return empty array when queue is empty', () => {
+            expect(queue.getAll()).toEqual([]);
+        });
+
+        it('should return shallow copy of queued messages', () => {
+            const result1 = queue.enqueue({ content: [{ type: 'text', text: 'msg1' }] });
+            const result2 = queue.enqueue({ content: [{ type: 'text', text: 'msg2' }] });
+
+            const all = queue.getAll();
+
+            expect(all).toHaveLength(2);
+            expect(all[0]?.id).toBe(result1.id);
+            expect(all[1]?.id).toBe(result2.id);
+        });
+
+        it('should not allow external mutation of queue', () => {
+            queue.enqueue({ content: [{ type: 'text', text: 'msg1' }] });
+
+            const all = queue.getAll();
+            all.push({
+                id: 'fake',
+                content: [{ type: 'text', text: 'fake' }],
+                queuedAt: Date.now(),
+            });
+
+            expect(queue.getAll()).toHaveLength(1);
+        });
+    });
+
+    describe('get()', () => {
+        it('should return undefined for non-existent id', () => {
+            expect(queue.get('non-existent')).toBeUndefined();
+        });
+
+        it('should return message by id', () => {
+            const content: UserMessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const result = queue.enqueue({ content });
+
+            const msg = queue.get(result.id);
+
+            expect(msg).toBeDefined();
+            expect(msg?.id).toBe(result.id);
+            expect(msg?.content).toEqual(content);
+        });
+    });
+
+    describe('update()', () => {
+        it('should return false for non-existent id', () => {
+            const result = queue.update('non-existent', [{ type: 'text', text: 'new' }]);
+
+            expect(result).toBe(false);
+            expect(logger.debug).toHaveBeenCalledWith(
+                'Update failed: message non-existent not found in queue'
+            );
+        });
+
+        it('should update message content and return true', () => {
+            const result = queue.enqueue({ content: [{ type: 'text', text: 'original' }] });
+            const newContent: UserMessageContentPart[] = [{ type: 'text', text: 'updated' }];
+
+            const updated = queue.update(result.id, newContent);
+
+            expect(updated).toBe(true);
+            expect(queue.get(result.id)?.content).toEqual(newContent);
+        });
+
+        it('should emit message:updated event', () => {
+            const result = queue.enqueue({ content: [{ type: 'text', text: 'original' }] });
+            const newContent: UserMessageContentPart[] = [{ type: 'text', text: 'updated' }];
+
+            queue.update(result.id, newContent);
+
+            expect(eventBus.emit).toHaveBeenCalledWith('message:updated', {
+                id: result.id,
+                content: newContent,
+            });
+        });
+
+        it('should log debug message on successful update', () => {
+            const result = queue.enqueue({ content: [{ type: 'text', text: 'original' }] });
+
+            queue.update(result.id, [{ type: 'text', text: 'updated' }]);
+
+            expect(logger.debug).toHaveBeenCalledWith(`Message updated: ${result.id}`);
+        });
+    });
+
+    describe('remove()', () => {
+        it('should return false for non-existent id', () => {
+            const result = queue.remove('non-existent');
+
+            expect(result).toBe(false);
+            expect(logger.debug).toHaveBeenCalledWith(
+                'Remove failed: message non-existent not found in queue'
+            );
+        });
+
+        it('should remove message and return true', () => {
+            const result = queue.enqueue({ content: [{ type: 'text', text: 'to remove' }] });
+
+            const removed = queue.remove(result.id);
+
+            expect(removed).toBe(true);
+            expect(queue.get(result.id)).toBeUndefined();
+            expect(queue.pendingCount()).toBe(0);
+        });
+
+        it('should emit message:removed event', () => {
+            const result = queue.enqueue({ content: [{ type: 'text', text: 'to remove' }] });
+
+            queue.remove(result.id);
+
+            expect(eventBus.emit).toHaveBeenCalledWith('message:removed', {
+                id: result.id,
+            });
+        });
+
+        it('should log debug message on successful removal', () => {
+            const result = queue.enqueue({ content: [{ type: 'text', text: 'to remove' }] });
+
+            queue.remove(result.id);
+
+            expect(logger.debug).toHaveBeenCalledWith(
+                `Message removed: ${result.id}, remaining: 0`
+            );
+        });
+
+        it('should maintain order of remaining messages', () => {
+            const r1 = queue.enqueue({ content: [{ type: 'text', text: 'first' }] });
+            const r2 = queue.enqueue({ content: [{ type: 'text', text: 'second' }] });
+            const r3 = queue.enqueue({ content: [{ type: 'text', text: 'third' }] });
+
+            queue.remove(r2.id);
+
+            const all = queue.getAll();
+            expect(all).toHaveLength(2);
+            expect(all[0]?.id).toBe(r1.id);
+            expect(all[1]?.id).toBe(r3.id);
         });
     });
 });

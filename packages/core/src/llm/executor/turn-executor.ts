@@ -191,6 +191,15 @@ export class TurnExecutor {
 
                 // 7. Check termination conditions
                 if (result.finishReason !== 'tool-calls') {
+                    // Check queue before terminating - process queued messages if any
+                    const queuedOnTerminate = this.messageQueue.dequeueAll();
+                    if (queuedOnTerminate) {
+                        this.logger.debug(
+                            `Continuing: ${queuedOnTerminate.messages.length} queued message(s) to process`
+                        );
+                        await this.injectQueuedMessages(queuedOnTerminate);
+                        continue; // Keep looping - process queued messages
+                    }
                     this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
                     break;
                 }

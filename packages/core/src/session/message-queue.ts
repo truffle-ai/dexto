@@ -1,5 +1,6 @@
 import type { SessionEventBus } from '../events/index.js';
 import type { QueuedMessage, CoalescedMessage, UserMessageContentPart } from './types.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
  * Generates a unique ID for queued messages.
@@ -49,7 +50,10 @@ export interface UserMessage {
 export class MessageQueueService {
     private queue: QueuedMessage[] = [];
 
-    constructor(private eventBus: SessionEventBus) {}
+    constructor(
+        private eventBus: SessionEventBus,
+        private logger: IDextoLogger
+    ) {}
 
     /**
      * Add a message to the queue.
@@ -67,6 +71,8 @@ export class MessageQueueService {
         };
 
         this.queue.push(queuedMsg);
+
+        this.logger.debug(`Message queued: ${queuedMsg.id}, position: ${this.queue.length}`);
 
         this.eventBus.emit('message:queued', {
             position: this.queue.length,
@@ -106,6 +112,10 @@ export class MessageQueueService {
         this.queue = [];
 
         const combined = this.coalesce(messages);
+
+        this.logger.debug(
+            `Dequeued ${messages.length} message(s): ${messages.map((m) => m.id).join(', ')}`
+        );
 
         this.eventBus.emit('message:dequeued', {
             count: messages.length,
@@ -214,5 +224,58 @@ export class MessageQueueService {
      */
     clear(): void {
         this.queue = [];
+    }
+
+    /**
+     * Get all queued messages (for UI display).
+     * Returns a shallow copy to prevent external mutation.
+     */
+    getAll(): QueuedMessage[] {
+        return [...this.queue];
+    }
+
+    /**
+     * Get a single queued message by ID.
+     */
+    get(id: string): QueuedMessage | undefined {
+        return this.queue.find((m) => m.id === id);
+    }
+
+    /**
+     * Update the content of a queued message.
+     * @returns true if message was found and updated; false otherwise
+     */
+    update(id: string, content: UserMessageContentPart[]): boolean {
+        const index = this.queue.findIndex((m) => m.id === id);
+        if (index === -1) {
+            this.logger.debug(`Update failed: message ${id} not found in queue`);
+            return false;
+        }
+
+        this.queue[index] = {
+            ...this.queue[index]!,
+            content,
+        };
+
+        this.logger.debug(`Message updated: ${id}`);
+        this.eventBus.emit('message:updated', { id, content });
+        return true;
+    }
+
+    /**
+     * Remove a single queued message by ID.
+     * @returns true if message was found and removed; false otherwise
+     */
+    remove(id: string): boolean {
+        const index = this.queue.findIndex((m) => m.id === id);
+        if (index === -1) {
+            this.logger.debug(`Remove failed: message ${id} not found in queue`);
+            return false;
+        }
+
+        this.queue.splice(index, 1);
+        this.logger.debug(`Message removed: ${id}, remaining: ${this.queue.length}`);
+        this.eventBus.emit('message:removed', { id });
+        return true;
     }
 }
