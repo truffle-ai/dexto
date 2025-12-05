@@ -37,6 +37,7 @@ import { Header } from './components/chat/Header.js';
 import { MessageItem } from './components/chat/MessageItem.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { StatusBar } from './components/StatusBar.js';
+import { Footer } from './components/Footer.js';
 
 // Containers
 import { InputContainer, type InputContainerHandle } from './containers/InputContainer.js';
@@ -276,6 +277,9 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
                     agent={agent}
                     inputService={inputService}
                 />
+
+                {/* Footer status line */}
+                <Footer modelName={state.session.modelName} cwd={process.cwd()} />
             </Box>
         </ErrorBoundary>
     );
