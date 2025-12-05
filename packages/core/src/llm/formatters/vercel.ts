@@ -1,6 +1,6 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import { LLMContext } from '../types.js';
-import { InternalMessage } from '@core/context/types.js';
+import type { InternalMessage, AssistantMessage, ToolMessage } from '@core/context/types.js';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { DextoLogComponent } from '@core/logger/v2/types.js';
@@ -181,8 +181,7 @@ export class VercelMessageFormatter {
     }
 
     // Helper to format Assistant messages (with optional tool calls)
-    // TODO: improve typing when InternalMessage type is updated
-    private formatAssistantMessage(msg: InternalMessage): {
+    private formatAssistantMessage(msg: AssistantMessage): {
         content: AssistantContent;
         function_call?: { name: string; arguments: string };
     } {
@@ -248,12 +247,14 @@ export class VercelMessageFormatter {
             content:
                 typeof msg.content === 'string'
                     ? [{ type: 'text', text: msg.content }]
-                    : (msg.content as AssistantContent),
+                    : msg.content === null
+                      ? []
+                      : (msg.content as unknown as AssistantContent),
         };
     }
 
     // Helper to format Tool result messages
-    private formatToolMessage(msg: InternalMessage): { content: ToolContent } {
+    private formatToolMessage(msg: ToolMessage): { content: ToolContent } {
         let toolResultPart: ToolResultPart;
         if (Array.isArray(msg.content)) {
             if (msg.content[0]?.type === 'image') {
@@ -261,8 +262,8 @@ export class VercelMessageFormatter {
                 const imageDataBase64 = getImageData(imagePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
-                    toolCallId: msg.toolCallId!,
-                    toolName: msg.name!,
+                    toolCallId: msg.toolCallId,
+                    toolName: msg.name,
                     output: {
                         type: 'content',
                         value: [
@@ -279,8 +280,8 @@ export class VercelMessageFormatter {
                 const fileDataBase64 = getFileData(filePart, this.logger);
                 toolResultPart = {
                     type: 'tool-result',
-                    toolCallId: msg.toolCallId!,
-                    toolName: msg.name!,
+                    toolCallId: msg.toolCallId,
+                    toolName: msg.name,
                     output: {
                         type: 'content',
                         value: [
@@ -300,8 +301,8 @@ export class VercelMessageFormatter {
                     : String(msg.content);
                 toolResultPart = {
                     type: 'tool-result',
-                    toolCallId: msg.toolCallId!,
-                    toolName: msg.name!,
+                    toolCallId: msg.toolCallId,
+                    toolName: msg.name,
                     output: {
                         type: 'text',
                         value: textContent,
@@ -311,8 +312,8 @@ export class VercelMessageFormatter {
         } else {
             toolResultPart = {
                 type: 'tool-result',
-                toolCallId: msg.toolCallId!,
-                toolName: msg.name!,
+                toolCallId: msg.toolCallId,
+                toolName: msg.name,
                 output: {
                     type: 'text',
                     value: String(msg.content || ''),

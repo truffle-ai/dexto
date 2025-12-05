@@ -5,6 +5,8 @@ import {
     FilePart,
     UIResourcePart,
     SanitizedToolResult,
+    ToolMessage,
+    isToolMessage,
 } from './types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
@@ -1740,7 +1742,7 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
  * @returns The content string or placeholder if compacted
  */
 export function formatToolOutputForDisplay(message: InternalMessage): string {
-    if (message.compactedAt) {
+    if (isToolMessage(message) && message.compactedAt) {
         return '[Old tool result content cleared]';
     }
 

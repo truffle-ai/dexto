@@ -1,6 +1,7 @@
 import { generateText, type LanguageModel } from 'ai';
 import type { ICompressionStrategy } from './types.js';
-import type { InternalMessage } from '../types.js';
+import type { InternalMessage, ToolCall } from '../types.js';
+import { isAssistantMessage, isToolMessage } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
@@ -225,13 +226,15 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
                 }
 
                 // Handle tool calls
-                if (msg.toolCalls && msg.toolCalls.length > 0) {
-                    const toolNames = msg.toolCalls.map((tc) => tc.function.name).join(', ');
+                if (isAssistantMessage(msg) && msg.toolCalls && msg.toolCalls.length > 0) {
+                    const toolNames = msg.toolCalls
+                        .map((tc: ToolCall) => tc.function.name)
+                        .join(', ');
                     content += `\n[Used tools: ${toolNames}]`;
                 }
 
                 // Handle tool results
-                if (msg.role === 'tool' && msg.name) {
+                if (isToolMessage(msg)) {
                     return `TOOL (${msg.name}): ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`;
                 }
 
@@ -245,7 +248,10 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
      */
     private createFallbackSummary(messages: readonly InternalMessage[]): string {
         const userMessages = messages.filter((m) => m.role === 'user');
-        const toolCalls = messages.filter((m) => m.toolCalls && m.toolCalls.length > 0);
+        const assistantWithTools = messages.filter(
+            (m): m is InternalMessage & { role: 'assistant'; toolCalls: ToolCall[] } =>
+                isAssistantMessage(m) && !!m.toolCalls && m.toolCalls.length > 0
+        );
 
         const userTopics = userMessages
             .slice(-3)
@@ -266,7 +272,9 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
             .join('; ');
 
         const toolsUsed = [
-            ...new Set(toolCalls.flatMap((m) => m.toolCalls?.map((tc) => tc.function.name) ?? [])),
+            ...new Set(
+                assistantWithTools.flatMap((m) => m.toolCalls.map((tc) => tc.function.name))
+            ),
         ].join(', ');
 
         return `[Previous conversation summary - fallback]\nUser discussed: ${userTopics || 'various topics'}\nTools used: ${toolsUsed || 'none'}`;

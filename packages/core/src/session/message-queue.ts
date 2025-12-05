@@ -1,5 +1,6 @@
 import type { SessionEventBus } from '../events/index.js';
-import type { QueuedMessage, CoalescedMessage, UserMessageContentPart } from './types.js';
+import type { QueuedMessage, CoalescedMessage } from './types.js';
+import type { ContentPart } from '../context/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
@@ -10,11 +11,13 @@ function generateId(): string {
 }
 
 /**
- * Input for enqueuing a user message.
+ * Input for enqueuing a user message to the queue.
+ * (Not to be confused with UserMessage from context/types.ts which represents
+ * a message in conversation history)
  */
-export interface UserMessage {
+export interface UserMessageInput {
     /** Multimodal content array (text, images, files, etc.) */
-    content: UserMessageContentPart[];
+    content: ContentPart[];
     /** Optional metadata to attach to the message */
     metadata?: Record<string, unknown>;
 }
@@ -62,7 +65,7 @@ export class MessageQueueService {
      * @param message The user message to queue
      * @returns Queue position and message ID
      */
-    enqueue(message: UserMessage): { queued: true; position: number; id: string } {
+    enqueue(message: UserMessageInput): { queued: true; position: number; id: string } {
         const queuedMsg: QueuedMessage = {
             id: generateId(),
             content: message.content,
@@ -148,7 +151,7 @@ export class MessageQueueService {
         }
 
         // Multiple messages - combine with numbered prefixes
-        const combinedContent: UserMessageContentPart[] = [];
+        const combinedContent: ContentPart[] = [];
 
         for (const [i, msg] of messages.entries()) {
             // Add prefix based on message count
