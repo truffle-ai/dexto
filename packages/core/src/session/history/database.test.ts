@@ -61,4 +61,14 @@ describe('DatabaseHistoryProvider error mapping', () => {
             context: expect.objectContaining({ sessionId }),
         });
     });
+
+    test('getHistory maps backend error to SessionError.storageFailed', async () => {
+        db.getRange.mockRejectedValue(new Error('getRange failed'));
+        await expect(provider.getHistory()).rejects.toMatchObject({
+            code: SessionErrorCode.SESSION_STORAGE_FAILED,
+            scope: ErrorScope.SESSION,
+            type: ErrorType.SYSTEM,
+            context: expect.objectContaining({ sessionId }),
+        });
+    });
 });

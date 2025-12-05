@@ -51,13 +51,14 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
                     `DatabaseHistoryProvider: Loaded ${this.cache.length} messages from DB for session ${this.sessionId}`
                 );
             } catch (error) {
-                // TODO: Consider propagating this error instead of silently falling back to empty history.
-                // Silent failure could mask transient DB issues and lead to data loss if subsequent
-                // writes overwrite the actual history. For now, log error and fall back for resilience.
                 this.logger.error(
                     `DatabaseHistoryProvider: Error loading messages for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
                 );
-                this.cache = [];
+                throw SessionError.storageFailed(
+                    this.sessionId,
+                    'load history',
+                    error instanceof Error ? error.message : String(error)
+                );
             }
         }
 
