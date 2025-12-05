@@ -59,6 +59,7 @@ export class TurnExecutor {
      * This allows soft cancel (abort current step) while still continuing with queued messages.
      */
     private stepAbortController: AbortController;
+    // TODO: improve compression configurability
     private compressionStrategy: ReactiveOverflowStrategy | null = null;
 
     constructor(
@@ -585,20 +586,6 @@ export class TurnExecutor {
             Array.isArray((result as { content: unknown }).content)
         );
     }
-
-    // TODO Phase 4: Implement overflow detection
-    // private isOverflow(tokens: TokenUsage): boolean {
-    //     const contextLimit = this.modelLimits.contextWindow;
-    //     const outputBuffer = Math.min(this.modelLimits.maxOutput, OUTPUT_TOKEN_MAX);
-    //     const usable = contextLimit - outputBuffer;
-    //     const used = tokens.inputTokens + (tokens.cacheReadTokens ?? 0);
-    //     return used > usable;
-    // }
-
-    // TODO Phase 4: Implement compression
-    // private async compress(): Promise<void> {
-    //     // Use compression strategy to compress history
-    // }
 
     /**
      * Constants for pruning thresholds
