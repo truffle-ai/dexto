@@ -30,6 +30,7 @@ export class StreamProcessor {
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
+     * @param approvalMetadata Map of tool call IDs to approval metadata
      */
     constructor(
         private contextManager: ContextManager,
@@ -38,7 +39,11 @@ export class StreamProcessor {
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
         logger: IDextoLogger,
-        private streaming: boolean = true
+        private streaming: boolean = true,
+        private approvalMetadata?: Map<
+            string,
+            { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+        >
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
     }
@@ -134,11 +139,15 @@ export class StreamProcessor {
                         // Truncate
                         const truncated = truncateToolResult(sanitized);
 
-                        // Persist to history
+                        // Get approval metadata for this tool call
+                        const approval = this.approvalMetadata?.get(event.toolCallId);
+
+                        // Persist to history with approval metadata
                         await this.contextManager.addToolResult(
                             event.toolCallId,
                             event.toolName,
-                            truncated // We pass the sanitized & truncated result
+                            truncated, // We pass the sanitized & truncated result
+                            approval
                         );
 
                         this.eventBus.emit('llm:tool-result', {
@@ -147,7 +156,16 @@ export class StreamProcessor {
                             success: true,
                             sanitized: truncated,
                             rawResult: rawResult,
+                            ...(approval?.requireApproval !== undefined && {
+                                requireApproval: approval.requireApproval,
+                            }),
+                            ...(approval?.approvalStatus !== undefined && {
+                                approvalStatus: approval.approvalStatus,
+                            }),
                         });
+
+                        // Clean up approval metadata after use
+                        this.approvalMetadata?.delete(event.toolCallId);
                         break;
                     }
 

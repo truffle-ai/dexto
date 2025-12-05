@@ -171,6 +171,18 @@ export interface InternalMessage {
     name?: string;
 
     /**
+     * Whether this tool call required user approval before execution.
+     * Only present in tool messages.
+     */
+    requireApproval?: boolean;
+
+    /**
+     * The approval status for this tool call.
+     * Only present in tool messages that required approval.
+     */
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+
+    /**
      * Timestamp when the tool output was compacted/pruned.
      * Only present in tool messages that have been pruned.
      */

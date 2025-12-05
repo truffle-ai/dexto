@@ -136,7 +136,7 @@ describe('ToolManager Integration Tests', () => {
             const result = await toolManager.executeTool('mcp--test_tool', { param: 'value' });
 
             expect(mockClient.callTool).toHaveBeenCalledWith('test_tool', { param: 'value' });
-            expect(result).toBe('mcp tool result');
+            expect(result).toEqual({ result: 'mcp tool result' });
         });
 
         it('should execute internal tools through the complete pipeline', async () => {
@@ -170,7 +170,9 @@ describe('ToolManager Integration Tests', () => {
                     offset: 0, // Default from Zod schema
                 })
             );
-            expect(result).toEqual([{ id: '1', content: 'test message', role: 'user' }]);
+            expect(result).toEqual({
+                result: [{ id: '1', content: 'test message', role: 'user' }],
+            });
         });
 
         it('should work with both MCP and internal tools together', async () => {
@@ -223,8 +225,10 @@ describe('ToolManager Integration Tests', () => {
                 mode: 'sessions',
             });
 
-            expect(mcpResult).toBe('file content');
-            expect(internalResult).toEqual([{ id: 'session1', title: 'Test Session' }]);
+            expect(mcpResult).toEqual({ result: 'file content' });
+            expect(internalResult).toEqual({
+                result: [{ id: 'session1', title: 'Test Session' }],
+            });
         });
     });
 
@@ -275,7 +279,7 @@ describe('ToolManager Integration Tests', () => {
             );
             const result = await toolManager.executeTool('mcp--test_tool', {});
 
-            expect(result).toBe('approved result');
+            expect(result).toEqual({ result: 'approved result' });
         });
 
         it('should work with auto-deny mode', async () => {

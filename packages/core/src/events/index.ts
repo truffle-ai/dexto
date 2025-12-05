@@ -323,6 +323,10 @@ export interface AgentEventMap {
         rawResult?: unknown;
         /** Error message - present when success=false */
         error?: string;
+        /** Whether this tool required user approval */
+        requireApproval?: boolean;
+        /** The approval status (only present if requireApproval is true) */
+        approvalStatus?: 'approved' | 'rejected';
         sessionId: string;
     };
 
@@ -489,6 +493,10 @@ export interface SessionEventMap {
         rawResult?: unknown;
         /** Error message - present when success=false */
         error?: string;
+        /** Whether this tool required user approval */
+        requireApproval?: boolean;
+        /** The approval status (only present if requireApproval is true) */
+        approvalStatus?: 'approved' | 'rejected';
     };
 
     /** LLM service error */

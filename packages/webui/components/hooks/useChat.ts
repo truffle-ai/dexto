@@ -346,7 +346,14 @@ export function useChat(
                 }
 
                 case 'llm:tool-result': {
-                    const { callId, success, sanitized, toolName } = event;
+                    const {
+                        callId,
+                        success,
+                        sanitized,
+                        toolName,
+                        requireApproval,
+                        approvalStatus,
+                    } = event;
                     const result = sanitized; // Core events use 'sanitized' field
 
                     // Track tool call completion
@@ -380,6 +387,9 @@ export function useChat(
                                 ...ms[idx],
                                 toolResult: result,
                                 toolResultSuccess: success,
+                                // Preserve approval metadata from event
+                                ...(requireApproval !== undefined && { requireApproval }),
+                                ...(approvalStatus !== undefined && { approvalStatus }),
                             };
                             return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
                         }

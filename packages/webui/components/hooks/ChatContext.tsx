@@ -209,12 +209,28 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                 },
             };
 
+            // Extract approval metadata if present (type-safe with optional chaining)
+            const requireApproval: boolean | undefined =
+                'requireApproval' in msg && typeof msg.requireApproval === 'boolean'
+                    ? msg.requireApproval
+                    : undefined;
+            const approvalStatus: 'pending' | 'approved' | 'rejected' | undefined =
+                'approvalStatus' in msg &&
+                (msg.approvalStatus === 'pending' ||
+                    msg.approvalStatus === 'approved' ||
+                    msg.approvalStatus === 'rejected')
+                    ? msg.approvalStatus
+                    : undefined;
+
             if (toolCallId && pendingToolCalls.has(toolCallId)) {
                 const messageIndex = pendingToolCalls.get(toolCallId)!;
                 uiMessages[messageIndex] = {
                     ...uiMessages[messageIndex],
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    // Preserve approval metadata from history
+                    ...(requireApproval !== undefined && { requireApproval }),
+                    ...(approvalStatus !== undefined && { approvalStatus }),
                 };
             } else {
                 uiMessages.push({
@@ -224,6 +240,9 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     toolName,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    // Preserve approval metadata from history
+                    ...(requireApproval !== undefined && { requireApproval }),
+                    ...(approvalStatus !== undefined && { approvalStatus }),
                 });
             }
 
