@@ -23,6 +23,9 @@ import React, {
 import { Box, Text, useStdout } from 'ink';
 import type { Key } from 'ink';
 
+/** Overlay trigger types for event-driven overlay detection */
+export type OverlayTrigger = 'slash-autocomplete' | 'resource-autocomplete' | 'close';
+
 interface MultiLineTextInputProps {
     value: string;
     onChange: (value: string) => void;
@@ -33,6 +36,8 @@ interface MultiLineTextInputProps {
     history?: string[] | undefined;
     historyIndex?: number | undefined;
     onHistoryNavigate?: ((direction: 'up' | 'down') => void) | undefined;
+    // Overlay trigger callback - called when trigger characters are typed/removed
+    onTriggerOverlay?: ((trigger: OverlayTrigger) => void) | undefined;
 }
 
 export interface MultiLineTextInputHandle {
@@ -95,6 +100,7 @@ export const MultiLineTextInput = forwardRef<MultiLineTextInputHandle, MultiLine
             history = [],
             historyIndex = -1,
             onHistoryNavigate,
+            onTriggerOverlay,
         },
         ref
     ) {
@@ -234,11 +240,24 @@ export const MultiLineTextInput = forwardRef<MultiLineTextInputHandle, MultiLine
                     // Backspace - delete character before cursor
                     if (isBackspaceKey(input, key)) {
                         if (currentCursorPos > 0) {
+                            const deletedChar = currentValue[currentCursorPos - 1];
                             const newValue =
                                 currentValue.slice(0, currentCursorPos - 1) +
                                 currentValue.slice(currentCursorPos);
                             updateValue(newValue);
                             updateCursorPos(currentCursorPos - 1);
+
+                            // Event-driven overlay close detection
+                            if (onTriggerOverlay) {
+                                // If we deleted '/' from start of line, close slash-autocomplete
+                                if (deletedChar === '/' && currentCursorPos === 1) {
+                                    onTriggerOverlay('close');
+                                }
+                                // If we deleted '@' and no more '@' in value, close resource-autocomplete
+                                else if (deletedChar === '@' && !newValue.includes('@')) {
+                                    onTriggerOverlay('close');
+                                }
+                            }
                         }
                         return true;
                     }
@@ -366,6 +385,20 @@ export const MultiLineTextInput = forwardRef<MultiLineTextInputHandle, MultiLine
                             currentValue.slice(currentCursorPos);
                         updateValue(newValue);
                         updateCursorPos(currentCursorPos + input.length);
+
+                        // Event-driven overlay trigger detection
+                        // Detect trigger characters immediately when typed (not via useEffect)
+                        if (onTriggerOverlay) {
+                            // '/' at start of line triggers slash-autocomplete
+                            if (input === '/' && currentCursorPos === 0) {
+                                onTriggerOverlay('slash-autocomplete');
+                            }
+                            // '@' anywhere triggers resource-autocomplete
+                            else if (input === '@') {
+                                onTriggerOverlay('resource-autocomplete');
+                            }
+                        }
+
                         return true;
                     }
 
@@ -380,6 +413,7 @@ export const MultiLineTextInput = forwardRef<MultiLineTextInputHandle, MultiLine
                 history,
                 historyIndex,
                 onHistoryNavigate,
+                onTriggerOverlay,
                 updateCursorPos,
                 updateValue,
             ]

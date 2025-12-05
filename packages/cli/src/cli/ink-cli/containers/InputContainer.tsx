@@ -6,7 +6,11 @@
 import React, { useCallback, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
-import { InputArea, type InputAreaHandle } from '../components/input/InputArea.js';
+import {
+    InputArea,
+    type InputAreaHandle,
+    type OverlayTrigger,
+} from '../components/input/InputArea.js';
 import { InputService } from '../services/InputService.js';
 import type { CLIAction } from '../state/actions.js';
 import type { CLIState } from '../state/types.js';
@@ -73,6 +77,31 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 dispatch({ type: 'INPUT_HISTORY_NAVIGATE', direction });
             },
             [dispatch]
+        );
+
+        // Handle overlay triggers from input (event-driven overlay detection)
+        // This is called immediately when trigger characters are typed/removed
+        // Replaces the problematic useEffect that watched state.input.value
+        const handleTriggerOverlay = useCallback(
+            (trigger: OverlayTrigger) => {
+                // Don't trigger overlays during processing or approval
+                if (ui.isProcessing || approval) return;
+
+                if (trigger === 'close') {
+                    // Only close autocomplete overlays (not enter-triggered ones like selectors)
+                    if (
+                        ui.activeOverlay === 'slash-autocomplete' ||
+                        ui.activeOverlay === 'resource-autocomplete'
+                    ) {
+                        dispatch({ type: 'CLOSE_OVERLAY' });
+                    }
+                } else if (trigger === 'slash-autocomplete') {
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'slash-autocomplete' });
+                } else if (trigger === 'resource-autocomplete') {
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'resource-autocomplete' });
+                }
+            },
+            [dispatch, ui.isProcessing, ui.activeOverlay, approval]
         );
 
         // Handle submission
@@ -315,6 +344,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 history={input.history}
                 historyIndex={input.historyIndex}
                 onHistoryNavigate={canNavigateHistory ? handleHistoryNavigate : undefined}
+                onTriggerOverlay={handleTriggerOverlay}
             />
         );
     }

@@ -37,7 +37,6 @@ export type StyledMessageType =
 export interface ConfigStyledData {
     provider: string;
     model: string;
-    router: string;
     maxSessions: string;
     sessionTTL: string;
     mcpServers: string[];

@@ -17,7 +17,6 @@ export function ConfigBox({ data }: ConfigBoxProps) {
             <StyledSection title="LLM" icon="LLM">
                 <StyledRow label="Provider" value={data.provider} />
                 <StyledRow label="Model" value={data.model} />
-                <StyledRow label="Router" value={data.router} />
             </StyledSection>
 
             <StyledSection title="Sessions">

@@ -141,72 +141,63 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         };
     }, [agent, dispatch, initialSessionId, state.messages.length, state.session.hasActiveSession]);
 
-    // Detect overlays based on input (with guards to prevent infinite loop)
-    // Debounced to prevent excessive re-renders during fast typing
+    // Detect selector overlays based on exact command matches
+    // Note: Autocomplete overlays (slash-autocomplete, resource-autocomplete) are now
+    // handled via event-driven detection in MultiLineTextInput/InputContainer.
+    // This useEffect ONLY handles selector detection for exact commands like /model, /resume.
+    // This prevents flickering because we only run detection on specific command matches,
+    // not on every keystroke.
     useEffect(() => {
         // Don't detect overlays if processing or approval is active
         if (state.ui.isProcessing || state.approval) return;
 
-        // Debounce overlay detection to prevent flickering during fast typing
-        const timeoutId = setTimeout(() => {
-            const autocompleteType = inputService.detectAutocompleteType(state.input.value);
-            const selectorType = inputService.detectInteractiveSelector(state.input.value);
+        // Early return for non-command input - no selector detection needed
+        // This avoids calling parseInput() on every regular character typed
+        if (!state.input.value.startsWith('/')) return;
 
-            // Determine what overlay should be shown
-            let desiredOverlay: typeof state.ui.activeOverlay = 'none';
+        // Only check for selector commands, not autocomplete
+        // These are detected while typing (unlike /mcp, /log, /session which are Enter-triggered)
+        const selectorType = inputService.detectInteractiveSelector(state.input.value);
 
-            // Priority: selector > autocomplete
-            // Map selector types to overlay types
-            // Note: mcp, log, session-subcommand selectors are triggered on Enter,
-            // not auto-detected while typing (see InputContainer.handleSubmit)
-            switch (selectorType) {
-                case 'model':
-                    desiredOverlay = 'model-selector';
-                    break;
-                case 'session':
-                    desiredOverlay = 'session-selector';
-                    break;
-                case 'none':
-                    // Fall through to autocomplete detection
-                    switch (autocompleteType) {
-                        case 'slash':
-                            desiredOverlay = 'slash-autocomplete';
-                            break;
-                        case 'resource':
-                            desiredOverlay = 'resource-autocomplete';
-                            break;
-                    }
-                    break;
-            }
+        // Determine what selector overlay should be shown
+        let desiredOverlay: typeof state.ui.activeOverlay = 'none';
+        switch (selectorType) {
+            case 'model':
+                desiredOverlay = 'model-selector';
+                break;
+            case 'session':
+                desiredOverlay = 'session-selector';
+                break;
+        }
 
-            // Only dispatch if overlay needs to change
-            // BUT don't auto-close overlays that are triggered on Enter (not by typing)
-            // These should only be closed by user action (Escape, selection, etc.)
-            const enterTriggeredOverlays = [
-                'log-level-selector',
-                'mcp-selector',
-                'mcp-add-selector',
-                'mcp-remove-selector',
-                'mcp-custom-type-selector',
-                'mcp-custom-wizard',
-                'session-subcommand-selector',
-            ];
-            const isEnterTriggeredOverlay = enterTriggeredOverlays.includes(state.ui.activeOverlay);
+        // Overlays that should not be auto-closed (Enter-triggered or user-controlled)
+        const protectedOverlays = [
+            'slash-autocomplete', // Now event-driven
+            'resource-autocomplete', // Now event-driven
+            'log-level-selector',
+            'mcp-selector',
+            'mcp-add-selector',
+            'mcp-remove-selector',
+            'mcp-custom-type-selector',
+            'mcp-custom-wizard',
+            'session-subcommand-selector',
+            'approval',
+        ];
+        const isProtectedOverlay = protectedOverlays.includes(state.ui.activeOverlay);
 
-            if (
-                desiredOverlay !== state.ui.activeOverlay &&
-                state.ui.activeOverlay !== 'approval' &&
-                !isEnterTriggeredOverlay // Don't auto-close enter-triggered overlays
-            ) {
-                if (desiredOverlay === 'none') {
+        // Only update overlay if:
+        // 1. Desired overlay is different from current
+        // 2. Current overlay is not protected
+        if (desiredOverlay !== state.ui.activeOverlay && !isProtectedOverlay) {
+            if (desiredOverlay === 'none') {
+                // Don't close if already 'none'
+                if (state.ui.activeOverlay !== 'none') {
                     dispatch({ type: 'CLOSE_OVERLAY' });
-                } else {
-                    dispatch({ type: 'SHOW_OVERLAY', overlay: desiredOverlay });
                 }
+            } else {
+                dispatch({ type: 'SHOW_OVERLAY', overlay: desiredOverlay });
             }
-        }, 50); // 50ms debounce - fast enough to feel responsive, slow enough to prevent flicker
-
-        return () => clearTimeout(timeoutId);
+        }
     }, [
         state.input.value,
         state.ui.isProcessing,

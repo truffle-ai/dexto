@@ -5,9 +5,14 @@
 
 import React, { forwardRef } from 'react';
 import { Box } from 'ink';
-import { MultiLineTextInput, type MultiLineTextInputHandle } from '../MultiLineTextInput.js';
+import {
+    MultiLineTextInput,
+    type MultiLineTextInputHandle,
+    type OverlayTrigger,
+} from '../MultiLineTextInput.js';
 
 export type InputAreaHandle = MultiLineTextInputHandle;
+export type { OverlayTrigger };
 
 interface InputAreaProps {
     value: string;
@@ -20,6 +25,8 @@ interface InputAreaProps {
     history?: string[] | undefined;
     historyIndex?: number | undefined;
     onHistoryNavigate?: ((direction: 'up' | 'down') => void) | undefined;
+    // Overlay trigger callback
+    onTriggerOverlay?: ((trigger: OverlayTrigger) => void) | undefined;
 }
 
 export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
@@ -34,6 +41,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
             history,
             historyIndex,
             onHistoryNavigate,
+            onTriggerOverlay,
         },
         ref
     ) => {
@@ -49,6 +57,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
                     history={history}
                     historyIndex={historyIndex}
                     onHistoryNavigate={onHistoryNavigate}
+                    onTriggerOverlay={onTriggerOverlay}
                 />
             </Box>
         );

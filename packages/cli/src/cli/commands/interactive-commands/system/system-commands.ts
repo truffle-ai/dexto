@@ -97,7 +97,6 @@ export const systemCommands: CommandDefinition[] = [
                 const styledData: ConfigStyledData = {
                     provider: config.llm.provider,
                     model: config.llm.model,
-                    router: config.llm.router,
                     maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
                     sessionTTL: config.sessions?.sessionTTL
                         ? `${config.sessions.sessionTTL / 1000}s`
@@ -109,7 +108,6 @@ export const systemCommands: CommandDefinition[] = [
                 const fallbackLines: string[] = [
                     'Configuration:',
                     `  LLM: ${config.llm.provider} / ${config.llm.model}`,
-                    `  Router: ${config.llm.router}`,
                     `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
                     `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
                 ];
