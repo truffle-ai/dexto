@@ -100,28 +100,44 @@ function sortResources(resources: ResourceMetadata[], query: string): ResourceMe
     });
 }
 
-const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAutocompleteProps>(
+/**
+ * Inner component - wrapped with React.memo below
+ */
+const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, ResourceAutocompleteProps>(
     function ResourceAutocomplete(
         { isVisible, searchQuery, onSelectResource, onLoadIntoInput, onClose, agent },
         ref
     ) {
         const [resources, setResources] = useState<ResourceMetadata[]>([]);
         const [isLoading, setIsLoading] = useState(false);
-        const [selectedIndex, setSelectedIndex] = useState(0);
-        const [scrollOffset, setScrollOffset] = useState(0);
+        // Combined state to guarantee single render on navigation
+        const [selection, setSelection] = useState({ index: 0, offset: 0 });
         const selectedIndexRef = useRef(0);
-        const MAX_VISIBLE_ITEMS = 8; // Number of items visible at once
+        const MAX_VISIBLE_ITEMS = 8;
 
-        // Wrapper to update both state and ref synchronously
-        const setSelectedIndexSync = useCallback(
-            (newIndex: number | ((prev: number) => number)) => {
-                setSelectedIndex((prev) => {
-                    const resolved = typeof newIndex === 'function' ? newIndex(prev) : newIndex;
-                    selectedIndexRef.current = resolved;
-                    return resolved;
+        // Update selection AND scroll offset in a single state update
+        // This guarantees exactly one render per navigation action
+        const updateSelection = useCallback(
+            (indexUpdater: number | ((prev: number) => number)) => {
+                setSelection((prev) => {
+                    const newIndex =
+                        typeof indexUpdater === 'function'
+                            ? indexUpdater(prev.index)
+                            : indexUpdater;
+                    selectedIndexRef.current = newIndex;
+
+                    // Calculate new scroll offset
+                    let newOffset = prev.offset;
+                    if (newIndex < prev.offset) {
+                        newOffset = newIndex;
+                    } else if (newIndex >= prev.offset + MAX_VISIBLE_ITEMS) {
+                        newOffset = Math.max(0, newIndex - MAX_VISIBLE_ITEMS + 1);
+                    }
+
+                    return { index: newIndex, offset: newOffset };
                 });
             },
-            []
+            [MAX_VISIBLE_ITEMS]
         );
 
         // Fetch resources from agent
@@ -139,9 +155,9 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
                         setResources(resourceList);
                         setIsLoading(false);
                     }
-                } catch (error) {
+                } catch {
                     if (!cancelled) {
-                        console.error('Failed to fetch resources:', error);
+                        // Silently fail - don't use console.error as it interferes with Ink rendering
                         setResources([]);
                         setIsLoading(false);
                     }
@@ -175,27 +191,38 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
             return sortResources(matched, mentionQuery);
         }, [resources, mentionQuery]);
 
-        // Reset selected index and scroll when resources change
-        useEffect(() => {
-            setSelectedIndex(0);
-            setScrollOffset(0);
-        }, [filteredResources.length]);
+        // Track items length for reset detection
+        const prevItemsLengthRef = useRef(filteredResources.length);
+        const itemsChanged = filteredResources.length !== prevItemsLengthRef.current;
 
-        // Auto-scroll to keep selected item visible
+        // Derive clamped selection values during render (always valid, no setState needed)
+        // This prevents the double-render that was causing flickering
+        const selectedIndex = itemsChanged
+            ? 0
+            : Math.min(selection.index, Math.max(0, filteredResources.length - 1));
+        const scrollOffset = itemsChanged
+            ? 0
+            : Math.min(selection.offset, Math.max(0, filteredResources.length - MAX_VISIBLE_ITEMS));
+
+        // Sync state only when items actually changed AND state differs
+        // This effect runs AFTER render, updating state for next user interaction
         useEffect(() => {
-            if (selectedIndex < scrollOffset) {
-                // Selected item is above visible area, scroll up
-                setScrollOffset(selectedIndex);
-            } else if (selectedIndex >= scrollOffset + MAX_VISIBLE_ITEMS) {
-                // Selected item is below visible area, scroll down
-                setScrollOffset(Math.max(0, selectedIndex - MAX_VISIBLE_ITEMS + 1));
+            if (itemsChanged) {
+                prevItemsLengthRef.current = filteredResources.length;
+                // Only setState if values actually differ (prevents unnecessary re-render)
+                if (selection.index !== 0 || selection.offset !== 0) {
+                    selectedIndexRef.current = 0;
+                    setSelection({ index: 0, offset: 0 });
+                } else {
+                    selectedIndexRef.current = 0;
+                }
             }
-        }, [selectedIndex, scrollOffset]);
+        }, [itemsChanged, filteredResources.length, selection.index, selection.offset]);
 
         // Calculate visible items based on scroll offset
         const visibleResources = useMemo(() => {
             return filteredResources.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
-        }, [filteredResources, scrollOffset]);
+        }, [filteredResources, scrollOffset, MAX_VISIBLE_ITEMS]);
 
         // Expose handleInput method via ref
         useImperativeHandle(
@@ -214,12 +241,12 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
                     if (itemsLength === 0) return false;
 
                     if (key.upArrow) {
-                        setSelectedIndexSync((prev) => (prev - 1 + itemsLength) % itemsLength);
+                        updateSelection((prev) => (prev - 1 + itemsLength) % itemsLength);
                         return true;
                     }
 
                     if (key.downArrow) {
-                        setSelectedIndexSync((prev) => (prev + 1) % itemsLength);
+                        updateSelection((prev) => (prev + 1) % itemsLength);
                         return true;
                     }
 
@@ -267,7 +294,7 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
                 onClose,
                 onLoadIntoInput,
                 onSelectResource,
-                setSelectedIndexSync,
+                updateSelection,
             ]
         );
 
@@ -358,5 +385,13 @@ const ResourceAutocomplete = forwardRef<ResourceAutocompleteHandle, ResourceAuto
         );
     }
 );
+
+/**
+ * Export with React.memo to prevent unnecessary re-renders from parent
+ * Only re-renders when props actually change (shallow comparison)
+ */
+const ResourceAutocomplete = React.memo(
+    ResourceAutocompleteInner
+) as typeof ResourceAutocompleteInner;
 
 export default ResourceAutocomplete;

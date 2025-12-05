@@ -52,7 +52,7 @@ function BaseSelectorInner<T>(
         onClose,
         formatItem,
         title,
-        maxVisibleItems = 10,
+        maxVisibleItems = 8,
         loadingMessage = 'Loading...',
         emptyMessage = 'No items found',
         borderColor = 'cyan',
@@ -61,10 +61,53 @@ function BaseSelectorInner<T>(
     }: BaseSelectorProps<T>,
     ref: React.Ref<BaseSelectorHandle>
 ) {
-    const [scrollOffset, setScrollOffset] = useState(0);
+    // Track scroll offset as state, but derive during render when needed
+    const [scrollOffsetState, setScrollOffset] = useState(0);
     const selectedIndexRef = useRef(selectedIndex);
+    const prevSelectedIndexRef = useRef(selectedIndex);
+    const prevItemsLengthRef = useRef(items.length);
 
-    // Wrapper to update both parent state and ref synchronously to prevent race conditions
+    // Keep ref in sync
+    selectedIndexRef.current = selectedIndex;
+
+    // Derive the correct scroll offset during render (no second render needed)
+    // This handles both selectedIndex changes from parent AND items length changes
+    const scrollOffset = useMemo(() => {
+        const selectionChanged = selectedIndex !== prevSelectedIndexRef.current;
+        const itemsChanged = items.length !== prevItemsLengthRef.current;
+
+        // Update refs for next render
+        prevSelectedIndexRef.current = selectedIndex;
+        prevItemsLengthRef.current = items.length;
+
+        // Reset scroll if items changed significantly
+        if (itemsChanged && items.length <= maxVisibleItems) {
+            return 0;
+        }
+
+        let offset = scrollOffsetState;
+
+        // Adjust offset to keep selectedIndex visible
+        if (selectedIndex < offset) {
+            offset = selectedIndex;
+        } else if (selectedIndex >= offset + maxVisibleItems) {
+            offset = Math.max(0, selectedIndex - maxVisibleItems + 1);
+        }
+
+        // Clamp to valid range
+        const maxOffset = Math.max(0, items.length - maxVisibleItems);
+        return Math.min(maxOffset, Math.max(0, offset));
+    }, [selectedIndex, items.length, maxVisibleItems, scrollOffsetState]);
+
+    // Sync scroll offset state after render if it changed
+    // This ensures the stored state is correct for next navigation
+    useEffect(() => {
+        if (scrollOffset !== scrollOffsetState) {
+            setScrollOffset(scrollOffset);
+        }
+    }, [scrollOffset, scrollOffsetState]);
+
+    // Handle selection change - only updates parent state
     const handleSelectIndex = useCallback(
         (newIndex: number) => {
             selectedIndexRef.current = newIndex;
@@ -72,20 +115,6 @@ function BaseSelectorInner<T>(
         },
         [onSelectIndex]
     );
-
-    // Keep ref in sync with prop changes (e.g., when parent resets selection)
-    useEffect(() => {
-        selectedIndexRef.current = selectedIndex;
-    }, [selectedIndex]);
-
-    // Auto-scroll to keep selected item visible
-    useEffect(() => {
-        if (selectedIndex < scrollOffset) {
-            setScrollOffset(selectedIndex);
-        } else if (selectedIndex >= scrollOffset + maxVisibleItems) {
-            setScrollOffset(Math.max(0, selectedIndex - maxVisibleItems + 1));
-        }
-    }, [selectedIndex, scrollOffset, maxVisibleItems]);
 
     // Calculate visible items
     const visibleItems = useMemo(() => {

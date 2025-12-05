@@ -271,6 +271,10 @@ export async function startInkCliRefactored(
     // Note: Console suppression is done in index.ts before calling this function
     const startupInfo = await getStartupInfo(agent);
 
+    // Use alternate buffer for flicker-free rendering (like Gemini CLI)
+    // Alternate buffer renders to a separate terminal screen that gets swapped in atomically
+    const useAlternateBuffer = true;
+
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
@@ -280,6 +284,12 @@ export async function startInkCliRefactored(
         {
             // Disable default Ctrl+C exit to handle it ourselves with double-press warning
             exitOnCtrlC: false,
+            // Use alternate screen buffer for flicker-free rendering
+            // This prevents the "clear then redraw" flicker by rendering to an off-screen buffer
+            alternateBuffer: useAlternateBuffer,
+            // Only re-render changed parts of the UI (requires alternateBuffer)
+            // This reduces terminal writes significantly
+            incrementalRendering: useAlternateBuffer,
         }
     );
 
