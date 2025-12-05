@@ -364,6 +364,10 @@ export class TurnExecutor {
             },
         };
 
+        // Add timeout protection to fail fast if endpoint is unresponsive
+        const testAbort = new AbortController();
+        const testTimeout = setTimeout(() => testAbort.abort(), 5000); // 5s timeout
+
         try {
             // Make a minimal generateText call with tools to test support
             await generateText({
@@ -371,20 +375,23 @@ export class TurnExecutor {
                 messages: [{ role: 'user', content: 'Hello' }],
                 tools: testTool,
                 stopWhen: stepCountIs(1),
+                abortSignal: testAbort.signal,
             });
+            clearTimeout(testTimeout);
 
             // If we get here, tools are supported
             toolSupportCache.set(modelKey, true);
             this.logger.debug(`Model ${modelKey} supports tools`);
             return true;
         } catch (error: unknown) {
+            clearTimeout(testTimeout);
             const errorMessage = error instanceof Error ? error.message : String(error);
             if (errorMessage.includes('does not support tools')) {
                 toolSupportCache.set(modelKey, false);
                 this.logger.debug(`Model ${modelKey} does not support tools`);
                 return false;
             }
-            // Other errors - assume tools are supported and let the actual call handle it
+            // Other errors (including timeout) - assume tools are supported and let the actual call handle it
             this.logger.debug(
                 `Tool validation error for ${modelKey}, assuming supported: ${errorMessage}`
             );

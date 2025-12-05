@@ -51,6 +51,9 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
                     `DatabaseHistoryProvider: Loaded ${this.cache.length} messages from DB for session ${this.sessionId}`
                 );
             } catch (error) {
+                // TODO: Consider propagating this error instead of silently falling back to empty history.
+                // Silent failure could mask transient DB issues and lead to data loss if subsequent
+                // writes overwrite the actual history. For now, log error and fall back for resilience.
                 this.logger.error(
                     `DatabaseHistoryProvider: Error loading messages for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
                 );
@@ -204,7 +207,12 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
                 await this.database.append(key, msg);
             }
 
-            this.dirty = false;
+            // Only clear dirty if no new updates were scheduled during flush.
+            // If flushTimer exists, updateMessage() was called during the flush,
+            // so keep dirty=true to ensure the scheduled flush persists those updates.
+            if (!this.flushTimer) {
+                this.dirty = false;
+            }
             this.logger.debug(
                 `DatabaseHistoryProvider: Flushed ${messageCount} messages to DB for session ${this.sessionId}`
             );
