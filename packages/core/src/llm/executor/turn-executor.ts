@@ -299,7 +299,7 @@ export class TurnExecutor {
 
     /**
      * Inject coalesced queued messages into the context as a single user message.
-     * This enables "Claude Code-style" mid-task user guidance.
+     * This enables mid-task user guidance.
      */
     private async injectQueuedMessages(coalesced: CoalescedMessage): Promise<void> {
         // Add as single user message with all guidance

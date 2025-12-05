@@ -134,7 +134,7 @@ export class PromptManager {
         }
 
         // Map positional arguments to named arguments based on prompt's argument schema
-        // This bridges the gap between user input (positional, like Claude Code's $1 $2)
+        // This bridges the gap between user input (positional, like $1 $2)
         // and MCP protocol expectations (named arguments like { report_type: "metrics" })
         let finalArgs = args;
         if (args?._positional && Array.isArray(args._positional) && args._positional.length > 0) {

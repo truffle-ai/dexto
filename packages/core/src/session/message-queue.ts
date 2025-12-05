@@ -27,7 +27,7 @@ export interface UserMessage {
  * - Coalesces multiple queued messages into a single injection
  * - Supports multimodal content (text, images, files)
  *
- * This enables "Claude Code-style" user guidance where users can send
+ * This enables user guidance where users can send
  * mid-task instructions like "stop" or "try a different approach".
  *
  * @example
