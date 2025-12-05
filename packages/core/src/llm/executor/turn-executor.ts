@@ -61,6 +61,14 @@ export class TurnExecutor {
     private stepAbortController: AbortController;
     // TODO: improve compression configurability
     private compressionStrategy: ReactiveOverflowStrategy | null = null;
+    /**
+     * Map to track approval metadata by toolCallId.
+     * Used to pass approval info from tool execution to result persistence.
+     */
+    private approvalMetadata = new Map<
+        string,
+        { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+    >();
 
     constructor(
         private model: LanguageModel,
@@ -188,7 +196,8 @@ export class TurnExecutor {
                     this.stepAbortController.signal,
                     this.getStreamProcessorConfig(),
                     this.logger,
-                    streaming
+                    streaming,
+                    this.approvalMetadata
                 );
 
                 const result = await streamProcessor.process(() =>
@@ -428,14 +437,29 @@ export class TurnExecutor {
                     ): Promise<unknown> => {
                         this.logger.debug(`Executing tool: ${name}`);
 
-                        // Run tool via toolManager - returns raw result with inline images
-                        const rawResult = await this.toolManager.executeTool(
+                        // Run tool via toolManager - returns result with approval metadata
+                        const executionResult = await this.toolManager.executeTool(
                             name,
                             args as Record<string, unknown>,
                             this.sessionId
                         );
 
-                        return rawResult;
+                        // Store approval metadata for later retrieval by StreamProcessor
+                        if (executionResult.requireApproval !== undefined) {
+                            const metadata: {
+                                requireApproval: boolean;
+                                approvalStatus?: 'approved' | 'rejected';
+                            } = {
+                                requireApproval: executionResult.requireApproval,
+                            };
+                            if (executionResult.approvalStatus !== undefined) {
+                                metadata.approvalStatus = executionResult.approvalStatus;
+                            }
+                            this.approvalMetadata.set(_options.toolCallId, metadata);
+                        }
+
+                        // Return just the raw result for Vercel SDK
+                        return executionResult.result;
                     },
 
                     /**
