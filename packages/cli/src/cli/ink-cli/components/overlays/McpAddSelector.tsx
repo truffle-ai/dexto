@@ -1,6 +1,7 @@
 /**
  * McpAddSelector Component
- * Shows registry presets and custom server options for adding MCP servers
+ * Shows registry presets for adding MCP servers
+ * (Custom server options are handled separately via McpSelector "add custom")
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
@@ -8,9 +9,7 @@ import { Text, type Key } from 'ink';
 import { serverRegistry, type ServerRegistryEntry } from '@dexto/registry';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
-export type McpAddResult =
-    | { type: 'preset'; entry: ServerRegistryEntry }
-    | { type: 'custom'; serverType: 'stdio' | 'http' | 'sse' };
+export type McpAddResult = { type: 'preset'; entry: ServerRegistryEntry };
 
 interface McpAddSelectorProps {
     isVisible: boolean;
@@ -24,44 +23,14 @@ export interface McpAddSelectorHandle {
 
 interface McpAddOption {
     id: string;
-    type: 'preset' | 'custom';
     label: string;
     description: string;
     icon: string;
-    entry?: ServerRegistryEntry;
-    serverType?: 'stdio' | 'http' | 'sse';
-    isHeader?: boolean;
+    entry: ServerRegistryEntry;
 }
 
-const CUSTOM_OPTIONS: McpAddOption[] = [
-    {
-        id: 'custom-stdio',
-        type: 'custom',
-        label: 'STDIO server',
-        description: 'Add custom stdio server',
-        icon: '▶️',
-        serverType: 'stdio',
-    },
-    {
-        id: 'custom-http',
-        type: 'custom',
-        label: 'HTTP server',
-        description: 'Add custom HTTP server',
-        icon: '🌐',
-        serverType: 'http',
-    },
-    {
-        id: 'custom-sse',
-        type: 'custom',
-        label: 'SSE server',
-        description: 'Add custom SSE server',
-        icon: '📡',
-        serverType: 'sse',
-    },
-];
-
 /**
- * MCP add selector - shows registry presets and custom options
+ * MCP add selector - shows registry presets only
  */
 const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
     function McpAddSelector({ isVisible, onSelect, onClose }, ref) {
@@ -95,24 +64,15 @@ const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
 
                     if (cancelled) return;
 
-                    // Build options list: presets first, then custom
-                    const optionList: McpAddOption[] = [];
-
-                    // Add preset entries (not installed ones)
+                    // Only show presets that are not already installed
                     const availablePresets = entries.filter((e) => !e.isInstalled);
-                    for (const entry of availablePresets) {
-                        optionList.push({
-                            id: entry.id,
-                            type: 'preset',
-                            label: entry.name,
-                            description: entry.description,
-                            icon: entry.icon || '📦',
-                            entry,
-                        });
-                    }
-
-                    // Add custom options at the end
-                    optionList.push(...CUSTOM_OPTIONS);
+                    const optionList: McpAddOption[] = availablePresets.map((entry) => ({
+                        id: entry.id,
+                        label: entry.name,
+                        description: entry.description,
+                        icon: entry.icon || '📦',
+                        entry,
+                    }));
 
                     setOptions(optionList);
                     setSelectedIndex(0);
@@ -131,37 +91,23 @@ const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
         }, [isVisible]);
 
         // Format option for display
-        const formatItem = (option: McpAddOption, isSelected: boolean) => {
-            const isCustom = option.type === 'custom';
-
-            return (
-                <>
-                    <Text>{option.icon} </Text>
-                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                        {option.label}
-                    </Text>
-                    <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                        {' '}
-                        - {option.description.slice(0, 40)}
-                        {option.description.length > 40 ? '...' : ''}
-                    </Text>
-                    {isCustom && (
-                        <Text color="yellow" dimColor={!isSelected}>
-                            {' '}
-                            [Custom]
-                        </Text>
-                    )}
-                </>
-            );
-        };
+        const formatItem = (option: McpAddOption, isSelected: boolean) => (
+            <>
+                <Text>{option.icon} </Text>
+                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                    {option.label}
+                </Text>
+                <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
+                    {' '}
+                    - {option.description.slice(0, 40)}
+                    {option.description.length > 40 ? '...' : ''}
+                </Text>
+            </>
+        );
 
         // Handle selection
         const handleSelect = (option: McpAddOption) => {
-            if (option.type === 'preset' && option.entry) {
-                onSelect({ type: 'preset', entry: option.entry });
-            } else if (option.type === 'custom' && option.serverType) {
-                onSelect({ type: 'custom', serverType: option.serverType });
-            }
+            onSelect({ type: 'preset', entry: option.entry });
         };
 
         return (
@@ -175,7 +121,7 @@ const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
                 onSelect={handleSelect}
                 onClose={onClose}
                 formatItem={formatItem}
-                title="Add MCP Server"
+                title="Add MCP Server (Presets)"
                 borderColor="green"
                 loadingMessage="Loading server presets..."
                 emptyMessage="No server presets available"

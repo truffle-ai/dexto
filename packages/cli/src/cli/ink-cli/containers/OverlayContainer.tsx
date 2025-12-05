@@ -466,104 +466,104 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // Handle main MCP action selection
         const handleMcpAction = useCallback(
             async (action: McpAction) => {
-                if (action === 'list') {
-                    // Execute list directly
-                    dispatch({ type: 'CLOSE_OVERLAY' });
-                    dispatch({ type: 'INPUT_CLEAR' });
-                    dispatch({ type: 'PROCESSING_START' });
+                switch (action) {
+                    case 'list': {
+                        // Execute list directly
+                        dispatch({ type: 'CLOSE_OVERLAY' });
+                        dispatch({ type: 'INPUT_CLEAR' });
+                        dispatch({ type: 'PROCESSING_START' });
 
-                    try {
-                        const { CommandService } = await import('../services/CommandService.js');
-                        const commandService = new CommandService();
-                        const result = await commandService.executeCommand(
-                            'mcp',
-                            ['list'],
-                            agent,
-                            state.session.id || undefined
-                        );
+                        try {
+                            const { CommandService } = await import(
+                                '../services/CommandService.js'
+                            );
+                            const commandService = new CommandService();
+                            const result = await commandService.executeCommand(
+                                'mcp',
+                                ['list'],
+                                agent,
+                                state.session.id || undefined
+                            );
 
-                        if (result.type === 'output' && result.output) {
+                            if (result.type === 'output' && result.output) {
+                                dispatch({
+                                    type: 'MESSAGE_ADD',
+                                    message: {
+                                        id: generateMessageId('command'),
+                                        role: 'system',
+                                        content: result.output,
+                                        timestamp: new Date(),
+                                    },
+                                });
+                            }
+                            dispatch({ type: 'PROCESSING_END' });
+                        } catch (error) {
                             dispatch({
-                                type: 'MESSAGE_ADD',
-                                message: {
-                                    id: generateMessageId('command'),
-                                    role: 'system',
-                                    content: result.output,
-                                    timestamp: new Date(),
-                                },
+                                type: 'ERROR',
+                                errorMessage:
+                                    error instanceof Error ? error.message : String(error),
                             });
                         }
-                        dispatch({ type: 'PROCESSING_END' });
-                    } catch (error) {
-                        dispatch({
-                            type: 'ERROR',
-                            errorMessage: error instanceof Error ? error.message : String(error),
-                        });
+                        break;
                     }
-                } else if (action === 'add') {
-                    // Drill down to add selector
-                    dispatch({ type: 'INPUT_CHANGE', value: '/mcp add' });
-                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-add-selector' });
-                } else if (action === 'remove') {
-                    // Drill down to remove selector
-                    dispatch({ type: 'INPUT_CHANGE', value: '/mcp remove' });
-                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-remove-selector' });
+                    case 'add-preset':
+                        // Drill down to preset selector (registry servers only)
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-add-selector' });
+                        break;
+                    case 'add-custom':
+                        // Load command template into input for user to complete
+                        dispatch({ type: 'CLOSE_OVERLAY' });
+                        dispatch({ type: 'INPUT_CHANGE', value: '/mcp add stdio ' });
+                        break;
+                    case 'remove':
+                        // Drill down to remove selector
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-remove-selector' });
+                        break;
                 }
             },
             [dispatch, agent, state.session.id]
         );
 
-        // Handle MCP add selection
+        // Handle MCP add selection (presets only - custom is handled by McpSelector)
         const handleMcpAddSelect = useCallback(
             async (result: McpAddResult) => {
                 dispatch({ type: 'CLOSE_OVERLAY' });
                 dispatch({ type: 'INPUT_CLEAR' });
+                dispatch({ type: 'PROCESSING_START' });
 
-                if (result.type === 'preset') {
-                    // Connect preset server
-                    dispatch({ type: 'PROCESSING_START' });
+                dispatch({
+                    type: 'MESSAGE_ADD',
+                    message: {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🔌 Connecting to ${result.entry.name}...`,
+                        timestamp: new Date(),
+                    },
+                });
+
+                try {
+                    await agent.connectMcpServer(result.entry.id, result.entry.config as any);
                     dispatch({
                         type: 'MESSAGE_ADD',
                         message: {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `🔌 Connecting to ${result.entry.name}...`,
+                            content: `✅ Connected to ${result.entry.name}`,
                             timestamp: new Date(),
                         },
                     });
-
-                    try {
-                        await agent.connectMcpServer(result.entry.id, result.entry.config as any);
-                        dispatch({
-                            type: 'MESSAGE_ADD',
-                            message: {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: `✅ Connected to ${result.entry.name}`,
-                                timestamp: new Date(),
-                            },
-                        });
-                    } catch (error) {
-                        dispatch({
-                            type: 'MESSAGE_ADD',
-                            message: {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
-                                timestamp: new Date(),
-                            },
-                        });
-                    }
-                    dispatch({ type: 'PROCESSING_END' });
-                } else {
-                    // Custom server - load command template into input
-                    const templates = {
-                        stdio: '/mcp add stdio <name> <command> [args...]',
-                        http: '/mcp add http <name> <url>',
-                        sse: '/mcp add sse <name> <url>',
-                    };
-                    dispatch({ type: 'INPUT_CHANGE', value: templates[result.serverType] });
+                } catch (error) {
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    });
                 }
+                dispatch({ type: 'PROCESSING_END' });
             },
             [dispatch, agent]
         );

@@ -157,27 +157,14 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 
             // Priority: selector > autocomplete
             // Map selector types to overlay types
+            // Note: mcp, log, session-subcommand selectors are triggered on Enter,
+            // not auto-detected while typing (see InputContainer.handleSubmit)
             switch (selectorType) {
                 case 'model':
                     desiredOverlay = 'model-selector';
                     break;
                 case 'session':
                     desiredOverlay = 'session-selector';
-                    break;
-                case 'mcp':
-                    desiredOverlay = 'mcp-selector';
-                    break;
-                case 'mcp-add':
-                    desiredOverlay = 'mcp-add-selector';
-                    break;
-                case 'mcp-remove':
-                    desiredOverlay = 'mcp-remove-selector';
-                    break;
-                case 'log':
-                    desiredOverlay = 'log-level-selector';
-                    break;
-                case 'session-subcommand':
-                    desiredOverlay = 'session-subcommand-selector';
                     break;
                 case 'none':
                     // Fall through to autocomplete detection

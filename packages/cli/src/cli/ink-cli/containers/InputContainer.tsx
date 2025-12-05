@@ -100,6 +100,56 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 // Parse and handle command or prompt
                 const parsed = inputService.parseInput(trimmed);
 
+                // Check if this is a command that should show an interactive selector
+                // These selectors are triggered on Enter, not auto-detected while typing
+                if (parsed.type === 'command' && parsed.command) {
+                    const command = parsed.command;
+                    const hasArgs = parsed.args && parsed.args.length > 0;
+
+                    // /mcp with no args -> show mcp selector
+                    if (command === 'mcp' && !hasArgs) {
+                        dispatch({ type: 'SUBMIT_COMPLETE' });
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-selector' });
+                        return;
+                    }
+
+                    // /mcp add with no further args -> show mcp-add selector (presets)
+                    if (
+                        command === 'mcp' &&
+                        parsed.args?.[0] === 'add' &&
+                        parsed.args.length === 1
+                    ) {
+                        dispatch({ type: 'SUBMIT_COMPLETE' });
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-add-selector' });
+                        return;
+                    }
+
+                    // /mcp remove with no further args -> show mcp-remove selector
+                    if (
+                        command === 'mcp' &&
+                        parsed.args?.[0] === 'remove' &&
+                        parsed.args.length === 1
+                    ) {
+                        dispatch({ type: 'SUBMIT_COMPLETE' });
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-remove-selector' });
+                        return;
+                    }
+
+                    // /log with no args -> show log level selector
+                    if (command === 'log' && !hasArgs) {
+                        dispatch({ type: 'SUBMIT_COMPLETE' });
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'log-level-selector' });
+                        return;
+                    }
+
+                    // /session with no args -> show session subcommand selector
+                    if (command === 'session' && !hasArgs) {
+                        dispatch({ type: 'SUBMIT_COMPLETE' });
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-subcommand-selector' });
+                        return;
+                    }
+                }
+
                 if (parsed.type === 'command' && parsed.command) {
                     // Import command service dynamically to avoid circular deps
                     const { CommandService } = await import('../services/CommandService.js');

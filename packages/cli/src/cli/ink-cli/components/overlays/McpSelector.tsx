@@ -7,7 +7,7 @@ import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } f
 import { Text, type Key } from 'ink';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
-export type McpAction = 'list' | 'add' | 'remove';
+export type McpAction = 'list' | 'add-preset' | 'add-custom' | 'remove';
 
 interface McpSelectorProps {
     isVisible: boolean;
@@ -28,7 +28,18 @@ interface McpOption {
 
 const MCP_OPTIONS: McpOption[] = [
     { action: 'list', label: 'list', description: 'List connected servers', icon: '📋' },
-    { action: 'add', label: 'add', description: 'Add a new server', icon: '➕' },
+    {
+        action: 'add-preset',
+        label: 'add preset',
+        description: 'Add from registry presets',
+        icon: '📦',
+    },
+    {
+        action: 'add-custom',
+        label: 'add custom',
+        description: 'Add custom server (stdio/http/sse)',
+        icon: '⚙️',
+    },
     { action: 'remove', label: 'remove', description: 'Remove a server', icon: '🗑️' },
 ];
 
