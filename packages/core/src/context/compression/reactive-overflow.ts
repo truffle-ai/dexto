@@ -158,8 +158,14 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
         // If we found turn boundaries, split at the first one
         if (userMessageIndices.length > 0) {
             const splitIndex = userMessageIndices[0];
-            // Check splitIndex is valid before splitting
-            if (splitIndex !== undefined && splitIndex > 0) {
+            if (splitIndex !== undefined) {
+                // splitIndex === 0 means all messages are in turns to keep, nothing to summarize
+                if (splitIndex === 0) {
+                    return {
+                        toSummarize: [],
+                        toKeep: history,
+                    };
+                }
                 return {
                     toSummarize: history.slice(0, splitIndex),
                     toKeep: history.slice(splitIndex),
@@ -167,7 +173,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
             }
         }
 
-        // If we can't identify turns properly, keep last few messages
+        // Fallback: if we can't identify turns properly, keep last few messages
         const keepCount = Math.min(4, history.length);
         return {
             toSummarize: history.slice(0, -keepCount),

@@ -18,6 +18,7 @@ import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext, LLMRouter } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { ValidatedStorageConfig } from '../../storage/schemas.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
@@ -135,7 +136,7 @@ describe('TurnExecutor Integration Tests', () => {
         logger = createLogger({
             config: {
                 level: 'warn', // Use warn to reduce noise in tests
-                transports: [{ type: 'console' }],
+                transports: [{ type: 'console', colorize: false }],
             },
             agentId: 'test-agent',
         });
@@ -145,14 +146,17 @@ describe('TurnExecutor Integration Tests', () => {
         sessionEventBus = new SessionEventBus();
 
         // Create real storage manager with in-memory backends
-        storageManager = await createStorageManager(
-            {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'in-memory' },
+        // Cast to ValidatedStorageConfig since we know test data is valid (avoids schema parsing overhead)
+        const storageConfig = {
+            cache: { type: 'in-memory' },
+            database: { type: 'in-memory' },
+            blob: {
+                type: 'in-memory',
+                maxBlobSize: 10 * 1024 * 1024,
+                maxTotalSize: 100 * 1024 * 1024,
             },
-            logger
-        );
+        } as unknown as ValidatedStorageConfig;
+        storageManager = await createStorageManager(storageConfig, logger);
 
         // Create real MCP manager
         mcpManager = new MCPManager(logger);
@@ -185,14 +189,17 @@ describe('TurnExecutor Integration Tests', () => {
         // Create real context manager with Vercel formatter
         const formatter = new VercelMessageFormatter(logger);
         const tokenizer = createTokenizer('openai', 'gpt-4', logger);
-        const llmConfig: ValidatedLLMConfig = {
+        // Cast to ValidatedLLMConfig since we know test data is valid
+        const llmConfig = {
             provider: 'openai',
             model: 'gpt-4',
+            apiKey: 'test-api-key',
+            router: 'vercel',
             maxInputTokens: 100000,
             maxOutputTokens: 4096,
             temperature: 0.7,
             maxIterations: 10,
-        };
+        } as unknown as ValidatedLLMConfig;
 
         contextManager = new ContextManager<ModelMessage>(
             llmConfig,
@@ -240,7 +247,7 @@ describe('TurnExecutor Integration Tests', () => {
         // Default streamText mock - simple text response
         vi.mocked(streamText).mockImplementation(
             () =>
-                createMockStream({ text: 'Hello!', finishReason: 'stop' }) as ReturnType<
+                createMockStream({ text: 'Hello!', finishReason: 'stop' }) as unknown as ReturnType<
                     typeof streamText
                 >
         );
@@ -348,12 +355,12 @@ describe('TurnExecutor Integration Tests', () => {
                         toolCalls: [
                             { toolCallId: `call-${callCount}`, toolName: 'test_tool', args: {} },
                         ],
-                    }) as ReturnType<typeof streamText>;
+                    }) as unknown as ReturnType<typeof streamText>;
                 }
                 return createMockStream({
                     text: 'Final response',
                     finishReason: 'stop',
-                }) as ReturnType<typeof streamText>;
+                }) as unknown as ReturnType<typeof streamText>;
             });
 
             await contextManager.addUserMessage('Do something');
@@ -371,7 +378,7 @@ describe('TurnExecutor Integration Tests', () => {
                         text: 'Tool step',
                         finishReason: 'tool-calls',
                         toolCalls: [{ toolCallId: 'call-1', toolName: 'test', args: {} }],
-                    }) as ReturnType<typeof streamText>
+                    }) as unknown as ReturnType<typeof streamText>
             );
 
             const limitedExecutor = new TurnExecutor(
@@ -427,12 +434,12 @@ describe('TurnExecutor Integration Tests', () => {
                     return createMockStream({
                         text: 'First response',
                         finishReason: 'stop',
-                    }) as ReturnType<typeof streamText>;
+                    }) as unknown as ReturnType<typeof streamText>;
                 }
                 return createMockStream({
                     text: 'Second response',
                     finishReason: 'stop',
-                }) as ReturnType<typeof streamText>;
+                }) as unknown as ReturnType<typeof streamText>;
             });
 
             await contextManager.addUserMessage('Initial');
@@ -613,9 +620,11 @@ describe('TurnExecutor Integration Tests', () => {
                     return createMockStream({
                         finishReason: 'tool-calls',
                         toolCalls: [{ toolCallId: 'call-1', toolName: 'test', args: {} }],
-                    }) as ReturnType<typeof streamText>;
+                    }) as unknown as ReturnType<typeof streamText>;
                 }
-                return createMockStream({ finishReason: 'stop' }) as ReturnType<typeof streamText>;
+                return createMockStream({ finishReason: 'stop' }) as unknown as ReturnType<
+                    typeof streamText
+                >;
             });
 
             const executorWithSignal = new TurnExecutor(
@@ -654,7 +663,7 @@ describe('TurnExecutor Integration Tests', () => {
                             outputTokens: 50,
                             totalTokens: 170,
                         },
-                    }) as ReturnType<typeof streamText>
+                    }) as unknown as ReturnType<typeof streamText>
             );
 
             const responseHandler = vi.fn();
