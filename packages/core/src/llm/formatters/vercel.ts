@@ -1,12 +1,4 @@
-import type {
-    ModelMessage,
-    AssistantContent,
-    ToolContent,
-    ToolResultPart,
-    TextPart as VercelTextPart,
-    ImagePart as VercelImagePart,
-    FilePart as VercelFilePart,
-} from 'ai';
+import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
