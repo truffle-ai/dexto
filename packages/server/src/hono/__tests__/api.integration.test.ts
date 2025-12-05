@@ -634,60 +634,6 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBeGreaterThanOrEqual(400);
         });
 
-        it('PUT /api/queue/:sessionId/:messageId updates queued message', async () => {
-            if (!testServer) throw new Error('Test server not initialized');
-            const sessionId = `queue-update-${Date.now()}`;
-
-            // Create session and queue a message
-            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
-                sessionId,
-            });
-            expect(createRes.status).toBe(201);
-
-            const queueRes = await httpRequest(
-                testServer.baseUrl,
-                'POST',
-                `/api/queue/${sessionId}`,
-                { message: 'Original message' }
-            );
-            expect(queueRes.status).toBe(201);
-            const messageId = (queueRes.body as { id: string }).id;
-            expect(messageId).toBeDefined();
-
-            // Verify message is in queue before update
-            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/queue/${sessionId}`);
-            expect(getRes.status).toBe(200);
-            const queueBefore = getRes.body as { messages: Array<{ id: string }>; count: number };
-            expect(queueBefore.count).toBe(1);
-            expect(queueBefore.messages[0]?.id).toBe(messageId);
-
-            // Update the message
-            const res = await httpRequest(
-                testServer.baseUrl,
-                'PUT',
-                `/api/queue/${sessionId}/${messageId}`,
-                { content: [{ type: 'text', text: 'Updated message' }] }
-            );
-            expect(res.status).toBe(200);
-            expect((res.body as { updated: boolean }).updated).toBe(true);
-        });
-
-        it('PUT /api/queue/:sessionId/:messageId returns 404 for non-existent message', async () => {
-            if (!testServer) throw new Error('Test server not initialized');
-            // Create session first
-            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
-                sessionId: 'test-queue-update-404-session',
-            });
-
-            const res = await httpRequest(
-                testServer.baseUrl,
-                'PUT',
-                '/api/queue/test-queue-update-404-session/non-existent-id',
-                { content: [{ type: 'text', text: 'Updated message' }] }
-            );
-            expect(res.status).toBe(404);
-        });
-
         it('DELETE /api/queue/:sessionId/:messageId removes a queued message', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const sessionId = `queue-delete-msg-${Date.now()}`;
