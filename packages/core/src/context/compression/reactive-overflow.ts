@@ -44,7 +44,7 @@ Conversation:
 };
 
 /**
- * ReactiveOverflowStrategy implements OpenCode-style reactive compression.
+ * ReactiveOverflowStrategy implements reactive compression.
  *
  * Key behaviors:
  * - Triggers on overflow (after actual tokens exceed context limit)

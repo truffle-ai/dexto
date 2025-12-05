@@ -1862,7 +1862,7 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
 
 /**
  * Filter history to exclude messages before the most recent summary.
- * This implements OpenCode-style read-time compression.
+ * This implements read-time compression.
  *
  * When a summary message exists (with metadata.isSummary === true),
  * this function returns only the summary message and everything after it.

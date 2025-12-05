@@ -6,7 +6,7 @@ import { ITokenizer } from '@core/llm/tokenizer/types.js';
  */
 export type CompressionTrigger =
     | { type: 'threshold'; percentage: number } // e.g., 80% of context
-    | { type: 'overflow' } // After actual overflow (OpenCode style)
+    | { type: 'overflow' } // After actual overflow
     | { type: 'manual' }; // Only on explicit request
 
 /**

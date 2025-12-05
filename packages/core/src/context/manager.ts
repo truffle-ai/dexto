@@ -742,7 +742,7 @@ export class ContextManager<TMessage = unknown> {
         const systemPrompt = await this.getSystemPrompt(contributorContext);
         const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
 
-        // Step 2: Get history and filter (OpenCode-style: exclude pre-summary messages)
+        // Step 2: Get history and filter (exclude pre-summary messages)
         const fullHistory = await this.historyProvider.getHistory();
         let history = filterCompacted(fullHistory);
 
