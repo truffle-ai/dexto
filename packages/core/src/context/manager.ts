@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
-import { InternalMessage, ImageData, FileData } from './types.js';
+import type { InternalMessage, ImageData, FileData, AssistantMessage, ToolCall } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
@@ -264,10 +264,7 @@ export class ContextManager<TMessage = unknown> {
      * Adds a tool call to an existing assistant message.
      * Used for streaming responses.
      */
-    async addToolCall(
-        messageId: string,
-        toolCall: NonNullable<InternalMessage['toolCalls']>[number]
-    ): Promise<void> {
+    async addToolCall(messageId: string, toolCall: ToolCall): Promise<void> {
         const history = await this.historyProvider.getHistory();
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
@@ -551,9 +548,9 @@ export class ContextManager<TMessage = unknown> {
      */
     async addAssistantMessage(
         content: string | null,
-        toolCalls?: InternalMessage['toolCalls'],
+        toolCalls?: AssistantMessage['toolCalls'],
         metadata?: {
-            tokenUsage?: InternalMessage['tokenUsage'];
+            tokenUsage?: AssistantMessage['tokenUsage'];
             reasoning?: string;
         }
     ): Promise<void> {
@@ -674,7 +671,7 @@ export class ContextManager<TMessage = unknown> {
 
         // Resolve blob references using resource manager with filtering
         this.logger.debug('Resolving blob references in message history before formatting');
-        messageHistory = await Promise.all(
+        messageHistory = (await Promise.all(
             messageHistory.map(async (message) => {
                 const expandedContent = await expandBlobReferences(
                     message.content,
@@ -684,7 +681,7 @@ export class ContextManager<TMessage = unknown> {
                 );
                 return { ...message, content: expandedContent };
             })
-        );
+        )) as InternalMessage[];
 
         // Use pre-computed system prompt if provided
         const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));

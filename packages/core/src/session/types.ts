@@ -1,17 +1,15 @@
-import { TextPart, ImagePart, FilePart, UIResourcePart } from '../context/types.js';
-
-export type UserMessageContentPart = TextPart | ImagePart | FilePart | UIResourcePart;
+import { ContentPart } from '../context/types.js';
 
 export interface QueuedMessage {
     id: string;
-    content: UserMessageContentPart[];
+    content: ContentPart[];
     queuedAt: number;
     metadata?: Record<string, unknown>;
 }
 
 export interface CoalescedMessage {
     messages: QueuedMessage[];
-    combinedContent: UserMessageContentPart[];
+    combinedContent: ContentPart[];
     firstQueuedAt: number;
     lastQueuedAt: number;
 }

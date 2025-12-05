@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { InternalMessage, Issue, SanitizedToolResult } from '@dexto/core';
+import type { InternalMessage, Issue, SanitizedToolResult, ToolApprovalStatus } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -67,6 +67,9 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     model?: string;
     provider?: LLMProvider;
     sessionId?: string;
+    // Approval-related properties (for tool messages)
+    requireApproval?: boolean;
+    approvalStatus?: ToolApprovalStatus;
 }
 
 // Separate error state interface
