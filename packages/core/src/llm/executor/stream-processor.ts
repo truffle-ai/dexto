@@ -132,6 +132,7 @@ export class StreamProcessor {
                                 blobStore: this.resourceManager.getBlobStore(),
                                 toolName: event.toolName,
                                 toolCallId: event.toolCallId,
+                                success: true,
                             },
                             this.logger
                         );
@@ -142,12 +143,15 @@ export class StreamProcessor {
                         // Get approval metadata for this tool call
                         const approval = this.approvalMetadata?.get(event.toolCallId);
 
-                        // Persist to history with approval metadata
+                        // Persist to history with success status and approval metadata
                         await this.contextManager.addToolResult(
                             event.toolCallId,
                             event.toolName,
                             truncated, // We pass the sanitized & truncated result
-                            approval
+                            {
+                                success: true,
+                                ...approval,
+                            }
                         );
 
                         this.eventBus.emit('llm:tool-result', {

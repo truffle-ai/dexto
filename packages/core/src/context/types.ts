@@ -171,6 +171,13 @@ export interface InternalMessage {
     name?: string;
 
     /**
+     * Whether the tool execution was successful.
+     * Only present in tool messages.
+     * Must be explicitly set to true or false.
+     */
+    success?: boolean;
+
+    /**
      * Whether this tool call required user approval before execution.
      * Only present in tool messages.
      */

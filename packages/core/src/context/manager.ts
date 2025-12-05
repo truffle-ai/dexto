@@ -579,14 +579,18 @@ export class ContextManager<TMessage = unknown> {
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
      * @param sanitizedResult The already-sanitized result to store
-     * @param approvalMetadata Optional approval metadata for this tool execution
+     * @param metadata Optional metadata including success status and approval info
      * @throws Error if required parameters are missing
      */
     async addToolResult(
         toolCallId: string,
         name: string,
         sanitizedResult: SanitizedToolResult,
-        approvalMetadata?: { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+        metadata?: {
+            success?: boolean;
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        }
     ): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
@@ -610,11 +614,14 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
-            ...(approvalMetadata?.requireApproval !== undefined && {
-                requireApproval: approvalMetadata.requireApproval,
+            // Always persist success status explicitly when provided
+            ...(metadata?.success !== undefined && { success: metadata.success }),
+            // Persist approval metadata for frontend display after reload
+            ...(metadata?.requireApproval !== undefined && {
+                requireApproval: metadata.requireApproval,
             }),
-            ...(approvalMetadata?.approvalStatus !== undefined && {
-                approvalStatus: approvalMetadata.approvalStatus,
+            ...(metadata?.approvalStatus !== undefined && {
+                approvalStatus: metadata.approvalStatus,
             }),
         });
     }
