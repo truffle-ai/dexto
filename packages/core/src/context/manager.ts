@@ -262,6 +262,15 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Flush any pending history updates to durable storage.
+     * Should be called at turn boundaries (after streaming completes, on cancel, on error).
+     * This ensures all message updates are persisted before returning control to the caller.
+     */
+    async flush(): Promise<void> {
+        await this.historyProvider.flush();
+    }
+
+    /**
      * Appends text to an existing assistant message.
      * Used for streaming responses.
      */

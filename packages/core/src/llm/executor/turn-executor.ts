@@ -263,6 +263,9 @@ export class TurnExecutor {
                 recoverable: false,
             });
 
+            // Flush any pending history updates before completing
+            await this.contextManager.flush();
+
             // Emit run:complete with error before throwing
             this.eventBus.emit('run:complete', {
                 finishReason: 'error',
@@ -272,6 +275,9 @@ export class TurnExecutor {
 
             throw mappedError;
         }
+
+        // Flush any pending history updates to ensure durability
+        await this.contextManager.flush();
 
         // Set telemetry attributes for token usage
         this.setTelemetryAttributes(lastStepTokens);

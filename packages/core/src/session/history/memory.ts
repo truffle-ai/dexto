@@ -36,4 +36,11 @@ export class MemoryHistoryProvider implements IConversationHistoryProvider {
     async clearHistory(): Promise<void> {
         this.messages = [];
     }
+
+    /**
+     * No-op for in-memory provider - all operations are already "flushed".
+     */
+    async flush(): Promise<void> {
+        // Nothing to flush - memory provider is always in sync
+    }
 }
