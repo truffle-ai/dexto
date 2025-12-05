@@ -14,8 +14,16 @@
  * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
-import { useReducer, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Box, render } from 'ink';
+import {
+    useReducer,
+    useMemo,
+    useEffect,
+    useRef,
+    useCallback,
+    useState,
+    useLayoutEffect,
+} from 'react';
+import { Box, render, useStdout, measureElement, type DOMElement } from 'ink';
 import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
@@ -76,6 +84,43 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     // Refs to container components for unified input handling
     const inputContainerRef = useRef<InputContainerHandle>(null);
     const overlayContainerRef = useRef<OverlayContainerHandle>(null);
+
+    // Ref for measuring controls area
+    const controlsRef = useRef<DOMElement>(null);
+
+    // Terminal dimensions
+    const { stdout } = useStdout();
+    const terminalHeight = stdout?.rows || 24;
+
+    // Track measured height of controls area
+    const [measuredControlsHeight, setMeasuredControlsHeight] = useState(0);
+
+    // Check if any overlay is active that needs space
+    const hasActiveOverlay = state.ui.activeOverlay !== 'none' || state.approval !== null;
+
+    // Default height to reserve for overlay area (header + 8 items + padding)
+    const DEFAULT_OVERLAY_HEIGHT = 12;
+
+    // Use measured height if available, otherwise use default when overlay is active
+    const controlsHeight =
+        measuredControlsHeight > 0
+            ? measuredControlsHeight
+            : hasActiveOverlay
+              ? DEFAULT_OVERLAY_HEIGHT + 3 // overlay + status + input
+              : 3; // just status + input
+
+    // Measure controls after render
+    useLayoutEffect(() => {
+        if (controlsRef.current) {
+            const measurement = measureElement(controlsRef.current);
+            if (measurement.height > 0 && measurement.height !== measuredControlsHeight) {
+                setMeasuredControlsHeight(measurement.height);
+            }
+        }
+    }, [measuredControlsHeight, state.ui.activeOverlay, state.input.value, state.approval]);
+
+    // Calculate available height for chat
+    const availableChatHeight = Math.max(1, terminalHeight - controlsHeight - 1);
 
     // Setup event bus subscriptions
     useAgentEvents({ agent, dispatch, isCancelling: state.ui.isCancelling });
@@ -215,41 +260,46 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 
     return (
         <ErrorBoundary>
-            <Box flexDirection="column" minHeight={0}>
-                {/* Chat area (header + messages) - takes available space but can shrink */}
-                <ChatView
-                    messages={visibleMessages}
-                    modelName={state.session.modelName}
-                    sessionId={state.session.id || undefined}
-                    hasActiveSession={state.session.hasActiveSession}
-                    startupInfo={startupInfo}
-                />
+            <Box flexDirection="column" height={terminalHeight - 1} overflow="hidden">
+                {/* Chat area - constrained to leave room for controls */}
+                <Box flexDirection="column" height={availableChatHeight} overflow="hidden">
+                    <ChatView
+                        messages={visibleMessages}
+                        modelName={state.session.modelName}
+                        sessionId={state.session.id || undefined}
+                        hasActiveSession={state.session.hasActiveSession}
+                        startupInfo={startupInfo}
+                    />
+                </Box>
 
-                {/* Status bar - shows processing state above input */}
-                <StatusBar
-                    isProcessing={state.ui.isProcessing}
-                    isThinking={state.ui.isThinking}
-                    approvalQueueCount={state.approvalQueue.length}
-                    exitWarningShown={state.ui.exitWarningShown}
-                />
+                {/* Controls area - measured for dynamic height */}
+                <Box ref={controlsRef} flexDirection="column" flexShrink={0}>
+                    {/* Status bar - shows processing state above input */}
+                    <StatusBar
+                        isProcessing={state.ui.isProcessing}
+                        isThinking={state.ui.isThinking}
+                        approvalQueueCount={state.approvalQueue.length}
+                        exitWarningShown={state.ui.exitWarningShown}
+                    />
 
-                {/* Input area */}
-                <InputContainer
-                    ref={inputContainerRef}
-                    state={state}
-                    dispatch={dispatch}
-                    agent={agent}
-                    inputService={inputService}
-                />
+                    {/* Overlays (approval, selectors, autocomplete) - displayed ABOVE input */}
+                    <OverlayContainer
+                        ref={overlayContainerRef}
+                        state={state}
+                        dispatch={dispatch}
+                        agent={agent}
+                        inputService={inputService}
+                    />
 
-                {/* Overlays (approval, selectors, autocomplete) - displayed below input */}
-                <OverlayContainer
-                    ref={overlayContainerRef}
-                    state={state}
-                    dispatch={dispatch}
-                    agent={agent}
-                    inputService={inputService}
-                />
+                    {/* Input area */}
+                    <InputContainer
+                        ref={inputContainerRef}
+                        state={state}
+                        dispatch={dispatch}
+                        agent={agent}
+                        inputService={inputService}
+                    />
+                </Box>
             </Box>
         </ErrorBoundary>
     );
