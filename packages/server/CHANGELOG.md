@@ -1,5 +1,21 @@
 # @dexto/server
 
+## 1.3.1
+
+### Patch Changes
+
+- 7a64414: Updated agent-management to use AgentManager instead of AgentOrchestrator.
+- d640e40: Remove LLM services, tokenizers, just stick with vercel, remove 'router' from schema and all types and docs
+- c54760f: Revamp context management layer - add partial stream cancellation, message queueing, context compression with LLM, MCP UI support and gaming agent. New APIs and UI changes for these things
+- Updated dependencies [bd5c097]
+- Updated dependencies [7a64414]
+- Updated dependencies [d640e40]
+- Updated dependencies [c54760f]
+- Updated dependencies [ab47df8]
+- Updated dependencies [3b4b919]
+    - @dexto/core@1.3.1
+    - @dexto/agent-management@1.3.1
+
 ## 1.3.0
 
 ### Minor Changes
