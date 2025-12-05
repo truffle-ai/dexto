@@ -75,6 +75,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     // This replaces the DOM event pattern (dexto:agentSwitched)
     const invalidateAgentSpecificQueries = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+        queryClient.invalidateQueries({ queryKey: ['sessions', 'history'] }); // All session histories
         queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.servers.all });
         queryClient.invalidateQueries({ queryKey: ['servers', 'tools'] });

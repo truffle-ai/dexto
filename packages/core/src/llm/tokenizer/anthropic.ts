@@ -23,4 +23,20 @@ export class AnthropicTokenizer implements ITokenizer {
     getProviderName(): string {
         return 'anthropic';
     }
+
+    /**
+     * Estimates token cost for images in Claude vision models.
+     * Claude charges based on image dimensions, not file size:
+     * - Small images (~512x512): ~1000 tokens
+     * - Medium images (~1024x1024): ~2000 tokens
+     * - Large images: ~4000+ tokens
+     *
+     * Since we don't have dimension info, we use a conservative estimate.
+     * @returns Estimated token count (1500 tokens as middle-ground)
+     */
+    estimateImageTokens(_byteSize?: number): number {
+        // Claude vision pricing is dimension-based, not file-size based
+        // Using 1500 as a reasonable middle estimate
+        return 1500;
+    }
 }

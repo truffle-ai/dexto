@@ -3,17 +3,14 @@ import { IMessageFormatter } from '@core/llm/formatters/types.js';
 import { LLMContext } from '../llm/types.js';
 import { InternalMessage, ImageData, FileData } from './types.js';
 import { ITokenizer } from '../llm/tokenizer/types.js';
-import { ICompressionStrategy } from './compression/types.js';
-import { MiddleRemovalStrategy } from './compression/middle-removal.js';
-import { OldestRemovalStrategy } from './compression/oldest-removal.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
 import {
     countMessagesTokens,
-    sanitizeToolResult,
     expandBlobReferences,
     isLikelyBase64String,
+    filterCompacted,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -22,11 +19,7 @@ import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 
-// TODO: Unify LLM response handling approaches across providers
-// Currently vercel vs anthropic/openai handle getting LLM responses quite differently:
-// - anthropic/openai add tool responses and assistant responses using individual methods
-// - vercel uses processLLMResponse and processStreamResponse
-// This should be unified to make the codebase more consistent and easier to maintain
+//  Simplify this class - review what can be deleted once TurnExecutor is integrated/openai/anthropic llm services are deprecated.
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -67,28 +60,15 @@ export class ContextManager<TMessage = unknown> {
     private maxInputTokens: number;
 
     /**
-     * Actual token count from the last LLM response.
-     * Used for more accurate token estimation in hybrid approach.
-     */
-    private lastActualTokenCount: number = 0;
-
-    /**
-     * Compression threshold as a percentage of maxInputTokens.
-     * When estimated tokens exceed (maxInputTokens * threshold), compression is triggered.
-     */
-    private compressionThreshold: number = 0.8; // 80% threshold
-
-    /**
-     * Tokenizer used for counting tokens and enabling compression (if specified)
+     * Tokenizer used for counting tokens (used by TurnExecutor for compression)
      */
     private tokenizer: ITokenizer;
 
     /**
-     * The sequence of compression strategies to apply when maxInputTokens is exceeded.
-     * The order in this array matters, as strategies are applied sequentially until
-     * the token count is within the limit.
+     * @deprecated Used by anthropic.ts and openai.ts. Will be removed when those
+     * services are migrated to TurnExecutor.
      */
-    private compressionStrategies: ICompressionStrategy[];
+    private lastActualTokenCount: number = 0;
 
     private historyProvider: IConversationHistoryProvider;
     private readonly sessionId: string;
@@ -107,12 +87,11 @@ export class ContextManager<TMessage = unknown> {
      * @param llmConfig The validated LLM configuration.
      * @param formatter Formatter implementation for the target LLM provider
      * @param systemPromptManager SystemPromptManager instance for the conversation
-     * @param maxInputTokens Maximum token limit for the conversation history. Triggers compression if exceeded and a tokenizer is provided.
-     * @param tokenizer Tokenizer implementation used for counting tokens and enabling compression.
+     * @param maxInputTokens Maximum token limit for the conversation history.
+     * @param tokenizer Tokenizer implementation used for counting tokens.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
      * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
-     * @param compressionStrategies Optional array of compression strategies to apply when token limits are exceeded
-     * @param resourceManager Optional ResourceManager for resolving blob references in messages
+     * @param resourceManager ResourceManager for resolving blob references in messages
      * @param logger Logger instance for logging
      */
     constructor(
@@ -124,11 +103,7 @@ export class ContextManager<TMessage = unknown> {
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
-        logger: IDextoLogger,
-        compressionStrategies: ICompressionStrategy[] = [
-            new MiddleRemovalStrategy({}, logger),
-            new OldestRemovalStrategy({}, logger),
-        ]
+        logger: IDextoLogger
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -137,7 +112,6 @@ export class ContextManager<TMessage = unknown> {
         this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
         this.sessionId = sessionId;
-        this.compressionStrategies = compressionStrategies;
         this.resourceManager = resourceManager;
         this.logger = logger.createChild(DextoLogComponent.CONTEXT);
 
@@ -242,66 +216,6 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Returns the current token count of the conversation history.
-     * @returns Promise that resolves to the number of tokens in the current history
-     */
-    async getTokenCount(): Promise<number> {
-        const history = await this.historyProvider.getHistory();
-        return countMessagesTokens(history, this.tokenizer, undefined, this.logger);
-    }
-
-    /**
-     * Returns the total token count that will be sent to the LLM provider,
-     * including system prompt, formatted messages, and provider-specific overhead.
-     * This provides a more accurate estimate than getTokenCount() alone.
-     *
-     * @param context The DynamicContributorContext for system prompt contributors
-     * @returns Promise that resolves to the total number of tokens that will be sent to the provider
-     */
-    async getTotalTokenCount(context: DynamicContributorContext): Promise<number> {
-        try {
-            // Get system prompt
-            const systemPrompt = await this.getSystemPrompt(context);
-
-            // Get conversation history
-            let history = await this.historyProvider.getHistory();
-
-            // Count system prompt tokens
-            const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
-
-            // Compress history if it exceeds the token limit
-            history = await this.compressHistoryIfNeeded(history, systemPromptTokens);
-
-            // Count history message tokens (after compression)
-            const historyTokens = countMessagesTokens(
-                history,
-                this.tokenizer,
-                undefined,
-                this.logger
-            );
-
-            // Add a small overhead for provider-specific formatting
-            // This accounts for any additional structure the formatter adds
-            const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05); // 5% overhead
-
-            const totalTokens = systemPromptTokens + historyTokens + formattingOverhead;
-
-            this.logger.debug(
-                `Token breakdown - System: ${systemPromptTokens}, History: ${historyTokens}, Overhead: ${formattingOverhead}, Total: ${totalTokens}`
-            );
-
-            return totalTokens;
-        } catch (error) {
-            this.logger.error(
-                `Error calculating total token count: ${error instanceof Error ? error.message : String(error)}`,
-                { error }
-            );
-            // Fallback to history-only count
-            return this.getTokenCount();
-        }
-    }
-
-    /**
      * Returns the configured maximum number of input tokens for the conversation.
      */
     getMaxInputTokens(): number {
@@ -309,61 +223,22 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Updates the ContextManager configuration when LLM config changes.
-     * This is called when DextoAgent.switchLLM() updates the LLM configuration.
-     *
-     * @param newMaxInputTokens New maximum token limit
-     * @param newTokenizer Optional new tokenizer if provider changed
-     * @param newFormatter Optional new formatter if provider/router changed
+     * Returns the tokenizer used for token estimation.
      */
-    updateConfig(
-        newMaxInputTokens: number,
-        newTokenizer?: ITokenizer,
-        newFormatter?: IMessageFormatter
-    ): void {
-        const oldMaxInputTokens = this.maxInputTokens;
-        this.maxInputTokens = newMaxInputTokens;
-
-        if (newTokenizer) {
-            this.tokenizer = newTokenizer;
-        }
-
-        if (newFormatter) {
-            this.formatter = newFormatter;
-        }
-
-        this.logger.debug(
-            `ContextManager config updated: maxInputTokens ${oldMaxInputTokens} -> ${newMaxInputTokens}`
-        );
+    getTokenizer(): ITokenizer {
+        return this.tokenizer;
     }
 
     /**
      * Updates the actual token count from the last LLM response.
-     * This enables hybrid token counting for more accurate estimates.
+     *
+     * @deprecated Used by anthropic.ts and openai.ts. Will be removed when those
+     * services are migrated to TurnExecutor (which tracks tokens via TokenUsage).
      *
      * @param actualTokens The actual token count reported by the LLM provider
      */
     updateActualTokenCount(actualTokens: number): void {
         this.lastActualTokenCount = actualTokens;
-        this.logger.debug(`Updated actual token count to: ${actualTokens}`);
-    }
-
-    /**
-     * Estimates if new input would trigger compression using hybrid approach.
-     * Combines actual tokens from last response with estimated tokens for new input.
-     *
-     * @param newInputTokens Estimated tokens for the new user input
-     * @returns True if compression should be triggered
-     */
-    shouldCompress(newInputTokens: number): boolean {
-        const estimatedTotal = this.lastActualTokenCount + newInputTokens;
-        const compressionTrigger = this.maxInputTokens * this.compressionThreshold;
-
-        this.logger.debug(
-            `Compression check: actual=${this.lastActualTokenCount}, newInput=${newInputTokens}, total=${estimatedTotal}, trigger=${compressionTrigger}`
-        );
-
-        return estimatedTotal > compressionTrigger;
     }
 
     /**
@@ -384,6 +259,164 @@ export class ContextManager<TMessage = unknown> {
     async getHistory(): Promise<Readonly<InternalMessage[]>> {
         const history = await this.historyProvider.getHistory();
         return [...history];
+    }
+
+    /**
+     * Flush any pending history updates to durable storage.
+     * Should be called at turn boundaries (after streaming completes, on cancel, on error).
+     * This ensures all message updates are persisted before returning control to the caller.
+     */
+    async flush(): Promise<void> {
+        await this.historyProvider.flush();
+    }
+
+    /**
+     * Appends text to an existing assistant message.
+     * Used for streaming responses.
+     */
+    async appendAssistantText(messageId: string, text: string): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        const messageIndex = history.findIndex((m) => m.id === messageId);
+
+        if (messageIndex === -1) {
+            throw ContextError.messageNotFound(messageId);
+        }
+
+        const message = history[messageIndex];
+        if (!message) {
+            throw ContextError.messageNotFound(messageId);
+        }
+
+        if (message.role !== 'assistant') {
+            throw ContextError.messageNotAssistant(messageId);
+        }
+
+        // Append text
+        if (typeof message.content === 'string') {
+            message.content += text;
+        } else if (message.content === null) {
+            message.content = text;
+        } else {
+            // Should not happen for assistant messages unless we support multimodal assistant output
+            throw ContextError.assistantContentNotString();
+        }
+
+        await this.historyProvider.updateMessage(message);
+    }
+
+    /**
+     * Adds a tool call to an existing assistant message.
+     * Used for streaming responses.
+     */
+    async addToolCall(
+        messageId: string,
+        toolCall: NonNullable<InternalMessage['toolCalls']>[number]
+    ): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        const messageIndex = history.findIndex((m) => m.id === messageId);
+
+        if (messageIndex === -1) {
+            throw ContextError.messageNotFound(messageId);
+        }
+
+        const message = history[messageIndex];
+        if (!message) {
+            throw ContextError.messageNotFound(messageId);
+        }
+
+        if (message.role !== 'assistant') {
+            throw ContextError.messageNotAssistant(messageId);
+        }
+
+        if (!message.toolCalls) {
+            message.toolCalls = [];
+        }
+
+        message.toolCalls.push(toolCall);
+        await this.historyProvider.updateMessage(message);
+    }
+
+    /**
+     * Updates an existing assistant message with new properties.
+     * Used for finalizing streaming responses (e.g. adding token usage).
+     */
+    async updateAssistantMessage(
+        messageId: string,
+        updates: Partial<InternalMessage>
+    ): Promise<void> {
+        const history = await this.historyProvider.getHistory();
+        const messageIndex = history.findIndex((m) => m.id === messageId);
+
+        if (messageIndex === -1) {
+            throw ContextError.messageNotFound(messageId);
+        }
+
+        const message = history[messageIndex];
+        if (!message) {
+            throw ContextError.messageNotFound(messageId);
+        }
+
+        if (message.role !== 'assistant') {
+            throw ContextError.messageNotAssistant(messageId);
+        }
+
+        Object.assign(message, updates);
+        await this.historyProvider.updateMessage(message);
+    }
+
+    /**
+     * Marks tool messages as compacted (pruned).
+     * Sets the compactedAt timestamp - content transformation happens at format time
+     * in getFormattedMessagesWithCompression(). Original content is preserved in
+     * storage for debugging/audit.
+     *
+     * Used by TurnExecutor's pruneOldToolOutputs() to reclaim token space
+     * by marking old tool outputs that are no longer needed for context.
+     *
+     * @param messageIds Array of message IDs to mark as compacted
+     * @returns Number of messages successfully marked
+     */
+    async markMessagesAsCompacted(messageIds: string[]): Promise<number> {
+        if (messageIds.length === 0) {
+            return 0;
+        }
+
+        const history = await this.historyProvider.getHistory();
+        const timestamp = Date.now();
+        let markedCount = 0;
+
+        for (const messageId of messageIds) {
+            const message = history.find((m) => m.id === messageId);
+
+            if (!message) {
+                this.logger.warn(`markMessagesAsCompacted: Message ${messageId} not found`);
+                continue;
+            }
+
+            if (message.role !== 'tool') {
+                this.logger.warn(
+                    `markMessagesAsCompacted: Message ${messageId} is not a tool message (role=${message.role})`
+                );
+                continue;
+            }
+
+            if (message.compactedAt) {
+                // Already compacted, skip
+                continue;
+            }
+
+            message.compactedAt = timestamp;
+            await this.historyProvider.updateMessage(message);
+            markedCount++;
+        }
+
+        if (markedCount > 0) {
+            this.logger.debug(
+                `markMessagesAsCompacted: Marked ${markedCount} messages as compacted`
+            );
+        }
+
+        return markedCount;
     }
 
     /**
@@ -439,9 +472,9 @@ export class ContextManager<TMessage = unknown> {
                 break;
 
             case 'system':
-                // System messages should ideally be handled via setSystemPrompt
+                // System messages should be handled via SystemPromptManager, not added to history
                 this.logger.warn(
-                    'ContextManager: Adding system message directly to history. Use setSystemPrompt instead.'
+                    'ContextManager: Adding system message directly to history. Use SystemPromptManager instead.'
                 );
                 if (typeof message.content !== 'string' || message.content.trim() === '') {
                     throw ContextError.systemMessageContentInvalid();
@@ -585,67 +618,42 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Adds a tool result message to the conversation
+     * Adds a tool result message to the conversation.
+     * The result must already be sanitized - this method only persists it.
      *
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
-     * @param result The result returned by the tool
+     * @param sanitizedResult The already-sanitized result to store
      * @throws Error if required parameters are missing
      */
     async addToolResult(
         toolCallId: string,
         name: string,
-        result: unknown,
-        options?: { success?: boolean }
-    ): Promise<SanitizedToolResult> {
+        sanitizedResult: SanitizedToolResult
+    ): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
         }
-        const blobService = this.resourceManager.getBlobStore();
-        const sanitizeOptions: {
-            blobStore?: import('../storage/blob/types.js').BlobStore;
-            toolName: string;
-            toolCallId: string;
-            success?: boolean;
-        } = {
-            blobStore: blobService,
-            toolName: name,
-            toolCallId,
-        };
-        if (options?.success !== undefined) {
-            sanitizeOptions.success = options.success;
-        }
 
-        const sanitized = await sanitizeToolResult(result, sanitizeOptions, this.logger);
-
-        const summary = sanitized.content
+        const summary = sanitizedResult.content
             .map((p) =>
                 p.type === 'text'
                     ? `text(${p.text.length})`
                     : p.type === 'image'
                       ? `image(${p.mimeType || 'image'})`
-                      : `file(${p.mimeType || 'file'})`
+                      : p.type === 'ui-resource'
+                        ? `ui-resource(${p.uri})`
+                        : `file(${p.mimeType || 'file'})`
             )
             .join(', ');
         this.logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
 
         await this.addMessage({
             role: 'tool',
-            content: sanitized.content,
+            content: sanitizedResult.content,
             toolCallId,
             name,
         });
-
-        return sanitized;
-    }
-
-    /**
-     * Sets the system prompt for the conversation
-     *
-     * @param prompt The system prompt text
-     */
-    setSystemPrompt(_prompt: string): void {
-        // This method is no longer used with systemPromptContributors
     }
 
     /**
@@ -723,7 +731,7 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Gets the conversation ready for LLM consumption with proper flow:
      * 1. Get system prompt
-     * 2. Get history and compress if needed
+     * 2. Get history and filter (exclude pre-summary messages)
      * 3. Format messages
      * This method implements the correct ordering to avoid circular dependencies.
      *
@@ -743,11 +751,33 @@ export class ContextManager<TMessage = unknown> {
         const systemPrompt = await this.getSystemPrompt(contributorContext);
         const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
 
-        // Step 2: Get history and compress if needed
-        let history = await this.historyProvider.getHistory();
-        history = await this.compressHistoryIfNeeded(history, systemPromptTokens);
+        // Step 2: Get history and filter (exclude pre-summary messages)
+        const fullHistory = await this.historyProvider.getHistory();
+        let history = filterCompacted(fullHistory);
 
-        // Step 3: Format messages with compressed history
+        // Log if filtering occurred
+        if (history.length < fullHistory.length) {
+            this.logger.debug(
+                `filterCompacted: Reduced history from ${fullHistory.length} to ${history.length} messages (summary present)`
+            );
+        }
+
+        // Step 3: Transform compacted tool messages (respects compactedAt marker)
+        // Original content is preserved in storage, placeholder sent to LLM
+        const compactedCount = history.filter((m) => m.role === 'tool' && m.compactedAt).length;
+        if (compactedCount > 0) {
+            history = history.map((msg) => {
+                if (msg.role === 'tool' && msg.compactedAt) {
+                    return { ...msg, content: '[Old tool result content cleared]' };
+                }
+                return msg;
+            });
+            this.logger.debug(
+                `Transformed ${compactedCount} compacted tool messages to placeholders`
+            );
+        }
+
+        // Step 4: Format messages with filtered and transformed history
         const formattedMessages = await this.getFormattedMessages(
             contributorContext,
             llmContext,
@@ -755,7 +785,7 @@ export class ContextManager<TMessage = unknown> {
             history
         ); // Type cast happens here via TMessage generic
 
-        // Calculate final token usage
+        // TODO: Remove token estimation - TurnExecutor uses actual API tokens for overflow detection
         const historyTokens = countMessagesTokens(history, this.tokenizer, undefined, this.logger);
         const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05);
         const tokensUsed = systemPromptTokens + historyTokens + formattingOverhead;
@@ -795,135 +825,5 @@ export class ContextManager<TMessage = unknown> {
         this.logger.debug(
             `ContextManager: Conversation history cleared for session ${this.sessionId}`
         );
-    }
-
-    /**
-     * Checks if history compression is needed based on token count and applies strategies.
-     *
-     * @param history The conversation history to potentially compress
-     * @param systemPromptTokens The actual token count of the system prompt
-     * @returns The potentially compressed history
-     */
-    async compressHistoryIfNeeded(
-        history: InternalMessage[],
-        systemPromptTokens: number
-    ): Promise<InternalMessage[]> {
-        let currentTotalTokens: number = countMessagesTokens(
-            history,
-            this.tokenizer,
-            undefined,
-            this.logger
-        );
-        currentTotalTokens += systemPromptTokens;
-
-        this.logger.debug(`ContextManager: Checking if history compression is needed.`);
-        this.logger.debug(
-            `History tokens: ${countMessagesTokens(history, this.tokenizer, undefined, this.logger)}, System prompt tokens: ${systemPromptTokens}, Total: ${currentTotalTokens}`
-        );
-
-        // If counting failed or we are within limits, do nothing
-        if (currentTotalTokens <= this.maxInputTokens) {
-            this.logger.debug(
-                `ContextManager: History compression not needed. Total token count: ${currentTotalTokens}, Max tokens: ${this.maxInputTokens}`
-            );
-            return history;
-        }
-
-        this.logger.info(
-            `ContextManager: History exceeds token limit (${currentTotalTokens} > ${this.maxInputTokens}). Applying compression strategies sequentially.`
-        );
-
-        const initialLength = history.length;
-        let workingHistory = [...history];
-
-        // Calculate target tokens for history (leave room for system prompt)
-        const targetHistoryTokens = this.maxInputTokens - systemPromptTokens;
-
-        // Iterate through the configured compression strategies sequentially
-        for (const strategy of this.compressionStrategies) {
-            const strategyName = strategy.constructor.name; // Get the class name for logging
-            this.logger.debug(`ContextManager: Applying ${strategyName}...`);
-
-            try {
-                // Pass a copy of the history to avoid potential side effects within the strategy
-                // The strategy should return the new, potentially compressed, history
-                workingHistory = strategy.compress(
-                    [...workingHistory],
-                    this.tokenizer,
-                    targetHistoryTokens // Use target tokens that account for system prompt
-                );
-            } catch (error) {
-                this.logger.error(
-                    `ContextManager: Error applying ${strategyName}: ${error instanceof Error ? error.message : String(error)}`,
-                    { error }
-                );
-                // Decide if we should stop or try the next strategy. Let's stop for now.
-                break;
-            }
-
-            // Recalculate tokens after applying the strategy
-            const historyTokens = countMessagesTokens(
-                workingHistory,
-                this.tokenizer,
-                undefined,
-                this.logger
-            );
-            currentTotalTokens = historyTokens + systemPromptTokens;
-            const messagesRemoved = initialLength - workingHistory.length;
-
-            // If counting failed or we are now within limits, stop applying strategies
-            if (currentTotalTokens <= this.maxInputTokens) {
-                this.logger.debug(
-                    `ContextManager: Compression successful after ${strategyName}. New total count: ${currentTotalTokens}, messages removed: ${messagesRemoved}`
-                );
-                break;
-            }
-        }
-
-        return workingHistory;
-    }
-
-    /**
-     * Parses a raw LLM stream response, converts it into internal messages and adds them to the history.
-     *
-     * @param response The stream response from the LLM provider
-     */
-    async processLLMStreamResponse(response: unknown): Promise<void> {
-        // Use type-safe access to parseStreamResponse method
-        if (this.formatter.parseStreamResponse) {
-            const msgs = (await this.formatter.parseStreamResponse(response)) ?? [];
-            for (const msg of msgs) {
-                try {
-                    await this.addMessage(msg);
-                } catch (error) {
-                    this.logger.error(
-                        `ContextManager: Failed to process LLM stream response message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                    // Continue processing other messages rather than failing completely
-                }
-            }
-        } else {
-            // Fallback to regular processing
-            await this.processLLMResponse(response);
-        }
-    }
-
-    /**
-     * Parses a raw LLM response, converts it into internal messages and adds them to the history.
-     *
-     * @param response The response from the LLM provider
-     */
-    async processLLMResponse(response: unknown): Promise<void> {
-        const msgs = this.formatter.parseResponse(response) ?? [];
-        for (const msg of msgs) {
-            try {
-                await this.addMessage(msg);
-            } catch (error) {
-                this.logger.error(
-                    `ContextManager: Failed to process LLM response message for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
-                );
-                // Continue processing other messages rather than failing completely
-            }
-        }
     }
 }

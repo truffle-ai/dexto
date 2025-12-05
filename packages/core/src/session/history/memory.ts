@@ -1,5 +1,6 @@
 import type { InternalMessage } from '@core/context/types.js';
 import type { IConversationHistoryProvider } from './types.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
  * Lightweight in-memory history provider for ephemeral, isolated LLM calls.
@@ -8,6 +9,8 @@ import type { IConversationHistoryProvider } from './types.js';
  */
 export class MemoryHistoryProvider implements IConversationHistoryProvider {
     private messages: InternalMessage[] = [];
+
+    constructor(private logger: IDextoLogger) {}
 
     async getHistory(): Promise<InternalMessage[]> {
         // Return a shallow copy to prevent external mutation
@@ -18,7 +21,26 @@ export class MemoryHistoryProvider implements IConversationHistoryProvider {
         this.messages.push(message);
     }
 
+    async updateMessage(message: InternalMessage): Promise<void> {
+        // Guard against undefined id - could match another message with undefined id
+        if (!message.id) {
+            this.logger.warn('MemoryHistoryProvider: Ignoring update for message without id');
+            return;
+        }
+        const index = this.messages.findIndex((m) => m.id === message.id);
+        if (index !== -1) {
+            this.messages[index] = message;
+        }
+    }
+
     async clearHistory(): Promise<void> {
         this.messages = [];
+    }
+
+    /**
+     * No-op for in-memory provider - all operations are already "flushed".
+     */
+    async flush(): Promise<void> {
+        // Nothing to flush - memory provider is always in sync
     }
 }

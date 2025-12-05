@@ -3,6 +3,7 @@ import { ToolSet } from '../../tools/types.js';
 import { ImageData, FileData } from '../../context/types.js';
 import type { LLMProvider, LLMRouter } from '../types.js';
 import type { ContextManager } from '../../context/manager.js';
+import type { MessageQueueService } from '../../session/message-queue.js';
 
 /**
  * Core interface for LLM service implementations
@@ -41,6 +42,9 @@ export interface ILLMService {
     // Get the context manager for external access (e.g., for history retrieval)
     // Returns ContextManager<unknown> since external users don't need specific type
     getContextManager(): ContextManager<unknown>;
+
+    // Get the message queue for external access (e.g., for queueing messages while busy)
+    getMessageQueue(): MessageQueueService;
 }
 
 /**

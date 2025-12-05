@@ -132,6 +132,7 @@ dexto --agent nano-banana-agent
 - **Triage Agent** – Demo multi-agent customer support routing system
 - **Workflow Builder Agent** – Build and manage n8n automation workflows
 - **Product Analysis Agent** – Product analytics and insights using PostHog
+- **Gaming Agent** – Play GameBoy games like Pokemon through an emulator
 
 Each agent is pre-configured with the right tools, prompts, and LLM settings for its domain. No setup required—just install and start building.
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
@@ -28,6 +28,7 @@ import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import { isTextPart, isImagePart, isFilePart } from '../types';
 import CreatePromptModal from './CreatePromptModal';
 import CreateMemoryModal from './CreateMemoryModal';
 import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
@@ -36,6 +37,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { useLLMCatalog } from './hooks/useLLM';
 import { useResolvePrompt } from './hooks/usePrompts';
+import { useInputHistory } from './hooks/useInputHistory';
+import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
+import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
 
 interface InputAreaProps {
     onSend: (
@@ -79,6 +83,16 @@ export default function InputArea({
     // Get current session context to ensure model switch applies to the correct session
     const { currentSessionId, isStreaming, setStreaming, cancel, processing, currentLLM } =
         useChatContext();
+
+    // Input history for Up/Down navigation
+    const { invalidateHistory, navigateUp, navigateDown, resetCursor, isBrowsing } =
+        useInputHistory(currentSessionId);
+
+    // Queue management
+    const { data: queueData } = useQueuedMessages(currentSessionId);
+    const { mutate: removeQueuedMessage } = useRemoveQueuedMessage();
+    const { mutate: queueMessage } = useQueueMessage();
+    const queuedMessages = useMemo(() => queueData?.messages ?? [], [queueData?.messages]);
 
     // Analytics tracking
     const analytics = useAnalytics();
@@ -245,13 +259,35 @@ export default function InputArea({
             }
         }
 
+        // Auto-queue: if session is busy processing, queue the message instead of sending
+        if (processing && currentSessionId) {
+            queueMessage({
+                sessionId: currentSessionId,
+                message: trimmed || undefined,
+                imageData: imageData ?? undefined,
+                fileData: fileData ?? undefined,
+            });
+            // Invalidate history cache so it refetches with new message
+            invalidateHistory();
+            setText('');
+            setImageData(null);
+            setFileData(null);
+            setShowSlashCommands(false);
+            // Keep focus in input for quick follow-up messages
+            textareaRef.current?.focus();
+            return;
+        }
+
         onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
+        // Invalidate history cache so it refetches with new message
+        invalidateHistory();
         setText('');
         setImageData(null);
         setFileData(null);
         // Ensure guidance window closes after submit
         setShowSlashCommands(false);
-        // Height handled by CSS; no imperative adjustments.
+        // Keep focus in input for quick follow-up messages
+        textareaRef.current?.focus();
     };
 
     const applyMentionSelection = (index: number, selectedResource?: UIResourceMetadata) => {
@@ -281,6 +317,62 @@ export default function InputArea({
             ta.focus();
         });
     };
+
+    // Edit a queued message: remove from queue and load into input
+    const handleEditQueuedMessage = useCallback(
+        (message: (typeof queuedMessages)[number]) => {
+            if (!currentSessionId) return;
+
+            // Extract text content from message
+            const textContent = message.content
+                .filter(isTextPart)
+                .map((part) => part.text)
+                .join('\n');
+
+            // Extract image attachment if present
+            const imagePart = message.content.find(isImagePart);
+
+            // Extract file attachment if present
+            const filePart = message.content.find(isFilePart);
+
+            // Load into input
+            setText(textContent);
+            setImageData(
+                imagePart
+                    ? { image: imagePart.image, mimeType: imagePart.mimeType ?? 'image/jpeg' }
+                    : null
+            );
+            setFileData(
+                filePart
+                    ? {
+                          data: filePart.data,
+                          mimeType: filePart.mimeType,
+                          filename: filePart.filename,
+                      }
+                    : null
+            );
+
+            // Remove from queue
+            removeQueuedMessage({ sessionId: currentSessionId, messageId: message.id });
+
+            // Focus textarea
+            textareaRef.current?.focus();
+        },
+        [currentSessionId, removeQueuedMessage]
+    );
+
+    // Handle Up arrow to edit most recent queued message (when input empty/on first line)
+    const handleEditLastQueued = useCallback(() => {
+        if (queuedMessages.length === 0) return false;
+
+        // Get the most recently queued message (last in array)
+        const lastMessage = queuedMessages[queuedMessages.length - 1];
+        if (lastMessage) {
+            handleEditQueuedMessage(lastMessage);
+            return true;
+        }
+        return false;
+    }, [queuedMessages, handleEditQueuedMessage]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         // If mention menu open, handle navigation
@@ -315,6 +407,50 @@ export default function InputArea({
             }
         }
 
+        // Up: First check queue, then fall back to input history
+        // Only handle when cursor is on first line (no newline before cursor)
+        if (e.key === 'ArrowUp' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            const cursorPos = textareaRef.current?.selectionStart ?? 0;
+            const textBeforeCursor = text.slice(0, cursorPos);
+            const isOnFirstLine = !textBeforeCursor.includes('\n');
+
+            if (isOnFirstLine) {
+                e.preventDefault();
+                // First priority: pop from queue if available
+                if (queuedMessages.length > 0) {
+                    handleEditLastQueued();
+                    return;
+                }
+                // Second priority: navigate input history
+                const historyText = navigateUp(text);
+                if (historyText !== null) {
+                    setText(historyText);
+                    // Move cursor to end
+                    requestAnimationFrame(() => {
+                        const len = historyText.length;
+                        textareaRef.current?.setSelectionRange(len, len);
+                    });
+                }
+                return;
+            }
+        }
+
+        if (e.key === 'ArrowDown' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            if (isBrowsing) {
+                e.preventDefault();
+                const historyText = navigateDown();
+                if (historyText !== null) {
+                    setText(historyText);
+                    // Move cursor to end
+                    requestAnimationFrame(() => {
+                        const len = historyText.length;
+                        textareaRef.current?.setSelectionRange(len, len);
+                    });
+                }
+                return;
+            }
+        }
+
         // If memory hint is showing, handle Escape to dismiss
         if (showMemoryHint && e.key === 'Escape') {
             e.preventDefault();
@@ -344,6 +480,9 @@ export default function InputArea({
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
         setText(value);
+
+        // Reset history browsing when user types
+        resetCursor();
 
         // Guidance UX: keep slash guidance window open while the user is constructing
         // a slash command (i.e., as long as the input starts with '/' and has no newline).
@@ -770,6 +909,22 @@ export default function InputArea({
                     }}
                 >
                     <ChatInputContainer>
+                        {/* Queued messages display (shows when messages are pending) */}
+                        {queuedMessages.length > 0 && (
+                            <QueuedMessagesDisplay
+                                messages={queuedMessages}
+                                onEditMessage={handleEditQueuedMessage}
+                                onRemoveMessage={(messageId) => {
+                                    if (currentSessionId) {
+                                        removeQueuedMessage({
+                                            sessionId: currentSessionId,
+                                            messageId,
+                                        });
+                                    }
+                                }}
+                            />
+                        )}
+
                         {/* Attachments strip (inside bubble, above editor) */}
                         {(imageData || fileData) && (
                             <div className="px-4 pt-4">

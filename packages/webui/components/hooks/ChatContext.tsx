@@ -11,7 +11,8 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
 import { useGreeting } from './useGreeting';
-import type { FilePart, ImagePart, SanitizedToolResult, TextPart } from '@dexto/core';
+import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
+import type { SanitizedToolResult } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
@@ -64,7 +65,9 @@ interface ChatContextType {
 }
 
 // Helper function to fetch and convert session history to UI messages
-async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
+async function fetchSessionHistory(
+    sessionId: string
+): Promise<{ messages: Message[]; isBusy: boolean }> {
     const response = await client.api.sessions[':sessionId'].history.$get({
         param: { sessionId },
     });
@@ -73,7 +76,10 @@ async function fetchSessionHistory(sessionId: string): Promise<Message[]> {
     }
     const data = await response.json();
     const history = data.history || [];
-    return convertHistoryToMessages(history, sessionId);
+    return {
+        messages: convertHistoryToMessages(history, sessionId),
+        isBusy: data.isBusy ?? false,
+    };
 }
 
 // Helper function to convert session history API response to UI messages
@@ -87,7 +93,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
             id: `session-${sessionId}-${index}`,
             role: msg.role,
             content: msg.content,
-            createdAt: Date.now() - (history.length - index) * 1000, // Approximate timestamps
+            createdAt: msg.timestamp ?? Date.now() - (history.length - index) * 1000,
             sessionId: sessionId,
             // Preserve token usage, reasoning, model, and router metadata from storage
             tokenUsage: msg.tokenUsage,
@@ -98,7 +104,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         };
 
         const deriveResources = (
-            content: Array<TextPart | ImagePart | FilePart>
+            content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
         ): SanitizedToolResult['resources'] => {
             const resources: NonNullable<SanitizedToolResult['resources']> = [];
 
@@ -161,7 +167,9 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                         id: `session-${sessionId}-${index}-tool-${toolIndex}`,
                         role: 'tool',
                         content: null,
-                        createdAt: Date.now() - (history.length - index) * 1000 + toolIndex,
+                        createdAt:
+                            (msg.timestamp ?? Date.now() - (history.length - index) * 1000) +
+                            toolIndex,
                         sessionId,
                         toolName,
                         toolArgs,
@@ -505,13 +513,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         queryKey: queryKeys.sessions.history(currentSessionId || ''),
         queryFn: async () => {
             if (!currentSessionId) {
-                return [];
+                return { messages: [], isBusy: false };
             }
             try {
                 return await fetchSessionHistory(currentSessionId);
             } catch {
-                // Return empty array for 404 or other errors
-                return [];
+                // Return empty result for 404 or other errors
+                return { messages: [], isBusy: false };
             }
         },
         enabled: false, // Manual refetch only
@@ -523,8 +531,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (sessionHistoryData && currentSessionId) {
             setMessages((prev) => {
                 const hasSessionMsgs = prev.some((m) => m.sessionId === currentSessionId);
-                return hasSessionMsgs ? prev : sessionHistoryData;
+                return hasSessionMsgs ? prev : sessionHistoryData.messages;
             });
+            // Cancel any active run on page refresh (we can't reconnect to the stream)
+            if (sessionHistoryData.isBusy) {
+                client.api.sessions[':sessionId'].cancel
+                    .$post({
+                        param: { sessionId: currentSessionId },
+                        json: { clearQueue: true },
+                    })
+                    .catch((e) => console.warn('Failed to cancel busy session:', e));
+            }
         }
     }, [sessionHistoryData, currentSessionId, setMessages]);
 
@@ -537,8 +554,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                         try {
                             return await fetchSessionHistory(sessionId);
                         } catch {
-                            // Return empty array for 404 or other errors
-                            return [];
+                            // Return empty result for 404 or other errors
+                            return { messages: [], isBusy: false };
                         }
                     },
                     retry: false,
@@ -546,8 +563,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
                 setMessages((prev) => {
                     const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
-                    return hasSessionMsgs ? prev : result;
+                    return hasSessionMsgs ? prev : result.messages;
                 });
+
+                // Cancel any active run on page refresh (we can't reconnect to the stream)
+                // This ensures clean state - user can see history and send new messages
+                // TODO: Implement stream reconnection instead of cancelling
+                // - Add GET /sessions/{sessionId}/events SSE endpoint for listen-only mode
+                // - Connect to event stream when isBusy=true to resume receiving updates
+                if (result.isBusy) {
+                    try {
+                        await client.api.sessions[':sessionId'].cancel.$post({
+                            param: { sessionId },
+                            json: { clearQueue: true }, // Hard cancel - clear queue too
+                        });
+                    } catch (e) {
+                        console.warn('Failed to cancel busy session on load:', e);
+                    }
+                }
             } catch (error) {
                 console.error('Error loading session history:', error);
                 setMessages([]);

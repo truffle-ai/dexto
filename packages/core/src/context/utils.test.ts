@@ -19,6 +19,7 @@ import {
     matchesMimePattern,
     matchesAnyMimePattern,
     fileTypesToMimePatterns,
+    filterCompacted,
 } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
@@ -792,5 +793,102 @@ describe('fileTypesToMimePatterns', () => {
             'image/*',
             'application/pdf',
         ]);
+    });
+});
+
+describe('filterCompacted', () => {
+    it('should return all messages if no summary exists', () => {
+        const messages: InternalMessage[] = [
+            { role: 'user', content: 'Hello' },
+            { role: 'assistant', content: 'Hi there' },
+            { role: 'user', content: 'How are you?' },
+        ];
+
+        const result = filterCompacted(messages);
+
+        expect(result).toEqual(messages);
+        expect(result).toHaveLength(3);
+    });
+
+    it('should return summary and messages after it when summary exists', () => {
+        const messages: InternalMessage[] = [
+            { role: 'user', content: 'Old message 1' },
+            { role: 'assistant', content: 'Old response 1' },
+            {
+                role: 'assistant',
+                content: 'Summary of conversation',
+                metadata: { isSummary: true },
+            },
+            { role: 'user', content: 'New message' },
+            { role: 'assistant', content: 'New response' },
+        ];
+
+        const result = filterCompacted(messages);
+
+        expect(result).toHaveLength(3);
+        expect(result[0]?.content).toBe('Summary of conversation');
+        expect(result[0]?.metadata?.isSummary).toBe(true);
+        expect(result[1]?.content).toBe('New message');
+        expect(result[2]?.content).toBe('New response');
+    });
+
+    it('should use most recent summary when multiple exist', () => {
+        const messages: InternalMessage[] = [
+            { role: 'user', content: 'Very old' },
+            { role: 'assistant', content: 'First summary', metadata: { isSummary: true } },
+            { role: 'user', content: 'Medium old' },
+            { role: 'assistant', content: 'Second summary', metadata: { isSummary: true } },
+            { role: 'user', content: 'Recent message' },
+        ];
+
+        const result = filterCompacted(messages);
+
+        expect(result).toHaveLength(2);
+        expect(result[0]?.content).toBe('Second summary');
+        expect(result[1]?.content).toBe('Recent message');
+    });
+
+    it('should handle empty history', () => {
+        const result = filterCompacted([]);
+
+        expect(result).toEqual([]);
+        expect(result).toHaveLength(0);
+    });
+
+    it('should handle history with only a summary', () => {
+        const messages: InternalMessage[] = [
+            { role: 'assistant', content: 'Just a summary', metadata: { isSummary: true } },
+        ];
+
+        const result = filterCompacted(messages);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]?.metadata?.isSummary).toBe(true);
+    });
+
+    it('should not treat messages with other metadata as summaries', () => {
+        const messages: InternalMessage[] = [
+            { role: 'user', content: 'Message 1' },
+            { role: 'assistant', content: 'Response with metadata', metadata: { important: true } },
+            { role: 'user', content: 'Message 2' },
+        ];
+
+        const result = filterCompacted(messages);
+
+        expect(result).toEqual(messages);
+        expect(result).toHaveLength(3);
+    });
+
+    it('should handle summary at the end of history', () => {
+        const messages: InternalMessage[] = [
+            { role: 'user', content: 'Old message' },
+            { role: 'assistant', content: 'Old response' },
+            { role: 'assistant', content: 'Final summary', metadata: { isSummary: true } },
+        ];
+
+        const result = filterCompacted(messages);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]?.content).toBe('Final summary');
     });
 });

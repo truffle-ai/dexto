@@ -1,4 +1,11 @@
-import { InternalMessage, TextPart, ImagePart, FilePart, SanitizedToolResult } from './types.js';
+import {
+    InternalMessage,
+    TextPart,
+    ImagePart,
+    FilePart,
+    UIResourcePart,
+    SanitizedToolResult,
+} from './types.js';
 import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
@@ -11,6 +18,15 @@ import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
+
+// Vision model token estimates are now provider-specific via ITokenizer.estimateImageTokens()
+// Different providers charge differently for images:
+// - Claude: ~1000-2000+ tokens based on image dimensions
+// - GPT-4 Vision: 85-765 tokens (tile-based system)
+// - Gemini: 258 tokens flat per image
+// Legacy fallback constant for code that doesn't have access to tokenizer
+const FALLBACK_IMAGE_TOKENS = 1000;
+const BLOB_REFERENCE_PREFIX = '@blob:';
 
 type ToolBlobNamingOptions = {
     toolName?: string;
@@ -32,6 +48,7 @@ type InlineMediaHint = {
 
 export interface NormalizedToolResult {
     parts: Array<TextPart | ImagePart | FilePart>;
+    uiResources: UIResourcePart[];
     inlineMedia: InlineMediaHint[];
 }
 
@@ -43,6 +60,7 @@ interface PersistToolMediaOptions {
 
 interface PersistToolMediaResult {
     parts: Array<TextPart | ImagePart | FilePart>;
+    uiResources: UIResourcePart[];
     resources?: SanitizedToolResult['resources'];
 }
 
@@ -368,21 +386,22 @@ async function resolveBlobReferenceToParts(
             const resolvedMime = mimeType ?? 'application/octet-stream';
 
             if (resolvedMime.startsWith('image/')) {
-                const dataUri = `data:${resolvedMime};base64,${base64Data}`;
+                // Return raw base64, NOT data URI format
+                // LLM APIs (Anthropic, OpenAI, etc.) expect raw base64, not data:... URIs
                 const imagePart: ImagePart = {
                     type: 'image',
-                    image: dataUri,
+                    image: base64Data,
                     mimeType: resolvedMime,
                 };
                 parts.push(imagePart);
                 continue;
             }
 
+            // Return raw base64 for all file types - mimeType is provided separately
+            // LLM APIs expect raw base64, not data:... URIs
             const filePart: FilePart = {
                 type: 'file',
-                data: resolvedMime.startsWith('audio/')
-                    ? `data:${resolvedMime};base64,${base64Data}`
-                    : base64Data,
+                data: base64Data,
                 mimeType: resolvedMime,
             };
             if (typeof item.filename === 'string' && item.filename.length > 0) {
@@ -425,7 +444,7 @@ async function resolveBlobReferenceToParts(
  * @throws Error if token counting fails within the tokenizer.
  */
 export function countMessagesTokens(
-    history: InternalMessage[],
+    history: readonly InternalMessage[],
     tokenizer: ITokenizer,
     overheadPerMessage: number = DEFAULT_OVERHEAD_PER_MESSAGE,
     logger: IDextoLogger
@@ -444,13 +463,23 @@ export function countMessagesTokens(
                         if (part.type === 'text' && typeof part.text === 'string') {
                             total += tokenizer.countTokens(part.text);
                         } else if (part.type === 'image') {
-                            // Approximate tokens for images: estimate ~1 token per 1KB or based on Base64 length
+                            // Vision models charge tokens based on image dimensions, NOT file size.
+                            // Use provider-specific estimates via tokenizer.estimateImageTokens()
                             if (typeof part.image === 'string') {
-                                if (isDataUri(part.image)) {
-                                    // Extract base64 payload and compute byte length
-                                    const base64Payload = extractBase64FromDataUri(part.image);
-                                    const byteLength = base64LengthToBytes(base64Payload.length);
-                                    total += Math.ceil(byteLength / 1024);
+                                if (part.image.startsWith(BLOB_REFERENCE_PREFIX)) {
+                                    // Blob reference - use provider-specific estimate
+                                    total += tokenizer.estimateImageTokens();
+                                } else if (
+                                    isDataUri(part.image) ||
+                                    isLikelyBase64String(part.image)
+                                ) {
+                                    // Actual image data - estimate byte size for providers that use it
+                                    const byteSize = isDataUri(part.image)
+                                        ? base64LengthToBytes(
+                                              extractBase64FromDataUri(part.image).length
+                                          )
+                                        : base64LengthToBytes(part.image.length);
+                                    total += tokenizer.estimateImageTokens(byteSize);
                                 } else {
                                     // Treat as URL/text: estimate token cost based on string length
                                     total += estimateTextTokens(part.image);
@@ -460,20 +489,37 @@ export function countMessagesTokens(
                                 part.image instanceof Buffer ||
                                 part.image instanceof ArrayBuffer
                             ) {
+                                // Binary image data - get byte size for estimation
                                 const bytes =
                                     part.image instanceof ArrayBuffer
                                         ? part.image.byteLength
                                         : (part.image as Uint8Array).length;
-                                total += Math.ceil(bytes / 1024);
+                                total += tokenizer.estimateImageTokens(bytes);
                             }
                         } else if (part.type === 'file') {
-                            // Approximate tokens for files: estimate ~1 token per 1KB or based on Base64 length
+                            // For files, check if it's an image (uses vision tokens) or other (byte-based)
+                            const isImageFile = part.mimeType?.startsWith('image/');
                             if (typeof part.data === 'string') {
-                                if (isDataUri(part.data)) {
-                                    // Extract base64 payload and compute byte length
-                                    const base64Payload = extractBase64FromDataUri(part.data);
+                                if (part.data.startsWith(BLOB_REFERENCE_PREFIX)) {
+                                    // Blob reference - use provider-specific estimate for images
+                                    total += isImageFile
+                                        ? tokenizer.estimateImageTokens()
+                                        : FALLBACK_IMAGE_TOKENS;
+                                } else if (
+                                    isDataUri(part.data) ||
+                                    isLikelyBase64String(part.data)
+                                ) {
+                                    const base64Payload = isDataUri(part.data)
+                                        ? extractBase64FromDataUri(part.data)
+                                        : part.data;
                                     const byteLength = base64LengthToBytes(base64Payload.length);
-                                    total += Math.ceil(byteLength / 1024);
+                                    if (isImageFile) {
+                                        // Image files use provider-specific vision tokens
+                                        total += tokenizer.estimateImageTokens(byteLength);
+                                    } else {
+                                        // Non-image files: estimate based on size (~1 token/4 bytes)
+                                        total += Math.ceil(byteLength / 4);
+                                    }
                                 } else {
                                     // Treat as URL/text: estimate token cost based on string length
                                     total += estimateTextTokens(part.data);
@@ -487,7 +533,13 @@ export function countMessagesTokens(
                                     part.data instanceof ArrayBuffer
                                         ? part.data.byteLength
                                         : (part.data as Uint8Array).length;
-                                total += Math.ceil(bytes / 1024);
+                                if (isImageFile) {
+                                    // Image files use provider-specific vision tokens
+                                    total += tokenizer.estimateImageTokens(bytes);
+                                } else {
+                                    // Binary files: estimate based on size
+                                    total += Math.ceil(bytes / 4); // ~1 token per 4 bytes
+                                }
                             }
                         }
                     });
@@ -729,9 +781,15 @@ export async function expandBlobReferences(
 
     // Handle array of parts
     if (Array.isArray(content)) {
-        const expandedParts: Array<TextPart | ImagePart | FilePart> = [];
+        const expandedParts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
 
         for (const part of content) {
+            // UIResourcePart doesn't have blob references - pass through unchanged
+            if (part.type === 'ui-resource') {
+                expandedParts.push(part);
+                continue;
+            }
+
             if (
                 part.type === 'image' &&
                 typeof part.image === 'string' &&
@@ -1057,7 +1115,31 @@ export async function normalizeToolResult(
         undefined,
         undefined
     );
-    const parts = coerceContentToParts(content);
+
+    // Separate UI resources from other parts since they need special handling
+    const uiResources: UIResourcePart[] = [];
+    const otherContent: InternalMessage['content'] = [];
+
+    if (Array.isArray(content)) {
+        for (const item of content) {
+            if (item && typeof item === 'object' && 'type' in item && item.type === 'ui-resource') {
+                uiResources.push(item as UIResourcePart);
+            } else {
+                otherContent.push(item);
+            }
+        }
+    } else {
+        // If content is not an array (string or other), pass through as-is
+        (otherContent as unknown[]).push(content);
+    }
+
+    if (uiResources.length > 0) {
+        logger.debug(
+            `normalizeToolResult: extracted ${uiResources.length} UI resource(s): ${uiResources.map((r) => r.uri).join(', ')}`
+        );
+    }
+
+    const parts = coerceContentToParts(otherContent as InternalMessage['content']);
     const inlineMedia: InlineMediaHint[] = [];
 
     parts.forEach((part, index) => {
@@ -1069,6 +1151,7 @@ export async function normalizeToolResult(
 
     return {
         parts,
+        uiResources,
         inlineMedia,
     };
 }
@@ -1138,6 +1221,7 @@ export async function persistToolMedia(
 
     return {
         parts,
+        uiResources: normalized.uiResources,
         ...(resources ? { resources } : {}),
     };
 }
@@ -1264,7 +1348,7 @@ export async function sanitizeToolResultToContentWithBlobs(
 
         // Case 2: array of parts or mixed
         if (Array.isArray(result)) {
-            const parts: Array<TextPart | ImagePart | FilePart> = [];
+            const parts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
             for (const item of result as unknown[]) {
                 if (item == null) continue;
 
@@ -1279,7 +1363,11 @@ export async function sanitizeToolResultToContentWithBlobs(
                 if (typeof processedItem === 'string') {
                     parts.push({ type: 'text', text: processedItem });
                 } else if (Array.isArray(processedItem)) {
-                    parts.push(...(processedItem as Array<TextPart | ImagePart | FilePart>));
+                    parts.push(
+                        ...(processedItem as Array<
+                            TextPart | ImagePart | FilePart | UIResourcePart
+                        >)
+                    );
                 }
             }
             return parts as InternalMessage['content'];
@@ -1298,6 +1386,42 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 for (const item of anyObj.content) {
                     if (item && typeof item === 'object') {
+                        // Handle MCP-UI resource type (ui:// URIs for interactive content)
+                        if (item.type === 'resource' && item.resource) {
+                            const resource = item.resource;
+                            const resourceUri = resource.uri as string | undefined;
+
+                            // Check if this is a UI resource (uri starts with ui://)
+                            if (resourceUri && resourceUri.startsWith('ui://')) {
+                                logger.debug(
+                                    `Detected MCP-UI resource: ${resourceUri} (${resource.mimeType})`
+                                );
+                                // Extract metadata - @mcp-ui/server puts metadata in _meta field
+                                const resourceMeta = resource._meta || {};
+                                const title = resourceMeta.title || resource.title;
+                                const preferredSize =
+                                    resourceMeta.preferredSize || resource.preferredSize;
+
+                                const uiPart: UIResourcePart = {
+                                    type: 'ui-resource',
+                                    uri: resourceUri,
+                                    mimeType: resource.mimeType || 'text/html',
+                                    content: resource.text,
+                                    blob: resource.blob,
+                                    metadata: {
+                                        title,
+                                        preferredSize,
+                                    },
+                                };
+                                // Clean up undefined metadata fields
+                                if (!uiPart.metadata?.title && !uiPart.metadata?.preferredSize) {
+                                    delete uiPart.metadata;
+                                }
+                                processedContent.push(uiPart);
+                                continue;
+                            }
+                        }
+
                         // Handle MCP resource type (embedded resources)
                         if (item.type === 'resource' && item.resource) {
                             const resource = item.resource;
@@ -1627,7 +1751,18 @@ export async function sanitizeToolResult(
     );
 
     const fallbackContent: TextPart[] = [{ type: 'text', text: '' }];
-    const content = persisted.parts.length > 0 ? persisted.parts : fallbackContent;
+    // Combine regular parts with UI resources
+    const allContent: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [
+        ...persisted.parts,
+        ...persisted.uiResources,
+    ];
+    const content = allContent.length > 0 ? allContent : fallbackContent;
+
+    if (persisted.uiResources.length > 0) {
+        logger.debug(
+            `sanitizeToolResult: including ${persisted.uiResources.length} UI resource(s) in final content for ${options.toolName}`
+        );
+    }
 
     return {
         content,
@@ -1723,4 +1858,62 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
         return isLikelyBase64String(content) ? '[binary data omitted]' : content;
     }
     return String(content ?? '');
+}
+
+/**
+ * Filter history to exclude messages before the most recent summary.
+ * This implements read-time compression.
+ *
+ * When a summary message exists (with metadata.isSummary === true),
+ * this function returns only the summary message and everything after it.
+ * This effectively hides old messages from the LLM while preserving them in storage.
+ *
+ * @param history The full conversation history
+ * @returns Filtered history starting from the most recent summary (or full history if no summary)
+ */
+export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
+    // Find the most recent summary message (search backwards for efficiency)
+    let summaryIndex = -1;
+    for (let i = history.length - 1; i >= 0; i--) {
+        const msg = history[i];
+        if (msg?.metadata?.isSummary === true) {
+            summaryIndex = i;
+            break;
+        }
+    }
+
+    // If no summary found, return full history (slice returns mutable copy)
+    if (summaryIndex === -1) {
+        return history.slice();
+    }
+
+    // Return summary + everything after it
+    return history.slice(summaryIndex);
+}
+
+/**
+ * Format tool output for display, respecting compactedAt marker.
+ * If a tool message has been compacted (pruned), return a placeholder.
+ *
+ * @param message The tool message to format
+ * @returns The content string or placeholder if compacted
+ */
+export function formatToolOutputForDisplay(message: InternalMessage): string {
+    if (message.compactedAt) {
+        return '[Old tool result content cleared]';
+    }
+
+    if (typeof message.content === 'string') {
+        return message.content;
+    }
+
+    if (Array.isArray(message.content)) {
+        // Extract text parts
+        return message.content
+            .filter((part): part is TextPart => part.type === 'text')
+            .map((part) => part.text)
+            .join('\n');
+    }
+
+    return '[no content]';
 }

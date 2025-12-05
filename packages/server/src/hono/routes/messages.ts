@@ -161,7 +161,7 @@ export function createMessagesRouter(
         path: '/message-stream',
         summary: 'Stream message response',
         description:
-            'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error.',
+            'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. If the session is busy processing another message, returns 202 with queue information.',
         tags: ['messages'],
         request: {
             body: {
@@ -197,6 +197,24 @@ export function createMessagesRouter(
                             .describe(
                                 'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)'
                             ),
+                    },
+                },
+            },
+            202: {
+                description:
+                    'Session is busy processing another message. Use the queue endpoints to manage pending messages.',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                busy: z.literal(true).describe('Indicates session is busy'),
+                                sessionId: z.string().describe('The session ID'),
+                                queueLength: z
+                                    .number()
+                                    .describe('Current number of messages in queue'),
+                                hint: z.string().describe('Instructions for the client'),
+                            })
+                            .strict(),
                     },
                 },
             },
@@ -291,6 +309,21 @@ export function createMessagesRouter(
             const body = ctx.req.valid('json');
 
             const { message = '', sessionId, imageData, fileData } = body;
+
+            // Check if session is busy before starting stream
+            const isBusy = await agent.isSessionBusy(sessionId);
+            if (isBusy) {
+                const queuedMessages = await agent.getQueuedMessages(sessionId);
+                return ctx.json(
+                    {
+                        busy: true as const,
+                        sessionId,
+                        queueLength: queuedMessages.length,
+                        hint: 'Use POST /api/queue/{sessionId} to queue this message, or wait for the current request to complete.',
+                    },
+                    202
+                );
+            }
 
             const imageDataInput = imageData
                 ? { image: imageData.image, mimeType: imageData.mimeType }

@@ -103,6 +103,30 @@ export class OpenAITokenizer implements ITokenizer {
     getProviderName(): string {
         return 'openai';
     }
+
+    /**
+     * Estimates token cost for images in GPT-4 Vision models.
+     * OpenAI uses a tile-based system:
+     * - Low detail mode: 85 tokens flat
+     * - High detail mode: 85 base + 170 tokens per 512x512 tile
+     *
+     * For a typical 1024x1024 image in high detail: 85 + (4 tiles × 170) = 765 tokens
+     * Without dimension info, we estimate based on file size as a proxy for complexity.
+     * @param byteSize Optional byte size of the image
+     * @returns Estimated token count
+     */
+    estimateImageTokens(byteSize?: number): number {
+        // GPT-4 Vision pricing:
+        // - Low detail: 85 tokens
+        // - High detail: 85 + 170 * tiles
+        // Assume high detail mode and estimate tiles from file size
+        if (byteSize && byteSize < 50000) {
+            // Small image (<50KB) - likely low detail or few tiles
+            return 256; // ~85 + 1 tile
+        }
+        // Default: assume medium-sized image with ~4 tiles
+        return 765; // 85 + (4 * 170)
+    }
 }
 
 // Lazy-load tiktoken at runtime to avoid SSR bundlers eagerly bundling the wasm-dependent module.

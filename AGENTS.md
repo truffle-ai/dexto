@@ -273,6 +273,8 @@ User Input → WebUI → SSE/REST → API → DextoAgent → Core Services
 - `pnpm run test:integ` - Run only integration tests (thorough, for CI/releases)
 - `pnpm run test:unit:watch` - Watch mode for unit tests during development
 - `pnpm run test:integ:watch` - Watch mode for integration tests
+- `pnpm run test:unit path/to/file.test.ts` - Run a single unit test file
+- `pnpm run test:integ path/to/file.integration.test.ts` - Run a single integration test file
 
 ### Testing Guidelines
 - **Development workflow**: Run unit tests frequently for fast feedback

@@ -1,11 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type {
-    TextPart as CoreTextPart,
-    InternalMessage,
-    FilePart,
-    Issue,
-    SanitizedToolResult,
-} from '@dexto/core';
+import type { InternalMessage, Issue, SanitizedToolResult } from '@dexto/core';
 import type { LLMRouter, LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -16,30 +10,16 @@ import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { useApproval } from './ApprovalContext.js';
 import type { Session } from './useSessions.js';
 
-// Reuse the identical TextPart from core
-export type TextPart = CoreTextPart;
-
-// TODO: Remove these WebUI-specific types and derive from server schema instead.
-// Per WebUI CLAUDE.md: "Server Schemas = Single Source of Truth"
-// These should be replaced with types derived from Hono client response types.
-export interface ImagePart {
-    type: 'image';
-    image: string;
-    mimeType?: string;
-}
-
-export interface AudioPart {
-    type: 'audio';
-    data: string;
-    mimeType: string;
-    filename?: string;
-}
-
-export interface FileData {
-    data: string;
-    mimeType: string;
-    filename?: string;
-}
+// Content part types and guards - import from centralized types.ts
+import { isTextPart, isImagePart, isFilePart } from '../../types.js';
+import type {
+    TextPart,
+    ImagePart,
+    FilePart,
+    AudioPart,
+    FileData,
+    UIResourcePart,
+} from '../../types.js';
 
 // Tool result types
 export interface ToolResultError {
@@ -64,48 +44,11 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
     );
 }
 
-// Type guards for content parts
-export function isTextPart(part: unknown): part is TextPart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'text'
-    );
-}
-
-export function isImagePart(part: unknown): part is ImagePart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'image'
-    );
-}
-
-export function isAudioPart(part: unknown): part is AudioPart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'audio'
-    );
-}
-
-export function isFilePart(part: unknown): part is FilePart {
-    return (
-        typeof part === 'object' &&
-        part !== null &&
-        'type' in part &&
-        (part as { type: unknown }).type === 'file'
-    );
-}
-
 // Extend core InternalMessage for WebUI
 export interface Message extends Omit<InternalMessage, 'content'> {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart>;
+    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart | UIResourcePart>;
     imageData?: { image: string; mimeType: string };
     fileData?: FileData;
     toolName?: string;
@@ -207,8 +150,11 @@ export function useChat(
         [queryClient]
     );
 
-    // Track the last user message id to anchor errors inline in the UI
+    // Track message IDs for error anchoring
+    // lastUserMessageIdRef: tracks the most recent user message (for other purposes)
+    // lastMessageIdRef: tracks the most recent message of ANY type (for error positioning)
     const lastUserMessageIdRef = useRef<string | null>(null);
+    const lastMessageIdRef = useRef<string | null>(null);
     const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
@@ -286,6 +232,7 @@ export function useChat(
                 case 'llm:chunk': {
                     const text = event.content || '';
                     const chunkType = event.chunkType;
+                    //console.log('llm:chunk', event);
 
                     setMessages((ms) => {
                         if (chunkType === 'reasoning') {
@@ -298,10 +245,13 @@ export function useChat(
                                 };
                                 return [...ms.slice(0, -1), updated];
                             }
+                            // Creating new assistant message - track its ID for error anchoring
+                            const newId = generateUniqueId();
+                            lastMessageIdRef.current = newId;
                             return [
                                 ...ms,
                                 {
-                                    id: generateUniqueId(),
+                                    id: newId,
                                     role: 'assistant',
                                     content: '',
                                     reasoning: text,
@@ -321,10 +271,13 @@ export function useChat(
                                 };
                                 return [...ms.slice(0, -1), updated];
                             }
+                            // Creating new assistant message - track its ID for error anchoring
+                            const newId = generateUniqueId();
+                            lastMessageIdRef.current = newId;
                             return [
                                 ...ms,
                                 {
-                                    id: generateUniqueId(),
+                                    id: newId,
                                     role: 'assistant',
                                     content: text,
                                     createdAt: Date.now(),
@@ -336,7 +289,9 @@ export function useChat(
                 }
 
                 case 'llm:response': {
-                    setProcessing(event.sessionId, false);
+                    // NOTE: Don't set processing=false here - wait for run:complete
+                    // This allows queued messages to continue processing after this response
+                    console.log('llm:response', event);
                     const text = event.content || '';
                     const usage = event.tokenUsage;
                     const model = event.model;
@@ -368,12 +323,15 @@ export function useChat(
 
                 case 'llm:tool-call': {
                     const { toolName, args, callId } = event;
+                    // Track tool message ID for error anchoring
+                    const toolMsgId = generateUniqueId();
+                    lastMessageIdRef.current = toolMsgId;
                     setMessages((ms) => {
                         const newIndex = ms.length;
                         const newMessages: Message[] = [
                             ...ms,
                             {
-                                id: generateUniqueId(),
+                                id: toolMsgId,
                                 role: 'tool',
                                 content: null,
                                 toolName,
@@ -456,6 +414,7 @@ export function useChat(
 
                     const errorObj = event.error || {};
                     const message = errorObj.message || 'Unknown error';
+                    console.log('llm:error', event);
 
                     setError(event.sessionId, {
                         id: generateUniqueId(),
@@ -464,7 +423,9 @@ export function useChat(
                         context: event.context,
                         recoverable: event.recoverable,
                         sessionId: event.sessionId,
-                        anchorMessageId: lastUserMessageIdRef.current || undefined,
+                        // Use lastMessageIdRef to anchor error to the most recent message
+                        // (not just user messages), so errors appear in correct position
+                        anchorMessageId: lastMessageIdRef.current || undefined,
                     });
                     setProcessing(event.sessionId, false);
                     setStatus(event.sessionId, 'closed');
@@ -473,6 +434,85 @@ export function useChat(
 
                 case 'session:title-updated': {
                     updateSessionTitle(event.sessionId, event.title);
+                    break;
+                }
+
+                case 'context:compressed': {
+                    // Context was compressed during multi-step tool calling
+                    // Log for debugging, could add UI notification in future
+                    console.log(
+                        `[Context Compressed] ${event.originalTokens.toLocaleString()} → ${event.compressedTokens.toLocaleString()} tokens ` +
+                            `(${event.originalMessages} → ${event.compressedMessages} messages) via ${event.strategy}`
+                    );
+                    break;
+                }
+
+                case 'message:dequeued': {
+                    // Queued message was processed - add as user message to UI
+                    // Extract text content from the combined content array
+                    const textContent = event.content
+                        .filter(isTextPart)
+                        .map((part) => part.text)
+                        .join('\n');
+
+                    // Extract image attachment if present
+                    const imagePart = event.content.find(isImagePart);
+
+                    // Extract file attachment if present
+                    const filePart = event.content.find(isFilePart);
+
+                    if (textContent || event.content.length > 0) {
+                        const userId = generateUniqueId();
+                        lastUserMessageIdRef.current = userId;
+                        lastMessageIdRef.current = userId;
+                        setMessages((ms) => [
+                            ...ms,
+                            {
+                                id: userId,
+                                role: 'user',
+                                content: textContent || '[attachment]',
+                                createdAt: Date.now(),
+                                sessionId: event.sessionId,
+                                imageData: imagePart
+                                    ? {
+                                          image: imagePart.image,
+                                          mimeType: imagePart.mimeType ?? 'image/jpeg',
+                                      }
+                                    : undefined,
+                                fileData: filePart
+                                    ? {
+                                          data: filePart.data,
+                                          mimeType: filePart.mimeType,
+                                          filename: filePart.filename,
+                                      }
+                                    : undefined,
+                            },
+                        ]);
+                        // Update sessions cache
+                        updateSessionActivity(event.sessionId);
+                    }
+                    // Immediately invalidate queue cache so UI removes the message
+                    queryClient.invalidateQueries({
+                        queryKey: queryKeys.queue.list(event.sessionId),
+                    });
+                    break;
+                }
+
+                case 'run:complete': {
+                    // Agent run fully completed (no more steps, no queued messages)
+                    // NOW set processing to false - not on llm:response
+                    console.log('run:complete', event);
+                    setProcessing(event.sessionId, false);
+                    setStatus(event.sessionId, 'closed');
+
+                    // If there was an error, it's already been handled by llm:error
+                    // Just log it here for debugging
+                    if (event.error) {
+                        console.log(
+                            `Run ended with error (finishReason=${event.finishReason}):`,
+                            event.error
+                        );
+                    }
                     break;
                 }
             }
@@ -486,6 +526,7 @@ export function useChat(
             handleApprovalResponse,
             updateSessionActivity,
             updateSessionTitle,
+            queryClient,
         ]
     );
 
@@ -513,6 +554,7 @@ export function useChat(
             // Add user message to state
             const userId = generateUniqueId();
             lastUserMessageIdRef.current = userId;
+            lastMessageIdRef.current = userId; // Track for error anchoring
             setMessages((ms) => [
                 ...ms,
                 {
@@ -656,23 +698,32 @@ export function useChat(
             setMessages([]);
             setError(sessionId, null);
             lastUserMessageIdRef.current = null;
+            lastMessageIdRef.current = null;
             pendingToolCallsRef.current.clear();
             setProcessing(sessionId, false);
         },
         [setError, setProcessing]
     );
 
-    const cancel = useCallback(
-        (sessionId?: string) => {
-            if (!sessionId) return;
-            abortSession(sessionId);
-            setProcessing(sessionId, false);
-            setStatus(sessionId, 'closed');
-            pendingToolCallsRef.current.clear();
-            suppressNextErrorRef.current = true;
-        },
-        [abortSession, setProcessing, setStatus]
-    );
+    const cancel = useCallback(async (sessionId?: string, clearQueue: boolean = false) => {
+        if (!sessionId) return;
+
+        // Tell server to cancel the LLM stream
+        // Soft cancel (default): Only cancel current response, queued messages continue
+        // Hard cancel (clearQueue=true): Cancel current response AND clear all queued messages
+        try {
+            await client.api.sessions[':sessionId'].cancel.$post({
+                param: { sessionId },
+                json: { clearQueue },
+            });
+        } catch (err) {
+            // Server cancel is best-effort - log but don't throw
+            console.warn('Failed to cancel server-side:', err);
+        }
+
+        // UI state will be updated when server sends run:complete event
+        pendingToolCallsRef.current.clear();
+    }, []);
 
     return {
         messages,

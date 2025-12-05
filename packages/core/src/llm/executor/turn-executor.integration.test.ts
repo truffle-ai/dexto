@@ -1,0 +1,724 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { TurnExecutor } from './turn-executor.js';
+import { ContextManager } from '../../context/manager.js';
+import { ToolManager } from '../../tools/tool-manager.js';
+import { SessionEventBus, AgentEventBus } from '../../events/index.js';
+import { ResourceManager } from '../../resources/index.js';
+import { MessageQueueService } from '../../session/message-queue.js';
+import { SystemPromptManager } from '../../systemPrompt/manager.js';
+import { VercelMessageFormatter } from '../formatters/vercel.js';
+import { createTokenizer } from '../tokenizer/factory.js';
+import { MemoryHistoryProvider } from '../../session/history/memory.js';
+import { MCPManager } from '../../mcp/manager.js';
+import { ApprovalManager } from '../../approval/manager.js';
+import { createLogger } from '../../logger/factory.js';
+import { createStorageManager, StorageManager } from '../../storage/storage-manager.js';
+import { MemoryManager } from '../../memory/index.js';
+import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
+import type { LanguageModel, ModelMessage } from 'ai';
+import type { LLMContext, LLMRouter } from '../types.js';
+import type { ValidatedLLMConfig } from '../schemas.js';
+import type { ValidatedStorageConfig } from '../../storage/schemas.js';
+import type { IDextoLogger } from '../../logger/v2/types.js';
+
+// Only mock the AI SDK's streamText/generateText - everything else is real
+vi.mock('ai', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('ai')>();
+    return {
+        ...actual,
+        streamText: vi.fn(),
+        generateText: vi.fn(),
+    };
+});
+
+vi.mock('@opentelemetry/api', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@opentelemetry/api')>();
+    return {
+        ...actual,
+        trace: {
+            ...actual.trace,
+            getActiveSpan: vi.fn(() => null),
+        },
+    };
+});
+
+import { streamText, generateText } from 'ai';
+
+/**
+ * Helper to create mock stream results that simulate Vercel AI SDK responses
+ */
+function createMockStream(options: {
+    text?: string;
+    finishReason?: string;
+    usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    toolCalls?: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }>;
+    reasoning?: string;
+}) {
+    const events: Array<{ type: string; [key: string]: unknown }> = [];
+
+    // Add reasoning delta if present
+    if (options.reasoning) {
+        for (const char of options.reasoning) {
+            events.push({ type: 'reasoning-delta', text: char });
+        }
+    }
+
+    // Add text delta events
+    if (options.text) {
+        for (const char of options.text) {
+            events.push({ type: 'text-delta', text: char });
+        }
+    }
+
+    // Add tool call events
+    if (options.toolCalls) {
+        for (const tc of options.toolCalls) {
+            events.push({
+                type: 'tool-call',
+                toolCallId: tc.toolCallId,
+                toolName: tc.toolName,
+                args: tc.args,
+            });
+        }
+    }
+
+    // Add finish event
+    events.push({
+        type: 'finish',
+        finishReason: options.finishReason ?? 'stop',
+        totalUsage: options.usage ?? { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+    });
+
+    return {
+        fullStream: (async function* () {
+            for (const event of events) {
+                yield event;
+            }
+        })(),
+    };
+}
+
+/**
+ * Creates a mock LanguageModel
+ */
+function createMockModel(): LanguageModel {
+    return {
+        modelId: 'test-model',
+        provider: 'test-provider',
+        specificationVersion: 'v1',
+        doStream: vi.fn(),
+        doGenerate: vi.fn(),
+    } as unknown as LanguageModel;
+}
+
+describe('TurnExecutor Integration Tests', () => {
+    let executor: TurnExecutor;
+    let contextManager: ContextManager<ModelMessage>;
+    let toolManager: ToolManager;
+    let sessionEventBus: SessionEventBus;
+    let agentEventBus: AgentEventBus;
+    let resourceManager: ResourceManager;
+    let messageQueue: MessageQueueService;
+    let logger: IDextoLogger;
+    let historyProvider: MemoryHistoryProvider;
+    let mcpManager: MCPManager;
+    let approvalManager: ApprovalManager;
+    let storageManager: StorageManager;
+
+    const sessionId = 'test-session';
+    const llmContext: LLMContext = { provider: 'openai', model: 'gpt-4' };
+    const router: LLMRouter = 'vercel';
+
+    beforeEach(async () => {
+        vi.clearAllMocks();
+
+        // Create real logger
+        logger = createLogger({
+            config: {
+                level: 'warn', // Use warn to reduce noise in tests
+                transports: [{ type: 'console', colorize: false }],
+            },
+            agentId: 'test-agent',
+        });
+
+        // Create real event buses
+        agentEventBus = new AgentEventBus();
+        sessionEventBus = new SessionEventBus();
+
+        // Create real storage manager with in-memory backends
+        // Cast to ValidatedStorageConfig since we know test data is valid (avoids schema parsing overhead)
+        const storageConfig = {
+            cache: { type: 'in-memory' },
+            database: { type: 'in-memory' },
+            blob: {
+                type: 'in-memory',
+                maxBlobSize: 10 * 1024 * 1024,
+                maxTotalSize: 100 * 1024 * 1024,
+            },
+        } as unknown as ValidatedStorageConfig;
+        storageManager = await createStorageManager(storageConfig, logger);
+
+        // Create real MCP manager
+        mcpManager = new MCPManager(logger);
+
+        // Create real resource manager with proper wiring
+        resourceManager = new ResourceManager(
+            mcpManager,
+            {
+                internalResourcesConfig: { enabled: false, resources: [] },
+                blobStore: storageManager.getBlobStore(),
+            },
+            logger
+        );
+        await resourceManager.initialize();
+
+        // Create real history provider
+        historyProvider = new MemoryHistoryProvider(logger);
+
+        // Create real memory manager and system prompt manager
+        const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
+        const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
+        const systemPromptManager = new SystemPromptManager(
+            systemPromptConfig,
+            '/tmp', // configDir - not used with inline prompts
+            memoryManager,
+            undefined, // memoriesConfig
+            logger
+        );
+
+        // Create real context manager with Vercel formatter
+        const formatter = new VercelMessageFormatter(logger);
+        const tokenizer = createTokenizer('openai', 'gpt-4', logger);
+        // Cast to ValidatedLLMConfig since we know test data is valid
+        const llmConfig = {
+            provider: 'openai',
+            model: 'gpt-4',
+            apiKey: 'test-api-key',
+            router: 'vercel',
+            maxInputTokens: 100000,
+            maxOutputTokens: 4096,
+            temperature: 0.7,
+            maxIterations: 10,
+        } as unknown as ValidatedLLMConfig;
+
+        contextManager = new ContextManager<ModelMessage>(
+            llmConfig,
+            formatter,
+            systemPromptManager,
+            100000,
+            tokenizer,
+            historyProvider,
+            sessionId,
+            resourceManager,
+            logger
+        );
+
+        // Create real approval manager
+        approvalManager = new ApprovalManager(
+            {
+                toolConfirmation: { mode: 'auto-approve', timeout: 120000 },
+                elicitation: { enabled: false, timeout: 120000 },
+            },
+            logger
+        );
+
+        // Create real tool manager (minimal setup - no internal tools)
+        const mockAllowedToolsProvider = {
+            isToolAllowed: vi.fn().mockResolvedValue(false),
+            allowTool: vi.fn(),
+            disallowTool: vi.fn(),
+        };
+
+        toolManager = new ToolManager(
+            mcpManager,
+            approvalManager,
+            mockAllowedToolsProvider,
+            'auto-approve',
+            agentEventBus,
+            { alwaysAllow: [], alwaysDeny: [] },
+            { internalToolsServices: {}, internalToolsConfig: [] },
+            logger
+        );
+        await toolManager.initialize();
+
+        // Create real message queue
+        messageQueue = new MessageQueueService(sessionEventBus, logger);
+
+        // Default streamText mock - simple text response
+        vi.mocked(streamText).mockImplementation(
+            () =>
+                createMockStream({ text: 'Hello!', finishReason: 'stop' }) as unknown as ReturnType<
+                    typeof streamText
+                >
+        );
+
+        // Create executor with real components
+        executor = new TurnExecutor(
+            createMockModel(),
+            toolManager,
+            contextManager,
+            sessionEventBus,
+            resourceManager,
+            sessionId,
+            { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+            llmContext,
+            router,
+            logger,
+            messageQueue
+        );
+    });
+
+    afterEach(async () => {
+        vi.restoreAllMocks();
+        logger.destroy();
+    });
+
+    describe('Basic Execution Flow', () => {
+        it('should execute and return result with real context manager', async () => {
+            await contextManager.addUserMessage('Hello');
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('stop');
+            expect(result.text).toBe('Hello!');
+            expect(result.usage).toEqual({
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 150,
+            });
+        });
+
+        it('should persist assistant response to history', async () => {
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, true);
+
+            const history = await contextManager.getHistory();
+            expect(history.length).toBeGreaterThanOrEqual(2);
+
+            const assistantMessages = history.filter((m) => m.role === 'assistant');
+            expect(assistantMessages.length).toBeGreaterThan(0);
+        });
+
+        it('should emit events through real event bus', async () => {
+            const thinkingHandler = vi.fn();
+            const responseHandler = vi.fn();
+            const runCompleteHandler = vi.fn();
+
+            sessionEventBus.on('llm:thinking', thinkingHandler);
+            sessionEventBus.on('llm:response', responseHandler);
+            sessionEventBus.on('run:complete', runCompleteHandler);
+
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, true);
+
+            expect(thinkingHandler).toHaveBeenCalled();
+            expect(responseHandler).toHaveBeenCalled();
+            expect(runCompleteHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    finishReason: 'stop',
+                    stepCount: 0,
+                })
+            );
+        });
+
+        it('should emit chunk events when streaming', async () => {
+            const chunkHandler = vi.fn();
+            sessionEventBus.on('llm:chunk', chunkHandler);
+
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, true);
+
+            expect(chunkHandler).toHaveBeenCalled();
+            expect(chunkHandler.mock.calls.some((call) => call[0].chunkType === 'text')).toBe(true);
+        });
+
+        it('should not emit chunk events when not streaming', async () => {
+            const chunkHandler = vi.fn();
+            sessionEventBus.on('llm:chunk', chunkHandler);
+
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, false);
+
+            expect(chunkHandler).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Multi-Step Tool Execution', () => {
+        it('should continue looping on tool-calls finish reason', async () => {
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount < 3) {
+                    return createMockStream({
+                        text: `Step ${callCount}`,
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            { toolCallId: `call-${callCount}`, toolName: 'test_tool', args: {} },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    text: 'Final response',
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            await contextManager.addUserMessage('Do something');
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('stop');
+            expect(result.stepCount).toBe(2);
+            expect(callCount).toBe(3);
+        });
+
+        it('should stop at maxSteps limit', async () => {
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Tool step',
+                        finishReason: 'tool-calls',
+                        toolCalls: [{ toolCallId: 'call-1', toolName: 'test', args: {} }],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            const limitedExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 3, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                router,
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage('Keep going');
+            const result = await limitedExecutor.execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('max-steps');
+            expect(result.stepCount).toBe(3);
+        });
+    });
+
+    describe('Message Queue Injection', () => {
+        it('should inject queued messages into context', async () => {
+            messageQueue.enqueue({
+                content: [{ type: 'text', text: 'User guidance: focus on performance' }],
+            });
+
+            await contextManager.addUserMessage('Initial request');
+            await executor.execute({ mcpManager }, true);
+
+            const history = await contextManager.getHistory();
+            const userMessages = history.filter((m) => m.role === 'user');
+            expect(userMessages.length).toBe(2);
+
+            const injectedMsg = userMessages.find((m) => {
+                const content = Array.isArray(m.content) ? m.content : [];
+                return content.some((p) => p.type === 'text' && p.text.includes('User guidance'));
+            });
+            expect(injectedMsg).toBeDefined();
+        });
+
+        it('should continue processing when queue has messages on termination', async () => {
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount === 1) {
+                    messageQueue.enqueue({
+                        content: [{ type: 'text', text: 'Follow-up question' }],
+                    });
+                    return createMockStream({
+                        text: 'First response',
+                        finishReason: 'stop',
+                    }) as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    text: 'Second response',
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            await contextManager.addUserMessage('Initial');
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(2);
+            expect(result.text).toBe('Second response');
+        });
+    });
+
+    describe('Tool Support Validation', () => {
+        it('should skip validation for providers without baseURL', async () => {
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, true);
+
+            expect(generateText).not.toHaveBeenCalled();
+        });
+
+        it('should validate and cache tool support for custom baseURL', async () => {
+            vi.mocked(generateText).mockResolvedValue(
+                {} as Awaited<ReturnType<typeof generateText>>
+            );
+
+            const executor1 = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, baseURL: 'https://custom.api.com' },
+                llmContext,
+                router,
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage('Hello');
+            await executor1.execute({ mcpManager }, true);
+
+            expect(generateText).toHaveBeenCalledTimes(1);
+
+            // Second executor with same baseURL should use cache
+            const newMessageQueue = new MessageQueueService(sessionEventBus, logger);
+            const executor2 = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                'session-2',
+                { maxSteps: 10, baseURL: 'https://custom.api.com' },
+                llmContext,
+                router,
+                logger,
+                newMessageQueue
+            );
+
+            await executor2.execute({ mcpManager }, true);
+            expect(generateText).toHaveBeenCalledTimes(1);
+        });
+
+        it('should use empty tools when model does not support them', async () => {
+            vi.mocked(generateText).mockRejectedValue(new Error('Model does not support tools'));
+
+            const executorWithBaseURL = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
+                llmContext,
+                router,
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage('Hello');
+            await executorWithBaseURL.execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    tools: {},
+                })
+            );
+        });
+    });
+
+    describe('Error Handling', () => {
+        it('should emit llm:error and run:complete on failure', async () => {
+            vi.mocked(streamText).mockImplementation(() => {
+                throw new Error('Stream failed');
+            });
+
+            const errorHandler = vi.fn();
+            const completeHandler = vi.fn();
+            sessionEventBus.on('llm:error', errorHandler);
+            sessionEventBus.on('run:complete', completeHandler);
+
+            await contextManager.addUserMessage('Hello');
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    context: 'TurnExecutor',
+                    recoverable: false,
+                })
+            );
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    finishReason: 'error',
+                })
+            );
+        });
+
+        it('should map rate limit errors correctly', async () => {
+            const { APICallError } = await import('ai');
+
+            // Create a real APICallError instance
+            const rateLimitError = new APICallError({
+                message: 'Rate limit exceeded',
+                statusCode: 429,
+                responseHeaders: { 'retry-after': '60' },
+                responseBody: 'Rate limit exceeded',
+                url: 'https://api.openai.com/v1/chat/completions',
+                requestBodyValues: {},
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw rateLimitError;
+            });
+
+            await contextManager.addUserMessage('Hello');
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
+                code: 'llm_rate_limit_exceeded',
+                type: 'rate_limit',
+            });
+        });
+    });
+
+    describe('Cleanup and Resource Management', () => {
+        it('should clear message queue on normal completion', async () => {
+            messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, true);
+
+            expect(messageQueue.dequeueAll()).toBeNull();
+        });
+
+        it('should clear message queue on error', async () => {
+            messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw new Error('Failed');
+            });
+
+            await contextManager.addUserMessage('Hello');
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(messageQueue.dequeueAll()).toBeNull();
+        });
+    });
+
+    describe('External Abort Signal', () => {
+        it('should handle external abort signal', async () => {
+            const abortController = new AbortController();
+            let callCount = 0;
+
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount === 1) {
+                    abortController.abort();
+                    return createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [{ toolCallId: 'call-1', toolName: 'test', args: {} }],
+                    }) as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({ finishReason: 'stop' }) as unknown as ReturnType<
+                    typeof streamText
+                >;
+            });
+
+            const executorWithSignal = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 },
+                llmContext,
+                router,
+                logger,
+                messageQueue,
+                undefined,
+                abortController.signal
+            );
+
+            await contextManager.addUserMessage('Hello');
+            const result = await executorWithSignal.execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('cancelled');
+        });
+    });
+
+    describe('Reasoning Token Support', () => {
+        it('should handle reasoning tokens in usage', async () => {
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Response',
+                        reasoning: 'Let me think...',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: 100,
+                            outputTokens: 50,
+                            totalTokens: 170,
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            const responseHandler = vi.fn();
+            sessionEventBus.on('llm:response', responseHandler);
+
+            await contextManager.addUserMessage('Think about this');
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.usage).toMatchObject({
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 170,
+            });
+            expect(responseHandler).toHaveBeenCalled();
+        });
+    });
+
+    describe('Context Formatting', () => {
+        it('should format messages correctly for LLM', async () => {
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    messages: expect.arrayContaining([
+                        expect.objectContaining({
+                            role: 'user',
+                        }),
+                    ]),
+                })
+            );
+        });
+
+        it('should include system prompt in formatted messages', async () => {
+            await contextManager.addUserMessage('Hello');
+            await executor.execute({ mcpManager }, true);
+
+            const call = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(call).toBeDefined();
+            expect(call?.messages).toBeDefined();
+
+            const messages = call?.messages as ModelMessage[];
+            const hasSystemContent = messages.some(
+                (m) =>
+                    m.role === 'system' ||
+                    (m.role === 'user' &&
+                        Array.isArray(m.content) &&
+                        m.content.some(
+                            (c) =>
+                                typeof c === 'object' &&
+                                'text' in c &&
+                                c.text.includes('helpful assistant')
+                        ))
+            );
+            expect(hasSystemContent).toBe(true);
+        });
+    });
+});

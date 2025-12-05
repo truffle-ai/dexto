@@ -5,6 +5,16 @@ import { LLMContext } from '../types.js';
  * Interface for converting internal message format to LLM provider-specific formats.
  * Each LLM provider requires a different message structure, and the formatter's job
  * is to handle these conversions while maintaining a consistent internal representation.
+ *
+ * TODO (Type Safety): Make this interface generic to avoid type casting
+ *   Currently returns `unknown[]` which requires casting in ContextManager.
+ *   Refactor to: `IMessageFormatter<TMessage>` where:
+ *   - `format()` returns `TMessage[]`
+ *   - `parseMessages()` takes `TMessage[]`
+ *   - VercelMessageFormatter implements IMessageFormatter<ModelMessage>
+ *   - AnthropicMessageFormatter implements IMessageFormatter<MessageParam>
+ *   - OpenAIMessageFormatter implements IMessageFormatter<ChatCompletionMessageParam>
+ *   This would provide full type safety through ContextManager<TMessage>.
  */
 export interface IMessageFormatter {
     /**
@@ -24,11 +34,6 @@ export interface IMessageFormatter {
     ): unknown[];
 
     /**
-     * Parses raw LLM response into an array of InternalMessage objects.
-     */
-    parseResponse(response: unknown): InternalMessage[];
-
-    /**
      * Optional method for handling system prompt separately.
      * Some LLM providers (like Anthropic) don't include the system prompt in the
      * messages array but pass it as a separate parameter.
@@ -37,12 +42,4 @@ export interface IMessageFormatter {
      * @returns The formatted system prompt or null/undefined if not needed
      */
     formatSystemPrompt?(systemPrompt: string | null): string | null | undefined;
-
-    /**
-     * Optional method for parsing streaming LLM responses into InternalMessage objects.
-     *
-     * @param response The streaming response from the LLM provider
-     * @returns Promise that resolves to an array of InternalMessage objects
-     */
-    parseStreamResponse?(response: unknown): Promise<InternalMessage[]>;
 }

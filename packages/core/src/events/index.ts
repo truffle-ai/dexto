@@ -43,6 +43,12 @@ export const SESSION_EVENT_NAMES = [
     'llm:error',
     'llm:switched',
     'llm:unsupported-input',
+    'context:compressed',
+    'context:pruned',
+    'message:queued',
+    'message:dequeued',
+    'message:removed',
+    'run:complete',
 ] as const;
 
 /**
@@ -75,6 +81,17 @@ export const STREAMING_EVENTS = [
     'llm:tool-result',
     'llm:error',
     'llm:unsupported-input',
+
+    // Context management events
+    'context:compressed',
+    'context:pruned',
+
+    // Message queue events (for mid-task user guidance)
+    'message:queued',
+    'message:dequeued',
+
+    // Run lifecycle events
+    'run:complete',
 
     // Session metadata
     'session:title-updated',
@@ -284,6 +301,8 @@ export interface AgentEventMap {
             reasoningTokens?: number;
             totalTokens?: number;
         };
+        /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
+        finishReason?: string;
         sessionId: string;
     };
 
@@ -300,8 +319,11 @@ export interface AgentEventMap {
         toolName: string;
         callId?: string;
         success: boolean;
-        sanitized: SanitizedToolResult;
+        /** Sanitized result - present when success=true */
+        sanitized?: SanitizedToolResult;
         rawResult?: unknown;
+        /** Error message - present when success=false */
+        error?: string;
         sessionId: string;
     };
 
@@ -310,6 +332,8 @@ export interface AgentEventMap {
         error: Error;
         context?: string;
         recoverable?: boolean;
+        /** Tool call ID if error occurred during tool execution */
+        toolCallId?: string;
         sessionId: string;
     };
 
@@ -328,6 +352,58 @@ export interface AgentEventMap {
         model?: string;
         fileType?: string;
         details?: any;
+        sessionId: string;
+    };
+
+    /** Context was compressed during multi-step tool calling */
+    'context:compressed': {
+        originalTokens: number;
+        compressedTokens: number;
+        originalMessages: number;
+        compressedMessages: number;
+        strategy: string;
+        reason: 'overflow' | 'token_limit' | 'message_limit';
+        sessionId: string;
+    };
+
+    /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
+    'context:pruned': {
+        prunedCount: number;
+        savedTokens: number;
+        sessionId: string;
+    };
+
+    /** User message was queued during agent execution */
+    'message:queued': {
+        position: number;
+        id: string;
+        sessionId: string;
+    };
+
+    /** Queued messages were dequeued and injected into context */
+    'message:dequeued': {
+        count: number;
+        ids: string[];
+        coalesced: boolean;
+        /** Combined content of all dequeued messages (for UI display) */
+        content: import('../session/types.js').UserMessageContentPart[];
+        sessionId: string;
+    };
+
+    /** Queued message was removed from queue */
+    'message:removed': {
+        id: string;
+        sessionId: string;
+    };
+
+    /** Agent run completed (all steps done, no queued messages remaining) */
+    'run:complete': {
+        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
+        finishReason: string;
+        /** Number of steps executed */
+        stepCount: number;
+        /** Error that caused termination (only if finishReason === 'error') */
+        error?: Error;
         sessionId: string;
     };
 
@@ -395,6 +471,8 @@ export interface SessionEventMap {
             reasoningTokens?: number;
             totalTokens?: number;
         };
+        /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
+        finishReason?: string;
     };
 
     /** LLM service requested a tool call */
@@ -409,8 +487,11 @@ export interface SessionEventMap {
         toolName: string;
         callId?: string;
         success: boolean;
-        sanitized: SanitizedToolResult;
+        /** Sanitized result - present when success=true */
+        sanitized?: SanitizedToolResult;
         rawResult?: unknown;
+        /** Error message - present when success=false */
+        error?: string;
     };
 
     /** LLM service error */
@@ -418,6 +499,8 @@ export interface SessionEventMap {
         error: Error;
         context?: string;
         recoverable?: boolean;
+        /** Tool call ID if error occurred during tool execution */
+        toolCallId?: string;
     };
 
     /** LLM service switched */
@@ -434,6 +517,52 @@ export interface SessionEventMap {
         model?: string;
         fileType?: string;
         details?: any;
+    };
+
+    /** Context was compressed during multi-step tool calling */
+    'context:compressed': {
+        originalTokens: number;
+        compressedTokens: number;
+        originalMessages: number;
+        compressedMessages: number;
+        strategy: string;
+        reason: 'overflow' | 'token_limit' | 'message_limit';
+    };
+
+    /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
+    'context:pruned': {
+        prunedCount: number;
+        savedTokens: number;
+    };
+
+    /** User message was queued during agent execution */
+    'message:queued': {
+        position: number;
+        id: string;
+    };
+
+    /** Queued messages were dequeued and injected into context */
+    'message:dequeued': {
+        count: number;
+        ids: string[];
+        coalesced: boolean;
+        /** Combined content of all dequeued messages (for UI display) */
+        content: import('../session/types.js').UserMessageContentPart[];
+    };
+
+    /** Queued message was removed from queue */
+    'message:removed': {
+        id: string;
+    };
+
+    /** Agent run completed (all steps done, no queued messages remaining) */
+    'run:complete': {
+        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
+        finishReason: string;
+        /** Number of steps executed */
+        stepCount: number;
+        /** Error that caused termination (only if finishReason === 'error') */
+        error?: Error;
     };
 }
 

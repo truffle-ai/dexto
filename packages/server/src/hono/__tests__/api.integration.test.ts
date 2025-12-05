@@ -563,6 +563,141 @@ describe('Hono API Integration Tests', () => {
         });
     });
 
+    describe('Queue Routes', () => {
+        it('GET /api/queue/:sessionId returns empty queue initially', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            // Create session first
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId: 'test-queue-session',
+            });
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/queue/test-queue-session'
+            );
+            expect(res.status).toBe(200);
+            expect((res.body as { messages: unknown[]; count: number }).messages).toEqual([]);
+            expect((res.body as { count: number }).count).toBe(0);
+        });
+
+        it('GET /api/queue/:sessionId returns 404 for non-existent session', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/queue/non-existent-queue-session'
+            );
+            expect(res.status).toBe(404);
+        });
+
+        it('POST /api/queue/:sessionId queues a message', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            // Create session first
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId: 'test-queue-post-session',
+            });
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                '/api/queue/test-queue-post-session',
+                { message: 'Hello from queue' }
+            );
+            expect(res.status).toBe(201);
+            expect((res.body as { queued: boolean }).queued).toBe(true);
+            expect((res.body as { id: string }).id).toBeDefined();
+            expect((res.body as { position: number }).position).toBe(1);
+
+            // Verify message is in queue
+            const getRes = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/queue/test-queue-post-session'
+            );
+            expect((getRes.body as { count: number }).count).toBe(1);
+        });
+
+        it('POST /api/queue/:sessionId validates input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            // Create session first
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId: 'test-queue-validate-session',
+            });
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                '/api/queue/test-queue-validate-session',
+                {} // Empty body should fail validation
+            );
+            expect(res.status).toBeGreaterThanOrEqual(400);
+        });
+
+        it('DELETE /api/queue/:sessionId/:messageId removes a queued message', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `queue-delete-msg-${Date.now()}`;
+
+            // Create session and queue a message
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const queueRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/queue/${sessionId}`,
+                { message: 'Message to delete' }
+            );
+            expect(queueRes.status).toBe(201);
+            const messageId = (queueRes.body as { id: string }).id;
+
+            // Delete the message
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/queue/${sessionId}/${messageId}`
+            );
+            expect(res.status).toBe(200);
+            expect((res.body as { removed: boolean }).removed).toBe(true);
+
+            // Verify queue is empty
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/queue/${sessionId}`);
+            expect((getRes.body as { count: number }).count).toBe(0);
+        });
+
+        it('DELETE /api/queue/:sessionId clears all queued messages', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `queue-clear-${Date.now()}`;
+
+            // Create session and queue multiple messages
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const q1 = await httpRequest(testServer.baseUrl, 'POST', `/api/queue/${sessionId}`, {
+                message: 'Message 1',
+            });
+            expect(q1.status).toBe(201);
+            const q2 = await httpRequest(testServer.baseUrl, 'POST', `/api/queue/${sessionId}`, {
+                message: 'Message 2',
+            });
+            expect(q2.status).toBe(201);
+
+            // Clear the queue
+            const res = await httpRequest(testServer.baseUrl, 'DELETE', `/api/queue/${sessionId}`);
+            expect(res.status).toBe(200);
+            expect((res.body as { cleared: boolean }).cleared).toBe(true);
+            expect((res.body as { count: number }).count).toBe(2);
+
+            // Verify queue is empty
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/queue/${sessionId}`);
+            expect((getRes.body as { count: number }).count).toBe(0);
+        });
+    });
+
     describe('OpenAPI Schema', () => {
         it('GET /openapi.json returns OpenAPI schema', async () => {
             if (!testServer) throw new Error('Test server not initialized');

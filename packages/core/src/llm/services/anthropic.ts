@@ -6,6 +6,7 @@ import { ToolSet } from '../../tools/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ContextManager } from '../../context/manager.js';
+import { sanitizeToolResult } from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
@@ -17,6 +18,7 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
+import type { MessageQueueService } from '../../session/message-queue.js';
 
 /**
  * Anthropic implementation of LLMService
@@ -27,6 +29,10 @@ import { trace, context, propagation } from '@opentelemetry/api';
  *   - Request latency histograms
  *   - Error rate counters
  *   See feature-plans/telemetry.md for details
+ * TODO (Context Compression): Implement mid-loop compression for multi-step tool calling
+ *   Currently, compression only runs before the tool loop starts. If the native Anthropic SDK
+ *   supports multi-step tool loops (similar to Vercel's prepareStep), add compression callback
+ *   to prevent context overflow during long tool loops. See vercel.ts for reference implementation.
  */
 @InstrumentClass({
     prefix: 'llm.anthropic',
@@ -213,6 +219,26 @@ export class AnthropicService implements ILLMService {
                         }
                     }
 
+                    // Overflow detection: check if we're approaching context limit
+                    const maxInputTokens = this.contextManager.getMaxInputTokens();
+                    const OVERFLOW_THRESHOLD = 0.95; // 95% of max
+                    if (usage && usage.input_tokens > maxInputTokens * OVERFLOW_THRESHOLD) {
+                        this.logger.warn(
+                            `Context overflow detected: ${usage.input_tokens} tokens used (${Math.round((usage.input_tokens / maxInputTokens) * 100)}% of ${maxInputTokens} max). ` +
+                                `Stopping tool loop to prevent API error.`
+                        );
+                        // Return with current text content
+                        fullResponse += textContent;
+                        this.sessionEventBus.emit('llm:response', {
+                            content: fullResponse,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: 'in-built',
+                            ...(totalTokens > 0 && { tokenUsage: { totalTokens } }),
+                        });
+                        return fullResponse || 'Context limit reached during tool execution.';
+                    }
+
                     // Process assistant message
                     if (toolUses.length > 0) {
                         // Transform all tool uses into the format expected by ContextManager
@@ -299,13 +325,21 @@ export class AnthropicService implements ILLMService {
                                 this.sessionId
                             );
 
-                            // Add tool result to message manager
-                            const sanitized = await this.contextManager.addToolResult(
-                                toolUseId,
-                                toolName,
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            // Sanitize first, then persist
+                            const sanitized = await sanitizeToolResult(
                                 result,
-                                { success: true }
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolUseId,
+                                    success: true,
+                                },
+                                this.logger
                             );
+                            await this.contextManager.addToolResult(toolUseId, toolName, sanitized);
 
                             // Notify tool result
                             this.sessionEventBus.emit('llm:tool-result', {
@@ -323,13 +357,20 @@ export class AnthropicService implements ILLMService {
                                 `Tool execution error for ${toolName}: ${errorMessage}`
                             );
 
-                            // Add error as tool result
-                            const sanitized = await this.contextManager.addToolResult(
-                                toolUseId,
-                                toolName,
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
                                 { error: errorMessage },
-                                { success: false }
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolUseId,
+                                    success: false,
+                                },
+                                this.logger
                             );
+                            await this.contextManager.addToolResult(toolUseId, toolName, sanitized);
 
                             this.sessionEventBus.emit('llm:tool-result', {
                                 toolName,
@@ -622,5 +663,15 @@ export class AnthropicService implements ILLMService {
      */
     getContextManager(): ContextManager<unknown> {
         return this.contextManager;
+    }
+
+    /**
+     * Message queueing is not supported for Anthropic native router.
+     * Use the Vercel router for message queueing support.
+     */
+    getMessageQueue(): MessageQueueService {
+        throw new Error(
+            'Message queueing is not supported with Anthropic native router. Use router: "vercel" for this feature.'
+        );
     }
 }

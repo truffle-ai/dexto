@@ -40,4 +40,14 @@ export class GoogleTokenizer implements ITokenizer {
     getProviderName(): string {
         return 'google';
     }
+
+    /**
+     * Estimates token cost for images in Google Gemini vision models.
+     * Gemini uses a flat rate of 258 tokens per image regardless of size.
+     * @returns Estimated token count (258 tokens)
+     */
+    estimateImageTokens(_byteSize?: number): number {
+        // Gemini charges 258 tokens flat per image
+        return 258;
+    }
 }

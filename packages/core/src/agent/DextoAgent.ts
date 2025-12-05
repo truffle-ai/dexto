@@ -855,7 +855,9 @@ export class DextoAgent {
         const responseListener = (data: AgentEventMap['llm:response']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:response', ...data });
-            completed = true;
+            // NOTE: We no longer set completed=true here.
+            // The iterator closes when run:complete is received, not llm:response.
+            // This allows queued messages to be processed after an LLM response.
         };
         this.agentEventBus.on('llm:response', responseListener, { signal: cleanupSignal });
         listeners.push({ event: 'llm:response', listener: responseListener });
@@ -919,6 +921,37 @@ export class DextoAgent {
             signal: cleanupSignal,
         });
         listeners.push({ event: 'approval:response', listener: approvalResponseListener });
+
+        // Message queue events (for mid-task user guidance)
+        const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'message:queued', ...data });
+        };
+        this.agentEventBus.on('message:queued', messageQueuedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'message:queued', listener: messageQueuedListener });
+
+        const messageDequeuedListener = (data: AgentEventMap['message:dequeued']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'message:dequeued', ...data });
+        };
+        this.agentEventBus.on('message:dequeued', messageDequeuedListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'message:dequeued', listener: messageDequeuedListener });
+
+        // Run lifecycle event - emitted when TurnExecutor truly finishes
+        // This is when we close the iterator (not on llm:response)
+        const runCompleteListener = (data: AgentEventMap['run:complete']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'run:complete', ...data });
+            completed = true; // NOW close the iterator
+        };
+        this.agentEventBus.on('run:complete', runCompleteListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'run:complete', listener: runCompleteListener });
 
         // Start run in background (fire-and-forget)
         // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
@@ -1005,6 +1038,83 @@ export class DextoAgent {
         };
 
         return iterator;
+    }
+
+    /**
+     * Check if a session is currently processing a message.
+     * @param sessionId Session id
+     * @returns true if the session is busy processing; false otherwise
+     */
+    public async isSessionBusy(sessionId: string): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        return session?.isBusy() ?? false;
+    }
+
+    /**
+     * Queue a message for processing when a session is busy.
+     * The message will be injected into the conversation when the current turn completes.
+     *
+     * @param sessionId Session id
+     * @param message The user message to queue
+     * @returns Queue position and message ID
+     * @throws Error if router doesn't support message queueing
+     */
+    public async queueMessage(
+        sessionId: string,
+        message: import('../session/message-queue.js').UserMessage
+    ): Promise<{ queued: true; position: number; id: string }> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.queueMessage(message);
+    }
+
+    /**
+     * Get all queued messages for a session.
+     * @param sessionId Session id
+     * @returns Array of queued messages
+     */
+    public async getQueuedMessages(
+        sessionId: string
+    ): Promise<import('../session/types.js').QueuedMessage[]> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.getQueuedMessages();
+    }
+
+    /**
+     * Remove a queued message.
+     * @param sessionId Session id
+     * @param messageId The ID of the queued message to remove
+     * @returns true if message was found and removed, false otherwise
+     */
+    public async removeQueuedMessage(sessionId: string, messageId: string): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.removeQueuedMessage(messageId);
+    }
+
+    /**
+     * Clear all queued messages for a session.
+     * @param sessionId Session id
+     * @returns Number of messages that were cleared
+     */
+    public async clearMessageQueue(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.clearMessageQueue();
     }
 
     /**

@@ -50,6 +50,7 @@ dexto install --all
 - `triage-agent` – Multi-agent customer support routing
 - `workflow-builder-agent` – n8n workflow automation
 - `product-analysis-agent` – PostHog product analytics
+- `gaming-agent` – Play GameBoy games like Pokemon
 
 ### Installing from a Local File
 

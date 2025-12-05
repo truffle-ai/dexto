@@ -6,6 +6,7 @@ import { ToolSet } from '../../tools/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ContextManager } from '../../context/manager.js';
+import { sanitizeToolResult } from '../../context/utils.js';
 import { getMaxInputTokensForModel, getEffectiveMaxInputTokens } from '../registry.js';
 import { ImageData, FileData } from '../../context/types.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -19,6 +20,7 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import { shouldIncludeRawToolResult } from '../../utils/debug.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
+import { MessageQueueService } from '../../session/message-queue.js';
 
 /**
  * OpenAI implementation of LLMService
@@ -29,6 +31,10 @@ import { trace, context, propagation } from '@opentelemetry/api';
  *   - Request latency histograms
  *   - Error rate counters
  *   See feature-plans/telemetry.md for details
+ * TODO (Context Compression): Implement mid-loop compression for multi-step tool calling
+ *   Currently, compression only runs before the tool loop starts. If the native OpenAI SDK
+ *   supports multi-step tool loops (similar to Vercel's prepareStep), add compression callback
+ *   to prevent context overflow during long tool loops. See vercel.ts for reference implementation.
  */
 @InstrumentClass({
     prefix: 'llm.openai',
@@ -172,6 +178,30 @@ export class OpenAIService implements ILLMService {
                         reasoningTokens += usage.completion_tokens_details?.reasoning_tokens ?? 0;
                     }
 
+                    // Overflow detection: check if we're approaching context limit
+                    // Use latest usage.prompt_tokens (not cumulative) - each API response's
+                    // prompt_tokens represents the TOTAL input for that specific call
+                    const maxInputTokens = this.contextManager.getMaxInputTokens();
+                    const OVERFLOW_THRESHOLD = 0.95; // 95% of max
+                    const latestInputTokens = usage?.prompt_tokens ?? 0;
+                    if (latestInputTokens > maxInputTokens * OVERFLOW_THRESHOLD) {
+                        this.logger.warn(
+                            `Context overflow detected: ${latestInputTokens} tokens used (${Math.round((latestInputTokens / maxInputTokens) * 100)}% of ${maxInputTokens} max). ` +
+                                `Stopping tool loop to prevent API error.`
+                        );
+                        // Return with current response
+                        const responseText = message.content || '';
+                        const finalContent = stream ? fullResponse + responseText : responseText;
+                        this.sessionEventBus.emit('llm:response', {
+                            content: finalContent,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            router: 'in-built',
+                            tokenUsage: { totalTokens, inputTokens, outputTokens, reasoningTokens },
+                        });
+                        return finalContent || 'Context limit reached during tool execution.';
+                    }
+
                     // If there are no tool calls, we're done
                     if (!message.tool_calls || message.tool_calls.length === 0) {
                         const responseText = message.content || '';
@@ -278,11 +308,23 @@ export class OpenAIService implements ILLMService {
                             this.logger.error(`Error parsing arguments for ${toolName}:`, {
                                 error: e instanceof Error ? e.message : String(e),
                             });
-                            const sanitized = await this.contextManager.addToolResult(
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
+                                { error: `Failed to parse arguments: ${e}` },
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolCall.id,
+                                    success: false,
+                                },
+                                this.logger
+                            );
+                            await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
-                                { error: `Failed to parse arguments: ${e}` },
-                                { success: false }
+                                sanitized
                             );
                             // Notify failure so UI & logging subscribers stay in sync
                             this.sessionEventBus.emit('llm:tool-result', {
@@ -312,12 +354,23 @@ export class OpenAIService implements ILLMService {
                                 this.sessionId
                             );
 
-                            // Add tool result to message manager
-                            const sanitized = await this.contextManager.addToolResult(
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
+                                result,
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolCall.id,
+                                    success: true,
+                                },
+                                this.logger
+                            );
+                            await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
-                                result,
-                                { success: true }
+                                sanitized
                             );
 
                             // Notify tool result
@@ -336,12 +389,23 @@ export class OpenAIService implements ILLMService {
                                 `Tool execution error for ${toolName}: ${errorMessage}`
                             );
 
-                            // Add error as tool result
-                            const sanitized = await this.contextManager.addToolResult(
+                            // TODO: Temp fix - will be replaced by TurnExecutor in Phase 8
+                            const sanitized = await sanitizeToolResult(
+                                { error: errorMessage },
+                                {
+                                    blobStore: this.contextManager
+                                        .getResourceManager()
+                                        .getBlobStore(),
+                                    toolName,
+                                    toolCallId: toolCall.id,
+                                    success: false,
+                                },
+                                this.logger
+                            );
+                            await this.contextManager.addToolResult(
                                 toolCall.id,
                                 toolName,
-                                { error: errorMessage },
-                                { success: false }
+                                sanitized
                             );
 
                             this.sessionEventBus.emit('llm:tool-result', {
@@ -756,5 +820,15 @@ export class OpenAIService implements ILLMService {
      */
     getContextManager(): ContextManager<unknown> {
         return this.contextManager;
+    }
+
+    /**
+     * Message queueing is not supported for OpenAI native router.
+     * Use the Vercel router for message queueing support.
+     */
+    getMessageQueue(): MessageQueueService {
+        throw new Error(
+            'Message queueing is not supported with OpenAI native router. Use router: "vercel" for this feature.'
+        );
     }
 }

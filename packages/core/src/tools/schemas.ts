@@ -100,3 +100,21 @@ export const ElicitationConfigSchema = z
 
 export type ElicitationConfig = z.input<typeof ElicitationConfigSchema>;
 export type ValidatedElicitationConfig = z.output<typeof ElicitationConfigSchema>;
+
+// Tool limits configuration
+export const ToolLimitsSchema = z
+    .object({
+        maxOutputChars: z
+            .number()
+            .optional()
+            .describe('Maximum number of characters for tool output'),
+        maxLines: z.number().optional().describe('Maximum number of lines for tool output'),
+        maxLineLength: z.number().optional().describe('Maximum length of a single line'),
+    })
+    .strict();
+
+export const ToolsConfigSchema = z
+    .record(ToolLimitsSchema)
+    .describe('Per-tool configuration limits');
+
+export type ToolsConfig = z.output<typeof ToolsConfigSchema>;

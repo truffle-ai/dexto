@@ -10,7 +10,14 @@ export { ErrorScope, ErrorType } from './errors/types.js'; // Used by client-sdk
 export type { Issue, Severity, DextoErrorCode } from './errors/types.js';
 
 // Context/message types (used by webui package)
-export type { InternalMessage, TextPart, FilePart, ImageData, FileData } from './context/types.js';
+export type {
+    InternalMessage,
+    TextPart,
+    FilePart,
+    ImageData,
+    FileData,
+    UIResourcePart,
+} from './context/types.js';
 // Note: ImagePart not exported - only used internally in core package
 
 // Context utilities (used by webui package for media kind detection)

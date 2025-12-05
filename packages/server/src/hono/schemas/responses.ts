@@ -34,6 +34,19 @@ import {
     LLM_ROUTERS,
 } from '@dexto/core';
 
+// TODO: Implement shared error response schemas for OpenAPI documentation.
+// Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
+// enforces strict type matching between route definitions and handlers. When a 404 schema
+// is defined, TypeScript expects handler return types to be a union of all response types,
+// but the type system tries to match every return against every schema instead of by status code.
+//
+// Solution: Create a typed helper or wrapper that:
+// 1. Defines a shared ErrorResponseSchema (e.g., { error: string, code?: string })
+// 2. Properly types handlers to return discriminated unions by status code
+// 3. Can be reused across all routes for consistent error documentation
+//
+// See: https://github.com/honojs/middleware/tree/main/packages/zod-openapi for patterns
+
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
 // ============================================================================
@@ -75,9 +88,42 @@ export const FilePartSchema = z
     .strict()
     .describe('File content part');
 
+export const UIResourcePartSchema = z
+    .object({
+        type: z.literal('ui-resource').describe('Part type: ui-resource'),
+        uri: z.string().describe('URI identifying the UI resource (must start with ui://)'),
+        mimeType: z
+            .string()
+            .describe('MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom'),
+        content: z.string().optional().describe('Inline HTML content or URL'),
+        blob: z.string().optional().describe('Base64-encoded content (alternative to content)'),
+        metadata: z
+            .object({
+                title: z.string().optional().describe('Display title for the UI resource'),
+                preferredSize: z
+                    .object({
+                        width: z.number().describe('Preferred width in pixels'),
+                        height: z.number().describe('Preferred height in pixels'),
+                    })
+                    .strict()
+                    .optional()
+                    .describe('Preferred rendering size'),
+            })
+            .strict()
+            .optional()
+            .describe('Optional metadata for the UI resource'),
+    })
+    .strict()
+    .describe('UI Resource content part for MCP-UI interactive components');
+
 export const ContentPartSchema = z
-    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
-    .describe('Message content part (text, image, or file)');
+    .discriminatedUnion('type', [
+        TextPartSchema,
+        ImagePartSchema,
+        FilePartSchema,
+        UIResourcePartSchema,
+    ])
+    .describe('Message content part (text, image, file, or UI resource)');
 
 export const ToolCallSchema = z
     .object({

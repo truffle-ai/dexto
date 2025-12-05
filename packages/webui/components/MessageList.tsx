@@ -2,17 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
     Message,
-    TextPart,
-    AudioPart,
     isToolResultError,
     isToolResultContent,
-    isTextPart,
-    isImagePart,
-    isAudioPart,
-    isFilePart,
     ErrorMessage,
     ToolResult,
 } from './hooks/useChat';
+import { isTextPart, isImagePart, isAudioPart, isFilePart, isUIResourcePart } from '../types';
+import type { TextPart, AudioPart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
@@ -40,6 +36,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { MarkdownText } from './ui/markdown-text';
 import { CopyButton } from './ui/copy-button';
 import { SpeakButton } from './ui/speak-button';
+import { UIResourceRendererWrapper } from './ui/ui-resource-renderer';
 import {
     useResourceContent,
     type ResourceState,
@@ -493,9 +490,17 @@ export default function MessageList({
                     mimeType?: string;
                     index: number;
                 }> = [];
+                const toolResultUIResources: Array<{ resource: UIResourcePart; index: number }> =
+                    [];
                 if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
                     msg.toolResult.content.forEach((part, index) => {
-                        if (isImagePart(part)) {
+                        // Handle UI resource parts (MCP-UI interactive content)
+                        if (isUIResourcePart(part)) {
+                            toolResultUIResources.push({
+                                resource: part,
+                                index,
+                            });
+                        } else if (isImagePart(part)) {
                             const src = resolveMediaSrc(part, toolResourceStates);
 
                             if (src && isSafeMediaUrl(src, 'image')) {
@@ -755,8 +760,11 @@ export default function MessageList({
                                                                                         part,
                                                                                         toolResourceStates
                                                                                     );
-                                                                                // Skip media parts (image/audio/video) as they render separately
+                                                                                // Skip media parts (image/audio/video/ui-resource) as they render separately
                                                                                 if (
+                                                                                    isUIResourcePart(
+                                                                                        part
+                                                                                    ) ||
                                                                                     isImagePart(
                                                                                         part
                                                                                     ) ||
@@ -943,6 +951,25 @@ export default function MessageList({
                                                                         onOpenImage={openImageModal}
                                                                         resourceSet={resourceSet}
                                                                     />
+                                                                );
+                                                            }
+                                                            // Handle UI resource parts (MCP-UI interactive content)
+                                                            if (isUIResourcePart(part)) {
+                                                                return (
+                                                                    <div
+                                                                        key={partKey}
+                                                                        className="my-2"
+                                                                    >
+                                                                        <UIResourceRendererWrapper
+                                                                            resource={part}
+                                                                            onAction={(action) => {
+                                                                                console.log(
+                                                                                    'MCP-UI Action:',
+                                                                                    action
+                                                                                );
+                                                                            }}
+                                                                        />
+                                                                    </div>
                                                                 );
                                                             }
                                                             // Handle image parts
@@ -1435,6 +1462,32 @@ export default function MessageList({
                                                         )}
                                                     </div>
                                                 </div>
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mt-1 px-1">
+                                                <span>{timestampStr}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Render tool result UI resources (MCP-UI interactive content) */}
+                            {toolResultUIResources.map((uiResource, uiIndex) => (
+                                <div
+                                    key={`${msgKey}-ui-resource-${uiIndex}`}
+                                    className="w-full mt-2"
+                                >
+                                    <div className="flex items-start w-full justify-start">
+                                        <Bot className="h-7 w-7 mr-2 mt-1 text-muted-foreground flex-shrink-0" />
+                                        <div className="flex flex-col items-start flex-1 min-w-0">
+                                            <div className="w-full max-w-[90%] bg-card text-card-foreground border border-border rounded-xl rounded-bl-none shadow-sm overflow-hidden">
+                                                <UIResourceRendererWrapper
+                                                    resource={uiResource.resource}
+                                                    onAction={(action) => {
+                                                        // Log UI actions for debugging
+                                                        console.log('MCP-UI Action:', action);
+                                                    }}
+                                                />
                                             </div>
                                             <div className="text-xs text-muted-foreground mt-1 px-1">
                                                 <span>{timestampStr}</span>

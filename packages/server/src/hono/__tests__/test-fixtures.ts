@@ -27,7 +27,7 @@ export function createTestAgentConfig(): AgentConfig {
             blob: { type: 'local', storePath: '/tmp/test-blobs' },
         },
         sessions: {
-            maxSessions: 10,
+            maxSessions: 50, // Increased to accommodate all integration tests
             sessionTTL: 3600,
         },
         toolConfirmation: {

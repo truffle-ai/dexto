@@ -73,6 +73,10 @@
     {
       "name": "agents",
       "description": "Install, switch, and manage agent configurations"
+    },
+    {
+      "name": "queue",
+      "description": "Manage message queue for busy sessions"
     }
   ],
   "components": {
@@ -2780,7 +2784,7 @@
     "/api/message-stream": {
       "post": {
         "summary": "Stream message response",
-        "description": "Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error.",
+        "description": "Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. If the session is busy processing another message, returns 202 with queue information.",
         "tags": [
           "messages"
         ],
@@ -2886,6 +2890,44 @@
                 "schema": {
                   "type": "string",
                   "description": "Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Session is busy processing another message. Use the queue endpoints to manage pending messages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "busy": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates session is busy"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "The session ID"
+                    },
+                    "queueLength": {
+                      "type": "number",
+                      "description": "Current number of messages in queue"
+                    },
+                    "hint": {
+                      "type": "string",
+                      "description": "Instructions for the client"
+                    }
+                  },
+                  "required": [
+                    "busy",
+                    "sessionId",
+                    "queueLength",
+                    "hint"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -5042,7 +5084,7 @@
     "/api/sessions/{sessionId}/history": {
       "get": {
         "summary": "Get Session History",
-        "description": "Retrieves the conversation history for a session",
+        "description": "Retrieves the conversation history for a session along with processing status",
         "tags": [
           "sessions"
         ],
@@ -5182,9 +5224,74 @@
                                       ],
                                       "additionalProperties": false,
                                       "description": "File content part"
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "enum": [
+                                            "ui-resource"
+                                          ],
+                                          "description": "Part type: ui-resource"
+                                        },
+                                        "uri": {
+                                          "type": "string",
+                                          "description": "URI identifying the UI resource (must start with ui://)"
+                                        },
+                                        "mimeType": {
+                                          "type": "string",
+                                          "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                        },
+                                        "content": {
+                                          "type": "string",
+                                          "description": "Inline HTML content or URL"
+                                        },
+                                        "blob": {
+                                          "type": "string",
+                                          "description": "Base64-encoded content (alternative to content)"
+                                        },
+                                        "metadata": {
+                                          "type": "object",
+                                          "properties": {
+                                            "title": {
+                                              "type": "string",
+                                              "description": "Display title for the UI resource"
+                                            },
+                                            "preferredSize": {
+                                              "type": "object",
+                                              "properties": {
+                                                "width": {
+                                                  "type": "number",
+                                                  "description": "Preferred width in pixels"
+                                                },
+                                                "height": {
+                                                  "type": "number",
+                                                  "description": "Preferred height in pixels"
+                                                }
+                                              },
+                                              "required": [
+                                                "width",
+                                                "height"
+                                              ],
+                                              "additionalProperties": false,
+                                              "description": "Preferred rendering size"
+                                            }
+                                          },
+                                          "additionalProperties": false,
+                                          "description": "Optional metadata for the UI resource"
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "uri",
+                                        "mimeType"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "UI Resource content part for MCP-UI interactive components"
                                     }
                                   ],
-                                  "description": "Message content part (text, image, or file)"
+                                  "description": "Message content part (text, image, file, or UI resource)"
                                 }
                               },
                               {
@@ -5312,10 +5419,15 @@
                         "description": "Internal message representation"
                       },
                       "description": "Array of messages in conversation history"
+                    },
+                    "isBusy": {
+                      "type": "boolean",
+                      "description": "Whether the session is currently processing a message"
                     }
                   },
                   "required": [
-                    "history"
+                    "history",
+                    "isBusy"
                   ],
                   "additionalProperties": false
                 }
@@ -5328,7 +5440,7 @@
     "/api/sessions/{sessionId}/cancel": {
       "post": {
         "summary": "Cancel Session Run",
-        "description": "Cancels an in-flight agent run for the specified session",
+        "description": "Cancels an in-flight agent run for the specified session. By default (soft cancel), only the current LLM call is cancelled and queued messages continue processing. Set clearQueue=true for hard cancel to also clear any queued messages.",
         "tags": [
           "sessions"
         ],
@@ -5344,6 +5456,24 @@
             "in": "path"
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clearQueue": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "If true (hard cancel), clears queued messages. If false (soft cancel, default), queued messages continue processing."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Cancel operation result",
@@ -5359,11 +5489,21 @@
                     "sessionId": {
                       "type": "string",
                       "description": "Session ID"
+                    },
+                    "queueCleared": {
+                      "type": "boolean",
+                      "description": "Whether queued messages were cleared"
+                    },
+                    "clearedCount": {
+                      "type": "number",
+                      "description": "Number of queued messages cleared (0 if soft cancel)"
                     }
                   },
                   "required": [
                     "cancelled",
-                    "sessionId"
+                    "sessionId",
+                    "queueCleared",
+                    "clearedCount"
                   ],
                   "additionalProperties": false
                 }
@@ -5376,7 +5516,7 @@
     "/api/sessions/{sessionId}/load": {
       "get": {
         "summary": "Load Session",
-        "description": "Validates and retrieves session information. The client should track the active session.",
+        "description": "Validates and retrieves session information including processing status. The client should track the active session.",
         "tags": [
           "sessions"
         ],
@@ -5430,16 +5570,21 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "isBusy": {
+                          "type": "boolean",
+                          "description": "Whether the session is currently processing a message"
                         }
                       },
                       "required": [
                         "id",
                         "createdAt",
                         "lastActivity",
-                        "messageCount"
+                        "messageCount",
+                        "isBusy"
                       ],
                       "additionalProperties": false,
-                      "description": "Session metadata"
+                      "description": "Session metadata with processing status"
                     }
                   },
                   "required": [
@@ -5726,9 +5871,74 @@
                                           ],
                                           "additionalProperties": false,
                                           "description": "File content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "ui-resource"
+                                              ],
+                                              "description": "Part type: ui-resource"
+                                            },
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "URI identifying the UI resource (must start with ui://)"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                            },
+                                            "content": {
+                                              "type": "string",
+                                              "description": "Inline HTML content or URL"
+                                            },
+                                            "blob": {
+                                              "type": "string",
+                                              "description": "Base64-encoded content (alternative to content)"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "properties": {
+                                                "title": {
+                                                  "type": "string",
+                                                  "description": "Display title for the UI resource"
+                                                },
+                                                "preferredSize": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "width": {
+                                                      "type": "number",
+                                                      "description": "Preferred width in pixels"
+                                                    },
+                                                    "height": {
+                                                      "type": "number",
+                                                      "description": "Preferred height in pixels"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "width",
+                                                    "height"
+                                                  ],
+                                                  "additionalProperties": false,
+                                                  "description": "Preferred rendering size"
+                                                }
+                                              },
+                                              "additionalProperties": false,
+                                              "description": "Optional metadata for the UI resource"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "uri",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "UI Resource content part for MCP-UI interactive components"
                                         }
                                       ],
-                                      "description": "Message content part (text, image, or file)"
+                                      "description": "Message content part (text, image, file, or UI resource)"
                                     }
                                   },
                                   {
@@ -6073,9 +6283,74 @@
                                               ],
                                               "additionalProperties": false,
                                               "description": "File content part"
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "type": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "ui-resource"
+                                                  ],
+                                                  "description": "Part type: ui-resource"
+                                                },
+                                                "uri": {
+                                                  "type": "string",
+                                                  "description": "URI identifying the UI resource (must start with ui://)"
+                                                },
+                                                "mimeType": {
+                                                  "type": "string",
+                                                  "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                                },
+                                                "content": {
+                                                  "type": "string",
+                                                  "description": "Inline HTML content or URL"
+                                                },
+                                                "blob": {
+                                                  "type": "string",
+                                                  "description": "Base64-encoded content (alternative to content)"
+                                                },
+                                                "metadata": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "title": {
+                                                      "type": "string",
+                                                      "description": "Display title for the UI resource"
+                                                    },
+                                                    "preferredSize": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "width": {
+                                                          "type": "number",
+                                                          "description": "Preferred width in pixels"
+                                                        },
+                                                        "height": {
+                                                          "type": "number",
+                                                          "description": "Preferred height in pixels"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "width",
+                                                        "height"
+                                                      ],
+                                                      "additionalProperties": false,
+                                                      "description": "Preferred rendering size"
+                                                    }
+                                                  },
+                                                  "additionalProperties": false,
+                                                  "description": "Optional metadata for the UI resource"
+                                                }
+                                              },
+                                              "required": [
+                                                "type",
+                                                "uri",
+                                                "mimeType"
+                                              ],
+                                              "additionalProperties": false,
+                                              "description": "UI Resource content part for MCP-UI interactive components"
                                             }
                                           ],
-                                          "description": "Message content part (text, image, or file)"
+                                          "description": "Message content part (text, image, file, or UI resource)"
                                         }
                                       },
                                       {
@@ -10610,6 +10885,29 @@
                         "default": [],
                         "description": "Internal tools configuration (read-file, write-file, bash-exec, etc.)"
                       },
+                      "tools": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "maxOutputChars": {
+                              "type": "number",
+                              "description": "Maximum number of characters for tool output"
+                            },
+                            "maxLines": {
+                              "type": "number",
+                              "description": "Maximum number of lines for tool output"
+                            },
+                            "maxLineLength": {
+                              "type": "number",
+                              "description": "Maximum length of a single line"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "default": {},
+                        "description": "Configuration for individual tools (limits, etc.)"
+                      },
                       "logger": {
                         "type": "object",
                         "properties": {
@@ -12015,6 +12313,471 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/queue/{sessionId}": {
+      "get": {
+        "summary": "Get queued messages",
+        "description": "Returns all messages waiting in the queue for a session",
+        "tags": [
+          "queue"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Session ID"
+            },
+            "required": true,
+            "description": "Session ID",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of queued messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Unique identifier for the queued message"
+                          },
+                          "content": {
+                            "type": "array",
+                            "items": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ],
+                                      "description": "Part type: text"
+                                    },
+                                    "text": {
+                                      "type": "string",
+                                      "description": "Text content"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "text"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Text content part"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "image"
+                                      ],
+                                      "description": "Part type: image"
+                                    },
+                                    "image": {
+                                      "type": "string",
+                                      "description": "Base64-encoded image data"
+                                    },
+                                    "mimeType": {
+                                      "type": "string",
+                                      "description": "MIME type of the image"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "image"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Image content part"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "file"
+                                      ],
+                                      "description": "Part type: file"
+                                    },
+                                    "data": {
+                                      "type": "string",
+                                      "description": "Base64-encoded file data"
+                                    },
+                                    "mimeType": {
+                                      "type": "string",
+                                      "description": "MIME type of the file"
+                                    },
+                                    "filename": {
+                                      "type": "string",
+                                      "description": "Optional filename"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "data",
+                                    "mimeType"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "File content part"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "ui-resource"
+                                      ],
+                                      "description": "Part type: ui-resource"
+                                    },
+                                    "uri": {
+                                      "type": "string",
+                                      "description": "URI identifying the UI resource (must start with ui://)"
+                                    },
+                                    "mimeType": {
+                                      "type": "string",
+                                      "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                    },
+                                    "content": {
+                                      "type": "string",
+                                      "description": "Inline HTML content or URL"
+                                    },
+                                    "blob": {
+                                      "type": "string",
+                                      "description": "Base64-encoded content (alternative to content)"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "properties": {
+                                        "title": {
+                                          "type": "string",
+                                          "description": "Display title for the UI resource"
+                                        },
+                                        "preferredSize": {
+                                          "type": "object",
+                                          "properties": {
+                                            "width": {
+                                              "type": "number",
+                                              "description": "Preferred width in pixels"
+                                            },
+                                            "height": {
+                                              "type": "number",
+                                              "description": "Preferred height in pixels"
+                                            }
+                                          },
+                                          "required": [
+                                            "width",
+                                            "height"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Preferred rendering size"
+                                        }
+                                      },
+                                      "additionalProperties": false,
+                                      "description": "Optional metadata for the UI resource"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "uri",
+                                    "mimeType"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "UI Resource content part for MCP-UI interactive components"
+                                }
+                              ],
+                              "description": "Message content part (text, image, file, or UI resource)"
+                            },
+                            "description": "Message content parts"
+                          },
+                          "queuedAt": {
+                            "type": "number",
+                            "description": "Unix timestamp when message was queued"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Optional metadata"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "content",
+                          "queuedAt"
+                        ],
+                        "additionalProperties": false,
+                        "description": "A message waiting in the queue"
+                      },
+                      "description": "Queued messages"
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Number of messages in queue"
+                    }
+                  },
+                  "required": [
+                    "messages",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      },
+      "post": {
+        "summary": "Queue a message",
+        "description": "Adds a message to the queue for processing when the session is no longer busy",
+        "tags": [
+          "queue"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Session ID"
+            },
+            "required": true,
+            "description": "Session ID",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "Text message to queue"
+                  },
+                  "imageData": {
+                    "type": "object",
+                    "properties": {
+                      "image": {
+                        "type": "string",
+                        "description": "Base64-encoded image data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "MIME type of the image"
+                      }
+                    },
+                    "required": [
+                      "image",
+                      "mimeType"
+                    ],
+                    "description": "Optional image data"
+                  },
+                  "fileData": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "string",
+                        "description": "Base64-encoded file data"
+                      },
+                      "mimeType": {
+                        "type": "string",
+                        "description": "MIME type of the file"
+                      },
+                      "filename": {
+                        "type": "string",
+                        "description": "Optional filename"
+                      }
+                    },
+                    "required": [
+                      "data",
+                      "mimeType"
+                    ],
+                    "description": "Optional file data"
+                  }
+                },
+                "description": "Request body for queueing a message. At least one of message, imageData, or fileData must be provided."
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Message queued successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "queued": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates message was queued"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "ID of the queued message"
+                    },
+                    "position": {
+                      "type": "number",
+                      "description": "Position in the queue (1-based)"
+                    }
+                  },
+                  "required": [
+                    "queued",
+                    "id",
+                    "position"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear message queue",
+        "description": "Removes all messages from the queue for a session",
+        "tags": [
+          "queue"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Session ID"
+            },
+            "required": true,
+            "description": "Session ID",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue cleared successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cleared": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates queue was cleared"
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Number of messages that were removed"
+                    }
+                  },
+                  "required": [
+                    "cleared",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/api/queue/{sessionId}/{messageId}": {
+      "delete": {
+        "summary": "Remove queued message",
+        "description": "Removes a specific message from the queue",
+        "tags": [
+          "queue"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Session ID"
+            },
+            "required": true,
+            "description": "Session ID",
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "ID of the queued message to remove"
+            },
+            "required": true,
+            "description": "ID of the queued message to remove",
+            "name": "messageId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "removed": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Indicates message was removed"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "ID of the removed message"
+                    }
+                  },
+                  "required": [
+                    "removed",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or message not found"
           }
         }
       }

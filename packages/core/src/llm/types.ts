@@ -41,3 +41,10 @@ export interface LLMUpdateContext {
     router?: LLMRouter;
     suggestedAction?: string;
 }
+
+export interface TokenUsage {
+    inputTokens?: number;
+    outputTokens?: number;
+    reasoningTokens?: number;
+    totalTokens?: number;
+}

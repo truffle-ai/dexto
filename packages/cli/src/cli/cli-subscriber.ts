@@ -29,14 +29,18 @@ export class CLISubscriber implements EventSubscriber {
             // Ignore reasoning chunks for headless mode
         });
         eventBus.on('llm:tool-call', (payload) => this.onToolCall(payload.toolName, payload.args));
-        eventBus.on('llm:tool-result', (payload) =>
-            this.onToolResult(
-                payload.toolName,
-                payload.sanitized,
-                payload.rawResult,
-                payload.success
-            )
-        );
+        eventBus.on('llm:tool-result', (payload) => {
+            // Only call onToolResult when we have sanitized result (success case)
+            if (payload.sanitized) {
+                this.onToolResult(
+                    payload.toolName,
+                    payload.sanitized,
+                    payload.rawResult,
+                    payload.success
+                );
+            }
+            // For error case (success=false), the error is handled via llm:error event
+        });
         eventBus.on('llm:response', (payload) => this.onResponse(payload.content));
         eventBus.on('llm:error', (payload) => this.onError(payload.error));
         eventBus.on('session:reset', this.onConversationReset.bind(this));

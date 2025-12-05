@@ -12,6 +12,18 @@ export interface ITokenizer {
      * @returns Provider name (e.g., "openai", "anthropic")
      */
     getProviderName(): string;
+
+    /**
+     * Estimates token cost for an image based on provider's vision model pricing.
+     * Different providers charge very differently for images:
+     * - Claude: ~1000-2000+ tokens based on image dimensions
+     * - GPT-4 Vision: 85-765 tokens (tile-based system)
+     * - Gemini: 258 tokens flat per image
+     *
+     * @param byteSize Optional byte size of the image (if known)
+     * @returns Estimated token count for the image
+     */
+    estimateImageTokens(byteSize?: number): number;
 }
 
 export class TokenizationError extends Error {

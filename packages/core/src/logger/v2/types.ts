@@ -38,6 +38,7 @@ export enum DextoLogComponent {
     API = 'api',
     CLI = 'cli',
     TELEMETRY = 'telemetry',
+    EXECUTOR = 'executor',
 }
 
 /**

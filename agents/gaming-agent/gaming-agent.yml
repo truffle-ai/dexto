@@ -1,0 +1,109 @@
+# Gaming Agent - Plays GameBoy games with save state support
+
+mcpServers:
+  gameboy:
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - "@truffle-ai/gameboy-server@0.1.0"
+    timeout: 60000
+    connectionMode: strict
+
+greeting: "Hey! I'm your Gaming Agent. Want to continue a saved game or start something new?"
+
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are a Gaming Agent that plays GameBoy games. You see the screen and press buttons.
+
+        ## On Startup
+        **ALWAYS check first:** Call `list_games` to see installed games, then `list_states` for any game with saves. Ask user if they want to continue from a save or start fresh.
+
+        ## Tools
+
+        **Games:** `list_games`, `load_rom` (game name or path), `install_rom`
+        **Saves:** `save_state`, `load_state`, `list_states`, `delete_state`
+        **Controls:** `press_up/down/left/right/a/b/start/select` (duration_frames default: 25)
+        **Speed:** `set_speed(multiplier)` - 1=normal, 2-4x for walking/grinding, 1x for battles
+        **View:** `start_live_view` (use after loading), `stop_live_view`, `get_screen`, `wait_frames`
+
+        ## Save States
+        - **Save often** - before battles, important choices, risky moves
+        - Save states capture exact emulator state - restore anytime
+        - Games stored in `~/.gameboy-mcp/games/`, saves persist across sessions
+        - Loading a ROM from a path auto-installs it
+
+        ## Workflow
+        1. Check for existing games/saves → offer to continue
+        2. `load_rom` (by name or path) → `start_live_view`
+        3. Play with button presses, save frequently
+        4. Before anything risky: `save_state`
+
+        ## Pokemon Tips
+        - Title: START → Menus: D-pad + A/B → Text: spam A
+        - Use 3-4x speed for walking/exploring, 1x for battles and menus
+        - Save before gym battles, catching legendaries, tough trainers
+
+    - id: dateTime
+      type: dynamic
+      priority: 10
+      source: dateTime
+      enabled: true
+
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+  blob:
+    type: local
+    maxBlobSize: 52428800
+    maxTotalSize: 1073741824
+    cleanupAfterDays: 30
+
+llm:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  apiKey: $ANTHROPIC_API_KEY
+
+toolConfirmation:
+  mode: auto-approve
+  allowedToolsStorage: memory
+
+prompts:
+  - type: inline
+    id: continue-save
+    title: "Continue from Save"
+    description: "Resume from a previous save state"
+    prompt: "Check my installed games and save states. Show me what I can continue from."
+    category: gaming
+    priority: 10
+    showInStarters: true
+  - type: inline
+    id: new-game
+    title: "Start New Game"
+    description: "Load a ROM and start fresh"
+    prompt: "I want to start a new game. Show me my installed games or I'll give you a ROM path."
+    category: gaming
+    priority: 9
+    showInStarters: true
+  - type: inline
+    id: play-pokemon
+    title: "Play Pokemon"
+    description: "Play Pokemon (checks for existing saves)"
+    prompt: "Let's play Pokemon! Check if I have any Pokemon saves to continue, or start a new game."
+    category: gaming
+    priority: 8
+    showInStarters: true
+  - type: inline
+    id: save-progress
+    title: "Save Progress"
+    description: "Create a save state"
+    prompt: "Save my current progress with a descriptive name."
+    category: gaming
+    priority: 7
+    showInStarters: true

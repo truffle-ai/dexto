@@ -16,6 +16,7 @@ import {
     InternalToolsSchema,
     ToolConfirmationConfigSchema,
     ElicitationConfigSchema,
+    ToolsConfigSchema,
 } from '@core/tools/schemas.js';
 import { z } from 'zod';
 import { InternalResourcesSchema } from '@core/resources/schemas.js';
@@ -368,6 +369,10 @@ export const AgentConfigSchema = z
         internalTools: InternalToolsSchema.describe(
             'Internal tools configuration (read-file, write-file, bash-exec, etc.)'
         ).default([]),
+
+        tools: ToolsConfigSchema.describe(
+            'Configuration for individual tools (limits, etc.)'
+        ).default({}),
 
         logger: LoggerConfigSchema.describe(
             'Logger configuration with multi-transport support (file, console, remote) - CLI enrichment adds per-agent file transport'
