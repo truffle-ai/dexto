@@ -1,5 +1,5 @@
 import { generateText, type LanguageModel } from 'ai';
-import type { ICompressionStrategy, CompressionTrigger } from './types.js';
+import type { ICompressionStrategy } from './types.js';
 import type { InternalMessage } from '../types.js';
 import type { ITokenizer } from '../../llm/tokenizer/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
@@ -64,7 +64,6 @@ Conversation:
  */
 export class ReactiveOverflowStrategy implements ICompressionStrategy {
     readonly name = 'reactive-overflow';
-    readonly trigger: CompressionTrigger = { type: 'overflow' };
 
     private readonly model: LanguageModel;
     private readonly options: Required<ReactiveOverflowOptions>;
@@ -133,23 +132,6 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
         // Return just the summary message - caller adds it to history
         // filterCompacted() will handle excluding old messages at read-time
         return [summaryMessage];
-    }
-
-    /**
-     * Validate that compression actually reduced token count.
-     *
-     * @param beforeTokens Token count before compression
-     * @param afterTokens Token count after compression
-     * @returns true if compression was effective
-     */
-    validate(beforeTokens: number, afterTokens: number): boolean {
-        const isEffective = afterTokens < beforeTokens;
-        if (!isEffective) {
-            this.logger.warn(
-                `ReactiveOverflowStrategy validation failed: before=${beforeTokens}, after=${afterTokens}`
-            );
-        }
-        return isEffective;
     }
 
     /**
