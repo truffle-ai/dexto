@@ -47,8 +47,8 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
                     fallbackLines.push(`  /${cmd.name} - ${cmd.description}`);
                 }
 
-                // Log for regular CLI (with chalk formatting)
-                displayAllCommands(allCommands);
+                // NOTE: Don't call displayAllCommands() here - it uses console.log which
+                // interferes with Ink's rendering. The styled output will be rendered by Ink.
 
                 return CommandOutputHelper.styled('help', styledData, fallbackLines.join('\n'));
             }

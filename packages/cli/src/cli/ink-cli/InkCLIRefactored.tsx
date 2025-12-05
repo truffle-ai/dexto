@@ -180,9 +180,23 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
             }
 
             // Only dispatch if overlay needs to change
+            // BUT don't auto-close overlays that are triggered on Enter (not by typing)
+            // These should only be closed by user action (Escape, selection, etc.)
+            const enterTriggeredOverlays = [
+                'log-level-selector',
+                'mcp-selector',
+                'mcp-add-selector',
+                'mcp-remove-selector',
+                'mcp-custom-type-selector',
+                'mcp-custom-wizard',
+                'session-subcommand-selector',
+            ];
+            const isEnterTriggeredOverlay = enterTriggeredOverlays.includes(state.ui.activeOverlay);
+
             if (
                 desiredOverlay !== state.ui.activeOverlay &&
-                state.ui.activeOverlay !== 'approval'
+                state.ui.activeOverlay !== 'approval' &&
+                !isEnterTriggeredOverlay // Don't auto-close enter-triggered overlays
             ) {
                 if (desiredOverlay === 'none') {
                     dispatch({ type: 'CLOSE_OVERLAY' });

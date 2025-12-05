@@ -94,14 +94,16 @@ export class CommandOutputHelper {
      * @param styledType - The type of styled rendering
      * @param styledData - The structured data for rendering
      * @param fallbackText - Plain text fallback for logging/non-ink environments
+     *
+     * NOTE: Do NOT console.log here - it interferes with Ink's terminal rendering.
+     * The styled output will be rendered by Ink components, and fallbackText
+     * is stored for headless/non-ink environments.
      */
     static styled(
         styledType: StyledMessageType,
         styledData: StyledData,
         fallbackText: string
     ): StyledOutput {
-        // Log fallback text to console for non-ink environments
-        console.log(fallbackText);
         return {
             styledType,
             styledData,

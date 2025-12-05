@@ -346,6 +346,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         });
                     }
 
+                    // Handle styled output
+                    if (result.type === 'styled' && result.styled) {
+                        dispatch({
+                            type: 'MESSAGE_ADD',
+                            message: {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: result.styled.fallbackText,
+                                timestamp: new Date(),
+                                styledType: result.styled.styledType,
+                                styledData: result.styled.styledData,
+                            },
+                        });
+                    }
+
                     dispatch({ type: 'PROCESSING_END' });
                 } catch (error) {
                     dispatch({
@@ -364,15 +379,31 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 // Check if this is an interactive command that should show a selector
                 // instead of being executed
                 if (command === 'model') {
-                    // Update input to full command so auto-detection keeps selector open
                     dispatch({ type: 'INPUT_CHANGE', value: '/model' });
                     dispatch({ type: 'SHOW_OVERLAY', overlay: 'model-selector' });
                     return;
                 }
                 if (command === 'resume' || command === 'switch') {
-                    // Update input to full command so auto-detection keeps selector open
                     dispatch({ type: 'INPUT_CHANGE', value: `/${command}` });
                     dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-selector' });
+                    return;
+                }
+                if (command === 'log') {
+                    dispatch({ type: 'CLOSE_OVERLAY' });
+                    dispatch({ type: 'INPUT_CLEAR' });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'log-level-selector' });
+                    return;
+                }
+                if (command === 'mcp') {
+                    dispatch({ type: 'CLOSE_OVERLAY' });
+                    dispatch({ type: 'INPUT_CLEAR' });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-selector' });
+                    return;
+                }
+                if (command === 'session') {
+                    dispatch({ type: 'CLOSE_OVERLAY' });
+                    dispatch({ type: 'INPUT_CLEAR' });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-subcommand-selector' });
                     return;
                 }
 
@@ -415,6 +446,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 role: 'system',
                                 content: result.output,
                                 timestamp: new Date(),
+                            },
+                        });
+                    }
+
+                    // Handle styled output (for /help, /config, /stats, etc.)
+                    if (result.type === 'styled' && result.styled) {
+                        dispatch({
+                            type: 'MESSAGE_ADD',
+                            message: {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: result.styled.fallbackText,
+                                timestamp: new Date(),
+                                styledType: result.styled.styledType,
+                                styledData: result.styled.styledData,
                             },
                         });
                     }
@@ -510,6 +556,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                         role: 'system',
                                         content: result.output,
                                         timestamp: new Date(),
+                                    },
+                                });
+                            }
+                            if (result.type === 'styled' && result.styled) {
+                                dispatch({
+                                    type: 'MESSAGE_ADD',
+                                    message: {
+                                        id: generateMessageId('command'),
+                                        role: 'system',
+                                        content: result.styled.fallbackText,
+                                        timestamp: new Date(),
+                                        styledType: result.styled.styledType,
+                                        styledData: result.styled.styledData,
                                     },
                                 });
                             }
@@ -735,6 +794,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 role: 'system',
                                 content: result.output,
                                 timestamp: new Date(),
+                            },
+                        });
+                    }
+                    if (result.type === 'styled' && result.styled) {
+                        dispatch({
+                            type: 'MESSAGE_ADD',
+                            message: {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: result.styled.fallbackText,
+                                timestamp: new Date(),
+                                styledType: result.styled.styledType,
+                                styledData: result.styled.styledData,
                             },
                         });
                     }
