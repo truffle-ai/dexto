@@ -1,5 +1,4 @@
 import { InternalMessage } from '../types.js';
-import { ITokenizer } from '@core/llm/tokenizer/types.js';
 
 /**
  * Compression strategy interface.
@@ -16,13 +15,7 @@ export interface ICompressionStrategy {
      * Compresses the provided message history.
      *
      * @param history The current conversation history.
-     * @param tokenizer The tokenizer used to calculate message tokens.
-     * @param maxTokens The maximum number of tokens allowed in the history.
-     * @returns The potentially compressed message history.
+     * @returns Summary messages to add to history (filterCompacted handles the rest).
      */
-    compress(
-        history: readonly InternalMessage[],
-        tokenizer: ITokenizer,
-        maxTokens: number
-    ): Promise<InternalMessage[]> | InternalMessage[];
+    compress(history: readonly InternalMessage[]): Promise<InternalMessage[]> | InternalMessage[];
 }

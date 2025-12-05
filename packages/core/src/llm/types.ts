@@ -10,17 +10,9 @@ export const LLM_PROVIDERS = [
 ] as const;
 export type LLMProvider = (typeof LLM_PROVIDERS)[number];
 
-export const LLM_ROUTERS = ['vercel', 'in-built'] as const;
-export type LLMRouter = (typeof LLM_ROUTERS)[number];
-
 export const SUPPORTED_FILE_TYPES = ['pdf', 'image', 'audio'] as const;
 export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 
-/**
- * LLMRouter defines the routing backend for LLM service instantiation.
- * 'vercel' = use Vercel LLM service, 'in-built' = use in-built LLM service
- * This type is now defined in the registry as the source of truth.
- */
 /**
  * Context interface for message formatters.
  * Provides runtime information for model-aware processing.
@@ -38,7 +30,6 @@ export interface LLMContext {
 export interface LLMUpdateContext {
     provider?: LLMProvider;
     model?: string;
-    router?: LLMRouter;
     suggestedAction?: string;
 }
 

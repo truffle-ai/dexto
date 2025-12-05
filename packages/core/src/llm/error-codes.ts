@@ -14,7 +14,6 @@ export enum LLMErrorCode {
     MODEL_INCOMPATIBLE = 'llm_model_incompatible',
     MODEL_UNKNOWN = 'llm_model_unknown',
     PROVIDER_UNSUPPORTED = 'llm_provider_unsupported',
-    ROUTER_UNSUPPORTED = 'llm_router_unsupported',
 
     // Input validation (formerly generic "validation")
     INPUT_FILE_UNSUPPORTED = 'llm_input_file_unsupported',

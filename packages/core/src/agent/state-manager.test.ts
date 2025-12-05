@@ -42,7 +42,6 @@ describe('AgentStateManager Events', () => {
                 provider: 'openai',
                 model: 'gpt-5',
                 apiKey: 'test-key',
-                router: 'in-built',
                 maxIterations: 50,
             },
             internalTools: [],

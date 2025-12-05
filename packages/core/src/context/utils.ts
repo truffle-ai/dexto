@@ -6,27 +6,15 @@ import {
     UIResourcePart,
     SanitizedToolResult,
 } from './types.js';
-import { ITokenizer } from '@core/llm/tokenizer/types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
-import { ContextError } from './errors.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 
 // Tunable heuristics and shared constants
-const DEFAULT_OVERHEAD_PER_MESSAGE = 4; // Approximation for message format overhead
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
-
-// Vision model token estimates are now provider-specific via ITokenizer.estimateImageTokens()
-// Different providers charge differently for images:
-// - Claude: ~1000-2000+ tokens based on image dimensions
-// - GPT-4 Vision: 85-765 tokens (tile-based system)
-// - Gemini: 258 tokens flat per image
-// Legacy fallback constant for code that doesn't have access to tokenizer
-const FALLBACK_IMAGE_TOKENS = 1000;
-const BLOB_REFERENCE_PREFIX = '@blob:';
 
 type ToolBlobNamingOptions = {
     toolName?: string;
@@ -428,146 +416,29 @@ async function resolveBlobReferenceToParts(
 }
 
 /**
- * Counts the total tokens in an array of InternalMessages using a provided tokenizer.
- * Includes an estimated overhead per message.
+ * Simple token estimation using length/4 heuristic.
+ * Used for telemetry/logging only - actual token counts come from the LLM API.
  *
- * NOTE: This function counts tokens on the raw InternalMessage history and has limitations:
- * 1. It does not account for provider-specific formatting (uses raw content).
- * 2. It ignores the token cost of images and files in multimodal messages (counts text only).
- * 3. The overhead is a fixed approximation.
- * For more accurate counting reflecting the final provider payload, use ContextManager.countTotalTokens().
- *
- * @param history The array of messages to count.
- * @param tokenizer The tokenizer instance to use for counting.
- * @param overheadPerMessage Optional overhead tokens per message. Defaults to 4.
- * @returns The total token count.
- * @throws Error if token counting fails within the tokenizer.
+ * @param messages Messages to estimate tokens for
+ * @returns Estimated token count
  */
-export function countMessagesTokens(
-    history: readonly InternalMessage[],
-    tokenizer: ITokenizer,
-    overheadPerMessage: number = DEFAULT_OVERHEAD_PER_MESSAGE,
-    logger: IDextoLogger
-): number {
-    let total = 0;
-    logger.debug(`Counting tokens for ${history.length} messages`);
-    try {
-        for (const message of history) {
-            if (message.content) {
-                if (typeof message.content === 'string') {
-                    // Count string content directly
-                    total += tokenizer.countTokens(message.content);
-                } else if (Array.isArray(message.content)) {
-                    // For multimodal array content, count text and approximate image/file parts
-                    message.content.forEach((part) => {
-                        if (part.type === 'text' && typeof part.text === 'string') {
-                            total += tokenizer.countTokens(part.text);
-                        } else if (part.type === 'image') {
-                            // Vision models charge tokens based on image dimensions, NOT file size.
-                            // Use provider-specific estimates via tokenizer.estimateImageTokens()
-                            if (typeof part.image === 'string') {
-                                if (part.image.startsWith(BLOB_REFERENCE_PREFIX)) {
-                                    // Blob reference - use provider-specific estimate
-                                    total += tokenizer.estimateImageTokens();
-                                } else if (
-                                    isDataUri(part.image) ||
-                                    isLikelyBase64String(part.image)
-                                ) {
-                                    // Actual image data - estimate byte size for providers that use it
-                                    const byteSize = isDataUri(part.image)
-                                        ? base64LengthToBytes(
-                                              extractBase64FromDataUri(part.image).length
-                                          )
-                                        : base64LengthToBytes(part.image.length);
-                                    total += tokenizer.estimateImageTokens(byteSize);
-                                } else {
-                                    // Treat as URL/text: estimate token cost based on string length
-                                    total += estimateTextTokens(part.image);
-                                }
-                            } else if (
-                                part.image instanceof Uint8Array ||
-                                part.image instanceof Buffer ||
-                                part.image instanceof ArrayBuffer
-                            ) {
-                                // Binary image data - get byte size for estimation
-                                const bytes =
-                                    part.image instanceof ArrayBuffer
-                                        ? part.image.byteLength
-                                        : (part.image as Uint8Array).length;
-                                total += tokenizer.estimateImageTokens(bytes);
-                            }
-                        } else if (part.type === 'file') {
-                            // For files, check if it's an image (uses vision tokens) or other (byte-based)
-                            const isImageFile = part.mimeType?.startsWith('image/');
-                            if (typeof part.data === 'string') {
-                                if (part.data.startsWith(BLOB_REFERENCE_PREFIX)) {
-                                    // Blob reference - use provider-specific estimate for images
-                                    total += isImageFile
-                                        ? tokenizer.estimateImageTokens()
-                                        : FALLBACK_IMAGE_TOKENS;
-                                } else if (
-                                    isDataUri(part.data) ||
-                                    isLikelyBase64String(part.data)
-                                ) {
-                                    const base64Payload = isDataUri(part.data)
-                                        ? extractBase64FromDataUri(part.data)
-                                        : part.data;
-                                    const byteLength = base64LengthToBytes(base64Payload.length);
-                                    if (isImageFile) {
-                                        // Image files use provider-specific vision tokens
-                                        total += tokenizer.estimateImageTokens(byteLength);
-                                    } else {
-                                        // Non-image files: estimate based on size (~1 token/4 bytes)
-                                        total += Math.ceil(byteLength / 4);
-                                    }
-                                } else {
-                                    // Treat as URL/text: estimate token cost based on string length
-                                    total += estimateTextTokens(part.data);
-                                }
-                            } else if (
-                                part.data instanceof Uint8Array ||
-                                part.data instanceof Buffer ||
-                                part.data instanceof ArrayBuffer
-                            ) {
-                                const bytes =
-                                    part.data instanceof ArrayBuffer
-                                        ? part.data.byteLength
-                                        : (part.data as Uint8Array).length;
-                                if (isImageFile) {
-                                    // Image files use provider-specific vision tokens
-                                    total += tokenizer.estimateImageTokens(bytes);
-                                } else {
-                                    // Binary files: estimate based on size
-                                    total += Math.ceil(bytes / 4); // ~1 token per 4 bytes
-                                }
-                            }
-                        }
-                    });
-                }
-                // else: Handle other potential content types if necessary in the future
-            }
-            // Count tool calls
-            if (message.toolCalls) {
-                for (const call of message.toolCalls) {
-                    if (call.function?.name) {
-                        total += tokenizer.countTokens(call.function.name);
-                    }
-                    if (call.function?.arguments) {
-                        total += tokenizer.countTokens(call.function.arguments);
-                    }
-                }
-            }
-            // Add overhead for the message itself
-            total += overheadPerMessage;
+export function estimateMessagesTokens(messages: readonly InternalMessage[]): number {
+    return messages.reduce((sum, msg) => {
+        if (typeof msg.content === 'string') {
+            return sum + Math.ceil(msg.content.length / 4);
         }
-    } catch (error) {
-        logger.error(
-            `countMessagesTokens failed: ${error instanceof Error ? error.message : String(error)}`
-        );
-        // Re-throw to indicate failure
-        throw ContextError.tokenCountFailed(error instanceof Error ? error.message : String(error));
-    }
-    return total;
+        if (Array.isArray(msg.content)) {
+            return (
+                sum +
+                msg.content.reduce((partSum, part) => {
+                    if (part.type === 'text') return partSum + Math.ceil(part.text.length / 4);
+                    if (part.type === 'image' || part.type === 'file') return partSum + 1000;
+                    return partSum;
+                }, 0)
+            );
+        }
+        return sum;
+    }, 0);
 }
 
 /**
@@ -1812,36 +1683,6 @@ export function summarizeToolContentForText(content: InternalMessage['content'])
 function base64LengthToBytes(charLength: number): number {
     // 4 base64 chars -> 3 bytes; ignore padding for approximation
     return Math.floor((charLength * 3) / 4);
-}
-
-/**
- * Detects if a string is a data URI (base64 encoded).
- * @param str The string to check
- * @returns True if the string is a valid data URI with base64 encoding
- */
-function isDataUri(str: string): boolean {
-    return str.startsWith('data:') && str.includes(';base64,');
-}
-
-/**
- * Extracts the base64 payload from a data URI.
- * @param dataUri The data URI string
- * @returns The base64 payload after the comma, or empty string if malformed
- */
-function extractBase64FromDataUri(dataUri: string): string {
-    const commaIndex = dataUri.indexOf(',');
-    return commaIndex !== -1 ? dataUri.substring(commaIndex + 1) : '';
-}
-
-/**
- * Estimates token count for text strings using a character-per-token heuristic.
- * @param text The text string to estimate
- * @returns Estimated token count (conservative estimate: ~4 chars per token)
- */
-function estimateTextTokens(text: string): number {
-    // Rough heuristic: ~4 characters per token for typical text
-    // This is a conservative estimate that can be adjusted based on actual usage
-    return Math.ceil(text.length / 4);
 }
 
 /**

@@ -98,7 +98,6 @@ program
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
-    .option('--router <router>', 'Specify the LLM router to use (vercel or in-built)')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
     .option('-c, --continue', 'Continue most recent session (requires -p/prompt)')
     .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')

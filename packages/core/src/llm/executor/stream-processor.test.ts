@@ -57,7 +57,6 @@ function createMocks() {
     const config: StreamProcessorConfig = {
         provider: 'openai',
         model: 'gpt-4',
-        router: 'vercel',
     };
 
     return {
@@ -550,7 +549,8 @@ describe('StreamProcessor', () => {
                 'test_tool',
                 expect.objectContaining({
                     content: expect.arrayContaining([expect.objectContaining({ type: 'text' })]),
-                })
+                }),
+                undefined // No approval metadata in this test
             );
         });
 
@@ -714,7 +714,6 @@ describe('StreamProcessor', () => {
                 content: 'Final response',
                 provider: 'openai',
                 model: 'gpt-4',
-                router: 'vercel',
                 tokenUsage: {
                     inputTokens: 100,
                     outputTokens: 50,

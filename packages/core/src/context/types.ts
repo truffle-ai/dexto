@@ -1,4 +1,4 @@
-import type { LLMRouter, LLMProvider } from '../llm/types.js';
+import type { LLMProvider } from '../llm/types.js';
 
 /**
  * Internal representation of a message in a conversation.
@@ -128,12 +128,6 @@ export interface InternalMessage {
     provider?: LLMProvider;
 
     /**
-     * Optional router metadata for assistant messages.
-     * Indicates which router was used to route the request.
-     */
-    router?: LLMRouter;
-
-    /**
      * Tool calls made by the assistant.
      * Only present in assistant messages when the LLM requests tool execution.
      */
@@ -175,6 +169,18 @@ export interface InternalMessage {
      * Only present in tool messages.
      */
     name?: string;
+
+    /**
+     * Whether this tool call required user approval before execution.
+     * Only present in tool messages.
+     */
+    requireApproval?: boolean;
+
+    /**
+     * The approval status for this tool call.
+     * Only present in tool messages that required approval.
+     */
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
 
     /**
      * Timestamp when the tool output was compacted/pruned.

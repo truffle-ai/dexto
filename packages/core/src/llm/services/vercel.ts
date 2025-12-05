@@ -1,6 +1,6 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
-import { ILLMService, LLMServiceConfig } from './types.js';
+import { LLMServiceConfig } from './types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
@@ -11,7 +11,6 @@ import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
-import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
@@ -39,7 +38,7 @@ import { LLMErrorCode } from '../error-codes.js';
     prefix: 'llm.vercel',
     excludeMethods: ['getModelId', 'getAllTools', 'createTurnExecutor'],
 })
-export class VercelLLMService implements ILLMService {
+export class VercelLLMService {
     private model: LanguageModel;
     private config: ValidatedLLMConfig;
     private toolManager: ToolManager;
@@ -81,7 +80,6 @@ export class VercelLLMService implements ILLMService {
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
-        const tokenizer = createTokenizer(config.provider, this.getModelId(), this.logger);
         const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         this.contextManager = new ContextManager<ModelMessage>(
@@ -89,7 +87,6 @@ export class VercelLLMService implements ILLMService {
             formatter,
             systemPromptManager,
             maxInputTokens,
-            tokenizer,
             historyProvider,
             sessionId,
             resourceManager,
@@ -123,7 +120,6 @@ export class VercelLLMService implements ILLMService {
                 baseURL: this.config.baseURL,
             },
             { provider: this.config.provider, model: this.getModelId() },
-            'vercel',
             this.logger,
             this.messageQueue,
             undefined, // modelLimits - TurnExecutor will use defaults
@@ -227,7 +223,6 @@ export class VercelLLMService implements ILLMService {
             }
         }
         return {
-            router: 'vercel',
             provider: this.config.provider,
             model: this.model,
             configuredMaxInputTokens: configuredMaxTokens,

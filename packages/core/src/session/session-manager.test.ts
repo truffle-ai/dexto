@@ -142,7 +142,6 @@ describe('SessionManager', () => {
             provider: 'openai',
             model: 'gpt-5',
             apiKey: 'test-key',
-            router: 'in-built',
             maxIterations: 50,
             maxInputTokens: 128000,
         });
@@ -567,7 +566,7 @@ describe('SessionManager', () => {
             );
 
             expect(result.message).toContain(
-                `Successfully switched to anthropic/claude-4-opus-20250514 using in-built router for session ${sessionId}`
+                `Successfully switched to anthropic/claude-4-opus-20250514 for session ${sessionId}`
             );
             expect(result.warnings).toEqual([]);
         });

@@ -17,6 +17,7 @@ import {
     ChevronUp,
     Loader2,
     CheckCircle,
+    CheckCircle2,
     ChevronRight,
     Wrench,
     AlertTriangle,
@@ -27,6 +28,7 @@ import {
     ChevronDown,
     Brain,
     X,
+    XCircle,
     ZoomIn,
     Volume2,
     Video as VideoIcon,
@@ -672,13 +674,42 @@ export default function MessageList({
                                                     onClick={toggleManualExpansion}
                                                 >
                                                     <div className="flex items-center justify-between text-xs font-medium">
-                                                        <span className="flex items-center">
+                                                        <span className="flex items-center gap-2">
                                                             {isExpanded ? (
-                                                                <ChevronUp className="h-4 w-4 mr-2 text-primary" />
+                                                                <ChevronUp className="h-4 w-4 text-primary" />
                                                             ) : (
-                                                                <ChevronRight className="h-4 w-4 mr-2 text-primary" />
+                                                                <ChevronRight className="h-4 w-4 text-primary" />
                                                             )}
-                                                            Tool: {msg.toolName}
+                                                            <span>Tool: {msg.toolName}</span>
+                                                            {msg.requireApproval &&
+                                                                msg.approvalStatus && (
+                                                                    <span
+                                                                        className={cn(
+                                                                            'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs',
+                                                                            msg.approvalStatus ===
+                                                                                'approved'
+                                                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                                                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                                                        )}
+                                                                    >
+                                                                        {msg.approvalStatus ===
+                                                                        'approved' ? (
+                                                                            <>
+                                                                                <CheckCircle2 className="h-3 w-3" />
+                                                                                <span>
+                                                                                    Approved
+                                                                                </span>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <XCircle className="h-3 w-3" />
+                                                                                <span>
+                                                                                    Rejected
+                                                                                </span>
+                                                                            </>
+                                                                        )}
+                                                                    </span>
+                                                                )}
                                                         </span>
                                                         {msg.toolResult ? (
                                                             isToolResultError(msg.toolResult) ||
@@ -1309,11 +1340,6 @@ export default function MessageList({
                                                                 {msg.provider && (
                                                                     <div className="font-medium">
                                                                         Provider: {msg.provider}
-                                                                    </div>
-                                                                )}
-                                                                {msg.router && (
-                                                                    <div className="font-medium">
-                                                                        Router: {msg.router}
                                                                     </div>
                                                                 )}
                                                             </div>

@@ -17,7 +17,6 @@ export function createTestAgentConfig(): AgentConfig {
             provider: 'openai',
             model: 'gpt-5-nano',
             apiKey: 'test-key-123', // Mock key for testing
-            router: 'vercel',
             maxIterations: 10,
         },
         mcpServers: {},

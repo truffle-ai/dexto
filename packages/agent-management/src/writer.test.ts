@@ -196,7 +196,6 @@ describe('Config Writer', () => {
                     ...sampleConfig.llm,
                     temperature: 0.7,
                     maxTokens: 4000,
-                    router: 'vercel' as const,
                 },
             };
 
@@ -206,7 +205,6 @@ describe('Config Writer', () => {
             const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
             expect(updatedContent).toContain('temperature: 0.7');
             expect(updatedContent).toContain('maxTokens: 4000');
-            expect(updatedContent).toContain('router: vercel');
         });
 
         it('should throw ConfigError for non-existent file', async () => {

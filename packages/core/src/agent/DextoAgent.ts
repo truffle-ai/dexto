@@ -1058,7 +1058,7 @@ export class DextoAgent {
      * @param sessionId Session id
      * @param message The user message to queue
      * @returns Queue position and message ID
-     * @throws Error if router doesn't support message queueing
+     * @throws Error if session doesn't support message queueing
      */
     public async queueMessage(
         sessionId: string,
@@ -1270,7 +1270,6 @@ export class DextoAgent {
         // Generate title
         const result = await generateSessionTitle(
             llmConfig,
-            llmConfig.router,
             this.toolManager,
             this.systemPromptManager,
             this.resourceManager,
@@ -1403,7 +1402,7 @@ export class DextoAgent {
      * This is a comprehensive method that handles ALL validation, configuration building, and switching internally.
      *
      * Design:
-     * - Input: Partial<LLMConfig> (allows optional fields like maxIterations?, router?)
+     * - Input: Partial<LLMConfig> (allows optional fields like maxIterations?)
      * - Output: LLMConfig (user-friendly type with all defaults applied)
      *
      * Key features:
@@ -1428,8 +1427,8 @@ export class DextoAgent {
      * // Switch to a different provider with explicit API key
      * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', apiKey: 'sk-ant-...' });
      *
-     * // Switch with router and session options
-     * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', router: 'in-built' }, 'user-123');
+     * // Switch with session options
+     * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514' }, 'user-123');
      *
      * // Switch for all sessions
      * await agent.switchLLM({ model: 'gpt-5' }, '*');

@@ -163,7 +163,6 @@ export const TestConfigs = {
         return {
             systemPrompt: 'You are a helpful assistant for testing purposes.',
             llm: {
-                router: 'vercel', // This is the key difference - uses Vercel router
                 provider,
                 model: model || defaultModels[provider],
                 apiKey,

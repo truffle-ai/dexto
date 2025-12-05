@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { LLMProvider, LLMRouter } from '../llm/types.js';
+import type { LLMProvider } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
@@ -294,7 +294,6 @@ export interface AgentEventMap {
         reasoning?: string;
         provider?: LLMProvider;
         model?: string;
-        router?: LLMRouter;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;
@@ -324,6 +323,10 @@ export interface AgentEventMap {
         rawResult?: unknown;
         /** Error message - present when success=false */
         error?: string;
+        /** Whether this tool required user approval */
+        requireApproval?: boolean;
+        /** The approval status (only present if requireApproval is true) */
+        approvalStatus?: 'approved' | 'rejected';
         sessionId: string;
     };
 
@@ -340,7 +343,6 @@ export interface AgentEventMap {
     /** LLM service switched */
     'llm:switched': {
         newConfig: any; // LLMConfig type
-        router?: string;
         historyRetained?: boolean;
         sessionIds: string[]; // Array of affected session IDs
     };
@@ -357,7 +359,9 @@ export interface AgentEventMap {
 
     /** Context was compressed during multi-step tool calling */
     'context:compressed': {
+        /** Actual input tokens from API that triggered compression */
         originalTokens: number;
+        /** Estimated tokens after compression (simple length/4 heuristic) */
         compressedTokens: number;
         originalMessages: number;
         compressedMessages: number;
@@ -464,7 +468,6 @@ export interface SessionEventMap {
         reasoning?: string;
         provider?: LLMProvider;
         model?: string;
-        router?: LLMRouter;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;
@@ -492,6 +495,10 @@ export interface SessionEventMap {
         rawResult?: unknown;
         /** Error message - present when success=false */
         error?: string;
+        /** Whether this tool required user approval */
+        requireApproval?: boolean;
+        /** The approval status (only present if requireApproval is true) */
+        approvalStatus?: 'approved' | 'rejected';
     };
 
     /** LLM service error */
@@ -506,7 +513,6 @@ export interface SessionEventMap {
     /** LLM service switched */
     'llm:switched': {
         newConfig: any; // LLMConfig type
-        router?: string;
         historyRetained?: boolean;
     };
 
@@ -521,7 +527,9 @@ export interface SessionEventMap {
 
     /** Context was compressed during multi-step tool calling */
     'context:compressed': {
+        /** Actual input tokens from API that triggered compression */
         originalTokens: number;
+        /** Estimated tokens after compression (simple length/4 heuristic) */
         compressedTokens: number;
         originalMessages: number;
         compressedMessages: number;

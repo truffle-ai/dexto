@@ -10,7 +10,7 @@ import type { AgentConfig, LLMConfig } from '@dexto/core';
  * Uses input type (LLMConfig) since these represent user-provided CLI arguments
  */
 export interface CLIConfigOverrides
-    extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'router' | 'apiKey'>> {
+    extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'apiKey'>> {
     autoApprove?: boolean;
 }
 
@@ -33,22 +33,14 @@ export function applyCLIOverrides(
     }
 
     // Create a deep copy of the base config for modification
-    const mergedConfig = JSON.parse(JSON.stringify(baseConfig));
+    const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;
 
-    // Ensure llm section exists
-    if (!mergedConfig.llm) {
-        mergedConfig.llm = {};
-    }
-
-    // Apply CLI overrides to LLM config
+    // Apply CLI overrides to LLM config (llm is required in AgentConfig)
     if (cliOverrides.provider) {
         mergedConfig.llm.provider = cliOverrides.provider;
     }
     if (cliOverrides.model) {
         mergedConfig.llm.model = cliOverrides.model;
-    }
-    if (cliOverrides.router) {
-        mergedConfig.llm.router = cliOverrides.router;
     }
     if (cliOverrides.apiKey) {
         mergedConfig.llm.apiKey = cliOverrides.apiKey;
@@ -57,10 +49,10 @@ export function applyCLIOverrides(
     if (cliOverrides.autoApprove) {
         // Ensure toolConfirmation section exists before overriding
         if (!mergedConfig.toolConfirmation) {
-            mergedConfig.toolConfirmation = {} as AgentConfig['toolConfirmation'];
+            mergedConfig.toolConfirmation = { mode: 'auto-approve' };
+        } else {
+            mergedConfig.toolConfirmation.mode = 'auto-approve';
         }
-
-        mergedConfig.toolConfirmation.mode = 'auto-approve';
     }
 
     // Return merged config without validation - validation happens later

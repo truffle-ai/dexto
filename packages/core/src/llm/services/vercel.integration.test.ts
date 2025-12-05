@@ -12,7 +12,7 @@ import { LLMErrorCode } from '../error-codes.js';
  * Vercel AI SDK LLM Service Integration Tests
  *
  * These tests verify the Vercel AI SDK service works correctly with real API calls.
- * They test multiple providers through the Vercel AI SDK router.
+ * They test multiple providers through the Vercel AI SDK.
  */
 describe('Vercel AI SDK LLM Service Integration', () => {
     // Test with OpenAI through Vercel AI SDK by default

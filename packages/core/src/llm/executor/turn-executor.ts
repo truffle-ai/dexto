@@ -21,7 +21,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext, LLMRouter } from '../types.js';
+import { LLMContext } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -61,6 +61,14 @@ export class TurnExecutor {
     private stepAbortController: AbortController;
     // TODO: improve compression configurability
     private compressionStrategy: ReactiveOverflowStrategy | null = null;
+    /**
+     * Map to track approval metadata by toolCallId.
+     * Used to pass approval info from tool execution to result persistence.
+     */
+    private approvalMetadata = new Map<
+        string,
+        { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+    >();
 
     constructor(
         private model: LanguageModel,
@@ -76,7 +84,6 @@ export class TurnExecutor {
             baseURL?: string | undefined;
         },
         private llmContext: LLMContext,
-        private router: LLMRouter,
         logger: IDextoLogger,
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
@@ -104,7 +111,6 @@ export class TurnExecutor {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
-            router: this.router,
         };
     }
 
@@ -172,9 +178,7 @@ export class TurnExecutor {
                     this.llmContext
                 );
 
-                this.logger.debug(
-                    `Step ${stepCount}: Starting with ${prepared.tokensUsed} estimated tokens`
-                );
+                this.logger.debug(`Step ${stepCount}: Starting`);
 
                 // 4. Create tools with execute callbacks and toModelOutput
                 // Use empty object if model doesn't support tools
@@ -188,7 +192,8 @@ export class TurnExecutor {
                     this.stepAbortController.signal,
                     this.getStreamProcessorConfig(),
                     this.logger,
-                    streaming
+                    streaming,
+                    this.approvalMetadata
                 );
 
                 const result = await streamProcessor.process(() =>
@@ -428,14 +433,29 @@ export class TurnExecutor {
                     ): Promise<unknown> => {
                         this.logger.debug(`Executing tool: ${name}`);
 
-                        // Run tool via toolManager - returns raw result with inline images
-                        const rawResult = await this.toolManager.executeTool(
+                        // Run tool via toolManager - returns result with approval metadata
+                        const executionResult = await this.toolManager.executeTool(
                             name,
                             args as Record<string, unknown>,
                             this.sessionId
                         );
 
-                        return rawResult;
+                        // Store approval metadata for later retrieval by StreamProcessor
+                        if (executionResult.requireApproval !== undefined) {
+                            const metadata: {
+                                requireApproval: boolean;
+                                approvalStatus?: 'approved' | 'rejected';
+                            } = {
+                                requireApproval: executionResult.requireApproval,
+                            };
+                            if (executionResult.approvalStatus !== undefined) {
+                                metadata.approvalStatus = executionResult.approvalStatus;
+                            }
+                            this.approvalMetadata.set(_options.toolCallId, metadata);
+                        }
+
+                        // Return just the raw result for Vercel SDK
+                        return executionResult.result;
                     },
 
                     /**
@@ -736,15 +756,9 @@ export class TurnExecutor {
         );
 
         const history = await this.contextManager.getHistory();
-        const tokenizer = this.contextManager.getTokenizer();
-        const maxTokens = this.modelLimits?.contextWindow ?? 100000;
 
         // Generate summary message(s)
-        const summaryMessages = await this.compressionStrategy.compress(
-            history,
-            tokenizer,
-            maxTokens
-        );
+        const summaryMessages = await this.compressionStrategy.compress(history);
 
         if (summaryMessages.length === 0) {
             this.logger.debug('Compression returned no summary (history too short)');
@@ -757,11 +771,11 @@ export class TurnExecutor {
             await this.contextManager.addMessage(summary);
         }
 
-        // Estimate compressed tokens by simulating what filterCompacted would produce
-        const { filterCompacted, countMessagesTokens } = await import('../../context/utils.js');
+        // Get filtered history to report message counts
+        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
         const updatedHistory = await this.contextManager.getHistory();
         const filteredHistory = filterCompacted(updatedHistory);
-        const compressedTokens = countMessagesTokens(filteredHistory, tokenizer, 4, this.logger);
+        const compressedTokens = estimateMessagesTokens(filteredHistory);
 
         this.eventBus.emit('context:compressed', {
             originalTokens,

@@ -47,7 +47,6 @@ interface ChatContextType {
         provider: string;
         model: string;
         displayName?: string;
-        router?: string;
         baseURL?: string;
     } | null;
     refreshCurrentLLM: () => Promise<void>;
@@ -95,11 +94,10 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
             content: msg.content,
             createdAt: msg.timestamp ?? Date.now() - (history.length - index) * 1000,
             sessionId: sessionId,
-            // Preserve token usage, reasoning, model, and router metadata from storage
+            // Preserve token usage, reasoning, model, and provider metadata from storage
             tokenUsage: msg.tokenUsage,
             reasoning: msg.reasoning,
             model: msg.model,
-            router: msg.router,
             provider: msg.provider,
         };
 
@@ -210,12 +208,28 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                 },
             };
 
+            // Extract approval metadata if present (type-safe with optional chaining)
+            const requireApproval: boolean | undefined =
+                'requireApproval' in msg && typeof msg.requireApproval === 'boolean'
+                    ? msg.requireApproval
+                    : undefined;
+            const approvalStatus: 'pending' | 'approved' | 'rejected' | undefined =
+                'approvalStatus' in msg &&
+                (msg.approvalStatus === 'pending' ||
+                    msg.approvalStatus === 'approved' ||
+                    msg.approvalStatus === 'rejected')
+                    ? msg.approvalStatus
+                    : undefined;
+
             if (toolCallId && pendingToolCalls.has(toolCallId)) {
                 const messageIndex = pendingToolCalls.get(toolCallId)!;
                 uiMessages[messageIndex] = {
                     ...uiMessages[messageIndex],
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    // Preserve approval metadata from history
+                    ...(requireApproval !== undefined && { requireApproval }),
+                    ...(approvalStatus !== undefined && { approvalStatus }),
                 };
             } else {
                 uiMessages.push({
@@ -225,6 +239,9 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     toolName,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
+                    // Preserve approval metadata from history
+                    ...(requireApproval !== undefined && { requireApproval }),
+                    ...(approvalStatus !== undefined && { approvalStatus }),
                 });
             }
 
@@ -346,7 +363,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 provider: cfg.provider,
                 model: cfg.model,
                 displayName: cfg.displayName,
-                router: cfg.router,
                 baseURL: cfg.baseURL,
             };
         },

@@ -105,7 +105,7 @@ export const systemCommands: CommandDefinition[] = [
                     mcpServers: servers,
                 };
 
-                // Build fallback text
+                // Build fallback text (no console.log - interferes with Ink rendering)
                 const fallbackLines: string[] = [
                     'Configuration:',
                     `  LLM: ${config.llm.provider} / ${config.llm.model}`,

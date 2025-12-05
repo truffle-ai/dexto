@@ -2700,14 +2700,6 @@
                         "cohere"
                       ],
                       "description": "LLM provider"
-                    },
-                    "router": {
-                      "type": "string",
-                      "enum": [
-                        "vercel",
-                        "in-built"
-                      ],
-                      "description": "Router used (e.g., vercel)"
                     }
                   },
                   "required": [
@@ -2991,14 +2983,6 @@
                           "exclusiveMinimum": true,
                           "default": 50
                         },
-                        "router": {
-                          "type": "string",
-                          "enum": [
-                            "vercel",
-                            "in-built"
-                          ],
-                          "default": "vercel"
-                        },
                         "baseURL": {
                           "type": "string",
                           "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
@@ -3124,20 +3108,6 @@
             "schema": {
               "type": "string",
               "enum": [
-                "vercel",
-                "in-built"
-              ],
-              "description": "Filter by router type (vercel or in-built)"
-            },
-            "required": false,
-            "description": "Filter by router type (vercel or in-built)",
-            "name": "router",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
                 "pdf",
                 "image",
                 "audio"
@@ -3228,17 +3198,6 @@
                                   "type": "string",
                                   "description": "Primary environment variable for API key"
                                 },
-                                "supportedRouters": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ]
-                                  },
-                                  "description": "Routing strategies supported by this provider"
-                                },
                                 "supportsBaseURL": {
                                   "type": "boolean",
                                   "description": "Whether custom base URLs are supported"
@@ -3273,17 +3232,6 @@
                                           ]
                                         },
                                         "description": "File types this model supports"
-                                      },
-                                      "supportedRouters": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string",
-                                          "enum": [
-                                            "vercel",
-                                            "in-built"
-                                          ]
-                                        },
-                                        "description": "Routing strategies this model supports"
                                       },
                                       "displayName": {
                                         "type": "string",
@@ -3357,7 +3305,6 @@
                                 "name",
                                 "hasApiKey",
                                 "primaryEnvVar",
-                                "supportedRouters",
                                 "supportsBaseURL",
                                 "models",
                                 "supportedFileTypes"
@@ -3380,17 +3327,6 @@
                                   "type": "string",
                                   "description": "Primary environment variable for API key"
                                 },
-                                "supportedRouters": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ]
-                                  },
-                                  "description": "Routing strategies supported by this provider"
-                                },
                                 "supportsBaseURL": {
                                   "type": "boolean",
                                   "description": "Whether custom base URLs are supported"
@@ -3425,17 +3361,6 @@
                                           ]
                                         },
                                         "description": "File types this model supports"
-                                      },
-                                      "supportedRouters": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string",
-                                          "enum": [
-                                            "vercel",
-                                            "in-built"
-                                          ]
-                                        },
-                                        "description": "Routing strategies this model supports"
                                       },
                                       "displayName": {
                                         "type": "string",
@@ -3509,7 +3434,6 @@
                                 "name",
                                 "hasApiKey",
                                 "primaryEnvVar",
-                                "supportedRouters",
                                 "supportsBaseURL",
                                 "models",
                                 "supportedFileTypes"
@@ -3532,17 +3456,6 @@
                                   "type": "string",
                                   "description": "Primary environment variable for API key"
                                 },
-                                "supportedRouters": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ]
-                                  },
-                                  "description": "Routing strategies supported by this provider"
-                                },
                                 "supportsBaseURL": {
                                   "type": "boolean",
                                   "description": "Whether custom base URLs are supported"
@@ -3577,17 +3490,6 @@
                                           ]
                                         },
                                         "description": "File types this model supports"
-                                      },
-                                      "supportedRouters": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string",
-                                          "enum": [
-                                            "vercel",
-                                            "in-built"
-                                          ]
-                                        },
-                                        "description": "Routing strategies this model supports"
                                       },
                                       "displayName": {
                                         "type": "string",
@@ -3661,7 +3563,6 @@
                                 "name",
                                 "hasApiKey",
                                 "primaryEnvVar",
-                                "supportedRouters",
                                 "supportsBaseURL",
                                 "models",
                                 "supportedFileTypes"
@@ -3684,17 +3585,6 @@
                                   "type": "string",
                                   "description": "Primary environment variable for API key"
                                 },
-                                "supportedRouters": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ]
-                                  },
-                                  "description": "Routing strategies supported by this provider"
-                                },
                                 "supportsBaseURL": {
                                   "type": "boolean",
                                   "description": "Whether custom base URLs are supported"
@@ -3729,17 +3619,6 @@
                                           ]
                                         },
                                         "description": "File types this model supports"
-                                      },
-                                      "supportedRouters": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string",
-                                          "enum": [
-                                            "vercel",
-                                            "in-built"
-                                          ]
-                                        },
-                                        "description": "Routing strategies this model supports"
                                       },
                                       "displayName": {
                                         "type": "string",
@@ -3813,7 +3692,6 @@
                                 "name",
                                 "hasApiKey",
                                 "primaryEnvVar",
-                                "supportedRouters",
                                 "supportsBaseURL",
                                 "models",
                                 "supportedFileTypes"
@@ -3836,17 +3714,6 @@
                                   "type": "string",
                                   "description": "Primary environment variable for API key"
                                 },
-                                "supportedRouters": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ]
-                                  },
-                                  "description": "Routing strategies supported by this provider"
-                                },
                                 "supportsBaseURL": {
                                   "type": "boolean",
                                   "description": "Whether custom base URLs are supported"
@@ -3881,17 +3748,6 @@
                                           ]
                                         },
                                         "description": "File types this model supports"
-                                      },
-                                      "supportedRouters": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string",
-                                          "enum": [
-                                            "vercel",
-                                            "in-built"
-                                          ]
-                                        },
-                                        "description": "Routing strategies this model supports"
                                       },
                                       "displayName": {
                                         "type": "string",
@@ -3965,7 +3821,6 @@
                                 "name",
                                 "hasApiKey",
                                 "primaryEnvVar",
-                                "supportedRouters",
                                 "supportsBaseURL",
                                 "models",
                                 "supportedFileTypes"
@@ -3988,17 +3843,6 @@
                                   "type": "string",
                                   "description": "Primary environment variable for API key"
                                 },
-                                "supportedRouters": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ]
-                                  },
-                                  "description": "Routing strategies supported by this provider"
-                                },
                                 "supportsBaseURL": {
                                   "type": "boolean",
                                   "description": "Whether custom base URLs are supported"
@@ -4033,17 +3877,6 @@
                                           ]
                                         },
                                         "description": "File types this model supports"
-                                      },
-                                      "supportedRouters": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string",
-                                          "enum": [
-                                            "vercel",
-                                            "in-built"
-                                          ]
-                                        },
-                                        "description": "Routing strategies this model supports"
                                       },
                                       "displayName": {
                                         "type": "string",
@@ -4117,7 +3950,6 @@
                                 "name",
                                 "hasApiKey",
                                 "primaryEnvVar",
-                                "supportedRouters",
                                 "supportsBaseURL",
                                 "models",
                                 "supportedFileTypes"
@@ -4140,17 +3972,6 @@
                                   "type": "string",
                                   "description": "Primary environment variable for API key"
                                 },
-                                "supportedRouters": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ]
-                                  },
-                                  "description": "Routing strategies supported by this provider"
-                                },
                                 "supportsBaseURL": {
                                   "type": "boolean",
                                   "description": "Whether custom base URLs are supported"
@@ -4185,17 +4006,6 @@
                                           ]
                                         },
                                         "description": "File types this model supports"
-                                      },
-                                      "supportedRouters": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string",
-                                          "enum": [
-                                            "vercel",
-                                            "in-built"
-                                          ]
-                                        },
-                                        "description": "Routing strategies this model supports"
                                       },
                                       "displayName": {
                                         "type": "string",
@@ -4269,7 +4079,6 @@
                                 "name",
                                 "hasApiKey",
                                 "primaryEnvVar",
-                                "supportedRouters",
                                 "supportsBaseURL",
                                 "models",
                                 "supportedFileTypes"
@@ -4320,17 +4129,6 @@
                                   ]
                                 },
                                 "description": "File types this model supports"
-                              },
-                              "supportedRouters": {
-                                "type": "array",
-                                "items": {
-                                  "type": "string",
-                                  "enum": [
-                                    "vercel",
-                                    "in-built"
-                                  ]
-                                },
-                                "description": "Routing strategies this model supports"
                               },
                               "displayName": {
                                 "type": "string",
@@ -4539,14 +4337,6 @@
                         "exclusiveMinimum": true,
                         "description": "Max iterations for agentic loops"
                       },
-                      "router": {
-                        "type": "string",
-                        "enum": [
-                          "vercel",
-                          "in-built"
-                        ],
-                        "description": "Router to use (vercel | in-built)"
-                      },
                       "baseURL": {
                         "type": "string",
                         "description": "Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this."
@@ -4627,14 +4417,6 @@
                           "minimum": 0,
                           "exclusiveMinimum": true,
                           "default": 50
-                        },
-                        "router": {
-                          "type": "string",
-                          "enum": [
-                            "vercel",
-                            "in-built"
-                          ],
-                          "default": "vercel"
                         },
                         "baseURL": {
                           "type": "string",
@@ -5348,14 +5130,6 @@
                             ],
                             "description": "Provider identifier for assistant messages"
                           },
-                          "router": {
-                            "type": "string",
-                            "enum": [
-                              "vercel",
-                              "in-built"
-                            ],
-                            "description": "Router metadata for assistant messages"
-                          },
                           "toolCalls": {
                             "type": "array",
                             "items": {
@@ -5995,14 +5769,6 @@
                                 ],
                                 "description": "Provider identifier for assistant messages"
                               },
-                              "router": {
-                                "type": "string",
-                                "enum": [
-                                  "vercel",
-                                  "in-built"
-                                ],
-                                "description": "Router metadata for assistant messages"
-                              },
                               "toolCalls": {
                                 "type": "array",
                                 "items": {
@@ -6406,14 +6172,6 @@
                                       "cohere"
                                     ],
                                     "description": "Provider identifier for assistant messages"
-                                  },
-                                  "router": {
-                                    "type": "string",
-                                    "enum": [
-                                      "vercel",
-                                      "in-built"
-                                    ],
-                                    "description": "Router metadata for assistant messages"
                                   },
                                   "toolCalls": {
                                     "type": "array",
@@ -9926,14 +9684,6 @@
                             "minimum": 0,
                             "exclusiveMinimum": true,
                             "default": 50
-                          },
-                          "router": {
-                            "type": "string",
-                            "enum": [
-                              "vercel",
-                              "in-built"
-                            ],
-                            "default": "vercel"
                           },
                           "baseURL": {
                             "type": "string",

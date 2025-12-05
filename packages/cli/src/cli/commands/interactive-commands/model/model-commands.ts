@@ -76,7 +76,6 @@ export const modelCommands: CommandDefinition = {
                     console.log(chalk.blue('\n🤖 Current Model Configuration:\n'));
                     console.log(`  Provider: ${chalk.cyan(config.llm.provider)}`);
                     console.log(`  Model: ${chalk.cyan(config.llm.model)}`);
-                    console.log(`  Router: ${chalk.cyan(config.llm.router)}`);
 
                     if (config.llm.maxIterations) {
                         console.log(

@@ -46,14 +46,12 @@ describe('Hono API Integration Tests', () => {
                     config: {
                         provider: string;
                         model: string;
-                        router?: string;
                         displayName?: string;
                     };
                 }
             ).config;
             expect(config.provider).toBe('openai');
             expect(config.model).toBe('gpt-5-nano');
-            expect(typeof config.router).toBe('string');
             expect(typeof config.displayName === 'string' || config.displayName === undefined).toBe(
                 true
             );
@@ -88,7 +86,6 @@ describe('Hono API Integration Tests', () => {
             // Validate provider structure
             const firstProvider = Object.values(providers)[0] as {
                 models: unknown;
-                supportedRouters?: unknown[];
             };
             expect(firstProvider).toBeDefined();
             expect(typeof firstProvider === 'object').toBe(true);
@@ -100,10 +97,10 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBeGreaterThanOrEqual(400);
         });
 
-        it('POST /api/llm/switch with router-only update succeeds', async () => {
+        it('POST /api/llm/switch with model update succeeds', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'POST', '/api/llm/switch', {
-                router: 'vercel',
+                model: 'gpt-5',
             });
             expect(res.status).toBe(200);
         });

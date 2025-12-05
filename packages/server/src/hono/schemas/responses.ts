@@ -28,11 +28,7 @@
  */
 
 import { z } from 'zod';
-import {
-    LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
-    LLM_PROVIDERS,
-    LLM_ROUTERS,
-} from '@dexto/core';
+import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema, LLM_PROVIDERS } from '@dexto/core';
 
 // TODO: Implement shared error response schemas for OpenAPI documentation.
 // Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
@@ -174,7 +170,6 @@ export const InternalMessageSchema = z
             .enum(LLM_PROVIDERS)
             .optional()
             .describe('Provider identifier for assistant messages'),
-        router: z.enum(LLM_ROUTERS).optional().describe('Router metadata for assistant messages'),
         toolCalls: z.array(ToolCallSchema).optional().describe('Tool calls made by the assistant'),
         toolCallId: z.string().optional().describe('ID of the tool call this message responds to'),
         name: z.string().optional().describe('Name of the tool that produced this result'),
@@ -355,10 +350,6 @@ export const CatalogModelInfoSchema = z
         supportedFileTypes: z
             .array(z.enum(['audio', 'pdf', 'image']))
             .describe('File types this model supports'),
-        supportedRouters: z
-            .array(z.enum(['vercel', 'in-built']))
-            .optional()
-            .describe('Routing strategies this model supports'),
         displayName: z.string().optional().describe('Human-readable display name'),
         pricing: z
             .object({
@@ -386,9 +377,6 @@ export const ProviderCatalogSchema = z
         name: z.string().describe('Provider display name'),
         hasApiKey: z.boolean().describe('Whether API key is configured'),
         primaryEnvVar: z.string().describe('Primary environment variable for API key'),
-        supportedRouters: z
-            .array(z.enum(['vercel', 'in-built']))
-            .describe('Routing strategies supported by this provider'),
         supportsBaseURL: z.boolean().describe('Whether custom base URLs are supported'),
         models: z.array(CatalogModelInfoSchema).describe('Models available from this provider'),
         supportedFileTypes: z

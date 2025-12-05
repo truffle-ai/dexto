@@ -16,10 +16,6 @@ import {
     getSupportedFileTypesForModel,
     modelSupportsFileType,
     validateModelFileSupport,
-    getSupportedRoutersForProvider,
-    isRouterSupportedForProvider,
-    isRouterSupportedForModel,
-    getSupportedRoutersForModel,
 } from './registry.js';
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -112,34 +108,6 @@ describe('LLM Registry Core Functions', () => {
 
         it('returns null for provider without default (openai-compatible)', () => {
             expect(getDefaultModelForProvider('openai-compatible')).toBe(null);
-        });
-    });
-});
-
-describe('Router Support Functions', () => {
-    describe('getSupportedRoutersForProvider', () => {
-        it('returns correct routers for providers supporting both', () => {
-            expect(getSupportedRoutersForProvider('openai')).toEqual(['vercel', 'in-built']);
-            expect(getSupportedRoutersForProvider('anthropic')).toEqual(['vercel', 'in-built']);
-        });
-
-        it('returns vercel only for providers with limited router support', () => {
-            expect(getSupportedRoutersForProvider('google')).toEqual(['vercel']);
-            expect(getSupportedRoutersForProvider('groq')).toEqual(['vercel']);
-            expect(getSupportedRoutersForProvider('xai')).toEqual(['vercel']);
-            expect(getSupportedRoutersForProvider('cohere')).toEqual(['vercel']);
-        });
-    });
-
-    describe('isRouterSupportedForProvider', () => {
-        it('validates router support correctly', () => {
-            // Providers supporting both routers
-            expect(isRouterSupportedForProvider('openai', 'vercel')).toBe(true);
-            expect(isRouterSupportedForProvider('openai', 'in-built')).toBe(true);
-
-            // Providers supporting only vercel
-            expect(isRouterSupportedForProvider('google', 'vercel')).toBe(true);
-            expect(isRouterSupportedForProvider('google', 'in-built')).toBe(false);
         });
     });
 });
@@ -429,7 +397,6 @@ describe('Provider-Specific Tests', () => {
             expect(supportsBaseURL('openai')).toBe(false);
             expect(requiresBaseURL('openai')).toBe(false);
             expect(acceptsAnyModel('openai')).toBe(false);
-            expect(getSupportedRoutersForProvider('openai')).toEqual(['vercel', 'in-built']);
         });
     });
 
@@ -442,7 +409,6 @@ describe('Provider-Specific Tests', () => {
             expect(supportsBaseURL('anthropic')).toBe(false);
             expect(requiresBaseURL('anthropic')).toBe(false);
             expect(acceptsAnyModel('anthropic')).toBe(false);
-            expect(getSupportedRoutersForProvider('anthropic')).toEqual(['vercel', 'in-built']);
         });
     });
 
@@ -454,7 +420,6 @@ describe('Provider-Specific Tests', () => {
             expect(supportsBaseURL('google')).toBe(false);
             expect(requiresBaseURL('google')).toBe(false);
             expect(acceptsAnyModel('google')).toBe(false);
-            expect(getSupportedRoutersForProvider('google')).toEqual(['vercel']);
         });
     });
 
@@ -466,10 +431,6 @@ describe('Provider-Specific Tests', () => {
             expect(supportsBaseURL('openai-compatible')).toBe(true);
             expect(requiresBaseURL('openai-compatible')).toBe(true);
             expect(acceptsAnyModel('openai-compatible')).toBe(true);
-            expect(getSupportedRoutersForProvider('openai-compatible')).toEqual([
-                'vercel',
-                'in-built',
-            ]);
         });
     });
 
@@ -481,7 +442,6 @@ describe('Provider-Specific Tests', () => {
             expect(supportsBaseURL('groq')).toBe(false);
             expect(requiresBaseURL('groq')).toBe(false);
             expect(acceptsAnyModel('groq')).toBe(false);
-            expect(getSupportedRoutersForProvider('groq')).toEqual(['vercel']);
         });
     });
 
@@ -493,7 +453,6 @@ describe('Provider-Specific Tests', () => {
             expect(supportsBaseURL('xai')).toBe(false);
             expect(requiresBaseURL('xai')).toBe(false);
             expect(acceptsAnyModel('xai')).toBe(false);
-            expect(getSupportedRoutersForProvider('xai')).toEqual(['vercel']);
         });
     });
 
@@ -505,7 +464,6 @@ describe('Provider-Specific Tests', () => {
             expect(supportsBaseURL('cohere')).toBe(false);
             expect(requiresBaseURL('cohere')).toBe(false);
             expect(acceptsAnyModel('cohere')).toBe(false);
-            expect(getSupportedRoutersForProvider('cohere')).toEqual(['vercel']);
         });
 
         it('validates all cohere models correctly', () => {
@@ -528,64 +486,6 @@ describe('Provider-Specific Tests', () => {
             expect(getMaxInputTokensForModel('cohere', 'command-r-plus', mockLogger)).toBe(128000);
             expect(getMaxInputTokensForModel('cohere', 'command-r', mockLogger)).toBe(128000);
             expect(getMaxInputTokensForModel('cohere', 'command-r7b', mockLogger)).toBe(128000);
-        });
-    });
-});
-
-describe('Model-Specific Router Support Functions', () => {
-    describe('isRouterSupportedForModel', () => {
-        it('validates GPT-5 models support both routers after v5 migration', () => {
-            // GPT-5 models now support both routers (vercel + in-built)
-            expect(isRouterSupportedForModel('openai', 'gpt-5', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5', 'vercel')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5-mini', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5-mini', 'vercel')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5-nano', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-5-nano', 'vercel')).toBe(true);
-        });
-
-        it('validates other OpenAI models support both routers', () => {
-            // Other OpenAI models should support both routers
-            expect(isRouterSupportedForModel('openai', 'gpt-4.1-mini', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'gpt-4.1-mini', 'vercel')).toBe(true);
-        });
-
-        it('falls back to provider-level support for unknown models', () => {
-            // Unknown models should fall back to provider-level support
-            expect(isRouterSupportedForModel('openai', 'unknown-model', 'in-built')).toBe(true);
-            expect(isRouterSupportedForModel('openai', 'unknown-model', 'vercel')).toBe(true);
-            expect(isRouterSupportedForModel('google', 'unknown-model', 'in-built')).toBe(false);
-            expect(isRouterSupportedForModel('google', 'unknown-model', 'vercel')).toBe(true);
-        });
-    });
-
-    describe('getSupportedRoutersForModel', () => {
-        it('returns both routers for GPT-5 models after v5 migration', () => {
-            expect(getSupportedRoutersForModel('openai', 'gpt-5')).toEqual(['vercel', 'in-built']);
-            expect(getSupportedRoutersForModel('openai', 'gpt-5-mini')).toEqual([
-                'vercel',
-                'in-built',
-            ]);
-            expect(getSupportedRoutersForModel('openai', 'gpt-5-nano')).toEqual([
-                'vercel',
-                'in-built',
-            ]);
-        });
-
-        it('returns both routers for other OpenAI models', () => {
-            expect(getSupportedRoutersForModel('openai', 'gpt-4.1-mini')).toEqual([
-                'vercel',
-                'in-built',
-            ]);
-            expect(getSupportedRoutersForModel('openai', 'gpt-5')).toEqual(['vercel', 'in-built']);
-        });
-
-        it('falls back to provider-level support for unknown models', () => {
-            expect(getSupportedRoutersForModel('openai', 'unknown-model')).toEqual([
-                'vercel',
-                'in-built',
-            ]);
-            expect(getSupportedRoutersForModel('google', 'unknown-model')).toEqual(['vercel']);
         });
     });
 });

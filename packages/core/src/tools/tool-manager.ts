@@ -279,12 +279,16 @@ export class ToolManager {
         toolName: string,
         args: Record<string, unknown>,
         sessionId?: string
-    ): Promise<unknown> {
+    ): Promise<import('./types.js').ToolExecutionResult> {
         this.logger.debug(`🔧 Tool execution requested: '${toolName}'`);
         this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
 
-        // Handle approval/confirmation flow
-        await this.handleToolApproval(toolName, args, sessionId);
+        // Handle approval/confirmation flow - returns whether approval was required
+        const { requireApproval, approvalStatus } = await this.handleToolApproval(
+            toolName,
+            args,
+            sessionId
+        );
 
         this.logger.debug(`✅ Tool execution approved: ${toolName}`);
         this.logger.info(
@@ -392,7 +396,10 @@ export class ToolManager {
                 result = modifiedPayload.result;
             }
 
-            return result;
+            return {
+                result,
+                ...(requireApproval && { requireApproval, approvalStatus }),
+            };
         } catch (error) {
             const duration = Date.now() - startTime;
             this.logger.error(
@@ -581,7 +588,7 @@ export class ToolManager {
         toolName: string,
         args: Record<string, unknown>,
         sessionId?: string
-    ): Promise<void> {
+    ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }> {
         // PRECEDENCE 1: Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
             this.logger.info(
@@ -596,7 +603,7 @@ export class ToolManager {
             this.logger.info(
                 `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'global'})`
             );
-            return;
+            return { requireApproval: false };
         }
 
         // PRECEDENCE 3: Check dynamic "remembered" allowed list
@@ -606,14 +613,14 @@ export class ToolManager {
             this.logger.info(
                 `Tool '${toolName}' already allowed for session '${sessionId ?? 'global'}' – skipping confirmation.`
             );
-            return;
+            return { requireApproval: false };
         }
 
         // PRECEDENCE 4: Fall back to approval mode
         // Handle different approval modes
         if (this.approvalMode === 'auto-approve') {
             this.logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
-            return;
+            return { requireApproval: false };
         }
 
         if (this.approvalMode === 'auto-deny') {
@@ -684,6 +691,9 @@ export class ToolManager {
             this.logger.info(
                 `Tool confirmation approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
             );
+
+            // Return approval metadata
+            return { requireApproval: true, approvalStatus: 'approved' };
         } catch (error) {
             // Log and re-throw - errors are already properly formatted by ApprovalManager
             this.logger.error(
