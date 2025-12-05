@@ -156,14 +156,40 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
             let desiredOverlay: typeof state.ui.activeOverlay = 'none';
 
             // Priority: selector > autocomplete
-            if (selectorType === 'model') {
-                desiredOverlay = 'model-selector';
-            } else if (selectorType === 'session') {
-                desiredOverlay = 'session-selector';
-            } else if (autocompleteType === 'slash') {
-                desiredOverlay = 'slash-autocomplete';
-            } else if (autocompleteType === 'resource') {
-                desiredOverlay = 'resource-autocomplete';
+            // Map selector types to overlay types
+            switch (selectorType) {
+                case 'model':
+                    desiredOverlay = 'model-selector';
+                    break;
+                case 'session':
+                    desiredOverlay = 'session-selector';
+                    break;
+                case 'mcp':
+                    desiredOverlay = 'mcp-selector';
+                    break;
+                case 'mcp-add':
+                    desiredOverlay = 'mcp-add-selector';
+                    break;
+                case 'mcp-remove':
+                    desiredOverlay = 'mcp-remove-selector';
+                    break;
+                case 'log':
+                    desiredOverlay = 'log-level-selector';
+                    break;
+                case 'session-subcommand':
+                    desiredOverlay = 'session-subcommand-selector';
+                    break;
+                case 'none':
+                    // Fall through to autocomplete detection
+                    switch (autocompleteType) {
+                        case 'slash':
+                            desiredOverlay = 'slash-autocomplete';
+                            break;
+                        case 'resource':
+                            desiredOverlay = 'resource-autocomplete';
+                            break;
+                    }
+                    break;
             }
 
             // Only dispatch if overlay needs to change

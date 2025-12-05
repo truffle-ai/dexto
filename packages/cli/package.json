@@ -9,6 +9,7 @@
     "@dexto/analytics": "workspace:*",
     "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/registry": "workspace:*",
     "@dexto/server": "workspace:*",
     "@clack/prompts": "^0.10.1",
     "@modelcontextprotocol/sdk": "^1.18.1",

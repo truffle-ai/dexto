@@ -59,6 +59,11 @@ export type OverlayType =
     | 'resource-autocomplete'
     | 'model-selector'
     | 'session-selector'
+    | 'mcp-selector'
+    | 'mcp-add-selector'
+    | 'mcp-remove-selector'
+    | 'log-level-selector'
+    | 'session-subcommand-selector'
     | 'approval';
 
 /**

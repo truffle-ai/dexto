@@ -14,7 +14,15 @@ export type AutocompleteType = 'none' | 'slash' | 'resource';
 /**
  * Interactive selector type
  */
-export type InteractiveSelectorType = 'none' | 'model' | 'session';
+export type InteractiveSelectorType =
+    | 'none'
+    | 'model'
+    | 'session'
+    | 'mcp'
+    | 'mcp-add'
+    | 'mcp-remove'
+    | 'log'
+    | 'session-subcommand';
 
 /**
  * Detects what type of autocomplete should be shown based on input
@@ -70,6 +78,36 @@ export function detectInteractiveSelector(parsed: CommandResult): InteractiveSel
         !hasSpaceAfterCommand
     ) {
         return 'session';
+    }
+
+    // MCP selector - /mcp with no args shows main selector
+    if (command === 'mcp' && !hasArgs && !hasSpaceAfterCommand) {
+        return 'mcp';
+    }
+
+    // MCP add selector - /mcp add with no further args
+    if (command === 'mcp' && parsed.args && parsed.args[0] === 'add' && parsed.args.length === 1) {
+        return 'mcp-add';
+    }
+
+    // MCP remove selector - /mcp remove with no further args
+    if (
+        command === 'mcp' &&
+        parsed.args &&
+        parsed.args[0] === 'remove' &&
+        parsed.args.length === 1
+    ) {
+        return 'mcp-remove';
+    }
+
+    // Log level selector - /log with no args
+    if (command === 'log' && !hasArgs && !hasSpaceAfterCommand) {
+        return 'log';
+    }
+
+    // Session subcommand selector - /session with no args (not /resume or /switch)
+    if (command === 'session' && !hasArgs && !hasSpaceAfterCommand) {
+        return 'session-subcommand';
     }
 
     return 'none';

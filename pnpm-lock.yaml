@@ -148,6 +148,9 @@ importers:
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/registry':
+        specifier: workspace:*
+        version: link:../registry
       '@dexto/server':
         specifier: workspace:*
         version: link:../server
@@ -386,6 +389,15 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
 
+  packages/registry:
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.20.5)(typescript@5.9.2)(yaml@2.8.1)
+      typescript:
+        specifier: ^5
+        version: 5.9.2
+
   packages/server:
     dependencies:
       '@dexto/agent-management':
@@ -431,6 +443,9 @@ importers:
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/registry':
+        specifier: workspace:*
+        version: link:../registry
       '@mcp-ui/client':
         specifier: ^5.14.1
         version: 5.14.1(@preact/signals-core@1.12.1)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)

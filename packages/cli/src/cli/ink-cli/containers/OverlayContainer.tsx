@@ -24,7 +24,26 @@ import ModelSelectorRefactored, {
 import SessionSelectorRefactored, {
     type SessionSelectorHandle,
 } from '../components/overlays/SessionSelectorRefactored.js';
+import LogLevelSelector, {
+    type LogLevelSelectorHandle,
+} from '../components/overlays/LogLevelSelector.js';
+import McpSelector, {
+    type McpSelectorHandle,
+    type McpAction,
+} from '../components/overlays/McpSelector.js';
+import McpAddSelector, {
+    type McpAddSelectorHandle,
+    type McpAddResult,
+} from '../components/overlays/McpAddSelector.js';
+import McpRemoveSelector, {
+    type McpRemoveSelectorHandle,
+} from '../components/overlays/McpRemoveSelector.js';
+import SessionSubcommandSelector, {
+    type SessionSubcommandSelectorHandle,
+    type SessionAction,
+} from '../components/overlays/SessionSubcommandSelector.js';
 import type { PromptInfo, ResourceMetadata } from '@dexto/core';
+import { logger } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -55,38 +74,54 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const resourceAutocompleteRef = useRef<ResourceAutocompleteHandle>(null);
         const modelSelectorRef = useRef<ModelSelectorHandle>(null);
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
+        const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
+        const mcpSelectorRef = useRef<McpSelectorHandle>(null);
+        const mcpAddSelectorRef = useRef<McpAddSelectorHandle>(null);
+        const mcpRemoveSelectorRef = useRef<McpRemoveSelectorHandle>(null);
+        const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
             ref,
             () => ({
                 handleInput: (inputStr: string, key: Key): boolean => {
-                    // Route to active overlay
+                    // Route to approval first (highest priority)
                     if (approval && approvalRef.current) {
                         return approvalRef.current.handleInput(inputStr, key);
                     }
 
-                    if (ui.activeOverlay === 'slash-autocomplete' && slashAutocompleteRef.current) {
-                        return slashAutocompleteRef.current.handleInput(inputStr, key);
+                    // Route to active overlay based on type
+                    switch (ui.activeOverlay) {
+                        case 'slash-autocomplete':
+                            return (
+                                slashAutocompleteRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'resource-autocomplete':
+                            return (
+                                resourceAutocompleteRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'model-selector':
+                            return modelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'session-selector':
+                            return sessionSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'log-level-selector':
+                            return logLevelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-selector':
+                            return mcpSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-add-selector':
+                            return mcpAddSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-remove-selector':
+                            return (
+                                mcpRemoveSelectorRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'session-subcommand-selector':
+                            return (
+                                sessionSubcommandSelectorRef.current?.handleInput(inputStr, key) ??
+                                false
+                            );
+                        default:
+                            return false;
                     }
-
-                    if (
-                        ui.activeOverlay === 'resource-autocomplete' &&
-                        resourceAutocompleteRef.current
-                    ) {
-                        return resourceAutocompleteRef.current.handleInput(inputStr, key);
-                    }
-
-                    if (ui.activeOverlay === 'model-selector' && modelSelectorRef.current) {
-                        return modelSelectorRef.current.handleInput(inputStr, key);
-                    }
-
-                    if (ui.activeOverlay === 'session-selector' && sessionSelectorRef.current) {
-                        return sessionSelectorRef.current.handleInput(inputStr, key);
-                    }
-
-                    // Return false to indicate input was not consumed
-                    return false;
                 },
             }),
             [approval, ui.activeOverlay]
@@ -407,6 +442,223 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             dispatch({ type: 'CLOSE_OVERLAY' });
         }, [dispatch]);
 
+        // Handle log level selection
+        const handleLogLevelSelect = useCallback(
+            (level: string) => {
+                dispatch({ type: 'CLOSE_OVERLAY' });
+                dispatch({ type: 'INPUT_CLEAR' });
+
+                logger.setLevel(level);
+
+                dispatch({
+                    type: 'MESSAGE_ADD',
+                    message: {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `📊 Log level set to: ${level}`,
+                        timestamp: new Date(),
+                    },
+                });
+            },
+            [dispatch]
+        );
+
+        // Handle main MCP action selection
+        const handleMcpAction = useCallback(
+            async (action: McpAction) => {
+                if (action === 'list') {
+                    // Execute list directly
+                    dispatch({ type: 'CLOSE_OVERLAY' });
+                    dispatch({ type: 'INPUT_CLEAR' });
+                    dispatch({ type: 'PROCESSING_START' });
+
+                    try {
+                        const { CommandService } = await import('../services/CommandService.js');
+                        const commandService = new CommandService();
+                        const result = await commandService.executeCommand(
+                            'mcp',
+                            ['list'],
+                            agent,
+                            state.session.id || undefined
+                        );
+
+                        if (result.type === 'output' && result.output) {
+                            dispatch({
+                                type: 'MESSAGE_ADD',
+                                message: {
+                                    id: generateMessageId('command'),
+                                    role: 'system',
+                                    content: result.output,
+                                    timestamp: new Date(),
+                                },
+                            });
+                        }
+                        dispatch({ type: 'PROCESSING_END' });
+                    } catch (error) {
+                        dispatch({
+                            type: 'ERROR',
+                            errorMessage: error instanceof Error ? error.message : String(error),
+                        });
+                    }
+                } else if (action === 'add') {
+                    // Drill down to add selector
+                    dispatch({ type: 'INPUT_CHANGE', value: '/mcp add' });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-add-selector' });
+                } else if (action === 'remove') {
+                    // Drill down to remove selector
+                    dispatch({ type: 'INPUT_CHANGE', value: '/mcp remove' });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-remove-selector' });
+                }
+            },
+            [dispatch, agent, state.session.id]
+        );
+
+        // Handle MCP add selection
+        const handleMcpAddSelect = useCallback(
+            async (result: McpAddResult) => {
+                dispatch({ type: 'CLOSE_OVERLAY' });
+                dispatch({ type: 'INPUT_CLEAR' });
+
+                if (result.type === 'preset') {
+                    // Connect preset server
+                    dispatch({ type: 'PROCESSING_START' });
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `🔌 Connecting to ${result.entry.name}...`,
+                            timestamp: new Date(),
+                        },
+                    });
+
+                    try {
+                        await agent.connectMcpServer(result.entry.id, result.entry.config as any);
+                        dispatch({
+                            type: 'MESSAGE_ADD',
+                            message: {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Connected to ${result.entry.name}`,
+                                timestamp: new Date(),
+                            },
+                        });
+                    } catch (error) {
+                        dispatch({
+                            type: 'MESSAGE_ADD',
+                            message: {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        });
+                    }
+                    dispatch({ type: 'PROCESSING_END' });
+                } else {
+                    // Custom server - load command template into input
+                    const templates = {
+                        stdio: '/mcp add stdio <name> <command> [args...]',
+                        http: '/mcp add http <name> <url>',
+                        sse: '/mcp add sse <name> <url>',
+                    };
+                    dispatch({ type: 'INPUT_CHANGE', value: templates[result.serverType] });
+                }
+            },
+            [dispatch, agent]
+        );
+
+        // Handle MCP remove selection
+        const handleMcpRemoveSelect = useCallback(
+            async (serverName: string) => {
+                dispatch({ type: 'CLOSE_OVERLAY' });
+                dispatch({ type: 'INPUT_CLEAR' });
+                dispatch({ type: 'PROCESSING_START' });
+
+                dispatch({
+                    type: 'MESSAGE_ADD',
+                    message: {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🗑️ Removing ${serverName}...`,
+                        timestamp: new Date(),
+                    },
+                });
+
+                try {
+                    await agent.removeMcpServer(serverName);
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Removed ${serverName}`,
+                            timestamp: new Date(),
+                        },
+                    });
+                } catch (error) {
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `❌ Failed to remove: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    });
+                }
+                dispatch({ type: 'PROCESSING_END' });
+            },
+            [dispatch, agent]
+        );
+
+        // Handle session subcommand selection
+        const handleSessionSubcommandSelect = useCallback(
+            async (action: SessionAction) => {
+                if (action === 'switch') {
+                    // Drill down to session selector
+                    dispatch({ type: 'INPUT_CHANGE', value: '/session switch' });
+                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-selector' });
+                    return;
+                }
+
+                // Execute other session commands directly
+                dispatch({ type: 'CLOSE_OVERLAY' });
+                dispatch({ type: 'INPUT_CLEAR' });
+                dispatch({ type: 'PROCESSING_START' });
+
+                try {
+                    const { CommandService } = await import('../services/CommandService.js');
+                    const commandService = new CommandService();
+                    const result = await commandService.executeCommand(
+                        'session',
+                        [action],
+                        agent,
+                        state.session.id || undefined
+                    );
+
+                    if (result.type === 'output' && result.output) {
+                        dispatch({
+                            type: 'MESSAGE_ADD',
+                            message: {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: result.output,
+                                timestamp: new Date(),
+                            },
+                        });
+                    }
+                    dispatch({ type: 'PROCESSING_END' });
+                } catch (error) {
+                    dispatch({
+                        type: 'ERROR',
+                        errorMessage: error instanceof Error ? error.message : String(error),
+                    });
+                }
+            },
+            [dispatch, agent, state.session.id]
+        );
+
         return (
             <>
                 {/* Approval prompt */}
@@ -474,6 +726,67 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onClose={handleClose}
                             agent={agent}
                             currentSessionId={state.session.id || undefined}
+                        />
+                    </Box>
+                )}
+
+                {/* Log level selector */}
+                {ui.activeOverlay === 'log-level-selector' && (
+                    <Box marginTop={1}>
+                        <LogLevelSelector
+                            ref={logLevelSelectorRef}
+                            isVisible={true}
+                            onSelect={handleLogLevelSelect}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP selector */}
+                {ui.activeOverlay === 'mcp-selector' && (
+                    <Box marginTop={1}>
+                        <McpSelector
+                            ref={mcpSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpAction}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP add selector */}
+                {ui.activeOverlay === 'mcp-add-selector' && (
+                    <Box marginTop={1}>
+                        <McpAddSelector
+                            ref={mcpAddSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpAddSelect}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP remove selector */}
+                {ui.activeOverlay === 'mcp-remove-selector' && (
+                    <Box marginTop={1}>
+                        <McpRemoveSelector
+                            ref={mcpRemoveSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpRemoveSelect}
+                            onClose={handleClose}
+                            agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* Session subcommand selector */}
+                {ui.activeOverlay === 'session-subcommand-selector' && (
+                    <Box marginTop={1}>
+                        <SessionSubcommandSelector
+                            ref={sessionSubcommandSelectorRef}
+                            isVisible={true}
+                            onSelect={handleSessionSubcommandSelect}
+                            onClose={handleClose}
                         />
                     </Box>
                 )}
