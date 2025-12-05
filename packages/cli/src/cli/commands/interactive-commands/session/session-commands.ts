@@ -20,9 +20,13 @@
 
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
-import { CommandDefinition, getCLISessionId } from '../command-parser.js';
+import { CommandDefinition, CommandHandlerResult, getCLISessionId } from '../command-parser.js';
 import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
+import type {
+    SessionListStyledData,
+    SessionHistoryStyledData,
+} from '../../../ink-cli/state/types.js';
 
 /**
  * Escape special regex characters in a string to prevent ReDoS attacks
@@ -85,10 +89,8 @@ export const sessionCommand: CommandDefinition = {
             name: 'list',
             description: 'List all sessions',
             usage: '/session list',
-            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
                 try {
-                    console.log(chalk.bold.blue('\n📋 Sessions:\n'));
-
                     const sessionIds = await agent.listSessions();
                     const current = await getCurrentSessionInfo(agent);
 
@@ -115,19 +117,41 @@ export const sessionCommand: CommandDefinition = {
                         })
                     );
 
-                    let displayed = 0;
+                    // Build styled data
+                    const sessions: SessionListStyledData['sessions'] = [];
                     for (const { id, metadata } of entries) {
                         if (!metadata) continue;
                         const isCurrent = current ? id === current.id : false;
-                        console.log(`  ${formatSessionInfo(id, metadata, isCurrent)}`);
-                        displayed++;
+                        sessions.push({
+                            id,
+                            messageCount: metadata.messageCount || 0,
+                            lastActive: metadata.lastActivity
+                                ? new Date(metadata.lastActivity).toLocaleString()
+                                : 'Unknown',
+                            isCurrent,
+                        });
                     }
 
-                    console.log(
-                        chalk.dim(`\n  Total: ${displayed} of ${sessionIds.length} sessions`)
+                    const styledData: SessionListStyledData = {
+                        sessions,
+                        total: sessionIds.length,
+                    };
+
+                    // Build fallback text
+                    const fallbackLines: string[] = ['Sessions:'];
+                    for (const session of sessions) {
+                        const marker = session.isCurrent ? '> ' : '  ';
+                        fallbackLines.push(
+                            `${marker}${session.id.slice(0, 8)} - ${session.messageCount} messages`
+                        );
+                    }
+                    fallbackLines.push(`Total: ${sessionIds.length} sessions`);
+
+                    return CommandOutputHelper.styled(
+                        'session-list',
+                        styledData,
+                        fallbackLines.join('\n')
                     );
-                    console.log(chalk.dim('  💡 Use /resume to pick a session\n'));
-                    return CommandOutputHelper.noOutput(); // List is displayed above
                 } catch (error) {
                     return CommandOutputHelper.error(error, 'Failed to list sessions');
                 }
@@ -138,7 +162,7 @@ export const sessionCommand: CommandDefinition = {
             description: 'Show session history for current session',
             usage: '/session history [sessionId]',
             aliases: ['h'],
-            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
                 try {
                     // Use provided session ID or current session from CLI context
                     const currentSessionId = getCLISessionId(agent);
@@ -150,8 +174,42 @@ export const sessionCommand: CommandDefinition = {
                         );
                     }
 
-                    await displaySessionHistory(sessionId, agent);
-                    return CommandOutputHelper.noOutput(); // History is displayed by displaySessionHistory
+                    const history = await agent.getSessionHistory(sessionId);
+
+                    // Build styled data
+                    const styledData: SessionHistoryStyledData = {
+                        sessionId,
+                        messages: history.map((msg) => ({
+                            role: msg.role,
+                            content:
+                                typeof msg.content === 'string'
+                                    ? msg.content
+                                    : JSON.stringify(msg.content),
+                            timestamp: new Date().toLocaleTimeString(),
+                        })),
+                        total: history.length,
+                    };
+
+                    // Build fallback text
+                    const fallbackLines: string[] = [`Session History: ${sessionId.slice(0, 8)}`];
+                    if (history.length === 0) {
+                        fallbackLines.push('  No messages in this session yet.');
+                    } else {
+                        for (const msg of history) {
+                            const content =
+                                typeof msg.content === 'string'
+                                    ? msg.content
+                                    : JSON.stringify(msg.content);
+                            fallbackLines.push(`  [${msg.role}] ${content.slice(0, 50)}...`);
+                        }
+                        fallbackLines.push(`Total: ${history.length} messages`);
+                    }
+
+                    return CommandOutputHelper.styled(
+                        'session-history',
+                        styledData,
+                        fallbackLines.join('\n')
+                    );
                 } catch (error) {
                     if (error instanceof Error && error.message.includes('not found')) {
                         return CommandOutputHelper.error(
@@ -240,7 +298,7 @@ export const sessionCommand: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+    handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
         // Default to help if no subcommand
         if (args.length === 0) {
             const helpSubcommand = sessionCommand.subcommands?.find((s) => s.name === 'help');
@@ -275,7 +333,7 @@ export const historyCommand: CommandDefinition = {
     usage: '/history [sessionId]',
     category: 'Session Management',
     aliases: ['hist'],
-    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+    handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
         try {
             // Use provided session ID or current session from CLI context
             const currentSessionId = getCLISessionId(agent);
@@ -287,8 +345,38 @@ export const historyCommand: CommandDefinition = {
                 );
             }
 
-            await displaySessionHistory(sessionId, agent);
-            return CommandOutputHelper.noOutput();
+            const history = await agent.getSessionHistory(sessionId);
+
+            // Build styled data
+            const styledData: SessionHistoryStyledData = {
+                sessionId,
+                messages: history.map((msg) => ({
+                    role: msg.role,
+                    content:
+                        typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+                    timestamp: new Date().toLocaleTimeString(),
+                })),
+                total: history.length,
+            };
+
+            // Build fallback text
+            const fallbackLines: string[] = [`Session History: ${sessionId.slice(0, 8)}`];
+            if (history.length === 0) {
+                fallbackLines.push('  No messages in this session yet.');
+            } else {
+                for (const msg of history) {
+                    const content =
+                        typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                    fallbackLines.push(`  [${msg.role}] ${content.slice(0, 50)}...`);
+                }
+                fallbackLines.push(`Total: ${history.length} messages`);
+            }
+
+            return CommandOutputHelper.styled(
+                'session-history',
+                styledData,
+                fallbackLines.join('\n')
+            );
         } catch (error) {
             if (error instanceof Error && error.message.includes('not found')) {
                 return CommandOutputHelper.error(

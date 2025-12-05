@@ -20,7 +20,7 @@
  */
 
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
+import type { CommandDefinition, CommandHandlerResult } from './command-parser.js';
 
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
@@ -89,14 +89,14 @@ CLI_COMMANDS.push(...baseCommands);
  * Execute a slash command
  *
  * @param sessionId - Session ID to use for agent.run() calls
- * @returns boolean indicating if command was handled, or string for ink-cli output
+ * @returns CommandHandlerResult - boolean, string, or StyledOutput
  */
 export async function executeCommand(
     command: string,
     args: string[],
     agent: DextoAgent,
     sessionId?: string
-): Promise<boolean | string> {
+): Promise<CommandHandlerResult> {
     // Store sessionId in agent context for command handlers to access
     if (sessionId) {
         (agent as any).__cliSessionId = sessionId;

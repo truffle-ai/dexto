@@ -7,7 +7,7 @@
 
 import chalk from 'chalk';
 import { logger, DextoAgent } from '@dexto/core';
-import { CommandDefinition } from '../command-parser.js';
+import { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import {
     parseStdioArgs,
@@ -228,7 +228,7 @@ export const mcpCommands: CommandDefinition = {
                 },
                 // TODO: Add preset subcommand when implemented
             ],
-            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
                 if (args.length === 0) {
                     showMcpAddHelp();
                     return true;
@@ -253,7 +253,7 @@ export const mcpCommands: CommandDefinition = {
             name: 'remove',
             description: 'Remove an MCP server',
             usage: '/mcp remove <name>',
-            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
                 if (args.length === 0) {
                     const errorMsg = '❌ Usage: /mcp remove <name>';
                     console.log(chalk.red(errorMsg));
@@ -383,7 +383,7 @@ export const mcpCommands: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+    handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
         if (args.length === 0) {
             const helpSubcommand = mcpCommands.subcommands?.find((s) => s.name === 'help');
             if (helpSubcommand) {

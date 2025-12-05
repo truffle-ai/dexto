@@ -21,6 +21,84 @@ export interface StartupInfo {
 export type ToolStatus = 'running' | 'finished';
 
 /**
+ * Styled message types for rich command output
+ */
+export type StyledMessageType =
+    | 'config'
+    | 'stats'
+    | 'help'
+    | 'session-list'
+    | 'session-history'
+    | 'log-config';
+
+/**
+ * Structured data for styled messages
+ */
+export interface ConfigStyledData {
+    provider: string;
+    model: string;
+    router: string;
+    maxSessions: string;
+    sessionTTL: string;
+    mcpServers: string[];
+}
+
+export interface StatsStyledData {
+    sessions: {
+        total: number;
+        inMemory: number;
+        maxAllowed: number;
+    };
+    mcp: {
+        connected: number;
+        failed: number;
+        toolCount: number;
+    };
+}
+
+export interface HelpStyledData {
+    commands: Array<{
+        name: string;
+        description: string;
+        category: string;
+    }>;
+}
+
+export interface SessionListStyledData {
+    sessions: Array<{
+        id: string;
+        messageCount: number;
+        lastActive: string;
+        isCurrent: boolean;
+    }>;
+    total: number;
+}
+
+export interface SessionHistoryStyledData {
+    sessionId: string;
+    messages: Array<{
+        role: string;
+        content: string;
+        timestamp: string;
+    }>;
+    total: number;
+}
+
+export interface LogConfigStyledData {
+    currentLevel: string;
+    logFile: string | null;
+    availableLevels: string[];
+}
+
+export type StyledData =
+    | ConfigStyledData
+    | StatsStyledData
+    | HelpStyledData
+    | SessionListStyledData
+    | SessionHistoryStyledData
+    | LogConfigStyledData;
+
+/**
  * Message in the chat interface
  */
 export interface Message {
@@ -31,6 +109,8 @@ export interface Message {
     isStreaming?: boolean;
     toolResult?: string; // Tool result preview (first 4-5 lines)
     toolStatus?: ToolStatus; // Status for tool messages (running/finished)
+    styledType?: StyledMessageType; // Type of styled rendering (if any)
+    styledData?: StyledData; // Structured data for styled rendering
 }
 
 /**

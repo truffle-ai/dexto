@@ -185,6 +185,21 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             });
                         }
 
+                        if (result.type === 'styled' && result.styled) {
+                            // Command returned styled output
+                            dispatch({
+                                type: 'MESSAGE_ADD',
+                                message: {
+                                    id: generateMessageId('command'),
+                                    role: 'system',
+                                    content: result.styled.fallbackText,
+                                    timestamp: new Date(),
+                                    styledType: result.styled.styledType,
+                                    styledData: result.styled.styledData,
+                                },
+                            });
+                        }
+
                         // Always complete for non-prompt commands
                         dispatch({ type: 'SUBMIT_COMPLETE' });
                     } catch (error) {

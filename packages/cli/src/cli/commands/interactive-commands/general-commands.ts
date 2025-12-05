@@ -12,9 +12,11 @@
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
+import type { CommandDefinition, CommandHandlerResult } from './command-parser.js';
 import { displayAllCommands, formatCommandHelp } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
+import { CommandOutputHelper } from './utils/command-output.js';
+import type { HelpStyledData } from '../../ink-cli/state/types.js';
 
 /**
  * Creates the help command with access to all commands for display
@@ -26,76 +28,29 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
         usage: '/help [command]',
         category: 'General',
         aliases: ['h', '?'],
-        handler: async (args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (args: string[], _agent: DextoAgent): Promise<CommandHandlerResult> => {
             const allCommands = getAllCommands();
 
             if (args.length === 0) {
-                // Build output string for ink-cli
-                const outputLines: string[] = ['\n📋 Available Commands:\n'];
+                // Build styled data for help
+                const styledData: HelpStyledData = {
+                    commands: allCommands.map((cmd) => ({
+                        name: cmd.name,
+                        description: cmd.description,
+                        category: cmd.category || 'General',
+                    })),
+                };
 
-                // Define category order for consistent display
-                const categoryOrder = [
-                    'General',
-                    'MCP Management',
-                    'Tool Management',
-                    'Prompt Management',
-                    'System',
-                    'Documentation',
-                ];
-
-                const categories: { [key: string]: CommandDefinition[] } = {};
-
-                // Initialize categories
-                for (const category of categoryOrder) {
-                    categories[category] = [];
-                }
-
-                // Categorize commands using metadata
+                // Build fallback text
+                const fallbackLines: string[] = ['Available Commands:'];
                 for (const cmd of allCommands) {
-                    const category = cmd.category || 'General';
-                    if (!categories[category]) {
-                        categories[category] = [];
-                    }
-                    categories[category]!.push(cmd);
+                    fallbackLines.push(`  /${cmd.name} - ${cmd.description}`);
                 }
-
-                // Build output by category in order
-                for (const category of categoryOrder) {
-                    const cmds = categories[category];
-                    if (cmds && cmds.length > 0) {
-                        outputLines.push(`${category}:`);
-                        for (const cmd of cmds) {
-                            const help = formatCommandHelp(cmd, false);
-                            outputLines.push('  ' + formatForInkCli(help));
-                        }
-                        outputLines.push('');
-                    }
-                }
-
-                // Display any uncategorized commands (fallback)
-                for (const [category, cmds] of Object.entries(categories)) {
-                    if (!categoryOrder.includes(category) && cmds.length > 0) {
-                        outputLines.push(`${category}:`);
-                        for (const cmd of cmds) {
-                            const help = formatCommandHelp(cmd, false);
-                            outputLines.push('  ' + formatForInkCli(help));
-                        }
-                        outputLines.push('');
-                    }
-                }
-
-                outputLines.push('💡 Tips:');
-                outputLines.push('   • Type your message normally (without /) to chat with the AI');
-                outputLines.push('   • Use /<prompt-name> to execute any listed prompt directly');
-                outputLines.push('   • Use /clear to start a new session (preserves old)');
-                outputLines.push('   • Press Ctrl+M to switch models, Ctrl+R to switch sessions');
-                outputLines.push('   • Use /search <query> to search across all sessions\n');
-                const output = outputLines.join('\n');
 
                 // Log for regular CLI (with chalk formatting)
                 displayAllCommands(allCommands);
 
-                return formatForInkCli(output);
+                return CommandOutputHelper.styled('help', styledData, fallbackLines.join('\n'));
             }
 
             const commandName = args[0];

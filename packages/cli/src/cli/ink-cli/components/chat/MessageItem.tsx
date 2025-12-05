@@ -6,8 +6,24 @@
 
 import { memo } from 'react';
 import { Box, Text } from 'ink';
-import type { Message } from '../../state/types.js';
+import type {
+    Message,
+    ConfigStyledData,
+    StatsStyledData,
+    HelpStyledData,
+    SessionListStyledData,
+    SessionHistoryStyledData,
+    LogConfigStyledData,
+} from '../../state/types.js';
 import { ToolIcon } from './ToolIcon.js';
+import {
+    ConfigBox,
+    StatsBox,
+    HelpBox,
+    SessionListBox,
+    SessionHistoryBox,
+    LogConfigBox,
+} from './styled-boxes/index.js';
 
 interface MessageItemProps {
     message: Message;
@@ -18,6 +34,24 @@ interface MessageItemProps {
  * Visual hierarchy through colors and spacing only (no borders for easy text copying)
  */
 export const MessageItem = memo(({ message }: MessageItemProps) => {
+    // Check for styled message first
+    if (message.styledType && message.styledData) {
+        switch (message.styledType) {
+            case 'config':
+                return <ConfigBox data={message.styledData as ConfigStyledData} />;
+            case 'stats':
+                return <StatsBox data={message.styledData as StatsStyledData} />;
+            case 'help':
+                return <HelpBox data={message.styledData as HelpStyledData} />;
+            case 'session-list':
+                return <SessionListBox data={message.styledData as SessionListStyledData} />;
+            case 'session-history':
+                return <SessionHistoryBox data={message.styledData as SessionHistoryStyledData} />;
+            case 'log-config':
+                return <LogConfigBox data={message.styledData as LogConfigStyledData} />;
+        }
+    }
+
     // User message: Simple '>' with dim background for easy scanning
     if (message.role === 'user') {
         return (
