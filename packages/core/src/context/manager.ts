@@ -19,7 +19,7 @@ import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 
-// TODO Phase 8: Simplify this class - review what can be deleted once TurnExecutor is integrated
+//  Simplify this class - review what can be deleted once TurnExecutor is integrated/openai/anthropic llm services are deprecated.
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -776,7 +776,7 @@ export class ContextManager<TMessage = unknown> {
             history
         ); // Type cast happens here via TMessage generic
 
-        // TODO Phase 8: Remove token estimation - TurnExecutor uses actual API tokens for overflow detection
+        // TODO: Remove token estimation - TurnExecutor uses actual API tokens for overflow detection
         const historyTokens = countMessagesTokens(history, this.tokenizer, undefined, this.logger);
         const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05);
         const tokensUsed = systemPromptTokens + historyTokens + formattingOverhead;
