@@ -1,5 +1,15 @@
 # @dexto/core
 
+## 1.3.1
+
+### Patch Changes
+
+- bd5c097: Add features check for internal tools, fix coding agent and logger agent elicitation
+- d640e40: Remove LLM services, tokenizers, just stick with vercel, remove 'router' from schema and all types and docs
+- c54760f: Revamp context management layer - add partial stream cancellation, message queueing, context compression with LLM, MCP UI support and gaming agent. New APIs and UI changes for these things
+- ab47df8: Add approval metadata and ui badge
+- 3b4b919: Fixed Ink CLI bugs and updated state management system.
+
 ## 1.3.0
 
 ### Minor Changes

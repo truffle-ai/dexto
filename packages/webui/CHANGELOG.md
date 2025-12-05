@@ -1,5 +1,22 @@
 # @dexto/webui
 
+## 1.3.1
+
+### Patch Changes
+
+- bd5c097: Add features check for internal tools, fix coding agent and logger agent elicitation
+- d640e40: Remove LLM services, tokenizers, just stick with vercel, remove 'router' from schema and all types and docs
+- c54760f: Revamp context management layer - add partial stream cancellation, message queueing, context compression with LLM, MCP UI support and gaming agent. New APIs and UI changes for these things
+- ab47df8: Add approval metadata and ui badge
+- Updated dependencies [bd5c097]
+- Updated dependencies [d640e40]
+- Updated dependencies [c54760f]
+- Updated dependencies [ab47df8]
+- Updated dependencies [3b4b919]
+    - @dexto/core@1.3.1
+    - @dexto/analytics@1.3.1
+    - @dexto/client-sdk@1.3.1
+
 ## 1.3.0
 
 ### Minor Changes
