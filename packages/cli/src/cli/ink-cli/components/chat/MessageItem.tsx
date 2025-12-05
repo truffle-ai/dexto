@@ -55,14 +55,13 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
     // User message: Simple '>' with dim background for easy scanning
     if (message.role === 'user') {
         return (
-            <Box flexDirection="column" marginBottom={1}>
+            <Box flexDirection="column" marginTop={2} marginBottom={1}>
                 <Box flexDirection="row" paddingX={1} backgroundColor="gray">
                     <Text color="green" dimColor>
                         {'> '}
                     </Text>
                     <Text color="white">{message.content}</Text>
                 </Box>
-                <Text>{''}</Text>
             </Box>
         );
     }
@@ -79,7 +78,6 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                         <Text color="white">{message.content || ' '}</Text>
                     </Box>
                 </Box>
-                <Text>{''}</Text>
             </Box>
         );
     }
@@ -100,7 +98,6 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
                         <Text color="gray">{message.toolResult}</Text>
                     </Box>
                 )}
-                <Text>{''}</Text>
             </Box>
         );
     }
@@ -111,7 +108,6 @@ export const MessageItem = memo(({ message }: MessageItemProps) => {
             <Text color="gray" dimColor>
                 {message.content}
             </Text>
-            <Text>{''}</Text>
         </Box>
     );
 });

@@ -134,8 +134,25 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             try {
                 const result = payload.sanitized || payload.rawResult;
                 if (result) {
-                    const resultStr =
-                        typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+                    // Try to extract meaningful text from MCP tool results
+                    let resultStr = '';
+                    if (typeof result === 'string') {
+                        resultStr = result;
+                    } else if (result && typeof result === 'object') {
+                        // Handle MCP content array format: { content: [{ type: 'text', text: '...' }] }
+                        if (Array.isArray(result.content)) {
+                            resultStr = result.content
+                                .filter((item: { type?: string }) => item.type === 'text')
+                                .map((item: { text?: string }) => item.text || '')
+                                .join('\n');
+                        } else if (result.text) {
+                            // Simple { text: '...' } format
+                            resultStr = result.text;
+                        } else {
+                            // Fallback to JSON for other structures
+                            resultStr = JSON.stringify(result, null, 2);
+                        }
+                    }
 
                     // Limit to ~400 chars (roughly 4-5 terminal lines at 80-100 chars width)
                     const maxChars = 400;

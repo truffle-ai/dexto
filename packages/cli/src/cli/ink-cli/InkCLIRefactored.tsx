@@ -14,16 +14,8 @@
  * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
-import {
-    useReducer,
-    useMemo,
-    useEffect,
-    useRef,
-    useCallback,
-    useState,
-    useLayoutEffect,
-} from 'react';
-import { Box, render, useStdout, measureElement, type DOMElement } from 'ink';
+import React, { useReducer, useMemo, useEffect, useRef, useCallback } from 'react';
+import { Box, render, Static } from 'ink';
 import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
@@ -41,7 +33,8 @@ import { InputService, MessageService } from './services/index.js';
 import { getStartupInfo, convertHistoryToUIMessages } from './utils/messageFormatting.js';
 
 // Components
-import { ChatView } from './components/chat/ChatView.js';
+import { Header } from './components/chat/Header.js';
+import { MessageItem } from './components/chat/MessageItem.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { StatusBar } from './components/StatusBar.js';
 
@@ -84,43 +77,6 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     // Refs to container components for unified input handling
     const inputContainerRef = useRef<InputContainerHandle>(null);
     const overlayContainerRef = useRef<OverlayContainerHandle>(null);
-
-    // Ref for measuring controls area
-    const controlsRef = useRef<DOMElement>(null);
-
-    // Terminal dimensions
-    const { stdout } = useStdout();
-    const terminalHeight = stdout?.rows || 24;
-
-    // Track measured height of controls area
-    const [measuredControlsHeight, setMeasuredControlsHeight] = useState(0);
-
-    // Check if any overlay is active that needs space
-    const hasActiveOverlay = state.ui.activeOverlay !== 'none' || state.approval !== null;
-
-    // Default height to reserve for overlay area (header + 8 items + padding)
-    const DEFAULT_OVERLAY_HEIGHT = 12;
-
-    // Use measured height if available, otherwise use default when overlay is active
-    const controlsHeight =
-        measuredControlsHeight > 0
-            ? measuredControlsHeight
-            : hasActiveOverlay
-              ? DEFAULT_OVERLAY_HEIGHT + 3 // overlay + status + input
-              : 3; // just status + input
-
-    // Measure controls after render
-    useLayoutEffect(() => {
-        if (controlsRef.current) {
-            const measurement = measureElement(controlsRef.current);
-            if (measurement.height > 0 && measurement.height !== measuredControlsHeight) {
-                setMeasuredControlsHeight(measurement.height);
-            }
-        }
-    }, [measuredControlsHeight, state.ui.activeOverlay, state.input.value, state.approval]);
-
-    // Calculate available height for chat
-    const availableChatHeight = Math.max(1, terminalHeight - controlsHeight - 1);
 
     // Setup event bus subscriptions
     useAgentEvents({ agent, dispatch, isCancelling: state.ui.isCancelling });
@@ -252,54 +208,74 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         dispatch,
     ]);
 
-    // Get visible messages (performance optimization)
-    // Limit to last 30 messages to prevent scrolling issues
-    const visibleMessages = useMemo(() => {
-        return messageService.getVisibleMessages(state.messages, 30);
+    // Separate completed messages from streaming message (like Gemini CLI)
+    const { completedMessages, streamingMessage } = useMemo(() => {
+        const visible = messageService.getVisibleMessages(state.messages, 30);
+        const streaming = visible.find((msg) => msg.isStreaming);
+        const completed = streaming ? visible.filter((msg) => !msg.isStreaming) : visible;
+        return { completedMessages: completed, streamingMessage: streaming };
     }, [state.messages, messageService]);
+
+    // Build static items array: header + completed messages (rendered once, never re-render)
+    const staticItems = useMemo(() => {
+        const items: React.ReactElement[] = [
+            <Header
+                key="header"
+                modelName={state.session.modelName}
+                sessionId={state.session.id || undefined}
+                hasActiveSession={state.session.hasActiveSession}
+                startupInfo={startupInfo}
+            />,
+        ];
+        completedMessages.forEach((msg) => {
+            items.push(<MessageItem key={msg.id} message={msg} />);
+        });
+        return items;
+    }, [
+        completedMessages,
+        state.session.modelName,
+        state.session.id,
+        state.session.hasActiveSession,
+        startupInfo,
+    ]);
 
     return (
         <ErrorBoundary>
-            <Box flexDirection="column" height={terminalHeight - 1} overflow="hidden">
-                {/* Chat area - constrained to leave room for controls */}
-                <Box flexDirection="column" height={availableChatHeight} overflow="hidden">
-                    <ChatView
-                        messages={visibleMessages}
-                        modelName={state.session.modelName}
-                        sessionId={state.session.id || undefined}
-                        hasActiveSession={state.session.hasActiveSession}
-                        startupInfo={startupInfo}
-                    />
-                </Box>
+            {/* Static content: header + completed messages (rendered once, no re-renders = no flicker) */}
+            <Static items={staticItems}>{(item) => item}</Static>
 
-                {/* Controls area - measured for dynamic height */}
-                <Box ref={controlsRef} flexDirection="column" flexShrink={0}>
-                    {/* Status bar - shows processing state above input */}
-                    <StatusBar
-                        isProcessing={state.ui.isProcessing}
-                        isThinking={state.ui.isThinking}
-                        approvalQueueCount={state.approvalQueue.length}
-                        exitWarningShown={state.ui.exitWarningShown}
-                    />
+            {/* Dynamic content: streaming message + controls (can re-render) */}
+            <Box flexDirection="column">
+                {/* Streaming message (if any) */}
+                {streamingMessage && (
+                    <Box paddingX={1}>
+                        <MessageItem message={streamingMessage} />
+                    </Box>
+                )}
 
-                    {/* Overlays (approval, selectors, autocomplete) - displayed ABOVE input */}
-                    <OverlayContainer
-                        ref={overlayContainerRef}
-                        state={state}
-                        dispatch={dispatch}
-                        agent={agent}
-                        inputService={inputService}
-                    />
+                {/* Controls area */}
+                <StatusBar
+                    isProcessing={state.ui.isProcessing}
+                    isThinking={state.ui.isThinking}
+                    approvalQueueCount={state.approvalQueue.length}
+                    exitWarningShown={state.ui.exitWarningShown}
+                />
 
-                    {/* Input area */}
-                    <InputContainer
-                        ref={inputContainerRef}
-                        state={state}
-                        dispatch={dispatch}
-                        agent={agent}
-                        inputService={inputService}
-                    />
-                </Box>
+                <InputContainer
+                    ref={inputContainerRef}
+                    state={state}
+                    dispatch={dispatch}
+                    agent={agent}
+                    inputService={inputService}
+                />
+
+                <OverlayContainer
+                    ref={overlayContainerRef}
+                    state={state}
+                    dispatch={dispatch}
+                    agent={agent}
+                    inputService={inputService}
+                />
             </Box>
         </ErrorBoundary>
     );
@@ -321,10 +297,6 @@ export async function startInkCliRefactored(
     // Note: Console suppression is done in index.ts before calling this function
     const startupInfo = await getStartupInfo(agent);
 
-    // Use alternate buffer for flicker-free rendering (like Gemini CLI)
-    // Alternate buffer renders to a separate terminal screen that gets swapped in atomically
-    const useAlternateBuffer = true;
-
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
@@ -334,12 +306,9 @@ export async function startInkCliRefactored(
         {
             // Disable default Ctrl+C exit to handle it ourselves with double-press warning
             exitOnCtrlC: false,
-            // Use alternate screen buffer for flicker-free rendering
-            // This prevents the "clear then redraw" flicker by rendering to an off-screen buffer
-            alternateBuffer: useAlternateBuffer,
-            // Only re-render changed parts of the UI (requires alternateBuffer)
-            // This reduces terminal writes significantly
-            incrementalRendering: useAlternateBuffer,
+            // TODO: Re-enable once we fix layout issues
+            // alternateBuffer: true,
+            // incrementalRendering: true,
         }
     );
 
