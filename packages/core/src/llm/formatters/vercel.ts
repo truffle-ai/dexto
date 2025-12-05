@@ -1,5 +1,4 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
-import { IMessageFormatter } from './types.js';
 import { LLMContext } from '../types.js';
 import { InternalMessage } from '@core/context/types.js';
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '@core/context/utils.js';
@@ -17,7 +16,7 @@ import { DextoLogComponent } from '@core/logger/v2/types.js';
  * Note: Vercel's implementation is different from OpenAI's standard,
  * particularly in its handling of function calls and responses.
  */
-export class VercelMessageFormatter implements IMessageFormatter {
+export class VercelMessageFormatter {
     private logger: IDextoLogger;
 
     constructor(logger: IDextoLogger) {

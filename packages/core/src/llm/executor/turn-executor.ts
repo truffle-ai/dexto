@@ -178,9 +178,7 @@ export class TurnExecutor {
                     this.llmContext
                 );
 
-                this.logger.debug(
-                    `Step ${stepCount}: Starting with ${prepared.tokensUsed} estimated tokens`
-                );
+                this.logger.debug(`Step ${stepCount}: Starting`);
 
                 // 4. Create tools with execute callbacks and toModelOutput
                 // Use empty object if model doesn't support tools
@@ -758,15 +756,9 @@ export class TurnExecutor {
         );
 
         const history = await this.contextManager.getHistory();
-        const tokenizer = this.contextManager.getTokenizer();
-        const maxTokens = this.modelLimits?.contextWindow ?? 100000;
 
         // Generate summary message(s)
-        const summaryMessages = await this.compressionStrategy.compress(
-            history,
-            tokenizer,
-            maxTokens
-        );
+        const summaryMessages = await this.compressionStrategy.compress(history);
 
         if (summaryMessages.length === 0) {
             this.logger.debug('Compression returned no summary (history too short)');
@@ -779,11 +771,11 @@ export class TurnExecutor {
             await this.contextManager.addMessage(summary);
         }
 
-        // Estimate compressed tokens by simulating what filterCompacted would produce
-        const { filterCompacted, countMessagesTokens } = await import('../../context/utils.js');
+        // Get filtered history to report message counts
+        const { filterCompacted, estimateMessagesTokens } = await import('../../context/utils.js');
         const updatedHistory = await this.contextManager.getHistory();
         const filteredHistory = filterCompacted(updatedHistory);
-        const compressedTokens = countMessagesTokens(filteredHistory, tokenizer, 4, this.logger);
+        const compressedTokens = estimateMessagesTokens(filteredHistory);
 
         this.eventBus.emit('context:compressed', {
             originalTokens,

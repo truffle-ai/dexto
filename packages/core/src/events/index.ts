@@ -359,7 +359,9 @@ export interface AgentEventMap {
 
     /** Context was compressed during multi-step tool calling */
     'context:compressed': {
+        /** Actual input tokens from API that triggered compression */
         originalTokens: number;
+        /** Estimated tokens after compression (simple length/4 heuristic) */
         compressedTokens: number;
         originalMessages: number;
         compressedMessages: number;
@@ -525,7 +527,9 @@ export interface SessionEventMap {
 
     /** Context was compressed during multi-step tool calling */
     'context:compressed': {
+        /** Actual input tokens from API that triggered compression */
         originalTokens: number;
+        /** Estimated tokens after compression (simple length/4 heuristic) */
         compressedTokens: number;
         originalMessages: number;
         compressedMessages: number;

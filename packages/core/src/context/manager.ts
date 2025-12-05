@@ -1,17 +1,11 @@
 import { randomUUID } from 'crypto';
-import { IMessageFormatter } from '@core/llm/formatters/types.js';
+import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
 import { InternalMessage, ImageData, FileData } from './types.js';
-import { ITokenizer } from '../llm/tokenizer/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
-import {
-    countMessagesTokens,
-    expandBlobReferences,
-    isLikelyBase64String,
-    filterCompacted,
-} from './utils.js';
+import { expandBlobReferences, isLikelyBase64String, filterCompacted } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -25,15 +19,11 @@ import { ValidatedLLMConfig } from '../llm/schemas.js';
  * - Validating and storing conversation messages via the history provider
  * - Managing the system prompt
  * - Formatting messages for specific LLM providers through an injected formatter
- * - Optionally counting tokens using a provided tokenizer
- * - Applying compression strategies sequentially if token limits are exceeded
  * - Providing access to conversation history
  *
  * Note: All conversation history is stored and retrieved via the injected ConversationHistoryProvider.
  * The ContextManager does not maintain an internal history cache.
- * TODO: clean up tokenizer logic if we are relying primarily on LLM API to give us token count.
- * TODO: Move InternalMessage parsing logic to zod
- * Right now its weaker because it doesn't account for tools and other non-text content in the prompt.
+ * Token counting is handled by the LLM API response, not local estimation.
  *
  * @template TMessage The message type for the specific LLM provider (e.g., MessageParam, ChatCompletionMessageParam, ModelMessage)
  */
@@ -51,17 +41,12 @@ export class ContextManager<TMessage = unknown> {
     /**
      * Formatter used to convert internal messages to LLM-specific format
      */
-    private formatter: IMessageFormatter;
+    private formatter: VercelMessageFormatter;
 
     /**
      * Maximum number of tokens allowed in the conversation (if specified)
      */
     private maxInputTokens: number;
-
-    /**
-     * Tokenizer used for counting tokens (used by TurnExecutor for compression)
-     */
-    private tokenizer: ITokenizer;
 
     private historyProvider: IConversationHistoryProvider;
     private readonly sessionId: string;
@@ -81,7 +66,6 @@ export class ContextManager<TMessage = unknown> {
      * @param formatter Formatter implementation for the target LLM provider
      * @param systemPromptManager SystemPromptManager instance for the conversation
      * @param maxInputTokens Maximum token limit for the conversation history.
-     * @param tokenizer Tokenizer implementation used for counting tokens.
      * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
      * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
      * @param resourceManager ResourceManager for resolving blob references in messages
@@ -89,10 +73,9 @@ export class ContextManager<TMessage = unknown> {
      */
     constructor(
         llmConfig: ValidatedLLMConfig,
-        formatter: IMessageFormatter,
+        formatter: VercelMessageFormatter,
         systemPromptManager: SystemPromptManager,
         maxInputTokens: number,
-        tokenizer: ITokenizer,
         historyProvider: IConversationHistoryProvider,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
@@ -102,7 +85,6 @@ export class ContextManager<TMessage = unknown> {
         this.formatter = formatter;
         this.systemPromptManager = systemPromptManager;
         this.maxInputTokens = maxInputTokens;
-        this.tokenizer = tokenizer;
         this.historyProvider = historyProvider;
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
@@ -213,13 +195,6 @@ export class ContextManager<TMessage = unknown> {
      */
     getMaxInputTokens(): number {
         return this.maxInputTokens;
-    }
-
-    /**
-     * Returns the tokenizer used for token estimation.
-     */
-    getTokenizer(): ITokenizer {
-        return this.tokenizer;
     }
 
     /**
@@ -733,11 +708,9 @@ export class ContextManager<TMessage = unknown> {
     ): Promise<{
         formattedMessages: TMessage[];
         systemPrompt: string;
-        tokensUsed: number;
     }> {
         // Step 1: Get system prompt
         const systemPrompt = await this.getSystemPrompt(contributorContext);
-        const systemPromptTokens = this.tokenizer.countTokens(systemPrompt);
 
         // Step 2: Get history and filter (exclude pre-summary messages)
         const fullHistory = await this.historyProvider.getHistory();
@@ -773,19 +746,9 @@ export class ContextManager<TMessage = unknown> {
             history
         ); // Type cast happens here via TMessage generic
 
-        // TODO: Remove token estimation - TurnExecutor uses actual API tokens for overflow detection
-        const historyTokens = countMessagesTokens(history, this.tokenizer, undefined, this.logger);
-        const formattingOverhead = Math.ceil((systemPromptTokens + historyTokens) * 0.05);
-        const tokensUsed = systemPromptTokens + historyTokens + formattingOverhead;
-
-        this.logger.debug(
-            `Final token breakdown - System: ${systemPromptTokens}, History: ${historyTokens}, Overhead: ${formattingOverhead}, Total: ${tokensUsed}`
-        );
-
         return {
             formattedMessages,
             systemPrompt,
-            tokensUsed,
         };
     }
 
@@ -797,10 +760,10 @@ export class ContextManager<TMessage = unknown> {
      * @throws Error if formatting fails
      */
     async getFormattedSystemPrompt(
-        context: DynamicContributorContext
+        _context: DynamicContributorContext
     ): Promise<string | null | undefined> {
-        const systemPrompt = await this.getSystemPrompt(context);
-        return this.formatter.formatSystemPrompt?.(systemPrompt);
+        // Vercel formatter handles system prompts in the messages array, not separately
+        return this.formatter.formatSystemPrompt?.();
     }
 
     /**

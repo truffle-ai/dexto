@@ -7,7 +7,6 @@ import { ResourceManager } from '../../resources/index.js';
 import { MessageQueueService } from '../../session/message-queue.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
-import { createTokenizer } from '../tokenizer/factory.js';
 import { MemoryHistoryProvider } from '../../session/history/memory.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { ApprovalManager } from '../../approval/manager.js';
@@ -187,7 +186,6 @@ describe('TurnExecutor Integration Tests', () => {
 
         // Create real context manager with Vercel formatter
         const formatter = new VercelMessageFormatter(logger);
-        const tokenizer = createTokenizer('openai', 'gpt-4');
         // Cast to ValidatedLLMConfig since we know test data is valid
         const llmConfig = {
             provider: 'openai',
@@ -204,7 +202,6 @@ describe('TurnExecutor Integration Tests', () => {
             formatter,
             systemPromptManager,
             100000,
-            tokenizer,
             historyProvider,
             sessionId,
             resourceManager,

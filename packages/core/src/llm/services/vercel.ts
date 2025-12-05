@@ -11,7 +11,6 @@ import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
-import { createTokenizer } from '../tokenizer/factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
@@ -81,7 +80,6 @@ export class VercelLLMService implements ILLMService {
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
-        const tokenizer = createTokenizer(config.provider, this.getModelId());
         const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         this.contextManager = new ContextManager<ModelMessage>(
@@ -89,7 +87,6 @@ export class VercelLLMService implements ILLMService {
             formatter,
             systemPromptManager,
             maxInputTokens,
-            tokenizer,
             historyProvider,
             sessionId,
             resourceManager,

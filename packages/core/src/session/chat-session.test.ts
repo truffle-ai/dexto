@@ -10,12 +10,6 @@ vi.mock('./history/factory.js', () => ({
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
 }));
-vi.mock('../llm/tokenizer/factory.js', () => ({
-    createTokenizer: vi.fn(),
-}));
-vi.mock('../llm/formatters/factory.js', () => ({
-    createMessageFormatter: vi.fn(),
-}));
 vi.mock('../llm/registry.js', async (importOriginal) => {
     const actual = (await importOriginal()) as typeof import('../llm/registry.js');
     return {
@@ -35,14 +29,10 @@ vi.mock('../logger/index.js', () => ({
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
-import { createTokenizer } from '../llm/tokenizer/factory.js';
-import { createMessageFormatter } from '../llm/formatters/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
-const mockCreateTokenizer = vi.mocked(createTokenizer);
-const mockCreateFormatter = vi.mocked(createMessageFormatter);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
 describe('ChatSession', () => {
@@ -50,8 +40,6 @@ describe('ChatSession', () => {
     let mockServices: any;
     let mockHistoryProvider: any;
     let mockLLMService: any;
-    let mockTokenizer: any;
-    let mockFormatter: any;
     let mockCache: any;
     let mockDatabase: any;
     let mockBlobStore: any;
@@ -87,10 +75,6 @@ describe('ChatSession', () => {
                 off: vi.fn(),
             },
         };
-
-        // Mock tokenizer and formatter
-        mockTokenizer = { encode: vi.fn(), decode: vi.fn() };
-        mockFormatter = { format: vi.fn() };
 
         // Mock storage manager with proper getter structure
         mockCache = {
@@ -180,8 +164,6 @@ describe('ChatSession', () => {
         // Set up factory mocks
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
-        mockCreateTokenizer.mockReturnValue(mockTokenizer);
-        mockCreateFormatter.mockReturnValue(mockFormatter);
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
         // Create mock logger
