@@ -42,6 +42,14 @@ import SessionSubcommandSelector, {
     type SessionSubcommandSelectorHandle,
     type SessionAction,
 } from '../components/overlays/SessionSubcommandSelector.js';
+import McpCustomTypeSelector, {
+    type McpCustomTypeSelectorHandle,
+    type McpServerType,
+} from '../components/overlays/McpCustomTypeSelector.js';
+import McpCustomWizard, {
+    type McpCustomWizardHandle,
+    type McpCustomConfig,
+} from '../components/overlays/McpCustomWizard.js';
 import type { PromptInfo, ResourceMetadata } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
@@ -78,6 +86,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const mcpSelectorRef = useRef<McpSelectorHandle>(null);
         const mcpAddSelectorRef = useRef<McpAddSelectorHandle>(null);
         const mcpRemoveSelectorRef = useRef<McpRemoveSelectorHandle>(null);
+        const mcpCustomTypeSelectorRef = useRef<McpCustomTypeSelectorHandle>(null);
+        const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
@@ -114,6 +124,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return (
                                 mcpRemoveSelectorRef.current?.handleInput(inputStr, key) ?? false
                             );
+                        case 'mcp-custom-type-selector':
+                            return (
+                                mcpCustomTypeSelectorRef.current?.handleInput(inputStr, key) ??
+                                false
+                            );
+                        case 'mcp-custom-wizard':
+                            return mcpCustomWizardRef.current?.handleInput(inputStr, key) ?? false;
                         case 'session-subcommand-selector':
                             return (
                                 sessionSubcommandSelectorRef.current?.handleInput(inputStr, key) ??
@@ -511,9 +528,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-add-selector' });
                         break;
                     case 'add-custom':
-                        // Load command template into input for user to complete
-                        dispatch({ type: 'CLOSE_OVERLAY' });
-                        dispatch({ type: 'INPUT_CHANGE', value: '/mcp add stdio ' });
+                        // Show type selector for guided custom server setup
+                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-custom-type-selector' });
                         break;
                     case 'remove':
                         // Drill down to remove selector
@@ -603,6 +619,80 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             id: generateMessageId('system'),
                             role: 'system',
                             content: `❌ Failed to remove: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    });
+                }
+                dispatch({ type: 'PROCESSING_END' });
+            },
+            [dispatch, agent]
+        );
+
+        // Handle MCP custom type selection
+        const handleMcpCustomTypeSelect = useCallback(
+            (serverType: McpServerType) => {
+                // Store the selected type and show wizard
+                dispatch({ type: 'SET_MCP_WIZARD_SERVER_TYPE', serverType });
+                dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-custom-wizard' });
+            },
+            [dispatch]
+        );
+
+        // Handle MCP custom wizard completion
+        const handleMcpCustomWizardComplete = useCallback(
+            async (config: McpCustomConfig) => {
+                dispatch({ type: 'CLOSE_OVERLAY' });
+                dispatch({ type: 'INPUT_CLEAR' });
+                dispatch({ type: 'PROCESSING_START' });
+
+                dispatch({
+                    type: 'MESSAGE_ADD',
+                    message: {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🔌 Connecting to ${config.name}...`,
+                        timestamp: new Date(),
+                    },
+                });
+
+                try {
+                    // Build the appropriate config based on server type
+                    let serverConfig: any;
+                    if (config.serverType === 'stdio') {
+                        serverConfig = {
+                            transport: 'stdio',
+                            command: config.command,
+                            args: config.args || [],
+                        };
+                    } else if (config.serverType === 'http') {
+                        serverConfig = {
+                            transport: 'http',
+                            url: config.url,
+                        };
+                    } else if (config.serverType === 'sse') {
+                        serverConfig = {
+                            transport: 'sse',
+                            url: config.url,
+                        };
+                    }
+
+                    await agent.connectMcpServer(config.name, serverConfig);
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Connected to ${config.name}`,
+                            timestamp: new Date(),
+                        },
+                    });
+                } catch (error) {
+                    dispatch({
+                        type: 'MESSAGE_ADD',
+                        message: {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     });
@@ -777,6 +867,29 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             agent={agent}
                         />
                     </Box>
+                )}
+
+                {/* MCP custom type selector */}
+                {ui.activeOverlay === 'mcp-custom-type-selector' && (
+                    <Box marginTop={1}>
+                        <McpCustomTypeSelector
+                            ref={mcpCustomTypeSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpCustomTypeSelect}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP custom wizard */}
+                {ui.activeOverlay === 'mcp-custom-wizard' && ui.mcpWizardServerType && (
+                    <McpCustomWizard
+                        ref={mcpCustomWizardRef}
+                        isVisible={true}
+                        serverType={ui.mcpWizardServerType}
+                        onComplete={handleMcpCustomWizardComplete}
+                        onClose={handleClose}
+                    />
                 )}
 
                 {/* Session subcommand selector */}

@@ -3,7 +3,7 @@
  * All state mutations go through these actions
  */
 
-import type { Message, OverlayType } from './types.js';
+import type { Message, OverlayType, McpWizardServerType } from './types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
 /**
@@ -128,6 +128,11 @@ export type CloseOverlayAction = {
     type: 'CLOSE_OVERLAY';
 };
 
+export type SetMcpWizardServerTypeAction = {
+    type: 'SET_MCP_WIZARD_SERVER_TYPE';
+    serverType: McpWizardServerType;
+};
+
 /**
  * Session actions
  */
@@ -208,6 +213,7 @@ export type CLIAction =
     | ProcessingEndAction
     | ShowOverlayAction
     | CloseOverlayAction
+    | SetMcpWizardServerTypeAction
     | SessionSetAction
     | SessionClearAction
     | ModelUpdateAction

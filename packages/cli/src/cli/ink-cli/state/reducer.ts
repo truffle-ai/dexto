@@ -352,6 +352,16 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ui: {
                     ...state.ui,
                     activeOverlay: 'none',
+                    mcpWizardServerType: null, // Clear wizard state when closing overlay
+                },
+            };
+
+        case 'SET_MCP_WIZARD_SERVER_TYPE':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    mcpWizardServerType: action.serverType,
                 },
             };
 

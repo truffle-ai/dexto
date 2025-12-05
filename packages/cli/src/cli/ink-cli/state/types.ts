@@ -62,9 +62,16 @@ export type OverlayType =
     | 'mcp-selector'
     | 'mcp-add-selector'
     | 'mcp-remove-selector'
+    | 'mcp-custom-type-selector'
+    | 'mcp-custom-wizard'
     | 'log-level-selector'
     | 'session-subcommand-selector'
     | 'approval';
+
+/**
+ * MCP server type for custom wizard
+ */
+export type McpWizardServerType = 'stdio' | 'http' | 'sse' | null;
 
 /**
  * UI state management
@@ -76,6 +83,7 @@ export interface UIState {
     activeOverlay: OverlayType;
     exitWarningShown: boolean; // True when first Ctrl+C was pressed (pending second to exit)
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
+    mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard
 }
 
 /**

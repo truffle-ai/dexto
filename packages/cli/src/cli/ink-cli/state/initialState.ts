@@ -28,6 +28,7 @@ export function createInitialState(
             activeOverlay: 'none',
             exitWarningShown: false,
             exitWarningTimestamp: null,
+            mcpWizardServerType: null,
         },
         session: {
             id: null,
