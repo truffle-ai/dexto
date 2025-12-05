@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { ServerRegistryEntry } from '@/types';
+import type { ServerRegistryEntry } from '@dexto/registry';
 import {
     Dialog,
     DialogContent,

@@ -99,15 +99,3 @@ export function isUIResourcePart(part: unknown): part is import('@dexto/core').U
         (part as { type: unknown }).type === 'ui-resource'
     );
 }
-
-// =============================================================================
-// MCP Server Registry types (re-exported from shared package)
-// =============================================================================
-export type {
-    ServerRegistryEntry,
-    ServerRegistryFilter,
-    ServerRegistryState,
-    ServerCategory,
-    ServerConfig,
-    ServerRequirements,
-} from '@dexto/registry';
