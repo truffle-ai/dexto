@@ -52,7 +52,6 @@ llm:
   model: gpt-5
   apiKey: $OPENAI_API_KEY
   maxIterations: 50
-  router: vercel
 
 # System Prompt
 systemPrompt:
@@ -208,7 +207,6 @@ llm:
   model: string                 # Required
   apiKey: string                # Required: API key or $ENV_VAR
   maxIterations: number         # Optional, default: 50
-  router: string                # Optional: vercel | in-built, default: vercel
   baseURL: string               # Optional
   maxInputTokens: number        # Optional
   maxOutputTokens: number       # Optional

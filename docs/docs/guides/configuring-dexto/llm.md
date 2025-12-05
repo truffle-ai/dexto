@@ -68,7 +68,6 @@ llm:
 - **maxInputTokens** - Maximum tokens for input context (when crossed, messages are compressed)
 - **maxOutputTokens** - Maximum tokens for AI response generation
 - **temperature** - Controls randomness (0 = deterministic, 1 = very creative)
-- **router** - Choose between `vercel` (default) or `in-built` routers
 - **maxIterations** - Maximum tool execution iterations (default: 50)
 
 ## Advanced Configuration
@@ -97,7 +96,6 @@ llm:
   apiKey: dummy
   baseURL: http://localhost:11434/v1
   maxInputTokens: 8000
-  router: in-built
 ```
 
 ### Token Control
@@ -111,26 +109,6 @@ llm:
   maxOutputTokens: 4000    # Limit response length
   temperature: 0.7
 ```
-
-## Router Configuration
-
-### Vercel Router (Default)
-
-```yaml
-llm:
-  router: vercel  # Optional - this is the default
-```
-
-**Benefits:** Optimized for performance, built-in error handling, better streaming
-
-### In-built Router
-
-```yaml
-llm:
-  router: in-built
-```
-
-**When to use:** Direct control, custom providers, debugging, **required for GPT-5 models**
 
 ## Environment Variables
 
@@ -150,5 +128,4 @@ COHERE_API_KEY=your_cohere_key
 
 1. **Use environment variables** - Store API keys as `$VAR` references
 2. **Set appropriate token limits** - Control context and response length
-3. **Choose the right router** - Vercel for most cases, in-built for GPT-5 or custom providers
-4. **Test locally first** - Use local models for development before production
+3. **Test locally first** - Use local models for development before production

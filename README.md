@@ -535,8 +535,6 @@ Options:
   --skip-setup                     Skip global setup validation (useful for MCP
                                    mode, automation)
   -m, --model <model>              Specify the LLM model to use
-  --router <router>                Specify the LLM router to use (vercel or
-                                   in-built)
   --auto-approve                   Always approve tool executions without
                                    confirmation prompts
   -c, --continue                   Continue most recent conversation

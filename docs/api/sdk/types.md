@@ -77,7 +77,6 @@ interface LLMConfig {
   model: string;
   apiKey?: string;
   baseURL?: string;
-  router?: 'vercel' | 'in-built';
   temperature?: number;
   maxOutputTokens?: number;
   maxInputTokens?: number;
@@ -193,7 +192,6 @@ Validated LLM configuration returned by `switchLLM`.
 
 ```typescript
 type ValidatedLLMConfig = LLMConfig & {
-  router: 'vercel' | 'in-built';
   maxInputTokens?: number;
 };
 ```
@@ -290,7 +288,6 @@ interface AgentEventMap {
   // Configuration events
   'llm:switched': {
     newConfig: ValidatedLLMConfig;
-    router?: 'vercel' | 'in-built';
     historyRetained?: boolean;
     sessionIds: string[]; // Array of affected session IDs
   };
@@ -339,7 +336,6 @@ interface AgentEventMap {
     reasoning?: string;
     provider?: string;
     model?: string;
-    router?: string;
     tokenUsage?: {
       inputTokens?: number;
       outputTokens?: number;
@@ -403,7 +399,6 @@ interface SessionEventMap {
     reasoning?: string;
     provider?: string;
     model?: string;
-    router?: string;
     tokenUsage?: {
       inputTokens?: number;
       outputTokens?: number;
@@ -411,19 +406,19 @@ interface SessionEventMap {
       totalTokens?: number;
     };
   };
-  
+
   'llm:chunk': {
     chunkType: 'text' | 'reasoning';
     content: string;
     isComplete?: boolean;
   };
-  
+
   'llm:tool-call': {
     toolName: string;
     args: Record<string, any>;
     callId?: string;
   };
-  
+
   'llm:tool-result': {
     toolName: string;
     sanitized: SanitizedToolResult;
@@ -431,16 +426,15 @@ interface SessionEventMap {
     callId?: string;
     success: boolean;
   };
-  
+
   'llm:error': {
     error: Error;
     context?: string;
     recoverable?: boolean;
   };
-  
+
   'llm:switched': {
     newConfig: ValidatedLLMConfig;
-    router?: 'vercel' | 'in-built';
     historyRetained?: boolean;
     sessionIds: string[];
   };

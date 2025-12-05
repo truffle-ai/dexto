@@ -57,7 +57,6 @@ dexto --mode telegram
 | `-a, --agent <id\|path>` | Use agent ID or path to config file | `dexto -a nano-banana-agent` |
 | `-p, --prompt <text>` | Run single prompt and exit | `dexto -p "list files"` |
 | `-m, --model <model>` | Specify LLM model | `dexto -m gpt-5-mini` |
-| `--router <router>` | Specify router (vercel/in-built) | `dexto --router vercel` |
 | `-c, --continue` | Continue most recent conversation | `dexto -c` |
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
 | `--mode <mode>` | Run mode (web/cli/server/discord/telegram/mcp, default: web) | `dexto --mode cli` |
