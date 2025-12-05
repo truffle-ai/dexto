@@ -15,7 +15,7 @@
  */
 
 import React, { useReducer, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Box, render, Static } from 'ink';
+import { Box, render, useStdout } from 'ink';
 import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
@@ -38,6 +38,8 @@ import { MessageItem } from './components/chat/MessageItem.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { StatusBar } from './components/StatusBar.js';
 import { Footer } from './components/Footer.js';
+import { VirtualizedList, SCROLL_TO_ITEM_END } from './components/shared/VirtualizedList.js';
+import type { Message } from './state/types.js';
 
 // Containers
 import { InputContainer, type InputContainerHandle } from './containers/InputContainer.js';
@@ -209,77 +211,77 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         dispatch,
     ]);
 
-    // Separate completed messages from streaming message (like Gemini CLI)
-    const { completedMessages, streamingMessage } = useMemo(() => {
-        const visible = messageService.getVisibleMessages(state.messages, 30);
-        const streaming = visible.find((msg) => msg.isStreaming);
-        const completed = streaming ? visible.filter((msg) => !msg.isStreaming) : visible;
-        return { completedMessages: completed, streamingMessage: streaming };
+    // Get visible messages
+    const visibleMessages = useMemo(() => {
+        return messageService.getVisibleMessages(state.messages, 50);
     }, [state.messages, messageService]);
 
-    // Build static items array: header + completed messages (rendered once, never re-render)
-    const staticItems = useMemo(() => {
-        const items: React.ReactElement[] = [
-            <Header
-                key="header"
-                modelName={state.session.modelName}
-                sessionId={state.session.id || undefined}
-                hasActiveSession={state.session.hasActiveSession}
-                startupInfo={startupInfo}
-            />,
-        ];
-        completedMessages.forEach((msg) => {
-            items.push(<MessageItem key={msg.id} message={msg} />);
-        });
-        return items;
-    }, [
-        completedMessages,
-        state.session.modelName,
-        state.session.id,
-        state.session.hasActiveSession,
-        startupInfo,
-    ]);
+    // Get terminal dimensions for alternate buffer mode
+    const { stdout } = useStdout();
+    const terminalHeight = stdout?.rows ?? 24;
+
+    // Callbacks for VirtualizedList
+    const renderMessage = useCallback(
+        ({ item }: { item: Message }) => <MessageItem message={item} />,
+        []
+    );
+    const estimateMessageHeight = useCallback(() => 3, []); // Estimate ~3 lines per message
+    const getMessageKey = useCallback((item: Message) => item.id, []);
 
     return (
         <ErrorBoundary>
-            {/* Static content: header + completed messages (rendered once, no re-renders = no flicker) */}
-            <Static items={staticItems}>{(item) => item}</Static>
+            {/* Root container with explicit height for alternate buffer mode */}
+            <Box flexDirection="column" height={terminalHeight}>
+                {/* Header - fixed at top */}
+                <Box flexShrink={0}>
+                    <Header
+                        modelName={state.session.modelName}
+                        sessionId={state.session.id || undefined}
+                        hasActiveSession={state.session.hasActiveSession}
+                        startupInfo={startupInfo}
+                    />
+                </Box>
 
-            {/* Dynamic content: streaming message + controls (can re-render) */}
-            <Box flexDirection="column">
-                {/* Streaming message (if any) */}
-                {streamingMessage && (
-                    <Box paddingX={1}>
-                        <MessageItem message={streamingMessage} />
-                    </Box>
-                )}
+                {/* Messages area - virtualized for performance */}
+                <Box flexGrow={1} flexShrink={1} overflow="hidden">
+                    <VirtualizedList
+                        data={visibleMessages}
+                        renderItem={renderMessage}
+                        estimatedItemHeight={estimateMessageHeight}
+                        keyExtractor={getMessageKey}
+                        initialScrollIndex={SCROLL_TO_ITEM_END}
+                        initialScrollOffsetInIndex={SCROLL_TO_ITEM_END}
+                    />
+                </Box>
 
-                {/* Controls area */}
-                <StatusBar
-                    isProcessing={state.ui.isProcessing}
-                    isThinking={state.ui.isThinking}
-                    approvalQueueCount={state.approvalQueue.length}
-                    exitWarningShown={state.ui.exitWarningShown}
-                />
+                {/* Controls area - fixed at bottom */}
+                <Box flexDirection="column" flexShrink={0}>
+                    <StatusBar
+                        isProcessing={state.ui.isProcessing}
+                        isThinking={state.ui.isThinking}
+                        approvalQueueCount={state.approvalQueue.length}
+                        exitWarningShown={state.ui.exitWarningShown}
+                    />
 
-                <InputContainer
-                    ref={inputContainerRef}
-                    state={state}
-                    dispatch={dispatch}
-                    agent={agent}
-                    inputService={inputService}
-                />
+                    <InputContainer
+                        ref={inputContainerRef}
+                        state={state}
+                        dispatch={dispatch}
+                        agent={agent}
+                        inputService={inputService}
+                    />
 
-                <OverlayContainer
-                    ref={overlayContainerRef}
-                    state={state}
-                    dispatch={dispatch}
-                    agent={agent}
-                    inputService={inputService}
-                />
+                    <OverlayContainer
+                        ref={overlayContainerRef}
+                        state={state}
+                        dispatch={dispatch}
+                        agent={agent}
+                        inputService={inputService}
+                    />
 
-                {/* Footer status line */}
-                <Footer modelName={state.session.modelName} cwd={process.cwd()} />
+                    {/* Footer status line */}
+                    <Footer modelName={state.session.modelName} cwd={process.cwd()} />
+                </Box>
             </Box>
         </ErrorBoundary>
     );
@@ -310,9 +312,9 @@ export async function startInkCliRefactored(
         {
             // Disable default Ctrl+C exit to handle it ourselves with double-press warning
             exitOnCtrlC: false,
-            // TODO: Re-enable once we fix layout issues
-            // alternateBuffer: true,
-            // incrementalRendering: true,
+            // Use alternate buffer + incremental rendering for flicker-free updates
+            alternateBuffer: true,
+            incrementalRendering: true,
         }
     );
 

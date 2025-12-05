@@ -59,13 +59,19 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             }
         };
 
-        // Handle response completion
+        // Handle response completion (may fire multiple times during tool use)
         const handleResponse = (payload: { content: string }) => {
             if (isCancellingRef.current) return; // Ignore events during cancellation
             dispatch({
                 type: 'STREAMING_END',
                 content: payload.content,
             });
+            // Note: Don't dispatch PROCESSING_END here - wait for run:complete
+        };
+
+        // Handle run completion (fires once when entire run finishes, including all tool calls)
+        const handleRunComplete = () => {
+            if (isCancellingRef.current) return;
             dispatch({
                 type: 'PROCESSING_END',
             });
@@ -224,6 +230,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         bus.on('llm:tool-call', handleToolCall);
         bus.on('llm:tool-result', handleToolResult);
         bus.on('approval:request', handleApprovalRequest);
+        bus.on('run:complete', handleRunComplete);
 
         // Handle model switch
         const handleModelSwitch = (payload: any) => {
@@ -271,6 +278,7 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             bus.off('llm:error', handleError);
             bus.off('llm:tool-call', handleToolCall);
             bus.off('llm:tool-result', handleToolResult);
+            bus.off('run:complete', handleRunComplete);
             bus.off('approval:request', handleApprovalRequest);
             bus.off('llm:switched', handleModelSwitch);
             bus.off('session:reset', handleConversationReset);
