@@ -2,12 +2,7 @@ import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import {
-    LLM_PROVIDERS,
-    type LLMProvider,
-    type LLMRouter,
-    type SupportedFileType,
-} from './types.js';
+import { LLM_PROVIDERS, type LLMProvider, type SupportedFileType } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
 export interface ModelInfo {
@@ -15,7 +10,6 @@ export interface ModelInfo {
     maxInputTokens: number;
     default?: boolean;
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
-    supportedRouters?: LLMRouter[]; // Optional - if not specified, uses provider-level support
     displayName?: string;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
     pricing?: {
@@ -31,7 +25,7 @@ export interface ModelInfo {
 
 // Central list of supported file type identifiers used across server/UI
 // Re-exported constants are defined in types.ts for single source of truth
-// (imported above): LLM_PROVIDERS, LLM_ROUTERS, SUPPORTED_FILE_TYPES
+// (imported above): LLM_PROVIDERS, SUPPORTED_FILE_TYPES
 
 // Central MIME type to file type mapping
 export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
@@ -60,7 +54,6 @@ export function getAllowedMimeTypes(): string[] {
 
 export interface ProviderInfo {
     models: ModelInfo[];
-    supportedRouters: LLMRouter[];
     baseURLSupport: 'none' | 'optional' | 'required'; // Cleaner single field
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
     // Add other provider-specific metadata if needed
@@ -69,7 +62,7 @@ export interface ProviderInfo {
 /** Fallback when we cannot determine the model's input-token limit */
 export const DEFAULT_MAX_INPUT_TOKENS = 128000;
 
-// Use imported constants LLM_PROVIDERS, LLM_ROUTERS
+// Use imported constant LLM_PROVIDERS
 
 /**
  * LLM Model Registry - Single Source of Truth for Supported models and their capabilities
@@ -344,13 +337,11 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
     },
     'openai-compatible': {
         models: [], // Empty - accepts any model name for custom endpoints
-        supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'required',
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints - user assumes responsibility for model capabilities
     },
@@ -484,7 +475,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        supportedRouters: ['vercel', 'in-built'],
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
     },
@@ -580,7 +570,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        supportedRouters: ['vercel'],
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
     },
@@ -697,7 +686,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        supportedRouters: ['vercel'],
         baseURLSupport: 'none',
         supportedFileTypes: [], // Groq currently doesn't support file uploads
     },
@@ -759,7 +747,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        supportedRouters: ['vercel'],
         baseURLSupport: 'none',
         supportedFileTypes: [], // XAI currently doesn't support file uploads
     },
@@ -816,7 +803,6 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        supportedRouters: ['vercel'],
         baseURLSupport: 'none',
         supportedFileTypes: [], // Cohere currently doesn't support file uploads
     },
@@ -914,16 +900,6 @@ export function getProviderFromModel(model: string): LLMProvider {
  */
 export function getAllSupportedModels(): string[] {
     return Object.values(LLM_REGISTRY).flatMap((info) => info.models.map((m) => m.name));
-}
-
-/**
- * Gets the supported routers for a given provider.
- * @param provider The name of the provider.
- * @returns An array of supported router names for the provider
- */
-export function getSupportedRoutersForProvider(provider: LLMProvider): LLMRouter[] {
-    const providerInfo = LLM_REGISTRY[provider];
-    return providerInfo.supportedRouters;
 }
 
 /**
@@ -1050,72 +1026,6 @@ export function validateModelFileSupport(
                     : 'Unknown error validating model file support',
         };
     }
-}
-
-/**
- * Checks if a specific model supports a specific router.
- * @param provider The name of the provider.
- * @param model The name of the model.
- * @param router The router name to check.
- * @returns True if the model supports the router, false otherwise.
- */
-export function isRouterSupportedForModel(
-    provider: LLMProvider,
-    model: string,
-    router: LLMRouter
-): boolean {
-    const providerInfo = LLM_REGISTRY[provider];
-
-    // Find the specific model
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
-    if (!modelInfo) {
-        // Model not found, fall back to provider-level support
-        return isRouterSupportedForProvider(provider, router);
-    }
-
-    // If model has specific router restrictions, use those
-    if (modelInfo.supportedRouters) {
-        return modelInfo.supportedRouters.includes(router);
-    }
-
-    // Otherwise, fall back to provider-level support
-    return isRouterSupportedForProvider(provider, router);
-}
-
-/**
- * Gets the supported routers for a specific model.
- * @param provider The name of the provider.
- * @param model The name of the model.
- * @returns An array of supported router names for the model.
- */
-export function getSupportedRoutersForModel(provider: LLMProvider, model: string): LLMRouter[] {
-    const providerInfo = LLM_REGISTRY[provider];
-
-    // Find the specific model
-    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
-    if (!modelInfo) {
-        // Model not found, fall back to provider-level support
-        return getSupportedRoutersForProvider(provider);
-    }
-
-    // If model has specific router restrictions, use those
-    if (modelInfo.supportedRouters) {
-        return modelInfo.supportedRouters;
-    }
-
-    // Otherwise, fall back to provider-level support
-    return getSupportedRoutersForProvider(provider);
-}
-
-/**
- * Checks if a provider supports a specific router.
- * @param provider The name of the provider.
- * @param router The router name to check.
- * @returns True if the provider supports the router, false otherwise.
- */
-export function isRouterSupportedForProvider(provider: LLMProvider, router: LLMRouter): boolean {
-    const supportedRouters = getSupportedRoutersForProvider(provider);
-    return supportedRouters.includes(router);
 }
 
 /**

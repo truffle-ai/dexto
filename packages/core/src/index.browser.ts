@@ -24,8 +24,8 @@ export type {
 export { getFileMediaKind, getResourceKind } from './context/media-helpers.js';
 
 // LLM types (used by client packages)
-export type { LLMProvider, LLMRouter } from './llm/types.js';
-export { LLM_PROVIDERS, LLM_ROUTERS } from './llm/types.js';
+export type { LLMProvider } from './llm/types.js';
+export { LLM_PROVIDERS } from './llm/types.js';
 
 // MCP types and constants (used by webui)
 export type { McpServerType, McpConnectionMode } from './mcp/schemas.js';

@@ -93,7 +93,6 @@ export const systemCommands: CommandDefinition[] = [
                 outputLines.push('🤖 LLM:');
                 outputLines.push(`  Provider: ${config.llm.provider}`);
                 outputLines.push(`  Model: ${config.llm.model}`);
-                outputLines.push(`  Router: ${config.llm.router}`);
 
                 // Session Config
                 outputLines.push('\n💬 Sessions:');
@@ -122,7 +121,6 @@ export const systemCommands: CommandDefinition[] = [
                 console.log(chalk.bold('🤖 LLM:'));
                 console.log(`  Provider: ${chalk.cyan(config.llm.provider)}`);
                 console.log(`  Model: ${chalk.cyan(config.llm.model)}`);
-                console.log(`  Router: ${chalk.cyan(config.llm.router)}`);
                 console.log(chalk.bold('\n💬 Sessions:'));
                 console.log(
                     `  Max Sessions: ${chalk.cyan(config.sessions?.maxSessions?.toString() || 'Default')}`

@@ -241,7 +241,6 @@ Fired when the LLM configuration is changed.
 ```typescript
 {
   newConfig: LLMConfig;
-  router?: string;
   historyRetained?: boolean;
   sessionIds: string[]; // Array of affected session IDs
 }
@@ -379,7 +378,6 @@ Fired when the LLM service completes a response.
   reasoning?: string;  // Extended thinking output for reasoning models
   provider?: string;
   model?: string;
-  router?: string;
   tokenUsage?: {
     inputTokens?: number;
     outputTokens?: number;
@@ -427,7 +425,6 @@ Fired when session LLM configuration is changed.
 ```typescript
 {
   newConfig: LLMConfig;
-  router?: string;
   historyRetained?: boolean;
   sessionIds: string[]; // Array of affected session IDs
 }

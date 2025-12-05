@@ -11,10 +11,8 @@ import {
     getSupportedModels,
     isValidProviderModel,
     getMaxInputTokensForModel,
-    isRouterSupportedForModel,
-    getSupportedRoutersForModel,
 } from './registry.js';
-import { LLM_PROVIDERS, LLM_ROUTERS } from './types.js';
+import { LLM_PROVIDERS } from './types.js';
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -33,8 +31,6 @@ const LLMConfigFields = {
     ),
 
     maxIterations: z.coerce.number().int().positive().describe('Max iterations for agentic loops'),
-
-    router: z.enum(LLM_ROUTERS).describe('Router to use (vercel | in-built)'),
 
     baseURL: OptionalURL.describe(
         'Base URL for provider (e.g., https://api.openai.com/v1). Only certain providers support this.'
@@ -79,7 +75,6 @@ export const LLMConfigBaseSchema = z
         apiKey: LLMConfigFields.apiKey,
         // Apply defaults only for complete config validation
         maxIterations: z.coerce.number().int().positive().default(50),
-        router: z.enum(LLM_ROUTERS).default('vercel'),
         baseURL: LLMConfigFields.baseURL,
         maxInputTokens: LLMConfigFields.maxInputTokens,
         maxOutputTokens: LLMConfigFields.maxOutputTokens,
@@ -205,22 +200,6 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
     }
-
-    if (!isRouterSupportedForModel(data.provider, data.model, data.router)) {
-        const supportedRouters = getSupportedRoutersForModel(data.provider, data.model);
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['router'],
-            message:
-                `Model '${data.model}' (${data.provider}) does not support router '${data.router}'. ` +
-                `Supported: ${supportedRouters.join(', ')}`,
-            params: {
-                code: LLMErrorCode.ROUTER_UNSUPPORTED,
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
-            },
-        });
-    }
 }) // Brand the validated type so it can be distinguished at compile time
     .brand<'ValidatedLLMConfig'>();
 // Input type and output types for the zod schema
@@ -234,11 +213,11 @@ export const LLMUpdatesSchema = z
     .object({ ...LLMConfigFields })
     .partial()
     .superRefine((data, ctx) => {
-        // Require at least one meaningful change field: model, provider, or router
-        if (!data.model && !data.provider && !data.router) {
+        // Require at least one meaningful change field: model or provider
+        if (!data.model && !data.provider) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: 'At least model, provider, or router must be specified for LLM switch',
+                message: 'At least model or provider must be specified for LLM switch',
                 path: [],
             });
         }

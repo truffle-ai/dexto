@@ -609,15 +609,14 @@ export class SessionManager {
 
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
-            router: newLLMConfig.router,
             historyRetained: true,
             sessionIds: sessionIds.filter((id) => !failedSessions.includes(id)),
         });
 
         const message =
             failedSessions.length > 0
-                ? `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} using ${newLLMConfig.router} router (${failedSessions.length} sessions failed)`
-                : `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} using ${newLLMConfig.router} router for all sessions`;
+                ? `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} (${failedSessions.length} sessions failed)`
+                : `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} for all sessions`;
 
         const warnings =
             failedSessions.length > 0
@@ -646,12 +645,11 @@ export class SessionManager {
 
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
-            router: newLLMConfig.router,
             historyRetained: true,
             sessionIds: [sessionId],
         });
 
-        const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} using ${newLLMConfig.router} router for session ${sessionId}`;
+        const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} for session ${sessionId}`;
 
         return { message, warnings: [] };
     }

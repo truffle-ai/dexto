@@ -1,4 +1,4 @@
-import type { LLMRouter, LLMProvider } from '../llm/types.js';
+import type { LLMProvider } from '../llm/types.js';
 
 /**
  * Internal representation of a message in a conversation.
@@ -126,12 +126,6 @@ export interface InternalMessage {
 
     /** Optional provider identifier for assistant messages. */
     provider?: LLMProvider;
-
-    /**
-     * Optional router metadata for assistant messages.
-     * Indicates which router was used to route the request.
-     */
-    router?: LLMRouter;
 
     /**
      * Tool calls made by the assistant.

@@ -3,8 +3,8 @@ import { ErrorScope } from '@core/errors/types.js';
 import { ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 // Use types solely from types.ts to avoid duplication
-import { getSupportedProviders, getSupportedRoutersForProvider } from './registry.js';
-import type { LLMProvider, LLMRouter } from './types.js';
+import { getSupportedProviders } from './registry.js';
+import type { LLMProvider } from './types.js';
 
 /**
  * LLM runtime error factory methods
@@ -35,6 +35,17 @@ export class LLMError {
         );
     }
 
+    static unsupportedProvider(provider: string) {
+        const availableProviders = getSupportedProviders();
+        return new DextoRuntimeError(
+            LLMErrorCode.PROVIDER_UNSUPPORTED,
+            ErrorScope.LLM,
+            ErrorType.USER,
+            `Provider '${provider}' is not supported. Available providers: ${availableProviders.join(', ')}`,
+            { provider, availableProviders }
+        );
+    }
+
     static modelProviderUnknown(model: string) {
         const availableProviders = getSupportedProviders();
         return new DextoRuntimeError(
@@ -44,17 +55,6 @@ export class LLMError {
             `Unknown model '${model}' - could not infer provider. Available providers: ${availableProviders.join(', ')}`,
             { model, availableProviders },
             'Specify the provider explicitly or use a recognized model name'
-        );
-    }
-
-    static unsupportedRouter(router: LLMRouter, provider: LLMProvider) {
-        const supportedRouters = getSupportedRoutersForProvider(provider).map((r) => r);
-        return new DextoRuntimeError(
-            LLMErrorCode.ROUTER_UNSUPPORTED,
-            ErrorScope.LLM,
-            ErrorType.USER,
-            `Router '${router}' not supported for provider '${provider}'. Supported: ${supportedRouters.join(', ')}`,
-            { router, provider, supportedRouters }
         );
     }
 

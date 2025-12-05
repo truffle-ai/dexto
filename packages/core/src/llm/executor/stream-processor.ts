@@ -7,12 +7,11 @@ import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import { LLMProvider, LLMRouter, TokenUsage } from '../types.js';
+import { LLMProvider, TokenUsage } from '../types.js';
 
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
-    router: LLMRouter;
 }
 
 export class StreamProcessor {
@@ -225,7 +224,6 @@ export class StreamProcessor {
                             ...(this.reasoningText && { reasoning: this.reasoningText }),
                             provider: this.config.provider,
                             model: this.config.model,
-                            router: this.config.router,
                             tokenUsage: usage,
                             finishReason: this.finishReason,
                         });
@@ -283,7 +281,6 @@ export class StreamProcessor {
                             ...(this.reasoningText && { reasoning: this.reasoningText }),
                             provider: this.config.provider,
                             model: this.config.model,
-                            router: this.config.router,
                             tokenUsage: this.actualTokens,
                             finishReason: 'cancelled',
                         });
@@ -312,7 +309,6 @@ export class StreamProcessor {
                     ...(this.reasoningText && { reasoning: this.reasoningText }),
                     provider: this.config.provider,
                     model: this.config.model,
-                    router: this.config.router,
                     tokenUsage: this.actualTokens,
                     finishReason: 'cancelled',
                 });

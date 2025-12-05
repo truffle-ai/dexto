@@ -7,8 +7,6 @@ import { LLMConfigSchema } from './schemas.js';
 import {
     getDefaultModelForProvider,
     acceptsAnyModel,
-    isRouterSupportedForModel,
-    getSupportedRoutersForModel,
     getProviderFromModel,
     isValidProviderModel,
     getEffectiveMaxInputTokens,
@@ -107,44 +105,6 @@ export function resolveLLMConfig(
         });
     }
 
-    // Router fallback
-    // if new provider doesn't support the previous router, use the first supported router
-    // if no supported routers, throw error
-    let router = updates.router;
-    if (!router) {
-        // if new provider is different from previous provider, and previous router is not supported
-        if (
-            provider !== previous.provider &&
-            !isRouterSupportedForModel(provider, model, previous.router)
-        ) {
-            const supported = getSupportedRoutersForModel(provider, model);
-            // if no routers supported, throw error
-            if (supported.length === 0) {
-                warnings.push({
-                    code: LLMErrorCode.ROUTER_UNSUPPORTED,
-                    message: `No routers supported for model '${model}' (${provider})`,
-                    severity: 'error',
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                    context: router ? { provider, model, router } : { provider, model },
-                });
-                // if routers supported, use the first supported router
-            } else {
-                router = supported.includes('vercel') ? 'vercel' : supported[0]!;
-                warnings.push({
-                    code: LLMErrorCode.ROUTER_UNSUPPORTED,
-                    message: `Router changed to '${router}' for model '${model}' (${provider})`,
-                    severity: 'warning',
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                    context: { provider, model, router },
-                });
-            }
-        } else {
-            router = previous.router;
-        }
-    }
-
     // Token defaults - always use model's effective max unless explicitly provided
     const maxInputTokens =
         updates.maxInputTokens ??
@@ -155,7 +115,6 @@ export function resolveLLMConfig(
             provider,
             model,
             apiKey,
-            router,
             baseURL: updates.baseURL ?? previous.baseURL,
             maxIterations: updates.maxIterations ?? previous.maxIterations,
             maxInputTokens,
@@ -191,7 +150,6 @@ export function validateLLMConfig(
             context: {
                 provider: candidate.provider,
                 model: candidate.model,
-                ...(candidate.router && { router: candidate.router }),
             },
         });
     }

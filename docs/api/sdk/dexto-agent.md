@@ -340,7 +340,7 @@ async switchLLM(
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `llmUpdates` | `LLMUpdates` | LLM configuration updates (model, provider, router, apiKey, etc.) |
+| `llmUpdates` | `LLMUpdates` | LLM configuration updates (model, provider, apiKey, etc.) |
 | `sessionId` | `string` | (Optional) Target session ID |
 
 **Returns:** `Promise<ValidatedLLMConfig>` – the fully validated, effective LLM configuration.

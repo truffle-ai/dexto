@@ -16,7 +16,7 @@ OpenTelemetry distributed tracing for Dexto agent operations.
 Uses `@InstrumentClass` decorator on critical execution paths:
 
 - `DextoAgent` - Top-level orchestrator
-- `VercelLLMService`, `OpenAILLMService`, `AnthropicLLMService` - LLM operations
+- `VercelLLMService` - LLM operations (all providers via Vercel AI SDK)
 - `ToolManager` - Tool execution
 
 **Not decorated** (following selective instrumentation strategy):

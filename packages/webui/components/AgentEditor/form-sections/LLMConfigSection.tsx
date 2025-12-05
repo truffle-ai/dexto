@@ -3,7 +3,7 @@ import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
-import { LLM_PROVIDERS, LLM_ROUTERS, type AgentConfig } from '@dexto/core';
+import { LLM_PROVIDERS, type AgentConfig } from '@dexto/core';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -122,32 +122,6 @@ export function LLMConfigSection({
                     </div>
                     {errors['llm.apiKey'] && (
                         <p className="text-xs text-destructive mt-1">{errors['llm.apiKey']}</p>
-                    )}
-                </div>
-
-                {/* Router */}
-                <div>
-                    <LabelWithTooltip
-                        htmlFor="router"
-                        tooltip="LLM routing backend: 'vercel' uses Vercel AI SDK, 'in-built' uses provider-specific clients"
-                    >
-                        Router
-                    </LabelWithTooltip>
-                    <select
-                        id="router"
-                        value={value.router || 'vercel'}
-                        onChange={(e) => handleChange('router', e.target.value)}
-                        aria-invalid={!!errors['llm.router']}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
-                    >
-                        {LLM_ROUTERS.map((r) => (
-                            <option key={r} value={r}>
-                                {r}
-                            </option>
-                        ))}
-                    </select>
-                    {errors['llm.router'] && (
-                        <p className="text-xs text-destructive mt-1">{errors['llm.router']}</p>
                     )}
                 </div>
 

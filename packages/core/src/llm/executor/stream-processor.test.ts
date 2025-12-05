@@ -57,7 +57,6 @@ function createMocks() {
     const config: StreamProcessorConfig = {
         provider: 'openai',
         model: 'gpt-4',
-        router: 'vercel',
     };
 
     return {
@@ -715,7 +714,6 @@ describe('StreamProcessor', () => {
                 content: 'Final response',
                 provider: 'openai',
                 model: 'gpt-4',
-                router: 'vercel',
                 tokenUsage: {
                     inputTokens: 100,
                     outputTokens: 50,

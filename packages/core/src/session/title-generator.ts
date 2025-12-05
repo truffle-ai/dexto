@@ -1,5 +1,4 @@
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
-import type { LLMRouter } from '@core/llm/types.js';
 import type { ToolManager } from '@core/tools/tool-manager.js';
 import type { SystemPromptManager } from '@core/systemPrompt/manager.js';
 import type { ResourceManager } from '@core/resources/index.js';
@@ -20,7 +19,6 @@ export interface GenerateSessionTitleResult {
  */
 export async function generateSessionTitle(
     config: ValidatedLLMConfig,
-    router: LLMRouter,
     toolManager: ToolManager,
     systemPromptManager: SystemPromptManager,
     resourceManager: ResourceManager,
@@ -40,7 +38,6 @@ export async function generateSessionTitle(
         const bus = new SessionEventBus();
         const tempService = createLLMService(
             config,
-            router,
             toolManager,
             systemPromptManager,
             history,

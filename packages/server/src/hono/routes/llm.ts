@@ -3,11 +3,8 @@ import type { DextoAgent } from '@dexto/core';
 import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
-    LLM_ROUTERS,
     SUPPORTED_FILE_TYPES,
-    getSupportedRoutersForProvider,
     supportsBaseURL,
-    isRouterSupportedForModel,
     type ProviderInfo,
     type LLMProvider,
     LLMUpdatesSchema,
@@ -48,10 +45,6 @@ const CatalogQuerySchema = z
                       : undefined
             )
             .describe('Filter by API key presence (true or false)'),
-        router: z
-            .enum(LLM_ROUTERS)
-            .optional()
-            .describe('Filter by router type (vercel or in-built)'),
         fileType: z
             .enum(SUPPORTED_FILE_TYPES)
             .optional()
@@ -117,7 +110,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                             .object({
                                 config: LLMConfigResponseSchema.partial({
                                     maxIterations: true,
-                                    router: true,
                                 }).extend({
                                     displayName: z
                                         .string()
@@ -272,10 +264,7 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
             });
         })
         .openapi(catalogRoute, (ctx) => {
-            type ProviderCatalog = Pick<
-                ProviderInfo,
-                'supportedRouters' | 'models' | 'supportedFileTypes'
-            > & {
+            type ProviderCatalog = Pick<ProviderInfo, 'models' | 'supportedFileTypes'> & {
                 name: string;
                 hasApiKey: boolean;
                 primaryEnvVar: string;
@@ -296,7 +285,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                     name: displayName,
                     hasApiKey: keyStatus.hasApiKey,
                     primaryEnvVar: keyStatus.envVar,
-                    supportedRouters: getSupportedRoutersForProvider(provider),
                     supportsBaseURL: supportsBaseURL(provider),
                     models: info.models,
                     supportedFileTypes: info.supportedFileTypes,
@@ -328,24 +316,6 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                     }
                 }
                 filtered = byKey;
-            }
-
-            if (queryParams.router) {
-                const byRouter: Record<string, ProviderCatalog> = {};
-                for (const [id, catalog] of Object.entries(filtered)) {
-                    if (!catalog.supportedRouters.includes(queryParams.router!)) continue;
-                    const models = catalog.models.filter((model) =>
-                        isRouterSupportedForModel(
-                            id as LLMProvider,
-                            model.name,
-                            queryParams.router!
-                        )
-                    );
-                    if (models.length > 0) {
-                        byRouter[id] = { ...catalog, models };
-                    }
-                }
-                filtered = byRouter;
             }
 
             if (queryParams.fileType) {

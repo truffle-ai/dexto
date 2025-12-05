@@ -28,7 +28,6 @@ import {
     favKey,
     validateBaseURL,
 } from './types';
-import type { LLMRouter as SupportedRouter } from '@dexto/core';
 import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import type { LLMProvider } from '@dexto/core';
@@ -40,7 +39,6 @@ export default function ModelPickerModal() {
     const [open, setOpen] = useState(false);
     const [providers, setProviders] = useState<Partial<Record<LLMProvider, ProviderCatalog>>>({});
     const [search, setSearch] = useState('');
-    const [selectedRouter, setSelectedRouter] = useState<SupportedRouter | ''>('');
     const [baseURL, setBaseURL] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [providerFilter, setProviderFilter] = useState<LLMProvider | 'all'>('all');
@@ -91,7 +89,6 @@ export default function ModelPickerModal() {
     useEffect(() => {
         if (!open) return;
         if (currentLLM) {
-            setSelectedRouter((currentLLM.router as SupportedRouter) || 'vercel');
             setBaseURL(currentLLM.baseURL || '');
         }
     }, [open, currentLLM]);
@@ -185,16 +182,6 @@ export default function ModelPickerModal() {
         [search, providers]
     );
 
-    function pickRouterFor(providerId: LLMProvider, model: ModelInfo): SupportedRouter {
-        const currentRouter = (currentLLM?.router as SupportedRouter) || 'vercel';
-        const providerRouters = providers[providerId]?.supportedRouters ?? ['vercel'];
-        const modelRouters = model.supportedRouters ?? providerRouters;
-        const preferred = selectedRouter || currentRouter;
-        if (modelRouters.includes(preferred as SupportedRouter))
-            return preferred as SupportedRouter;
-        return modelRouters[0] || providerRouters[0] || 'vercel';
-    }
-
     const switchLLMMutation = useSwitchLLM();
 
     function onPickModel(
@@ -222,11 +209,9 @@ export default function ModelPickerModal() {
             return;
         }
 
-        const router = pickRouterFor(providerId, model);
         const payload: SwitchLLMPayload = {
             provider: providerId,
             model: model.name,
-            router,
             ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
             ...(currentSessionId && { sessionId: currentSessionId }),
         };
@@ -261,7 +246,6 @@ export default function ModelPickerModal() {
             displayName: customModel.name,
             maxInputTokens: customModel.maxInputTokens || 128000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
-            supportedRouters: ['vercel', 'in-built'],
         };
         onPickModel('openai-compatible', modelInfo, customModel.baseURL);
     }

@@ -1,7 +1,6 @@
 import { generateText, type LanguageModel } from 'ai';
 import type { ICompressionStrategy } from './types.js';
 import type { InternalMessage } from '../types.js';
-import type { ITokenizer } from '../../llm/tokenizer/types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
@@ -84,15 +83,9 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
      * messages when formatting for LLM.
      *
      * @param history The full conversation history
-     * @param tokenizer Tokenizer for token counting
-     * @param _maxTokens Maximum allowed tokens (used for target calculation)
      * @returns Array with single summary message to add, or empty if nothing to summarize
      */
-    async compress(
-        history: readonly InternalMessage[],
-        _tokenizer: ITokenizer,
-        _maxTokens: number
-    ): Promise<InternalMessage[]> {
+    async compress(history: readonly InternalMessage[]): Promise<InternalMessage[]> {
         // Don't compress if history is too short
         if (history.length <= 2) {
             this.logger.debug('ReactiveOverflowStrategy: History too short, skipping compression');
