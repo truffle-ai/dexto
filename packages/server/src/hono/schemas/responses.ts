@@ -34,6 +34,19 @@ import {
     LLM_ROUTERS,
 } from '@dexto/core';
 
+// TODO: Implement shared error response schemas for OpenAPI documentation.
+// Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
+// enforces strict type matching between route definitions and handlers. When a 404 schema
+// is defined, TypeScript expects handler return types to be a union of all response types,
+// but the type system tries to match every return against every schema instead of by status code.
+//
+// Solution: Create a typed helper or wrapper that:
+// 1. Defines a shared ErrorResponseSchema (e.g., { error: string, code?: string })
+// 2. Properly types handlers to return discriminated unions by status code
+// 3. Can be reused across all routes for consistent error documentation
+//
+// See: https://github.com/honojs/middleware/tree/main/packages/zod-openapi for patterns
+
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
 // ============================================================================
