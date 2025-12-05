@@ -25,10 +25,3 @@ export interface StreamProcessorResult {
     finishReason: string;
     usage: TokenUsage;
 }
-
-export interface ToolState {
-    id: string;
-    name: string;
-    status: 'pending' | 'running' | 'completed' | 'error';
-    output?: string;
-}
