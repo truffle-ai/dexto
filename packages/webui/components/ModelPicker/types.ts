@@ -1,4 +1,4 @@
-import type { LLMRouter, SupportedFileType, LLMProvider } from '@dexto/core';
+import type { SupportedFileType, LLMProvider } from '@dexto/core';
 
 export type ModelInfo = {
     name: string;
@@ -6,7 +6,6 @@ export type ModelInfo = {
     default?: boolean;
     maxInputTokens: number;
     supportedFileTypes: SupportedFileType[];
-    supportedRouters?: LLMRouter[];
     pricing?: {
         inputPerM: number;
         outputPerM: number;
@@ -21,7 +20,6 @@ export type ProviderCatalog = {
     name: string;
     hasApiKey: boolean;
     primaryEnvVar: string;
-    supportedRouters: LLMRouter[];
     supportsBaseURL: boolean;
     models: ModelInfo[];
 };
@@ -33,7 +31,6 @@ export type CurrentLLMConfigResponse = {
         provider: string;
         model: string;
         displayName?: string;
-        router?: LLMRouter;
         baseURL?: string;
         apiKey?: string;
         maxInputTokens?: number;

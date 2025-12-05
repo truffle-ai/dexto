@@ -29,7 +29,6 @@ describe('DextoAgent Lifecycle Management', () => {
                 provider: 'openai',
                 model: 'gpt-5',
                 apiKey: 'test-key',
-                router: 'vercel',
                 maxIterations: 50,
                 maxInputTokens: 128000,
             },

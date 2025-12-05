@@ -19,7 +19,6 @@ import { IConversationHistoryProvider } from '@core/session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 
-//  Simplify this class - review what can be deleted once TurnExecutor is integrated/openai/anthropic llm services are deprecated.
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -63,12 +62,6 @@ export class ContextManager<TMessage = unknown> {
      * Tokenizer used for counting tokens (used by TurnExecutor for compression)
      */
     private tokenizer: ITokenizer;
-
-    /**
-     * @deprecated Used by anthropic.ts and openai.ts. Will be removed when those
-     * services are migrated to TurnExecutor.
-     */
-    private lastActualTokenCount: number = 0;
 
     private historyProvider: IConversationHistoryProvider;
     private readonly sessionId: string;
@@ -227,18 +220,6 @@ export class ContextManager<TMessage = unknown> {
      */
     getTokenizer(): ITokenizer {
         return this.tokenizer;
-    }
-
-    /**
-     * Updates the actual token count from the last LLM response.
-     *
-     * @deprecated Used by anthropic.ts and openai.ts. Will be removed when those
-     * services are migrated to TurnExecutor (which tracks tokens via TokenUsage).
-     *
-     * @param actualTokens The actual token count reported by the LLM provider
-     */
-    updateActualTokenCount(actualTokens: number): void {
-        this.lastActualTokenCount = actualTokens;
     }
 
     /**
@@ -461,7 +442,6 @@ export class ContextManager<TMessage = unknown> {
 
                 // Enrich assistant messages with LLM config metadata
                 message.provider = this.llmConfig.provider;
-                message.router = this.llmConfig.router;
                 message.model = this.llmConfig.model;
                 break;
 

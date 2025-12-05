@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { InternalMessage, Issue, SanitizedToolResult } from '@dexto/core';
-import type { LLMRouter, LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { client } from '@/lib/client.js';
@@ -66,7 +66,6 @@ export interface Message extends Omit<InternalMessage, 'content'> {
     reasoning?: string;
     model?: string;
     provider?: LLMProvider;
-    router?: LLMRouter;
     sessionId?: string;
 }
 
@@ -296,7 +295,6 @@ export function useChat(
                     const usage = event.tokenUsage;
                     const model = event.model;
                     const provider = event.provider;
-                    const router = event.router;
 
                     setMessages((ms) => {
                         const lastMsg = ms[ms.length - 1];
@@ -308,7 +306,6 @@ export function useChat(
                                 tokenUsage: usage,
                                 ...(model && { model }),
                                 ...(provider && { provider }),
-                                ...(router && { router }),
                                 createdAt: Date.now(),
                             };
                             return [...ms.slice(0, -1), updatedMsg];
@@ -635,7 +632,6 @@ export function useChat(
                             ...(data.reasoning && { reasoning: data.reasoning }),
                             ...(data.model && { model: data.model }),
                             ...(data.provider && { provider: data.provider }),
-                            ...(data.router && { router: data.router }),
                         },
                     ]);
 

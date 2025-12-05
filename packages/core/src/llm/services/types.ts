@@ -1,7 +1,7 @@
 import { LanguageModel } from 'ai';
 import { ToolSet } from '../../tools/types.js';
 import { ImageData, FileData } from '../../context/types.js';
-import type { LLMProvider, LLMRouter } from '../types.js';
+import type { LLMProvider } from '../types.js';
 import type { ContextManager } from '../../context/manager.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 
@@ -51,7 +51,6 @@ export interface ILLMService {
  * Configuration object returned by LLMService.getConfig()
  */
 export type LLMServiceConfig = {
-    router: LLMRouter;
     provider: LLMProvider;
     model: LanguageModel;
     configuredMaxInputTokens?: number | null;

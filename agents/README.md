@@ -80,7 +80,6 @@ The `llm` section configures the AI provider settings.
 | `maxInputTokens` | number | No | Maximum input tokens for context compression |
 | `maxOutputTokens` | number | No | Maximum output tokens for response length |
 | `baseURL` | string | No | Custom API endpoint for OpenAI-compatible providers |
-| `router` | string | No | Router type ("vercel" or "in-built", default: "vercel") |
 
 ### API Key Configuration
 

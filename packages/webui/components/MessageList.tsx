@@ -1311,11 +1311,6 @@ export default function MessageList({
                                                                         Provider: {msg.provider}
                                                                     </div>
                                                                 )}
-                                                                {msg.router && (
-                                                                    <div className="font-medium">
-                                                                        Router: {msg.router}
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                         </TooltipContent>
                                                     </Tooltip>

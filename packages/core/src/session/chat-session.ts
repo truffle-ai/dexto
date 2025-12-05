@@ -207,7 +207,6 @@ export class ChatSession {
         // The service will create its own properly-typed ContextManager internally
         this.llmService = createLLMService(
             llmConfig,
-            llmConfig.router,
             this.services.toolManager,
             this.services.systemPromptManager,
             this.historyProvider, // Pass history provider for service to use
@@ -264,7 +263,6 @@ export class ChatSession {
             content: errorContent,
             provider: llmConfig.provider,
             model: llmConfig.model,
-            router: llmConfig.router,
         });
     }
 
@@ -347,7 +345,6 @@ export class ChatSession {
                 content: response,
                 provider: llmConfig.provider,
                 model: llmConfig.model,
-                router: llmConfig.router,
                 sessionId: this.id,
             };
 
@@ -512,11 +509,11 @@ export class ChatSession {
     /**
      * Switches the LLM service for this session while preserving conversation history.
      *
-     * This method creates a new LLM service with the specified configuration and router,
+     * This method creates a new LLM service with the specified configuration,
      * while maintaining the existing ContextManager and conversation history. This allows
      * users to change AI models mid-conversation without losing context.
      *
-     * @param newLLMConfig The new LLM configuration to use (includes router)
+     * @param newLLMConfig The new LLM configuration to use
      *
      * @example
      * ```typescript
@@ -525,7 +522,6 @@ export class ChatSession {
      *   provider: 'openai',
      *   model: 'gpt-5',
      *   apiKey: process.env.OPENAI_API_KEY,
-     *   router: 'in-built'
      * });
      * ```
      */
@@ -533,10 +529,8 @@ export class ChatSession {
         try {
             // Create new LLM service with new config but SAME history provider
             // The service will create its own new ContextManager internally
-            const router = newLLMConfig.router;
             const newLLMService = createLLMService(
                 newLLMConfig,
-                router,
                 this.services.toolManager,
                 this.services.systemPromptManager,
                 this.historyProvider, // Pass the SAME history provider - preserves conversation!
@@ -556,7 +550,6 @@ export class ChatSession {
             // Emit session-level event
             this.eventBus.emit('llm:switched', {
                 newConfig: newLLMConfig,
-                router,
                 historyRetained: true,
             });
         } catch (error) {
@@ -624,7 +617,6 @@ export class ChatSession {
      *
      * @param message The user message to queue
      * @returns Queue position and message ID
-     * @throws Error if the router doesn't support message queueing
      */
     public queueMessage(message: UserMessage): { queued: true; position: number; id: string } {
         return this.llmService.getMessageQueue().enqueue(message);
@@ -633,7 +625,6 @@ export class ChatSession {
     /**
      * Get all messages currently in the queue.
      * @returns Array of queued messages
-     * @throws Error if the router doesn't support message queueing
      */
     public getQueuedMessages(): import('./types.js').QueuedMessage[] {
         return this.llmService.getMessageQueue().getAll();
@@ -643,7 +634,6 @@ export class ChatSession {
      * Remove a queued message.
      * @param id Message ID to remove
      * @returns true if message was found and removed; false otherwise
-     * @throws Error if the router doesn't support message queueing
      */
     public removeQueuedMessage(id: string): boolean {
         return this.llmService.getMessageQueue().remove(id);
@@ -652,7 +642,6 @@ export class ChatSession {
     /**
      * Clear all queued messages.
      * @returns Number of messages that were cleared
-     * @throws Error if the router doesn't support message queueing
      */
     public clearMessageQueue(): number {
         const queue = this.llmService.getMessageQueue();

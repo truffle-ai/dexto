@@ -8,92 +8,12 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGroq } from '@ai-sdk/groq';
 import { createXai } from '@ai-sdk/xai';
 import { VercelLLMService } from './vercel.js';
-import { OpenAIService } from './openai.js';
-import { AnthropicService } from './anthropic.js';
 import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
-import type { LLMRouter } from '../types.js';
 import { createCohere } from '@ai-sdk/cohere';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
-
-/**
- * Create an instance of one of our in-built LLM services
- * @param config LLM configuration from the config file
- * @param toolManager Unified tool manager instance
- * @param systemPromptManager Prompt manager for system prompts
- * @param historyProvider History provider for conversation persistence
- * @param sessionEventBus Session-level event bus for emitting LLM events
- * @param sessionId Session ID
- * @param resourceManager Resource manager for blob storage and resource access
- * @param logger Logger instance for dependency injection
- * @returns ILLMService instance
- */
-function _createInBuiltLLMService(
-    config: ValidatedLLMConfig,
-    toolManager: ToolManager,
-    systemPromptManager: SystemPromptManager,
-    historyProvider: IConversationHistoryProvider,
-    sessionEventBus: SessionEventBus,
-    sessionId: string,
-    resourceManager: import('../../resources/index.js').ResourceManager,
-    logger: IDextoLogger
-): ILLMService {
-    const apiKey = config.apiKey;
-
-    switch (config.provider.toLowerCase()) {
-        case 'openai': {
-            // Regular OpenAI - no baseURL support
-            const openai = new OpenAI({ apiKey });
-            return new OpenAIService(
-                toolManager,
-                openai,
-                systemPromptManager,
-                historyProvider,
-                sessionEventBus,
-                config,
-                sessionId,
-                resourceManager,
-                logger
-            );
-        }
-        case 'openai-compatible': {
-            // OpenAI-compatible - requires baseURL
-            const baseURL = getOpenAICompatibleBaseURL(config);
-            const openai = new OpenAI({ apiKey, baseURL });
-            return new OpenAIService(
-                toolManager,
-                openai,
-                systemPromptManager,
-                historyProvider,
-                sessionEventBus,
-                config,
-                sessionId,
-                resourceManager,
-                logger
-            );
-        }
-        case 'anthropic': {
-            const anthropic = new Anthropic({ apiKey });
-            return new AnthropicService(
-                toolManager,
-                anthropic,
-                systemPromptManager,
-                historyProvider,
-                sessionEventBus,
-                config,
-                sessionId,
-                resourceManager,
-                logger
-            );
-        }
-        default:
-            throw LLMError.unsupportedRouter('in-built', config.provider);
-    }
-}
 
 function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
     const provider = llmConfig.provider;
@@ -124,7 +44,7 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
         case 'cohere':
             return createCohere({ apiKey })(model);
         default:
-            throw LLMError.unsupportedRouter('vercel', provider);
+            throw LLMError.unsupportedProvider(provider);
     }
 }
 
@@ -146,7 +66,21 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
     return '';
 }
 
-function _createVercelLLMService(
+/**
+ * Create an LLM service instance using the Vercel AI SDK.
+ * All providers are routed through the unified Vercel service.
+ *
+ * @param config LLM configuration from the config file
+ * @param toolManager Unified tool manager instance
+ * @param systemPromptManager Prompt manager for system prompts
+ * @param historyProvider History provider for conversation persistence
+ * @param sessionEventBus Session-level event bus for emitting LLM events
+ * @param sessionId Session ID
+ * @param resourceManager Resource manager for blob storage and resource access
+ * @param logger Logger instance for dependency injection
+ * @returns ILLMService instance
+ */
+export function createLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
     systemPromptManager: SystemPromptManager,
@@ -155,7 +89,7 @@ function _createVercelLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: IDextoLogger
-): VercelLLMService {
+): ILLMService {
     const model = _createVercelModel(config);
 
     return new VercelLLMService(
@@ -169,43 +103,4 @@ function _createVercelLLMService(
         resourceManager,
         logger
     );
-}
-
-/**
- * Enum/type for LLM routing backend selection.
- */
-export function createLLMService(
-    config: ValidatedLLMConfig,
-    router: LLMRouter,
-    toolManager: ToolManager,
-    systemPromptManager: SystemPromptManager,
-    historyProvider: IConversationHistoryProvider,
-    sessionEventBus: SessionEventBus,
-    sessionId: string,
-    resourceManager: import('../../resources/index.js').ResourceManager,
-    logger: IDextoLogger
-): ILLMService {
-    if (router === 'vercel') {
-        return _createVercelLLMService(
-            config,
-            toolManager,
-            systemPromptManager,
-            historyProvider,
-            sessionEventBus,
-            sessionId,
-            resourceManager,
-            logger
-        );
-    } else {
-        return _createInBuiltLLMService(
-            config,
-            toolManager,
-            systemPromptManager,
-            historyProvider,
-            sessionEventBus,
-            sessionId,
-            resourceManager,
-            logger
-        );
-    }
 }

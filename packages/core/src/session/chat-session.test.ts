@@ -62,7 +62,6 @@ describe('ChatSession', () => {
         provider: 'openai',
         model: 'gpt-5',
         apiKey: 'test-key',
-        router: 'in-built',
         maxIterations: 50,
         maxInputTokens: 128000,
     });
@@ -295,7 +294,6 @@ describe('ChatSession', () => {
             // Should create a new LLM service with updated config
             expect(mockCreateLLMService).toHaveBeenCalledWith(
                 newConfig,
-                newConfig.router,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
                 mockHistoryProvider,
@@ -321,7 +319,6 @@ describe('ChatSession', () => {
             // Should create a new LLM service with the new config
             expect(mockCreateLLMService).toHaveBeenCalledWith(
                 newConfig,
-                newConfig.router,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
                 mockHistoryProvider,
@@ -347,7 +344,6 @@ describe('ChatSession', () => {
                 'llm:switched',
                 expect.objectContaining({
                     newConfig,
-                    router: newConfig.router,
                     historyRetained: true,
                 })
             );
@@ -442,7 +438,6 @@ describe('ChatSession', () => {
             // Verify session-specific LLM service creation with new signature
             expect(mockCreateLLMService).toHaveBeenCalledWith(
                 mockLLMConfig,
-                mockLLMConfig.router,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
                 mockHistoryProvider,

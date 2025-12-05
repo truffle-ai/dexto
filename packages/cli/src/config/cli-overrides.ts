@@ -10,7 +10,7 @@ import type { AgentConfig, LLMConfig } from '@dexto/core';
  * Uses input type (LLMConfig) since these represent user-provided CLI arguments
  */
 export interface CLIConfigOverrides
-    extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'router' | 'apiKey'>> {
+    extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'apiKey'>> {
     autoApprove?: boolean;
 }
 
@@ -46,9 +46,6 @@ export function applyCLIOverrides(
     }
     if (cliOverrides.model) {
         mergedConfig.llm.model = cliOverrides.model;
-    }
-    if (cliOverrides.router) {
-        mergedConfig.llm.router = cliOverrides.router;
     }
     if (cliOverrides.apiKey) {
         mergedConfig.llm.apiKey = cliOverrides.apiKey;

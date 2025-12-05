@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { LLMProvider, LLMRouter } from '../llm/types.js';
+import type { LLMProvider } from '../llm/types.js';
 import { ValidatedAgentConfig } from '../agent/schemas.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
@@ -294,7 +294,6 @@ export interface AgentEventMap {
         reasoning?: string;
         provider?: LLMProvider;
         model?: string;
-        router?: LLMRouter;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;
@@ -340,7 +339,6 @@ export interface AgentEventMap {
     /** LLM service switched */
     'llm:switched': {
         newConfig: any; // LLMConfig type
-        router?: string;
         historyRetained?: boolean;
         sessionIds: string[]; // Array of affected session IDs
     };
@@ -464,7 +462,6 @@ export interface SessionEventMap {
         reasoning?: string;
         provider?: LLMProvider;
         model?: string;
-        router?: LLMRouter;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;
@@ -506,7 +503,6 @@ export interface SessionEventMap {
     /** LLM service switched */
     'llm:switched': {
         newConfig: any; // LLMConfig type
-        router?: string;
         historyRetained?: boolean;
     };
 

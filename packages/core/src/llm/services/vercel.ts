@@ -81,7 +81,7 @@ export class VercelLLMService implements ILLMService {
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
-        const tokenizer = createTokenizer(config.provider, this.getModelId(), this.logger);
+        const tokenizer = createTokenizer(config.provider, this.getModelId());
         const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
         this.contextManager = new ContextManager<ModelMessage>(
@@ -123,7 +123,6 @@ export class VercelLLMService implements ILLMService {
                 baseURL: this.config.baseURL,
             },
             { provider: this.config.provider, model: this.getModelId() },
-            'vercel',
             this.logger,
             this.messageQueue,
             undefined, // modelLimits - TurnExecutor will use defaults
@@ -227,7 +226,6 @@ export class VercelLLMService implements ILLMService {
             }
         }
         return {
-            router: 'vercel',
             provider: this.config.provider,
             model: this.model,
             configuredMaxInputTokens: configuredMaxTokens,

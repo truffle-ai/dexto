@@ -17,18 +17,16 @@ import {
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
-import { LLM_PROVIDERS, LLM_ROUTERS } from './types.js';
+import { LLM_PROVIDERS } from './types.js';
 import {
     getSupportedModels,
     getMaxInputTokensForModel,
-    getSupportedRoutersForProvider,
     requiresBaseURL,
     supportsBaseURL,
     getDefaultModelForProvider,
     acceptsAnyModel,
-    getSupportedRoutersForModel,
 } from './registry.js';
-import type { LLMProvider, LLMRouter } from './types.js';
+import type { LLMProvider } from './types.js';
 
 // Test helpers
 class LLMTestHelpers {
@@ -36,17 +34,10 @@ class LLMTestHelpers {
         const models = getSupportedModels(provider);
         const defaultModel = getDefaultModelForProvider(provider) || models[0] || 'custom-model';
 
-        // Get supported routers for the specific model
-        const supportedRouters = getSupportedRoutersForModel(provider, defaultModel);
-        const router = supportedRouters.includes('vercel')
-            ? 'vercel'
-            : supportedRouters[0] || 'vercel';
-
         const baseConfig = {
             provider,
             model: defaultModel,
             apiKey: 'test-key',
-            router,
         };
 
         if (requiresBaseURL(provider)) {
@@ -62,20 +53,6 @@ class LLMTestHelpers {
 
     static getProviderNotSupportingBaseURL(): LLMProvider | null {
         return LLM_PROVIDERS.find((p) => !supportsBaseURL(p)) || null;
-    }
-
-    static getProviderWithRestrictedRouters(): {
-        provider: LLMProvider;
-        unsupportedRouter: LLMRouter;
-    } | null {
-        for (const provider of LLM_PROVIDERS) {
-            const supportedRouters = getSupportedRoutersForProvider(provider);
-            const unsupportedRouter = LLM_ROUTERS.find((r) => !supportedRouters.includes(r));
-            if (unsupportedRouter) {
-                return { provider, unsupportedRouter };
-            }
-        }
-        return null;
     }
 }
 
@@ -95,7 +72,6 @@ describe('LLMConfigSchema', () => {
             const result = LLMConfigSchema.parse(config);
 
             expect(result.maxIterations).toBe(50);
-            expect(result.router).toBe('vercel');
         });
 
         it('should preserve explicit optional values', () => {
@@ -106,14 +82,12 @@ describe('LLMConfigSchema', () => {
                 maxIterations: 25,
                 temperature: 0.7,
                 maxOutputTokens: 4000,
-                router: 'in-built',
             };
 
             const result = LLMConfigSchema.parse(config);
             expect(result.maxIterations).toBe(25);
             expect(result.temperature).toBe(0.7);
             expect(result.maxOutputTokens).toBe(4000);
-            expect(result.router).toBe('in-built');
         });
     });
 
@@ -200,17 +174,10 @@ describe('LLMConfigSchema', () => {
                 // Test first few models to avoid excessive test runs
                 const modelsToTest = models.slice(0, 3);
                 for (const model of modelsToTest) {
-                    // Get supported routers for this specific model
-                    const supportedRouters = getSupportedRoutersForModel(provider, model);
-                    const router = supportedRouters.includes('vercel')
-                        ? 'vercel'
-                        : supportedRouters[0] || 'vercel';
-
                     const config: LLMConfig = {
                         provider,
                         model,
                         apiKey: 'test-key',
-                        router,
                         ...(requiresBaseURL(provider) && { baseURL: 'https://api.test.com/v1' }),
                     };
 
@@ -237,55 +204,6 @@ describe('LLMConfigSchema', () => {
             expect(result.error?.issues[0]?.path).toEqual(['model']);
             expect((result.error?.issues[0] as any).params?.code).toBe(
                 LLMErrorCode.MODEL_INCOMPATIBLE
-            );
-        });
-    });
-
-    describe('Router Validation', () => {
-        it('should accept all valid routers', () => {
-            for (const router of LLM_ROUTERS) {
-                // Find a provider that supports this router
-                const provider = LLM_PROVIDERS.find((p) =>
-                    getSupportedRoutersForProvider(p).includes(router)
-                );
-                if (!provider) continue;
-
-                const config: LLMConfig = {
-                    ...LLMTestHelpers.getValidConfigForProvider(provider),
-                    router,
-                };
-
-                const result = LLMConfigSchema.safeParse(config);
-                expect(result.success).toBe(true);
-            }
-        });
-
-        it('should reject invalid routers', () => {
-            const config: LLMConfig = {
-                ...LLMTestHelpers.getValidConfigForProvider('openai'),
-                router: 'invalid-router' as LLMRouter,
-            };
-
-            const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
-            expect(result.error?.issues[0]?.path).toEqual(['router']);
-        });
-
-        it('should validate router compatibility with providers', () => {
-            const incompatible = LLMTestHelpers.getProviderWithRestrictedRouters();
-            if (!incompatible) return; // Skip if all providers support all routers
-
-            const config: LLMConfig = {
-                ...LLMTestHelpers.getValidConfigForProvider(incompatible.provider),
-                router: incompatible.unsupportedRouter,
-            };
-
-            const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.path).toEqual(['router']);
-            expect((result.error?.issues[0] as any).params?.code).toBe(
-                LLMErrorCode.ROUTER_UNSUPPORTED
             );
         });
     });
@@ -386,17 +304,10 @@ describe('LLMConfigSchema', () => {
             const model = models[0]!;
             const maxTokens = getMaxInputTokensForModel(provider, model);
 
-            // Get supported routers for this specific model
-            const supportedRouters = getSupportedRoutersForModel(provider, model);
-            const router = supportedRouters.includes('vercel')
-                ? 'vercel'
-                : supportedRouters[0] || 'vercel';
-
             const config: LLMConfig = {
                 provider,
                 model,
                 apiKey: 'test-key',
-                router,
                 maxInputTokens: Math.floor(maxTokens / 2), // Well within limit
                 ...(requiresBaseURL(provider) && { baseURL: 'https://api.test.com/v1' }),
             };
@@ -413,17 +324,10 @@ describe('LLMConfigSchema', () => {
             const model = models[0]!;
             const maxTokens = getMaxInputTokensForModel(provider, model);
 
-            // Get supported routers for this specific model
-            const supportedRouters = getSupportedRoutersForModel(provider, model);
-            const router = supportedRouters.includes('vercel')
-                ? 'vercel'
-                : supportedRouters[0] || 'vercel';
-
             const config: LLMConfig = {
                 provider,
                 model,
                 apiKey: 'test-key',
-                router,
                 maxInputTokens: maxTokens + 1000, // Exceed limit
                 ...(requiresBaseURL(provider) && { baseURL: 'https://api.test.com/v1' }),
             };
@@ -529,7 +433,6 @@ describe('LLMConfigSchema', () => {
 
             // Should have applied defaults
             expect(result.maxIterations).toBe(50);
-            expect(result.router).toBe('vercel');
 
             // Should preserve input values
             expect(result.provider).toBe(input.provider);
@@ -546,7 +449,6 @@ describe('LLMConfigSchema', () => {
             expect(typeof result.model).toBe('string');
             expect(typeof result.apiKey).toBe('string');
             expect(typeof result.maxIterations).toBe('number');
-            expect(typeof result.router).toBe('string');
         });
     });
 
@@ -572,61 +474,15 @@ describe('LLMConfigSchema', () => {
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
             });
 
-            it('should pass validation when only router is provided', () => {
-                const updates = { router: 'vercel' } as const;
-                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
-            });
-
-            it('should reject updates with only non-key fields (no model/provider/router)', () => {
+            it('should reject updates with only non-key fields (no model/provider)', () => {
                 const updates = { maxIterations: 10 } as const;
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
             });
 
             it('should pass validation when model/provider with other fields', () => {
-                const updates = { model: 'gpt-5', maxIterations: 10, router: 'vercel' };
+                const updates = { model: 'gpt-5', maxIterations: 10 };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
-        });
-    });
-
-    describe('Model-Specific Router Validation', () => {
-        it('should accept GPT-5 models with vercel router after v5 migration', () => {
-            const config: LLMConfig = {
-                ...LLMTestHelpers.getValidConfigForProvider('openai'),
-                model: 'gpt-5',
-                router: 'vercel',
-            };
-
-            const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(true);
-        });
-
-        it('should accept GPT-5 models with in-built router', () => {
-            const config: LLMConfig = {
-                ...LLMTestHelpers.getValidConfigForProvider('openai'),
-                model: 'gpt-5',
-                router: 'in-built',
-            };
-
-            const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(true);
-        });
-
-        it('should accept other OpenAI models with both routers', () => {
-            const vercelConfig: LLMConfig = {
-                ...LLMTestHelpers.getValidConfigForProvider('openai'),
-                model: 'gpt-4.1-mini',
-                router: 'vercel',
-            };
-
-            const inBuiltConfig: LLMConfig = {
-                ...LLMTestHelpers.getValidConfigForProvider('openai'),
-                model: 'gpt-4.1-mini',
-                router: 'in-built',
-            };
-
-            expect(LLMConfigSchema.safeParse(vercelConfig).success).toBe(true);
-            expect(LLMConfigSchema.safeParse(inBuiltConfig).success).toBe(true);
         });
     });
 });

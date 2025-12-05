@@ -120,7 +120,6 @@ export interface BeforeResponsePayload {
     reasoning?: string;
     provider: string;
     model?: string;
-    router?: string;
     tokenUsage?: { input: number; output: number };
     sessionId?: string;
 }

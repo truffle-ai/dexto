@@ -535,7 +535,6 @@ describe('AgentConfigSchema', () => {
                     provider: 'anthropic',
                     model: 'claude-haiku-4-5-20251001',
                     apiKey: 'test-anthropic-key',
-                    router: 'in-built',
                     maxIterations: 25,
                 },
                 storage: {
@@ -560,7 +559,6 @@ describe('AgentConfigSchema', () => {
             expect(result.mcpServers.testServer).toBeDefined();
             expect(result.internalTools).toEqual(['search_history']);
             expect(result.llm.provider).toBe('anthropic');
-            expect(result.llm.router).toBe('in-built');
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(5);
             expect(result.toolConfirmation.mode).toBe('auto-approve');
@@ -628,7 +626,6 @@ describe('AgentConfigSchema', () => {
 
             // Defaults from different schemas should all be applied
             expect(result.llm.maxIterations).toBe(50); // LLM schema default
-            expect(result.llm.router).toBe('vercel'); // LLM schema default
             expect(result.storage).toBeDefined();
             expect(result.storage.cache.type).toBe('in-memory'); // Storage schema default
             expect(result.sessions.maxSessions).toBe(100); // Session schema default
@@ -728,7 +725,6 @@ describe('AgentConfigSchema', () => {
                     provider: 'openai',
                     model: 'gpt-5',
                     apiKey: 'sk-prod-key-123',
-                    router: 'vercel',
                     maxIterations: 30,
                     temperature: 0.3,
                 },
@@ -788,7 +784,6 @@ describe('AgentConfigSchema', () => {
             expect(result.sessions).toBeDefined();
             expect(result.toolConfirmation.mode).toBe('auto-approve');
             expect(result.llm.maxIterations).toBe(50);
-            expect(result.llm.router).toBe('vercel');
         });
     });
 });

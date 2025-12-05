@@ -95,11 +95,10 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
             content: msg.content,
             createdAt: msg.timestamp ?? Date.now() - (history.length - index) * 1000,
             sessionId: sessionId,
-            // Preserve token usage, reasoning, model, and router metadata from storage
+            // Preserve token usage, reasoning, model, and provider metadata from storage
             tokenUsage: msg.tokenUsage,
             reasoning: msg.reasoning,
             model: msg.model,
-            router: msg.router,
             provider: msg.provider,
         };
 
@@ -346,7 +345,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 provider: cfg.provider,
                 model: cfg.model,
                 displayName: cfg.displayName,
-                router: cfg.router,
                 baseURL: cfg.baseURL,
             };
         },

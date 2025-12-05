@@ -16,7 +16,7 @@ import { createStorageManager, StorageManager } from '../../storage/storage-mana
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import type { LanguageModel, ModelMessage } from 'ai';
-import type { LLMContext, LLMRouter } from '../types.js';
+import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { ValidatedStorageConfig } from '../../storage/schemas.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
@@ -127,7 +127,6 @@ describe('TurnExecutor Integration Tests', () => {
 
     const sessionId = 'test-session';
     const llmContext: LLMContext = { provider: 'openai', model: 'gpt-4' };
-    const router: LLMRouter = 'vercel';
 
     beforeEach(async () => {
         vi.clearAllMocks();
@@ -188,13 +187,12 @@ describe('TurnExecutor Integration Tests', () => {
 
         // Create real context manager with Vercel formatter
         const formatter = new VercelMessageFormatter(logger);
-        const tokenizer = createTokenizer('openai', 'gpt-4', logger);
+        const tokenizer = createTokenizer('openai', 'gpt-4');
         // Cast to ValidatedLLMConfig since we know test data is valid
         const llmConfig = {
             provider: 'openai',
             model: 'gpt-4',
             apiKey: 'test-api-key',
-            router: 'vercel',
             maxInputTokens: 100000,
             maxOutputTokens: 4096,
             temperature: 0.7,
@@ -262,7 +260,6 @@ describe('TurnExecutor Integration Tests', () => {
             sessionId,
             { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
             llmContext,
-            router,
             logger,
             messageQueue
         );
@@ -390,7 +387,6 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionId,
                 { maxSteps: 3, maxOutputTokens: 4096, temperature: 0.7 },
                 llmContext,
-                router,
                 logger,
                 messageQueue
             );
@@ -472,7 +468,6 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionId,
                 { maxSteps: 10, baseURL: 'https://custom.api.com' },
                 llmContext,
-                router,
                 logger,
                 messageQueue
             );
@@ -493,7 +488,6 @@ describe('TurnExecutor Integration Tests', () => {
                 'session-2',
                 { maxSteps: 10, baseURL: 'https://custom.api.com' },
                 llmContext,
-                router,
                 logger,
                 newMessageQueue
             );
@@ -514,7 +508,6 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionId,
                 { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
                 llmContext,
-                router,
                 logger,
                 messageQueue
             );
@@ -636,7 +629,6 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionId,
                 { maxSteps: 10 },
                 llmContext,
-                router,
                 logger,
                 messageQueue,
                 undefined,

@@ -21,7 +21,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext, LLMRouter } from '../types.js';
+import { LLMContext } from '../types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -76,7 +76,6 @@ export class TurnExecutor {
             baseURL?: string | undefined;
         },
         private llmContext: LLMContext,
-        private router: LLMRouter,
         logger: IDextoLogger,
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
@@ -104,7 +103,6 @@ export class TurnExecutor {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
-            router: this.router,
         };
     }
 

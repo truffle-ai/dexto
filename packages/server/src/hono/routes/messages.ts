@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import type { DextoAgent } from '@dexto/core';
-import { LLM_PROVIDERS, LLM_ROUTERS } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import { TokenUsageSchema } from '../schemas/responses.js';
 
@@ -115,10 +115,6 @@ export function createMessagesRouter(
                                     .optional()
                                     .describe('Model used for this response'),
                                 provider: z.enum(LLM_PROVIDERS).optional().describe('LLM provider'),
-                                router: z
-                                    .enum(LLM_ROUTERS)
-                                    .optional()
-                                    .describe('Router used (e.g., vercel)'),
                             })
                             .strict(),
                     },
@@ -284,7 +280,7 @@ export function createMessagesRouter(
                 fileData: fileDataInput,
             });
 
-            // Get the session's current LLM config to include model/provider/router info
+            // Get the session's current LLM config to include model/provider info
             const llmConfig = agent.stateManager.getLLMConfig(sessionId);
 
             return ctx.json({
@@ -294,7 +290,6 @@ export function createMessagesRouter(
                 reasoning: result.reasoning,
                 model: llmConfig.model,
                 provider: llmConfig.provider,
-                router: 'vercel', // Hardcoded for now since we only use Vercel AI SDK
             });
         })
         .openapi(resetRoute, async (ctx) => {

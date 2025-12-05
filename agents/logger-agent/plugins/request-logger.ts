@@ -136,7 +136,6 @@ export class RequestLoggerPlugin implements DextoPlugin {
         );
         await this.writeLog(`Session: ${payload.sessionId || 'unknown'}`);
         await this.writeLog(`Model: ${payload.provider}/${payload.model || 'unknown'}`);
-        await this.writeLog(`Router: ${payload.router || 'none'}`);
 
         if (payload.tokenUsage) {
             await this.writeLog(
