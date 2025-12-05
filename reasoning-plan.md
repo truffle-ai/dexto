@@ -403,6 +403,7 @@ Create a new module to translate unified config to provider-specific options:
 
 import { LLMProvider } from '../types.js';
 import { getModelInfo } from '../registry.js';
+import type { IDextoLogger } from '../logger/v2/types.js';
 
 interface ReasoningConfig {
   enabled?: boolean;
@@ -410,42 +411,91 @@ interface ReasoningConfig {
   effort?: 'low' | 'medium' | 'high';
 }
 
+interface TransformContext {
+  provider: LLMProvider;
+  model: string;
+  reasoning?: ReasoningConfig;
+  temperature?: number;
+  logger?: IDextoLogger;
+}
+
 /**
  * Transforms unified reasoning config to provider-specific providerOptions.
  * Returns empty object if reasoning is disabled or not applicable.
  *
- * Uses registry to determine if model supports reasoning - no string matching.
+ * Emits warnings for:
+ * - Reasoning requested on non-supporting model
+ * - Mismatched config (budget on OpenAI, effort on Anthropic)
+ * - Temperature set with reasoning on OpenAI (not supported)
  */
-export function toProviderOptions(
-  provider: LLMProvider,
-  model: string,
-  reasoning?: ReasoningConfig
-): Record<string, unknown> {
+export function toProviderOptions(ctx: TransformContext): Record<string, unknown> {
+  const { provider, model, reasoning, temperature, logger } = ctx;
+
   // No config or explicitly disabled = no provider options
   if (!reasoning?.enabled) return {};
 
   // Check registry for reasoning support
   const modelInfo = getModelInfo(provider, model);
-  if (!modelInfo?.reasoning?.supported) {
-    // Model doesn't support reasoning - return empty (no-op)
+
+  // Warn about mismatched config options
+  emitMismatchWarnings(provider, reasoning, logger);
+
+  // Warn about temperature + reasoning on OpenAI
+  if (provider === 'openai' && temperature !== undefined && modelInfo?.reasoning?.supported) {
+    logger?.warn(
+      `Temperature is not supported for OpenAI reasoning models and will be ignored`
+    );
+  }
+
+  // For models not in registry (e.g., openai-compatible custom endpoints)
+  // we can't validate reasoning support - proceed with provider-specific handling
+  if (modelInfo && !modelInfo.reasoning?.supported) {
+    logger?.warn(
+      `Reasoning requested but model '${model}' does not support it - config will be ignored`
+    );
     return {};
   }
 
   switch (provider) {
     case 'anthropic':
-      return toAnthropicOptions(reasoning, modelInfo.reasoning.defaultBudget);
+      return toAnthropicOptions(reasoning, modelInfo?.reasoning?.defaultBudget);
     case 'openai':
       return toOpenAIOptions(reasoning);
     case 'google':
-      return toGoogleOptions(reasoning, modelInfo.reasoning.defaultBudget);
+      return toGoogleOptions(reasoning, modelInfo?.reasoning?.defaultBudget);
     case 'openai-compatible':
+      // String matching necessary - openai-compatible models not in registry
       return toOpenAICompatibleOptions(model, reasoning);
     case 'xai':
-      return {}; // xAI reasoning is always-on, no config needed
+      // xAI/Grok reasoning is always-on and cannot be disabled
+      return {};
     case 'groq':
       return toGroqOptions(model, reasoning);
     default:
       return {};
+  }
+}
+
+/**
+ * Warn about config options that will be ignored for the given provider.
+ */
+function emitMismatchWarnings(
+  provider: LLMProvider,
+  reasoning: ReasoningConfig,
+  logger?: IDextoLogger
+): void {
+  // Budget only applies to Anthropic and Google
+  if (reasoning.budget !== undefined && !['anthropic', 'google'].includes(provider)) {
+    logger?.warn(
+      `'reasoning.budget' is only supported for Anthropic and Google - ignored for ${provider}`
+    );
+  }
+
+  // Effort only applies to OpenAI
+  if (reasoning.effort !== undefined && provider !== 'openai') {
+    logger?.warn(
+      `'reasoning.effort' is only supported for OpenAI - ignored for ${provider}`
+    );
   }
 }
 
@@ -523,6 +573,19 @@ The Vercel AI SDK automatically generates the `anthropic-beta` header when think
 
 The `headers` field in config is a **passthrough escape hatch** for power users who need custom headers for any reason - it's passed directly to the provider client creation without reasoning-specific logic.
 
+### Warnings Emitted
+
+The transform layer emits warnings for common misconfigurations:
+
+| Condition | Warning Message |
+|-----------|-----------------|
+| `reasoning.enabled: true` on non-supporting model | "Reasoning requested but model 'X' does not support it - config will be ignored" |
+| `reasoning.budget` set on OpenAI/xAI/Groq | "'reasoning.budget' is only supported for Anthropic and Google - ignored for X" |
+| `reasoning.effort` set on non-OpenAI provider | "'reasoning.effort' is only supported for OpenAI - ignored for X" |
+| `temperature` set with reasoning on OpenAI | "Temperature is not supported for OpenAI reasoning models and will be ignored" |
+
+These warnings help users catch configuration mistakes without failing hard.
+
 ---
 
 ## Registry Enhancement
@@ -545,6 +608,20 @@ export interface ModelInfo {
     supported: boolean;
     defaultBudget?: number;  // Provider-specific default
   };
+}
+
+/**
+ * Get full model info from registry.
+ * Returns null for unknown models (e.g., openai-compatible custom models).
+ */
+export function getModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
+  const providerInfo = LLM_REGISTRY[provider];
+  if (!providerInfo) return null;
+
+  // Case-insensitive lookup
+  return providerInfo.models.find(
+    m => m.name.toLowerCase() === model.toLowerCase()
+  ) ?? null;
 }
 ```
 
@@ -624,7 +701,10 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
 }
 ```
 
-**Note:** The factory does NOT inject reasoning-specific headers. The Vercel AI SDK handles `anthropic-beta` automatically when `providerOptions.anthropic.thinking` is set.
+**Notes:**
+- The factory does NOT inject reasoning-specific headers. The Vercel AI SDK handles `anthropic-beta` automatically when `providerOptions.anthropic.thinking` is set.
+- Google SDK doesn't appear to support custom headers - omitted from headers passthrough.
+- Headers passthrough is primarily useful for Anthropic (custom beta features) and OpenAI-compatible endpoints.
 
 ---
 
@@ -638,11 +718,13 @@ Pass provider options to streamText/generateText:
 import { toProviderOptions } from '../reasoning/provider-options.js';
 
 // In the execute method:
-const reasoningOptions = toProviderOptions(
-  this.llmContext.provider,
-  this.llmContext.model,
-  this.config.reasoning
-);
+const reasoningOptions = toProviderOptions({
+  provider: this.llmContext.provider,
+  model: this.llmContext.model,
+  reasoning: this.config.reasoning,
+  temperature: this.config.temperature,
+  logger: this.logger,
+});
 
 // Merge with any user-provided providerOptions (user overrides win)
 const finalProviderOptions = {
@@ -671,14 +753,11 @@ const result = await streamText({
 
 | User Config | Provider Option | Notes |
 |-------------|-----------------|-------|
-| `enabled: true` | `thinking.type: "enabled"` | Requires beta header |
-| `enabled: false` | `thinking.type: "disabled"` | |
+| `enabled: true` | `thinking.type: "enabled"` | SDK auto-generates beta header |
+| `enabled: false` or omitted | No providerOptions generated | SDK default (no thinking) |
 | `budget: 16000` | `thinking.budgetTokens: 16000` | Max ~128k tokens |
 
-**Required Header:**
-```
-anthropic-beta: interleaved-thinking-2025-05-14
-```
+**Beta Header:** Auto-generated by Vercel AI SDK when thinking is enabled - no manual management needed.
 
 **Output Token Calculation:**
 - When thinking enabled: `maxOutputTokens = min(modelCap - budgetTokens, standardLimit)`
@@ -691,19 +770,20 @@ anthropic-beta: interleaved-thinking-2025-05-14
 
 | User Config | Provider Option | Notes |
 |-------------|-----------------|-------|
+| `enabled: true` | `reasoningEffort` set | Uses effort level or default "medium" |
+| `enabled: false` or omitted | No providerOptions generated | Standard model behavior |
 | `effort: "low"` | `reasoningEffort: "low"` | Least thinking |
 | `effort: "medium"` | `reasoningEffort: "medium"` | Default |
 | `effort: "high"` | `reasoningEffort: "high"` | Most thinking |
 
 **Additional Options:**
-- `reasoningSummary: "auto"` - Include reasoning summary
-- `textVerbosity: "low"` - For GPT-5.1 models
+- `reasoningSummary: "auto"` - Include reasoning summary (auto-added)
 
 **Models (reasoning):** o1, o1-mini, o3, o3-mini, o4-mini, gpt-5, gpt-5.1, gpt-5-codex
 
 **Models (non-reasoning):** gpt-5-chat, gpt-4o, gpt-4o-mini
 
-**Note:** Temperature and topP are NOT supported for reasoning models.
+**⚠️ Temperature Warning:** Temperature and topP are NOT supported for reasoning models. If `temperature` is set with reasoning enabled, a warning will be logged and the API may reject it.
 
 ---
 
@@ -712,7 +792,7 @@ anthropic-beta: interleaved-thinking-2025-05-14
 | User Config | Provider Option | Notes |
 |-------------|-----------------|-------|
 | `enabled: true` | `thinkingConfig.includeThoughts: true` | Stream thoughts |
-| `enabled: false` | `thinkingConfig.thinkingBudget: 0` | Disable |
+| `enabled: false` or omitted | No providerOptions generated | SDK default (no thinking) |
 | `budget: 8000` | `thinkingConfig.thinkingBudget: 8000` | Token limit |
 
 **Models:** gemini-3-pro-*, gemini-2.5-pro, gemini-2.5-flash
@@ -748,9 +828,12 @@ anthropic-beta: interleaved-thinking-2025-05-14
 
 | User Config | Provider Option | Notes |
 |-------------|-----------------|-------|
-| `enabled: true` | (default behavior) | Uses OpenAI-compatible API |
+| `enabled: true` | No providerOptions needed | Reasoning is always-on |
+| `enabled: false` | No providerOptions generated | ⚠️ Cannot disable reasoning |
 
 **Models:** grok-4, grok-3
+
+**Note:** Grok models have reasoning built-in and always-on. The `enabled: false` setting has no effect - reasoning cannot be disabled for these models.
 
 ---
 
@@ -811,10 +894,10 @@ this.actualTokens = {
 1. Update `factory.ts` to pass through `headers` escape hatch
 2. Update `turn-executor.ts` to call `toProviderOptions()` and pass to `streamText()`
 
-### Phase 4: DeepSeek Message Handling (TBD)
-1. Research where `reasoning_content` needs to be stored per-message
-2. Implement message-level providerOptions injection for tool call continuations
-3. See "DeepSeek Handoff" section for research tasks
+### Phase 4: DeepSeek Message Handling
+1. **Persist reasoning to messages** - Update `stream-processor.ts` to store reasoning text in assistant message content or metadata
+2. **Add DeepSeek message transform** - In `formatters/vercel.ts`, transform assistant messages with tool calls + reasoning to include `providerOptions.openaiCompatible.reasoning_content`
+3. See "DeepSeek Message Handling" section for implementation details from OpenCode
 
 ### Phase 5: Testing
 1. Unit tests for `toProviderOptions()` transform functions
@@ -869,9 +952,9 @@ reasoning:
 
 ---
 
-## DeepSeek Message Handling - Research Required
+## DeepSeek Message Handling - Implementation Details
 
-**Status:** TBD - Requires additional research before implementation.
+**Status:** Research complete - ready for implementation.
 
 DeepSeek R1 models require special handling for multi-turn conversations with tool calls. When the model produces reasoning and then makes tool calls, the `reasoning_content` must be passed back on subsequent assistant messages to maintain reasoning continuity.
 
@@ -890,26 +973,25 @@ From the Vercel AI SDK, DeepSeek expects:
 }
 ```
 
-### Research Questions
+### Implementation Steps
 
-1. **Where is reasoning text stored?**
-   - Is it in `stream-processor.ts`'s `reasoningText` accumulator?
-   - Should it be persisted to conversation history message metadata?
-   - How does Dexto's message format store provider-specific data?
+Based on OpenCode's approach, here's what needs to be done:
 
-2. **Where does the transformation happen?**
-   - In the Vercel message formatter (`formatters/vercel.ts`)?
-   - In `contextManager.getFormattedMessagesWithCompression()`?
-   - Should there be a DeepSeek-specific message transformer?
+1. **Persist reasoning to assistant messages**
+   - Currently `stream-processor.ts` accumulates reasoning in `this.reasoningText` but doesn't persist it
+   - Update `updateAssistantMessage()` to store reasoning in message content as a `reasoning` part
+   - Or store in message metadata if content structure doesn't support it
 
-3. **When is it needed?**
-   - Only for messages with tool calls that also have reasoning?
-   - For all assistant messages in a DeepSeek conversation?
-   - Only when continuing after tool results?
+2. **Transform messages at format time**
+   - In `formatters/vercel.ts`, add DeepSeek-specific transformation
+   - Check for assistant messages with BOTH tool calls AND reasoning parts
+   - Inject `providerOptions.openaiCompatible.reasoning_content` for those messages
 
-4. **How does Vercel SDK handle this internally?**
-   - Does the SDK already handle `reasoning_content` preservation?
-   - Or is this something Dexto must manage explicitly?
+3. **Condition: When is it needed?**
+   - Only for assistant messages that have BOTH:
+     - Tool calls (the model made tool calls)
+     - Reasoning content (the model produced thinking text)
+   - NOT needed for: text-only responses, tool results, user messages
 
 ### Files to Investigate
 
