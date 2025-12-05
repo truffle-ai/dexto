@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { InternalMessage, Issue, SanitizedToolResult, ToolApprovalStatus } from '@dexto/core';
+import type { Issue, SanitizedToolResult, ToolApprovalStatus } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -44,32 +44,78 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
     );
 }
 
-// Extend core InternalMessage for WebUI
-export interface Message extends Omit<InternalMessage, 'content'> {
+// =============================================================================
+// WebUI Message Types (Discriminated Union by 'role')
+// =============================================================================
+
+/** Content type for WebUI messages (JSON-serializable, string-only) */
+export type UIContentPart = TextPart | ImagePart | AudioPart | FilePart | UIResourcePart;
+
+/** Base interface for all WebUI message types */
+interface UIMessageBase {
     id: string;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart | UIResourcePart>;
+    sessionId?: string;
+    metadata?: Record<string, unknown>;
+}
+
+/** User message in WebUI */
+export interface UIUserMessage extends UIMessageBase {
+    role: 'user';
+    content: string | null | UIContentPart[];
     imageData?: { image: string; mimeType: string };
     fileData?: FileData;
-    toolName?: string;
-    toolArgs?: Record<string, unknown>;
-    toolCallId?: string; // Unique identifier for pairing tool calls with results
-    toolResult?: ToolResult;
-    toolResultMeta?: SanitizedToolResult['meta'];
-    toolResultSuccess?: boolean;
+}
+
+/** Assistant message in WebUI */
+export interface UIAssistantMessage extends UIMessageBase {
+    role: 'assistant';
+    content: string | null;
+    reasoning?: string;
     tokenUsage?: {
         inputTokens?: number;
         outputTokens?: number;
         reasoningTokens?: number;
         totalTokens?: number;
     };
-    reasoning?: string;
     model?: string;
     provider?: LLMProvider;
-    sessionId?: string;
-    // Approval-related properties (for tool messages)
+}
+
+/** Tool message in WebUI */
+export interface UIToolMessage extends UIMessageBase {
+    role: 'tool';
+    content: string | null | UIContentPart[];
+    toolName?: string;
+    toolArgs?: Record<string, unknown>;
+    toolCallId?: string;
+    toolResult?: ToolResult;
+    toolResultMeta?: SanitizedToolResult['meta'];
+    toolResultSuccess?: boolean;
     requireApproval?: boolean;
     approvalStatus?: ToolApprovalStatus;
+}
+
+/** Discriminated union of all WebUI message types */
+export type Message = UIUserMessage | UIAssistantMessage | UIToolMessage;
+
+// =============================================================================
+// Message Type Guards
+// =============================================================================
+
+/** Type guard for user messages */
+export function isUserMessage(msg: Message): msg is UIUserMessage {
+    return msg.role === 'user';
+}
+
+/** Type guard for assistant messages */
+export function isAssistantMessage(msg: Message): msg is UIAssistantMessage {
+    return msg.role === 'assistant';
+}
+
+/** Type guard for tool messages */
+export function isToolMessage(msg: Message): msg is UIToolMessage {
+    return msg.role === 'tool';
 }
 
 // Separate error state interface

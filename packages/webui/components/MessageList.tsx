@@ -4,6 +4,9 @@ import {
     Message,
     isToolResultError,
     isToolResultContent,
+    isUserMessage,
+    isAssistantMessage,
+    isToolMessage,
     ErrorMessage,
     ToolResult,
 } from './hooks/useChat';
@@ -374,6 +377,7 @@ export default function MessageList({
         };
 
         for (const msg of messages) {
+            if (!isToolMessage(msg)) continue;
             const toolResult = msg.toolResult;
             if (!toolResult) continue;
             if (isToolResultContent(toolResult)) {
@@ -471,13 +475,13 @@ export default function MessageList({
         >
             {messages.map((msg, idx) => {
                 const msgKey = msg.id ?? `msg-${idx}`;
-                const isUser = msg.role === 'user';
-                const isAi = msg.role === 'assistant';
-                const isSystem = msg.role === 'system';
+                const isUser = isUserMessage(msg);
+                const isAi = isAssistantMessage(msg);
+                const isTool = isToolMessage(msg);
 
                 const isLastMessage = idx === messages.length - 1;
-                const isToolCall = !!(msg.toolName && msg.toolArgs);
-                const isToolResult = !!(msg.toolName && msg.toolResult);
+                const isToolCall = isTool && !!(msg.toolName && msg.toolArgs);
+                const isToolResult = isTool && !!(msg.toolName && msg.toolResult);
                 const isToolRelated = isToolCall || isToolResult;
 
                 const isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
@@ -494,8 +498,8 @@ export default function MessageList({
                 }> = [];
                 const toolResultUIResources: Array<{ resource: UIResourcePart; index: number }> =
                     [];
-                if (isToolResult && msg.toolResult && isToolResultContent(msg.toolResult)) {
-                    msg.toolResult.content.forEach((part, index) => {
+                if (isToolMessage(msg) && msg.toolResult && isToolResultContent(msg.toolResult)) {
+                    msg.toolResult.content.forEach((part: unknown, index: number) => {
                         // Handle UI resource parts (MCP-UI interactive content)
                         if (isUIResourcePart(part)) {
                             toolResultUIResources.push({
@@ -567,15 +571,13 @@ export default function MessageList({
 
                 // Bubble styling: users and AI are speech bubbles; tools match AI width
                 const bubbleSpecificClass = cn(
-                    msg.role === 'tool'
+                    isTool
                         ? 'w-fit max-w-[90%] text-muted-foreground/70 bg-secondary border border-muted/30 rounded-md text-base overflow-hidden'
                         : isUser
                           ? 'p-3 rounded-xl shadow-sm w-fit max-w-[75%] bg-primary text-primary-foreground rounded-br-none text-base break-words overflow-wrap-anywhere overflow-hidden'
                           : isAi
                             ? 'p-3 rounded-xl shadow-sm w-fit max-w-[min(90%,calc(100vw-6rem))] bg-card text-card-foreground border border-border rounded-bl-none text-base break-normal hyphens-none'
-                            : isSystem
-                              ? 'p-3 shadow-none w-full bg-transparent text-xs text-muted-foreground italic text-center border-none'
-                              : ''
+                            : ''
                 );
 
                 const contentWrapperClass = 'flex flex-col gap-2';
@@ -605,11 +607,9 @@ export default function MessageList({
                                 <div
                                     className={cn(
                                         'flex flex-col group w-full min-w-0',
-                                        isSystem
-                                            ? 'col-span-2 items-center'
-                                            : isUser
-                                              ? 'col-start-1 justify-self-end items-end'
-                                              : 'col-start-2 justify-self-start items-start'
+                                        isUser
+                                            ? 'col-start-1 justify-self-end items-end'
+                                            : 'col-start-2 justify-self-start items-start'
                                     )}
                                 >
                                     <div className={cn(bubbleSpecificClass, 'min-w-0')}>
@@ -668,7 +668,7 @@ export default function MessageList({
                                                     </div>
                                                 )}
 
-                                            {msg.toolName ? (
+                                            {isToolMessage(msg) && msg.toolName ? (
                                                 <div
                                                     className="p-2 rounded border border-border bg-muted/30 hover:bg-muted/60 cursor-pointer"
                                                     onClick={toggleManualExpansion}
@@ -1173,13 +1173,11 @@ export default function MessageList({
                                                             }
                                                             return null;
                                                         })}
-                                                    {isSystem && !msg.content && (
-                                                        <p className="italic">System message</p>
-                                                    )}
                                                 </>
                                             )}
                                             {/* Display imageData attachments if not already in content array */}
-                                            {msg.imageData &&
+                                            {isUserMessage(msg) &&
+                                                msg.imageData &&
                                                 !Array.isArray(msg.content) &&
                                                 (() => {
                                                     const src = `data:${msg.imageData.mimeType};base64,${msg.imageData.image}`;
@@ -1195,86 +1193,90 @@ export default function MessageList({
                                                     );
                                                 })()}
                                             {/* Display fileData attachments if not already in content array */}
-                                            {msg.fileData && !Array.isArray(msg.content) && (
-                                                <div className="mt-2">
-                                                    {msg.fileData.mimeType.startsWith('video/') ? (
-                                                        <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50 max-w-md">
-                                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                                <FileVideo className="h-4 w-4" />
-                                                                <span>Video attachment</span>
+                                            {isUserMessage(msg) &&
+                                                msg.fileData &&
+                                                !Array.isArray(msg.content) && (
+                                                    <div className="mt-2">
+                                                        {msg.fileData.mimeType.startsWith(
+                                                            'video/'
+                                                        ) ? (
+                                                            <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-muted/50 max-w-md">
+                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                                    <FileVideo className="h-4 w-4" />
+                                                                    <span>Video attachment</span>
+                                                                </div>
+                                                                {(() => {
+                                                                    const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
+                                                                    return isValidDataUri(
+                                                                        videoSrc,
+                                                                        'video'
+                                                                    ) ? (
+                                                                        <video
+                                                                            controls
+                                                                            src={videoSrc}
+                                                                            className="w-full max-h-[360px] rounded-lg bg-black"
+                                                                            preload="metadata"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="text-xs text-red-500">
+                                                                            Invalid video data
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground/90">
+                                                                    <span className="font-medium truncate">
+                                                                        {msg.fileData.filename ||
+                                                                            `${msg.fileData.mimeType} file`}
+                                                                    </span>
+                                                                    <span className="opacity-70">
+                                                                        {msg.fileData.mimeType}
+                                                                    </span>
+                                                                </div>
                                                             </div>
-                                                            {(() => {
-                                                                const videoSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
-                                                                return isValidDataUri(
-                                                                    videoSrc,
-                                                                    'video'
-                                                                ) ? (
-                                                                    <video
-                                                                        controls
-                                                                        src={videoSrc}
-                                                                        className="w-full max-h-[360px] rounded-lg bg-black"
-                                                                        preload="metadata"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="text-xs text-red-500">
-                                                                        Invalid video data
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                            <div className="flex items-center gap-2 text-xs text-muted-foreground/90">
-                                                                <span className="font-medium truncate">
+                                                        ) : msg.fileData.mimeType.startsWith(
+                                                              'audio/'
+                                                          ) ? (
+                                                            <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
+                                                                <FileAudio className="h-4 w-4" />
+                                                                {(() => {
+                                                                    const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
+                                                                    return isValidDataUri(
+                                                                        audioSrc,
+                                                                        'audio'
+                                                                    ) ? (
+                                                                        <audio
+                                                                            controls
+                                                                            src={audioSrc}
+                                                                            className="h-8"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className="text-xs text-red-500">
+                                                                            Invalid audio data
+                                                                        </span>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                                                                <File className="h-5 w-5" />
+                                                                <span className="text-sm font-medium">
                                                                     {msg.fileData.filename ||
                                                                         `${msg.fileData.mimeType} file`}
                                                                 </span>
-                                                                <span className="opacity-70">
+                                                                <span className="text-xs text-primary-foreground/70">
                                                                     {msg.fileData.mimeType}
                                                                 </span>
                                                             </div>
-                                                        </div>
-                                                    ) : msg.fileData.mimeType.startsWith(
-                                                          'audio/'
-                                                      ) ? (
-                                                        <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
-                                                            <FileAudio className="h-4 w-4" />
-                                                            {(() => {
-                                                                const audioSrc = `data:${msg.fileData.mimeType};base64,${msg.fileData.data}`;
-                                                                return isValidDataUri(
-                                                                    audioSrc,
-                                                                    'audio'
-                                                                ) ? (
-                                                                    <audio
-                                                                        controls
-                                                                        src={audioSrc}
-                                                                        className="h-8"
-                                                                    />
-                                                                ) : (
-                                                                    <span className="text-xs text-red-500">
-                                                                        Invalid audio data
-                                                                    </span>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
-                                                            <File className="h-5 w-5" />
-                                                            <span className="text-sm font-medium">
-                                                                {msg.fileData.filename ||
-                                                                    `${msg.fileData.mimeType} file`}
-                                                            </span>
-                                                            <span className="text-xs text-primary-foreground/70">
-                                                                {msg.fileData.mimeType}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                                        )}
+                                                    </div>
+                                                )}
                                         </div>
                                     </div>
-                                    {!isSystem && !isToolRelated && (
+                                    {!isToolRelated && (
                                         <div className="text-xs text-muted-foreground mt-1 px-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span>{timestampStr}</span>
-                                                {isAi &&
+                                                {isAssistantMessage(msg) &&
                                                     msg.tokenUsage?.totalTokens !== undefined && (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
@@ -1325,7 +1327,7 @@ export default function MessageList({
                                                             </TooltipContent>
                                                         </Tooltip>
                                                     )}
-                                                {isAi && msg.model && (
+                                                {isAssistantMessage(msg) && msg.model && (
                                                     <Tooltip>
                                                         <TooltipTrigger>
                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-xs cursor-default">

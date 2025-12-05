@@ -9,7 +9,15 @@ import React, {
 } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
+import {
+    useChat,
+    Message,
+    ErrorMessage,
+    StreamStatus,
+    UIUserMessage,
+    UIAssistantMessage,
+    UIToolMessage,
+} from './useChat';
 import { useGreeting } from './useGreeting';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
 import type { SanitizedToolResult } from '@dexto/core';
@@ -88,18 +96,13 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
 
     for (let index = 0; index < history.length; index++) {
         const msg = history[index];
-        const baseMessage: Message = {
-            id: `session-${sessionId}-${index}`,
-            role: msg.role,
-            content: msg.content,
-            createdAt: msg.timestamp ?? Date.now() - (history.length - index) * 1000,
-            sessionId: sessionId,
-            // Preserve token usage, reasoning, model, and provider metadata from storage
-            tokenUsage: msg.tokenUsage,
-            reasoning: msg.reasoning,
-            model: msg.model,
-            provider: msg.provider,
-        };
+        const createdAt = msg.timestamp ?? Date.now() - (history.length - index) * 1000;
+        const baseId = `session-${sessionId}-${index}`;
+
+        // Skip system messages - they're not shown in UI
+        if (msg.role === 'system') {
+            continue;
+        }
 
         const deriveResources = (
             content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
@@ -142,10 +145,23 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         };
 
         if (msg.role === 'assistant') {
+            // Create assistant message
             if (msg.content) {
-                uiMessages.push(baseMessage);
+                const assistantMessage: UIAssistantMessage = {
+                    id: baseId,
+                    role: 'assistant',
+                    content: typeof msg.content === 'string' ? msg.content : null,
+                    createdAt,
+                    sessionId,
+                    tokenUsage: msg.tokenUsage,
+                    reasoning: msg.reasoning,
+                    model: msg.model,
+                    provider: msg.provider,
+                };
+                uiMessages.push(assistantMessage);
             }
 
+            // Create tool messages for tool calls
             if (msg.toolCalls && msg.toolCalls.length > 0) {
                 msg.toolCalls.forEach((toolCall: ToolCall, toolIndex: number) => {
                     let toolArgs: Record<string, unknown> = {};
@@ -161,19 +177,15 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     }
                     const toolName = toolCall.function?.name || 'unknown';
 
-                    const toolMessage: Message = {
-                        id: `session-${sessionId}-${index}-tool-${toolIndex}`,
+                    const toolMessage: UIToolMessage = {
+                        id: `${baseId}-tool-${toolIndex}`,
                         role: 'tool',
                         content: null,
-                        createdAt:
-                            (msg.timestamp ?? Date.now() - (history.length - index) * 1000) +
-                            toolIndex,
+                        createdAt: createdAt + toolIndex,
                         sessionId,
                         toolName,
                         toolArgs,
-                        toolResult: undefined,
-                        toolResultMeta: undefined,
-                        toolResultSuccess: undefined,
+                        toolCallId: toolCall.id,
                     };
 
                     if (typeof toolCall.id === 'string' && toolCall.id.length > 0) {
@@ -222,33 +234,48 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     : undefined;
 
             if (toolCallId && pendingToolCalls.has(toolCallId)) {
+                // Update existing tool message with result
                 const messageIndex = pendingToolCalls.get(toolCallId)!;
+                const existingMessage = uiMessages[messageIndex] as UIToolMessage;
                 uiMessages[messageIndex] = {
-                    ...uiMessages[messageIndex],
+                    ...existingMessage,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    // Preserve approval metadata from history
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
             } else {
-                uiMessages.push({
-                    ...baseMessage,
+                // Create new tool message with result
+                const toolMessage: UIToolMessage = {
+                    id: baseId,
                     role: 'tool',
                     content: null,
+                    createdAt,
+                    sessionId,
                     toolName,
+                    toolCallId,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
-                    // Preserve approval metadata from history
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
-                });
+                };
+                uiMessages.push(toolMessage);
             }
 
             continue;
         }
 
-        uiMessages.push(baseMessage);
+        // User message (only remaining case after system/assistant/tool handled)
+        if (msg.role === 'user') {
+            const userMessage: UIUserMessage = {
+                id: baseId,
+                role: 'user',
+                content: msg.content,
+                createdAt,
+                sessionId,
+            };
+            uiMessages.push(userMessage);
+        }
     }
 
     return uiMessages;
