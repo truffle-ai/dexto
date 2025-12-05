@@ -33,14 +33,9 @@ export function applyCLIOverrides(
     }
 
     // Create a deep copy of the base config for modification
-    const mergedConfig = JSON.parse(JSON.stringify(baseConfig));
+    const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;
 
-    // Ensure llm section exists
-    if (!mergedConfig.llm) {
-        mergedConfig.llm = {};
-    }
-
-    // Apply CLI overrides to LLM config
+    // Apply CLI overrides to LLM config (llm is required in AgentConfig)
     if (cliOverrides.provider) {
         mergedConfig.llm.provider = cliOverrides.provider;
     }
@@ -54,10 +49,10 @@ export function applyCLIOverrides(
     if (cliOverrides.autoApprove) {
         // Ensure toolConfirmation section exists before overriding
         if (!mergedConfig.toolConfirmation) {
-            mergedConfig.toolConfirmation = {} as AgentConfig['toolConfirmation'];
+            mergedConfig.toolConfirmation = { mode: 'auto-approve' };
+        } else {
+            mergedConfig.toolConfirmation.mode = 'auto-approve';
         }
-
-        mergedConfig.toolConfirmation.mode = 'auto-approve';
     }
 
     // Return merged config without validation - validation happens later

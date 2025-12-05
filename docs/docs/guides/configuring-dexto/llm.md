@@ -15,7 +15,7 @@ For complete field documentation, see **[agent.yml → LLM Configuration](./agen
 
 ## Overview
 
-Large Language Models (LLMs) are the brain of your Dexto agents. Dexto supports multiple LLM providers out-of-the-box via the Vercel AI SDK, and you can use any OpenAI SDK-compatible provider.
+Large Language Models (LLMs) are the brain of your Dexto agents. Dexto supports multiple LLM providers out-of-the-box, including OpenAI, Anthropic, Google, and other OpenAI SDK-compatible providers.
 
 ## Basic Configuration
 

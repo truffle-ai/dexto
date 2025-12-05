@@ -143,7 +143,7 @@ interface ChatSession {
   run(userInput: string, imageData?: ImageData): Promise<string>;
   getHistory(): Promise<ConversationHistory>;
   reset(): Promise<void>;
-  getLLMService(): ILLMService;
+  getLLMService(): VercelLLMService;
 }
 ```
 

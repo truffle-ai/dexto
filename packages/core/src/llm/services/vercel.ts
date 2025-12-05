@@ -1,6 +1,6 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
-import { ILLMService, LLMServiceConfig } from './types.js';
+import { LLMServiceConfig } from './types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
@@ -38,7 +38,7 @@ import { LLMErrorCode } from '../error-codes.js';
     prefix: 'llm.vercel',
     excludeMethods: ['getModelId', 'getAllTools', 'createTurnExecutor'],
 })
-export class VercelLLMService implements ILLMService {
+export class VercelLLMService {
     private model: LanguageModel;
     private config: ValidatedLLMConfig;
     private toolManager: ToolManager;

@@ -9,14 +9,12 @@ import {
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
-import { ContextError } from './errors.js';
 import { safeStringify } from '@core/utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 
 // Tunable heuristics and shared constants
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
-const BLOB_REFERENCE_PREFIX = '@blob:';
 
 type ToolBlobNamingOptions = {
     toolName?: string;
@@ -1685,36 +1683,6 @@ export function summarizeToolContentForText(content: InternalMessage['content'])
 function base64LengthToBytes(charLength: number): number {
     // 4 base64 chars -> 3 bytes; ignore padding for approximation
     return Math.floor((charLength * 3) / 4);
-}
-
-/**
- * Detects if a string is a data URI (base64 encoded).
- * @param str The string to check
- * @returns True if the string is a valid data URI with base64 encoding
- */
-function isDataUri(str: string): boolean {
-    return str.startsWith('data:') && str.includes(';base64,');
-}
-
-/**
- * Extracts the base64 payload from a data URI.
- * @param dataUri The data URI string
- * @returns The base64 payload after the comma, or empty string if malformed
- */
-function extractBase64FromDataUri(dataUri: string): string {
-    const commaIndex = dataUri.indexOf(',');
-    return commaIndex !== -1 ? dataUri.substring(commaIndex + 1) : '';
-}
-
-/**
- * Estimates token count for text strings using a character-per-token heuristic.
- * @param text The text string to estimate
- * @returns Estimated token count (conservative estimate: ~4 chars per token)
- */
-function estimateTextTokens(text: string): number {
-    // Rough heuristic: ~4 characters per token for typical text
-    // This is a conservative estimate that can be adjusted based on actual usage
-    return Math.ceil(text.length / 4);
 }
 
 /**

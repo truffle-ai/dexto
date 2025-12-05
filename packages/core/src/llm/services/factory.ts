@@ -1,5 +1,4 @@
 import { ToolManager } from '../../tools/tool-manager.js';
-import { ILLMService } from './types.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -78,7 +77,7 @@ function getOpenAICompatibleBaseURL(llmConfig: ValidatedLLMConfig): string {
  * @param sessionId Session ID
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
- * @returns ILLMService instance
+ * @returns VercelLLMService instance
  */
 export function createLLMService(
     config: ValidatedLLMConfig,
@@ -89,7 +88,7 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: IDextoLogger
-): ILLMService {
+): VercelLLMService {
     const model = _createVercelModel(config);
 
     return new VercelLLMService(

@@ -2,7 +2,7 @@ import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
-import type { ILLMService } from '../llm/services/types.js';
+import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
@@ -66,7 +66,7 @@ import type { UserMessage } from './message-queue.js';
  *
  * @see {@link SessionManager} for session lifecycle management
  * @see {@link ContextManager} for conversation history management
- * @see {@link ILLMService} for AI model interaction interface
+ * @see {@link VercelLLMService} for AI model interaction
  */
 export class ChatSession {
     /**
@@ -94,7 +94,7 @@ export class ChatSession {
      * Each session has its own LLMService instance that uses the session's
      * ContextManager and event bus.
      */
-    private llmService!: ILLMService;
+    private llmService!: VercelLLMService;
 
     /**
      * Map of event forwarder functions for cleanup.
@@ -502,7 +502,7 @@ export class ChatSession {
      *
      * @returns The LLMService for this session
      */
-    public getLLMService(): ILLMService {
+    public getLLMService(): VercelLLMService {
         return this.llmService;
     }
 

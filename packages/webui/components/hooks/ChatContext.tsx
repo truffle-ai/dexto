@@ -47,7 +47,6 @@ interface ChatContextType {
         provider: string;
         model: string;
         displayName?: string;
-        router?: string;
         baseURL?: string;
     } | null;
     refreshCurrentLLM: () => Promise<void>;
