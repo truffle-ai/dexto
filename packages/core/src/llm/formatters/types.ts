@@ -34,11 +34,6 @@ export interface IMessageFormatter {
     ): unknown[];
 
     /**
-     * Parses raw LLM response into an array of InternalMessage objects.
-     */
-    parseResponse(response: unknown): InternalMessage[];
-
-    /**
      * Optional method for handling system prompt separately.
      * Some LLM providers (like Anthropic) don't include the system prompt in the
      * messages array but pass it as a separate parameter.
@@ -47,22 +42,4 @@ export interface IMessageFormatter {
      * @returns The formatted system prompt or null/undefined if not needed
      */
     formatSystemPrompt?(systemPrompt: string | null): string | null | undefined;
-
-    /**
-     * Optional method for parsing streaming LLM responses into InternalMessage objects.
-     *
-     * @param response The streaming response from the LLM provider
-     * @returns Promise that resolves to an array of InternalMessage objects
-     */
-    parseStreamResponse?(response: unknown): Promise<InternalMessage[]>;
-
-    /**
-     * Optional method for parsing raw provider-specific messages into InternalMessage objects.
-     * Used for mid-loop compression in multi-step tool calling (e.g., Vercel SDK's prepareStep).
-     * Unlike parseResponse, this works directly on message arrays without needing a response wrapper.
-     *
-     * @param messages The raw provider-specific messages to parse
-     * @returns Array of InternalMessage objects (excluding system messages which are handled separately)
-     */
-    parseMessages?(messages: unknown[]): InternalMessage[];
 }

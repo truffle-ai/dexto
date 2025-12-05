@@ -234,46 +234,6 @@ export class AnthropicMessageFormatter implements IMessageFormatter {
         return systemPrompt;
     }
 
-    /**
-     * Parses Anthropic API response into internal message objects.
-     */
-    parseResponse(response: unknown): InternalMessage[] {
-        const internal: InternalMessage[] = [];
-        // Ensure response has content blocks
-        const typedResponse = response as { content?: unknown[] };
-        if (!typedResponse || !Array.isArray(typedResponse.content)) {
-            return internal;
-        }
-        // Accumulate text and tool calls
-        let combinedText: string | null = null;
-        const calls: InternalMessage['toolCalls'] = [];
-        for (const block of typedResponse.content) {
-            const typedBlock = block as any; // Type assertion for complex API response structure
-            if (typedBlock.type === 'text') {
-                combinedText = (combinedText ?? '') + typedBlock.text;
-            } else if (typedBlock.type === 'tool_use') {
-                calls.push({
-                    id: typedBlock.id,
-                    type: 'function',
-                    function: {
-                        name: typedBlock.name,
-                        arguments: JSON.stringify(typedBlock.input),
-                    },
-                });
-            }
-        }
-        // Push assistant message with optional tool calls
-        const assistantMessage: InternalMessage = {
-            role: 'assistant',
-            content: combinedText,
-        };
-        if (calls.length > 0) {
-            assistantMessage.toolCalls = calls;
-        }
-        internal.push(assistantMessage);
-        return internal;
-    }
-
     // Helper to format user message parts (text + image + file) into Anthropic multimodal API format
     private formatUserContent(content: InternalMessage['content']): string | ContentBlockParam[] {
         if (!Array.isArray(content)) {

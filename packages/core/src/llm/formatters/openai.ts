@@ -151,57 +151,6 @@ export class OpenAIMessageFormatter implements IMessageFormatter {
         return null;
     }
 
-    /**
-     * Parses OpenAI API response into internal message objects.
-     */
-    parseResponse(response: unknown): InternalMessage[] {
-        const internal: InternalMessage[] = [];
-        const typedResponse = response as { choices?: unknown[] };
-        if (!typedResponse.choices || !Array.isArray(typedResponse.choices)) return internal;
-        for (const choice of typedResponse.choices) {
-            const msg = (choice as any).message;
-            if (!msg || !msg.role) continue;
-            const role = msg.role as InternalMessage['role'];
-            // Assistant messages
-            if (role === 'assistant') {
-                const content = msg.content ?? null;
-                // Handle tool calls if present
-                if (msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
-                    const calls = msg.tool_calls.map((call: unknown) => {
-                        const typedCall = call as any; // Type assertion for complex API response structure
-                        return {
-                            id: typedCall.id,
-                            type: 'function' as const,
-                            function: {
-                                name: typedCall.function.name,
-                                arguments: typedCall.function.arguments,
-                            },
-                        };
-                    });
-                    internal.push({ role: 'assistant', content, toolCalls: calls });
-                } else {
-                    internal.push({ role: 'assistant', content });
-                }
-            }
-            // Tool result messages
-            else if (role === 'tool') {
-                internal.push({
-                    role: 'tool',
-                    content: msg.content!,
-                    toolCallId: msg.tool_call_id!,
-                    name: msg.name!,
-                });
-            }
-            // User or system messages (rare in responses)
-            else if (role === 'user' || role === 'system') {
-                if (msg.content) {
-                    internal.push({ role, content: msg.content });
-                }
-            }
-        }
-        return internal;
-    }
-
     // Helper to format user message parts (text + image + file) into chat API shape
     private formatUserContent(
         content: InternalMessage['content']
