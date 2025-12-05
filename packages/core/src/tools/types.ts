@@ -13,6 +13,18 @@ export interface ToolExecutionContext {
     sessionId?: string | undefined;
 }
 
+/**
+ * Result of tool execution, including approval metadata
+ */
+export interface ToolExecutionResult {
+    /** The actual result data from tool execution */
+    result: unknown;
+    /** Whether this tool required user approval before execution */
+    requireApproval?: boolean;
+    /** The approval status (only present if requireApproval is true) */
+    approvalStatus?: 'approved' | 'rejected';
+}
+
 // ============================================================================
 // CORE TOOL INTERFACES
 // ============================================================================

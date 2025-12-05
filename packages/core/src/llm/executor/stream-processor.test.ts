@@ -550,7 +550,8 @@ describe('StreamProcessor', () => {
                 'test_tool',
                 expect.objectContaining({
                     content: expect.arrayContaining([expect.objectContaining({ type: 'text' })]),
-                })
+                }),
+                undefined // No approval metadata in this test
             );
         });
 

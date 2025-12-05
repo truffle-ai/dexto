@@ -624,12 +624,14 @@ export class ContextManager<TMessage = unknown> {
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
      * @param sanitizedResult The already-sanitized result to store
+     * @param approvalMetadata Optional approval metadata for this tool execution
      * @throws Error if required parameters are missing
      */
     async addToolResult(
         toolCallId: string,
         name: string,
-        sanitizedResult: SanitizedToolResult
+        sanitizedResult: SanitizedToolResult,
+        approvalMetadata?: { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
     ): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
@@ -653,6 +655,12 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
+            ...(approvalMetadata?.requireApproval !== undefined && {
+                requireApproval: approvalMetadata.requireApproval,
+            }),
+            ...(approvalMetadata?.approvalStatus !== undefined && {
+                approvalStatus: approvalMetadata.approvalStatus,
+            }),
         });
     }
 
