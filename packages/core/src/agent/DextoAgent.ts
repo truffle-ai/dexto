@@ -1089,26 +1089,6 @@ export class DextoAgent {
     }
 
     /**
-     * Update a queued message's content.
-     * @param sessionId Session id
-     * @param messageId The ID of the queued message to update
-     * @param content New content for the message
-     * @returns true if message was found and updated, false otherwise
-     */
-    public async updateQueuedMessage(
-        sessionId: string,
-        messageId: string,
-        content: import('../session/types.js').UserMessageContentPart[]
-    ): Promise<boolean> {
-        this.ensureStarted();
-        const session = await this.sessionManager.getSession(sessionId, false);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-        return session.updateQueuedMessage(messageId, content);
-    }
-
-    /**
      * Remove a queued message.
      * @param sessionId Session id
      * @param messageId The ID of the queued message to remove

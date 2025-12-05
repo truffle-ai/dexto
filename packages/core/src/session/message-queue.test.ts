@@ -335,47 +335,6 @@ describe('MessageQueueService', () => {
         });
     });
 
-    describe('update()', () => {
-        it('should return false for non-existent id', () => {
-            const result = queue.update('non-existent', [{ type: 'text', text: 'new' }]);
-
-            expect(result).toBe(false);
-            expect(logger.debug).toHaveBeenCalledWith(
-                'Update failed: message non-existent not found in queue'
-            );
-        });
-
-        it('should update message content and return true', () => {
-            const result = queue.enqueue({ content: [{ type: 'text', text: 'original' }] });
-            const newContent: UserMessageContentPart[] = [{ type: 'text', text: 'updated' }];
-
-            const updated = queue.update(result.id, newContent);
-
-            expect(updated).toBe(true);
-            expect(queue.get(result.id)?.content).toEqual(newContent);
-        });
-
-        it('should emit message:updated event', () => {
-            const result = queue.enqueue({ content: [{ type: 'text', text: 'original' }] });
-            const newContent: UserMessageContentPart[] = [{ type: 'text', text: 'updated' }];
-
-            queue.update(result.id, newContent);
-
-            expect(eventBus.emit).toHaveBeenCalledWith('message:updated', {
-                id: result.id,
-                content: newContent,
-            });
-        });
-
-        it('should log debug message on successful update', () => {
-            const result = queue.enqueue({ content: [{ type: 'text', text: 'original' }] });
-
-            queue.update(result.id, [{ type: 'text', text: 'updated' }]);
-
-            expect(logger.debug).toHaveBeenCalledWith(`Message updated: ${result.id}`);
-        });
-    });
-
     describe('remove()', () => {
         it('should return false for non-existent id', () => {
             const result = queue.remove('non-existent');

@@ -243,27 +243,6 @@ export class MessageQueueService {
     }
 
     /**
-     * Update the content of a queued message.
-     * @returns true if message was found and updated; false otherwise
-     */
-    update(id: string, content: UserMessageContentPart[]): boolean {
-        const index = this.queue.findIndex((m) => m.id === id);
-        if (index === -1) {
-            this.logger.debug(`Update failed: message ${id} not found in queue`);
-            return false;
-        }
-
-        this.queue[index] = {
-            ...this.queue[index]!,
-            content,
-        };
-
-        this.logger.debug(`Message updated: ${id}`);
-        this.eventBus.emit('message:updated', { id, content });
-        return true;
-    }
-
-    /**
      * Remove a single queued message by ID.
      * @returns true if message was found and removed; false otherwise
      */

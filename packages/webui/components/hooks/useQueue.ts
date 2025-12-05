@@ -69,43 +69,6 @@ export function useQueueMessage() {
 }
 
 /**
- * Hook to update a queued message's content
- */
-export function useUpdateQueuedMessage() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async ({
-            sessionId,
-            messageId,
-            content,
-        }: {
-            sessionId: string;
-            messageId: string;
-            content: Array<
-                | { type: 'text'; text: string }
-                | { type: 'image'; image: string; mimeType: string }
-                | { type: 'file'; data: string; mimeType: string; filename?: string }
-            >;
-        }) => {
-            const response = await client.api.queue[':sessionId'][':messageId'].$put({
-                param: { sessionId, messageId },
-                json: { content },
-            });
-            if (!response.ok) {
-                throw new Error('Failed to update queued message');
-            }
-            return await response.json();
-        },
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({
-                queryKey: queryKeys.queue.list(variables.sessionId),
-            });
-        },
-    });
-}
-
-/**
  * Hook to remove a single queued message
  */
 export function useRemoveQueuedMessage() {

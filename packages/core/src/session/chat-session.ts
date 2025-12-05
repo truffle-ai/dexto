@@ -640,20 +640,6 @@ export class ChatSession {
     }
 
     /**
-     * Update the content of a queued message.
-     * @param id Message ID to update
-     * @param content New content for the message
-     * @returns true if message was found and updated; false otherwise
-     * @throws Error if the router doesn't support message queueing
-     */
-    public updateQueuedMessage(
-        id: string,
-        content: import('./types.js').UserMessageContentPart[]
-    ): boolean {
-        return this.llmService.getMessageQueue().update(id, content);
-    }
-
-    /**
      * Remove a queued message.
      * @param id Message ID to remove
      * @returns true if message was found and removed; false otherwise
