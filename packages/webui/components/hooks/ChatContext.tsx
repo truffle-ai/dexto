@@ -566,6 +566,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Return to welcome state (no active session)
     const returnToWelcome = useCallback(() => {
         currentSessionIdRef.current = null;
+        lastSwitchedSessionRef.current = null; // Clear to allow switching to same session again
 
         // Update store (single source of truth)
         useSessionStore.getState().returnToWelcome();

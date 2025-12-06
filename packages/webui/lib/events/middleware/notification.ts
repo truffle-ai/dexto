@@ -8,7 +8,6 @@
 import type { EventMiddleware, ClientEvent } from '../types.js';
 import { useSessionStore } from '../../stores/sessionStore.js';
 import { useNotificationStore, type Toast } from '../../stores/notificationStore.js';
-import { ApprovalType } from '@dexto/core';
 
 /**
  * Convert an event to a toast notification
@@ -19,24 +18,6 @@ function eventToToast(
     isCurrentSession: boolean
 ): Omit<Toast, 'id' | 'timestamp'> | null {
     switch (event.name) {
-        // Always notify for approval requests (needs user action)
-        case 'approval:request': {
-            let description = 'Action needs your approval';
-
-            // Extract tool name for tool confirmation requests
-            if (event.type === ApprovalType.TOOL_CONFIRMATION && 'metadata' in event) {
-                const toolName = event.metadata.toolName;
-                description = `Tool "${toolName}" needs your approval`;
-            }
-
-            return {
-                title: 'Approval Required',
-                description,
-                intent: 'warning',
-                sessionId: 'sessionId' in event ? event.sessionId : undefined,
-            };
-        }
-
         // Always notify for errors (user should know)
         case 'llm:error': {
             const sessionId = 'sessionId' in event ? event.sessionId : undefined;

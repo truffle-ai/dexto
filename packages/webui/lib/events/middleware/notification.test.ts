@@ -7,7 +7,6 @@ import { notificationMiddleware } from './notification.js';
 import { useSessionStore } from '../../stores/sessionStore.js';
 import { useNotificationStore } from '../../stores/notificationStore.js';
 import type { ClientEvent } from '../types.js';
-import { ApprovalType } from '@dexto/core';
 
 describe('notificationMiddleware', () => {
     // Mock next function
@@ -50,15 +49,8 @@ describe('notificationMiddleware', () => {
             useSessionStore.setState({ isReplayingHistory: true });
 
             const event: ClientEvent = {
-                name: 'approval:request',
-                type: ApprovalType.TOOL_CONFIRMATION,
-                approvalId: 'approval-123',
-                timeout: 30000,
-                timestamp: new Date(),
-                metadata: {
-                    toolName: 'test-tool',
-                    args: {},
-                },
+                name: 'llm:error',
+                error: new Error('Test error'),
                 sessionId: 'test-session',
             };
 
@@ -96,76 +88,6 @@ describe('notificationMiddleware', () => {
 
             expect(next).toHaveBeenCalled();
             expect(useNotificationStore.getState().toasts).toHaveLength(0);
-        });
-    });
-
-    describe('approval:request events', () => {
-        it('should always create toast for approval requests', () => {
-            const event: ClientEvent = {
-                name: 'approval:request',
-                type: ApprovalType.TOOL_CONFIRMATION,
-                approvalId: 'approval-123',
-                timeout: 30000,
-                timestamp: new Date(),
-                metadata: {
-                    toolName: 'test-tool',
-                    args: {},
-                },
-                sessionId: 'test-session',
-            };
-
-            notificationMiddleware(event, next);
-
-            const { toasts } = useNotificationStore.getState();
-            expect(toasts).toHaveLength(1);
-            expect(toasts[0].title).toBe('Approval Required');
-            expect(toasts[0].description).toContain('test-tool');
-            expect(toasts[0].intent).toBe('warning');
-            expect(toasts[0].sessionId).toBe('test-session');
-        });
-
-        it('should create toast for approval requests in current session', () => {
-            useSessionStore.setState({ currentSessionId: 'current-session' });
-
-            const event: ClientEvent = {
-                name: 'approval:request',
-                type: ApprovalType.TOOL_CONFIRMATION,
-                approvalId: 'approval-123',
-                timeout: 30000,
-                timestamp: new Date(),
-                metadata: {
-                    toolName: 'test-tool',
-                    args: {},
-                },
-                sessionId: 'current-session',
-            };
-
-            notificationMiddleware(event, next);
-
-            const { toasts } = useNotificationStore.getState();
-            expect(toasts).toHaveLength(1);
-        });
-
-        it('should create toast for approval requests in background session', () => {
-            useSessionStore.setState({ currentSessionId: 'current-session' });
-
-            const event: ClientEvent = {
-                name: 'approval:request',
-                type: ApprovalType.TOOL_CONFIRMATION,
-                approvalId: 'approval-123',
-                timeout: 30000,
-                timestamp: new Date(),
-                metadata: {
-                    toolName: 'test-tool',
-                    args: {},
-                },
-                sessionId: 'background-session',
-            };
-
-            notificationMiddleware(event, next);
-
-            const { toasts } = useNotificationStore.getState();
-            expect(toasts).toHaveLength(1);
         });
     });
 
