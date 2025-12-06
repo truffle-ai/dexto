@@ -8,6 +8,7 @@ import { queryKeys } from '@/lib/queryKeys.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { useApproval } from './ApprovalContext.js';
+import { eventBus } from '@/lib/events/EventBus.js';
 import type { Session } from './useSessions.js';
 
 // Content part types and guards - import from centralized types.ts
@@ -220,6 +221,10 @@ export function useChat(
             if (!isForActiveSession(event.sessionId)) {
                 return;
             }
+
+            // Dispatch to EventBus for middleware (logging, activity, notifications)
+            // and handlers (store updates). This runs in parallel with the switch below.
+            eventBus.dispatch(event);
 
             switch (event.name) {
                 case 'llm:thinking':

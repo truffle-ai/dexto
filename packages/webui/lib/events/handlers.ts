@@ -1,0 +1,406 @@
+/**
+ * Event Handler Registry
+ *
+ * Maps StreamingEvent types to Zustand store actions.
+ * Replaces the 200+ LOC switch statement in useChat.ts with a registry pattern.
+ *
+ * Each handler is responsible for:
+ * - Extracting relevant data from the event
+ * - Calling the appropriate store action(s)
+ * - Keeping side effects simple and focused
+ *
+ * @see packages/webui/components/hooks/useChat.ts (original implementation)
+ */
+
+import type { StreamingEvent, ApprovalStatus } from '@dexto/core';
+import { useChatStore, generateMessageId } from '../stores/chatStore.js';
+import { useAgentStore } from '../stores/agentStore.js';
+import { useApprovalStore } from '../stores/approvalStore.js';
+import type { ClientEventBus } from './EventBus.js';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Generic event handler function
+ */
+type EventHandler<T = StreamingEvent> = (event: T) => void;
+
+/**
+ * Extract specific event type by name
+ * For events not in StreamingEvent, we use a broader constraint
+ */
+type EventByName<T extends string> =
+    Extract<StreamingEvent, { name: T }> extends never
+        ? { name: T; sessionId: string; [key: string]: any }
+        : Extract<StreamingEvent, { name: T }>;
+
+// =============================================================================
+// Handler Registry
+// =============================================================================
+
+/**
+ * Map of event names to their handlers
+ * Uses string as key type to support all event names
+ */
+const handlers = new Map<string, EventHandler<any>>();
+
+// =============================================================================
+// Handler Implementations
+// =============================================================================
+
+/**
+ * llm:thinking - LLM started thinking
+ * Sets processing=true and agent status to 'thinking'
+ */
+function handleLLMThinking(event: EventByName<'llm:thinking'>): void {
+    const { sessionId } = event;
+
+    // Update chat state
+    useChatStore.getState().setProcessing(sessionId, true);
+
+    // Update agent status
+    useAgentStore.getState().setThinking(sessionId);
+}
+
+/**
+ * llm:chunk - LLM sent streaming chunk
+ * Appends content to streaming message (text or reasoning)
+ */
+function handleLLMChunk(event: EventByName<'llm:chunk'>): void {
+    const { sessionId, content, chunkType = 'text' } = event;
+    const chatStore = useChatStore.getState();
+
+    // Check if streaming message exists
+    const sessionState = chatStore.getSessionState(sessionId);
+
+    if (!sessionState.streamingMessage) {
+        // Create new streaming message
+        const newMessage = {
+            id: generateMessageId(),
+            role: 'assistant' as const,
+            content: chunkType === 'text' ? content : '',
+            reasoning: chunkType === 'reasoning' ? content : undefined,
+            createdAt: Date.now(),
+            sessionId,
+        };
+        chatStore.setStreamingMessage(sessionId, newMessage);
+    } else {
+        // Append to existing streaming message
+        chatStore.appendToStreamingMessage(sessionId, content, chunkType);
+    }
+}
+
+/**
+ * llm:response - LLM sent final response
+ * Finalizes streaming message with metadata (tokens, model, provider)
+ */
+function handleLLMResponse(event: EventByName<'llm:response'>): void {
+    const { sessionId, tokenUsage, model, provider } = event;
+    const chatStore = useChatStore.getState();
+
+    // Finalize streaming message with metadata
+    chatStore.finalizeStreamingMessage(sessionId, {
+        tokenUsage,
+        ...(model && { model }),
+        ...(provider && { provider }),
+    });
+}
+
+/**
+ * llm:tool-call - LLM requested a tool call
+ * Adds a tool message to the chat
+ */
+function handleToolCall(event: EventByName<'llm:tool-call'>): void {
+    const { sessionId, toolName, args, callId } = event;
+    const chatStore = useChatStore.getState();
+
+    // Create tool message
+    const toolMessage = {
+        id: generateMessageId(),
+        role: 'tool' as const,
+        content: null,
+        toolName,
+        toolArgs: args,
+        toolCallId: callId,
+        createdAt: Date.now(),
+        sessionId,
+    };
+
+    chatStore.addMessage(sessionId, toolMessage);
+
+    // Update agent status
+    useAgentStore.getState().setExecutingTool(sessionId, toolName);
+}
+
+/**
+ * llm:tool-result - LLM returned a tool result
+ * Updates the tool message with the result
+ */
+function handleToolResult(event: EventByName<'llm:tool-result'>): void {
+    const { sessionId, callId, success, sanitized, requireApproval, approvalStatus } = event;
+    const chatStore = useChatStore.getState();
+
+    // Find the tool message by callId
+    const message = callId ? chatStore.getMessageByToolCallId(sessionId, callId) : undefined;
+
+    if (message) {
+        // Update with result
+        chatStore.updateMessage(sessionId, message.id, {
+            toolResult: sanitized,
+            toolResultSuccess: success,
+            ...(requireApproval !== undefined && { requireApproval }),
+            ...(approvalStatus !== undefined && { approvalStatus }),
+        });
+    }
+}
+
+/**
+ * llm:error - LLM encountered an error
+ * Sets error state and stops processing
+ */
+function handleLLMError(event: EventByName<'llm:error'>): void {
+    const { sessionId, error, context, recoverable } = event;
+    const chatStore = useChatStore.getState();
+
+    // Set error in chat store
+    chatStore.setError(sessionId, {
+        id: generateMessageId(),
+        message: error?.message || 'Unknown error',
+        timestamp: Date.now(),
+        context,
+        recoverable,
+        sessionId,
+    });
+
+    // Stop processing
+    chatStore.setProcessing(sessionId, false);
+
+    // Update agent status
+    useAgentStore.getState().setIdle();
+}
+
+/**
+ * approval:request - User approval requested
+ * Adds approval to store and sets agent status to awaiting approval
+ */
+function handleApprovalRequest(event: EventByName<'approval:request'>): void {
+    const sessionId = event.sessionId || '';
+
+    // The event IS the approval request
+    useApprovalStore.getState().addApproval(event);
+
+    // Update agent status
+    if (sessionId) {
+        useAgentStore.getState().setAwaitingApproval(sessionId);
+    }
+}
+
+/**
+ * approval:response - User approval response received
+ * Processes response in store and sets agent status back to thinking or idle
+ */
+function handleApprovalResponse(event: EventByName<'approval:response'>): void {
+    const { status } = event;
+
+    // The event IS the approval response
+    useApprovalStore.getState().processResponse(event);
+
+    // Update agent status based on approval
+    // ApprovalStatus.APPROVED means approved, others mean rejected/cancelled
+    const approved = status === ('approved' as ApprovalStatus);
+
+    if (approved) {
+        // Will resume thinking
+        // Note: sessionId will come from next llm:thinking event
+        useAgentStore.getState().setIdle();
+    } else {
+        // Rejected/cancelled - go idle
+        useAgentStore.getState().setIdle();
+    }
+}
+
+/**
+ * run:complete - Agent run completed
+ * Sets processing=false and agent status to idle
+ */
+function handleRunComplete(event: EventByName<'run:complete'>): void {
+    const { sessionId } = event;
+    const chatStore = useChatStore.getState();
+
+    // Stop processing
+    chatStore.setProcessing(sessionId, false);
+
+    // Update agent status
+    useAgentStore.getState().setIdle();
+}
+
+/**
+ * session:title-updated - Session title updated
+ * Handled by TanStack Query invalidation, placeholder for completeness
+ */
+function handleSessionTitleUpdated(event: EventByName<'session:title-updated'>): void {
+    // This is handled by TanStack Query invalidation
+    // Placeholder for registry completeness
+    console.debug('[handlers] session:title-updated', event.sessionId, event.title);
+}
+
+/**
+ * message:dequeued - Queued message was dequeued
+ * Adds user message to chat (from queue)
+ */
+function handleMessageDequeued(event: EventByName<'message:dequeued'>): void {
+    const { sessionId, content } = event;
+    const chatStore = useChatStore.getState();
+
+    // Extract text from content parts
+    const textContent = content
+        .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n');
+
+    // Extract image attachment if present
+    const imagePart = content.find(
+        (part): part is Extract<typeof part, { type: 'image' }> => part.type === 'image'
+    );
+
+    // Extract file attachment if present
+    const filePart = content.find(
+        (part): part is Extract<typeof part, { type: 'file' }> => part.type === 'file'
+    );
+
+    if (textContent || content.length > 0) {
+        // Create user message
+        // Note: Only include imageData if image is a string (base64 or URL)
+        const imageDataValue =
+            imagePart && typeof imagePart.image === 'string'
+                ? {
+                      image: imagePart.image,
+                      mimeType: imagePart.mimeType ?? 'image/jpeg',
+                  }
+                : undefined;
+
+        const userMessage = {
+            id: generateMessageId(),
+            role: 'user' as const,
+            content: textContent || '[attachment]',
+            createdAt: Date.now(),
+            sessionId,
+            imageData: imageDataValue,
+            fileData: filePart
+                ? {
+                      data: typeof filePart.data === 'string' ? filePart.data : '',
+                      mimeType: filePart.mimeType,
+                      filename: filePart.filename,
+                  }
+                : undefined,
+        };
+
+        chatStore.addMessage(sessionId, userMessage);
+    }
+}
+
+/**
+ * context:compressed - Context was compressed
+ * Log for now (future: add to activity store)
+ */
+function handleContextCompressed(event: EventByName<'context:compressed'>): void {
+    console.debug(
+        `[handlers] Context compressed: ${event.originalTokens.toLocaleString()} → ${event.compressedTokens.toLocaleString()} tokens`,
+        `(${event.originalMessages} → ${event.compressedMessages} messages) via ${event.strategy}`
+    );
+}
+
+// =============================================================================
+// Registry Management
+// =============================================================================
+
+/**
+ * Register all handlers in the registry
+ * Call this once during initialization
+ */
+export function registerHandlers(): void {
+    // Clear existing handlers
+    handlers.clear();
+
+    // Register each handler
+    handlers.set('llm:thinking', handleLLMThinking);
+    handlers.set('llm:chunk', handleLLMChunk);
+    handlers.set('llm:response', handleLLMResponse);
+    handlers.set('llm:tool-call', handleToolCall);
+    handlers.set('llm:tool-result', handleToolResult);
+    handlers.set('llm:error', handleLLMError);
+    handlers.set('approval:request', handleApprovalRequest);
+    handlers.set('approval:response', handleApprovalResponse);
+    handlers.set('run:complete', handleRunComplete);
+    handlers.set('session:title-updated', handleSessionTitleUpdated);
+    handlers.set('message:dequeued', handleMessageDequeued);
+    handlers.set('context:compressed', handleContextCompressed);
+}
+
+/**
+ * Get a handler for a specific event name
+ *
+ * @param name - Event name
+ * @returns Handler function or undefined if not registered
+ */
+export function getHandler(name: string): EventHandler | undefined {
+    return handlers.get(name);
+}
+
+/**
+ * Setup event handlers for the EventBus
+ * Registers all handlers and subscribes them to the bus
+ *
+ * @param bus - ClientEventBus instance
+ *
+ * @example
+ * ```tsx
+ * const bus = useEventBus();
+ * useEffect(() => {
+ *   const cleanup = setupEventHandlers(bus);
+ *   return cleanup;
+ * }, [bus]);
+ * ```
+ */
+export function setupEventHandlers(bus: ClientEventBus): () => void {
+    // Register handlers
+    registerHandlers();
+
+    // Subscribe each handler to the bus
+    const subscriptions: Array<{ unsubscribe: () => void }> = [];
+
+    handlers.forEach((handler, eventName) => {
+        // Cast to any to bypass strict typing - handlers map uses string keys
+        // but bus.on expects specific event names. This is safe because
+        // registerHandlers() only adds valid event names.
+        const subscription = bus.on(eventName as any, handler);
+        subscriptions.push(subscription);
+    });
+
+    // Return cleanup function
+    return () => {
+        subscriptions.forEach((sub) => sub.unsubscribe());
+    };
+}
+
+// =============================================================================
+// Exports
+// =============================================================================
+
+// Export individual handlers for testing
+export {
+    handleLLMThinking,
+    handleLLMChunk,
+    handleLLMResponse,
+    handleToolCall,
+    handleToolResult,
+    handleLLMError,
+    handleApprovalRequest,
+    handleApprovalResponse,
+    handleRunComplete,
+    handleSessionTitleUpdated,
+    handleMessageDequeued,
+    handleContextCompressed,
+};
