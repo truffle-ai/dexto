@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useChat, Message, ErrorMessage, StreamStatus } from './useChat';
+import { useChat, Message } from './useChat';
 import { useGreeting } from './useGreeting';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
 import type { SanitizedToolResult } from '@dexto/core';
@@ -18,6 +18,11 @@ import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
 import { useMutation } from '@tanstack/react-query';
+import { useSessionStore } from '@/lib/stores/sessionStore.js';
+import { useChatStore } from '@/lib/stores/chatStore.js';
+
+// Stable empty array reference to prevent infinite re-renders in Zustand selectors
+const EMPTY_MESSAGES: Message[] = [];
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -37,7 +42,6 @@ interface ChatContextType {
         imageData?: { image: string; mimeType: string },
         fileData?: { data: string; mimeType: string; filename?: string }
     ) => void;
-    status: StreamStatus;
     reset: () => void;
     currentSessionId: string | null;
     switchSession: (sessionId: string) => void;
@@ -54,11 +58,7 @@ interface ChatContextType {
     returnToWelcome: () => void;
     isStreaming: boolean;
     setStreaming: (streaming: boolean) => void;
-    processing: boolean;
     cancel: (sessionId?: string) => void;
-    // Error state
-    activeError: ErrorMessage | null;
-    clearError: () => void;
     // Greeting state
     greeting: string | null;
 }
@@ -271,43 +271,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const newSessionWithMessageRef = useRef<string | null>(null); // Track new sessions that already have first message sent
     const currentSessionIdRef = useRef<string | null>(null); // Synchronous session ID (updates before React state to prevent race conditions)
 
-    // Session-scoped state (survives navigation)
-    const [sessionErrors, setSessionErrors] = useState<Map<string, ErrorMessage>>(new Map());
-    const [processingSessions, setProcessingSessions] = useState<Set<string>>(new Set());
-    const [sessionStatuses, setSessionStatuses] = useState<Map<string, StreamStatus>>(new Map());
+    // Session abort controllers for cancellation
     const sessionAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
-    // Helper functions for session-scoped state
-    const setSessionError = useCallback((sessionId: string, error: ErrorMessage | null) => {
-        setSessionErrors((prev) => {
-            const next = new Map(prev);
-            if (error) {
-                next.set(sessionId, error);
-            } else {
-                next.delete(sessionId);
-            }
-            return next;
-        });
+    // Helper functions that delegate to chatStore
+    const setSessionError = useCallback((sessionId: string, error: any) => {
+        useChatStore.getState().setError(sessionId, error);
     }, []);
 
     const setSessionProcessing = useCallback((sessionId: string, isProcessing: boolean) => {
-        setProcessingSessions((prev) => {
-            const next = new Set(prev);
-            if (isProcessing) {
-                next.add(sessionId);
-            } else {
-                next.delete(sessionId);
-            }
-            return next;
-        });
+        useChatStore.getState().setProcessing(sessionId, isProcessing);
     }, []);
 
-    const setSessionStatus = useCallback((sessionId: string, status: StreamStatus) => {
-        setSessionStatuses((prev) => {
-            const next = new Map(prev);
-            next.set(sessionId, status);
-            return next;
-        });
+    const setSessionStatus = useCallback((_sessionId: string, _status: any) => {
+        // Status is now managed in agentStore, not chatStore
+        // This callback is kept for backward compatibility with useChat
+        // but does nothing since agentStore is updated via SSE events
     }, []);
 
     const getSessionAbortController = useCallback((sessionId: string): AbortController => {
@@ -328,16 +307,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    // Get current session's state
-    const activeError = currentSessionId ? sessionErrors.get(currentSessionId) || null : null;
-    const processing = currentSessionId ? processingSessions.has(currentSessionId) : false;
-    const status = currentSessionId ? sessionStatuses.get(currentSessionId) || 'idle' : 'idle';
-
     const {
-        messages,
         sendMessage: originalSendMessage,
         reset: originalReset,
-        setMessages,
         cancel,
     } = useChat(currentSessionIdRef, {
         setSessionError,
@@ -345,6 +317,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setSessionStatus,
         getSessionAbortController,
         abortSession,
+    });
+
+    // Messages are now managed in chatStore - hook must be called unconditionally
+    // Use stable EMPTY_MESSAGES reference to prevent infinite re-renders
+    // Access sessions Map directly for more predictable selector behavior
+    const messages = useChatStore((state) => {
+        if (!currentSessionId) return EMPTY_MESSAGES;
+        const session = state.sessions.get(currentSessionId);
+        return session?.messages ?? EMPTY_MESSAGES;
     });
 
     // Fetch current LLM config using TanStack Query
@@ -517,13 +498,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     }, [originalReset, currentSessionId, analytics, messages]);
 
-    // Clear error for current session
-    const clearError = useCallback(() => {
-        if (currentSessionId) {
-            setSessionError(currentSessionId, null);
-        }
-    }, [currentSessionId, setSessionError]);
-
     // Load session history when switching sessions
     const { data: sessionHistoryData } = useQuery({
         queryKey: queryKeys.sessions.history(currentSessionId || ''),
@@ -545,10 +519,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Sync session history data to messages when it changes
     useEffect(() => {
         if (sessionHistoryData && currentSessionId) {
-            setMessages((prev) => {
-                const hasSessionMsgs = prev.some((m) => m.sessionId === currentSessionId);
-                return hasSessionMsgs ? prev : sessionHistoryData.messages;
-            });
+            const currentMessages = useChatStore.getState().getMessages(currentSessionId);
+            const hasSessionMsgs = currentMessages.some((m) => m.sessionId === currentSessionId);
+            if (!hasSessionMsgs) {
+                useChatStore
+                    .getState()
+                    .setMessages(currentSessionId, sessionHistoryData.messages as any);
+            }
             // Cancel any active run on page refresh (we can't reconnect to the stream)
             if (sessionHistoryData.isBusy) {
                 client.api.sessions[':sessionId'].cancel
@@ -559,7 +536,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     .catch((e) => console.warn('Failed to cancel busy session:', e));
             }
         }
-    }, [sessionHistoryData, currentSessionId, setMessages]);
+    }, [sessionHistoryData, currentSessionId]);
 
     const loadSessionHistory = useCallback(
         async (sessionId: string) => {
@@ -577,10 +554,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     retry: false,
                 });
 
-                setMessages((prev) => {
-                    const hasSessionMsgs = prev.some((m) => m.sessionId === sessionId);
-                    return hasSessionMsgs ? prev : result.messages;
-                });
+                const currentMessages = useChatStore.getState().getMessages(sessionId);
+                const hasSessionMsgs = currentMessages.some((m) => m.sessionId === sessionId);
+                if (!hasSessionMsgs) {
+                    // Populate chatStore with history (cast to compatible type)
+                    useChatStore.getState().initFromHistory(sessionId, result.messages as any);
+                }
 
                 // Cancel any active run on page refresh (we can't reconnect to the stream)
                 // This ensures clean state - user can see history and send new messages
@@ -599,10 +578,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
             } catch (error) {
                 console.error('Error loading session history:', error);
-                setMessages([]);
+                useChatStore.getState().clearMessages(sessionId);
             }
         },
-        [setMessages, queryClient]
+        [queryClient]
     );
 
     // Switch to a different session and load it on the backend
@@ -645,6 +624,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 setCurrentSessionId(sessionId);
                 setIsWelcomeState(false); // No longer in welcome state
 
+                // Sync to sessionStore
+                useSessionStore.getState().setCurrentSession(sessionId);
+                useSessionStore.getState().setWelcomeState(false);
+
                 // Mark this session as being switched to after state update succeeds
                 lastSwitchedSessionRef.current = sessionId;
 
@@ -668,15 +651,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         currentSessionIdRef.current = null;
         setCurrentSessionId(null);
         setIsWelcomeState(true);
-        setMessages([]);
-    }, [setMessages]);
+
+        // Sync to sessionStore
+        useSessionStore.getState().returnToWelcome();
+    }, []);
 
     return (
         <ChatContext.Provider
             value={{
                 messages,
                 sendMessage,
-                status,
                 reset,
                 currentSessionId,
                 switchSession,
@@ -689,11 +673,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 refreshCurrentLLM: async () => {
                     await refetchCurrentLLM();
                 },
-                processing,
                 cancel,
-                // Error state
-                activeError,
-                clearError,
                 // Greeting state
                 greeting,
             }}

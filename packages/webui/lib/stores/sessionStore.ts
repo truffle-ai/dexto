@@ -208,7 +208,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
         });
     },
 
-    beginSessionSwitch: (targetSessionId) => {
+    beginSessionSwitch: (_targetSessionId) => {
         set({
             isSwitchingSession: true,
             isLoadingHistory: true,

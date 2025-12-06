@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useNotificationStore, type Toast } from './notificationStore.js';
+import { useNotificationStore } from './notificationStore.js';
 
 describe('notificationStore', () => {
     beforeEach(() => {

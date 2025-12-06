@@ -123,6 +123,16 @@ interface ChatStore {
      */
     clearMessages: (sessionId: string) => void;
 
+    /**
+     * Set all messages for a session at once
+     */
+    setMessages: (sessionId: string, messages: Message[]) => void;
+
+    /**
+     * Initialize or replace session state with history
+     */
+    initFromHistory: (sessionId: string, messages: Message[]) => void;
+
     // -------------------------------------------------------------------------
     // Streaming Actions
     // -------------------------------------------------------------------------
@@ -304,6 +314,37 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
         });
     },
 
+    setMessages: (sessionId, messages) => {
+        set((state) => {
+            const newSessions = new Map(state.sessions);
+            const sessionState = getOrCreateSession(newSessions, sessionId);
+
+            newSessions.set(sessionId, {
+                ...sessionState,
+                messages,
+            });
+
+            return { sessions: newSessions };
+        });
+    },
+
+    initFromHistory: (sessionId, messages) => {
+        set((state) => {
+            const newSessions = new Map(state.sessions);
+            const sessionState = getOrCreateSession(newSessions, sessionId);
+
+            newSessions.set(sessionId, {
+                ...sessionState,
+                messages,
+                processing: false,
+                error: null,
+                streamingMessage: null,
+            });
+
+            return { sessions: newSessions };
+        });
+    },
+
     // -------------------------------------------------------------------------
     // Streaming Actions
     // -------------------------------------------------------------------------
@@ -325,8 +366,8 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     appendToStreamingMessage: (sessionId, content, chunkType = 'text') => {
         set((state) => {
             const newSessions = new Map(state.sessions);
-            const sessionState = newSessions.get(sessionId);
-            if (!sessionState?.streamingMessage) return state;
+            const sessionState = getOrCreateSession(newSessions, sessionId);
+            if (!sessionState.streamingMessage) return state;
 
             const currentMessage = sessionState.streamingMessage;
             let updatedMessage: Message;
@@ -359,17 +400,20 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     finalizeStreamingMessage: (sessionId, updates = {}) => {
         set((state) => {
             const newSessions = new Map(state.sessions);
-            const sessionState = newSessions.get(sessionId);
-            if (!sessionState?.streamingMessage) return state;
+            const sessionState = getOrCreateSession(newSessions, sessionId);
+            if (!sessionState.streamingMessage) return state;
 
             const finalizedMessage: Message = {
                 ...sessionState.streamingMessage,
                 ...updates,
             };
 
+            // Ensure messages array exists (defensive)
+            const existingMessages = sessionState.messages ?? [];
+
             newSessions.set(sessionId, {
                 ...sessionState,
-                messages: [...sessionState.messages, finalizedMessage],
+                messages: [...existingMessages, finalizedMessage],
                 streamingMessage: null,
             });
 

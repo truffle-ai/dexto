@@ -105,14 +105,14 @@ describe('chatStore', () => {
             const message = createTestMessage();
             useChatStore.getState().addMessage(sessionId, message);
 
-            const stateBeforeUpdate = useChatStore.getState().sessions;
             useChatStore.getState().updateMessage(sessionId, 'non-existent', {
                 content: 'Updated',
             });
 
-            // State reference should be unchanged
+            // State should be unchanged - original message still present
             const messages = useChatStore.getState().getMessages(sessionId);
             expect(messages).toHaveLength(1);
+            expect(messages[0].content).toBe(message.content);
         });
 
         it('should not modify state for non-existent session', () => {

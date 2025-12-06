@@ -10,6 +10,7 @@ import {
     useUninstallAgent,
 } from '../hooks/useAgents';
 import { useRecentAgentsStore } from '@/lib/stores/recentAgentsStore';
+import { useSessionStore } from '@/lib/stores/sessionStore';
 import { Button } from '../ui/button';
 import {
     DropdownMenu,
@@ -28,7 +29,6 @@ import {
     Plus,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
-import { useChatContext } from '../hooks/ChatContext';
 import CreateAgentModal from './CreateAgentModal';
 import { useAnalytics } from '@/lib/analytics/index.js';
 
@@ -53,7 +53,7 @@ type AgentSelectorProps = {
 
 export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) {
     const navigate = useNavigate();
-    const { currentSessionId } = useChatContext();
+    const currentSessionId = useSessionStore((s) => s.currentSessionId);
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
 

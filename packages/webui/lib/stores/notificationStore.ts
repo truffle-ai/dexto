@@ -77,7 +77,7 @@ const DEFAULT_MAX_TOASTS = 5;
 /**
  * Notification store implementation
  */
-export const useNotificationStore = create<NotificationStore>()((set, get) => ({
+export const useNotificationStore = create<NotificationStore>()((set, _get) => ({
     toasts: [],
     maxToasts: DEFAULT_MAX_TOASTS,
 

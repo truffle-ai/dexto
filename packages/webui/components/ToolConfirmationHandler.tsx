@@ -1,8 +1,9 @@
 import { useEffect, useCallback } from 'react';
-import { useChatContext } from './hooks/ChatContext';
 import { useSubmitApproval } from './hooks/useApprovals';
-import { useApproval, type ApprovalRequest } from './hooks/ApprovalContext';
+import type { ApprovalRequest } from '@dexto/core';
 import { ApprovalStatus } from '@dexto/core';
+import { useSessionStore } from '@/lib/stores/sessionStore';
+import { useApprovalStore } from '@/lib/stores/approvalStore';
 
 // Re-export ApprovalRequest as ApprovalEvent for consumers (e.g., InlineApprovalCard, MessageList)
 export type ApprovalEvent = ApprovalRequest;
@@ -21,7 +22,7 @@ export interface ApprovalHandlers {
 
 /**
  * WebUI component for handling approval requests
- * Uses ApprovalContext for state management (no DOM events)
+ * Uses approvalStore for state management (no DOM events)
  * Sends responses back through API via useSubmitApproval
  */
 export function ToolConfirmationHandler({
@@ -30,8 +31,9 @@ export function ToolConfirmationHandler({
     onDeny: externalOnDeny,
     onHandlersReady,
 }: ToolConfirmationHandlerProps) {
-    const { currentSessionId } = useChatContext();
-    const { pendingApproval, clearApproval } = useApproval();
+    const currentSessionId = useSessionStore((s) => s.currentSessionId);
+    const pendingApproval = useApprovalStore((s) => s.pendingApproval);
+    const clearApproval = useApprovalStore((s) => s.clearApproval);
     const { mutateAsync: submitApproval } = useSubmitApproval();
 
     // Filter approvals by current session

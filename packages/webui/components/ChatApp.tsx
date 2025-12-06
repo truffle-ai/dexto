@@ -8,6 +8,8 @@ import { useDeleteSession } from './hooks/useSessions';
 import { client } from '@/lib/client';
 import { useAddServer } from './hooks/useServers';
 import { useResolvePrompt } from './hooks/usePrompts';
+import { useChatStore, type Message } from '@/lib/stores/chatStore';
+import { useSessionStore } from '@/lib/stores/sessionStore';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
 import ConnectServerModal from './ConnectServerModal';
@@ -74,23 +76,51 @@ interface ChatAppProps {
     sessionId?: string;
 }
 
+// Stable empty array reference to prevent infinite re-renders in Zustand selectors
+const EMPTY_MESSAGES: Message[] = [];
+
 export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     const navigate = useNavigate();
+
+    // Get state from Zustand stores
+    const currentSessionId = useSessionStore((s) => s.currentSessionId);
+    const isWelcomeState = useSessionStore((s) => s.isWelcomeState);
+
+    // Get session state from chatStore - use stable EMPTY_MESSAGES reference
+    // Access sessions Map directly for more predictable selector behavior
+    const messages = useChatStore((s) => {
+        if (!currentSessionId) return EMPTY_MESSAGES;
+        const session = s.sessions.get(currentSessionId);
+        return session?.messages ?? EMPTY_MESSAGES;
+    });
+    const processing = useChatStore((s) => {
+        if (!currentSessionId) return false;
+        const session = s.sessions.get(currentSessionId);
+        return session?.processing ?? false;
+    });
+    const activeError = useChatStore((s) => {
+        if (!currentSessionId) return null;
+        const session = s.sessions.get(currentSessionId);
+        return session?.error ?? null;
+    });
+
+    // Get actions from ChatContext
     const {
-        messages,
         sendMessage,
-        currentSessionId,
         switchSession,
-        isWelcomeState,
         returnToWelcome,
-        activeError,
-        clearError,
-        processing,
         cancel,
         greeting,
         isStreaming,
         setStreaming,
     } = useChatContext();
+
+    // clearError now managed via chatStore
+    const clearError = useCallback(() => {
+        if (currentSessionId) {
+            useChatStore.getState().setError(currentSessionId, null);
+        }
+    }, [currentSessionId]);
 
     // Theme management
     const { theme, toggleTheme } = useTheme();

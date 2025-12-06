@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLLMCatalog, useSwitchLLM, type SwitchLLMPayload } from '../hooks/useLLM';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ApiKeyModal } from '../ApiKeyModal';
 import { useChatContext } from '../hooks/ChatContext';
+import { useSessionStore } from '@/lib/stores/sessionStore';
 import {
     Bot,
     ChevronDown,
@@ -62,7 +63,8 @@ export default function ModelPickerModal() {
         model: ModelInfo;
     } | null>(null);
 
-    const { currentSessionId, currentLLM, refreshCurrentLLM } = useChatContext();
+    const currentSessionId = useSessionStore((s) => s.currentSessionId);
+    const { currentLLM, refreshCurrentLLM } = useChatContext();
 
     // Analytics tracking
     const analytics = useAnalytics();

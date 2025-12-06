@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import type { InternalMessage, Issue, SanitizedToolResult } from '@dexto/core';
 import type { LLMProvider } from '@dexto/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,12 +7,11 @@ import { client } from '@/lib/client.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
-import { useApproval } from './ApprovalContext.js';
 import { eventBus } from '@/lib/events/EventBus.js';
+import { useChatStore, generateMessageId } from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
 
-// Content part types and guards - import from centralized types.ts
-import { isTextPart, isImagePart, isFilePart } from '../../types.js';
+// Content part types - import from centralized types.ts
 import type {
     TextPart,
     ImagePart,
@@ -104,9 +103,6 @@ export function useChat(
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
     const queryClient = useQueryClient();
-    const { handleApprovalRequest, handleApprovalResponse } = useApproval();
-
-    const [messages, setMessages] = useState<Message[]>([]);
 
     // Helper to update sessions cache (replaces DOM events)
     const updateSessionActivity = useCallback(
@@ -151,11 +147,8 @@ export function useChat(
     );
 
     // Track message IDs for error anchoring
-    // lastUserMessageIdRef: tracks the most recent user message (for other purposes)
-    // lastMessageIdRef: tracks the most recent message of ANY type (for error positioning)
     const lastUserMessageIdRef = useRef<string | null>(null);
     const lastMessageIdRef = useRef<string | null>(null);
-    const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
 
@@ -222,146 +215,21 @@ export function useChat(
                 return;
             }
 
-            // Dispatch to EventBus for middleware (logging, activity, notifications)
-            // and handlers (store updates). This runs in parallel with the switch below.
+            // Dispatch to EventBus - handlers will update chatStore
             eventBus.dispatch(event);
 
+            // Handle React-specific side effects not in handlers.ts
             switch (event.name) {
-                case 'llm:thinking':
-                    // LLM started thinking - can update UI status
-                    setProcessing(event.sessionId, true);
-                    setStatus(event.sessionId, 'open');
-                    break;
-
-                case 'llm:chunk': {
-                    const text = event.content || '';
-                    const chunkType = event.chunkType;
-                    //console.log('llm:chunk', event);
-
-                    setMessages((ms) => {
-                        if (chunkType === 'reasoning') {
-                            const last = ms[ms.length - 1];
-                            if (last && last.role === 'assistant') {
-                                const updated = {
-                                    ...last,
-                                    reasoning: (last.reasoning || '') + text,
-                                    createdAt: Date.now(),
-                                };
-                                return [...ms.slice(0, -1), updated];
-                            }
-                            // Creating new assistant message - track its ID for error anchoring
-                            const newId = generateUniqueId();
-                            lastMessageIdRef.current = newId;
-                            return [
-                                ...ms,
-                                {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: '',
-                                    reasoning: text,
-                                    createdAt: Date.now(),
-                                },
-                            ];
-                        } else {
-                            const last = ms[ms.length - 1];
-                            if (last && last.role === 'assistant') {
-                                const currentContent =
-                                    typeof last.content === 'string' ? last.content : '';
-                                const newContent = currentContent + text;
-                                const updated = {
-                                    ...last,
-                                    content: newContent,
-                                    createdAt: Date.now(),
-                                };
-                                return [...ms.slice(0, -1), updated];
-                            }
-                            // Creating new assistant message - track its ID for error anchoring
-                            const newId = generateUniqueId();
-                            lastMessageIdRef.current = newId;
-                            return [
-                                ...ms,
-                                {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: text,
-                                    createdAt: Date.now(),
-                                },
-                            ];
-                        }
-                    });
-                    break;
-                }
-
                 case 'llm:response': {
-                    // NOTE: Don't set processing=false here - wait for run:complete
-                    // This allows queued messages to continue processing after this response
-                    console.log('llm:response', event);
-                    const text = event.content || '';
-                    const usage = event.tokenUsage;
-                    const model = event.model;
-                    const provider = event.provider;
-
-                    setMessages((ms) => {
-                        const lastMsg = ms[ms.length - 1];
-                        if (lastMsg && lastMsg.role === 'assistant') {
-                            const finalContent = typeof text === 'string' ? text : '';
-                            const updatedMsg: Message = {
-                                ...lastMsg,
-                                content: finalContent,
-                                tokenUsage: usage,
-                                ...(model && { model }),
-                                ...(provider && { provider }),
-                                createdAt: Date.now(),
-                            };
-                            return [...ms.slice(0, -1), updatedMsg];
-                        }
-                        return ms;
-                    });
-
                     // Update sessions cache (response received)
                     updateSessionActivity(event.sessionId);
                     break;
                 }
 
-                case 'llm:tool-call': {
-                    const { toolName, args, callId } = event;
-                    // Track tool message ID for error anchoring
-                    const toolMsgId = generateUniqueId();
-                    lastMessageIdRef.current = toolMsgId;
-                    setMessages((ms) => {
-                        const newIndex = ms.length;
-                        const newMessages: Message[] = [
-                            ...ms,
-                            {
-                                id: toolMsgId,
-                                role: 'tool',
-                                content: null,
-                                toolName,
-                                toolArgs: args,
-                                toolCallId: callId,
-                                createdAt: Date.now(),
-                            },
-                        ];
-                        if (callId) {
-                            pendingToolCallsRef.current.set(callId, newIndex);
-                        }
-                        return newMessages;
-                    });
-                    break;
-                }
-
                 case 'llm:tool-result': {
-                    const {
-                        callId,
-                        success,
-                        sanitized,
-                        toolName,
-                        requireApproval,
-                        approvalStatus,
-                    } = event;
-                    const result = sanitized; // Core events use 'sanitized' field
+                    const { toolName, success } = event;
 
-                    // Track tool call completion
+                    // Track tool call completion analytics
                     if (toolName) {
                         analyticsRef.current.trackToolCalled({
                             toolName,
@@ -369,177 +237,28 @@ export function useChat(
                             sessionId: event.sessionId,
                         });
                     }
-
-                    // Normalize result logic (simplified from original useChat)
-                    // Note: The agent usually sanitizes results before emitting
-
-                    setMessages((ms) => {
-                        let idx = -1;
-                        if (callId && pendingToolCallsRef.current.has(callId)) {
-                            idx = pendingToolCallsRef.current.get(callId)!;
-                            pendingToolCallsRef.current.delete(callId);
-                        } else {
-                            idx = ms.findIndex(
-                                (m) =>
-                                    m.role === 'tool' &&
-                                    m.toolResult === undefined &&
-                                    m.toolName === toolName
-                            );
-                        }
-
-                        if (idx !== -1 && idx < ms.length) {
-                            const updatedMsg = {
-                                ...ms[idx],
-                                toolResult: result,
-                                toolResultSuccess: success,
-                                // Preserve approval metadata from event
-                                ...(requireApproval !== undefined && { requireApproval }),
-                                ...(approvalStatus !== undefined && { approvalStatus }),
-                            };
-                            return [...ms.slice(0, idx), updatedMsg, ...ms.slice(idx + 1)];
-                        }
-                        return ms;
-                    });
-                    break;
-                }
-
-                case 'approval:request': {
-                    // Forward SSE event payload to ApprovalContext
-                    // Remove 'name' (SSE discriminant), keep 'type' (approval discriminant)
-                    const { name: _, ...request } = event;
-                    handleApprovalRequest(request);
-                    break;
-                }
-
-                case 'approval:response': {
-                    // Forward SSE event payload to ApprovalContext
-                    const { name: _, ...response } = event;
-                    handleApprovalResponse(response);
-                    break;
-                }
-
-                case 'llm:error': {
-                    if (suppressNextErrorRef.current) {
-                        suppressNextErrorRef.current = false;
-                        break;
-                    }
-
-                    const errorObj = event.error || {};
-                    const message = errorObj.message || 'Unknown error';
-                    console.log('llm:error', event);
-
-                    setError(event.sessionId, {
-                        id: generateUniqueId(),
-                        message,
-                        timestamp: Date.now(),
-                        context: event.context,
-                        recoverable: event.recoverable,
-                        sessionId: event.sessionId,
-                        // Use lastMessageIdRef to anchor error to the most recent message
-                        // (not just user messages), so errors appear in correct position
-                        anchorMessageId: lastMessageIdRef.current || undefined,
-                    });
-                    setProcessing(event.sessionId, false);
-                    setStatus(event.sessionId, 'closed');
                     break;
                 }
 
                 case 'session:title-updated': {
+                    // Update TanStack Query cache
                     updateSessionTitle(event.sessionId, event.title);
                     break;
                 }
 
-                case 'context:compressed': {
-                    // Context was compressed during multi-step tool calling
-                    // Log for debugging, could add UI notification in future
-                    console.log(
-                        `[Context Compressed] ${event.originalTokens.toLocaleString()} → ${event.compressedTokens.toLocaleString()} tokens ` +
-                            `(${event.originalMessages} → ${event.compressedMessages} messages) via ${event.strategy}`
-                    );
-                    break;
-                }
-
                 case 'message:dequeued': {
-                    // Queued message was processed - add as user message to UI
-                    // Extract text content from the combined content array
-                    const textContent = event.content
-                        .filter(isTextPart)
-                        .map((part) => part.text)
-                        .join('\n');
+                    // Update sessions cache
+                    updateSessionActivity(event.sessionId);
 
-                    // Extract image attachment if present
-                    const imagePart = event.content.find(isImagePart);
-
-                    // Extract file attachment if present
-                    const filePart = event.content.find(isFilePart);
-
-                    if (textContent || event.content.length > 0) {
-                        const userId = generateUniqueId();
-                        lastUserMessageIdRef.current = userId;
-                        lastMessageIdRef.current = userId;
-                        setMessages((ms) => [
-                            ...ms,
-                            {
-                                id: userId,
-                                role: 'user',
-                                content: textContent || '[attachment]',
-                                createdAt: Date.now(),
-                                sessionId: event.sessionId,
-                                imageData: imagePart
-                                    ? {
-                                          image: imagePart.image,
-                                          mimeType: imagePart.mimeType ?? 'image/jpeg',
-                                      }
-                                    : undefined,
-                                fileData: filePart
-                                    ? {
-                                          data: filePart.data,
-                                          mimeType: filePart.mimeType,
-                                          filename: filePart.filename,
-                                      }
-                                    : undefined,
-                            },
-                        ]);
-                        // Update sessions cache
-                        updateSessionActivity(event.sessionId);
-                    }
-                    // Immediately invalidate queue cache so UI removes the message
+                    // Invalidate queue cache so UI removes the message
                     queryClient.invalidateQueries({
                         queryKey: queryKeys.queue.list(event.sessionId),
                     });
                     break;
                 }
-
-                case 'run:complete': {
-                    // Agent run fully completed (no more steps, no queued messages)
-                    // NOW set processing to false - not on llm:response
-                    console.log('run:complete', event);
-                    setProcessing(event.sessionId, false);
-                    setStatus(event.sessionId, 'closed');
-
-                    // If there was an error, it's already been handled by llm:error
-                    // Just log it here for debugging
-                    if (event.error) {
-                        console.log(
-                            `Run ended with error (finishReason=${event.finishReason}):`,
-                            event.error
-                        );
-                    }
-                    break;
-                }
             }
         },
-        [
-            isForActiveSession,
-            setProcessing,
-            setStatus,
-            setError,
-            handleApprovalRequest,
-            handleApprovalResponse,
-            updateSessionActivity,
-            updateSessionTitle,
-            queryClient,
-        ]
+        [isForActiveSession, analyticsRef, updateSessionActivity, updateSessionTitle, queryClient]
     );
 
     const sendMessage = useCallback(
@@ -563,22 +282,20 @@ export function useChat(
             setProcessing(sessionId, true);
             setStatus(sessionId, 'connecting');
 
-            // Add user message to state
-            const userId = generateUniqueId();
-            lastUserMessageIdRef.current = userId;
-            lastMessageIdRef.current = userId; // Track for error anchoring
-            setMessages((ms) => [
-                ...ms,
-                {
-                    id: userId,
-                    role: 'user',
-                    content,
-                    createdAt: Date.now(),
-                    sessionId,
-                    imageData,
-                    fileData,
-                },
-            ]);
+            // Set processing in chatStore for immediate UI feedback
+            useChatStore.getState().setProcessing(sessionId, true);
+
+            // Add user message to chatStore (optimistic UI)
+            const userMessageId = generateMessageId();
+            useChatStore.getState().addMessage(sessionId, {
+                id: userMessageId,
+                role: 'user',
+                content,
+                createdAt: Date.now(),
+                sessionId,
+                imageData,
+                fileData,
+            });
 
             // Update sessions cache (user message sent)
             updateSessionActivity(sessionId);
@@ -625,30 +342,17 @@ export function useChat(
                         );
                     }
 
-                    let data;
                     try {
-                        data = await response.json();
+                        // Parse JSON to validate response (data used via SSE events, not here)
+                        await response.json();
                     } catch (parseError) {
                         const errorMessage =
                             parseError instanceof Error ? parseError.message : String(parseError);
                         throw new Error(`Failed to parse response: ${errorMessage}`);
                     }
 
-                    // Add assistant response as a complete message with metadata
-                    setMessages((ms) => [
-                        ...ms,
-                        {
-                            id: generateUniqueId(),
-                            role: 'assistant',
-                            content: data.response || '',
-                            createdAt: Date.now(),
-                            sessionId,
-                            ...(data.tokenUsage && { tokenUsage: data.tokenUsage }),
-                            ...(data.reasoning && { reasoning: data.reasoning }),
-                            ...(data.model && { model: data.model }),
-                            ...(data.provider && { provider: data.provider }),
-                        },
-                    ]);
+                    // Note: Assistant response will be added to chatStore via events
+                    // or handled by the component that calls sendMessage
 
                     setStatus(sessionId, 'closed');
                     setProcessing(sessionId, false);
@@ -668,6 +372,7 @@ export function useChat(
                 );
                 setStatus(sessionId, 'closed');
                 setProcessing(sessionId, false);
+                useChatStore.getState().setProcessing(sessionId, false);
 
                 const message = error instanceof Error ? error.message : 'Failed to send message';
                 setError(sessionId, {
@@ -677,7 +382,7 @@ export function useChat(
                     context: 'stream',
                     recoverable: true,
                     sessionId,
-                    anchorMessageId: userId,
+                    anchorMessageId: lastMessageIdRef.current || undefined,
                 });
             }
         },
@@ -706,7 +411,7 @@ export function useChat(
                 );
             }
 
-            setMessages([]);
+            // Note: Messages are now in chatStore, not local state
             setError(sessionId, null);
             lastUserMessageIdRef.current = null;
             lastMessageIdRef.current = null;
@@ -737,10 +442,8 @@ export function useChat(
     }, []);
 
     return {
-        messages,
         sendMessage,
         reset,
-        setMessages,
         cancel,
     };
 }
