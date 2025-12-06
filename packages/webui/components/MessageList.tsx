@@ -1,12 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import {
-    Message,
-    isToolResultError,
-    isToolResultContent,
-    ErrorMessage,
-    ToolResult,
-} from './hooks/useChat';
+import { isToolResultError, isToolResultContent, ToolResult } from './hooks/useChat';
+import { type Message, type ErrorMessage } from '@/lib/stores/chatStore';
 import { isTextPart, isImagePart, isAudioPart, isFilePart, isUIResourcePart } from '../types';
 import type { TextPart, AudioPart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';

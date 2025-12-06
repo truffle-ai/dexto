@@ -10,6 +10,8 @@ import { useAddServer } from './hooks/useServers';
 import { useResolvePrompt } from './hooks/usePrompts';
 import { useChatStore, type Message } from '@/lib/stores/chatStore';
 import { useSessionStore } from '@/lib/stores/sessionStore';
+import { usePreferenceStore } from '@/lib/stores/preferenceStore';
+import { useGreeting } from './hooks/useGreeting';
 import MessageList from './MessageList';
 import InputArea from './InputArea';
 import ConnectServerModal from './ConnectServerModal';
@@ -105,15 +107,14 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     });
 
     // Get actions from ChatContext
-    const {
-        sendMessage,
-        switchSession,
-        returnToWelcome,
-        cancel,
-        greeting,
-        isStreaming,
-        setStreaming,
-    } = useChatContext();
+    const { sendMessage, switchSession, returnToWelcome, cancel } = useChatContext();
+
+    // Get state from stores
+    const isStreaming = usePreferenceStore((s) => s.isStreaming);
+    const setStreaming = usePreferenceStore((s) => s.setStreaming);
+
+    // Get greeting from API
+    const { greeting } = useGreeting(currentSessionId);
 
     // clearError now managed via chatStore
     const clearError = useCallback(() => {

@@ -8,7 +8,12 @@ import { queryKeys } from '@/lib/queryKeys.js';
 import { createMessageStream } from '@dexto/client-sdk';
 import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { eventBus } from '@/lib/events/EventBus.js';
-import { useChatStore, generateMessageId } from '@/lib/stores/chatStore.js';
+import {
+    useChatStore,
+    generateMessageId,
+    type Message,
+    type ErrorMessage,
+} from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
 
 // Content part types - import from centralized types.ts
@@ -44,61 +49,16 @@ export function isToolResultContent(result: unknown): result is ToolResultConten
     );
 }
 
-// Extend core InternalMessage for WebUI
-export interface Message extends Omit<InternalMessage, 'content'> {
-    id: string;
-    createdAt: number;
-    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart | UIResourcePart>;
-    imageData?: { image: string; mimeType: string };
-    fileData?: FileData;
-    toolName?: string;
-    toolArgs?: Record<string, unknown>;
-    toolCallId?: string; // Unique identifier for pairing tool calls with results
-    toolResult?: ToolResult;
-    toolResultMeta?: SanitizedToolResult['meta'];
-    toolResultSuccess?: boolean;
-    tokenUsage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        reasoningTokens?: number;
-        totalTokens?: number;
-    };
-    reasoning?: string;
-    model?: string;
-    provider?: LLMProvider;
-    sessionId?: string;
-}
-
-// Separate error state interface
-export interface ErrorMessage {
-    id: string;
-    message: string;
-    timestamp: number;
-    context?: string;
-    recoverable?: boolean;
-    sessionId?: string;
-    // Message id this error relates to (e.g., last user input)
-    anchorMessageId?: string;
-    // Raw validation issues for hierarchical display
-    detailedIssues?: Issue[];
-}
+// Note: Message and ErrorMessage types now imported from chatStore.ts (single source of truth)
+// Import with: import { type Message, type ErrorMessage } from '@/lib/stores/chatStore'
 
 export type StreamStatus = 'idle' | 'connecting' | 'open' | 'closed';
-
-// Session-scoped state helpers interface
-export interface SessionScopedStateHelpers {
-    setSessionError: (sessionId: string, error: ErrorMessage | null) => void;
-    setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
-    setSessionStatus: (sessionId: string, status: StreamStatus) => void;
-    getSessionAbortController: (sessionId: string) => AbortController;
-    abortSession: (sessionId: string) => void;
-}
 
 const generateUniqueId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 export function useChat(
     activeSessionIdRef: React.MutableRefObject<string | null>,
-    sessionHelpers: SessionScopedStateHelpers
+    abortControllersRef: React.MutableRefObject<Map<string, AbortController>>
 ) {
     const analytics = useAnalytics();
     const analyticsRef = useRef(analytics);
@@ -157,40 +117,29 @@ export function useChat(
         analyticsRef.current = analytics;
     }, [analytics]);
 
-    // Helper wrappers for session-scoped state
-    const setError = useCallback(
-        (sessionId: string, error: ErrorMessage | null) => {
-            sessionHelpers.setSessionError(sessionId, error);
-        },
-        [sessionHelpers]
-    );
-
-    const setProcessing = useCallback(
-        (sessionId: string, isProcessing: boolean) => {
-            sessionHelpers.setSessionProcessing(sessionId, isProcessing);
-        },
-        [sessionHelpers]
-    );
-
-    const setStatus = useCallback(
-        (sessionId: string, status: StreamStatus) => {
-            sessionHelpers.setSessionStatus(sessionId, status);
-        },
-        [sessionHelpers]
-    );
-
+    // Abort controller management (moved from ChatContext)
     const getAbortController = useCallback(
-        (sessionId: string) => {
-            return sessionHelpers.getSessionAbortController(sessionId);
+        (sessionId: string): AbortController => {
+            const existing = abortControllersRef.current.get(sessionId);
+            if (existing) {
+                return existing;
+            }
+            const controller = new AbortController();
+            abortControllersRef.current.set(sessionId, controller);
+            return controller;
         },
-        [sessionHelpers]
+        [abortControllersRef]
     );
 
     const abortSession = useCallback(
         (sessionId: string) => {
-            sessionHelpers.abortSession(sessionId);
+            const controller = abortControllersRef.current.get(sessionId);
+            if (controller) {
+                controller.abort();
+                abortControllersRef.current.delete(sessionId);
+            }
         },
-        [sessionHelpers]
+        [abortControllersRef]
     );
 
     const isForActiveSession = useCallback(
@@ -279,9 +228,6 @@ export function useChat(
 
             const abortController = getAbortController(sessionId) || new AbortController();
 
-            setProcessing(sessionId, true);
-            setStatus(sessionId, 'connecting');
-
             // Set processing in chatStore for immediate UI feedback
             useChatStore.getState().setProcessing(sessionId, true);
 
@@ -316,14 +262,11 @@ export function useChat(
                         signal: abortController.signal,
                     });
 
-                    setStatus(sessionId, 'open');
-
                     for await (const event of iterator) {
                         processEvent(event);
                     }
 
-                    setStatus(sessionId, 'closed');
-                    setProcessing(sessionId, false);
+                    useChatStore.getState().setProcessing(sessionId, false);
                 } else {
                     // Non-streaming mode: use /api/message-sync and wait for full response
                     const response = await client.api['message-sync'].$post({
@@ -354,8 +297,7 @@ export function useChat(
                     // Note: Assistant response will be added to chatStore via events
                     // or handled by the component that calls sendMessage
 
-                    setStatus(sessionId, 'closed');
-                    setProcessing(sessionId, false);
+                    useChatStore.getState().setProcessing(sessionId, false);
 
                     // Update sessions cache (response received)
                     updateSessionActivity(sessionId);
@@ -370,12 +312,10 @@ export function useChat(
                 console.error(
                     `Stream error: ${error instanceof Error ? error.message : String(error)}`
                 );
-                setStatus(sessionId, 'closed');
-                setProcessing(sessionId, false);
                 useChatStore.getState().setProcessing(sessionId, false);
 
                 const message = error instanceof Error ? error.message : 'Failed to send message';
-                setError(sessionId, {
+                useChatStore.getState().setError(sessionId, {
                     id: generateUniqueId(),
                     message,
                     timestamp: Date.now(),
@@ -386,40 +326,27 @@ export function useChat(
                 });
             }
         },
-        [
-            processEvent,
-            abortSession,
-            getAbortController,
-            setProcessing,
-            setStatus,
-            setError,
-            updateSessionActivity,
-        ]
+        [processEvent, abortSession, getAbortController, updateSessionActivity]
     );
 
-    const reset = useCallback(
-        async (sessionId?: string) => {
-            if (!sessionId) return;
+    const reset = useCallback(async (sessionId?: string) => {
+        if (!sessionId) return;
 
-            try {
-                await client.api.reset.$post({
-                    json: { sessionId },
-                });
-            } catch (e) {
-                console.error(
-                    `Failed to reset session: ${e instanceof Error ? e.message : String(e)}`
-                );
-            }
+        try {
+            await client.api.reset.$post({
+                json: { sessionId },
+            });
+        } catch (e) {
+            console.error(`Failed to reset session: ${e instanceof Error ? e.message : String(e)}`);
+        }
 
-            // Note: Messages are now in chatStore, not local state
-            setError(sessionId, null);
-            lastUserMessageIdRef.current = null;
-            lastMessageIdRef.current = null;
-            pendingToolCallsRef.current.clear();
-            setProcessing(sessionId, false);
-        },
-        [setError, setProcessing]
-    );
+        // Note: Messages are now in chatStore, not local state
+        useChatStore.getState().setError(sessionId, null);
+        lastUserMessageIdRef.current = null;
+        lastMessageIdRef.current = null;
+        pendingToolCallsRef.current.clear();
+        useChatStore.getState().setProcessing(sessionId, false);
+    }, []);
 
     const cancel = useCallback(async (sessionId?: string, clearQueue: boolean = false) => {
         if (!sessionId) return;

@@ -28,3 +28,7 @@ export type { ActivityEvent, EventCategory } from './eventLogStore.js';
 // Approval store - approval request queue management
 export { useApprovalStore } from './approvalStore.js';
 export type { PendingApproval } from './approvalStore.js';
+
+// Preference store - user preferences with localStorage persistence
+export { usePreferenceStore } from './preferenceStore.js';
+export type { PreferenceState } from './preferenceStore.js';

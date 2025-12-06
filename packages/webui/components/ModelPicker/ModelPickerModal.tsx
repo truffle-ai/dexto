@@ -4,8 +4,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ApiKeyModal } from '../ApiKeyModal';
-import { useChatContext } from '../hooks/ChatContext';
 import { useSessionStore } from '@/lib/stores/sessionStore';
+import { useCurrentLLM } from '../hooks/useCurrentLLM';
 import {
     Bot,
     ChevronDown,
@@ -64,7 +64,7 @@ export default function ModelPickerModal() {
     } | null>(null);
 
     const currentSessionId = useSessionStore((s) => s.currentSessionId);
-    const { currentLLM, refreshCurrentLLM } = useChatContext();
+    const { data: currentLLM, refetch: refreshCurrentLLM } = useCurrentLLM(currentSessionId);
 
     // Analytics tracking
     const analytics = useAnalytics();

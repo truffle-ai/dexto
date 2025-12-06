@@ -26,6 +26,8 @@ import { useFontsReady } from './hooks/useFontsReady';
 import { cn, filterAndSortResources } from '../lib/utils';
 import { useChatStore } from '@/lib/stores/chatStore';
 import { useSessionStore } from '@/lib/stores/sessionStore';
+import { usePreferenceStore } from '@/lib/stores/preferenceStore';
+import { useCurrentLLM } from './hooks/useCurrentLLM';
 import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
@@ -91,8 +93,13 @@ export default function InputArea({
         return s.getSessionState(currentSessionId).processing;
     });
 
-    // Get remaining values from ChatContext
-    const { isStreaming, setStreaming, cancel, currentLLM } = useChatContext();
+    // Get actions from ChatContext
+    const { cancel } = useChatContext();
+
+    // Get state from stores and hooks
+    const isStreaming = usePreferenceStore((s) => s.isStreaming);
+    const setStreaming = usePreferenceStore((s) => s.setStreaming);
+    const { data: currentLLM } = useCurrentLLM(currentSessionId);
 
     // Input history for Up/Down navigation
     const { invalidateHistory, navigateUp, navigateDown, resetCursor, isBrowsing } =
