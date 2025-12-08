@@ -5183,6 +5183,10 @@
                           "name": {
                             "type": "string",
                             "description": "Name of the tool that produced this result"
+                          },
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether tool execution succeeded (present for role=tool messages)"
                           }
                         },
                         "required": [
@@ -5822,6 +5826,10 @@
                               "name": {
                                 "type": "string",
                                 "description": "Name of the tool that produced this result"
+                              },
+                              "success": {
+                                "type": "boolean",
+                                "description": "Whether tool execution succeeded (present for role=tool messages)"
                               }
                             },
                             "required": [
@@ -6226,6 +6234,10 @@
                                   "name": {
                                     "type": "string",
                                     "description": "Name of the tool that produced this result"
+                                  },
+                                  "success": {
+                                    "type": "boolean",
+                                    "description": "Whether tool execution succeeded (present for role=tool messages)"
                                   }
                                 },
                                 "required": [
