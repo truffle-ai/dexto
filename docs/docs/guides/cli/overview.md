@@ -37,10 +37,6 @@ dexto --mode server
 
 # Run as MCP server
 dexto --mode mcp
-
-# Build custom integrations (see examples/)
-# dexto examples/discord-bot/
-# dexto examples/telegram-bot/
 ```
 
 :::tip Mode Auto-Detection

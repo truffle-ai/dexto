@@ -212,9 +212,6 @@ dexto --mode cli
 ```bash
 # MCP server with custom agent
 dexto --mode mcp --agent coding-assistant
-
-# Platform integrations (Discord, Telegram, etc.)
-# See examples/ directory for reference implementations
 ```
 
 ## Managing Installed Agents

@@ -2,6 +2,51 @@
 
 This directory contains example code and configurations demonstrating how to use Dexto in various contexts.
 
+## Code Examples
+
+### Basic Agent Usage (`basic-agent-example.ts`)
+
+The simplest example of how to use the Dexto Agent SDK. Shows:
+- Creating an agent with minimal configuration
+- Starting and stopping the agent
+- Creating a session
+- Using `generate()` for request/response interactions
+- Token usage tracking
+
+Run it with:
+```bash
+npx tsx basic-agent-example.ts
+```
+
+### LangChain Integration (`dexto-langchain-integration/`)
+
+Shows how to integrate Dexto with LangChain, useful if you're already using LangChain in your project.
+
+### Agent Manager (`agent-manager-example/`)
+
+Demonstrates using the AgentManager API for managing multiple agents programmatically.
+
+### Agent Delegation (`agent-delegation/`)
+
+Shows a pattern for implementing a multi-agent coordinator/specialist architecture where one agent delegates tasks to specialized agents.
+
+### Demo Server (`resources-demo-server/`)
+
+A simple HTTP server example demonstrating Dexto's resource authorization flow.
+
+## Agent Configuration Examples
+
+See the `/agents/` directory for YAML configuration examples for different use cases.
+
+## How to Use These Examples
+
+1. **Copy an example** to your project or workspace
+2. **Customize** the configuration for your needs
+3. **Install dependencies** if it has a `package.json`
+4. **Follow the README** for setup and running instructions
+
+Each example is self-contained and can be run independently.
+
 ## Platform Integration Examples
 
 These examples show how to integrate DextoAgent with different messaging platforms. They are **reference implementations** that you can customize and extend for your own use cases.
@@ -53,51 +98,6 @@ pnpm start
 ```
 
 **See:** [`telegram-bot/README.md`](./telegram-bot/README.md) for detailed setup and usage instructions.
-
-## Code Examples
-
-### Basic Agent Usage (`basic-agent-example.ts`)
-
-The simplest example of how to use the Dexto Agent SDK. Shows:
-- Creating an agent with minimal configuration
-- Starting and stopping the agent
-- Creating a session
-- Using `generate()` for request/response interactions
-- Token usage tracking
-
-Run it with:
-```bash
-npx tsx basic-agent-example.ts
-```
-
-### LangChain Integration (`dexto-langchain-integration/`)
-
-Shows how to integrate Dexto with LangChain, useful if you're already using LangChain in your project.
-
-### Agent Manager (`agent-manager-example/`)
-
-Demonstrates using the AgentManager API for managing multiple agents programmatically.
-
-### Agent Delegation (`agent-delegation/`)
-
-Shows a pattern for implementing a multi-agent coordinator/specialist architecture where one agent delegates tasks to specialized agents.
-
-### Demo Server (`resources-demo-server/`)
-
-A simple HTTP server example demonstrating Dexto's resource authorization flow.
-
-## Agent Configuration Examples
-
-See the `/agents/` directory for YAML configuration examples for different use cases.
-
-## How to Use These Examples
-
-1. **Copy an example** to your project or workspace
-2. **Customize** the configuration for your needs
-3. **Install dependencies** if it has a `package.json`
-4. **Follow the README** for setup and running instructions
-
-Each example is self-contained and can be run independently.
 
 ## Building Your Own Integration
 
