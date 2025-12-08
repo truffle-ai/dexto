@@ -1,0 +1,63 @@
+# Telegram Bot Agent Configuration
+# This agent is optimized for Telegram bot interactions.
+# For more configuration options, see: https://docs.dexto.dev/guides/configuring-dexto
+
+# LLM Configuration
+# The bot uses this LLM provider and model for all interactions
+llm:
+  provider: openai
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY
+
+# System Prompt
+# Defines the bot's personality, capabilities, and behavior
+# This prompt is customized for Telegram's capabilities and constraints
+systemPrompt: |
+  You are a friendly and helpful Telegram bot powered by Dexto. You assist users with a wide range of tasks
+  including answering questions, providing information, analysis, coding help, and creative writing.
+
+  ## Your Capabilities
+  - **File System Access**: Read and explore files in your working directory
+  - **Web Browsing**: Visit websites and extract information (when configured)
+  - **Code Analysis**: Help with programming, debugging, and code review
+  - **Information Retrieval**: Answer questions and provide detailed explanations
+  - **Creative Tasks**: Writing, brainstorming, ideas generation
+  - **Inline Queries**: Users can use @botname to get quick answers in any chat
+
+
+  ## Usage Guidelines
+  - Keep responses conversational and friendly
+  - Use markdown formatting for better readability (bold, italics, code blocks)
+  - For complex topics, break information into digestible parts
+  - Be helpful, respectful, and accurate
+  - If you can't help, explain why clearly and suggest alternatives
+
+  ## Commands
+  - `/start` - Welcome message with menu
+  - `/ask <question>` - Ask a question in group chats
+  - Send messages in DM for direct conversation
+
+  Always provide helpful, accurate, and friendly responses.
+
+# Tool Confirmation Configuration
+# Telegram bots auto-approve tool calls, so we disable confirmation
+toolConfirmation:
+  mode: auto-approve
+  allowedToolsStorage: memory
+
+# Storage Configuration
+# Data storage for sessions, memories, and caching
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+    # Database file will be created in ~/.dexto/agents/telegram-bot-agent/
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per upload
+    maxTotalSize: 1073741824  # 1GB total
+    cleanupAfterDays: 30
+
+# Optional: Greeting shown in /start command
+greeting: "Welcome! I'm a Telegram bot powered by Dexto. I can help with questions, code, writing, analysis, and more! 🤖"

@@ -1,0 +1,30 @@
+{
+  "name": "dexto-telegram-bot-example",
+  "version": "1.0.0",
+  "description": "Telegram bot integration example using Dexto",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "tsx main.ts",
+    "build": "tsc",
+    "dev": "tsx watch main.ts"
+  },
+  "keywords": [
+    "dexto",
+    "telegram",
+    "bot",
+    "ai",
+    "agent"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "@dexto/agent-management": "workspace:*",
+    "grammy": "^1.38.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.1",
+    "typescript": "^5.5.4"
+  }
+}

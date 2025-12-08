@@ -37,8 +37,6 @@ import {
 } from '@dexto/agent-management';
 import type { ValidatedAgentConfig } from '@dexto/core';
 import { startHonoApiServer } from './api/server-hono.js';
-import { startDiscordBot } from './discord/bot.js';
-import { startTelegramBot } from './telegram/bot.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides } from './config/cli-overrides.js';
@@ -103,7 +101,7 @@ program
     .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')
     .option(
         '--mode <mode>',
-        'The application in which dexto should talk to you - web | cli | server | discord | telegram | mcp',
+        'The application in which dexto should talk to you - web | cli | server | mcp',
         'web'
     )
     .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
@@ -1225,26 +1223,6 @@ program
                         break;
                     }
 
-                    case 'discord':
-                        console.log('🤖 Starting Discord bot…');
-                        try {
-                            startDiscordBot(agent);
-                        } catch (err) {
-                            console.error('❌ Discord startup failed:', err);
-                            safeExit('main', 1, 'discord-startup-failed');
-                        }
-                        break;
-
-                    case 'telegram':
-                        console.log('🤖 Starting Telegram bot…');
-                        try {
-                            startTelegramBot(agent);
-                        } catch (err) {
-                            console.error('❌ Telegram startup failed:', err);
-                            safeExit('main', 1, 'telegram-startup-failed');
-                        }
-                        break;
-
                     // TODO: Remove if server mode is stable and supports mcp
                     // Starts dexto as a local mcp server
                     // Use `dexto --mode mcp` to start dexto as a local mcp server
@@ -1278,9 +1256,26 @@ program
                     }
 
                     default:
-                        console.error(
-                            `❌ Unknown mode '${opts.mode}'. Use web, cli, server, discord, telegram, or mcp.`
-                        );
+                        if (opts.mode === 'discord' || opts.mode === 'telegram') {
+                            console.error(
+                                `❌ Error: '${opts.mode}' mode has been moved to examples`
+                            );
+                            console.error('');
+                            console.error(
+                                `The ${opts.mode} bot is now a standalone example that you can customize.`
+                            );
+                            console.error('');
+                            console.error(`📖 See: examples/${opts.mode}-bot/README.md`);
+                            console.error('');
+                            console.error(`To run it:`);
+                            console.error(`  cd examples/${opts.mode}-bot`);
+                            console.error(`  npm install`);
+                            console.error(`  npm start`);
+                        } else {
+                            console.error(
+                                `❌ Unknown mode '${opts.mode}'. Use web, cli, server, or mcp.`
+                            );
+                        }
                         safeExit('main', 1, 'unknown-mode');
                 }
             },
