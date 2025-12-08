@@ -68,7 +68,8 @@ export interface SanitizedToolResult {
     meta: {
         toolName: string;
         toolCallId: string;
-        success?: boolean;
+        /** Whether the tool execution succeeded. Always set by sanitizeToolResult(). */
+        success: boolean;
     };
 }
 
@@ -169,6 +170,13 @@ export interface InternalMessage {
      * Only present in tool messages.
      */
     name?: string;
+
+    /**
+     * Whether the tool execution was successful.
+     * Only present in tool messages.
+     * Must be explicitly set to true or false.
+     */
+    success?: boolean;
 
     /**
      * Whether this tool call required user approval before execution.

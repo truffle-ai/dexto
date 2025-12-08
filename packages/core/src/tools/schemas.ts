@@ -55,9 +55,9 @@ export const ToolConfirmationConfigSchema = z
             .number()
             .int()
             .positive()
-            .default(120000)
+            .optional()
             .describe(
-                'Timeout for tool confirmation requests in milliseconds, defaults to 120000ms (2 mins)'
+                'Timeout for tool confirmation requests in milliseconds (optional - no timeout if not specified)'
             ),
         allowedToolsStorage: z
             .enum(ALLOWED_TOOLS_STORAGE_TYPES)
@@ -88,9 +88,9 @@ export const ElicitationConfigSchema = z
             .number()
             .int()
             .positive()
-            .default(120000)
+            .optional()
             .describe(
-                'Timeout for elicitation requests in milliseconds, defaults to 120000ms (2 mins)'
+                'Timeout for elicitation requests in milliseconds (optional - no timeout if not specified)'
             ),
     })
     .strict()

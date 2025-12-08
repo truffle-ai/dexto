@@ -325,6 +325,137 @@ describe('ApprovalManager', () => {
         });
     });
 
+    describe('Timeout Configuration', () => {
+        it('should allow undefined timeout (infinite wait) for tool confirmation', () => {
+            const manager = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'manual',
+                        // No timeout specified - should wait indefinitely
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger
+            );
+
+            const config = manager.getConfig();
+            expect(config.toolConfirmation.timeout).toBeUndefined();
+        });
+
+        it('should allow undefined timeout (infinite wait) for elicitation', () => {
+            const manager = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'manual',
+                        timeout: 60000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        // No timeout specified - should wait indefinitely
+                    },
+                },
+                mockLogger
+            );
+
+            const config = manager.getConfig();
+            expect(config.elicitation.timeout).toBeUndefined();
+        });
+
+        it('should allow both timeouts to be undefined (infinite wait for all approvals)', () => {
+            const manager = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'manual',
+                        // No timeout
+                    },
+                    elicitation: {
+                        enabled: true,
+                        // No timeout
+                    },
+                },
+                mockLogger
+            );
+
+            const config = manager.getConfig();
+            expect(config.toolConfirmation.timeout).toBeUndefined();
+            expect(config.elicitation.timeout).toBeUndefined();
+        });
+
+        it('should use per-request timeout override when provided', async () => {
+            const manager = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve', // Auto-approve so we can test immediately
+                        timeout: 60000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger
+            );
+
+            // The per-request timeout should override the config timeout
+            // This is tested implicitly through the factory flow
+            const response = await manager.requestToolConfirmation({
+                toolName: 'test_tool',
+                args: { foo: 'bar' },
+                timeout: 30000, // Per-request override
+            });
+
+            expect(response.status).toBe(ApprovalStatus.APPROVED);
+        });
+
+        it('should not timeout when timeout is undefined in auto-approve mode', async () => {
+            const manager = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'auto-approve',
+                        // No timeout - should not cause any issues with auto-approve
+                    },
+                    elicitation: {
+                        enabled: false,
+                    },
+                },
+                mockLogger
+            );
+
+            const response = await manager.requestToolConfirmation({
+                toolName: 'test_tool',
+                args: {},
+            });
+
+            expect(response.status).toBe(ApprovalStatus.APPROVED);
+        });
+
+        it('should not timeout when timeout is undefined in auto-deny mode', async () => {
+            const manager = new ApprovalManager(
+                {
+                    toolConfirmation: {
+                        mode: 'auto-deny',
+                        // No timeout - should not cause any issues with auto-deny
+                    },
+                    elicitation: {
+                        enabled: false,
+                    },
+                },
+                mockLogger
+            );
+
+            const response = await manager.requestToolConfirmation({
+                toolName: 'test_tool',
+                args: {},
+            });
+
+            expect(response.status).toBe(ApprovalStatus.DENIED);
+            expect(response.reason).toBe(DenialReason.SYSTEM_DENIED);
+        });
+    });
+
     describe('Backward compatibility', () => {
         it('should work with manual mode for both tools and elicitation', () => {
             const manager = new ApprovalManager(

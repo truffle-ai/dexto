@@ -334,11 +334,15 @@ async function bootstrapAgentFromGlobalOpts() {
     // This avoids needing to set up unused approval handlers
     enrichedConfig.toolConfirmation = {
         mode: 'auto-approve',
-        timeout: enrichedConfig.toolConfirmation?.timeout ?? 120000,
+        ...(enrichedConfig.toolConfirmation?.timeout !== undefined && {
+            timeout: enrichedConfig.toolConfirmation.timeout,
+        }),
     };
     enrichedConfig.elicitation = {
         enabled: false,
-        timeout: enrichedConfig.elicitation?.timeout ?? 120000,
+        ...(enrichedConfig.elicitation?.timeout !== undefined && {
+            timeout: enrichedConfig.elicitation.timeout,
+        }),
     };
 
     const agent = new DextoAgent(enrichedConfig, resolvedPath);

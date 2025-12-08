@@ -199,12 +199,16 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                   : [];
 
             const inferredResources = deriveResources(normalizedContent);
+            // Extract success status from stored message (defaults to true for backwards compatibility)
+            const success =
+                'success' in msg && typeof msg.success === 'boolean' ? msg.success : true;
             const sanitizedFromHistory: SanitizedToolResult = {
                 content: normalizedContent,
                 ...(inferredResources ? { resources: inferredResources } : {}),
                 meta: {
                     toolName,
                     toolCallId: toolCallId ?? `tool-${index}`,
+                    success,
                 },
             };
 
