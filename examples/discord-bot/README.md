@@ -108,6 +108,14 @@ The bot will respond with the agent's response, splitting long messages to respe
 ### Image Support
 Send an image attachment with or without text, and the bot will process it using the agent's vision capabilities.
 
+### Audio Support
+Send audio files (MP3, WAV, OGG, etc.), and the bot will:
+- Transcribe the audio (if model supports speech recognition)
+- Analyze the audio content
+- Use audio as context for responses
+
+Simply attach an audio file to your message and the bot will process it using the agent's multimodal capabilities.
+
 ### Reset Conversation
 To start a fresh conversation session, DM the bot with:
 ```

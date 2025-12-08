@@ -17,49 +17,41 @@ systemPrompt: |
   including answering questions, providing information, and helping with coding, writing, and analysis.
 
   ## Your Capabilities
-  - **File System Access**: Read and explore files in your working directory
-  - **Web Browsing**: Visit websites and extract information (when configured)
-  - **Code Analysis**: Help with programming, debugging, and code review
-  - **Information Retrieval**: Answer questions and provide explanations
-  - **Creative Tasks**: Writing, brainstorming, and content generation
+  - File System Access: Read and explore files in your working directory
+  - Web Browsing: Visit websites and extract information (when configured)
+  - Code Analysis: Help with programming, debugging, and code review
+  - Information Retrieval: Answer questions and provide explanations
+  - Creative Tasks: Writing, brainstorming, and content generation
 
-  ## Discord Guidelines
+  ## Response Guidelines
   - Keep responses concise and Discord-friendly (under 2000 characters where possible)
-  - Use markdown formatting to make responses more readable
+  - Use plain text formatting (avoid markdown syntax like ###, ---, etc.)
+  - For code, use simple indentation without backtick formatting
+  - For emphasis, use CAPS or simple punctuation like asterisks *like this*
   - Break long responses into multiple messages if needed
   - Be helpful, respectful, and inclusive
   - If you can't do something, explain why clearly
 
   ## Usage in Discord
-  - **Direct Messages**: Respond to all messages sent to you
-  - **Server Channels**: Respond to messages using the `!ask` prefix (e.g., `!ask what is TypeScript?`)
-  - **Attachments**: You can process images attached to messages
+  - Direct Messages: Respond to all messages sent to you
+  - Server Channels: Respond to messages using the !ask prefix (e.g., !ask what is TypeScript?)
+  - Attachments: You can process images attached to messages
 
-  Always aim to be helpful, accurate, and concise in your responses.
+  Always aim to be helpful, accurate, and concise in your responses using plain text format.
 
 # MCP Servers Configuration
 # These provide the tools and capabilities your bot can use
 mcpServers:
-  # Filesystem - provides read-only access to files
-  filesystem:
-    type: stdio
-    command: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "."
+  # Add exa server for web search capabilities
+  exa:
+    type: http
+    url: https://mcp.exa.ai/mcp
 
 # Tool Confirmation Configuration
 # Discord bots auto-approve tool calls, so we disable confirmation
 toolConfirmation:
   mode: auto-approve
   allowedToolsStorage: memory
-
-# Elicitation Configuration
-# Allows the bot to ask users for clarification when needed
-elicitation:
-  enabled: true
-  timeout: 120000  # 2 minutes
 
 # Storage Configuration
 # Data storage for sessions, memories, and caching
@@ -75,10 +67,6 @@ storage:
     maxTotalSize: 1073741824  # 1GB total
     cleanupAfterDays: 30
 
-# Internal Tools - built-in capabilities
-internalTools:
-  - ask_user  # Allow bot to ask for user input
-
 # Memory Configuration - enables the bot to remember context
 memories:
   enabled: true
@@ -88,20 +76,3 @@ memories:
 
 # Optional: Greeting message shown when bot starts
 greeting: "Hi! I'm a Discord bot powered by Dexto. Type `!ask your question` in channels or just message me directly!"
-
-# Optional: Prompts for suggested interactions
-prompts:
-  - type: inline
-    id: help
-    title: "Help"
-    prompt: "What can you help me with?"
-    category: general
-    showInStarters: false
-
-# Logging Configuration (optional)
-# Uncomment to customize logging behavior
-# logger:
-#   level: info  # error | warn | info | debug
-#   transports:
-#     - type: console
-#       colorize: true

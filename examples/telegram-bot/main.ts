@@ -19,7 +19,7 @@ async function main() {
 
         // Start the Telegram bot
         console.log('📡 Starting Telegram bot connection...');
-        startTelegramBot(agent);
+        await startTelegramBot(agent);
 
         console.log('✅ Telegram bot is running! Start with /start command.');
 

@@ -99,33 +99,92 @@ You should see:
 
 ### Commands
 
-- **`/start`** - Display welcome message with action buttons
-- **`/ask <question>`** - Ask a question in a group chat (use in group chats)
-- **Regular messages** - In DMs or after `/start`, just send text
+- **`/start`** - Display welcome message with command buttons and options
+- **`/ask <question>`** - Ask a question (works in groups with prefix)
+- **`/explain <topic>`** - Get detailed explanations of topics
+- **`/summarize <text>`** - Summarize provided content
+- **`/code <problem>`** - Get help with programming tasks
+- **`/analyze <data>`** - Analyze information or data
+- **`/creative <idea>`** - Brainstorm creatively on a topic
 
 ### Features
 
+#### Quick Command Buttons
+When you send `/start`, the bot displays interactive buttons for each command. Click a button to start that interaction without typing a command!
+
+**Available command buttons:**
+- 💡 Explain
+- 📋 Summarize
+- 💻 Code
+- ✨ Creative
+- 🔍 Analyze
+
 #### Text Messages
-Send any message to the bot and it will respond using the configured LLM.
+Send any message directly to the bot in DMs, and it will respond using the configured LLM with full conversation context.
 
 #### Image Support
-Send an image with optional caption text, and the bot will process it using the agent's vision capabilities.
+Send photos with optional captions, and the bot will analyze them using the agent's vision capabilities (for models that support vision).
+
+#### Audio/Voice Messages
+Send voice messages or audio files, and the bot will:
+- Transcribe the audio (if model supports speech recognition)
+- Analyze the audio content
+- Use voice as context for responses
+
+Supported audio formats: OGG (Telegram voice), MP3, WAV, and other audio formats your LLM supports.
 
 #### Inline Queries
-In any chat, type your bot's username followed by your query:
+In any chat (without messaging the bot), use inline mode:
 ```
 @your_bot_name What is the capital of France?
 ```
-
 The bot will respond with a result you can send directly to the chat.
 
-#### Reset Conversation
-Use the "🔄 Reset Conversation" button from `/start` to start fresh.
+#### Session Management
+- **Reset Conversation** - Use the 🔄 Reset button from `/start` to clear conversation history
+- **Help** - Use the ❓ Help button to see all available features
 
-#### Help
-Use the "❓ Help" button from `/start` to see available commands.
+#### Per-User Sessions
+Each Telegram user gets their own isolated conversation session. Multiple users in a group chat will each have separate conversations, preventing cross-user context pollution.
 
 ## Configuration
+
+### Adding Custom Prompts
+
+The bot automatically loads prompts from your `agent-config.yml` file. These prompts appear as buttons in `/start` and can be invoked as slash commands.
+
+**To add a new prompt:**
+
+```yaml
+prompts:
+  - type: inline
+    id: mycommand       # Used as /mycommand
+    title: "🎯 My Command"  # Button label
+    description: "What this command does"
+    prompt: "System instruction:\n\n{{context}}"  # Template with {{context}} placeholder
+    category: custom
+    priority: 10
+```
+
+**Example prompts included:**
+
+*Self-contained (execute immediately):*
+- `/quick-start` - Learn what the bot can do
+- `/demo` - See tools in action
+
+*Context-requiring (ask for input):*
+- `/summarize` - Summarize content
+- `/explain` - Detailed explanations
+- `/code` - Programming help
+- `/translate` - Language translation
+
+**Using prompts:**
+1. **As slash commands**: `/summarize Your text here`
+2. **As buttons**:
+   - Self-contained prompts execute immediately ⚡
+   - Context-requiring prompts ask for input 💬
+3. **Smart detection**: Bot automatically determines if context is needed
+4. **Dynamic loading**: Prompts update when you restart the bot
 
 ### Switching LLM Providers
 
