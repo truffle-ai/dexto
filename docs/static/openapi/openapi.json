@@ -11206,8 +11206,7 @@
                             "type": "integer",
                             "minimum": 0,
                             "exclusiveMinimum": true,
-                            "default": 120000,
-                            "description": "Timeout for tool confirmation requests in milliseconds, defaults to 120000ms (2 mins)"
+                            "description": "Timeout for tool confirmation requests in milliseconds (optional - no timeout if not specified)"
                           },
                           "allowedToolsStorage": {
                             "type": "string",
@@ -11262,8 +11261,7 @@
                             "type": "integer",
                             "minimum": 0,
                             "exclusiveMinimum": true,
-                            "default": 120000,
-                            "description": "Timeout for elicitation requests in milliseconds, defaults to 120000ms (2 mins)"
+                            "description": "Timeout for elicitation requests in milliseconds (optional - no timeout if not specified)"
                           }
                         },
                         "default": {},

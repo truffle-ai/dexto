@@ -82,11 +82,10 @@ export class PostgresStore implements Database {
         this.checkConnection();
         const client = await this.pool!.connect();
         try {
-            // Serialize to JSON for JSONB column
-            const serialized = JSON.stringify(value);
+            // pg driver handles JSONB conversion automatically
             await client.query(
                 'INSERT INTO kv (key, value, updated_at) VALUES ($1, $2, $3) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = $3',
-                [key, serialized, new Date()]
+                [key, value, new Date()]
             );
         } catch (error) {
             throw StorageError.writeFailed(
@@ -143,11 +142,10 @@ export class PostgresStore implements Database {
         this.checkConnection();
         const client = await this.pool!.connect();
         try {
-            // Serialize to JSON for JSONB column
-            const serialized = JSON.stringify(item);
+            // pg driver handles JSONB conversion automatically
             await client.query('INSERT INTO lists (key, item, created_at) VALUES ($1, $2, $3)', [
                 key,
-                serialized,
+                item,
                 new Date(),
             ]);
         } catch (error) {

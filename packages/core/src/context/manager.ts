@@ -576,10 +576,12 @@ export class ContextManager<TMessage = unknown> {
      * Adds a tool result message to the conversation.
      * The result must already be sanitized - this method only persists it.
      *
+     * Success status is read from sanitizedResult.meta.success (single source of truth).
+     *
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
-     * @param sanitizedResult The already-sanitized result to store
-     * @param metadata Optional metadata including success status and approval info
+     * @param sanitizedResult The already-sanitized result to store (includes success in meta)
+     * @param metadata Optional approval-related metadata
      * @throws Error if required parameters are missing
      */
     async addToolResult(
@@ -587,7 +589,6 @@ export class ContextManager<TMessage = unknown> {
         name: string,
         sanitizedResult: SanitizedToolResult,
         metadata?: {
-            success?: boolean;
             requireApproval?: boolean;
             approvalStatus?: 'approved' | 'rejected';
         }
@@ -614,8 +615,8 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
-            // Always persist success status explicitly when provided
-            ...(metadata?.success !== undefined && { success: metadata.success }),
+            // Success status comes from sanitizedResult.meta (single source of truth)
+            success: sanitizedResult.meta.success,
             // Persist approval metadata for frontend display after reload
             ...(metadata?.requireApproval !== undefined && {
                 requireApproval: metadata.requireApproval,

@@ -143,15 +143,12 @@ export class StreamProcessor {
                         // Get approval metadata for this tool call
                         const approval = this.approvalMetadata?.get(event.toolCallId);
 
-                        // Persist to history with success status and approval metadata
+                        // Persist to history (success status comes from truncated.meta.success)
                         await this.contextManager.addToolResult(
                             event.toolCallId,
                             event.toolName,
-                            truncated, // We pass the sanitized & truncated result
-                            {
-                                success: true,
-                                ...approval,
-                            }
+                            truncated, // Includes meta.success from sanitization
+                            approval // Only approval metadata if present
                         );
 
                         this.eventBus.emit('llm:tool-result', {

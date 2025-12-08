@@ -543,16 +543,17 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            // Verify addToolResult was called with sanitized result structure and success status
+            // Verify addToolResult was called with sanitized result containing meta.success
             expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
                 'call-1',
                 'test_tool',
                 expect.objectContaining({
                     content: expect.arrayContaining([expect.objectContaining({ type: 'text' })]),
+                    meta: expect.objectContaining({
+                        success: true, // Success status is in sanitizedResult.meta
+                    }),
                 }),
-                expect.objectContaining({
-                    success: true, // Tool results should always be marked as successful
-                })
+                undefined // No approval metadata for this call
             );
         });
 
@@ -619,18 +620,20 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            // Verify addToolResult is called with success: true for storage/rehydration
+            // Verify addToolResult is called with success in meta for storage/rehydration
             expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
                 'call-rehydrate',
                 'storage_tool',
-                expect.any(Object),
                 expect.objectContaining({
-                    success: true,
-                })
+                    meta: expect.objectContaining({
+                        success: true, // Success status is in sanitizedResult.meta
+                    }),
+                }),
+                undefined // No approval metadata for this call
             );
         });
 
-        test('merges approval metadata with success status', async () => {
+        test('passes approval metadata separately from success status', async () => {
             const mocks = createMocks();
 
             // Create approval metadata to pass via constructor
@@ -666,13 +669,16 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            // Verify both success status and approval metadata are passed
+            // Verify success is in meta, approval metadata passed separately
             expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
                 'call-with-approval',
                 'approved_tool',
-                expect.any(Object),
                 expect.objectContaining({
-                    success: true,
+                    meta: expect.objectContaining({
+                        success: true, // Success status is in sanitizedResult.meta
+                    }),
+                }),
+                expect.objectContaining({
                     requireApproval: true,
                     approvalStatus: 'approved',
                 })
