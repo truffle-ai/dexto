@@ -210,12 +210,6 @@ dexto --mode cli
 ### In Other Modes
 
 ```bash
-# Discord bot with custom agent
-dexto --mode discord --agent customer-support-agent
-
-# Telegram bot with custom agent
-dexto --mode telegram --agent research-assistant
-
 # MCP server with custom agent
 dexto --mode mcp --agent coding-assistant
 ```

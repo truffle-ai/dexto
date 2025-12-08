@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import https from 'https';
 import http from 'http'; // ADDED for http support
-import { DextoAgent } from '@dexto/core';
+import { DextoAgent, logger } from '@dexto/core';
 
 // Load environment variables
 dotenv.config();
@@ -20,9 +20,27 @@ if (Number.isNaN(COOLDOWN_SECONDS) || COOLDOWN_SECONDS < 0) {
     COOLDOWN_SECONDS = 5; // Default to a safe value
 }
 
+// Helper to detect MIME type from file extension
+function getMimeTypeFromPath(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    const mimeTypes: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        ogg: 'audio/ogg',
+        mp3: 'audio/mpeg',
+        wav: 'audio/wav',
+        m4a: 'audio/mp4',
+    };
+    return mimeTypes[ext] || 'application/octet-stream';
+}
+
 // Helper to download a file URL and convert it to base64
 async function downloadFileAsBase64(
-    fileUrl: string
+    fileUrl: string,
+    fileName?: string
 ): Promise<{ base64: string; mimeType: string }> {
     return new Promise((resolve, reject) => {
         const protocol = fileUrl.startsWith('https:') ? https : http; // Determine protocol
@@ -53,8 +71,14 @@ async function downloadFileAsBase64(
             res.on('end', () => {
                 if (req.destroyed) return; // If request was destroyed due to size limit, do nothing
                 const buffer = Buffer.concat(chunks);
-                const contentType =
+                let contentType =
                     (res.headers['content-type'] as string) || 'application/octet-stream';
+
+                // If server returns generic octet-stream, try to detect from file name
+                if (contentType === 'application/octet-stream' && fileName) {
+                    contentType = getMimeTypeFromPath(fileName);
+                }
+
                 resolve({ base64: buffer.toString('base64'), mimeType: contentType });
             });
             // Handle errors on the response stream itself (e.g., premature close)
@@ -133,15 +157,55 @@ export function startDiscordBot(agent: DextoAgent) {
         }
 
         let userText: string | undefined = message.content;
-        let imageDataInput: any;
+        let imageDataInput: { image: string; mimeType: string } | undefined;
+        let fileDataInput: { data: string; mimeType: string; filename?: string } | undefined;
 
-        // Handle attachments (images)
+        // Helper to determine if mime type is audio
+        const isAudioMimeType = (mimeType: string): boolean => {
+            return mimeType.startsWith('audio/');
+        };
+
+        // Handle attachments (images and audio)
         if (message.attachments.size > 0) {
             const attachment = message.attachments.first();
             if (attachment && attachment.url) {
-                const { base64, mimeType } = await downloadFileAsBase64(attachment.url);
-                imageDataInput = { image: base64, mimeType };
-                userText = message.content || '';
+                try {
+                    const { base64, mimeType } = await downloadFileAsBase64(
+                        attachment.url,
+                        attachment.name || 'file'
+                    );
+
+                    if (isAudioMimeType(mimeType)) {
+                        // Handle audio files
+                        fileDataInput = {
+                            data: base64,
+                            mimeType,
+                            filename: attachment.name || 'audio.wav',
+                        };
+                        // Add context if only audio (no text in message)
+                        if (!userText) {
+                            userText =
+                                '(User sent an audio message for transcription and analysis)';
+                        }
+                    } else if (mimeType.startsWith('image/')) {
+                        // Handle image files
+                        imageDataInput = { image: base64, mimeType };
+                        userText = message.content || '';
+                    }
+                } catch (downloadError) {
+                    console.error('Failed to download attachment:', downloadError);
+                    try {
+                        await message.reply(
+                            `⚠️ Failed to download attachment: ${downloadError instanceof Error ? downloadError.message : 'Unknown error'}. Please try again or send the message without the attachment.`
+                        );
+                    } catch (replyError) {
+                        console.error('Error sending attachment failure message:', replyError);
+                    }
+                    // Continue without the attachment - if there's text content, process that
+                    if (!userText) {
+                        return; // If there's no text and attachment failed, nothing to process
+                    }
+                }
             }
         }
 
@@ -153,29 +217,34 @@ export function startDiscordBot(agent: DextoAgent) {
             if (!userText) return;
 
             // Subscribe for toolCall events
-            const toolCallHandler = (payload: { toolName: string; args: any; callId?: string }) => {
-                message.channel
-                    .send(
-                        `🔧 Calling tool **${payload.toolName}** with args: ${JSON.stringify(payload.args)}`
-                    )
-                    .catch((error) => {
-                        console.error(
-                            `Failed to send tool call notification for ${payload.toolName} to channel ${message.channel.id}:`,
-                            error
-                        );
-                    });
+            const toolCallHandler = (payload: {
+                toolName: string;
+                args: unknown;
+                callId?: string;
+                sessionId: string;
+            }) => {
+                message.channel.send(`🔧 Calling tool **${payload.toolName}**`).catch((error) => {
+                    console.error(
+                        `Failed to send tool call notification for ${payload.toolName} to channel ${message.channel.id}:`,
+                        error
+                    );
+                });
             };
             agentEventBus.on('llm:tool-call', toolCallHandler);
 
             try {
                 const sessionId = getDiscordSessionId(message.author.id);
                 await message.channel.sendTyping();
-                const responseText = await agent.run(
-                    userText,
-                    imageDataInput,
-                    undefined,
-                    sessionId
-                );
+
+                // Use modern generate() API with proper options structure
+                const response = await agent.generate(userText, {
+                    sessionId,
+                    imageData: imageDataInput,
+                    fileData: fileDataInput,
+                });
+
+                const responseText = response.content;
+
                 // Handle Discord's 2000 character limit
                 const MAX_LENGTH = 1900; // Leave some buffer
                 if (responseText && responseText.length <= MAX_LENGTH) {
@@ -194,22 +263,28 @@ export function startDiscordBot(agent: DextoAgent) {
                             isFirst = false;
                         } else {
                             // For subsequent chunks, use message.channel.send to avoid a chain of replies
-                            // and to ensure messages are sent in order.
-                            // Adding a small delay can also help with ordering and rate limits.
+                            // Adding a small delay helps with ordering and rate limits
                             await new Promise((resolve) => setTimeout(resolve, 250)); // 250ms delay
                             await message.channel.send(chunk);
                         }
                     }
                 } else {
                     await message.reply(
-                        'I received your message but could not generate a response.'
+                        '🤖 I received your message but could not generate a response.'
+                    );
+                }
+
+                // Log token usage if available (optional analytics)
+                if (response.usage) {
+                    logger.debug(
+                        `Session ${sessionId} - Tokens: input=${response.usage.inputTokens}, output=${response.usage.outputTokens}`
                     );
                 }
             } catch (error) {
                 console.error('Error handling Discord message', error);
                 try {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                    await message.reply(`Error: ${errorMessage}`);
+                    await message.reply(`❌ Error: ${errorMessage}`);
                 } catch (replyError) {
                     console.error('Error sending error reply:', replyError);
                 }
