@@ -190,7 +190,7 @@ Discord Message
     ↓
 startDiscordBot() wires up event handlers
     ↓
-agent.run() processes the message
+agent.generate() processes the message
     ↓
 Response sent back to Discord
     ↓
