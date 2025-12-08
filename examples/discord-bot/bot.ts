@@ -169,26 +169,42 @@ export function startDiscordBot(agent: DextoAgent) {
         if (message.attachments.size > 0) {
             const attachment = message.attachments.first();
             if (attachment && attachment.url) {
-                const { base64, mimeType } = await downloadFileAsBase64(
-                    attachment.url,
-                    attachment.name || 'file'
-                );
+                try {
+                    const { base64, mimeType } = await downloadFileAsBase64(
+                        attachment.url,
+                        attachment.name || 'file'
+                    );
 
-                if (isAudioMimeType(mimeType)) {
-                    // Handle audio files
-                    fileDataInput = {
-                        data: base64,
-                        mimeType,
-                        filename: attachment.name || 'audio.wav',
-                    };
-                    // Add context if only audio (no text in message)
-                    if (!userText) {
-                        userText = '(User sent an audio message for transcription and analysis)';
+                    if (isAudioMimeType(mimeType)) {
+                        // Handle audio files
+                        fileDataInput = {
+                            data: base64,
+                            mimeType,
+                            filename: attachment.name || 'audio.wav',
+                        };
+                        // Add context if only audio (no text in message)
+                        if (!userText) {
+                            userText =
+                                '(User sent an audio message for transcription and analysis)';
+                        }
+                    } else if (mimeType.startsWith('image/')) {
+                        // Handle image files
+                        imageDataInput = { image: base64, mimeType };
+                        userText = message.content || '';
                     }
-                } else if (mimeType.startsWith('image/')) {
-                    // Handle image files
-                    imageDataInput = { image: base64, mimeType };
-                    userText = message.content || '';
+                } catch (downloadError) {
+                    console.error('Failed to download attachment:', downloadError);
+                    try {
+                        await message.reply(
+                            `⚠️ Failed to download attachment: ${downloadError instanceof Error ? downloadError.message : 'Unknown error'}. Please try again or send the message without the attachment.`
+                        );
+                    } catch (replyError) {
+                        console.error('Error sending attachment failure message:', replyError);
+                    }
+                    // Continue without the attachment - if there's text content, process that
+                    if (!userText) {
+                        return; // If there's no text and attachment failed, nothing to process
+                    }
                 }
             }
         }
