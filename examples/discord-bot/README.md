@@ -67,19 +67,17 @@ Edit `.env` and add:
 3. Select permissions: `Send Messages`, `Read Messages`, `Read Message History`, `Attach Files`
 4. Copy the generated URL and visit it to invite your bot to your server
 
-### 4. Install Dependencies (from monorepo root)
+### 4. Install Dependencies
 
-Since this example is part of the Dexto monorepo, install dependencies from the project root:
+Install the required dependencies:
 
 ```bash
-# From the Dexto project root
-cd /path/to/dexto
 pnpm install
 ```
 
 ### 5. Run the Bot
 
-From the `examples/discord-bot/` directory:
+Start the bot:
 
 ```bash
 pnpm start

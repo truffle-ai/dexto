@@ -64,19 +64,17 @@ Edit `.env` and add:
 - **Anthropic**: https://console.anthropic.com/account/keys
 - **Google**: https://ai.google.dev
 
-### 3. Install Dependencies (from monorepo root)
+### 3. Install Dependencies
 
-Since this example is part of the Dexto monorepo, install dependencies from the project root:
+Install the required dependencies:
 
 ```bash
-# From the Dexto project root
-cd /path/to/dexto
 pnpm install
 ```
 
 ### 4. Run the Bot
 
-From the `examples/telegram-bot/` directory:
+Start the bot:
 
 ```bash
 pnpm start
