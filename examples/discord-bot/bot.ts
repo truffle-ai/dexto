@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import https from 'https';
 import http from 'http'; // ADDED for http support
-import { DextoAgent } from '@dexto/core';
+import { DextoAgent, logger } from '@dexto/core';
 
 // Load environment variables
 dotenv.config();
@@ -162,11 +162,7 @@ export function startDiscordBot(agent: DextoAgent) {
 
         // Helper to determine if mime type is audio
         const isAudioMimeType = (mimeType: string): boolean => {
-            return (
-                mimeType.startsWith('audio/') ||
-                mimeType.includes('wav') ||
-                mimeType.includes('mp3')
-            );
+            return mimeType.startsWith('audio/');
         };
 
         // Handle attachments (images and audio)
@@ -207,7 +203,7 @@ export function startDiscordBot(agent: DextoAgent) {
             // Subscribe for toolCall events
             const toolCallHandler = (payload: {
                 toolName: string;
-                args: any;
+                args: unknown;
                 callId?: string;
                 sessionId: string;
             }) => {
@@ -264,7 +260,7 @@ export function startDiscordBot(agent: DextoAgent) {
 
                 // Log token usage if available (optional analytics)
                 if (response.usage) {
-                    console.debug(
+                    logger.debug(
                         `Session ${sessionId} - Tokens: input=${response.usage.inputTokens}, output=${response.usage.outputTokens}`
                     );
                 }

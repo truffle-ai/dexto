@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
+
+// Type for inline query result article (matching what we create)
+type InlineQueryResultArticle = {
+    type: 'article';
+    id: string;
+    title: string;
+    input_message_content: { message_text: string };
+    description: string;
+};
 import * as https from 'https';
 import { DextoAgent, logger } from '@dexto/core';
 
@@ -12,7 +21,34 @@ const MAX_CONCURRENT_INLINE_QUERIES = process.env.TELEGRAM_INLINE_QUERY_CONCURRE
     : 5;
 let currentInlineQueries = 0;
 const INLINE_QUERY_DEBOUNCE_INTERVAL = 2000; // ms
-const inlineQueryCache: Record<string, { timestamp: number; results: any[] }> = {};
+const INLINE_QUERY_CACHE_MAX_SIZE = 1000;
+const inlineQueryCache: Record<string, { timestamp: number; results: InlineQueryResultArticle[] }> =
+    {};
+
+// Cleanup old cache entries to prevent unbounded growth
+function cleanupInlineQueryCache(): void {
+    const now = Date.now();
+    const keys = Object.keys(inlineQueryCache);
+
+    // Remove expired entries
+    for (const key of keys) {
+        if (now - inlineQueryCache[key]!.timestamp > INLINE_QUERY_DEBOUNCE_INTERVAL) {
+            delete inlineQueryCache[key];
+        }
+    }
+
+    // If still over limit, remove oldest entries
+    const remainingKeys = Object.keys(inlineQueryCache);
+    if (remainingKeys.length > INLINE_QUERY_CACHE_MAX_SIZE) {
+        const sortedKeys = remainingKeys.sort(
+            (a, b) => inlineQueryCache[a]!.timestamp - inlineQueryCache[b]!.timestamp
+        );
+        const toRemove = sortedKeys.slice(0, remainingKeys.length - INLINE_QUERY_CACHE_MAX_SIZE);
+        for (const key of toRemove) {
+            delete inlineQueryCache[key];
+        }
+    }
+}
 
 // Cache for prompts loaded from DextoAgent
 let cachedPrompts: Record<string, import('@dexto/core').PromptInfo> = {};
@@ -40,29 +76,53 @@ async function downloadFileAsBase64(
     filePath?: string
 ): Promise<{ base64: string; mimeType: string }> {
     return new Promise((resolve, reject) => {
-        https
-            .get(fileUrl, (res) => {
-                if (res.statusCode && res.statusCode >= 400) {
-                    return reject(
-                        new Error(`Failed to download file: ${res.statusCode} ${res.statusMessage}`)
-                    );
+        const MAX_BYTES = 5 * 1024 * 1024; // 5 MB hard cap
+        let downloadedBytes = 0;
+
+        const req = https.get(fileUrl, (res) => {
+            if (res.statusCode && res.statusCode >= 400) {
+                res.resume();
+                return reject(
+                    new Error(`Failed to download file: ${res.statusCode} ${res.statusMessage}`)
+                );
+            }
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                if (downloadedBytes > MAX_BYTES) {
+                    res.resume();
+                    req.destroy(new Error('Attachment exceeds 5 MB limit'));
+                    return;
                 }
-                const chunks: Buffer[] = [];
-                res.on('data', (chunk) => chunks.push(chunk));
-                res.on('end', () => {
-                    const buffer = Buffer.concat(chunks);
-                    let contentType =
-                        (res.headers['content-type'] as string) || 'application/octet-stream';
+                chunks.push(chunk);
+            });
+            res.on('end', () => {
+                if (req.destroyed) return;
+                const buffer = Buffer.concat(chunks);
+                let contentType =
+                    (res.headers['content-type'] as string) || 'application/octet-stream';
 
-                    // If server returns generic octet-stream, try to detect from file path
-                    if (contentType === 'application/octet-stream' && filePath) {
-                        contentType = getMimeTypeFromPath(filePath);
-                    }
+                // If server returns generic octet-stream, try to detect from file path
+                if (contentType === 'application/octet-stream' && filePath) {
+                    contentType = getMimeTypeFromPath(filePath);
+                }
 
-                    resolve({ base64: buffer.toString('base64'), mimeType: contentType });
-                });
-            })
-            .on('error', reject);
+                resolve({ base64: buffer.toString('base64'), mimeType: contentType });
+            });
+            res.on('error', (err) => {
+                if (!req.destroyed) {
+                    reject(err);
+                }
+            });
+        });
+
+        req.on('error', reject);
+
+        req.setTimeout(30000, () => {
+            if (!req.destroyed) {
+                req.destroy(new Error('File download timed out'));
+            }
+        });
     });
 }
 
@@ -71,9 +131,9 @@ async function loadPrompts(agent: DextoAgent): Promise<void> {
     try {
         cachedPrompts = await agent.listPrompts();
         const count = Object.keys(cachedPrompts).length;
-        console.log(`📝 Loaded ${count} prompts from DextoAgent`);
+        logger.info(`📝 Loaded ${count} prompts from DextoAgent`, 'green');
     } catch (error) {
-        console.error('Failed to load prompts:', error);
+        logger.error(`Failed to load prompts: ${error instanceof Error ? error.message : error}`);
         cachedPrompts = {};
     }
 }
@@ -91,7 +151,7 @@ export async function startTelegramBot(agent: DextoAgent) {
 
     // Create and start Telegram Bot
     const bot = new Bot(token);
-    console.log('Telegram bot started');
+    logger.info('Telegram bot started', 'green');
 
     // Helper to get or create session for a Telegram user
     // Each Telegram user gets their own persistent session
@@ -175,7 +235,9 @@ export async function startTelegramBot(agent: DextoAgent) {
                 const response = await agent.generate(result.text, { sessionId });
                 await ctx.reply(response.content || '🤖 No response generated');
             } catch (err) {
-                console.error(`Error handling /${promptName} command`, err);
+                logger.error(
+                    `Error handling /${promptName} command: ${err instanceof Error ? err.message : err}`
+                );
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
                 await ctx.reply(`Error: ${errorMessage}`);
             }
@@ -230,7 +292,9 @@ export async function startTelegramBot(agent: DextoAgent) {
                     const response = await agent.generate(result.text, { sessionId });
                     await ctx.reply(response.content || '🤖 No response generated');
                 } catch (error) {
-                    console.error(`Error executing prompt ${promptName}:`, error);
+                    logger.error(
+                        `Error executing prompt ${promptName}: ${error instanceof Error ? error.message : error}`
+                    );
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                     await ctx.reply(`❌ Error: ${errorMessage}`);
                 }
@@ -256,13 +320,17 @@ export async function startTelegramBot(agent: DextoAgent) {
                 await ctx.reply(helpText, { parse_mode: 'Markdown' });
             }
         } catch (error) {
-            console.error('Error handling callback query', error);
+            logger.error(
+                `Error handling callback query: ${error instanceof Error ? error.message : error}`
+            );
             await ctx.answerCallbackQuery({ text: '❌ Error occurred' });
             try {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                 await ctx.reply(`Error: ${errorMessage}`);
             } catch (e) {
-                console.error('Failed to send error message for callback query', e);
+                logger.error(
+                    `Failed to send error message for callback query: ${e instanceof Error ? e.message : e}`
+                );
             }
         }
     });
@@ -286,7 +354,9 @@ export async function startTelegramBot(agent: DextoAgent) {
             const response = await agent.generate(question, { sessionId });
             await ctx.reply(response.content || '🤖 No response generated');
         } catch (err) {
-            console.error('Error handling /ask command', err);
+            logger.error(
+                `Error handling /ask command: ${err instanceof Error ? err.message : err}`
+            );
             const errorMessage = err instanceof Error ? err.message : 'Unknown error';
             await ctx.reply(`Error: ${errorMessage}`);
         }
@@ -342,11 +412,14 @@ export async function startTelegramBot(agent: DextoAgent) {
                 },
             ];
 
-            // Cache the results
+            // Cache the results (cleanup old entries first to prevent unbounded growth)
+            cleanupInlineQueryCache();
             inlineQueryCache[cacheKey] = { timestamp: now, results };
             await ctx.answerInlineQuery(results);
         } catch (error) {
-            console.error('Error handling inline query', error);
+            logger.error(
+                `Error handling inline query: ${error instanceof Error ? error.message : error}`
+            );
             // Inform user about the error through inline results
             try {
                 await ctx.answerInlineQuery([
@@ -361,7 +434,9 @@ export async function startTelegramBot(agent: DextoAgent) {
                     },
                 ]);
             } catch (e) {
-                console.error('Failed to send inline query error', e);
+                logger.error(
+                    `Failed to send inline query error: ${e instanceof Error ? e.message : e}`
+                );
             }
         } finally {
             currentInlineQueries--;
@@ -410,7 +485,9 @@ export async function startTelegramBot(agent: DextoAgent) {
                 }
             }
         } catch (err) {
-            console.error('Failed to process attached media in Telegram bot', err);
+            logger.error(
+                `Failed to process attached media in Telegram bot: ${err instanceof Error ? err.message : err}`
+            );
             try {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
                 if (isAudioMessage) {
@@ -419,7 +496,9 @@ export async function startTelegramBot(agent: DextoAgent) {
                     await ctx.reply(`🖼️ Error processing image: ${errorMessage}`);
                 }
             } catch (sendError) {
-                console.error('Failed to send error message to user', sendError);
+                logger.error(
+                    `Failed to send error message to user: ${sendError instanceof Error ? sendError.message : sendError}`
+                );
             }
             return; // Stop processing if media handling fails
         }
@@ -441,7 +520,7 @@ export async function startTelegramBot(agent: DextoAgent) {
         // Subscribe for toolCall events
         const toolCallHandler = (payload: {
             toolName: string;
-            args: any;
+            args: unknown;
             callId?: string;
             sessionId: string;
         }) => {
@@ -472,7 +551,9 @@ export async function startTelegramBot(agent: DextoAgent) {
                 );
             }
         } catch (error) {
-            console.error('Error handling Telegram message', error);
+            logger.error(
+                `Error handling Telegram message: ${error instanceof Error ? error.message : error}`
+            );
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             await ctx.reply(`❌ Error: ${errorMessage}`);
         } finally {

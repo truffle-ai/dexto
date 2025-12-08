@@ -605,7 +605,7 @@ program
         )
     );
 
-// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/discord/telegram)
+// 10) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
     .argument(
         '[prompt...]',
@@ -639,8 +639,6 @@ program
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
-            '  dexto --mode discord     Run as Discord bot\n' +
-            '  dexto --mode telegram    Run as Telegram bot\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
             'See https://docs.dexto.ai for documentation and examples'
     )
@@ -1269,8 +1267,8 @@ program
                             console.error('');
                             console.error(`To run it:`);
                             console.error(`  cd examples/${opts.mode}-bot`);
-                            console.error(`  npm install`);
-                            console.error(`  npm start`);
+                            console.error(`  pnpm install`);
+                            console.error(`  pnpm start`);
                         } else {
                             console.error(
                                 `❌ Unknown mode '${opts.mode}'. Use web, cli, server, or mcp.`

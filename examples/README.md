@@ -21,10 +21,10 @@ A complete Discord bot integration using discord.js and the Discord Gateway API.
 **Quick Start:**
 ```bash
 cd discord-bot
-npm install
+pnpm install
 cp .env.example .env
 # Add your DISCORD_BOT_TOKEN to .env
-npm start
+pnpm start
 ```
 
 **See:** [`discord-bot/README.md`](./discord-bot/README.md) for detailed setup and usage instructions.
@@ -46,10 +46,10 @@ A complete Telegram bot integration using grammy and the Telegram Bot API.
 **Quick Start:**
 ```bash
 cd telegram-bot
-npm install
+pnpm install
 cp .env.example .env
 # Add your TELEGRAM_BOT_TOKEN to .env
-npm start
+pnpm start
 ```
 
 **See:** [`telegram-bot/README.md`](./telegram-bot/README.md) for detailed setup and usage instructions.
@@ -86,23 +86,9 @@ Shows a pattern for implementing a multi-agent coordinator/specialist architectu
 
 A simple HTTP server example demonstrating Dexto's resource authorization flow.
 
-### Vercel Deployment (`vercel-server/`)
-
-Configuration example for deploying a Dexto server to Vercel.
-
-### Camera Agent (`camera-agent/`)
-
-An example agent that processes camera/image input.
-
 ## Agent Configuration Examples
 
-See the `/agents/examples/` directory for YAML configuration examples for different use cases:
-
-- `linear-task-manager.yml` - Linear issue management integration
-- `email_slack.yml` - Email and Slack integration
-- `notion.yml` - Notion workspace management
-- `ollama.yml` - Local LLM integration
-- `website_designer.yml` - Web design assistance
+See the `/agents/` directory for YAML configuration examples for different use cases.
 
 ## How to Use These Examples
 
