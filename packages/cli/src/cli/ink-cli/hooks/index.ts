@@ -18,6 +18,7 @@ export {
     type AutocompleteHandlerProps,
     type MainInputHandlerProps,
 } from './useInputOrchestrator.js';
+export { useMouseScroll, type UseMouseScrollOptions } from './useMouseScroll.js';
 // useInputHistory removed - history navigation now handled by MultiLineTextInput
 // useOverlayManager removed - overlay management now done via dispatch directly
 // useSessionSync removed - sessionId now managed in state directly

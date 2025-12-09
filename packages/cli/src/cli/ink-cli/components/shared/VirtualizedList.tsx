@@ -163,13 +163,18 @@ function VirtualizedListInner<T>(
             return 0;
         }
 
+        let rawScrollTop: number;
         if (scrollAnchor.offset === SCROLL_TO_ITEM_END) {
             const itemHeight = heights[scrollAnchor.index] ?? 0;
-            return offset + itemHeight - scrollableContainerHeight;
+            rawScrollTop = offset + itemHeight - scrollableContainerHeight;
+        } else {
+            rawScrollTop = offset + scrollAnchor.offset;
         }
 
-        return offset + scrollAnchor.offset;
-    }, [scrollAnchor, offsets, heights, scrollableContainerHeight]);
+        // Clamp to valid range - negative scrollTop causes content to vanish!
+        const maxScroll = Math.max(0, totalHeight - scrollableContainerHeight);
+        return Math.max(0, Math.min(maxScroll, rawScrollTop));
+    }, [scrollAnchor, offsets, heights, scrollableContainerHeight, totalHeight]);
 
     const startIndex = Math.max(0, findLastIndex(offsets, (offset) => offset <= scrollTop) - 1);
     const endIndexOffset = offsets.findIndex(

@@ -32,84 +32,107 @@ interface MessageItemProps {
 /**
  * Pure presentational component for a single message
  * Visual hierarchy through colors and spacing only (no borders for easy text copying)
+ *
+ * Memoization with custom comparator prevents re-renders when message array changes
+ * but individual message content hasn't changed.
  */
-export const MessageItem = memo(({ message }: MessageItemProps) => {
-    // Check for styled message first
-    if (message.styledType && message.styledData) {
-        switch (message.styledType) {
-            case 'config':
-                return <ConfigBox data={message.styledData as ConfigStyledData} />;
-            case 'stats':
-                return <StatsBox data={message.styledData as StatsStyledData} />;
-            case 'help':
-                return <HelpBox data={message.styledData as HelpStyledData} />;
-            case 'session-list':
-                return <SessionListBox data={message.styledData as SessionListStyledData} />;
-            case 'session-history':
-                return <SessionHistoryBox data={message.styledData as SessionHistoryStyledData} />;
-            case 'log-config':
-                return <LogConfigBox data={message.styledData as LogConfigStyledData} />;
+export const MessageItem = memo(
+    ({ message }: MessageItemProps) => {
+        // Check for styled message first
+        if (message.styledType && message.styledData) {
+            switch (message.styledType) {
+                case 'config':
+                    return <ConfigBox data={message.styledData as ConfigStyledData} />;
+                case 'stats':
+                    return <StatsBox data={message.styledData as StatsStyledData} />;
+                case 'help':
+                    return <HelpBox data={message.styledData as HelpStyledData} />;
+                case 'session-list':
+                    return <SessionListBox data={message.styledData as SessionListStyledData} />;
+                case 'session-history':
+                    return (
+                        <SessionHistoryBox data={message.styledData as SessionHistoryStyledData} />
+                    );
+                case 'log-config':
+                    return <LogConfigBox data={message.styledData as LogConfigStyledData} />;
+            }
         }
-    }
 
-    // User message: Simple '>' with dim background for easy scanning
-    if (message.role === 'user') {
-        return (
-            <Box flexDirection="column" marginTop={2} marginBottom={1}>
-                <Box flexDirection="row" paddingX={1} backgroundColor="gray">
-                    <Text color="green" dimColor>
-                        {'> '}
-                    </Text>
-                    <Text color="white">{message.content}</Text>
-                </Box>
-            </Box>
-        );
-    }
-
-    // Assistant message: Cyan accent bar with white text
-    if (message.role === 'assistant') {
-        return (
-            <Box flexDirection="column" marginBottom={1}>
-                <Box flexDirection="row">
-                    <Text color="cyan" bold>
-                        ▍{' '}
-                    </Text>
-                    <Box flexDirection="column" flexGrow={1}>
-                        <Text color="white">{message.content || ' '}</Text>
+        // User message: Simple '>' with dim background for easy scanning
+        if (message.role === 'user') {
+            return (
+                <Box flexDirection="column" marginTop={2} marginBottom={1}>
+                    <Box flexDirection="row" paddingX={1} backgroundColor="gray">
+                        <Text color="green" dimColor>
+                            {'> '}
+                        </Text>
+                        <Text color="white">{message.content}</Text>
                     </Box>
                 </Box>
-            </Box>
-        );
-    }
+            );
+        }
 
-    // Tool message: Animated icon with status-based colors
-    if (message.role === 'tool') {
-        const toolStatus = message.toolStatus || 'running';
-        const textColor = toolStatus === 'finished' ? 'green' : 'magentaBright';
+        // Assistant message: Cyan accent bar with white text
+        if (message.role === 'assistant') {
+            return (
+                <Box flexDirection="column" marginBottom={1}>
+                    <Box flexDirection="row">
+                        <Text color="cyan" bold>
+                            ▍{' '}
+                        </Text>
+                        <Box flexDirection="column" flexGrow={1}>
+                            <Text color="white">{message.content || ' '}</Text>
+                        </Box>
+                    </Box>
+                </Box>
+            );
+        }
 
+        // Tool message: Animated icon with status-based colors
+        if (message.role === 'tool') {
+            const toolStatus = message.toolStatus || 'running';
+            const textColor = toolStatus === 'finished' ? 'green' : 'magentaBright';
+
+            return (
+                <Box flexDirection="column" marginBottom={1}>
+                    <Box flexDirection="row">
+                        <ToolIcon status={toolStatus} />
+                        <Text color={textColor} bold>
+                            {message.content}
+                        </Text>
+                    </Box>
+                    {message.toolResult && (
+                        <Box marginLeft={2} marginTop={0} flexDirection="column">
+                            <Text color="gray" dimColor>
+                                {message.toolResult}
+                            </Text>
+                        </Box>
+                    )}
+                </Box>
+            );
+        }
+
+        // System message: Compact gray text
         return (
             <Box flexDirection="column" marginBottom={1}>
-                <Box flexDirection="row">
-                    <ToolIcon status={toolStatus} />
-                    <Text color={textColor}>{message.content}</Text>
-                </Box>
-                {message.toolResult && (
-                    <Box marginLeft={2} marginTop={0} flexDirection="column">
-                        <Text color="gray">{message.toolResult}</Text>
-                    </Box>
-                )}
+                <Text color="gray" dimColor>
+                    {message.content}
+                </Text>
             </Box>
         );
+    },
+    // Custom comparator: only re-render if message content actually changed
+    (prev, next) => {
+        return (
+            prev.message.id === next.message.id &&
+            prev.message.content === next.message.content &&
+            prev.message.role === next.message.role &&
+            prev.message.toolStatus === next.message.toolStatus &&
+            prev.message.toolResult === next.message.toolResult &&
+            prev.message.isStreaming === next.message.isStreaming &&
+            prev.message.styledType === next.message.styledType
+        );
     }
-
-    // System message: Compact gray text
-    return (
-        <Box flexDirection="column" marginBottom={1}>
-            <Text color="gray" dimColor>
-                {message.content}
-            </Text>
-        </Box>
-    );
-});
+);
 
 MessageItem.displayName = 'MessageItem';

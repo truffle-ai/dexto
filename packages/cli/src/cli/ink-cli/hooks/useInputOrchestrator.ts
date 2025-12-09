@@ -9,6 +9,9 @@
  * 2. Active overlay (selector/autocomplete)
  * 3. Global shortcuts (Ctrl+C, Escape - handled specially)
  * 4. Main text input (default)
+ *
+ * Also handles mouse scroll events by parsing them from the input stream
+ * and preventing them from being passed to text input.
  */
 
 import type React from 'react';
@@ -17,6 +20,7 @@ import { useInput, useApp, type Key } from 'ink';
 import type { CLIState } from '../state/types.js';
 import type { CLIAction } from '../state/actions.js';
 import type { DextoAgent } from '@dexto/core';
+import { parseMouseEvent } from '../utils/mouse.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
@@ -37,6 +41,10 @@ export interface InputHandlers {
     overlay?: InputHandler;
     /** Handler for main text input (lowest priority) */
     input?: InputHandler;
+    /** Handler for scroll up (mouse/trackpad) */
+    onScrollUp?: () => void;
+    /** Handler for scroll down (mouse/trackpad) */
+    onScrollDown?: () => void;
 }
 
 export interface UseInputOrchestratorProps {
@@ -176,6 +184,33 @@ export function useInputOrchestrator({
     useInput((input, key) => {
         const currentState = stateRef.current;
         const currentHandlers = handlersRef.current;
+
+        // === MOUSE EVENT DETECTION (highest priority) ===
+        // Mouse sequences come through as escape sequences that Ink doesn't fully parse.
+        // We need to detect and handle them here to prevent them from being treated as text.
+        // The sequence looks like: ESC [ < Cb ; Cx ; Cy M/m (SGR format)
+        // Ink may strip the ESC, leaving us with "[<65;43;12M" or similar
+
+        // Check if this looks like a mouse sequence (with or without ESC prefix)
+        const fullSequence = key.escape ? '\x1b' + input : input;
+        const mouseEvent = parseMouseEvent(fullSequence) || parseMouseEvent('\x1b[' + input);
+
+        if (mouseEvent) {
+            // Handle scroll events
+            if (mouseEvent.event.name === 'scroll-up' && currentHandlers.onScrollUp) {
+                currentHandlers.onScrollUp();
+            } else if (mouseEvent.event.name === 'scroll-down' && currentHandlers.onScrollDown) {
+                currentHandlers.onScrollDown();
+            }
+            // Consume all mouse events - don't pass to text input
+            return;
+        }
+
+        // Also filter out partial mouse sequences that leak through
+        // These look like "[<65;43;12M" without the ESC prefix
+        if (input.includes('[<') && /\d+;\d+;\d+[Mm]/.test(input)) {
+            return; // Consume and ignore
+        }
 
         // === GLOBAL SHORTCUTS (always handled first) ===
 
@@ -437,6 +472,8 @@ export function createMainInputHandler({
 }: MainInputHandlerProps): InputHandler {
     return (input: string, key: Key) => {
         if (isDisabled) return false;
+
+        // Note: Mouse sequences are filtered in useInputOrchestrator before reaching here
 
         const lines = value.split('\n');
         const isMultiLine = lines.length > 1;

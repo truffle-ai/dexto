@@ -24,7 +24,7 @@ import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 import { cliReducer, createInitialState, type StartupInfo } from './state/index.js';
 
 // Custom hooks
-import { useAgentEvents, useInputOrchestrator } from './hooks/index.js';
+import { useAgentEvents, useInputOrchestrator, useMouseScroll } from './hooks/index.js';
 
 // Services
 import { InputService, MessageService } from './services/index.js';
@@ -38,8 +38,15 @@ import { MessageItem } from './components/chat/MessageItem.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { StatusBar } from './components/StatusBar.js';
 import { Footer } from './components/Footer.js';
-import { VirtualizedList, SCROLL_TO_ITEM_END } from './components/shared/VirtualizedList.js';
+import {
+    VirtualizedList,
+    SCROLL_TO_ITEM_END,
+    type VirtualizedListRef,
+} from './components/shared/VirtualizedList.js';
 import type { Message } from './state/types.js';
+
+// Union type for virtualized list items: header or message
+type ListItem = { type: 'header' } | { type: 'message'; message: Message };
 
 // Containers
 import { InputContainer, type InputContainerHandle } from './containers/InputContainer.js';
@@ -80,6 +87,7 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     // Refs to container components for unified input handling
     const inputContainerRef = useRef<InputContainerHandle>(null);
     const overlayContainerRef = useRef<OverlayContainerHandle>(null);
+    const listRef = useRef<VirtualizedListRef<ListItem>>(null);
 
     // Setup event bus subscriptions
     useAgentEvents({ agent, dispatch, isCancelling: state.ui.isCancelling });
@@ -100,12 +108,31 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         return overlayContainerRef.current?.handleInput(input, key) ?? false;
     }, []);
 
-    // Main input handler - routes to InputContainer
+    // Main input handler - routes to InputContainer with scroll support
     const inputHandler = useCallback((input: string, key: Key): boolean => {
+        // Handle scroll: Page Up/Down or Shift+Up/Down
+        if (key.pageUp || (key.shift && key.upArrow)) {
+            listRef.current?.scrollBy(-10); // Scroll up 10 lines
+            return true;
+        }
+        if (key.pageDown || (key.shift && key.downArrow)) {
+            listRef.current?.scrollBy(10); // Scroll down 10 lines
+            return true;
+        }
+
         return inputContainerRef.current?.handleInput(input, key) ?? false;
     }, []);
 
+    // Scroll handlers for mouse/trackpad
+    const handleScrollUp = useCallback(() => {
+        listRef.current?.scrollBy(-3); // Scroll up 3 lines
+    }, []);
+    const handleScrollDown = useCallback(() => {
+        listRef.current?.scrollBy(3); // Scroll down 3 lines
+    }, []);
+
     // Setup unified input orchestrator (replaces useKeyboardShortcuts)
+    // Also handles mouse scroll events
     useInputOrchestrator({
         state,
         dispatch,
@@ -114,8 +141,13 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
             approval: approvalHandler,
             overlay: overlayHandler,
             input: inputHandler,
+            onScrollUp: handleScrollUp,
+            onScrollDown: handleScrollDown,
         },
     });
+
+    // Enable mouse events on the terminal (actual handling is in orchestrator)
+    useMouseScroll({ isActive: true });
 
     // Hydrate conversation history when resuming a session
     useEffect(() => {
@@ -216,39 +248,102 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         return messageService.getVisibleMessages(state.messages, 50);
     }, [state.messages, messageService]);
 
+    // Build list data: header as first item, then messages
+    const listData = useMemo<ListItem[]>(() => {
+        const items: ListItem[] = [{ type: 'header' }];
+        for (const msg of visibleMessages) {
+            items.push({ type: 'message', message: msg });
+        }
+        return items;
+    }, [visibleMessages]);
+
     // Get terminal dimensions for alternate buffer mode
     const { stdout } = useStdout();
     const terminalHeight = stdout?.rows ?? 24;
 
     // Callbacks for VirtualizedList
-    const renderMessage = useCallback(
-        ({ item }: { item: Message }) => <MessageItem message={item} />,
-        []
-    );
-    const estimateMessageHeight = useCallback(() => 3, []); // Estimate ~3 lines per message
-    const getMessageKey = useCallback((item: Message) => item.id, []);
-
-    return (
-        <ErrorBoundary>
-            {/* Root container with explicit height for alternate buffer mode */}
-            <Box flexDirection="column" height={terminalHeight}>
-                {/* Header - fixed at top */}
-                <Box flexShrink={0}>
+    const renderListItem = useCallback(
+        ({ item }: { item: ListItem }) => {
+            if (item.type === 'header') {
+                return (
                     <Header
                         modelName={state.session.modelName}
                         sessionId={state.session.id || undefined}
                         hasActiveSession={state.session.hasActiveSession}
                         startupInfo={startupInfo}
                     />
-                </Box>
+                );
+            }
+            return <MessageItem message={item.message} />;
+        },
+        [state.session.modelName, state.session.id, state.session.hasActiveSession, startupInfo]
+    );
 
-                {/* Messages area - virtualized for performance */}
-                <Box flexGrow={1} flexShrink={1} overflow="hidden">
+    // Smart height estimation based on item type and content
+    // This prevents layout shifts when items are measured
+    const estimateItemHeight = useCallback(
+        (index: number) => {
+            const item = listData[index];
+            if (!item) return 3;
+
+            // Header is approximately 10 lines (logo + info)
+            if (item.type === 'header') {
+                return 10;
+            }
+
+            const msg = item.message;
+
+            // Tool messages with results are taller
+            if (msg.role === 'tool') {
+                if (msg.toolResult) {
+                    // Estimate based on result length (roughly 80 chars per line)
+                    const resultLines = Math.ceil(msg.toolResult.length / 80);
+                    return Math.min(2 + resultLines, 10); // Cap at 10 lines
+                }
+                return 2; // Running tool without result
+            }
+
+            // User messages have margin and background
+            if (msg.role === 'user') {
+                const contentLines = Math.ceil(msg.content.length / 80);
+                return Math.max(3, contentLines + 2); // +2 for margins
+            }
+
+            // Assistant messages - estimate based on content length
+            if (msg.role === 'assistant') {
+                if (msg.isStreaming) return 5; // Streaming can grow
+                const contentLines = Math.ceil(msg.content.length / 80);
+                return Math.max(2, contentLines + 1);
+            }
+
+            // System/styled messages
+            if (msg.styledType) {
+                // Styled boxes are typically taller
+                return 8;
+            }
+
+            return 3; // Default
+        },
+        [listData]
+    );
+
+    const getItemKey = useCallback((item: ListItem) => {
+        if (item.type === 'header') return 'header';
+        return item.message.id;
+    }, []);
+
+    return (
+        <ErrorBoundary>
+            {/* Root container with explicit height for alternate buffer mode */}
+            <Box flexDirection="column" height={terminalHeight}>
+                {/* Scrollable content area - header + messages */}
+                <Box flexGrow={1} flexShrink={1} minHeight={0}>
                     <VirtualizedList
-                        data={visibleMessages}
-                        renderItem={renderMessage}
-                        estimatedItemHeight={estimateMessageHeight}
-                        keyExtractor={getMessageKey}
+                        ref={listRef}
+                        data={listData}
+                        renderItem={renderListItem}
+                        estimatedItemHeight={estimateItemHeight}
+                        keyExtractor={getItemKey}
                         initialScrollIndex={SCROLL_TO_ITEM_END}
                         initialScrollOffsetInIndex={SCROLL_TO_ITEM_END}
                     />
