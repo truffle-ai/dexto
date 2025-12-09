@@ -14,7 +14,7 @@ import {
     FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ServerRegistryEntry } from '@/types';
+import type { ServerRegistryEntry } from '@dexto/registry';
 import type { McpServerConfig } from '@dexto/core';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
