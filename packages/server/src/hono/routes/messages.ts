@@ -273,12 +273,29 @@ export function createMessagesRouter(
             if (fileDataInput) agent.logger.info('File data included in message.');
             agent.logger.info(`Message for session: ${sessionId}`);
 
+            // Build content array from message and attachments
+            const content: import('@dexto/core').ContentPart[] = [];
+            if (message) {
+                content.push({ type: 'text', text: message });
+            }
+            if (imageDataInput) {
+                content.push({
+                    type: 'image',
+                    image: imageDataInput.image,
+                    mimeType: imageDataInput.mimeType,
+                });
+            }
+            if (fileDataInput) {
+                content.push({
+                    type: 'file',
+                    data: fileDataInput.data,
+                    mimeType: fileDataInput.mimeType,
+                    ...(fileDataInput.filename && { filename: fileDataInput.filename }),
+                });
+            }
+
             // Use generate() instead of run() to get metadata
-            const result = await agent.generate(message || '', {
-                sessionId,
-                imageData: imageDataInput,
-                fileData: fileDataInput,
-            });
+            const result = await agent.generate(content, sessionId);
 
             // Get the session's current LLM config to include model/provider info
             const llmConfig = agent.stateManager.getLLMConfig(sessionId);
@@ -320,29 +337,33 @@ export function createMessagesRouter(
                 );
             }
 
-            const imageDataInput = imageData
-                ? { image: imageData.image, mimeType: imageData.mimeType }
-                : undefined;
-
-            const fileDataInput = fileData
-                ? {
-                      data: fileData.data,
-                      mimeType: fileData.mimeType,
-                      ...(fileData.filename && { filename: fileData.filename }),
-                  }
-                : undefined;
+            // Build content array from message and attachments
+            const content: import('@dexto/core').ContentPart[] = [];
+            if (message) {
+                content.push({ type: 'text', text: message });
+            }
+            if (imageData) {
+                content.push({
+                    type: 'image',
+                    image: imageData.image,
+                    mimeType: imageData.mimeType,
+                });
+            }
+            if (fileData) {
+                content.push({
+                    type: 'file',
+                    data: fileData.data,
+                    mimeType: fileData.mimeType,
+                    ...(fileData.filename && { filename: fileData.filename }),
+                });
+            }
 
             // Create abort controller for cleanup
             const abortController = new AbortController();
             const { signal } = abortController;
 
             // Start agent streaming
-            const iterator = await agent.stream(message, {
-                sessionId,
-                imageData: imageDataInput,
-                fileData: fileDataInput,
-                signal,
-            });
+            const iterator = await agent.stream(content, sessionId, { signal });
 
             // Use Hono's streamSSE helper which handles backpressure correctly
             return streamSSE(ctx, async (stream) => {
