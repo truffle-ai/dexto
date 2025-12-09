@@ -240,14 +240,19 @@ export class StreamProcessor {
                             );
                         }
 
-                        this.eventBus.emit('llm:response', {
-                            content: this.accumulatedText,
-                            ...(this.reasoningText && { reasoning: this.reasoningText }),
-                            provider: this.config.provider,
-                            model: this.config.model,
-                            tokenUsage: usage,
-                            finishReason: this.finishReason,
-                        });
+                        // Skip empty responses when tools are being called
+                        // The meaningful response will come after tool execution completes
+                        const hasContent = this.accumulatedText || this.reasoningText;
+                        if (this.finishReason !== 'tool-calls' || hasContent) {
+                            this.eventBus.emit('llm:response', {
+                                content: this.accumulatedText,
+                                ...(this.reasoningText && { reasoning: this.reasoningText }),
+                                provider: this.config.provider,
+                                model: this.config.model,
+                                tokenUsage: usage,
+                                finishReason: this.finishReason,
+                            });
+                        }
                         break;
                     }
 

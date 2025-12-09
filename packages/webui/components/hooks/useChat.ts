@@ -157,6 +157,8 @@ export function useChat(
     const suppressNextErrorRef = useRef<boolean>(false);
     // Map callId to message index for O(1) tool result pairing
     const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
+    // When true, llm:chunk events update UI incrementally. When false, wait for llm:response.
+    const isStreamingRef = useRef<boolean>(true);
 
     // Keep analytics ref updated
     useEffect(() => {
@@ -229,6 +231,11 @@ export function useChat(
                     break;
 
                 case 'llm:chunk': {
+                    // When not streaming, skip chunk updates - llm:response will show full content
+                    if (!isStreamingRef.current) {
+                        break;
+                    }
+
                     const text = event.content || '';
                     const chunkType = event.chunkType;
                     //console.log('llm:chunk', event);
@@ -298,8 +305,10 @@ export function useChat(
 
                     setMessages((ms) => {
                         const lastMsg = ms[ms.length - 1];
+                        const finalContent = typeof text === 'string' ? text : '';
+
                         if (lastMsg && lastMsg.role === 'assistant') {
-                            const finalContent = typeof text === 'string' ? text : '';
+                            // Update existing assistant message
                             const updatedMsg: Message = {
                                 ...lastMsg,
                                 content: finalContent,
@@ -309,6 +318,25 @@ export function useChat(
                                 createdAt: Date.now(),
                             };
                             return [...ms.slice(0, -1), updatedMsg];
+                        }
+
+                        // No assistant message exists - create one if we have content
+                        // This handles multi-step turns where llm:response arrives after tool calls
+                        if (finalContent) {
+                            const newId = generateUniqueId();
+                            lastMessageIdRef.current = newId;
+                            return [
+                                ...ms,
+                                {
+                                    id: newId,
+                                    role: 'assistant',
+                                    content: finalContent,
+                                    tokenUsage: usage,
+                                    ...(model && { model }),
+                                    ...(provider && { provider }),
+                                    createdAt: Date.now(),
+                                },
+                            ];
                         }
                         return ms;
                     });
@@ -543,7 +571,7 @@ export function useChat(
             imageData?: { image: string; mimeType: string },
             fileData?: FileData,
             sessionId?: string,
-            stream = true // Default to true for SSE
+            stream = true // Controls whether chunks are shown incrementally
         ) => {
             if (!sessionId) {
                 console.error('Session ID required for sending message');
@@ -554,6 +582,9 @@ export function useChat(
             abortSession(sessionId);
 
             const abortController = getAbortController(sessionId) || new AbortController();
+
+            // Set streaming mode - controls whether llm:chunk events update UI
+            isStreamingRef.current = stream;
 
             setProcessing(sessionId, true);
             setStatus(sessionId, 'connecting');
@@ -579,78 +610,29 @@ export function useChat(
             updateSessionActivity(sessionId);
 
             try {
-                if (stream) {
-                    // Streaming mode: use /api/message-stream with SSE
-                    const responsePromise = client.api['message-stream'].$post({
-                        json: {
-                            message: content,
-                            sessionId,
-                            imageData,
-                            fileData,
-                        },
-                    });
+                // Always use SSE for all events (tool calls, approvals, responses)
+                // The 'stream' flag only controls whether chunks update UI incrementally
+                const responsePromise = client.api['message-stream'].$post({
+                    json: {
+                        message: content,
+                        sessionId,
+                        imageData,
+                        fileData,
+                    },
+                });
 
-                    const iterator = createMessageStream(responsePromise, {
-                        signal: abortController.signal,
-                    });
+                const iterator = createMessageStream(responsePromise, {
+                    signal: abortController.signal,
+                });
 
-                    setStatus(sessionId, 'open');
+                setStatus(sessionId, 'open');
 
-                    for await (const event of iterator) {
-                        processEvent(event);
-                    }
-
-                    setStatus(sessionId, 'closed');
-                    setProcessing(sessionId, false);
-                } else {
-                    // Non-streaming mode: use /api/message-sync and wait for full response
-                    const response = await client.api['message-sync'].$post({
-                        json: {
-                            message: content,
-                            sessionId,
-                            imageData,
-                            fileData,
-                        },
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(
-                            `Failed to send message: ${response.status} ${response.statusText}. ${errorText}`
-                        );
-                    }
-
-                    let data;
-                    try {
-                        data = await response.json();
-                    } catch (parseError) {
-                        const errorMessage =
-                            parseError instanceof Error ? parseError.message : String(parseError);
-                        throw new Error(`Failed to parse response: ${errorMessage}`);
-                    }
-
-                    // Add assistant response as a complete message with metadata
-                    setMessages((ms) => [
-                        ...ms,
-                        {
-                            id: generateUniqueId(),
-                            role: 'assistant',
-                            content: data.response || '',
-                            createdAt: Date.now(),
-                            sessionId,
-                            ...(data.tokenUsage && { tokenUsage: data.tokenUsage }),
-                            ...(data.reasoning && { reasoning: data.reasoning }),
-                            ...(data.model && { model: data.model }),
-                            ...(data.provider && { provider: data.provider }),
-                        },
-                    ]);
-
-                    setStatus(sessionId, 'closed');
-                    setProcessing(sessionId, false);
-
-                    // Update sessions cache (response received)
-                    updateSessionActivity(sessionId);
+                for await (const event of iterator) {
+                    processEvent(event);
                 }
+
+                setStatus(sessionId, 'closed');
+                setProcessing(sessionId, false);
             } catch (error: unknown) {
                 // Handle abort gracefully
                 if (error instanceof Error && error.name === 'AbortError') {

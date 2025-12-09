@@ -583,10 +583,6 @@ export default function MessageList({
 
                 const errorAnchoredHere = !!(activeError && activeError.anchorMessageId === msg.id);
 
-                // Check if this is the last user message and we should show thinking after it
-                const isLastUserMessage = isUser && isLastMessage;
-                const showThinkingAfterThis = processing && isLastUserMessage;
-
                 return (
                     <React.Fragment key={msgKey}>
                         <div
@@ -1532,11 +1528,12 @@ export default function MessageList({
                                 </div>
                             )}
                         </div>
-                        {/* Show thinking indicator right after last user message */}
-                        {showThinkingAfterThis && <ThinkingIndicator />}
                     </React.Fragment>
                 );
             })}
+
+            {/* Show thinking indicator while processing */}
+            {processing && <ThinkingIndicator />}
 
             {/* Render pending approval as inline message */}
             {pendingApproval && onApprovalApprove && onApprovalDeny && (
