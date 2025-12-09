@@ -1,27 +1,23 @@
 /**
  * InkCLI Component (Refactored)
  *
- * Main orchestrator component - dramatically simplified from 1150 lines to ~150 lines
+ * Main orchestrator component with simplified state management.
  *
  * Architecture:
- * - State managed by useReducer with typed actions
+ * - State managed via useState hooks (no reducer)
+ * - Events from agent handled directly
  * - Business logic in services
- * - Event handling via custom hooks
  * - UI in presentational components
- * - Smart containers orchestrate interactions
- * - Keyboard/mouse input via custom providers (ported from Gemini CLI)
- *
- * Before: 50+ useState hooks, 15+ useEffect hooks, complex state management
- * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
-import React, { useReducer, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 import { Box, render, type DOMElement } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 
-// State management
-import { cliReducer, createInitialState, type StartupInfo } from './state/index.js';
+// Types
+import type { Message, OverlayType, McpWizardServerType, StartupInfo } from './state/types.js';
+import type { ApprovalRequest } from './components/ApprovalPrompt.js';
 
 // Custom hooks
 import { useAgentEvents, useInputOrchestrator, useTerminalSize, type Key } from './hooks/index.js';
@@ -51,7 +47,6 @@ import {
     SCROLL_TO_ITEM_END,
     type VirtualizedListRef,
 } from './components/shared/VirtualizedList.js';
-import type { Message } from './state/types.js';
 
 // Union type for virtualized list items: header or message
 type ListItem = { type: 'header' } | { type: 'message'; message: Message };
@@ -67,17 +62,73 @@ interface InkCLIProps {
 }
 
 /**
+ * UI state - grouped for convenience
+ */
+interface UIState {
+    isProcessing: boolean;
+    isCancelling: boolean;
+    isThinking: boolean;
+    activeOverlay: OverlayType;
+    exitWarningShown: boolean;
+    exitWarningTimestamp: number | null;
+    mcpWizardServerType: McpWizardServerType;
+    copyModeEnabled: boolean;
+}
+
+/**
+ * Input state - grouped for convenience
+ */
+interface InputState {
+    value: string;
+    history: string[];
+    historyIndex: number;
+}
+
+/**
+ * Session state - grouped for convenience
+ */
+interface SessionState {
+    id: string | null;
+    hasActiveSession: boolean;
+    modelName: string;
+}
+
+/**
  * Inner component that uses the providers
  */
 function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
-    // Initialize state with reducer and set initial sessionId (may be null for deferred creation)
-    const [state, dispatch] = useReducer(cliReducer, undefined, () => {
-        const initialModelName = agent.getCurrentLLMConfig().model;
-        const initial = createInitialState([], initialModelName);
-        initial.session.id = initialSessionId;
-        initial.session.hasActiveSession = initialSessionId !== null;
-        return initial;
+    // Messages state
+    const [messages, setMessages] = useState<Message[]>([]);
+
+    // UI state
+    const [ui, setUi] = useState<UIState>({
+        isProcessing: false,
+        isCancelling: false,
+        isThinking: false,
+        activeOverlay: 'none',
+        exitWarningShown: false,
+        exitWarningTimestamp: null,
+        mcpWizardServerType: null,
+        copyModeEnabled: false,
     });
+
+    // Input state
+    const [input, setInput] = useState<InputState>({
+        value: '',
+        history: [],
+        historyIndex: -1,
+    });
+
+    // Session state
+    const [session, setSession] = useState<SessionState>({
+        id: initialSessionId,
+        hasActiveSession: initialSessionId !== null,
+        modelName: agent.getCurrentLLMConfig().model,
+    });
+
+    // Approval state
+    const [approval, setApproval] = useState<ApprovalRequest | null>(null);
+    const [approvalQueue, setApprovalQueue] = useState<ApprovalRequest[]>([]);
 
     // Initialize services (memoized)
     const inputService = useMemo(() => new InputService(), []);
@@ -89,22 +140,30 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
     const listRef = useRef<VirtualizedListRef<ListItem>>(null);
     const listContainerRef = useRef<DOMElement>(null);
 
-    // Setup event bus subscriptions
-    useAgentEvents({ agent, dispatch, isCancelling: state.ui.isCancelling });
+    // Setup event bus subscriptions - pass state setters for direct event handling
+    useAgentEvents({
+        agent,
+        isCancelling: ui.isCancelling,
+        setMessages,
+        setUi,
+        setSession,
+        setApproval,
+        setApprovalQueue,
+    });
 
     // Create input handlers for the orchestrator
     // Approval handler - routes to OverlayContainer
-    const approvalHandler = useCallback((input: string, key: Key): boolean => {
-        return overlayContainerRef.current?.handleInput(input, key) ?? false;
+    const approvalHandler = useCallback((inputStr: string, key: Key): boolean => {
+        return overlayContainerRef.current?.handleInput(inputStr, key) ?? false;
     }, []);
 
     // Overlay handler - routes to OverlayContainer
-    const overlayHandler = useCallback((input: string, key: Key): boolean => {
-        return overlayContainerRef.current?.handleInput(input, key) ?? false;
+    const overlayHandler = useCallback((inputStr: string, key: Key): boolean => {
+        return overlayContainerRef.current?.handleInput(inputStr, key) ?? false;
     }, []);
 
     // Main input handler - routes to InputContainer with keyboard scroll support
-    const inputHandler = useCallback((input: string, key: Key): boolean => {
+    const inputHandler = useCallback((inputStr: string, key: Key): boolean => {
         // Handle keyboard scroll: Page Up/Down or Shift+Up/Down
         if (key.pageUp || (key.shift && key.upArrow)) {
             listRef.current?.scrollBy(-10); // Scroll up 10 lines
@@ -115,14 +174,16 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
             return true;
         }
 
-        return inputContainerRef.current?.handleInput(input, key) ?? false;
+        return inputContainerRef.current?.handleInput(inputStr, key) ?? false;
     }, []);
 
     // Setup unified input orchestrator
-    // Mouse scroll is handled by ScrollProvider
     useInputOrchestrator({
-        state,
-        dispatch,
+        ui,
+        approval,
+        input,
+        session,
+        setUi,
         agent,
         handlers: {
             approval: approvalHandler,
@@ -155,7 +216,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
 
     // Hydrate conversation history when resuming a session
     useEffect(() => {
-        if (!initialSessionId || !state.session.hasActiveSession || state.messages.length > 0) {
+        if (!initialSessionId || !session.hasActiveSession || messages.length > 0) {
             return;
         }
 
@@ -166,34 +227,39 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
                 const history = await agent.getSessionHistory(initialSessionId);
                 if (!history?.length || cancelled) return;
                 const historyMessages = convertHistoryToUIMessages(history, initialSessionId);
-                dispatch({ type: 'MESSAGE_ADD_MULTIPLE', messages: historyMessages });
+                setMessages(historyMessages);
             } catch (error) {
                 if (cancelled) return;
-                dispatch({
-                    type: 'ERROR',
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                });
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: `error-${Date.now()}`,
+                        role: 'system',
+                        content: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+                        timestamp: new Date(),
+                    },
+                ]);
             }
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [agent, dispatch, initialSessionId, state.messages.length, state.session.hasActiveSession]);
+    }, [agent, initialSessionId, messages.length, session.hasActiveSession]);
 
     // Detect selector overlays based on exact command matches
     useEffect(() => {
         // Don't detect overlays if processing or approval is active
-        if (state.ui.isProcessing || state.approval) return;
+        if (ui.isProcessing || approval) return;
 
         // Early return for non-command input - no selector detection needed
-        if (!state.input.value.startsWith('/')) return;
+        if (!input.value.startsWith('/')) return;
 
         // Only check for selector commands, not autocomplete
-        const selectorType = inputService.detectInteractiveSelector(state.input.value);
+        const selectorType = inputService.detectInteractiveSelector(input.value);
 
         // Determine what selector overlay should be shown
-        let desiredOverlay: typeof state.ui.activeOverlay = 'none';
+        let desiredOverlay: OverlayType = 'none';
         switch (selectorType) {
             case 'model':
                 desiredOverlay = 'model-selector';
@@ -204,7 +270,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
         }
 
         // Overlays that should not be auto-closed (Enter-triggered or user-controlled)
-        const protectedOverlays = [
+        const protectedOverlays: OverlayType[] = [
             'slash-autocomplete',
             'resource-autocomplete',
             'log-level-selector',
@@ -216,31 +282,18 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
             'session-subcommand-selector',
             'approval',
         ];
-        const isProtectedOverlay = protectedOverlays.includes(state.ui.activeOverlay);
+        const isProtectedOverlay = protectedOverlays.includes(ui.activeOverlay);
 
         // Only update overlay if different and not protected
-        if (desiredOverlay !== state.ui.activeOverlay && !isProtectedOverlay) {
-            if (desiredOverlay === 'none') {
-                if (state.ui.activeOverlay !== 'none') {
-                    dispatch({ type: 'CLOSE_OVERLAY' });
-                }
-            } else {
-                dispatch({ type: 'SHOW_OVERLAY', overlay: desiredOverlay });
-            }
+        if (desiredOverlay !== ui.activeOverlay && !isProtectedOverlay) {
+            setUi((prev) => ({ ...prev, activeOverlay: desiredOverlay }));
         }
-    }, [
-        state.input.value,
-        state.ui.isProcessing,
-        state.approval,
-        state.ui.activeOverlay,
-        inputService,
-        dispatch,
-    ]);
+    }, [input.value, ui.isProcessing, ui.activeOverlay, approval, inputService]);
 
     // Get visible messages
     const visibleMessages = useMemo(() => {
-        return messageService.getVisibleMessages(state.messages, 50);
-    }, [state.messages, messageService]);
+        return messageService.getVisibleMessages(messages, 50);
+    }, [messages, messageService]);
 
     // Build list data: header as first item, then messages
     const listData = useMemo<ListItem[]>(() => {
@@ -260,16 +313,16 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
             if (item.type === 'header') {
                 return (
                     <Header
-                        modelName={state.session.modelName}
-                        sessionId={state.session.id || undefined}
-                        hasActiveSession={state.session.hasActiveSession}
+                        modelName={session.modelName}
+                        sessionId={session.id || undefined}
+                        hasActiveSession={session.hasActiveSession}
                         startupInfo={startupInfo}
                     />
                 );
             }
             return <MessageItem message={item.message} />;
         },
-        [state.session.modelName, state.session.id, state.session.hasActiveSession, startupInfo]
+        [session.modelName, session.id, session.hasActiveSession, startupInfo]
     );
 
     // Smart height estimation based on item type and content
@@ -340,31 +393,45 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
             {/* Controls area - fixed at bottom */}
             <Box flexDirection="column" flexShrink={0}>
                 <StatusBar
-                    isProcessing={state.ui.isProcessing}
-                    isThinking={state.ui.isThinking}
-                    approvalQueueCount={state.approvalQueue.length}
-                    exitWarningShown={state.ui.exitWarningShown}
-                    copyModeEnabled={state.ui.copyModeEnabled}
+                    isProcessing={ui.isProcessing}
+                    isThinking={ui.isThinking}
+                    approvalQueueCount={approvalQueue.length}
+                    exitWarningShown={ui.exitWarningShown}
+                    copyModeEnabled={ui.copyModeEnabled}
                 />
 
                 <InputContainer
                     ref={inputContainerRef}
-                    state={state}
-                    dispatch={dispatch}
+                    input={input}
+                    ui={ui}
+                    session={session}
+                    approval={approval}
+                    setInput={setInput}
+                    setUi={setUi}
+                    setSession={setSession}
+                    setMessages={setMessages}
                     agent={agent}
                     inputService={inputService}
                 />
 
                 <OverlayContainer
                     ref={overlayContainerRef}
-                    state={state}
-                    dispatch={dispatch}
+                    ui={ui}
+                    input={input}
+                    session={session}
+                    approval={approval}
+                    setInput={setInput}
+                    setUi={setUi}
+                    setSession={setSession}
+                    setMessages={setMessages}
+                    setApproval={setApproval}
+                    setApprovalQueue={setApprovalQueue}
                     agent={agent}
                     inputService={inputService}
                 />
 
                 {/* Footer status line */}
-                <Footer modelName={state.session.modelName} cwd={process.cwd()} />
+                <Footer modelName={session.modelName} cwd={process.cwd()} />
             </Box>
         </Box>
     );
@@ -372,15 +439,6 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
 
 /**
  * Modern CLI interface using React Ink
- *
- * Refactored for:
- * - Clear separation of concerns
- * - Testability
- * - Maintainability
- * - Performance
- * - Type safety
- *
- * Uses explicit sessionId in state (like WebUI) instead of defaultSession pattern
  */
 export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCLIProps) {
     return (
@@ -402,18 +460,13 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 
 /**
  * Start the modern Ink-based CLI
- * Entry point for the refactored CLI
- * @param agent - The DextoAgent instance
- * @param initialSessionId - The session ID to use for this CLI session
  */
 export async function startInkCliRefactored(
     agent: DextoAgent,
     initialSessionId: string | null
 ): Promise<void> {
-    // Use inkMode to let Ctrl+C be handled by the UI for exit warning
     registerGracefulShutdown(() => agent, { inkMode: true });
 
-    // Note: Console suppression is done in index.ts before calling this function
     const startupInfo = await getStartupInfo(agent);
 
     const inkApp = render(
@@ -423,15 +476,11 @@ export async function startInkCliRefactored(
             startupInfo={startupInfo}
         />,
         {
-            // Disable default Ctrl+C exit to handle it ourselves with double-press warning
             exitOnCtrlC: false,
-            // Use alternate buffer + incremental rendering for flicker-free updates
             alternateBuffer: true,
             incrementalRendering: true,
         }
     );
 
-    // Wait for the Ink app to exit before resolving
-    // This ensures console suppression remains active until the UI is fully closed
     await inkApp.waitUntilExit();
 }

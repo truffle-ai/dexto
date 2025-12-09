@@ -16,14 +16,46 @@
 import type React from 'react';
 import { useEffect, useRef, useCallback } from 'react';
 import { useApp } from 'ink';
-import type { CLIState } from '../state/types.js';
-import type { CLIAction } from '../state/actions.js';
+import type { OverlayType, McpWizardServerType } from '../state/types.js';
+import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { DextoAgent } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
 import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
+
+/**
+ * UI state shape
+ */
+interface UIState {
+    isProcessing: boolean;
+    isCancelling: boolean;
+    isThinking: boolean;
+    activeOverlay: OverlayType;
+    exitWarningShown: boolean;
+    exitWarningTimestamp: number | null;
+    mcpWizardServerType: McpWizardServerType;
+    copyModeEnabled: boolean;
+}
+
+/**
+ * Input state shape
+ */
+interface InputState {
+    value: string;
+    history: string[];
+    historyIndex: number;
+}
+
+/**
+ * Session state shape
+ */
+interface SessionState {
+    id: string | null;
+    hasActiveSession: boolean;
+    modelName: string;
+}
 
 /**
  * Ink-compatible Key interface
@@ -103,8 +135,11 @@ export interface InputHandlers {
 }
 
 export interface UseInputOrchestratorProps {
-    state: CLIState;
-    dispatch: React.Dispatch<CLIAction>;
+    ui: UIState;
+    approval: ApprovalRequest | null;
+    input: InputState;
+    session: SessionState;
+    setUi: React.Dispatch<React.SetStateAction<UIState>>;
     agent: DextoAgent;
     handlers: InputHandlers;
 }
@@ -114,14 +149,14 @@ export interface UseInputOrchestratorProps {
  */
 type FocusTarget = 'approval' | 'overlay' | 'input';
 
-function getFocusTarget(state: CLIState): FocusTarget {
+function getFocusTarget(approval: ApprovalRequest | null, activeOverlay: OverlayType): FocusTarget {
     // Approval has highest priority
-    if (state.approval !== null) {
+    if (approval !== null) {
         return 'approval';
     }
 
     // Active overlay has next priority
-    if (state.ui.activeOverlay !== 'none' && state.ui.activeOverlay !== 'approval') {
+    if (activeOverlay !== 'none' && activeOverlay !== 'approval') {
         return 'overlay';
     }
 
@@ -137,118 +172,131 @@ function getFocusTarget(state: CLIState): FocusTarget {
  * Mouse events are handled separately by MouseProvider/ScrollProvider.
  */
 export function useInputOrchestrator({
-    state,
-    dispatch,
+    ui,
+    approval,
+    input,
+    session,
+    setUi,
     agent,
     handlers,
 }: UseInputOrchestratorProps): void {
     const { exit } = useApp();
 
     // Use refs to avoid stale closures in the callback
-    const stateRef = useRef(state);
+    const uiRef = useRef(ui);
+    const approvalRef = useRef(approval);
+    const inputRef = useRef(input);
+    const sessionRef = useRef(session);
     const handlersRef = useRef(handlers);
-    const sessionIdRef = useRef(state.session.id);
 
     // Keep refs in sync
     useEffect(() => {
-        stateRef.current = state;
+        uiRef.current = ui;
+        approvalRef.current = approval;
+        inputRef.current = input;
+        sessionRef.current = session;
         handlersRef.current = handlers;
-        sessionIdRef.current = state.session.id;
-    }, [state, handlers]);
+    }, [ui, approval, input, session, handlers]);
 
     // Auto-clear exit warning after timeout
     useEffect(() => {
-        if (!state.ui.exitWarningShown || !state.ui.exitWarningTimestamp) return;
+        if (!ui.exitWarningShown || !ui.exitWarningTimestamp) return;
 
-        const elapsed = Date.now() - state.ui.exitWarningTimestamp;
+        const elapsed = Date.now() - ui.exitWarningTimestamp;
         const remaining = EXIT_WARNING_TIMEOUT - elapsed;
 
         if (remaining <= 0) {
-            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+            setUi((prev) => ({ ...prev, exitWarningShown: false, exitWarningTimestamp: null }));
             return;
         }
 
         const timer = setTimeout(() => {
-            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+            setUi((prev) => ({ ...prev, exitWarningShown: false, exitWarningTimestamp: null }));
         }, remaining);
 
         return () => clearTimeout(timer);
-    }, [state.ui.exitWarningShown, state.ui.exitWarningTimestamp, dispatch]);
+    }, [ui.exitWarningShown, ui.exitWarningTimestamp, setUi]);
 
     // Handle Ctrl+C (special case - handled globally regardless of focus)
     const handleCtrlC = useCallback(() => {
-        const currentState = stateRef.current;
+        const currentUi = uiRef.current;
+        const currentSession = sessionRef.current;
 
-        if (currentState.ui.isProcessing) {
-            // Cancel the current operation
-            const currentSessionId = sessionIdRef.current;
-            if (!currentSessionId) {
-                // No session - force exit as fallback
-                exit();
-                return;
+        if (currentUi.isProcessing) {
+            // Cancel the current operation via agent
+            // useAgentEvents will handle the UI state updates when error/complete fires
+            if (currentSession.id) {
+                void agent.cancel(currentSession.id).catch(() => {});
             }
-            void agent.cancel(currentSessionId).catch(() => {});
-            dispatch({ type: 'CANCEL_START' });
-            dispatch({ type: 'STREAMING_CANCEL' });
+            setUi((prev) => ({ ...prev, isCancelling: true, isProcessing: false }));
+
             // Clear exit warning if it was shown
-            if (currentState.ui.exitWarningShown) {
-                dispatch({ type: 'EXIT_WARNING_CLEAR' });
+            if (currentUi.exitWarningShown) {
+                setUi((prev) => ({
+                    ...prev,
+                    exitWarningShown: false,
+                    exitWarningTimestamp: null,
+                }));
             }
         } else {
             // Not processing - handle exit with double-press safety
-            if (currentState.ui.exitWarningShown) {
+            if (currentUi.exitWarningShown) {
                 // Second Ctrl+C within timeout - actually exit
                 exit();
             } else {
                 // First Ctrl+C - show warning
-                dispatch({ type: 'EXIT_WARNING_SHOW' });
+                setUi((prev) => ({
+                    ...prev,
+                    exitWarningShown: true,
+                    exitWarningTimestamp: Date.now(),
+                }));
             }
         }
-    }, [agent, dispatch, exit]);
+    }, [agent, setUi, exit]);
 
     // Handle Escape (context-aware)
     const handleEscape = useCallback((): boolean => {
-        const currentState = stateRef.current;
+        const currentUi = uiRef.current;
+        const currentSession = sessionRef.current;
 
         // Clear exit warning if shown
-        if (currentState.ui.exitWarningShown) {
-            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+        if (currentUi.exitWarningShown) {
+            setUi((prev) => ({ ...prev, exitWarningShown: false, exitWarningTimestamp: null }));
             return true;
         }
 
         // Cancel processing if active
-        if (currentState.ui.isProcessing) {
-            const currentSessionId = sessionIdRef.current;
-            if (currentSessionId) {
-                void agent.cancel(currentSessionId).catch(() => {});
-                dispatch({ type: 'CANCEL_START' });
-                dispatch({ type: 'STREAMING_CANCEL' });
+        if (currentUi.isProcessing) {
+            if (currentSession.id) {
+                void agent.cancel(currentSession.id).catch(() => {});
             }
+            setUi((prev) => ({ ...prev, isCancelling: true, isProcessing: false }));
             return true;
         }
 
         // Close overlay if active (let the overlay handler deal with specifics)
-        if (currentState.ui.activeOverlay !== 'none') {
+        if (currentUi.activeOverlay !== 'none') {
             // Don't consume - let overlay handler close it with proper cleanup
             return false;
         }
 
         return false;
-    }, [agent, dispatch]);
+    }, [agent, setUi]);
 
     // The keypress handler for the entire application
     const handleKeypress = useCallback(
         (rawKey: RawKey) => {
-            const currentState = stateRef.current;
+            const currentUi = uiRef.current;
+            const currentApproval = approvalRef.current;
             const currentHandlers = handlersRef.current;
 
             // Convert to Ink-compatible format
-            const { input, key } = convertKey(rawKey);
+            const { input: inputStr, key } = convertKey(rawKey);
 
             // === COPY MODE HANDLING ===
             // When in copy mode, any key exits copy mode (mouse events re-enabled)
-            if (currentState.ui.copyModeEnabled) {
-                dispatch({ type: 'COPY_MODE_DISABLE' });
+            if (currentUi.copyModeEnabled) {
+                setUi((prev) => ({ ...prev, copyModeEnabled: false }));
                 enableMouseEvents(); // Re-enable mouse events
                 return; // Don't process any other keys while exiting copy mode
             }
@@ -256,14 +304,14 @@ export function useInputOrchestrator({
             // === GLOBAL SHORTCUTS (always handled first) ===
 
             // Ctrl+S: Toggle copy mode (for text selection in alternate buffer)
-            if (key.ctrl && input === 's') {
-                dispatch({ type: 'COPY_MODE_ENABLE' });
+            if (key.ctrl && inputStr === 's') {
+                setUi((prev) => ({ ...prev, copyModeEnabled: true }));
                 disableMouseEvents(); // Disable mouse events so terminal can handle selection
                 return;
             }
 
             // Ctrl+C: Always handle globally for cancellation/exit
-            if (key.ctrl && input === 'c') {
+            if (key.ctrl && inputStr === 'c') {
                 handleCtrlC();
                 return;
             }
@@ -281,57 +329,65 @@ export function useInputOrchestrator({
             // When overlay handlers don't consume input (e.g., backspace while autocomplete shown),
             // we fall through to the main input handler.
 
-            const focusTarget = getFocusTarget(currentState);
+            const focusTarget = getFocusTarget(currentApproval, currentUi.activeOverlay);
             let consumed = false;
 
             switch (focusTarget) {
                 case 'approval':
                     if (currentHandlers.approval) {
-                        consumed = currentHandlers.approval(input, key) ?? false;
+                        consumed = currentHandlers.approval(inputStr, key) ?? false;
                     }
                     // Approval always consumes - don't fall through
                     break;
 
                 case 'overlay':
                     if (currentHandlers.overlay) {
-                        consumed = currentHandlers.overlay(input, key) ?? false;
+                        consumed = currentHandlers.overlay(inputStr, key) ?? false;
                     }
                     // If overlay didn't consume, fall through to input handler
                     // This allows typing/deleting while autocomplete is shown
                     if (!consumed && currentHandlers.input) {
                         // Clear exit warning on any typing (user changed their mind)
                         if (
-                            currentState.ui.exitWarningShown &&
+                            currentUi.exitWarningShown &&
                             !key.ctrl &&
                             !key.meta &&
                             !key.escape &&
-                            input.length > 0
+                            inputStr.length > 0
                         ) {
-                            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+                            setUi((prev) => ({
+                                ...prev,
+                                exitWarningShown: false,
+                                exitWarningTimestamp: null,
+                            }));
                         }
-                        currentHandlers.input(input, key);
+                        currentHandlers.input(inputStr, key);
                     }
                     break;
 
                 case 'input':
                     // Clear exit warning on any typing (user changed their mind)
                     if (
-                        currentState.ui.exitWarningShown &&
+                        currentUi.exitWarningShown &&
                         !key.ctrl &&
                         !key.meta &&
                         !key.escape &&
-                        input.length > 0
+                        inputStr.length > 0
                     ) {
-                        dispatch({ type: 'EXIT_WARNING_CLEAR' });
+                        setUi((prev) => ({
+                            ...prev,
+                            exitWarningShown: false,
+                            exitWarningTimestamp: null,
+                        }));
                     }
 
                     if (currentHandlers.input) {
-                        currentHandlers.input(input, key);
+                        currentHandlers.input(inputStr, key);
                     }
                     break;
             }
         },
-        [handleCtrlC, handleEscape, dispatch]
+        [handleCtrlC, handleEscape, setUi]
     );
 
     // Subscribe to keypress events

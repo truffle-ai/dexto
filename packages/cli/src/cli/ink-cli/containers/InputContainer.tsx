@@ -12,19 +12,51 @@ import {
     type OverlayTrigger,
 } from '../components/input/InputArea.js';
 import { InputService } from '../services/InputService.js';
-import type { CLIAction } from '../state/actions.js';
-import type { CLIState } from '../state/types.js';
+import type { OverlayType, McpWizardServerType, Message } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
 /** Type for pending session creation promise */
 type SessionCreationResult = { id: string };
 
 export type InputContainerHandle = InputAreaHandle;
 
+/** UI state shape */
+interface UIState {
+    isProcessing: boolean;
+    isCancelling: boolean;
+    isThinking: boolean;
+    activeOverlay: OverlayType;
+    exitWarningShown: boolean;
+    exitWarningTimestamp: number | null;
+    mcpWizardServerType: McpWizardServerType;
+    copyModeEnabled: boolean;
+}
+
+/** Input state shape */
+interface InputState {
+    value: string;
+    history: string[];
+    historyIndex: number;
+}
+
+/** Session state shape */
+interface SessionState {
+    id: string | null;
+    hasActiveSession: boolean;
+    modelName: string;
+}
+
 interface InputContainerProps {
-    state: CLIState;
-    dispatch: React.Dispatch<CLIAction>;
+    input: InputState;
+    ui: UIState;
+    session: SessionState;
+    approval: ApprovalRequest | null;
+    setInput: React.Dispatch<React.SetStateAction<InputState>>;
+    setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    setSession: React.Dispatch<React.SetStateAction<SessionState>>;
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     agent: DextoAgent;
     inputService: InputService;
 }
@@ -34,9 +66,21 @@ interface InputContainerProps {
  * Manages input state and handles submission
  */
 export const InputContainer = forwardRef<InputContainerHandle, InputContainerProps>(
-    function InputContainer({ state, dispatch, agent, inputService }, ref) {
-        const { input, ui, approval, session } = state;
-
+    function InputContainer(
+        {
+            input,
+            ui,
+            session,
+            approval,
+            setInput,
+            setUi,
+            setSession,
+            setMessages,
+            agent,
+            inputService,
+        },
+        ref
+    ) {
         // Ref to the InputArea component for delegating handleInput
         const inputAreaRef = useRef<InputAreaHandle>(null);
 
@@ -66,42 +110,72 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Handle input change
         const handleChange = useCallback(
             (value: string) => {
-                dispatch({ type: 'INPUT_CHANGE', value });
+                setInput((prev) => ({ ...prev, value }));
+                // Clear exit warning when user starts typing
+                if (ui.exitWarningShown) {
+                    setUi((prev) => ({
+                        ...prev,
+                        exitWarningShown: false,
+                        exitWarningTimestamp: null,
+                    }));
+                }
             },
-            [dispatch]
+            [setInput, setUi, ui.exitWarningShown]
         );
 
         // Handle history navigation
         const handleHistoryNavigate = useCallback(
             (direction: 'up' | 'down') => {
-                dispatch({ type: 'INPUT_HISTORY_NAVIGATE', direction });
+                setInput((prev) => {
+                    const { history, historyIndex } = prev;
+                    if (history.length === 0) return prev;
+
+                    let newIndex = historyIndex;
+                    if (direction === 'up') {
+                        if (newIndex < 0) {
+                            newIndex = history.length - 1;
+                        } else if (newIndex > 0) {
+                            newIndex = newIndex - 1;
+                        }
+                    } else {
+                        if (newIndex >= 0 && newIndex < history.length - 1) {
+                            newIndex = newIndex + 1;
+                        } else if (newIndex === history.length - 1) {
+                            return { ...prev, value: '', historyIndex: -1 };
+                        }
+                        if (newIndex < 0) return prev;
+                    }
+
+                    const historyItem = history[newIndex];
+                    return { ...prev, value: historyItem || '', historyIndex: newIndex };
+                });
             },
-            [dispatch]
+            [setInput]
         );
 
         // Handle overlay triggers from input (event-driven overlay detection)
-        // This is called immediately when trigger characters are typed/removed
-        // Replaces the problematic useEffect that watched state.input.value
         const handleTriggerOverlay = useCallback(
             (trigger: OverlayTrigger) => {
-                // Don't trigger overlays during processing or approval
                 if (ui.isProcessing || approval) return;
 
                 if (trigger === 'close') {
-                    // Only close autocomplete overlays (not enter-triggered ones like selectors)
                     if (
                         ui.activeOverlay === 'slash-autocomplete' ||
                         ui.activeOverlay === 'resource-autocomplete'
                     ) {
-                        dispatch({ type: 'CLOSE_OVERLAY' });
+                        setUi((prev) => ({
+                            ...prev,
+                            activeOverlay: 'none',
+                            mcpWizardServerType: null,
+                        }));
                     }
                 } else if (trigger === 'slash-autocomplete') {
-                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'slash-autocomplete' });
+                    setUi((prev) => ({ ...prev, activeOverlay: 'slash-autocomplete' }));
                 } else if (trigger === 'resource-autocomplete') {
-                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'resource-autocomplete' });
+                    setUi((prev) => ({ ...prev, activeOverlay: 'resource-autocomplete' }));
                 }
             },
-            [dispatch, ui.isProcessing, ui.activeOverlay, approval]
+            [setUi, ui.isProcessing, ui.activeOverlay, approval]
         );
 
         // Handle submission
@@ -111,45 +185,62 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 if (!trimmed || ui.isProcessing) return;
 
                 // Prevent double submission when autocomplete/selector is active
-                // The autocomplete/selector will handle the submission
                 if (ui.activeOverlay !== 'none' && ui.activeOverlay !== 'approval') {
                     return;
                 }
 
-                // Create user message
+                // Create user message and add it to messages
                 const userMessage = createUserMessage(trimmed);
+                setMessages((prev) => [...prev, userMessage]);
 
-                // Dispatch submit start (clears input, adds to history, adds user message)
-                dispatch({
-                    type: 'SUBMIT_START',
-                    userMessage,
-                    inputValue: trimmed,
+                // Update input state: clear input, add to history
+                setInput((prev) => {
+                    const newHistory =
+                        prev.history.length > 0 && prev.history[prev.history.length - 1] === trimmed
+                            ? prev.history
+                            : [...prev.history, trimmed].slice(-100);
+                    return { value: '', history: newHistory, historyIndex: -1 };
                 });
+
+                // Start processing
+                setUi((prev) => ({
+                    ...prev,
+                    isProcessing: true,
+                    isCancelling: false,
+                    activeOverlay: 'none',
+                    exitWarningShown: false,
+                    exitWarningTimestamp: null,
+                }));
 
                 // Parse and handle command or prompt
                 const parsed = inputService.parseInput(trimmed);
 
                 // Check if this is a command that should show an interactive selector
-                // These selectors are triggered on Enter, not auto-detected while typing
                 if (parsed.type === 'command' && parsed.command) {
                     const command = parsed.command;
                     const hasArgs = parsed.args && parsed.args.length > 0;
 
                     // /mcp with no args -> show mcp selector
                     if (command === 'mcp' && !hasArgs) {
-                        dispatch({ type: 'SUBMIT_COMPLETE' });
-                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-selector' });
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            activeOverlay: 'mcp-selector',
+                        }));
                         return;
                     }
 
-                    // /mcp add with no further args -> show mcp-add selector (presets)
+                    // /mcp add with no further args -> show mcp-add selector
                     if (
                         command === 'mcp' &&
                         parsed.args?.[0] === 'add' &&
                         parsed.args.length === 1
                     ) {
-                        dispatch({ type: 'SUBMIT_COMPLETE' });
-                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-add-selector' });
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            activeOverlay: 'mcp-add-selector',
+                        }));
                         return;
                     }
 
@@ -159,22 +250,31 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         parsed.args?.[0] === 'remove' &&
                         parsed.args.length === 1
                     ) {
-                        dispatch({ type: 'SUBMIT_COMPLETE' });
-                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'mcp-remove-selector' });
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            activeOverlay: 'mcp-remove-selector',
+                        }));
                         return;
                     }
 
                     // /log with no args -> show log level selector
                     if (command === 'log' && !hasArgs) {
-                        dispatch({ type: 'SUBMIT_COMPLETE' });
-                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'log-level-selector' });
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            activeOverlay: 'log-level-selector',
+                        }));
                         return;
                     }
 
                     // /session with no args -> show session subcommand selector
                     if (command === 'session' && !hasArgs) {
-                        dispatch({ type: 'SUBMIT_COMPLETE' });
-                        dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-subcommand-selector' });
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            activeOverlay: 'session-subcommand-selector',
+                        }));
                         return;
                     }
                 }
@@ -185,151 +285,162 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                     const commandService = new CommandService();
 
                     try {
-                        // Pass sessionId from state to command execution
-                        const currentSessionId = session.id;
                         const result = await commandService.executeCommand(
                             parsed.command,
                             parsed.args || [],
                             agent,
-                            currentSessionId || undefined
+                            session.id || undefined
                         );
 
                         if (result.type === 'prompt') {
                             // Command executed a prompt via agent.run()
                             // Processing will continue via event bus
-                            // Don't set SUBMIT_COMPLETE here - wait for agent response
                             return;
                         }
 
                         if (result.type === 'output' && result.output) {
-                            // Command returned output for display
-                            dispatch({
-                                type: 'MESSAGE_ADD',
-                                message: {
+                            const output = result.output;
+                            setMessages((prev) => [
+                                ...prev,
+                                {
                                     id: generateMessageId('command'),
                                     role: 'system',
-                                    content: result.output,
+                                    content: output,
                                     timestamp: new Date(),
                                 },
-                            });
+                            ]);
                         }
 
                         if (result.type === 'styled' && result.styled) {
-                            // Command returned styled output
-                            dispatch({
-                                type: 'MESSAGE_ADD',
-                                message: {
+                            const { fallbackText, styledType, styledData } = result.styled;
+                            setMessages((prev) => [
+                                ...prev,
+                                {
                                     id: generateMessageId('command'),
                                     role: 'system',
-                                    content: result.styled.fallbackText,
+                                    content: fallbackText,
                                     timestamp: new Date(),
-                                    styledType: result.styled.styledType,
-                                    styledData: result.styled.styledData,
+                                    styledType,
+                                    styledData,
                                 },
-                            });
+                            ]);
                         }
 
-                        // Always complete for non-prompt commands
-                        dispatch({ type: 'SUBMIT_COMPLETE' });
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            isCancelling: false,
+                            isThinking: false,
+                        }));
                     } catch (error) {
-                        dispatch({
-                            type: 'SUBMIT_ERROR',
-                            errorMessage: error instanceof Error ? error.message : String(error),
-                        });
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            isCancelling: false,
+                            isThinking: false,
+                        }));
                     }
                 } else {
                     // Regular prompt - pass to AI with explicit sessionId
                     try {
-                        const streamingId = generateMessageId('assistant');
-                        dispatch({ type: 'STREAMING_START', id: streamingId });
-
-                        // Pass sessionId explicitly to agent.run() like WebUI does
-                        // Use sessionId from state (never from getCurrentSessionId)
                         let currentSessionId = session.id;
 
                         // Create session on first message if not already created (deferred creation)
-                        // Use ref to prevent race condition when multiple messages sent rapidly
                         if (!currentSessionId) {
-                            // Check if session creation is already in progress
                             if (sessionCreationPromiseRef.current) {
-                                // Wait for existing session creation to complete
                                 try {
                                     const existingSession = await sessionCreationPromiseRef.current;
                                     currentSessionId = existingSession.id;
                                 } catch {
-                                    // If the existing session creation failed, we'll try again below
                                     sessionCreationPromiseRef.current = null;
                                 }
                             }
 
-                            // Double-check: might have been set by another message while we waited
                             if (!currentSessionId) {
-                                // Start new session creation and store promise in ref
-                                // Don't clear the ref until session is in state to prevent race conditions
                                 const sessionPromise = agent.createSession();
                                 sessionCreationPromiseRef.current = sessionPromise;
 
                                 const newSession = await sessionPromise;
                                 currentSessionId = newSession.id;
-                                dispatch({
-                                    type: 'SESSION_SET',
-                                    sessionId: currentSessionId,
+                                setSession((prev) => ({
+                                    ...prev,
+                                    id: currentSessionId,
                                     hasActiveSession: true,
-                                });
-                                // Note: We intentionally don't clear the ref here
-                                // It will be naturally superseded by the state having a session ID
+                                }));
                             }
                         }
 
-                        // At this point currentSessionId must be defined (either from state or created above)
                         if (!currentSessionId) {
                             throw new Error('Failed to create or retrieve session');
                         }
 
-                        // Check if this is the first message (message count is 0 or 1)
+                        // Check if this is the first message
                         const metadata = await agent.getSessionMetadata(currentSessionId);
                         const isFirstMessage = !metadata || metadata.messageCount <= 0;
 
                         await agent.run(trimmed, undefined, undefined, currentSessionId);
 
                         // Generate title for new sessions after first message
-                        // Fire and forget to avoid blocking the response
                         if (isFirstMessage) {
                             agent.generateSessionTitle(currentSessionId).catch((error) => {
-                                // Log but don't fail - title generation is optional
                                 console.error('Failed to generate session title:', error);
                             });
                         }
 
                         // Response will come via event bus
-                        // SUBMIT_COMPLETE will be dispatched by event handler
                     } catch (error) {
-                        dispatch({
-                            type: 'SUBMIT_ERROR',
-                            errorMessage: error instanceof Error ? error.message : String(error),
-                        });
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            isCancelling: false,
+                            isThinking: false,
+                        }));
                     }
                 }
             },
-            [dispatch, agent, inputService, ui.isProcessing, ui.activeOverlay, session]
+            [
+                setInput,
+                setUi,
+                setMessages,
+                setSession,
+                agent,
+                inputService,
+                ui.isProcessing,
+                ui.activeOverlay,
+                session.id,
+            ]
         );
 
-        // Determine placeholder (processing state shown in StatusBar above)
+        // Determine placeholder
         const placeholder = approval
             ? 'Approval required above...'
             : 'Type your message or /help for commands';
 
-        // Don't wire up onSubmit when autocomplete/selector is active (they handle Enter)
+        // Don't wire up onSubmit when autocomplete/selector is active
         const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
 
         // Only enable history navigation when not processing and no overlay
         const canNavigateHistory = !ui.isProcessing && !approval && ui.activeOverlay === 'none';
 
         // Disable input only for approval states
-        // Allow typing during processing, but handleSubmit will prevent submission
-        // Note: We no longer disable for overlays because:
-        // 1. We use a unified orchestrator (no useInput conflicts)
-        // 2. Overlay handlers return false for unhandled keys, allowing fall-through
         const isInputDisabled = !!approval;
 
         return (

@@ -1,44 +1,98 @@
 /**
  * Hook for managing agent event bus subscriptions
- * Transforms agent events into state actions
+ * Handles events directly, updating state via setters
  */
 
 import type React from 'react';
 import { useEffect, useRef } from 'react';
-import type { DextoAgent, AgentEventBus } from '@dexto/core';
+import type { DextoAgent, AgentEventBus, AgentEventMap } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
-import type { CLIAction } from '../state/actions.js';
+import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 
-interface UseAgentEventsProps {
-    agent: DextoAgent;
-    dispatch: React.Dispatch<CLIAction>;
+/**
+ * UI state shape (must match InkCLIRefactored)
+ */
+interface UIState {
+    isProcessing: boolean;
     isCancelling: boolean;
+    isThinking: boolean;
+    activeOverlay: OverlayType;
+    exitWarningShown: boolean;
+    exitWarningTimestamp: number | null;
+    mcpWizardServerType: McpWizardServerType;
+    copyModeEnabled: boolean;
 }
 
 /**
- * Subscribes to agent event bus and dispatches state actions
- * Decouples event bus from UI components
+ * Session state shape
  */
-export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEventsProps): void {
-    // Use ref for isCancelling to avoid re-registering event handlers on every state change
-    // This prevents race conditions where events could be lost during handler re-registration
+interface SessionState {
+    id: string | null;
+    hasActiveSession: boolean;
+    modelName: string;
+}
+
+interface UseAgentEventsProps {
+    agent: DextoAgent;
+    isCancelling: boolean;
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    setSession: React.Dispatch<React.SetStateAction<SessionState>>;
+    setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
+    setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
+}
+
+// Streaming state tracked in ref to avoid recreating handlers
+interface StreamingState {
+    id: string | null;
+    content: string;
+}
+
+/**
+ * Subscribes to agent event bus and handles events directly
+ */
+export function useAgentEvents({
+    agent,
+    isCancelling,
+    setMessages,
+    setUi,
+    setSession,
+    setApproval,
+    setApprovalQueue,
+}: UseAgentEventsProps): void {
+    // Use ref for isCancelling to avoid re-registering event handlers
     const isCancellingRef = useRef(isCancelling);
     useEffect(() => {
         isCancellingRef.current = isCancelling;
     }, [isCancelling]);
 
+    // Track streaming state in ref to avoid closure issues
+    const streamingRef = useRef<StreamingState>({ id: null, content: '' });
+
     useEffect(() => {
         const bus: AgentEventBus = agent.agentEventBus;
 
         // Handle thinking event (when LLM starts processing)
-        // TODO: This event should be renamed to handle actual reasoning tokens (extended thinking)
-        // Currently it just indicates LLM request start, not reasoning token generation
-        // See: https://www.anthropic.com/news/3-5-models-and-computer-use (extended thinking)
         const handleThinking = () => {
             if (isCancellingRef.current) return;
-            dispatch({ type: 'THINKING_START' });
+            setUi((prev) => ({ ...prev, isThinking: true }));
+
+            // Start streaming: create new streaming message
+            const streamId = generateMessageId('assistant');
+            streamingRef.current = { id: streamId, content: '' };
+
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: streamId,
+                    role: 'assistant',
+                    content: '',
+                    timestamp: new Date(),
+                    isStreaming: true,
+                },
+            ]);
         };
 
         // Handle streaming chunks
@@ -48,55 +102,99 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             isComplete?: boolean;
             sessionId: string;
         }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
+            if (isCancellingRef.current) return;
+
             // End thinking state when first chunk arrives
-            dispatch({ type: 'THINKING_END' });
+            setUi((prev) => ({ ...prev, isThinking: false }));
+
             if (payload.chunkType === 'text') {
-                dispatch({
-                    type: 'STREAMING_CHUNK',
-                    content: payload.content,
-                });
+                const streaming = streamingRef.current;
+                if (!streaming.id) return;
+
+                // Accumulate content
+                streaming.content += payload.content;
+                const newContent = streaming.content;
+                const streamId = streaming.id;
+
+                // Update the streaming message
+                setMessages((prev) =>
+                    prev.map((msg) => (msg.id === streamId ? { ...msg, content: newContent } : msg))
+                );
             }
         };
 
         // Handle response completion (may fire multiple times during tool use)
         const handleResponse = (payload: { content: string }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
-            dispatch({
-                type: 'STREAMING_END',
-                content: payload.content,
-            });
-            // Note: Don't dispatch PROCESSING_END here - wait for run:complete
+            if (isCancellingRef.current) return;
+
+            const streaming = streamingRef.current;
+            if (!streaming.id) return;
+
+            // Finalize the streaming message
+            const streamId = streaming.id;
+            const finalContent =
+                payload.content && payload.content.length > 0 ? payload.content : streaming.content;
+
+            setMessages((prev) =>
+                prev.map((msg) =>
+                    msg.id === streamId
+                        ? { ...msg, content: finalContent, isStreaming: false }
+                        : msg
+                )
+            );
+
+            // Clear streaming state
+            streamingRef.current = { id: null, content: '' };
         };
 
-        // Handle run completion (fires once when entire run finishes, including all tool calls)
+        // Handle run completion (fires once when entire run finishes)
         const handleRunComplete = () => {
             if (isCancellingRef.current) return;
-            dispatch({
-                type: 'PROCESSING_END',
-            });
+            setUi((prev) => ({
+                ...prev,
+                isProcessing: false,
+                isCancelling: false,
+                isThinking: false,
+            }));
         };
 
         // Handle errors
         const handleError = (payload: { error: Error }) => {
-            dispatch({
-                type: 'STREAMING_CANCEL',
-            });
-            dispatch({
-                type: 'SUBMIT_ERROR',
-                errorMessage: payload.error.message,
-            });
+            // Cancel any streaming message
+            const streaming = streamingRef.current;
+            if (streaming.id) {
+                const streamId = streaming.id;
+                setMessages((prev) => prev.filter((msg) => msg.id !== streamId));
+                streamingRef.current = { id: null, content: '' };
+            }
+
+            // Add error message
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('error'),
+                    role: 'system',
+                    content: `❌ Error: ${payload.error.message}`,
+                    timestamp: new Date(),
+                },
+            ]);
+
+            setUi((prev) => ({
+                ...prev,
+                isProcessing: false,
+                isCancelling: false,
+                isThinking: false,
+            }));
         };
 
         // Handle tool calls
         const handleToolCall = (payload: { toolName: string; args: any; callId?: string }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
+            if (isCancellingRef.current) return;
 
             // Format args for display (compact, one-line)
             let argsPreview = '';
             try {
                 const argsStr = JSON.stringify(payload.args);
-                // Remove outer braces and limit length
                 const cleanArgs = argsStr.replace(/^\{|\}$/g, '').trim();
                 if (cleanArgs.length > 80) {
                     argsPreview = ` • ${cleanArgs.slice(0, 80)}...`;
@@ -107,22 +205,21 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
                 argsPreview = '';
             }
 
-            // Insert before streaming message so tools appear in correct order
-            // Use callId if available for matching with result later
             const toolMessageId = payload.callId
                 ? `tool-${payload.callId}`
                 : generateMessageId('tool');
 
-            dispatch({
-                type: 'MESSAGE_INSERT_BEFORE_STREAMING',
-                message: {
+            // Append tool message after current messages
+            setMessages((prev) => [
+                ...prev,
+                {
                     id: toolMessageId,
                     role: 'tool',
                     content: `${payload.toolName}${argsPreview}`,
                     timestamp: new Date(),
                     toolStatus: 'running',
                 },
-            });
+            ]);
         };
 
         // Handle tool results
@@ -133,34 +230,28 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             rawResult?: any;
             success: boolean;
         }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
+            if (isCancellingRef.current) return;
 
-            // Format result preview (4-5 CLI lines, ~400 chars accounting for wrapping)
             let resultPreview = '';
             try {
                 const result = payload.sanitized || payload.rawResult;
                 if (result) {
-                    // Try to extract meaningful text from MCP tool results
                     let resultStr = '';
                     if (typeof result === 'string') {
                         resultStr = result;
                     } else if (result && typeof result === 'object') {
-                        // Handle MCP content array format: { content: [{ type: 'text', text: '...' }] }
                         if (Array.isArray(result.content)) {
                             resultStr = result.content
                                 .filter((item: { type?: string }) => item.type === 'text')
                                 .map((item: { text?: string }) => item.text || '')
                                 .join('\n');
                         } else if (result.text) {
-                            // Simple { text: '...' } format
                             resultStr = result.text;
                         } else {
-                            // Fallback to JSON for other structures
                             resultStr = JSON.stringify(result, null, 2);
                         }
                     }
 
-                    // Limit to ~400 chars (roughly 4-5 terminal lines at 80-100 chars width)
                     const maxChars = 400;
                     if (resultStr.length > maxChars) {
                         resultPreview = resultStr.slice(0, maxChars) + '\n...';
@@ -172,17 +263,15 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
                 resultPreview = '';
             }
 
-            // Update the tool message with result preview and mark as finished
             if (payload.callId) {
                 const toolMessageId = `tool-${payload.callId}`;
-                dispatch({
-                    type: 'MESSAGE_UPDATE',
-                    id: toolMessageId,
-                    update: {
-                        toolResult: resultPreview,
-                        toolStatus: 'finished',
-                    },
-                });
+                setMessages((prev) =>
+                    prev.map((msg) =>
+                        msg.id === toolMessageId
+                            ? { ...msg, toolResult: resultPreview, toolStatus: 'finished' }
+                            : msg
+                    )
+                );
             }
         };
 
@@ -195,30 +284,68 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             timestamp: Date;
             metadata: Record<string, any>;
         }) => {
-            // Handle both tool confirmation and command confirmation approvals in ink-cli
             if (
                 event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
                 event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION
             ) {
-                const approval: ApprovalRequest = {
+                const newApproval: ApprovalRequest = {
                     approvalId: event.approvalId,
                     type: event.type,
                     timestamp: event.timestamp,
                     metadata: event.metadata,
                 };
 
-                // Only include optional properties if they're defined
                 if (event.sessionId !== undefined) {
-                    approval.sessionId = event.sessionId;
+                    newApproval.sessionId = event.sessionId;
                 }
                 if (event.timeout !== undefined) {
-                    approval.timeout = event.timeout;
+                    newApproval.timeout = event.timeout;
                 }
 
-                dispatch({
-                    type: 'APPROVAL_REQUEST',
-                    approval,
+                // Queue if there's already an approval, otherwise show immediately
+                setApproval((current) => {
+                    if (current !== null) {
+                        setApprovalQueue((queue) => [...queue, newApproval]);
+                        return current;
+                    }
+                    setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                    return newApproval;
                 });
+            }
+        };
+
+        // Handle model switch
+        const handleModelSwitch = (payload: any) => {
+            if (payload.newConfig?.model) {
+                setSession((prev) => ({ ...prev, modelName: payload.newConfig.model }));
+            }
+        };
+
+        // Handle conversation reset
+        const handleConversationReset = () => {
+            setMessages([]);
+            setApproval(null);
+            setApprovalQueue([]);
+            setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+        };
+
+        // Handle session creation (e.g., from /clear command)
+        const handleSessionCreated = (payload: { sessionId: string | null; switchTo: boolean }) => {
+            if (payload.switchTo) {
+                setMessages([]);
+                setApproval(null);
+                setApprovalQueue([]);
+
+                if (payload.sessionId === null) {
+                    setSession((prev) => ({ ...prev, id: null, hasActiveSession: false }));
+                } else {
+                    setSession((prev) => ({
+                        ...prev,
+                        id: payload.sessionId,
+                        hasActiveSession: true,
+                    }));
+                }
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             }
         };
 
@@ -231,46 +358,11 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
         bus.on('llm:tool-result', handleToolResult);
         bus.on('approval:request', handleApprovalRequest);
         bus.on('run:complete', handleRunComplete);
-
-        // Handle model switch
-        const handleModelSwitch = (payload: any) => {
-            if (payload.newConfig?.model) {
-                dispatch({
-                    type: 'MODEL_UPDATE',
-                    modelName: payload.newConfig.model,
-                });
-            }
-        };
-
-        // Handle conversation reset
-        const handleConversationReset = () => {
-            dispatch({ type: 'CONVERSATION_RESET' });
-        };
-
-        // Handle session creation (e.g., from /clear command)
-        // This maintains separation of concerns: commands emit events, UI handles state
-        const handleSessionCreated = (payload: { sessionId: string | null; switchTo: boolean }) => {
-            if (payload.switchTo) {
-                if (payload.sessionId === null) {
-                    // Clear without creating a new session (deferred creation)
-                    dispatch({ type: 'SESSION_CLEAR' });
-                } else {
-                    // Clear current messages and switch to new session
-                    dispatch({ type: 'SESSION_CLEAR' });
-                    dispatch({
-                        type: 'SESSION_SET',
-                        sessionId: payload.sessionId,
-                        hasActiveSession: true,
-                    });
-                }
-            }
-        };
-        // Subscribe to events
         bus.on('llm:switched', handleModelSwitch);
         bus.on('session:reset', handleConversationReset);
         bus.on('session:created', handleSessionCreated);
 
-        // Cleanup on unmount
+        // Cleanup
         return () => {
             bus.off('llm:thinking', handleThinking);
             bus.off('llm:chunk', handleChunk);
@@ -284,5 +376,5 @@ export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEvents
             bus.off('session:reset', handleConversationReset);
             bus.off('session:created', handleSessionCreated);
         };
-    }, [agent, dispatch]); // Note: isCancelling is accessed via ref to avoid re-registering handlers
+    }, [agent, setMessages, setUi, setSession, setApproval, setApprovalQueue]);
 }

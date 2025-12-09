@@ -76,7 +76,6 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
                     }
                     void agent.cancel(currentSessionId).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
-                    dispatch({ type: 'STREAMING_CANCEL' });
                     // Clear exit warning if it was shown
                     if (state.ui.exitWarningShown) {
                         dispatch({ type: 'EXIT_WARNING_CLEAR' });
@@ -109,7 +108,6 @@ export function useKeyboardShortcuts({ state, dispatch, agent }: UseKeyboardShor
                     }
                     void agent.cancel(currentSessionId).catch(() => {});
                     dispatch({ type: 'CANCEL_START' });
-                    dispatch({ type: 'STREAMING_CANCEL' });
                 } else if (state.ui.activeOverlay !== 'none') {
                     dispatch({ type: 'CLOSE_OVERLAY' });
                 }

@@ -1,9 +1,12 @@
 /**
  * State actions for CLI state machine
  * All state mutations go through these actions
+ *
+ * Note: Message/streaming state is handled separately via useState in InkCLIRefactored
+ * to simplify the reducer and match WebUI's direct event handling pattern.
  */
 
-import type { Message, OverlayType, McpWizardServerType } from './types.js';
+import type { OverlayType, McpWizardServerType } from './types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
 /**
@@ -27,55 +30,9 @@ export type InputHistoryResetAction = {
     type: 'INPUT_HISTORY_RESET';
 };
 
-/**
- * Message actions
- */
-export type MessageAddAction = {
-    type: 'MESSAGE_ADD';
-    message: Message;
-};
-
-export type MessageAddMultipleAction = {
-    type: 'MESSAGE_ADD_MULTIPLE';
-    messages: Message[];
-};
-
-export type MessageInsertBeforeStreamingAction = {
-    type: 'MESSAGE_INSERT_BEFORE_STREAMING';
-    message: Message;
-};
-
-export type MessageUpdateAction = {
-    type: 'MESSAGE_UPDATE';
-    id: string;
-    update: Partial<Message>;
-};
-
-export type MessageRemoveAction = {
-    type: 'MESSAGE_REMOVE';
-    id: string;
-};
-
-/**
- * Streaming actions
- */
-export type StreamingStartAction = {
-    type: 'STREAMING_START';
-    id: string;
-};
-
-export type StreamingChunkAction = {
-    type: 'STREAMING_CHUNK';
-    content: string;
-};
-
-export type StreamingEndAction = {
-    type: 'STREAMING_END';
-    content: string;
-};
-
-export type StreamingCancelAction = {
-    type: 'STREAMING_CANCEL';
+export type InputHistoryAddAction = {
+    type: 'INPUT_HISTORY_ADD';
+    value: string;
 };
 
 export type CancelStartAction = {
@@ -88,24 +45,6 @@ export type ThinkingStartAction = {
 
 export type ThinkingEndAction = {
     type: 'THINKING_END';
-};
-
-/**
- * Submission actions
- */
-export type SubmitStartAction = {
-    type: 'SUBMIT_START';
-    userMessage: Message;
-    inputValue: string;
-};
-
-export type SubmitCompleteAction = {
-    type: 'SUBMIT_COMPLETE';
-};
-
-export type SubmitErrorAction = {
-    type: 'SUBMIT_ERROR';
-    errorMessage: string;
 };
 
 /**
@@ -168,14 +107,6 @@ export type ApprovalCompleteAction = {
 };
 
 /**
- * Error actions
- */
-export type ErrorAction = {
-    type: 'ERROR';
-    errorMessage: string;
-};
-
-/**
  * Exit warning actions (for double Ctrl+C to exit)
  */
 export type ExitWarningShowAction = {
@@ -201,37 +132,31 @@ export type CopyModeDisableAction = {
  * Combined action type
  */
 export type CLIAction =
+    // Input actions
     | InputChangeAction
     | InputClearAction
     | InputHistoryNavigateAction
     | InputHistoryResetAction
-    | MessageAddAction
-    | MessageAddMultipleAction
-    | MessageInsertBeforeStreamingAction
-    | MessageUpdateAction
-    | MessageRemoveAction
-    | StreamingStartAction
-    | StreamingChunkAction
-    | StreamingEndAction
-    | StreamingCancelAction
+    | InputHistoryAddAction
+    // Processing/streaming state
     | CancelStartAction
     | ThinkingStartAction
     | ThinkingEndAction
-    | SubmitStartAction
-    | SubmitCompleteAction
-    | SubmitErrorAction
     | ProcessingStartAction
     | ProcessingEndAction
+    // UI actions
     | ShowOverlayAction
     | CloseOverlayAction
     | SetMcpWizardServerTypeAction
+    // Session actions
     | SessionSetAction
     | SessionClearAction
     | ModelUpdateAction
     | ConversationResetAction
+    // Approval actions
     | ApprovalRequestAction
     | ApprovalCompleteAction
-    | ErrorAction
+    // Exit/copy mode actions
     | ExitWarningShowAction
     | ExitWarningClearAction
     | CopyModeEnableAction

@@ -176,13 +176,9 @@ export interface SessionState {
 }
 
 /**
- * Root CLI state
+ * Root CLI state (UI state only - messages handled separately via useState)
  */
 export interface CLIState {
-    // Message state
-    messages: Message[];
-    streamingMessage: StreamingMessage | null;
-
     // Input state
     input: InputState;
 

@@ -1,11 +1,13 @@
 /**
  * State reducer for CLI state machine
  * Pure function that handles all state transitions
+ *
+ * Note: Message/streaming state is handled separately via useState in InkCLIRefactored
+ * to simplify the reducer and match WebUI's direct event handling pattern.
  */
 
-import type { CLIState, Message } from './types.js';
+import type { CLIState } from './types.js';
 import type { CLIAction } from './actions.js';
-import { generateMessageId } from '../utils/idGenerator.js';
 
 /**
  * Main CLI state reducer
@@ -95,113 +97,21 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 },
             };
 
-        // Message actions
-        case 'MESSAGE_ADD':
+        case 'INPUT_HISTORY_ADD': {
+            // Add to history if not duplicate of last entry
+            const { history } = state.input;
+            if (
+                !action.value ||
+                (history.length > 0 && history[history.length - 1] === action.value)
+            ) {
+                return state;
+            }
             return {
                 ...state,
-                messages: [...state.messages, action.message],
-            };
-
-        case 'MESSAGE_ADD_MULTIPLE':
-            return {
-                ...state,
-                messages: [...state.messages, ...action.messages],
-            };
-
-        case 'MESSAGE_INSERT_BEFORE_STREAMING': {
-            // Append tool messages AFTER all current messages (matching WebUI behavior)
-            // This ensures tool calls appear after any assistant text that preceded them
-            // Note: Despite the action name, we now append (not insert before) to match
-            // how the WebUI handles tool calls during streaming
-            return {
-                ...state,
-                messages: [...state.messages, action.message],
-            };
-        }
-
-        case 'MESSAGE_UPDATE':
-            return {
-                ...state,
-                messages: state.messages.map((msg) =>
-                    msg.id === action.id ? { ...msg, ...action.update } : msg
-                ),
-            };
-
-        case 'MESSAGE_REMOVE':
-            return {
-                ...state,
-                messages: state.messages.filter((msg) => msg.id !== action.id),
-            };
-
-        // Streaming actions
-        case 'STREAMING_START': {
-            const streamingMessage: Message = {
-                id: action.id,
-                role: 'assistant',
-                content: '',
-                timestamp: new Date(),
-                isStreaming: true,
-            };
-            return {
-                ...state,
-                messages: [...state.messages, streamingMessage],
-                streamingMessage: {
-                    id: action.id,
-                    content: '',
-                },
-            };
-        }
-
-        case 'STREAMING_CHUNK': {
-            if (!state.streamingMessage) return state;
-
-            const newContent = state.streamingMessage.content + action.content;
-            return {
-                ...state,
-                streamingMessage: {
-                    ...state.streamingMessage,
-                    content: newContent,
-                },
-                messages: state.messages.map((msg) =>
-                    msg.id === state.streamingMessage?.id
-                        ? { ...msg, content: newContent, isStreaming: true }
-                        : msg
-                ),
-            };
-        }
-
-        case 'STREAMING_END': {
-            if (!state.streamingMessage) return state;
-
-            // Preserve accumulated content if action.content is empty
-            const finalContent =
-                action.content && action.content.length > 0
-                    ? action.content
-                    : state.streamingMessage.content;
-
-            return {
-                ...state,
-                streamingMessage: null,
-                messages: state.messages.map((msg) =>
-                    msg.id === state.streamingMessage?.id
-                        ? { ...msg, content: finalContent, isStreaming: false }
-                        : msg
-                ),
-            };
-        }
-
-        case 'STREAMING_CANCEL': {
-            const streamingId = state.streamingMessage?.id;
-            return {
-                ...state,
-                streamingMessage: null,
-                messages: streamingId
-                    ? state.messages.filter((msg) => msg.id !== streamingId)
-                    : state.messages,
-                ui: {
-                    ...state.ui,
-                    isCancelling: false,
-                    isThinking: false, // Clear thinking state on cancel
+                input: {
+                    ...state.input,
+                    history: [...history, action.value].slice(-100), // Keep last 100
+                    historyIndex: -1,
                 },
             };
         }
@@ -234,24 +144,10 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 },
             };
 
-        // Submission actions
-        case 'SUBMIT_START': {
-            // Add to history if not duplicate
-            const newHistory =
-                action.inputValue &&
-                (state.input.history.length === 0 ||
-                    state.input.history[state.input.history.length - 1] !== action.inputValue)
-                    ? [...state.input.history, action.inputValue].slice(-100)
-                    : state.input.history;
-
+        // UI actions
+        case 'PROCESSING_START':
             return {
                 ...state,
-                messages: [...state.messages, action.userMessage],
-                input: {
-                    value: '',
-                    history: newHistory,
-                    historyIndex: -1,
-                },
                 ui: {
                     ...state.ui,
                     isProcessing: true,
@@ -261,46 +157,6 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     exitWarningTimestamp: null,
                 },
             };
-        }
-
-        case 'SUBMIT_COMPLETE':
-            return {
-                ...state,
-                ui: {
-                    ...state.ui,
-                    isProcessing: false,
-                },
-            };
-
-        case 'SUBMIT_ERROR': {
-            const errorMessage: Message = {
-                id: generateMessageId('error'),
-                role: 'system',
-                content: action.errorMessage,
-                timestamp: new Date(),
-            };
-            return {
-                ...state,
-                messages: [...state.messages, errorMessage],
-                ui: {
-                    ...state.ui,
-                    isProcessing: false,
-                    isCancelling: false,
-                    isThinking: false, // Clear thinking state on error
-                },
-                streamingMessage: null,
-            };
-        }
-
-        // UI actions
-        case 'PROCESSING_START':
-            return {
-                ...state,
-                ui: {
-                    ...state.ui,
-                    isProcessing: true,
-                },
-            };
 
         case 'PROCESSING_END':
             return {
@@ -308,6 +164,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 ui: {
                     ...state.ui,
                     isProcessing: false,
+                    isCancelling: false,
                     isThinking: false, // Clear thinking state when processing ends
                 },
             };
@@ -354,7 +211,6 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
         case 'SESSION_CLEAR':
             return {
                 ...state,
-                messages: [],
                 session: {
                     ...state.session,
                     id: null,
@@ -380,8 +236,6 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
         case 'CONVERSATION_RESET':
             return {
                 ...state,
-                messages: [],
-                streamingMessage: null,
                 approval: null,
                 approvalQueue: [],
                 ui: {
@@ -434,25 +288,6 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     activeOverlay: 'none',
                 },
             };
-
-        // Error actions
-        case 'ERROR': {
-            const errorMessage: Message = {
-                id: generateMessageId('error'),
-                role: 'system',
-                content: `❌ Error: ${action.errorMessage}`,
-                timestamp: new Date(),
-            };
-            return {
-                ...state,
-                messages: [...state.messages, errorMessage],
-                ui: {
-                    ...state.ui,
-                    isProcessing: false,
-                },
-                streamingMessage: null,
-            };
-        }
 
         // Exit warning actions (for double Ctrl+C to exit)
         case 'EXIT_WARNING_SHOW':
