@@ -334,7 +334,7 @@ export function InputContainer({
                     const metadata = await agent.getSessionMetadata(currentSessionId);
                     const isFirstMessage = !metadata || metadata.messageCount <= 0;
 
-                    await agent.generate(trimmed, { sessionId: currentSessionId });
+                    await agent.generate(trimmed, currentSessionId);
 
                     if (isFirstMessage) {
                         agent.generateSessionTitle(currentSessionId).catch((error) => {
