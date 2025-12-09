@@ -21,8 +21,9 @@ import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
-import type { InternalMessage } from '../context/types.js';
+import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessage } from './message-queue.js';
+import type { ContentInput } from '../agent/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -267,49 +268,77 @@ export class ChatSession {
     }
 
     /**
-     * Processes user input through the session's LLM service and returns the response.
+     * Stream a response for the given content.
+     * Primary method for running conversations with multi-image support.
      *
-     * This method:
-     * 1. Takes user input (text, optionally with image or file data)
-     * 2. Passes it to the LLM service for processing
-     * 3. Returns the AI's response text
-     *
-     * The method handles both text-only and multimodal input (text + images/files).
-     * Tool calls and conversation management are handled internally by the LLM service.
-     *
-     * @param input - The user's text input
-     * @param imageDataInput - Optional image data for multimodal input
-     * @param fileDataInput - Optional file data for file input
-     * @param stream - Optional flag to enable streaming responses
+     * @param content - String or ContentPart[] (text, images, files)
+     * @param options - { signal?: AbortSignal }
      * @returns Promise that resolves to the AI's response text
      *
      * @example
      * ```typescript
-     * const response = await session.run('What is the weather like today?');
-     * console.log(response); // "I'll check the weather for you..."
+     * // Text only
+     * const response = await session.stream('What is the weather?');
+     *
+     * // Multiple images
+     * const response = await session.stream([
+     *     { type: 'text', text: 'Compare these images' },
+     *     { type: 'image', image: base64Data1, mimeType: 'image/png' },
+     *     { type: 'image', image: base64Data2, mimeType: 'image/png' }
+     * ]);
      * ```
      */
-    public async run(
-        input: string,
-        imageDataInput?: { image: string; mimeType: string },
-        fileDataInput?: { data: string; mimeType: string; filename?: string },
-        stream?: boolean
+    public async stream(
+        content: ContentInput,
+        options?: { signal?: AbortSignal }
     ): Promise<string> {
-        // Log metadata only (no sensitive content) to prevent PII/secret leakage in logs
+        // Normalize content to ContentPart[]
+        const parts: ContentPart[] =
+            typeof content === 'string' ? [{ type: 'text', text: content }] : content;
+
+        // Extract text for logging (no sensitive content)
+        const textParts = parts.filter(
+            (p): p is { type: 'text'; text: string } => p.type === 'text'
+        );
+        const imageParts = parts.filter((p) => p.type === 'image');
+        const fileParts = parts.filter((p) => p.type === 'file');
+
         this.logger.debug(
-            `Running session ${this.id} | input.len=${input?.length ?? 0} | image=${imageDataInput ? imageDataInput.mimeType : 'none'} | file=${fileDataInput ? `${fileDataInput.mimeType}:${fileDataInput.filename ?? 'unknown'}` : 'none'}`
+            `Streaming session ${this.id} | textParts=${textParts.length} | images=${imageParts.length} | files=${fileParts.length}`
         );
 
-        // Input validation is now handled at DextoAgent.run() level
         // Create an AbortController for this run and expose for cancellation
         this.currentRunController = new AbortController();
-        const signal = this.currentRunController.signal;
+        const signal = options?.signal
+            ? this.combineSignals(options.signal, this.currentRunController.signal)
+            : this.currentRunController.signal;
+
         try {
             // Execute beforeLLMRequest plugins
+            // For backward compatibility, extract first image/file for plugin payload
+            const textContent = textParts.map((p) => p.text).join('\n');
+            const firstImage = imageParts[0] as
+                | { type: 'image'; image: string; mimeType?: string }
+                | undefined;
+            const firstFile = fileParts[0] as
+                | { type: 'file'; data: string; mimeType: string; filename?: string }
+                | undefined;
+
             const beforeLLMPayload: BeforeLLMRequestPayload = {
-                text: input,
-                ...(imageDataInput !== undefined && { imageData: imageDataInput }),
-                ...(fileDataInput !== undefined && { fileData: fileDataInput }),
+                text: textContent,
+                ...(firstImage && {
+                    imageData: {
+                        image: typeof firstImage.image === 'string' ? firstImage.image : '[binary]',
+                        mimeType: firstImage.mimeType || 'image/jpeg',
+                    },
+                }),
+                ...(firstFile && {
+                    fileData: {
+                        data: typeof firstFile.data === 'string' ? firstFile.data : '[binary]',
+                        mimeType: firstFile.mimeType,
+                        ...(firstFile.filename && { filename: firstFile.filename }),
+                    },
+                }),
                 sessionId: this.id,
             };
 
@@ -326,18 +355,16 @@ export class ChatSession {
                 }
             );
 
-            // Use modified input from plugins
-            const finalInput = modifiedBeforePayload.text;
-            const finalImageData = modifiedBeforePayload.imageData;
-            const finalFileData = modifiedBeforePayload.fileData;
+            // Apply plugin text modifications to the first text part
+            let modifiedParts = [...parts];
+            if (modifiedBeforePayload.text !== textContent && textParts.length > 0) {
+                // Replace text parts with modified text
+                modifiedParts = modifiedParts.filter((p) => p.type !== 'text');
+                modifiedParts.unshift({ type: 'text', text: modifiedBeforePayload.text });
+            }
 
-            const response = await this.llmService.completeTask(
-                finalInput,
-                { signal },
-                finalImageData,
-                finalFileData,
-                stream
-            );
+            // Call LLM service stream
+            const response = await this.llmService.stream(modifiedParts, { signal });
 
             // Execute beforeResponse plugins
             const llmConfig = this.services.stateManager.getLLMConfig(this.id);
@@ -361,7 +388,6 @@ export class ChatSession {
                 }
             );
 
-            // Return modified response from plugins
             return modifiedResponsePayload.content;
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
@@ -395,14 +421,13 @@ export class ChatSession {
                 error.scope === ErrorScope.PLUGIN &&
                 error.type === ErrorType.FORBIDDEN
             ) {
-                // Save the blocked interaction to history so users can see what they tried
+                // Save the blocked interaction to history
+                const textContent = parts
+                    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                    .map((p) => p.text)
+                    .join('\n');
                 try {
-                    await this.saveBlockedInteraction(
-                        input,
-                        error.message,
-                        imageDataInput,
-                        fileDataInput
-                    );
+                    await this.saveBlockedInteraction(textContent, error.message);
                     this.logger.debug(
                         `ChatSession ${this.id}: Saved blocked interaction to history`
                     );
@@ -414,22 +439,34 @@ export class ChatSession {
                     );
                 }
 
-                // Return the error message as a normal response instead of throwing
-                // This creates a consistent UX whether viewing for the first time or reopening the session
                 return error.message;
             }
 
-            // TODO: Currently this only applies for OpenAI, Anthropic services, because Vercel works differently.
-            // We should remove this error handling when we handle partial responses properly in all services.
-            const errortype = error instanceof Error ? 'object' : 'string';
             this.logger.error(
-                `Error in ChatSession.run: errortype=${errortype}: ${error instanceof Error ? error.message : String(error)}`
+                `Error in ChatSession.stream: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
         } finally {
-            // Clear controller after run completes or is cancelled
             this.currentRunController = null;
         }
+    }
+
+    /**
+     * Combine multiple abort signals into one.
+     */
+    private combineSignals(signal1: AbortSignal, signal2: AbortSignal): AbortSignal {
+        const controller = new AbortController();
+
+        const onAbort = () => controller.abort();
+
+        signal1.addEventListener('abort', onAbort);
+        signal2.addEventListener('abort', onAbort);
+
+        if (signal1.aborted || signal2.aborted) {
+            controller.abort();
+        }
+
+        return controller.signal;
     }
 
     /**

@@ -68,7 +68,7 @@ describe('ChatSession', () => {
 
         // Mock LLM service
         mockLLMService = {
-            completeTask: vi.fn().mockResolvedValue('Mock response'),
+            stream: vi.fn().mockResolvedValue('Mock response'),
             switchLLM: vi.fn().mockResolvedValue(undefined),
             eventBus: {
                 emit: vi.fn(),
@@ -357,9 +357,9 @@ describe('ChatSession', () => {
         test('should handle conversation errors from LLM service', async () => {
             await chatSession.init();
 
-            mockLLMService.completeTask.mockRejectedValue(new Error('LLM service error'));
+            mockLLMService.stream.mockRejectedValue(new Error('LLM service error'));
 
-            await expect(chatSession.run('test message')).rejects.toThrow('LLM service error');
+            await expect(chatSession.stream('test message')).rejects.toThrow('LLM service error');
         });
     });
 
@@ -372,17 +372,14 @@ describe('ChatSession', () => {
             const userMessage = 'Hello, world!';
             const expectedResponse = 'Hello! How can I help you?';
 
-            mockLLMService.completeTask.mockResolvedValue(expectedResponse);
+            mockLLMService.stream.mockResolvedValue(expectedResponse);
 
-            const response = await chatSession.run(userMessage);
+            const response = await chatSession.stream(userMessage);
 
             expect(response).toBe(expectedResponse);
-            expect(mockLLMService.completeTask).toHaveBeenCalledWith(
-                userMessage,
-                expect.objectContaining({ signal: expect.any(AbortSignal) }),
-                undefined,
-                undefined,
-                undefined
+            expect(mockLLMService.stream).toHaveBeenCalledWith(
+                [{ type: 'text', text: userMessage }],
+                expect.objectContaining({ signal: expect.any(AbortSignal) })
             );
         });
 

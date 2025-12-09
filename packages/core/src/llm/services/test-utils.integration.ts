@@ -60,9 +60,9 @@ export const TestConfigs = {
             systemPrompt: 'You are a helpful assistant for testing purposes.',
             llm: {
                 provider,
-                model: 'gpt-5-nano', // Use cheapest model for testing
+                model: 'gpt-4o-mini', // Use cheapest non-reasoning model for testing
                 apiKey,
-                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
+                maxOutputTokens: 1000, // Enough for reasoning models (reasoning + answer)
                 temperature: 0, // Deterministic responses
                 maxIterations: 1, // Minimal tool iterations
             },
@@ -109,7 +109,7 @@ export const TestConfigs = {
                 provider,
                 model: 'claude-haiku-4-5-20251001', // Use cheapest model for testing
                 apiKey,
-                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
+                maxOutputTokens: 1000, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
             },
@@ -151,7 +151,7 @@ export const TestConfigs = {
 
         // Default models for common providers
         const defaultModels: Record<LLMProvider, string> = {
-            openai: 'gpt-5-nano',
+            openai: 'gpt-4o-mini',
             anthropic: 'claude-haiku-4-5-20251001',
             google: 'gemini-2.0-flash',
             groq: 'llama-3.1-8b-instant',
@@ -166,7 +166,7 @@ export const TestConfigs = {
                 provider,
                 model: model || defaultModels[provider],
                 apiKey,
-                maxOutputTokens: 500, // Enough for reasoning models (reasoning + answer)
+                maxOutputTokens: 1000, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
             },

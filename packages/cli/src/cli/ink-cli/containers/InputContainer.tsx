@@ -368,17 +368,6 @@ export function InputContainer({
                     // Build content with images if any
                     let content: string | ContentPart[];
                     if (pendingImages.length > 0) {
-                        // Debug: log image info
-                        console.error(
-                            '[DEBUG] Submitting with images:',
-                            pendingImages.map((img) => ({
-                                id: img.id,
-                                placeholder: img.placeholder,
-                                dataLength: img.data.length,
-                                dataPrefix: img.data.substring(0, 50),
-                            }))
-                        );
-
                         // Build multimodal content parts
                         const parts: ContentPart[] = [];
 

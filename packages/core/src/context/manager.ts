@@ -465,15 +465,123 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Adds a user message to the conversation
-     * Can include image data for multimodal input
+     * Adds a user message to the conversation.
+     * Supports multiple images and files via ContentPart[].
+     *
+     * @param content Array of content parts (text, images, files)
+     * @throws Error if content is empty or invalid
+     */
+    async addUserMessage(content: import('./types.js').ContentPart[]): Promise<void>;
+    /**
+     * Adds a user message to the conversation (legacy signature).
+     * @deprecated Use addUserMessage(ContentPart[]) instead for multi-image support.
      *
      * @param textContent The user message content
-     * @param imageData Optional image data for multimodal input
-     * @param fileData Optional file data for file input
+     * @param imageData Optional image data for multimodal input (single image only)
+     * @param fileData Optional file data for file input (single file only)
      * @throws Error if content is empty or not a string
      */
     async addUserMessage(
+        textContent: string,
+        imageData?: ImageData,
+        fileData?: FileData
+    ): Promise<void>;
+    async addUserMessage(
+        contentOrText: import('./types.js').ContentPart[] | string,
+        imageData?: ImageData,
+        fileData?: FileData
+    ): Promise<void> {
+        // Detect which signature was used
+        if (Array.isArray(contentOrText)) {
+            // New signature: ContentPart[]
+            await this.addUserMessageFromParts(contentOrText);
+        } else {
+            // Legacy signature: string, imageData?, fileData?
+            await this.addUserMessageLegacy(contentOrText, imageData, fileData);
+        }
+    }
+
+    /**
+     * Internal: Process ContentPart[] for user message
+     */
+    private async addUserMessageFromParts(
+        content: import('./types.js').ContentPart[]
+    ): Promise<void> {
+        if (!Array.isArray(content) || content.length === 0) {
+            throw ContextError.userMessageContentEmpty();
+        }
+
+        // Validate at least one text part or attachment exists
+        const hasText = content.some((p) => p.type === 'text' && p.text.trim() !== '');
+        const hasAttachment = content.some((p) => p.type === 'image' || p.type === 'file');
+
+        if (!hasText && !hasAttachment) {
+            throw ContextError.userMessageContentEmpty();
+        }
+
+        // Process all parts, storing large attachments as blobs
+        const processedParts: InternalMessage['content'] = [];
+
+        for (const part of content) {
+            if (part.type === 'text') {
+                if (part.text.trim()) {
+                    processedParts.push({ type: 'text', text: part.text });
+                }
+            } else if (part.type === 'image') {
+                const processedImage = await this.processUserInput(part.image, {
+                    mimeType: part.mimeType || 'image/jpeg',
+                    source: 'user',
+                });
+
+                processedParts.push({
+                    type: 'image',
+                    image: processedImage,
+                    mimeType: part.mimeType || 'image/jpeg',
+                });
+            } else if (part.type === 'file') {
+                const metadata: {
+                    mimeType: string;
+                    originalName?: string;
+                    source?: 'user' | 'system';
+                } = {
+                    mimeType: part.mimeType,
+                    source: 'user',
+                };
+                if (part.filename) {
+                    metadata.originalName = part.filename;
+                }
+
+                const processedData = await this.processUserInput(part.data, metadata);
+
+                processedParts.push({
+                    type: 'file',
+                    data: processedData,
+                    mimeType: part.mimeType,
+                    ...(part.filename && { filename: part.filename }),
+                });
+            }
+        }
+
+        // Count parts for logging
+        const textParts = processedParts.filter((p) => p.type === 'text');
+        const imageParts = processedParts.filter((p) => p.type === 'image');
+        const fileParts = processedParts.filter((p) => p.type === 'file');
+
+        this.logger.info('User message received', {
+            textParts: textParts.length,
+            imageParts: imageParts.length,
+            fileParts: fileParts.length,
+            totalParts: processedParts.length,
+        });
+
+        await this.addMessage({ role: 'user', content: processedParts });
+    }
+
+    /**
+     * Internal: Legacy addUserMessage implementation for backward compatibility
+     * @deprecated
+     */
+    private async addUserMessageLegacy(
         textContent: string,
         imageData?: ImageData,
         fileData?: FileData
