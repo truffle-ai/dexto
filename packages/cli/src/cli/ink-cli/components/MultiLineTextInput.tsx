@@ -21,7 +21,7 @@ import React, {
     useRef,
 } from 'react';
 import { Box, Text, useStdout } from 'ink';
-import type { Key } from 'ink';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 
 /** Overlay trigger types for event-driven overlay detection */
 export type OverlayTrigger = 'slash-autocomplete' | 'resource-autocomplete' | 'close';

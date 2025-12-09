@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
-import { Text, type Key } from 'ink';
+import { Text } from 'ink';
+import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { serverRegistry, type ServerRegistryEntry } from '@dexto/registry';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 

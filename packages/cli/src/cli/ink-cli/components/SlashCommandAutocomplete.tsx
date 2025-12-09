@@ -8,7 +8,7 @@ import React, {
     useImperativeHandle,
 } from 'react';
 import { Box, Text, useStdout } from 'ink';
-import type { Key } from 'ink';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { PromptInfo } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
 import { getAllCommands } from '../../commands/interactive-commands/commands.js';

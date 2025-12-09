@@ -10,20 +10,78 @@
  * 3. Global shortcuts (Ctrl+C, Escape - handled specially)
  * 4. Main text input (default)
  *
- * Also handles mouse scroll events by parsing them from the input stream
- * and preventing them from being passed to text input.
+ * Mouse scroll events are handled separately by ScrollProvider.
  */
 
 import type React from 'react';
 import { useEffect, useRef, useCallback } from 'react';
-import { useInput, useApp, type Key } from 'ink';
+import { useApp } from 'ink';
 import type { CLIState } from '../state/types.js';
 import type { CLIAction } from '../state/actions.js';
 import type { DextoAgent } from '@dexto/core';
-import { parseMouseEvent } from '../utils/mouse.js';
+import { useKeypress, type Key as RawKey } from './useKeypress.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
+
+/**
+ * Ink-compatible Key interface
+ * Converted from our custom KeypressContext Key
+ */
+export interface Key {
+    upArrow: boolean;
+    downArrow: boolean;
+    leftArrow: boolean;
+    rightArrow: boolean;
+    pageUp: boolean;
+    pageDown: boolean;
+    return: boolean;
+    escape: boolean;
+    ctrl: boolean;
+    shift: boolean;
+    meta: boolean;
+    tab: boolean;
+    backspace: boolean;
+    delete: boolean;
+}
+
+/**
+ * Convert our KeypressContext Key to Ink-compatible Key
+ */
+function convertKey(rawKey: RawKey): { input: string; key: Key } {
+    const key: Key = {
+        upArrow: rawKey.name === 'up',
+        downArrow: rawKey.name === 'down',
+        leftArrow: rawKey.name === 'left',
+        rightArrow: rawKey.name === 'right',
+        pageUp: rawKey.name === 'pageup',
+        pageDown: rawKey.name === 'pagedown',
+        return: rawKey.name === 'return' || rawKey.name === 'enter',
+        escape: rawKey.name === 'escape',
+        ctrl: rawKey.ctrl,
+        shift: rawKey.shift,
+        meta: rawKey.meta,
+        tab: rawKey.name === 'tab',
+        backspace: rawKey.name === 'backspace',
+        delete: rawKey.name === 'delete',
+    };
+
+    // For insertable characters, use the sequence
+    // For named keys like 'a', 'b', use the name
+    let input = rawKey.sequence;
+
+    // For Ctrl+letter combinations, use the name (e.g., 'c' for Ctrl+C)
+    if (rawKey.ctrl && rawKey.name && rawKey.name.length === 1) {
+        input = rawKey.name;
+    }
+
+    // For paste events, use the full sequence
+    if (rawKey.paste) {
+        input = rawKey.sequence;
+    }
+
+    return { input, key };
+}
 
 /**
  * Input handler function signature
@@ -41,10 +99,6 @@ export interface InputHandlers {
     overlay?: InputHandler;
     /** Handler for main text input (lowest priority) */
     input?: InputHandler;
-    /** Handler for scroll up (mouse/trackpad) */
-    onScrollUp?: () => void;
-    /** Handler for scroll down (mouse/trackpad) */
-    onScrollDown?: () => void;
 }
 
 export interface UseInputOrchestratorProps {
@@ -77,8 +131,9 @@ function getFocusTarget(state: CLIState): FocusTarget {
 /**
  * Unified input orchestrator hook
  *
- * This is the ONLY useInput hook in the entire ink-cli.
+ * This is the ONLY keyboard input hook in the entire ink-cli.
  * All keyboard handling is routed through this single point.
+ * Mouse events are handled separately by MouseProvider/ScrollProvider.
  */
 export function useInputOrchestrator({
     state,
@@ -88,7 +143,7 @@ export function useInputOrchestrator({
 }: UseInputOrchestratorProps): void {
     const { exit } = useApp();
 
-    // Use refs to avoid stale closures in the useInput callback
+    // Use refs to avoid stale closures in the callback
     const stateRef = useRef(state);
     const handlersRef = useRef(handlers);
     const sessionIdRef = useRef(state.session.id);
@@ -180,77 +235,69 @@ export function useInputOrchestrator({
         return false;
     }, [agent, dispatch]);
 
-    // The single useInput hook for the entire application
-    useInput((input, key) => {
-        const currentState = stateRef.current;
-        const currentHandlers = handlersRef.current;
+    // The keypress handler for the entire application
+    const handleKeypress = useCallback(
+        (rawKey: RawKey) => {
+            const currentState = stateRef.current;
+            const currentHandlers = handlersRef.current;
 
-        // === MOUSE EVENT DETECTION (highest priority) ===
-        // Mouse sequences come through as escape sequences that Ink doesn't fully parse.
-        // We need to detect and handle them here to prevent them from being treated as text.
-        // The sequence looks like: ESC [ < Cb ; Cx ; Cy M/m (SGR format)
-        // Ink may strip the ESC, leaving us with "[<65;43;12M" or similar
+            // Convert to Ink-compatible format
+            const { input, key } = convertKey(rawKey);
 
-        // Check if this looks like a mouse sequence (with or without ESC prefix)
-        const fullSequence = key.escape ? '\x1b' + input : input;
-        const mouseEvent = parseMouseEvent(fullSequence) || parseMouseEvent('\x1b[' + input);
+            // === GLOBAL SHORTCUTS (always handled first) ===
 
-        if (mouseEvent) {
-            // Handle scroll events
-            if (mouseEvent.event.name === 'scroll-up' && currentHandlers.onScrollUp) {
-                currentHandlers.onScrollUp();
-            } else if (mouseEvent.event.name === 'scroll-down' && currentHandlers.onScrollDown) {
-                currentHandlers.onScrollDown();
+            // Ctrl+C: Always handle globally for cancellation/exit
+            if (key.ctrl && input === 'c') {
+                handleCtrlC();
+                return;
             }
-            // Consume all mouse events - don't pass to text input
-            return;
-        }
 
-        // Also filter out partial mouse sequences that leak through
-        // These look like "[<65;43;12M" without the ESC prefix
-        if (input.includes('[<') && /\d+;\d+;\d+[Mm]/.test(input)) {
-            return; // Consume and ignore
-        }
-
-        // === GLOBAL SHORTCUTS (always handled first) ===
-
-        // Ctrl+C: Always handle globally for cancellation/exit
-        if (key.ctrl && input === 'c') {
-            handleCtrlC();
-            return;
-        }
-
-        // Escape: Try global handling first
-        if (key.escape) {
-            if (handleEscape()) {
-                return; // Consumed by global handler
+            // Escape: Try global handling first
+            if (key.escape) {
+                if (handleEscape()) {
+                    return; // Consumed by global handler
+                }
+                // Fall through to focused component
             }
-            // Fall through to focused component
-        }
 
-        // === ROUTE TO FOCUSED COMPONENT ===
-        // Handlers return true if they consumed the input, false otherwise.
-        // When overlay handlers don't consume input (e.g., backspace while autocomplete shown),
-        // we fall through to the main input handler.
+            // === ROUTE TO FOCUSED COMPONENT ===
+            // Handlers return true if they consumed the input, false otherwise.
+            // When overlay handlers don't consume input (e.g., backspace while autocomplete shown),
+            // we fall through to the main input handler.
 
-        const focusTarget = getFocusTarget(currentState);
-        let consumed = false;
+            const focusTarget = getFocusTarget(currentState);
+            let consumed = false;
 
-        switch (focusTarget) {
-            case 'approval':
-                if (currentHandlers.approval) {
-                    consumed = currentHandlers.approval(input, key) ?? false;
-                }
-                // Approval always consumes - don't fall through
-                break;
+            switch (focusTarget) {
+                case 'approval':
+                    if (currentHandlers.approval) {
+                        consumed = currentHandlers.approval(input, key) ?? false;
+                    }
+                    // Approval always consumes - don't fall through
+                    break;
 
-            case 'overlay':
-                if (currentHandlers.overlay) {
-                    consumed = currentHandlers.overlay(input, key) ?? false;
-                }
-                // If overlay didn't consume, fall through to input handler
-                // This allows typing/deleting while autocomplete is shown
-                if (!consumed && currentHandlers.input) {
+                case 'overlay':
+                    if (currentHandlers.overlay) {
+                        consumed = currentHandlers.overlay(input, key) ?? false;
+                    }
+                    // If overlay didn't consume, fall through to input handler
+                    // This allows typing/deleting while autocomplete is shown
+                    if (!consumed && currentHandlers.input) {
+                        // Clear exit warning on any typing (user changed their mind)
+                        if (
+                            currentState.ui.exitWarningShown &&
+                            !key.ctrl &&
+                            !key.meta &&
+                            !key.escape &&
+                            input.length > 0
+                        ) {
+                            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+                        }
+                        currentHandlers.input(input, key);
+                    }
+                    break;
+
+                case 'input':
                     // Clear exit warning on any typing (user changed their mind)
                     if (
                         currentState.ui.exitWarningShown &&
@@ -261,28 +308,18 @@ export function useInputOrchestrator({
                     ) {
                         dispatch({ type: 'EXIT_WARNING_CLEAR' });
                     }
-                    currentHandlers.input(input, key);
-                }
-                break;
 
-            case 'input':
-                // Clear exit warning on any typing (user changed their mind)
-                if (
-                    currentState.ui.exitWarningShown &&
-                    !key.ctrl &&
-                    !key.meta &&
-                    !key.escape &&
-                    input.length > 0
-                ) {
-                    dispatch({ type: 'EXIT_WARNING_CLEAR' });
-                }
+                    if (currentHandlers.input) {
+                        currentHandlers.input(input, key);
+                    }
+                    break;
+            }
+        },
+        [handleCtrlC, handleEscape, dispatch]
+    );
 
-                if (currentHandlers.input) {
-                    currentHandlers.input(input, key);
-                }
-                break;
-        }
-    });
+    // Subscribe to keypress events
+    useKeypress(handleKeypress, { isActive: true });
 }
 
 /**
@@ -472,8 +509,6 @@ export function createMainInputHandler({
 }: MainInputHandlerProps): InputHandler {
     return (input: string, key: Key) => {
         if (isDisabled) return false;
-
-        // Note: Mouse sequences are filtered in useInputOrchestrator before reaching here
 
         const lines = value.split('\n');
         const isMultiLine = lines.length > 1;

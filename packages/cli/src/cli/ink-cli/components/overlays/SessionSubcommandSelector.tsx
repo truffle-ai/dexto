@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
-import { Text, type Key } from 'ink';
+import { Text } from 'ink';
+import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
 export type SessionAction = 'list' | 'history' | 'delete' | 'switch';

@@ -1,6 +1,6 @@
 import React, { forwardRef, useState, useImperativeHandle, useRef, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import type { Key } from 'ink';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 
 export interface ApprovalRequest {
     approvalId: string;

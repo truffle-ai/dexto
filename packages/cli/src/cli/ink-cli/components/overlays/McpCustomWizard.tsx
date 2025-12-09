@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { Box, Text, type Key } from 'ink';
+import { Box, Text } from 'ink';
+import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { McpServerType } from './McpCustomTypeSelector.js';
 
 export interface McpCustomConfig {

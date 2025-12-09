@@ -1,12 +1,22 @@
 /**
  * Mouse Event Utilities
- * Ported from Gemini CLI for trackpad/mouse scroll support
+ * Ported from Gemini CLI for trackpad/mouse scroll support.
  */
 
-// Mouse event type names
+import {
+    ESC,
+    SGR_MOUSE_REGEX,
+    X11_MOUSE_REGEX,
+    SGR_EVENT_PREFIX,
+    X11_EVENT_PREFIX,
+    couldBeMouseSequence,
+} from './input.js';
+
 export type MouseEventName =
     | 'scroll-up'
     | 'scroll-down'
+    | 'scroll-left'
+    | 'scroll-right'
     | 'left-press'
     | 'left-release'
     | 'right-press'
@@ -22,17 +32,14 @@ export interface MouseEvent {
     shift: boolean;
     meta: boolean;
     ctrl: boolean;
+    button: 'left' | 'middle' | 'right' | 'none';
 }
 
-// Regex patterns for mouse event parsing
-// SGR format: ESC [ < Cb ; Cx ; Cy M/m
-const SGR_MOUSE_REGEX = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/;
-// X11 format: ESC [ M Cb Cx Cy (3 bytes after M)
-const X11_MOUSE_REGEX = /^\x1b\[M([\s\S]{3})/;
+export type MouseHandler = (event: MouseEvent) => void | boolean;
 
 /**
- * Enable mouse events in the terminal
- * Uses SGR extended mouse mode for better coordinate handling
+ * Enable mouse events in the terminal.
+ * Uses SGR extended mouse mode for better coordinate handling.
  */
 export function enableMouseEvents(): void {
     // ?1002h = button event tracking (clicks + drags + scroll wheel)
@@ -41,7 +48,7 @@ export function enableMouseEvents(): void {
 }
 
 /**
- * Disable mouse events in the terminal
+ * Disable mouse events in the terminal.
  */
 export function disableMouseEvents(): void {
     process.stdout.write('\u001b[?1006l\u001b[?1002l');
@@ -50,10 +57,17 @@ export function disableMouseEvents(): void {
 /**
  * Get mouse event name from button code
  */
-function getMouseEventName(buttonCode: number, isRelease: boolean): MouseEventName | null {
+export function getMouseEventName(buttonCode: number, isRelease: boolean): MouseEventName | null {
     const isMove = (buttonCode & 32) !== 0;
 
-    // Check for scroll wheel events
+    // Horizontal scroll (less common)
+    if (buttonCode === 66) {
+        return 'scroll-left';
+    } else if (buttonCode === 67) {
+        return 'scroll-right';
+    }
+
+    // Vertical scroll
     if ((buttonCode & 64) === 64) {
         if ((buttonCode & 1) === 0) {
             return 'scroll-up';
@@ -81,9 +95,26 @@ function getMouseEventName(buttonCode: number, isRelease: boolean): MouseEventNa
 }
 
 /**
+ * Get button type from button code
+ */
+function getButtonFromCode(code: number): MouseEvent['button'] {
+    const button = code & 3;
+    switch (button) {
+        case 0:
+            return 'left';
+        case 1:
+            return 'middle';
+        case 2:
+            return 'right';
+        default:
+            return 'none';
+    }
+}
+
+/**
  * Parse SGR format mouse event
  */
-function parseSGRMouseEvent(buffer: string): { event: MouseEvent; length: number } | null {
+export function parseSGRMouseEvent(buffer: string): { event: MouseEvent; length: number } | null {
     const match = buffer.match(SGR_MOUSE_REGEX);
 
     if (match) {
@@ -101,7 +132,15 @@ function parseSGRMouseEvent(buffer: string): { event: MouseEvent; length: number
 
         if (name) {
             return {
-                event: { name, ctrl, meta, shift, col, row },
+                event: {
+                    name,
+                    ctrl,
+                    meta,
+                    shift,
+                    col,
+                    row,
+                    button: getButtonFromCode(buttonCode),
+                },
                 length: match[0].length,
             };
         }
@@ -113,7 +152,7 @@ function parseSGRMouseEvent(buffer: string): { event: MouseEvent; length: number
 /**
  * Parse X11 format mouse event
  */
-function parseX11MouseEvent(buffer: string): { event: MouseEvent; length: number } | null {
+export function parseX11MouseEvent(buffer: string): { event: MouseEvent; length: number } | null {
     const match = buffer.match(X11_MOUSE_REGEX);
     if (!match) return null;
 
@@ -144,6 +183,7 @@ function parseX11MouseEvent(buffer: string): { event: MouseEvent; length: number
     } else {
         const button = b & 3;
         if (button === 3) {
+            // X11 reports 'release' (3) for all button releases
             name = 'left-release';
         } else {
             switch (button) {
@@ -161,8 +201,21 @@ function parseX11MouseEvent(buffer: string): { event: MouseEvent; length: number
     }
 
     if (name) {
+        let button = getButtonFromCode(b);
+        if (name === 'left-release' && button === 'none') {
+            button = 'left';
+        }
+
         return {
-            event: { name, ctrl, meta, shift, col, row },
+            event: {
+                name,
+                ctrl,
+                meta,
+                shift,
+                col,
+                row,
+                button,
+            },
             length: match[0].length,
         };
     }
@@ -180,28 +233,25 @@ export function parseMouseEvent(buffer: string): { event: MouseEvent; length: nu
  * Check if buffer could be an incomplete mouse sequence
  */
 export function isIncompleteMouseSequence(buffer: string): boolean {
-    // Must start with ESC
-    if (!buffer.startsWith('\x1b')) return false;
+    if (!couldBeMouseSequence(buffer)) return false;
 
     // If it matches a complete sequence, it's not incomplete
     if (parseMouseEvent(buffer)) return false;
 
-    // Check for SGR format prefix: ESC [ <
-    if (buffer.startsWith('\x1b[<')) {
+    if (buffer.startsWith(X11_EVENT_PREFIX)) {
+        // X11 needs exactly 3 bytes after prefix
+        return buffer.length < X11_EVENT_PREFIX.length + 3;
+    }
+
+    if (buffer.startsWith(SGR_EVENT_PREFIX)) {
         // SGR sequences end with 'm' or 'M'
+        // Add a reasonable max length check to fail early on garbage
         return !/[mM]/.test(buffer) && buffer.length < 50;
     }
 
-    // Check for X11 format prefix: ESC [ M
-    if (buffer.startsWith('\x1b[M')) {
-        // X11 needs exactly 3 bytes after prefix
-        return buffer.length < 6;
-    }
-
-    // Could be partial prefix
-    if ('\x1b[<'.startsWith(buffer) || '\x1b[M'.startsWith(buffer)) {
-        return true;
-    }
-
-    return false;
+    // It's a prefix of the prefix (e.g. "ESC" or "ESC [")
+    return true;
 }
+
+// Re-export ESC for convenience
+export { ESC };

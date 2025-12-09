@@ -14,7 +14,8 @@ import {
     useImperativeHandle,
     type ReactNode,
 } from 'react';
-import { Box, Text, type Key } from 'ink';
+import { Box, Text } from 'ink';
+import type { Key } from '../../hooks/useInputOrchestrator.js';
 
 export interface BaseSelectorProps<T> {
     items: T[];

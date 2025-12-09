@@ -4,8 +4,8 @@
  */
 
 import React, { useCallback, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
-import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 import {
     InputArea,
     type InputAreaHandle,

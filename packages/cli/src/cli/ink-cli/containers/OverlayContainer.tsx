@@ -5,8 +5,8 @@
 
 import React, { useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Box } from 'ink';
-import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
 import type { CLIAction } from '../state/actions.js';
 import type { CLIState } from '../state/types.js';

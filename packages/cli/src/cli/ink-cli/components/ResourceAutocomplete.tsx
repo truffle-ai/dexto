@@ -8,7 +8,7 @@ import React, {
     useImperativeHandle,
 } from 'react';
 import { Box, Text } from 'ink';
-import type { Key } from 'ink';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { ResourceMetadata } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
 

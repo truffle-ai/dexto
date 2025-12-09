@@ -9,14 +9,14 @@
  * - Event handling via custom hooks
  * - UI in presentational components
  * - Smart containers orchestrate interactions
+ * - Keyboard/mouse input via custom providers (ported from Gemini CLI)
  *
  * Before: 50+ useState hooks, 15+ useEffect hooks, complex state management
  * After: 1 useReducer, 5 custom hooks, clear separation of concerns
  */
 
 import React, { useReducer, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Box, render, useStdout } from 'ink';
-import type { Key } from 'ink';
+import { Box, render, useStdout, type DOMElement } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 
@@ -24,7 +24,15 @@ import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 import { cliReducer, createInitialState, type StartupInfo } from './state/index.js';
 
 // Custom hooks
-import { useAgentEvents, useInputOrchestrator, useMouseScroll } from './hooks/index.js';
+import { useAgentEvents, useInputOrchestrator, type Key } from './hooks/index.js';
+
+// Contexts (keyboard/mouse providers)
+import {
+    KeypressProvider,
+    MouseProvider,
+    ScrollProvider,
+    useScrollable,
+} from './contexts/index.js';
 
 // Services
 import { InputService, MessageService } from './services/index.js';
@@ -59,18 +67,9 @@ interface InkCLIProps {
 }
 
 /**
- * Modern CLI interface using React Ink
- *
- * Refactored for:
- * - Clear separation of concerns
- * - Testability
- * - Maintainability
- * - Performance
- * - Type safety
- *
- * Uses explicit sessionId in state (like WebUI) instead of defaultSession pattern
+ * Inner component that uses the providers
  */
-export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCLIProps) {
+function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
     // Initialize state with reducer and set initial sessionId (may be null for deferred creation)
     const [state, dispatch] = useReducer(cliReducer, undefined, () => {
         const initialModelName = agent.getCurrentLLMConfig().model;
@@ -88,14 +87,10 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     const inputContainerRef = useRef<InputContainerHandle>(null);
     const overlayContainerRef = useRef<OverlayContainerHandle>(null);
     const listRef = useRef<VirtualizedListRef<ListItem>>(null);
+    const listContainerRef = useRef<DOMElement>(null);
 
     // Setup event bus subscriptions
     useAgentEvents({ agent, dispatch, isCancelling: state.ui.isCancelling });
-
-    // Session is now managed in state - no need for sync hook
-    // useSessionSync removed - sessionId is in state from initialization or SESSION_SET actions
-
-    // Input history navigation is now handled by MultiLineTextInput component
 
     // Create input handlers for the orchestrator
     // Approval handler - routes to OverlayContainer
@@ -108,9 +103,9 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         return overlayContainerRef.current?.handleInput(input, key) ?? false;
     }, []);
 
-    // Main input handler - routes to InputContainer with scroll support
+    // Main input handler - routes to InputContainer with keyboard scroll support
     const inputHandler = useCallback((input: string, key: Key): boolean => {
-        // Handle scroll: Page Up/Down or Shift+Up/Down
+        // Handle keyboard scroll: Page Up/Down or Shift+Up/Down
         if (key.pageUp || (key.shift && key.upArrow)) {
             listRef.current?.scrollBy(-10); // Scroll up 10 lines
             return true;
@@ -123,16 +118,8 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         return inputContainerRef.current?.handleInput(input, key) ?? false;
     }, []);
 
-    // Scroll handlers for mouse/trackpad
-    const handleScrollUp = useCallback(() => {
-        listRef.current?.scrollBy(-3); // Scroll up 3 lines
-    }, []);
-    const handleScrollDown = useCallback(() => {
-        listRef.current?.scrollBy(3); // Scroll down 3 lines
-    }, []);
-
-    // Setup unified input orchestrator (replaces useKeyboardShortcuts)
-    // Also handles mouse scroll events
+    // Setup unified input orchestrator
+    // Mouse scroll is handled by ScrollProvider
     useInputOrchestrator({
         state,
         dispatch,
@@ -141,13 +128,30 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
             approval: approvalHandler,
             overlay: overlayHandler,
             input: inputHandler,
-            onScrollUp: handleScrollUp,
-            onScrollDown: handleScrollDown,
         },
     });
 
-    // Enable mouse events on the terminal (actual handling is in orchestrator)
-    useMouseScroll({ isActive: true });
+    // Register the VirtualizedList as scrollable so ScrollProvider can handle mouse scroll
+    const getScrollState = useCallback(() => {
+        const scrollState = listRef.current?.getScrollState();
+        return scrollState ?? { scrollTop: 0, scrollHeight: 0, innerHeight: 0 };
+    }, []);
+
+    const scrollBy = useCallback((delta: number) => {
+        listRef.current?.scrollBy(delta);
+    }, []);
+
+    const hasFocus = useCallback(() => true, []); // List always has focus for scroll
+
+    useScrollable(
+        {
+            ref: listContainerRef,
+            getScrollState,
+            scrollBy,
+            hasFocus,
+        },
+        true // Always active
+    );
 
     // Hydrate conversation history when resuming a session
     useEffect(() => {
@@ -178,21 +182,14 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     }, [agent, dispatch, initialSessionId, state.messages.length, state.session.hasActiveSession]);
 
     // Detect selector overlays based on exact command matches
-    // Note: Autocomplete overlays (slash-autocomplete, resource-autocomplete) are now
-    // handled via event-driven detection in MultiLineTextInput/InputContainer.
-    // This useEffect ONLY handles selector detection for exact commands like /model, /resume.
-    // This prevents flickering because we only run detection on specific command matches,
-    // not on every keystroke.
     useEffect(() => {
         // Don't detect overlays if processing or approval is active
         if (state.ui.isProcessing || state.approval) return;
 
         // Early return for non-command input - no selector detection needed
-        // This avoids calling parseInput() on every regular character typed
         if (!state.input.value.startsWith('/')) return;
 
         // Only check for selector commands, not autocomplete
-        // These are detected while typing (unlike /mcp, /log, /session which are Enter-triggered)
         const selectorType = inputService.detectInteractiveSelector(state.input.value);
 
         // Determine what selector overlay should be shown
@@ -208,8 +205,8 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
 
         // Overlays that should not be auto-closed (Enter-triggered or user-controlled)
         const protectedOverlays = [
-            'slash-autocomplete', // Now event-driven
-            'resource-autocomplete', // Now event-driven
+            'slash-autocomplete',
+            'resource-autocomplete',
             'log-level-selector',
             'mcp-selector',
             'mcp-add-selector',
@@ -221,12 +218,9 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
         ];
         const isProtectedOverlay = protectedOverlays.includes(state.ui.activeOverlay);
 
-        // Only update overlay if:
-        // 1. Desired overlay is different from current
-        // 2. Current overlay is not protected
+        // Only update overlay if different and not protected
         if (desiredOverlay !== state.ui.activeOverlay && !isProtectedOverlay) {
             if (desiredOverlay === 'none') {
-                // Don't close if already 'none'
                 if (state.ui.activeOverlay !== 'none') {
                     dispatch({ type: 'CLOSE_OVERLAY' });
                 }
@@ -280,7 +274,6 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     );
 
     // Smart height estimation based on item type and content
-    // This prevents layout shifts when items are measured
     const estimateItemHeight = useCallback(
         (index: number) => {
             const item = listData[index];
@@ -296,33 +289,31 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
             // Tool messages with results are taller
             if (msg.role === 'tool') {
                 if (msg.toolResult) {
-                    // Estimate based on result length (roughly 80 chars per line)
                     const resultLines = Math.ceil(msg.toolResult.length / 80);
-                    return Math.min(2 + resultLines, 10); // Cap at 10 lines
+                    return Math.min(2 + resultLines, 10);
                 }
-                return 2; // Running tool without result
+                return 2;
             }
 
             // User messages have margin and background
             if (msg.role === 'user') {
                 const contentLines = Math.ceil(msg.content.length / 80);
-                return Math.max(3, contentLines + 2); // +2 for margins
+                return Math.max(3, contentLines + 2);
             }
 
-            // Assistant messages - estimate based on content length
+            // Assistant messages
             if (msg.role === 'assistant') {
-                if (msg.isStreaming) return 5; // Streaming can grow
+                if (msg.isStreaming) return 5;
                 const contentLines = Math.ceil(msg.content.length / 80);
                 return Math.max(2, contentLines + 1);
             }
 
             // System/styled messages
             if (msg.styledType) {
-                // Styled boxes are typically taller
                 return 8;
             }
 
-            return 3; // Default
+            return 3;
         },
         [listData]
     );
@@ -333,51 +324,78 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     }, []);
 
     return (
-        <ErrorBoundary>
-            {/* Root container with explicit height for alternate buffer mode */}
-            <Box flexDirection="column" height={terminalHeight}>
-                {/* Scrollable content area - header + messages */}
-                <Box flexGrow={1} flexShrink={1} minHeight={0}>
-                    <VirtualizedList
-                        ref={listRef}
-                        data={listData}
-                        renderItem={renderListItem}
-                        estimatedItemHeight={estimateItemHeight}
-                        keyExtractor={getItemKey}
-                        initialScrollIndex={SCROLL_TO_ITEM_END}
-                        initialScrollOffsetInIndex={SCROLL_TO_ITEM_END}
-                    />
-                </Box>
-
-                {/* Controls area - fixed at bottom */}
-                <Box flexDirection="column" flexShrink={0}>
-                    <StatusBar
-                        isProcessing={state.ui.isProcessing}
-                        isThinking={state.ui.isThinking}
-                        approvalQueueCount={state.approvalQueue.length}
-                        exitWarningShown={state.ui.exitWarningShown}
-                    />
-
-                    <InputContainer
-                        ref={inputContainerRef}
-                        state={state}
-                        dispatch={dispatch}
-                        agent={agent}
-                        inputService={inputService}
-                    />
-
-                    <OverlayContainer
-                        ref={overlayContainerRef}
-                        state={state}
-                        dispatch={dispatch}
-                        agent={agent}
-                        inputService={inputService}
-                    />
-
-                    {/* Footer status line */}
-                    <Footer modelName={state.session.modelName} cwd={process.cwd()} />
-                </Box>
+        <Box flexDirection="column" height={terminalHeight}>
+            {/* Scrollable content area - header + messages */}
+            <Box ref={listContainerRef} flexGrow={1} flexShrink={1} minHeight={0}>
+                <VirtualizedList
+                    ref={listRef}
+                    data={listData}
+                    renderItem={renderListItem}
+                    estimatedItemHeight={estimateItemHeight}
+                    keyExtractor={getItemKey}
+                    initialScrollIndex={SCROLL_TO_ITEM_END}
+                    initialScrollOffsetInIndex={SCROLL_TO_ITEM_END}
+                />
             </Box>
+
+            {/* Controls area - fixed at bottom */}
+            <Box flexDirection="column" flexShrink={0}>
+                <StatusBar
+                    isProcessing={state.ui.isProcessing}
+                    isThinking={state.ui.isThinking}
+                    approvalQueueCount={state.approvalQueue.length}
+                    exitWarningShown={state.ui.exitWarningShown}
+                />
+
+                <InputContainer
+                    ref={inputContainerRef}
+                    state={state}
+                    dispatch={dispatch}
+                    agent={agent}
+                    inputService={inputService}
+                />
+
+                <OverlayContainer
+                    ref={overlayContainerRef}
+                    state={state}
+                    dispatch={dispatch}
+                    agent={agent}
+                    inputService={inputService}
+                />
+
+                {/* Footer status line */}
+                <Footer modelName={state.session.modelName} cwd={process.cwd()} />
+            </Box>
+        </Box>
+    );
+}
+
+/**
+ * Modern CLI interface using React Ink
+ *
+ * Refactored for:
+ * - Clear separation of concerns
+ * - Testability
+ * - Maintainability
+ * - Performance
+ * - Type safety
+ *
+ * Uses explicit sessionId in state (like WebUI) instead of defaultSession pattern
+ */
+export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCLIProps) {
+    return (
+        <ErrorBoundary>
+            <KeypressProvider>
+                <MouseProvider mouseEventsEnabled={true}>
+                    <ScrollProvider>
+                        <InkCLIInner
+                            agent={agent}
+                            initialSessionId={initialSessionId}
+                            startupInfo={startupInfo}
+                        />
+                    </ScrollProvider>
+                </MouseProvider>
+            </KeypressProvider>
         </ErrorBoundary>
     );
 }
