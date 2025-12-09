@@ -19,11 +19,11 @@ import { ApprovalError } from './errors.js';
 export interface ApprovalManagerConfig {
     toolConfirmation: {
         mode: 'manual' | 'auto-approve' | 'auto-deny';
-        timeout: number;
+        timeout?: number; // Optional - no timeout if not specified
     };
     elicitation: {
         enabled: boolean;
-        timeout: number;
+        timeout?: number; // Optional - no timeout if not specified
     };
 }
 
@@ -162,7 +162,8 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_CONFIRMATION,
-            timeout: timeout ?? this.config.toolConfirmation.timeout,
+            // Use provided timeout, fallback to config timeout, or undefined (no timeout)
+            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
             metadata: toolMetadata,
         };
 
@@ -201,7 +202,8 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.COMMAND_CONFIRMATION,
-            timeout: timeout ?? this.config.toolConfirmation.timeout,
+            // Use provided timeout, fallback to config timeout, or undefined (no timeout)
+            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
             metadata: commandMetadata,
         };
 
@@ -226,7 +228,8 @@ export class ApprovalManager {
 
         const details: ApprovalRequestDetails = {
             type: ApprovalType.ELICITATION,
-            timeout: timeout ?? this.config.elicitation.timeout,
+            // Use provided timeout, fallback to config timeout, or undefined (no timeout)
+            timeout: timeout !== undefined ? timeout : this.config.elicitation.timeout,
             metadata: elicitationMetadata,
         };
 

@@ -101,11 +101,15 @@ export async function createAgentServices(
         {
             toolConfirmation: {
                 mode: config.toolConfirmation.mode,
-                timeout: config.toolConfirmation.timeout,
+                ...(config.toolConfirmation.timeout !== undefined && {
+                    timeout: config.toolConfirmation.timeout,
+                }),
             },
             elicitation: {
                 enabled: config.elicitation.enabled,
-                timeout: config.elicitation.timeout,
+                ...(config.elicitation.timeout !== undefined && {
+                    timeout: config.elicitation.timeout,
+                }),
             },
         },
         logger

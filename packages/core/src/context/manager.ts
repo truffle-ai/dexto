@@ -573,17 +573,22 @@ export class ContextManager<TMessage = unknown> {
      * Adds a tool result message to the conversation.
      * The result must already be sanitized - this method only persists it.
      *
+     * Success status is read from sanitizedResult.meta.success (single source of truth).
+     *
      * @param toolCallId ID of the tool call this result is responding to
      * @param name Name of the tool that executed
-     * @param sanitizedResult The already-sanitized result to store
-     * @param approvalMetadata Optional approval metadata for this tool execution
+     * @param sanitizedResult The already-sanitized result to store (includes success in meta)
+     * @param metadata Optional approval-related metadata
      * @throws Error if required parameters are missing
      */
     async addToolResult(
         toolCallId: string,
         name: string,
         sanitizedResult: SanitizedToolResult,
-        approvalMetadata?: { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+        metadata?: {
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        }
     ): Promise<void> {
         if (!toolCallId || !name) {
             throw ContextError.toolCallIdNameRequired();
@@ -607,11 +612,14 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
-            ...(approvalMetadata?.requireApproval !== undefined && {
-                requireApproval: approvalMetadata.requireApproval,
+            // Success status comes from sanitizedResult.meta (single source of truth)
+            success: sanitizedResult.meta.success,
+            // Persist approval metadata for frontend display after reload
+            ...(metadata?.requireApproval !== undefined && {
+                requireApproval: metadata.requireApproval,
             }),
-            ...(approvalMetadata?.approvalStatus !== undefined && {
-                approvalStatus: approvalMetadata.approvalStatus,
+            ...(metadata?.approvalStatus !== undefined && {
+                approvalStatus: metadata.approvalStatus,
             }),
         });
     }

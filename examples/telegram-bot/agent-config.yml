@@ -1,0 +1,119 @@
+# Telegram Bot Agent Configuration
+# This agent is optimized for Telegram bot interactions.
+# For more configuration options, see: https://docs.dexto.dev/guides/configuring-dexto
+
+# LLM Configuration
+# The bot uses this LLM provider and model for all interactions
+llm:
+  provider: google
+  model: gemini-2.5-flash
+  apiKey: $GOOGLE_GENERATIVE_AI_API_KEY
+
+# System Prompt
+# Defines the bot's personality, capabilities, and behavior
+# This prompt is customized for Telegram's capabilities and constraints
+systemPrompt: |
+  You are a friendly and helpful Telegram bot powered by Dexto. You assist users with a wide range of tasks
+  including answering questions, providing information, analysis, coding help, and creative writing.
+
+  ## Your Capabilities
+  - File System Access: Read and explore files in your working directory
+  - Web Browsing: Visit websites and extract information (when configured)
+  - Code Analysis: Help with programming, debugging, and code review
+  - Information Retrieval: Answer questions and provide detailed explanations
+  - Creative Tasks: Writing, brainstorming, ideas generation
+  - Inline Queries: Users can use @botname to get quick answers in any chat
+
+  ## Response Guidelines
+  - Keep responses conversational and friendly
+  - Use plain text formatting (Telegram doesn't support complex markdown)
+  - For code, use simple indentation without backticks or special formatting
+  - For emphasis, use CAPS or simple punctuation like asterisks *like this*
+  - Break complex topics into digestible parts with clear spacing
+  - Be helpful, respectful, and accurate
+  - If you can't help, explain why clearly and suggest alternatives
+
+  ## Commands
+  - /start - Welcome message with menu
+  - /ask <question> - Ask a question in group chats
+  - Send messages in DM for direct conversation
+
+  Always provide helpful, accurate, and friendly responses in plain text format.
+
+# Tool Confirmation Configuration
+# Telegram bots auto-approve tool calls, so we disable confirmation
+toolConfirmation:
+  mode: auto-approve
+  allowedToolsStorage: memory
+
+# Storage Configuration
+# Data storage for sessions, memories, and caching
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+    # Database file will be created in ~/.dexto/agents/telegram-bot-agent/
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per upload
+    maxTotalSize: 1073741824  # 1GB total
+    cleanupAfterDays: 30
+
+# Optional: Greeting shown in /start command
+greeting: "Welcome! I'm a Telegram bot powered by Dexto. I can help with questions, code, writing, analysis, and more! 🤖"
+
+# Prompts - Define reusable command templates
+# These appear as buttons in /start and can be invoked as slash commands
+prompts:
+  # Self-contained prompts (execute immediately when clicked)
+  - type: inline
+    id: quick-start
+    title: "🚀 Quick Start"
+    description: "Learn what I can do and how to use me"
+    prompt: "I'd like to get started quickly. Can you show me a few examples of what you can do in Telegram and help me understand how to work with you?"
+    category: learning
+    priority: 10
+    showInStarters: true
+
+  - type: inline
+    id: demo
+    title: "⚡ Demo Tools"
+    description: "See available tools in action"
+    prompt: "I'd like to see your tools in action. Can you show me what tools you have available and demonstrate one with a practical example?"
+    category: tools
+    priority: 9
+    showInStarters: true
+
+  # Context-requiring prompts (ask for input when clicked)
+  - type: inline
+    id: summarize
+    title: "📋 Summarize"
+    description: "Summarize text, articles, or concepts"
+    prompt: "Please provide a concise summary of the following. Focus on key points and main ideas:\n\n{{context}}"
+    category: productivity
+    priority: 8
+
+  - type: inline
+    id: explain
+    title: "💡 Explain"
+    description: "Get detailed explanations of any topic"
+    prompt: "Please explain the following concept in detail. Break it down into understandable parts:\n\n{{context}}"
+    category: learning
+    priority: 7
+
+  - type: inline
+    id: code
+    title: "💻 Code Help"
+    description: "Get help with programming tasks"
+    prompt: "You are a coding expert. Help with the following programming task. Provide clear, well-commented code examples:\n\n{{context}}"
+    category: development
+    priority: 6
+
+  - type: inline
+    id: translate
+    title: "🌐 Translate"
+    description: "Translate text between languages"
+    prompt: "Translate the following text. Detect the source language and translate to English:\n\n{{context}}"
+    category: language
+    priority: 5

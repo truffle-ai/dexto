@@ -1608,7 +1608,7 @@ export async function sanitizeToolResult(
         blobStore?: import('../storage/blob/types.js').BlobStore;
         toolName: string;
         toolCallId: string;
-        success?: boolean;
+        success: boolean;
     },
     logger: IDextoLogger
 ): Promise<SanitizedToolResult> {
@@ -1643,7 +1643,7 @@ export async function sanitizeToolResult(
         meta: {
             toolName: options.toolName,
             toolCallId: options.toolCallId,
-            ...(typeof options.success === 'boolean' ? { success: options.success } : {}),
+            success: options.success,
         },
     };
 }

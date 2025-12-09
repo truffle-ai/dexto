@@ -85,7 +85,7 @@ storage:
 
 toolConfirmation:
   mode: manual
-  timeout: 120000          # Time to wait for approval (ms)
+  # timeout: <optional>      # Time to wait for approval (ms). Omit for no timeout (wait indefinitely)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
 
   # Optional: Static tool policies for fine-grained allow/deny control
@@ -107,7 +107,7 @@ toolConfirmation:
 # Allows auto-approve for tools while still supporting user input requests
 elicitation:
   enabled: true            # Enable ask_user tool and MCP server elicitations
-  timeout: 120000          # Time to wait for user input (ms)
+  # timeout: <optional>    # Time to wait for user input (ms). Omit for no timeout (wait indefinitely)
 
 # Internal tools - built-in Dexto capabilities
 internalTools:

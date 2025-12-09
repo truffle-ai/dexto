@@ -30,7 +30,7 @@ llm:
 
 defaults:
   defaultAgent: default-agent
-  defaultMode: web  # web | cli | server | discord | telegram | mcp
+  defaultMode: web  # web | cli | server | mcp
 
 setup:
   completed: true
@@ -78,8 +78,6 @@ defaults:
   - `cli` - Interactive terminal mode
   - `web` - Web UI mode (default)
   - `server` - API server mode
-  - `discord` - Discord bot mode
-  - `telegram` - Telegram bot mode
   - `mcp` - MCP server mode
 
 ### Setup Section

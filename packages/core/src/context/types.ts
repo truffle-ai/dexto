@@ -130,7 +130,8 @@ export interface SanitizedToolResult {
     meta: {
         toolName: string;
         toolCallId: string;
-        success?: boolean;
+        /** Whether the tool execution succeeded. Always set by sanitizeToolResult(). */
+        success: boolean;
     };
 }
 
