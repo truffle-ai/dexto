@@ -610,14 +610,42 @@ export function useChat(
             updateSessionActivity(sessionId);
 
             try {
+                // Build content parts array from text, image, and file data
+                // New API uses unified ContentInput = string | ContentPart[]
+                const contentParts: Array<
+                    | { type: 'text'; text: string }
+                    | { type: 'image'; image: string; mimeType?: string }
+                    | { type: 'file'; data: string; mimeType: string; filename?: string }
+                > = [];
+
+                if (content) {
+                    contentParts.push({ type: 'text', text: content });
+                }
+                if (imageData) {
+                    contentParts.push({
+                        type: 'image',
+                        image: imageData.image,
+                        mimeType: imageData.mimeType,
+                    });
+                }
+                if (fileData) {
+                    contentParts.push({
+                        type: 'file',
+                        data: fileData.data,
+                        mimeType: fileData.mimeType,
+                        filename: fileData.filename,
+                    });
+                }
+
                 // Always use SSE for all events (tool calls, approvals, responses)
                 // The 'stream' flag only controls whether chunks update UI incrementally
                 const responsePromise = client.api['message-stream'].$post({
                     json: {
-                        message: content,
+                        content:
+                            contentParts.length === 1 && contentParts[0]?.type === 'text'
+                                ? content // Simple text-only case: send as string
+                                : contentParts, // Multimodal: send as array
                         sessionId,
-                        imageData,
-                        fileData,
                     },
                 });
 

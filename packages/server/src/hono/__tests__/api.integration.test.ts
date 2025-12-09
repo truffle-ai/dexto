@@ -525,7 +525,7 @@ describe('Hono API Integration Tests', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         sessionId,
-                        message: 'Say hello',
+                        content: 'Say hello',
                     }),
                 });
 
@@ -599,7 +599,7 @@ describe('Hono API Integration Tests', () => {
                 testServer.baseUrl,
                 'POST',
                 '/api/queue/test-queue-post-session',
-                { message: 'Hello from queue' }
+                { content: 'Hello from queue' }
             );
             expect(res.status).toBe(201);
             expect((res.body as { queued: boolean }).queued).toBe(true);
@@ -645,7 +645,7 @@ describe('Hono API Integration Tests', () => {
                 testServer.baseUrl,
                 'POST',
                 `/api/queue/${sessionId}`,
-                { message: 'Message to delete' }
+                { content: 'Message to delete' }
             );
             expect(queueRes.status).toBe(201);
             const messageId = (queueRes.body as { id: string }).id;
@@ -675,11 +675,11 @@ describe('Hono API Integration Tests', () => {
             expect(createRes.status).toBe(201);
 
             const q1 = await httpRequest(testServer.baseUrl, 'POST', `/api/queue/${sessionId}`, {
-                message: 'Message 1',
+                content: 'Message 1',
             });
             expect(q1.status).toBe(201);
             const q2 = await httpRequest(testServer.baseUrl, 'POST', `/api/queue/${sessionId}`, {
-                message: 'Message 2',
+                content: 'Message 2',
             });
             expect(q2.status).toBe(201);
 

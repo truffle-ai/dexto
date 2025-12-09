@@ -29,10 +29,11 @@ describe('VercelMessageFormatter', () => {
                 },
             ];
 
-            const result = formatter.format(messages, 'You are helpful', {
-                provider: 'openai',
-                model: 'gpt-4o',
-            });
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-4o' },
+                'You are helpful'
+            );
 
             // Find the user message
             const userMessage = result.find((m) => m.role === 'user');
@@ -61,10 +62,11 @@ describe('VercelMessageFormatter', () => {
                 },
             ];
 
-            const result = formatter.format(messages, 'You are helpful', {
-                provider: 'openai',
-                model: 'gpt-4o',
-            });
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-4o' },
+                'You are helpful'
+            );
 
             const userMessage = result.find((m) => m.role === 'user');
             expect(userMessage).toBeDefined();
@@ -87,10 +89,11 @@ describe('VercelMessageFormatter', () => {
                 },
             ];
 
-            const result = formatter.format(messages, 'You are helpful', {
-                provider: 'openai',
-                model: 'gpt-4o',
-            });
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-4o' },
+                'You are helpful'
+            );
 
             const userMessage = result.find((m) => m.role === 'user');
             const content = userMessage!.content as Array<{ type: string; image?: string }>;
@@ -110,10 +113,11 @@ describe('VercelMessageFormatter', () => {
                 },
             ];
 
-            const result = formatter.format(messages, 'You are helpful', {
-                provider: 'openai',
-                model: 'gpt-4o',
-            });
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-4o' },
+                'You are helpful'
+            );
 
             const userMessage = result.find((m) => m.role === 'user');
             const content = userMessage!.content as Array<{ type: string; image?: string }>;
@@ -137,10 +141,11 @@ describe('VercelMessageFormatter', () => {
                 },
             ];
 
-            const result = formatter.format(messages, 'You are helpful', {
-                provider: 'openai',
-                model: 'gpt-4o',
-            });
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-4o' },
+                'You are helpful'
+            );
 
             const userMessage = result.find((m) => m.role === 'user');
             const content = userMessage!.content as Array<{ type: string; image?: URL }>;
@@ -164,10 +169,11 @@ describe('VercelMessageFormatter', () => {
                 },
             ];
 
-            const result = formatter.format(messages, 'You are helpful', {
-                provider: 'openai',
-                model: 'gpt-4o',
-            });
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-4o' },
+                'You are helpful'
+            );
 
             const userMessage = result.find((m) => m.role === 'user');
             const content = userMessage!.content as Array<{ type: string; image?: URL }>;

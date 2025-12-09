@@ -497,7 +497,9 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should only filter user messages with array content', () => {
-        const messages: InternalMessage[] = [
+        // Note: system, assistant, and tool messages use string content for simplicity in tests.
+        // The function only processes user messages with array content.
+        const messages = [
             {
                 role: 'system',
                 content: 'You are a helpful assistant',
@@ -519,7 +521,7 @@ describe('filterMessagesByLLMCapabilities', () => {
                     { type: 'file', data: 'data', mimeType: 'application/pdf' },
                 ],
             },
-        ];
+        ] as unknown as InternalMessage[];
 
         // Mock validation to reject the file
         mockValidateModelFileSupport.mockReturnValue({
@@ -1112,12 +1114,16 @@ describe('expandBlobReferences', () => {
 });
 
 describe('filterCompacted', () => {
+    // Note: These tests use string content for simplicity. The actual InternalMessage type
+    // requires MessageContentPart[], but filterCompacted only checks metadata.isSummary
+    // and slices the array - it doesn't inspect content structure.
+
     it('should return all messages if no summary exists', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Hello' },
             { role: 'assistant', content: 'Hi there' },
             { role: 'user', content: 'How are you?' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -1126,7 +1132,7 @@ describe('filterCompacted', () => {
     });
 
     it('should return summary and messages after it when summary exists', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Old message 1' },
             { role: 'assistant', content: 'Old response 1' },
             {
@@ -1136,7 +1142,7 @@ describe('filterCompacted', () => {
             },
             { role: 'user', content: 'New message' },
             { role: 'assistant', content: 'New response' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -1148,13 +1154,13 @@ describe('filterCompacted', () => {
     });
 
     it('should use most recent summary when multiple exist', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Very old' },
             { role: 'assistant', content: 'First summary', metadata: { isSummary: true } },
             { role: 'user', content: 'Medium old' },
             { role: 'assistant', content: 'Second summary', metadata: { isSummary: true } },
             { role: 'user', content: 'Recent message' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -1171,9 +1177,9 @@ describe('filterCompacted', () => {
     });
 
     it('should handle history with only a summary', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'assistant', content: 'Just a summary', metadata: { isSummary: true } },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -1182,11 +1188,11 @@ describe('filterCompacted', () => {
     });
 
     it('should not treat messages with other metadata as summaries', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Message 1' },
             { role: 'assistant', content: 'Response with metadata', metadata: { important: true } },
             { role: 'user', content: 'Message 2' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -1195,11 +1201,11 @@ describe('filterCompacted', () => {
     });
 
     it('should handle summary at the end of history', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Old message' },
             { role: 'assistant', content: 'Old response' },
             { role: 'assistant', content: 'Final summary', metadata: { isSummary: true } },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
