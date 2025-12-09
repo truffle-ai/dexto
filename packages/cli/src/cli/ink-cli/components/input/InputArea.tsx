@@ -7,6 +7,7 @@ import React from 'react';
 import { Box } from 'ink';
 import { TextBufferInput, type OverlayTrigger } from '../TextBufferInput.js';
 import type { TextBuffer } from '../shared/text-buffer.js';
+import type { PendingImage } from '../../state/types.js';
 
 export type { OverlayTrigger };
 
@@ -27,6 +28,14 @@ interface InputAreaProps {
     onTriggerOverlay?: ((trigger: OverlayTrigger) => void) | undefined;
     /** Keyboard scroll callback (for alternate buffer mode) */
     onKeyboardScroll?: ((direction: 'up' | 'down') => void) | undefined;
+    /** Current number of attached images (for placeholder numbering) */
+    imageCount?: number | undefined;
+    /** Called when image is pasted from clipboard */
+    onImagePaste?: ((image: PendingImage) => void) | undefined;
+    /** Current pending images (for placeholder removal detection) */
+    images?: PendingImage[] | undefined;
+    /** Called when an image placeholder is removed from text */
+    onImageRemove?: ((imageId: string) => void) | undefined;
 }
 
 export function InputArea({
@@ -38,6 +47,10 @@ export function InputArea({
     onHistoryNavigate,
     onTriggerOverlay,
     onKeyboardScroll,
+    imageCount,
+    onImagePaste,
+    images,
+    onImageRemove,
 }: InputAreaProps) {
     return (
         <Box flexDirection="column">
@@ -50,6 +63,10 @@ export function InputArea({
                 onHistoryNavigate={onHistoryNavigate}
                 onTriggerOverlay={onTriggerOverlay}
                 onKeyboardScroll={onKeyboardScroll}
+                imageCount={imageCount}
+                onImagePaste={onImagePaste}
+                images={images}
+                onImageRemove={onImageRemove}
             />
         </Box>
     );

@@ -121,6 +121,20 @@ export interface StreamingMessage {
 }
 
 /**
+ * Pending image attachment
+ */
+export interface PendingImage {
+    /** Unique ID for tracking/removal */
+    id: string;
+    /** Base64-encoded image data */
+    data: string;
+    /** MIME type of the image */
+    mimeType: string;
+    /** Placeholder text shown in input (e.g., "[Image 1]") */
+    placeholder: string;
+}
+
+/**
  * Input state management
  */
 export interface InputState {
@@ -128,6 +142,8 @@ export interface InputState {
     history: string[];
     historyIndex: number;
     draftBeforeHistory: string;
+    /** Pending images to be sent with the next message */
+    images: PendingImage[];
 }
 
 /**

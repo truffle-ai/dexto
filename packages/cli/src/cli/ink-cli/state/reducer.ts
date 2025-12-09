@@ -116,6 +116,34 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
             };
         }
 
+        // Image actions
+        case 'IMAGE_ADD':
+            return {
+                ...state,
+                input: {
+                    ...state.input,
+                    images: [...state.input.images, action.image],
+                },
+            };
+
+        case 'IMAGE_REMOVE':
+            return {
+                ...state,
+                input: {
+                    ...state.input,
+                    images: state.input.images.filter((img) => img.id !== action.imageId),
+                },
+            };
+
+        case 'IMAGES_CLEAR':
+            return {
+                ...state,
+                input: {
+                    ...state.input,
+                    images: [],
+                },
+            };
+
         case 'CANCEL_START':
             return {
                 ...state,

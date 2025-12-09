@@ -6,10 +6,12 @@
  * Parent owns the buffer and can read values directly.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import type { TextBuffer } from './shared/text-buffer.js';
+import type { PendingImage } from '../state/types.js';
+import { readClipboardImage } from '../utils/clipboardUtils.js';
 
 /** Overlay trigger types for event-driven overlay detection */
 export type OverlayTrigger = 'slash-autocomplete' | 'resource-autocomplete' | 'close';
@@ -33,6 +35,14 @@ interface TextBufferInputProps {
     isActive: boolean;
     /** Optional handler for keyboard scroll (PageUp/PageDown, Shift+arrows) */
     onKeyboardScroll?: ((direction: 'up' | 'down') => void) | undefined;
+    /** Current number of attached images (for placeholder numbering) */
+    imageCount?: number | undefined;
+    /** Called when image is pasted from clipboard */
+    onImagePaste?: ((image: PendingImage) => void) | undefined;
+    /** Current pending images (for placeholder removal detection) */
+    images?: PendingImage[] | undefined;
+    /** Called when an image placeholder is removed from text */
+    onImageRemove?: ((imageId: string) => void) | undefined;
 }
 
 function isBackspaceKey(key: Key): boolean {
@@ -53,9 +63,30 @@ export function TextBufferInput({
     maxViewportLines = 10,
     isActive,
     onKeyboardScroll,
+    imageCount = 0,
+    onImagePaste,
+    images = [],
+    onImageRemove,
 }: TextBufferInputProps) {
     const { stdout } = useStdout();
     const terminalWidth = stdout?.columns || 80;
+
+    // Use ref to track imageCount to avoid stale closure in async paste handler
+    const imageCountRef = useRef(imageCount);
+    useEffect(() => {
+        imageCountRef.current = imageCount;
+    }, [imageCount]);
+
+    // Check for removed image placeholders after text changes
+    const checkRemovedImages = useCallback(() => {
+        if (!onImageRemove || images.length === 0) return;
+        const currentText = buffer.text;
+        for (const img of images) {
+            if (!currentText.includes(img.placeholder)) {
+                onImageRemove(img.id);
+            }
+        }
+    }, [buffer, images, onImageRemove]);
 
     // Handle keyboard input directly - reads buffer state fresh each time
     const handleKeypress = useCallback(
@@ -77,6 +108,37 @@ export function TextBufferInput({
                     onKeyboardScroll('down');
                     return;
                 }
+            }
+
+            // === IMAGE PASTE (Ctrl+V) ===
+            // Check clipboard for image before letting normal paste through
+            if (key.ctrl && key.name === 'v' && onImagePaste) {
+                // Async clipboard check - fire and forget, don't block input
+                void (async () => {
+                    try {
+                        const clipboardImage = await readClipboardImage();
+                        if (clipboardImage) {
+                            // Use ref to get current count (avoids stale closure issue)
+                            const currentCount = imageCountRef.current;
+                            const imageNumber = currentCount + 1;
+                            // Immediately increment ref to handle rapid pastes
+                            imageCountRef.current = imageNumber;
+
+                            const placeholder = `[Image ${imageNumber}]`;
+                            const pendingImage: PendingImage = {
+                                id: `img-${Date.now()}-${imageNumber}`,
+                                data: clipboardImage.data,
+                                mimeType: clipboardImage.mimeType,
+                                placeholder,
+                            };
+                            onImagePaste(pendingImage);
+                            buffer.insert(placeholder);
+                        }
+                    } catch {
+                        // Clipboard read failed, ignore
+                    }
+                })();
+                return;
             }
 
             // === NEWLINE DETECTION ===
@@ -120,6 +182,7 @@ export function TextBufferInput({
                 const cursorPos = getCursorPosition(buffer.lines, cursorRow, cursorCol);
 
                 buffer.backspace();
+                checkRemovedImages();
 
                 if (onTriggerOverlay && cursorPos > 0) {
                     const deletedChar = prevText[cursorPos - 1];
@@ -136,16 +199,19 @@ export function TextBufferInput({
             // === FORWARD DELETE ===
             if (isForwardDeleteKey(key)) {
                 buffer.del();
+                checkRemovedImages();
                 return;
             }
 
             // === WORD DELETE ===
             if (key.ctrl && key.name === 'w') {
                 buffer.deleteWordLeft();
+                checkRemovedImages();
                 return;
             }
             if (key.meta && isBackspaceKey(key)) {
                 buffer.deleteWordLeft();
+                checkRemovedImages();
                 return;
             }
 
@@ -188,10 +254,12 @@ export function TextBufferInput({
             }
             if (key.ctrl && key.name === 'k') {
                 buffer.killLineRight();
+                checkRemovedImages();
                 return;
             }
             if (key.ctrl && key.name === 'u') {
                 buffer.killLineLeft();
+                checkRemovedImages();
                 return;
             }
 
@@ -221,7 +289,17 @@ export function TextBufferInput({
                 }
             }
         },
-        [buffer, isDisabled, onSubmit, onHistoryNavigate, onTriggerOverlay, onKeyboardScroll]
+        [
+            buffer,
+            isDisabled,
+            onSubmit,
+            onHistoryNavigate,
+            onTriggerOverlay,
+            onKeyboardScroll,
+            imageCount,
+            onImagePaste,
+            checkRemovedImages,
+        ]
     );
 
     // Subscribe to keypress events when active

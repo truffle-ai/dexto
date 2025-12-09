@@ -7,10 +7,10 @@
  */
 
 import React, { useCallback, useRef, useEffect } from 'react';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, ContentPart, ImagePart, TextPart } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService } from '../services/InputService.js';
-import type { Message, UIState, InputState, SessionState } from '../state/types.js';
+import type { Message, UIState, InputState, SessionState, PendingImage } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -139,6 +139,28 @@ export function InputContainer({
         [setUi, ui.isProcessing, ui.activeOverlay, approval]
     );
 
+    // Handle image paste from clipboard
+    const handleImagePaste = useCallback(
+        (image: PendingImage) => {
+            setInput((prev) => ({
+                ...prev,
+                images: [...prev.images, image],
+            }));
+        },
+        [setInput]
+    );
+
+    // Handle image removal (when placeholder is deleted from text)
+    const handleImageRemove = useCallback(
+        (imageId: string) => {
+            setInput((prev) => ({
+                ...prev,
+                images: prev.images.filter((img) => img.id !== imageId),
+            }));
+        },
+        [setInput]
+    );
+
     // Handle submission
     const handleSubmit = useCallback(
         async (value: string) => {
@@ -149,6 +171,9 @@ export function InputContainer({
             if (ui.activeOverlay !== 'none' && ui.activeOverlay !== 'approval') {
                 return;
             }
+
+            // Capture images before clearing - we need them for the API call
+            const pendingImages = [...input.images];
 
             // Create user message and add it to messages
             const userMessage = createUserMessage(trimmed);
@@ -161,7 +186,13 @@ export function InputContainer({
                     prev.history.length > 0 && prev.history[prev.history.length - 1] === trimmed
                         ? prev.history
                         : [...prev.history, trimmed].slice(-100);
-                return { value: '', history: newHistory, historyIndex: -1, draftBeforeHistory: '' };
+                return {
+                    value: '',
+                    history: newHistory,
+                    historyIndex: -1,
+                    draftBeforeHistory: '',
+                    images: [], // Clear images on submit
+                };
             });
 
             // Start processing
@@ -334,7 +365,41 @@ export function InputContainer({
                     const metadata = await agent.getSessionMetadata(currentSessionId);
                     const isFirstMessage = !metadata || metadata.messageCount <= 0;
 
-                    await agent.generate(trimmed, currentSessionId);
+                    // Build content with images if any
+                    let content: string | ContentPart[];
+                    if (pendingImages.length > 0) {
+                        // Debug: log image info
+                        console.error(
+                            '[DEBUG] Submitting with images:',
+                            pendingImages.map((img) => ({
+                                id: img.id,
+                                placeholder: img.placeholder,
+                                dataLength: img.data.length,
+                                dataPrefix: img.data.substring(0, 50),
+                            }))
+                        );
+
+                        // Build multimodal content parts
+                        const parts: ContentPart[] = [];
+
+                        // Add text part first
+                        parts.push({ type: 'text', text: trimmed } as TextPart);
+
+                        // Add image parts
+                        for (const img of pendingImages) {
+                            parts.push({
+                                type: 'image',
+                                image: img.data,
+                                mimeType: img.mimeType,
+                            } as ImagePart);
+                        }
+
+                        content = parts;
+                    } else {
+                        content = trimmed;
+                    }
+
+                    await agent.generate(content, currentSessionId);
 
                     if (isFirstMessage) {
                         agent.generateSessionTitle(currentSessionId).catch((error) => {
@@ -362,6 +427,7 @@ export function InputContainer({
         },
         [
             buffer,
+            input.images,
             setInput,
             setUi,
             setMessages,
@@ -375,7 +441,9 @@ export function InputContainer({
     );
 
     // Determine if input should be active (not blocked by approval/overlay)
-    const isInputActive = !approval && ui.activeOverlay === 'none';
+    // Input stays active even with overlays (so user can keep typing to filter)
+    // Only disable for approval prompts
+    const isInputActive = !approval;
     const isInputDisabled = !!approval;
     const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
     const canNavigateHistory = !ui.isProcessing && !approval && ui.activeOverlay === 'none';
@@ -394,6 +462,10 @@ export function InputContainer({
             onHistoryNavigate={canNavigateHistory ? handleHistoryNavigate : undefined}
             onTriggerOverlay={handleTriggerOverlay}
             onKeyboardScroll={onKeyboardScroll}
+            imageCount={input.images.length}
+            onImagePaste={handleImagePaste}
+            images={input.images}
+            onImageRemove={handleImageRemove}
         />
     );
 }

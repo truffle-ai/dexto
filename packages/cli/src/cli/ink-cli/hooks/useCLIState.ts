@@ -95,6 +95,7 @@ export function useCLIState({
         history: [],
         historyIndex: -1,
         draftBeforeHistory: '',
+        images: [],
     });
 
     // Session state

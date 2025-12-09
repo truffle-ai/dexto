@@ -17,6 +17,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             history: [],
             historyIndex: -1,
             draftBeforeHistory: '',
+            images: [],
         },
         ui: {
             isProcessing: false,

@@ -6,7 +6,7 @@
  * to simplify the reducer and match WebUI's direct event handling pattern.
  */
 
-import type { OverlayType, McpWizardServerType } from './types.js';
+import type { OverlayType, McpWizardServerType, PendingImage } from './types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
 /**
@@ -33,6 +33,23 @@ export type InputHistoryResetAction = {
 export type InputHistoryAddAction = {
     type: 'INPUT_HISTORY_ADD';
     value: string;
+};
+
+/**
+ * Image attachment actions
+ */
+export type ImageAddAction = {
+    type: 'IMAGE_ADD';
+    image: PendingImage;
+};
+
+export type ImageRemoveAction = {
+    type: 'IMAGE_REMOVE';
+    imageId: string;
+};
+
+export type ImagesClearAction = {
+    type: 'IMAGES_CLEAR';
 };
 
 export type CancelStartAction = {
@@ -138,6 +155,10 @@ export type CLIAction =
     | InputHistoryNavigateAction
     | InputHistoryResetAction
     | InputHistoryAddAction
+    // Image actions
+    | ImageAddAction
+    | ImageRemoveAction
+    | ImagesClearAction
     // Processing/streaming state
     | CancelStartAction
     | ThinkingStartAction
