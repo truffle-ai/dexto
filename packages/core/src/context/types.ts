@@ -257,6 +257,9 @@ export interface ToolMessage extends MessageBase {
     /** Name of the tool that produced this result (REQUIRED) */
     name: string;
 
+    /** Whether the tool execution was successful */
+    success?: boolean;
+
     /** Whether this tool call required user approval before execution */
     requireApproval?: boolean;
 
