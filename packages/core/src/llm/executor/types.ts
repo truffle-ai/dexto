@@ -1,4 +1,5 @@
 import { TokenUsage } from '../types.js';
+import { LLMFinishReason } from '../../events/index.js';
 
 export interface ExecutorResult {
     /**
@@ -11,8 +12,8 @@ export interface ExecutorResult {
     stepCount: number;
     /** Token usage from the last step */
     usage: TokenUsage | null;
-    /** Reason the execution finished (e.g., 'stop', 'tool-calls', 'max-steps') */
-    finishReason: string;
+    /** Reason the execution finished */
+    finishReason: LLMFinishReason;
 }
 
 export interface StreamProcessorResult {
@@ -22,6 +23,6 @@ export interface StreamProcessorResult {
      * Consider extending this to support multimodal output in the future.
      */
     text: string;
-    finishReason: string;
+    finishReason: LLMFinishReason;
     usage: TokenUsage;
 }

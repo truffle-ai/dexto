@@ -1,6 +1,6 @@
 import { StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { SessionEventBus } from '../../events/index.js';
+import { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
 import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
@@ -17,7 +17,7 @@ export interface StreamProcessorConfig {
 export class StreamProcessor {
     private assistantMessageId: string | null = null;
     private actualTokens: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-    private finishReason: string = 'unknown';
+    private finishReason: LLMFinishReason = 'unknown';
     private reasoningText: string = '';
     private accumulatedText: string = '';
     private logger: IDextoLogger;

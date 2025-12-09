@@ -18,7 +18,7 @@ import { ExecutorResult } from './types.js';
 import { TokenUsage } from '../types.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import type { SessionEventBus } from '../../events/index.js';
+import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
 import { LLMContext } from '../types.js';
@@ -130,7 +130,7 @@ export class TurnExecutor {
 
         let stepCount = 0;
         let lastStepTokens: TokenUsage | null = null;
-        let lastFinishReason = 'unknown';
+        let lastFinishReason: LLMFinishReason = 'unknown';
         let lastText = '';
 
         this.eventBus.emit('llm:thinking');

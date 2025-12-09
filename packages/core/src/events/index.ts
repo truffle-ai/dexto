@@ -5,6 +5,24 @@ import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
 
 /**
+ * LLM finish reason - why the LLM stopped generating
+ *
+ * Superset of Vercel AI SDK's LanguageModelV3FinishReason with app-specific additions.
+ */
+export type LLMFinishReason =
+    // From Vercel AI SDK (LanguageModelV3FinishReason)
+    | 'stop' // Normal completion
+    | 'tool-calls' // Stopped to execute tool calls (more steps coming)
+    | 'length' // Hit token/length limit
+    | 'content-filter' // Content filter violation stopped the model
+    | 'error' // Error occurred
+    | 'other' // Other reason
+    | 'unknown' // Model has not transmitted a finish reason
+    // App-specific additions
+    | 'cancelled' // User cancelled
+    | 'max-steps'; // Hit max steps limit
+
+/**
  * Agent-level event names - events that occur at the agent/global level
  */
 export const AGENT_EVENT_NAMES = [
@@ -301,7 +319,7 @@ export interface AgentEventMap {
             totalTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: string;
+        finishReason?: LLMFinishReason;
         sessionId: string;
     };
 
@@ -402,8 +420,8 @@ export interface AgentEventMap {
 
     /** Agent run completed (all steps done, no queued messages remaining) */
     'run:complete': {
-        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
-        finishReason: string;
+        /** How the run ended */
+        finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
         /** Error that caused termination (only if finishReason === 'error') */
@@ -475,7 +493,7 @@ export interface SessionEventMap {
             totalTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: string;
+        finishReason?: LLMFinishReason;
     };
 
     /** LLM service requested a tool call */
@@ -565,8 +583,8 @@ export interface SessionEventMap {
 
     /** Agent run completed (all steps done, no queued messages remaining) */
     'run:complete': {
-        /** How the run ended: 'stop', 'cancelled', 'max-steps', 'error', 'length' */
-        finishReason: string;
+        /** How the run ended */
+        finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
         /** Error that caused termination (only if finishReason === 'error') */
