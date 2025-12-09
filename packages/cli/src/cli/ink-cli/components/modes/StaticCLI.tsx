@@ -54,7 +54,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
         approvalQueue,
         setApprovalQueue,
         inputService,
-        inputContainerRef,
+        buffer,
         overlayContainerRef,
         visibleMessages,
     } = useCLIState({
@@ -119,7 +119,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                 />
 
                 <InputContainer
-                    ref={inputContainerRef}
+                    buffer={buffer}
                     input={input}
                     ui={ui}
                     session={session}

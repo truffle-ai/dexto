@@ -127,14 +127,15 @@ export type InputHandler = (input: string, key: Key) => boolean | void;
 
 /**
  * Handler configuration for the orchestrator
+ *
+ * Note: Main text input is NOT routed through the orchestrator.
+ * TextBufferInput handles its own input directly via useKeypress.
  */
 export interface InputHandlers {
     /** Handler for approval prompt (highest priority) */
     approval?: InputHandler;
     /** Handler for active overlay (selector/autocomplete) */
     overlay?: InputHandler;
-    /** Handler for main text input (lowest priority) */
-    input?: InputHandler;
 }
 
 export interface UseInputOrchestratorProps {
@@ -328,47 +329,28 @@ export function useInputOrchestrator({
             }
 
             // === ROUTE TO FOCUSED COMPONENT ===
-            // Handlers return true if they consumed the input, false otherwise.
-            // When overlay handlers don't consume input (e.g., backspace while autocomplete shown),
-            // we fall through to the main input handler.
+            // Only approval and overlay handlers are routed through the orchestrator.
+            // Main text input handles its own keypress directly (via TextBufferInput).
 
             const focusTarget = getFocusTarget(currentApproval, currentUi.activeOverlay);
-            let consumed = false;
 
             switch (focusTarget) {
                 case 'approval':
                     if (currentHandlers.approval) {
-                        consumed = currentHandlers.approval(inputStr, key) ?? false;
+                        currentHandlers.approval(inputStr, key);
                     }
-                    // Approval always consumes - don't fall through
+                    // Approval always consumes - main input won't see it
                     break;
 
                 case 'overlay':
                     if (currentHandlers.overlay) {
-                        consumed = currentHandlers.overlay(inputStr, key) ?? false;
+                        currentHandlers.overlay(inputStr, key);
                     }
-                    // If overlay didn't consume, fall through to input handler
-                    // This allows typing/deleting while autocomplete is shown
-                    if (!consumed && currentHandlers.input) {
-                        // Clear exit warning on any typing (user changed their mind)
-                        if (
-                            currentUi.exitWarningShown &&
-                            !key.ctrl &&
-                            !key.meta &&
-                            !key.escape &&
-                            inputStr.length > 0
-                        ) {
-                            setUi((prev) => ({
-                                ...prev,
-                                exitWarningShown: false,
-                                exitWarningTimestamp: null,
-                            }));
-                        }
-                        currentHandlers.input(inputStr, key);
-                    }
+                    // Overlay may or may not consume - main input handles independently
                     break;
 
                 case 'input':
+                    // No routing needed - TextBufferInput handles its own input
                     // Clear exit warning on any typing (user changed their mind)
                     if (
                         currentUi.exitWarningShown &&
@@ -382,10 +364,6 @@ export function useInputOrchestrator({
                             exitWarningShown: false,
                             exitWarningTimestamp: null,
                         }));
-                    }
-
-                    if (currentHandlers.input) {
-                        currentHandlers.input(inputStr, key);
                     }
                     break;
             }

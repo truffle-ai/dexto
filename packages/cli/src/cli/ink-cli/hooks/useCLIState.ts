@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useStdout } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import type { Message, OverlayType, McpWizardServerType, StartupInfo } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -13,8 +14,8 @@ import { useAgentEvents } from './useAgentEvents.js';
 import { useInputOrchestrator, type Key } from './useInputOrchestrator.js';
 import { InputService, MessageService } from '../services/index.js';
 import { convertHistoryToUIMessages } from '../utils/messageFormatting.js';
-import type { InputContainerHandle } from '../containers/InputContainer.js';
 import type { OverlayContainerHandle } from '../containers/OverlayContainer.js';
+import { useTextBuffer, type TextBuffer } from '../components/shared/text-buffer.js';
 
 /**
  * UI state - grouped for convenience
@@ -71,12 +72,14 @@ export interface CLIStateReturn {
     approvalQueue: ApprovalRequest[];
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
 
+    // Text buffer (source of truth for input)
+    buffer: TextBuffer;
+
     // Services
     inputService: InputService;
     messageService: MessageService;
 
-    // Refs for containers
-    inputContainerRef: React.RefObject<InputContainerHandle | null>;
+    // Ref for overlay container
     overlayContainerRef: React.RefObject<OverlayContainerHandle | null>;
 
     // Computed data
@@ -130,8 +133,29 @@ export function useCLIState({
     const inputService = useMemo(() => new InputService(), []);
     const messageService = useMemo(() => new MessageService(), []);
 
-    // Refs to container components for unified input handling
-    const inputContainerRef = useRef<InputContainerHandle>(null);
+    // Get terminal dimensions for buffer
+    const { stdout } = useStdout();
+    const terminalWidth = stdout?.columns || 80;
+    const inputWidth = Math.max(20, terminalWidth - 4);
+
+    // Memoize onChange to prevent infinite loops (useTextBuffer has onChange in deps)
+    const handleBufferChange = useCallback((text: string) => {
+        setInput((prev) => ({ ...prev, value: text }));
+    }, []);
+
+    // Create text buffer (source of truth for input)
+    const buffer = useTextBuffer({
+        initialText: '',
+        viewport: { width: inputWidth, height: 10 },
+        onChange: handleBufferChange,
+    });
+
+    // Update viewport on terminal resize
+    useEffect(() => {
+        buffer.setViewport(inputWidth, 10);
+    }, [inputWidth, buffer.setViewport]);
+
+    // Ref for overlay container (input no longer needs ref)
     const overlayContainerRef = useRef<OverlayContainerHandle>(null);
 
     // Setup event bus subscriptions
@@ -146,6 +170,7 @@ export function useCLIState({
     });
 
     // Create input handlers for the orchestrator
+    // Note: Main input is NOT routed through orchestrator - TextBufferInput handles it directly
     const approvalHandler = useCallback((inputStr: string, key: Key): boolean => {
         return overlayContainerRef.current?.handleInput(inputStr, key) ?? false;
     }, []);
@@ -154,27 +179,7 @@ export function useCLIState({
         return overlayContainerRef.current?.handleInput(inputStr, key) ?? false;
     }, []);
 
-    // Main input handler with optional keyboard scroll support
-    const inputHandler = useCallback(
-        (inputStr: string, key: Key): boolean => {
-            // Handle keyboard scroll if callback provided (alternate buffer mode)
-            if (onKeyboardScroll) {
-                if (key.pageUp || (key.shift && key.upArrow)) {
-                    onKeyboardScroll('up');
-                    return true;
-                }
-                if (key.pageDown || (key.shift && key.downArrow)) {
-                    onKeyboardScroll('down');
-                    return true;
-                }
-            }
-
-            return inputContainerRef.current?.handleInput(inputStr, key) ?? false;
-        },
-        [onKeyboardScroll]
-    );
-
-    // Setup unified input orchestrator
+    // Setup unified input orchestrator (handles global shortcuts, approval, overlay only)
     useInputOrchestrator({
         ui,
         approval,
@@ -185,7 +190,6 @@ export function useCLIState({
         handlers: {
             approval: approvalHandler,
             overlay: overlayHandler,
-            input: inputHandler,
         },
     });
 
@@ -276,9 +280,9 @@ export function useCLIState({
         setApproval,
         approvalQueue,
         setApprovalQueue,
+        buffer,
         inputService,
         messageService,
-        inputContainerRef,
         overlayContainerRef,
         visibleMessages,
         agent,

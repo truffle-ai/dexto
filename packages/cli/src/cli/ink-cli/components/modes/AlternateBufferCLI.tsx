@@ -82,7 +82,7 @@ export function AlternateBufferCLI({
         approvalQueue,
         setApprovalQueue,
         inputService,
-        inputContainerRef,
+        buffer,
         overlayContainerRef,
         visibleMessages,
     } = useCLIState({
@@ -241,7 +241,7 @@ export function AlternateBufferCLI({
                 )}
 
                 <InputContainer
-                    ref={inputContainerRef}
+                    buffer={buffer}
                     input={input}
                     ui={ui}
                     session={session}
@@ -252,6 +252,7 @@ export function AlternateBufferCLI({
                     setMessages={setMessages}
                     agent={agent}
                     inputService={inputService}
+                    onKeyboardScroll={handleKeyboardScroll}
                 />
 
                 <OverlayContainer
