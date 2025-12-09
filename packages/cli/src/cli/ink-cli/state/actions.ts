@@ -187,6 +187,17 @@ export type ExitWarningClearAction = {
 };
 
 /**
+ * Copy mode actions (for text selection in alternate buffer)
+ */
+export type CopyModeEnableAction = {
+    type: 'COPY_MODE_ENABLE';
+};
+
+export type CopyModeDisableAction = {
+    type: 'COPY_MODE_DISABLE';
+};
+
+/**
  * Combined action type
  */
 export type CLIAction =
@@ -222,4 +233,6 @@ export type CLIAction =
     | ApprovalCompleteAction
     | ErrorAction
     | ExitWarningShowAction
-    | ExitWarningClearAction;
+    | ExitWarningClearAction
+    | CopyModeEnableAction
+    | CopyModeDisableAction;

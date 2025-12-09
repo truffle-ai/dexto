@@ -11,6 +11,7 @@ interface StatusBarProps {
     isThinking: boolean;
     approvalQueueCount: number;
     exitWarningShown?: boolean;
+    copyModeEnabled?: boolean;
 }
 
 /**
@@ -22,7 +23,19 @@ export function StatusBar({
     isThinking,
     approvalQueueCount,
     exitWarningShown = false,
+    copyModeEnabled = false,
 }: StatusBarProps) {
+    // Show copy mode warning (highest priority)
+    if (copyModeEnabled) {
+        return (
+            <Box paddingX={1} marginBottom={0}>
+                <Text color="yellow" bold>
+                    📋 Copy Mode - Select text with mouse. Press any key to exit.
+                </Text>
+            </Box>
+        );
+    }
+
     // Show exit warning if Ctrl+C was pressed
     if (exitWarningShown) {
         return (

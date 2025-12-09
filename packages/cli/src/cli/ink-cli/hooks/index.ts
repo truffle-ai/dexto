@@ -19,6 +19,7 @@ export {
     type MainInputHandlerProps,
 } from './useInputOrchestrator.js';
 export { useKeypress } from './useKeypress.js';
+export { useTerminalSize, type TerminalSize } from './useTerminalSize.js';
 export type { Key } from './useInputOrchestrator.js';
 // useMouseScroll removed - mouse events now handled by MouseProvider/ScrollProvider
 // useInputHistory removed - history navigation now handled by MultiLineTextInput

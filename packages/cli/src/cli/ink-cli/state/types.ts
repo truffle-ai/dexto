@@ -163,6 +163,7 @@ export interface UIState {
     exitWarningShown: boolean; // True when first Ctrl+C was pressed (pending second to exit)
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
     mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard
+    copyModeEnabled: boolean; // True when copy mode is active (mouse events disabled for text selection)
 }
 
 /**

@@ -29,6 +29,7 @@ export function createInitialState(
             exitWarningShown: false,
             exitWarningTimestamp: null,
             mcpWizardServerType: null,
+            copyModeEnabled: false,
         },
         session: {
             id: null,

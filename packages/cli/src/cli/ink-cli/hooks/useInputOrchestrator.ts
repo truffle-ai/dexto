@@ -20,6 +20,7 @@ import type { CLIState } from '../state/types.js';
 import type { CLIAction } from '../state/actions.js';
 import type { DextoAgent } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
+import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
@@ -244,7 +245,22 @@ export function useInputOrchestrator({
             // Convert to Ink-compatible format
             const { input, key } = convertKey(rawKey);
 
+            // === COPY MODE HANDLING ===
+            // When in copy mode, any key exits copy mode (mouse events re-enabled)
+            if (currentState.ui.copyModeEnabled) {
+                dispatch({ type: 'COPY_MODE_DISABLE' });
+                enableMouseEvents(); // Re-enable mouse events
+                return; // Don't process any other keys while exiting copy mode
+            }
+
             // === GLOBAL SHORTCUTS (always handled first) ===
+
+            // Ctrl+S: Toggle copy mode (for text selection in alternate buffer)
+            if (key.ctrl && input === 's') {
+                dispatch({ type: 'COPY_MODE_ENABLE' });
+                disableMouseEvents(); // Disable mouse events so terminal can handle selection
+                return;
+            }
 
             // Ctrl+C: Always handle globally for cancellation/exit
             if (key.ctrl && input === 'c') {

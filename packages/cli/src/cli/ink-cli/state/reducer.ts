@@ -500,6 +500,25 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 },
             };
 
+        // Copy mode actions (for text selection in alternate buffer)
+        case 'COPY_MODE_ENABLE':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    copyModeEnabled: true,
+                },
+            };
+
+        case 'COPY_MODE_DISABLE':
+            return {
+                ...state,
+                ui: {
+                    ...state.ui,
+                    copyModeEnabled: false,
+                },
+            };
+
         default:
             return state;
     }

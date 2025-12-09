@@ -16,7 +16,7 @@
  */
 
 import React, { useReducer, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Box, render, useStdout, type DOMElement } from 'ink';
+import { Box, render, type DOMElement } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 
@@ -24,7 +24,7 @@ import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 import { cliReducer, createInitialState, type StartupInfo } from './state/index.js';
 
 // Custom hooks
-import { useAgentEvents, useInputOrchestrator, type Key } from './hooks/index.js';
+import { useAgentEvents, useInputOrchestrator, useTerminalSize, type Key } from './hooks/index.js';
 
 // Contexts (keyboard/mouse providers)
 import {
@@ -251,9 +251,8 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
         return items;
     }, [visibleMessages]);
 
-    // Get terminal dimensions for alternate buffer mode
-    const { stdout } = useStdout();
-    const terminalHeight = stdout?.rows ?? 24;
+    // Get terminal dimensions - updates on resize
+    const { rows: terminalHeight } = useTerminalSize();
 
     // Callbacks for VirtualizedList
     const renderListItem = useCallback(
@@ -345,6 +344,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
                     isThinking={state.ui.isThinking}
                     approvalQueueCount={state.approvalQueue.length}
                     exitWarningShown={state.ui.exitWarningShown}
+                    copyModeEnabled={state.ui.copyModeEnabled}
                 />
 
                 <InputContainer
