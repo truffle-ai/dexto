@@ -127,6 +127,7 @@ export interface InputState {
     value: string;
     history: string[];
     historyIndex: number;
+    draftBeforeHistory: string;
 }
 
 /**

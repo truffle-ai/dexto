@@ -10,7 +10,7 @@ import React, { useCallback, useRef, useEffect } from 'react';
 import type { DextoAgent } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService } from '../services/InputService.js';
-import type { OverlayType, McpWizardServerType, Message } from '../state/types.js';
+import type { Message, UIState, InputState, SessionState } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -18,32 +18,6 @@ import type { TextBuffer } from '../components/shared/text-buffer.js';
 
 /** Type for pending session creation promise */
 type SessionCreationResult = { id: string };
-
-/** UI state shape */
-interface UIState {
-    isProcessing: boolean;
-    isCancelling: boolean;
-    isThinking: boolean;
-    activeOverlay: OverlayType;
-    exitWarningShown: boolean;
-    exitWarningTimestamp: number | null;
-    mcpWizardServerType: McpWizardServerType;
-    copyModeEnabled: boolean;
-}
-
-/** Input state shape - just tracks history now */
-interface InputState {
-    value: string; // Synced from buffer.onChange
-    history: string[];
-    historyIndex: number;
-}
-
-/** Session state shape */
-interface SessionState {
-    id: string | null;
-    hasActiveSession: boolean;
-    modelName: string;
-}
 
 interface InputContainerProps {
     /** Text buffer (owned by useCLIState) */
@@ -91,28 +65,46 @@ export function InputContainer({
     }, [session.id]);
 
     // Handle history navigation - set text directly on buffer
+    // Saves current draft when first pressing up, restores it when pressing down past newest
     const handleHistoryNavigate = useCallback(
         (direction: 'up' | 'down') => {
-            const { history, historyIndex } = input;
-            if (history.length === 0) return;
+            const { history, historyIndex, draftBeforeHistory } = input;
+            if (direction === 'up' && history.length === 0) return;
 
             let newIndex = historyIndex;
             if (direction === 'up') {
                 if (newIndex < 0) {
-                    newIndex = history.length - 1;
+                    // First time pressing up - save current input as draft
+                    const currentText = buffer.text;
+                    setInput((prev) => ({
+                        ...prev,
+                        draftBeforeHistory: currentText,
+                        historyIndex: history.length - 1,
+                        value: history[history.length - 1] || '',
+                    }));
+                    buffer.setText(history[history.length - 1] || '');
+                    return;
                 } else if (newIndex > 0) {
                     newIndex = newIndex - 1;
+                } else {
+                    return; // Already at oldest
                 }
             } else {
-                if (newIndex >= 0 && newIndex < history.length - 1) {
+                // Down
+                if (newIndex < 0) return; // Not navigating history
+                if (newIndex < history.length - 1) {
                     newIndex = newIndex + 1;
-                } else if (newIndex === history.length - 1) {
-                    // At end of history, clear input
-                    buffer.setText('');
-                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                } else {
+                    // At newest history item, restore draft
+                    buffer.setText(draftBeforeHistory);
+                    setInput((prev) => ({
+                        ...prev,
+                        value: draftBeforeHistory,
+                        historyIndex: -1,
+                        draftBeforeHistory: '',
+                    }));
                     return;
                 }
-                if (newIndex < 0) return;
             }
 
             const historyItem = history[newIndex] || '';
@@ -169,7 +161,7 @@ export function InputContainer({
                     prev.history.length > 0 && prev.history[prev.history.length - 1] === trimmed
                         ? prev.history
                         : [...prev.history, trimmed].slice(-100);
-                return { value: '', history: newHistory, historyIndex: -1 };
+                return { value: '', history: newHistory, historyIndex: -1, draftBeforeHistory: '' };
             });
 
             // Start processing

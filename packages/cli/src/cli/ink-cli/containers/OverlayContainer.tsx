@@ -8,7 +8,7 @@ import { Box } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
-import type { OverlayType, McpWizardServerType, Message } from '../state/types.js';
+import type { Message, UIState, InputState, SessionState } from '../state/types.js';
 import {
     ApprovalPrompt,
     type ApprovalPromptHandle,
@@ -61,32 +61,6 @@ import { generateMessageId } from '../utils/idGenerator.js';
 
 export interface OverlayContainerHandle {
     handleInput: (input: string, key: Key) => boolean;
-}
-
-/** UI state shape */
-interface UIState {
-    isProcessing: boolean;
-    isCancelling: boolean;
-    isThinking: boolean;
-    activeOverlay: OverlayType;
-    exitWarningShown: boolean;
-    exitWarningTimestamp: number | null;
-    mcpWizardServerType: McpWizardServerType;
-    copyModeEnabled: boolean;
-}
-
-/** Input state shape */
-interface InputState {
-    value: string;
-    history: string[];
-    historyIndex: number;
-}
-
-/** Session state shape */
-interface SessionState {
-    id: string | null;
-    hasActiveSession: boolean;
-    modelName: string;
 }
 
 interface OverlayContainerProps {

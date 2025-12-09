@@ -16,7 +16,7 @@
 import type React from 'react';
 import { useEffect, useRef, useCallback } from 'react';
 import { useApp } from 'ink';
-import type { OverlayType, McpWizardServerType } from '../state/types.js';
+import type { UIState, InputState, SessionState, OverlayType } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { DextoAgent } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
@@ -24,38 +24,6 @@ import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
-
-/**
- * UI state shape
- */
-interface UIState {
-    isProcessing: boolean;
-    isCancelling: boolean;
-    isThinking: boolean;
-    activeOverlay: OverlayType;
-    exitWarningShown: boolean;
-    exitWarningTimestamp: number | null;
-    mcpWizardServerType: McpWizardServerType;
-    copyModeEnabled: boolean;
-}
-
-/**
- * Input state shape
- */
-interface InputState {
-    value: string;
-    history: string[];
-    historyIndex: number;
-}
-
-/**
- * Session state shape
- */
-interface SessionState {
-    id: string | null;
-    hasActiveSession: boolean;
-    modelName: string;
-}
 
 /**
  * Ink-compatible Key interface

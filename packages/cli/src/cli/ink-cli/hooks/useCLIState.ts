@@ -8,7 +8,14 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
 import type { DextoAgent } from '@dexto/core';
-import type { Message, OverlayType, McpWizardServerType, StartupInfo } from '../state/types.js';
+import type {
+    Message,
+    StartupInfo,
+    UIState,
+    InputState,
+    SessionState,
+    OverlayType,
+} from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { useAgentEvents } from './useAgentEvents.js';
 import { useInputOrchestrator, type Key } from './useInputOrchestrator.js';
@@ -17,37 +24,8 @@ import { convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import type { OverlayContainerHandle } from '../containers/OverlayContainer.js';
 import { useTextBuffer, type TextBuffer } from '../components/shared/text-buffer.js';
 
-/**
- * UI state - grouped for convenience
- */
-export interface UIState {
-    isProcessing: boolean;
-    isCancelling: boolean;
-    isThinking: boolean;
-    activeOverlay: OverlayType;
-    exitWarningShown: boolean;
-    exitWarningTimestamp: number | null;
-    mcpWizardServerType: McpWizardServerType;
-    copyModeEnabled: boolean;
-}
-
-/**
- * Input state - grouped for convenience
- */
-export interface InputState {
-    value: string;
-    history: string[];
-    historyIndex: number;
-}
-
-/**
- * Session state - grouped for convenience
- */
-export interface SessionState {
-    id: string | null;
-    hasActiveSession: boolean;
-    modelName: string;
-}
+// Re-export types for backwards compatibility
+export type { UIState, InputState, SessionState } from '../state/types.js';
 
 export interface UseCLIStateProps {
     agent: DextoAgent;
@@ -116,6 +94,7 @@ export function useCLIState({
         value: '',
         history: [],
         historyIndex: -1,
+        draftBeforeHistory: '',
     });
 
     // Session state
