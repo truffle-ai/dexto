@@ -8,6 +8,7 @@
 
 import type React from 'react';
 import { useEffect, useRef } from 'react';
+import { setMaxListeners } from 'events';
 import type { DextoAgent } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
 import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
@@ -79,6 +80,9 @@ export function useAgentEvents({
         const bus = agent.agentEventBus;
         const controller = new AbortController();
         const { signal } = controller;
+
+        // Increase listener limit - we register 11 event handlers on this signal
+        setMaxListeners(30, signal);
 
         // Handle thinking event (when LLM starts processing)
         // Don't create message here - wait for first chunk or response

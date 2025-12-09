@@ -32,7 +32,7 @@
         "clean:storage": "rimraf .dexto",
         "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
         "dev": "tsx scripts/dev-server.ts",
-        "dev:cli": "pnpm build:cli && pnpm -C packages/cli start --mode cli",
+        "dev:cli": "turbo run build --filter=dexto... && pnpm -C packages/cli start --mode cli",
         "link:cli": "pnpm run link-cli",
         "embed-webui": "tsx scripts/copy-webui-dist.ts",
         "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",

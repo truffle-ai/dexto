@@ -1,4 +1,5 @@
 // src/agent/DextoAgent.ts
+import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -805,6 +806,9 @@ export class DextoAgent {
         // Create AbortController for cleanup
         const controller = new AbortController();
         const cleanupSignal = controller.signal;
+
+        // Increase listener limit - stream() registers 12+ event listeners on this signal
+        setMaxListeners(30, cleanupSignal);
 
         // Track listener references for manual cleanup
         // Using Function type here because listeners have different signatures per event
