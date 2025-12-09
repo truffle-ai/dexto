@@ -51,7 +51,7 @@ import McpCustomWizard, {
     type McpCustomConfig,
 } from '../components/overlays/McpCustomWizard.js';
 import type { PromptInfo, ResourceMetadata } from '@dexto/core';
-import { logger } from '@dexto/core';
+import type { LogLevel } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -511,7 +511,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 dispatch({ type: 'CLOSE_OVERLAY' });
                 dispatch({ type: 'INPUT_CLEAR' });
 
-                logger.setLevel(level);
+                // Set level on agent's logger (propagates to all child loggers via shared ref)
+                agent.logger.setLevel(level as LogLevel);
 
                 dispatch({
                     type: 'MESSAGE_ADD',
@@ -523,7 +524,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     },
                 });
             },
-            [dispatch]
+            [dispatch, agent]
         );
 
         // Handle main MCP action selection
@@ -900,6 +901,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onSelect={handleLogLevelSelect}
                             onClose={handleClose}
+                            agent={agent}
                         />
                     </Box>
                 )}

@@ -6,13 +6,14 @@
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import { logger } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 
 interface LogLevelSelectorProps {
     isVisible: boolean;
     onSelect: (level: string) => void;
     onClose: () => void;
+    agent: DextoAgent;
 }
 
 export interface LogLevelSelectorHandle {
@@ -26,21 +27,20 @@ interface LogLevelOption {
     isCurrent: boolean;
 }
 
+// Log levels matching DextoLogger's supported levels
 const LOG_LEVELS: { level: string; description: string; icon: string }[] = [
     { level: 'error', description: 'Errors only', icon: '❌' },
     { level: 'warn', description: 'Warnings and above', icon: '⚠️' },
     { level: 'info', description: 'Info and above (default)', icon: 'ℹ️' },
-    { level: 'http', description: 'HTTP requests and above', icon: '🌐' },
-    { level: 'verbose', description: 'Verbose output', icon: '📝' },
     { level: 'debug', description: 'Debug information', icon: '🔍' },
-    { level: 'silly', description: 'Everything', icon: '🔬' },
+    { level: 'silly', description: 'Everything (most verbose)', icon: '🔬' },
 ];
 
 /**
  * Log level selector - thin wrapper around BaseSelector
  */
 const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProps>(
-    function LogLevelSelector({ isVisible, onSelect, onClose }, ref) {
+    function LogLevelSelector({ isVisible, onSelect, onClose, agent }, ref) {
         const baseSelectorRef = useRef<BaseSelectorHandle>(null);
 
         // Forward handleInput to BaseSelector
@@ -61,7 +61,8 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
         useEffect(() => {
             if (!isVisible) return;
 
-            const currentLevel = logger.getLevel();
+            // Get current level from agent's logger (shared across all child loggers)
+            const currentLevel = agent.logger.getLevel();
             const levelList = LOG_LEVELS.map((l) => ({
                 ...l,
                 isCurrent: l.level === currentLevel,
@@ -74,7 +75,7 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
             if (currentIndex >= 0) {
                 setSelectedIndex(currentIndex);
             }
-        }, [isVisible]);
+        }, [isVisible, agent]);
 
         // Format level item for display
         const formatItem = (option: LogLevelOption, isSelected: boolean) => (
