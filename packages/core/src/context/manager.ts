@@ -1,7 +1,18 @@
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
-import type { InternalMessage, ImageData, FileData, AssistantMessage, ToolCall } from './types.js';
+import type {
+    InternalMessage,
+    ImageData,
+    FileData,
+    AssistantMessage,
+    ToolCall,
+    SystemMessage,
+    UserMessage,
+    ToolMessage,
+    ContentPart,
+} from './types.js';
+import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { eventBus } from '../events/index.js';
@@ -678,18 +689,37 @@ export class ContextManager<TMessage = unknown> {
         }
 
         // Resolve blob references using resource manager with filtering
+        // Only user and tool messages can contain blob references (images, files)
+        // System and assistant messages have string-only content - no blob expansion needed
         this.logger.debug('Resolving blob references in message history before formatting');
-        messageHistory = (await Promise.all(
-            messageHistory.map(async (message) => {
-                const expandedContent = await expandBlobReferences(
-                    message.content,
-                    this.resourceManager,
-                    this.logger,
-                    allowedMediaTypes
-                );
-                return { ...message, content: expandedContent };
+        messageHistory = await Promise.all(
+            messageHistory.map(async (message): Promise<InternalMessage> => {
+                if (isSystemMessage(message) || isAssistantMessage(message)) {
+                    // System/assistant messages have string content, no blob refs
+                    return message;
+                }
+                if (isUserMessage(message)) {
+                    const expandedContent = await expandBlobReferences(
+                        message.content,
+                        this.resourceManager,
+                        this.logger,
+                        allowedMediaTypes
+                    );
+                    return { ...message, content: expandedContent };
+                }
+                if (isToolMessage(message)) {
+                    const expandedContent = await expandBlobReferences(
+                        message.content,
+                        this.resourceManager,
+                        this.logger,
+                        allowedMediaTypes
+                    );
+                    return { ...message, content: expandedContent };
+                }
+                // Should never reach here, but TypeScript needs exhaustive check
+                return message;
             })
-        )) as InternalMessage[];
+        );
 
         // Use pre-computed system prompt if provided
         const prompt = systemPrompt ?? (await this.getSystemPrompt(contributorContext));
