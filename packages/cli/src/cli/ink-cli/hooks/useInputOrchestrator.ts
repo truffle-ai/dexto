@@ -219,16 +219,14 @@ export function useInputOrchestrator({
                 }));
             }
         } else if (currentBuffer.text.length > 0) {
-            // Has input text - clear it (following Gemini's CLEAR_INPUT pattern)
+            // Has input text - clear it AND show exit warning
+            // This way: first Ctrl+C clears, second Ctrl+C exits
             currentBuffer.setText('');
-            // Clear exit warning if it was shown
-            if (currentUi.exitWarningShown) {
-                setUi((prev) => ({
-                    ...prev,
-                    exitWarningShown: false,
-                    exitWarningTimestamp: null,
-                }));
-            }
+            setUi((prev) => ({
+                ...prev,
+                exitWarningShown: true,
+                exitWarningTimestamp: Date.now(),
+            }));
         } else {
             // No text, not processing - handle exit with double-press safety
             if (currentUi.exitWarningShown) {
