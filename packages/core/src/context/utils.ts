@@ -4,7 +4,9 @@ import {
     ImagePart,
     FilePart,
     UIResourcePart,
+    ContentPart,
     SanitizedToolResult,
+    isToolMessage,
 } from './types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
@@ -581,6 +583,42 @@ export async function getFileDataWithBlobSupport(
  *                          If omitted, all blobs are expanded (legacy behavior).
  * @returns Promise<Resolved content with blob references expanded or replaced with placeholders>
  */
+// Overload: string input can become ContentPart[] if blobs are found
+export async function expandBlobReferences(
+    content: string,
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<string | ContentPart[]>;
+// Overload: null passes through unchanged
+export async function expandBlobReferences(
+    content: null,
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<null>;
+// Overload: ContentPart[] stays as ContentPart[]
+export async function expandBlobReferences(
+    content: ContentPart[],
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<ContentPart[]>;
+// Overload: ToolMessage content type (string | ContentPart[]) - MUST come before UserMessage overload
+export async function expandBlobReferences(
+    content: string | ContentPart[],
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<string | ContentPart[]>;
+// Overload: UserMessage content type (string | null | ContentPart[])
+export async function expandBlobReferences(
+    content: string | null | ContentPart[],
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<string | null | ContentPart[]>;
+// Implementation signature
 export async function expandBlobReferences(
     content: InternalMessage['content'],
     resourceManager: import('../resources/index.js').ResourceManager,
@@ -1740,7 +1778,7 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
  * @returns The content string or placeholder if compacted
  */
 export function formatToolOutputForDisplay(message: InternalMessage): string {
-    if (message.compactedAt) {
+    if (isToolMessage(message) && message.compactedAt) {
         return '[Old tool result content cleared]';
     }
 
