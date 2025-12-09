@@ -11,9 +11,13 @@
  */
 
 import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react';
-import { Box, render, type DOMElement } from 'ink';
+import { Box, Static, render, type DOMElement } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
+
+// Rendering mode: true = alternate buffer with VirtualizedList, false = Static pattern
+// Toggle this to switch between modes for testing
+const USE_ALTERNATE_BUFFER = true;
 
 // Types
 import type { Message, OverlayType, McpWizardServerType, StartupInfo } from './state/types.js';
@@ -295,13 +299,31 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
         return messageService.getVisibleMessages(messages, 50);
     }, [messages, messageService]);
 
-    // Build list data: header as first item, then messages
+    // Build list data: header as first item, then messages (for VirtualizedList mode)
     const listData = useMemo<ListItem[]>(() => {
         const items: ListItem[] = [{ type: 'header' }];
         for (const msg of visibleMessages) {
             items.push({ type: 'message', message: msg });
         }
         return items;
+    }, [visibleMessages]);
+
+    // For Static pattern: split messages into finalized (static) and pending (dynamic)
+    // A message is finalized if it's not a running tool
+    const { staticMessages, dynamicMessages } = useMemo(() => {
+        // Find cutoff - all messages before this are finalized
+        let cutoff = 0;
+        for (const msg of visibleMessages) {
+            // Running tools are not finalized yet
+            if (msg.toolStatus === 'running') {
+                break;
+            }
+            cutoff++;
+        }
+        return {
+            staticMessages: visibleMessages.slice(0, cutoff),
+            dynamicMessages: visibleMessages.slice(cutoff),
+        };
     }, [visibleMessages]);
 
     // Get terminal dimensions - updates on resize
@@ -375,20 +397,53 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
         return item.message.id;
     }, []);
 
-    return (
-        <Box flexDirection="column" height={terminalHeight}>
-            {/* Scrollable content area - header + messages */}
-            <Box ref={listContainerRef} flexGrow={1} flexShrink={1} minHeight={0}>
-                <VirtualizedList
-                    ref={listRef}
-                    data={listData}
-                    renderItem={renderListItem}
-                    estimatedItemHeight={estimateItemHeight}
-                    keyExtractor={getItemKey}
-                    initialScrollIndex={SCROLL_TO_ITEM_END}
-                    initialScrollOffsetInIndex={SCROLL_TO_ITEM_END}
+    // Render content area based on mode
+    const renderContentArea = () => {
+        if (USE_ALTERNATE_BUFFER) {
+            // VirtualizedList mode - scrollable, interactive
+            return (
+                <Box ref={listContainerRef} flexGrow={1} flexShrink={1} minHeight={0}>
+                    <VirtualizedList
+                        ref={listRef}
+                        data={listData}
+                        renderItem={renderListItem}
+                        estimatedItemHeight={estimateItemHeight}
+                        keyExtractor={getItemKey}
+                        initialScrollIndex={SCROLL_TO_ITEM_END}
+                        initialScrollOffsetInIndex={SCROLL_TO_ITEM_END}
+                    />
+                </Box>
+            );
+        }
+
+        // Static pattern mode - copy-friendly, uses terminal scrollback
+        return (
+            <Box flexDirection="column" flexGrow={1}>
+                {/* Header always renders first */}
+                <Header
+                    modelName={session.modelName}
+                    sessionId={session.id || undefined}
+                    hasActiveSession={session.hasActiveSession}
+                    startupInfo={startupInfo}
                 />
+
+                {/* Static: finalized messages - rendered once, never re-render */}
+                <Static items={staticMessages}>
+                    {(message) => <MessageItem key={message.id} message={message} />}
+                </Static>
+
+                {/* Dynamic: pending messages - re-render on updates */}
+                {dynamicMessages.map((message) => (
+                    <MessageItem key={message.id} message={message} />
+                ))}
             </Box>
+        );
+    };
+
+    return (
+        <Box flexDirection="column" height={USE_ALTERNATE_BUFFER ? terminalHeight : undefined}>
+            {/* Content area - either VirtualizedList or Static pattern */}
+            {renderContentArea()}
 
             {/* Controls area - fixed at bottom */}
             <Box flexDirection="column" flexShrink={0}>
@@ -477,8 +532,10 @@ export async function startInkCliRefactored(
         />,
         {
             exitOnCtrlC: false,
-            alternateBuffer: true,
-            incrementalRendering: true,
+            alternateBuffer: USE_ALTERNATE_BUFFER,
+            // Incremental rendering works better with VirtualizedList
+            // Static pattern doesn't need it (and may work better without)
+            incrementalRendering: USE_ALTERNATE_BUFFER,
         }
     );
 
