@@ -83,9 +83,7 @@ const agent = await manager.loadAgent('coding-agent');
 await agent.start();
 
 const session = await agent.createSession();
-const response = await agent.generate('Write a function to reverse a string', {
-  sessionId: session.id
-});
+const response = await agent.generate('Write a function to reverse a string', session.id);
 
 console.log(response.content);
 ```
@@ -143,7 +141,7 @@ await Promise.all(Object.values(agents).map(a => a.start()));
 async function handleRequest(type: 'code' | 'support', message: string) {
   const agent = agents[type];
   const session = await agent.createSession();
-  return agent.generate(message, { sessionId: session.id });
+  return agent.generate(message, session.id);
 }
 
 // Use it
