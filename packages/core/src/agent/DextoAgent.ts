@@ -680,19 +680,21 @@ export class DextoAgent {
             events.push(event);
         }
 
-        // Check for error events first - if generation failed, throw the actual error
-        const errorEvent = events.find(
-            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> => e.name === 'llm:error'
+        // Check for non-recoverable error events - only throw on fatal errors
+        // Recoverable errors (like tool failures) are included in the response for the caller to handle
+        const fatalErrorEvent = events.find(
+            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> =>
+                e.name === 'llm:error' && e.recoverable !== true
         );
-        if (errorEvent) {
+        if (fatalErrorEvent) {
             // If it's already a DextoRuntimeError, throw it directly
-            if (errorEvent.error instanceof DextoRuntimeError) {
-                throw errorEvent.error;
+            if (fatalErrorEvent.error instanceof DextoRuntimeError) {
+                throw fatalErrorEvent.error;
             }
             // Otherwise wrap plain Error in DextoRuntimeError for proper HTTP status handling
             const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
             throw LLMError.generationFailed(
-                errorEvent.error.message,
+                fatalErrorEvent.error.message,
                 llmConfig.provider,
                 llmConfig.model
             );

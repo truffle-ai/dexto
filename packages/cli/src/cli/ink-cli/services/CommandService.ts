@@ -62,7 +62,7 @@ export class CommandService {
     ): Promise<CommandExecutionResult> {
         const result = await executeCommand(command, args, agent, sessionId);
 
-        // If result is empty string, it means a prompt was executed via agent.run()
+        // If result is empty string, it means a prompt was executed via agent.generate()
         if (typeof result === 'string' && result === '') {
             return { type: 'prompt' };
         }

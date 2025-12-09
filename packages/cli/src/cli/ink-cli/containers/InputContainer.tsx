@@ -293,7 +293,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         );
 
                         if (result.type === 'prompt') {
-                            // Command executed a prompt via agent.run()
+                            // Command executed a prompt via agent.generate()
                             // Processing will continue via event bus
                             return;
                         }
@@ -387,7 +387,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         const metadata = await agent.getSessionMetadata(currentSessionId);
                         const isFirstMessage = !metadata || metadata.messageCount <= 0;
 
-                        await agent.run(trimmed, undefined, undefined, currentSessionId);
+                        await agent.generate(trimmed, { sessionId: currentSessionId });
 
                         // Generate title for new sessions after first message
                         if (isFirstMessage) {
