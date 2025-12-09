@@ -29,6 +29,12 @@ export interface FilePart extends FileData {
 }
 
 /**
+ * Content part types for user input (text, images, files).
+ * Use this type for API input where UIResourcePart is not applicable.
+ */
+export type ContentPart = TextPart | ImagePart | FilePart;
+
+/**
  * UI Resource content part for MCP-UI interactive components.
  * Enables MCP servers to return rich, interactive UI (live streams, dashboards, forms).
  * @see https://mcpui.dev/ for MCP-UI specification
@@ -52,9 +58,16 @@ export interface UIResourcePart {
     };
 }
 
+/**
+ * Full content part type including UIResourcePart.
+ * Used internally for message storage and tool results.
+ * UIResourcePart is filtered out before sending to LLM.
+ */
+export type MessageContentPart = ContentPart | UIResourcePart;
+
 export interface SanitizedToolResult {
     /** Ordered content parts ready for rendering or provider formatting */
-    content: Array<TextPart | ImagePart | FilePart | UIResourcePart>;
+    content: MessageContentPart[];
     /**
      * Resource references created during sanitization (e.g. blob store URIs).
      * Consumers can dereference these via ResourceManager APIs.
@@ -96,12 +109,14 @@ export interface InternalMessage {
     timestamp?: number;
 
     /**
-     * The content of the message.
-     * - String for system, assistant (text only), and tool messages.
-     * - Array of parts for user messages (can include text, images, files, and UI resources).
-     * - null if an assistant message only contains tool calls.
+     * The content of the message as an array of content parts.
+     * - Use TextPart for text content
+     * - Use ImagePart for images
+     * - Use FilePart for files
+     * - UIResourcePart is used for tool results with UI components
+     * - null if an assistant message only contains tool calls (no text content)
      */
-    content: string | null | Array<TextPart | ImagePart | FilePart | UIResourcePart>;
+    content: MessageContentPart[] | null;
 
     /**
      * Optional model reasoning text associated with an assistant response.

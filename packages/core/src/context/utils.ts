@@ -1,5 +1,6 @@
 import {
     InternalMessage,
+    MessageContentPart,
     TextPart,
     ImagePart,
     FilePart,
@@ -108,63 +109,40 @@ function clonePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart 
 function coerceContentToParts(
     content: InternalMessage['content']
 ): Array<TextPart | ImagePart | FilePart> {
-    if (Array.isArray(content)) {
-        const normalized: Array<TextPart | ImagePart | FilePart> = [];
-        for (const item of content) {
-            if (item == null) continue;
-            if (typeof item === 'string') {
-                normalized.push({ type: 'text', text: item });
-                continue;
-            }
-            if (typeof item === 'object' && 'type' in item) {
-                const type = (item as { type: string }).type;
-                if (type === 'text') {
-                    const textPart = item as TextPart;
-                    normalized.push({ type: 'text', text: textPart.text });
-                    continue;
-                }
-                if (type === 'image') {
-                    const imagePart = item as ImagePart;
-                    const cloned: ImagePart = {
-                        type: 'image',
-                        image: imagePart.image,
-                    };
-                    if (imagePart.mimeType) {
-                        cloned.mimeType = imagePart.mimeType;
-                    }
-                    normalized.push(cloned);
-                    continue;
-                }
-                if (type === 'file') {
-                    const filePart = item as FilePart;
-                    const cloned: FilePart = {
-                        type: 'file',
-                        data: filePart.data,
-                        mimeType: filePart.mimeType ?? 'application/octet-stream',
-                    };
-                    if (filePart.filename) {
-                        cloned.filename = filePart.filename;
-                    }
-                    normalized.push(cloned);
-                    continue;
-                }
-            }
-        }
-        return normalized;
-    }
-
-    if (typeof content === 'string') {
-        if (content.length === 0) {
-            return [];
-        }
-        return [{ type: 'text', text: content }];
-    }
-
     if (content == null) {
         return [];
     }
 
-    return [{ type: 'text', text: safeStringify(content) }];
+    const normalized: Array<TextPart | ImagePart | FilePart> = [];
+    for (const item of content) {
+        // Filter out UIResourcePart - only keep ContentPart types
+        if (item.type === 'ui-resource') {
+            continue;
+        }
+        if (item.type === 'text') {
+            normalized.push({ type: 'text', text: item.text });
+        } else if (item.type === 'image') {
+            const cloned: ImagePart = {
+                type: 'image',
+                image: item.image,
+            };
+            if (item.mimeType) {
+                cloned.mimeType = item.mimeType;
+            }
+            normalized.push(cloned);
+        } else if (item.type === 'file') {
+            const cloned: FilePart = {
+                type: 'file',
+                data: item.data,
+                mimeType: item.mimeType ?? 'application/octet-stream',
+            };
+            if (item.filename) {
+                cloned.filename = item.filename;
+            }
+            normalized.push(cloned);
+        }
+    }
+    return normalized;
 }
 
 function detectInlineMedia(
@@ -424,9 +402,6 @@ async function resolveBlobReferenceToParts(
  */
 export function estimateMessagesTokens(messages: readonly InternalMessage[]): number {
     return messages.reduce((sum, msg) => {
-        if (typeof msg.content === 'string') {
-            return sum + Math.ceil(msg.content.length / 4);
-        }
         if (Array.isArray(msg.content)) {
             return (
                 sum +
@@ -582,19 +557,28 @@ export async function getFileDataWithBlobSupport(
  * @returns Promise<Resolved content with blob references expanded or replaced with placeholders>
  */
 export async function expandBlobReferences(
-    content: InternalMessage['content'],
+    content: TextPart | MessageContentPart[] | null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: IDextoLogger,
     allowedMediaTypes?: string[]
-): Promise<InternalMessage['content']> {
-    // Handle string content with blob references
-    if (typeof content === 'string') {
-        // Check for blob references like @blob:abc123
+): Promise<MessageContentPart[]> {
+    // Handle null/undefined content
+    if (content == null) {
+        return [];
+    }
+
+    // Handle TextPart - expand blob references in the text
+    if ('type' in content && content.type === 'text') {
+        const text = content.text;
+        if (!text.includes('@blob:')) {
+            return [content];
+        }
+
         const blobRefPattern = /@blob:[a-f0-9]+/g;
-        const matches = [...content.matchAll(blobRefPattern)];
+        const matches = [...text.matchAll(blobRefPattern)];
 
         if (matches.length === 0) {
-            return content;
+            return [content];
         }
 
         const resolvedCache = new Map<string, Array<TextPart | ImagePart | FilePart>>();
@@ -605,7 +589,7 @@ export async function expandBlobReferences(
             const matchIndex = match.index ?? 0;
             const token = match[0];
             if (matchIndex > lastIndex) {
-                const segment = content.slice(lastIndex, matchIndex);
+                const segment = text.slice(lastIndex, matchIndex);
                 if (segment.length > 0) {
                     parts.push({ type: 'text', text: segment });
                 }
@@ -626,7 +610,7 @@ export async function expandBlobReferences(
             }
 
             if (resolvedParts.length > 0) {
-                parts.push(...resolvedParts.map((part) => ({ ...part })));
+                parts.push(...resolvedParts.map((p) => ({ ...p })));
             } else {
                 parts.push({ type: 'text', text: token });
             }
@@ -634,109 +618,98 @@ export async function expandBlobReferences(
             lastIndex = matchIndex + token.length;
         }
 
-        if (lastIndex < content.length) {
-            const trailing = content.slice(lastIndex);
+        if (lastIndex < text.length) {
+            const trailing = text.slice(lastIndex);
             if (trailing.length > 0) {
                 parts.push({ type: 'text', text: trailing });
             }
         }
 
-        const normalized = parts.filter((part) => part.type !== 'text' || part.text.length > 0);
-
-        if (normalized.length === 1 && normalized[0]?.type === 'text') {
-            return normalized[0].text;
-        }
-
-        return normalized;
+        return parts.filter((p) => p.type !== 'text' || p.text.length > 0);
     }
 
-    // Handle array of parts
-    if (Array.isArray(content)) {
-        const expandedParts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
+    // Handle array of parts - content must be MessageContentPart[] at this point
+    if (!Array.isArray(content)) {
+        return [];
+    }
 
-        for (const part of content) {
-            // UIResourcePart doesn't have blob references - pass through unchanged
-            if (part.type === 'ui-resource') {
-                expandedParts.push(part);
-                continue;
-            }
+    const expandedParts: Array<TextPart | ImagePart | FilePart | UIResourcePart> = [];
 
-            if (
-                part.type === 'image' &&
-                typeof part.image === 'string' &&
-                part.image.startsWith('@blob:')
-            ) {
-                const uri = part.image.substring(1);
-                const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                const resolved = await resolveBlobReferenceToParts(
-                    resourceUri,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map((part) => ({ ...part })));
-                } else {
-                    expandedParts.push(part);
-                }
-                continue;
-            }
-
-            if (
-                part.type === 'file' &&
-                typeof part.data === 'string' &&
-                part.data.startsWith('@blob:')
-            ) {
-                const uri = part.data.substring(1);
-                const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-                const resolved = await resolveBlobReferenceToParts(
-                    resourceUri,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                if (resolved.length > 0) {
-                    expandedParts.push(...resolved.map((part) => ({ ...part })));
-                } else {
-                    try {
-                        const resolvedData = await getFileDataWithBlobSupport(
-                            part,
-                            resourceManager,
-                            logger
-                        );
-                        expandedParts.push({ ...part, data: resolvedData });
-                    } catch (error) {
-                        logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
-                        expandedParts.push(part);
-                    }
-                }
-                continue;
-            }
-
-            if (part.type === 'text' && part.text.includes('@blob:')) {
-                const expanded = await expandBlobReferences(
-                    part.text,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                if (typeof expanded === 'string') {
-                    expandedParts.push({ ...part, text: expanded });
-                } else if (Array.isArray(expanded)) {
-                    expandedParts.push(...expanded.map((part) => ({ ...part })));
-                } else {
-                    expandedParts.push(part);
-                }
-                continue;
-            }
-
+    for (const part of content) {
+        // UIResourcePart doesn't have blob references - pass through unchanged
+        if (part.type === 'ui-resource') {
             expandedParts.push(part);
+            continue;
         }
 
-        return expandedParts;
+        if (
+            part.type === 'image' &&
+            typeof part.image === 'string' &&
+            part.image.startsWith('@blob:')
+        ) {
+            const uri = part.image.substring(1);
+            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+            const resolved = await resolveBlobReferenceToParts(
+                resourceUri,
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            if (resolved.length > 0) {
+                expandedParts.push(...resolved.map((p) => ({ ...p })));
+            } else {
+                expandedParts.push(part);
+            }
+            continue;
+        }
+
+        if (
+            part.type === 'file' &&
+            typeof part.data === 'string' &&
+            part.data.startsWith('@blob:')
+        ) {
+            const uri = part.data.substring(1);
+            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+            const resolved = await resolveBlobReferenceToParts(
+                resourceUri,
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            if (resolved.length > 0) {
+                expandedParts.push(...resolved.map((p) => ({ ...p })));
+            } else {
+                try {
+                    const resolvedData = await getFileDataWithBlobSupport(
+                        part,
+                        resourceManager,
+                        logger
+                    );
+                    expandedParts.push({ ...part, data: resolvedData });
+                } catch (error) {
+                    logger.warn(`Failed to resolve file blob reference: ${String(error)}`);
+                    expandedParts.push(part);
+                }
+            }
+            continue;
+        }
+
+        if (part.type === 'text' && part.text.includes('@blob:')) {
+            // Recursively expand blob references in text part
+            const expanded = await expandBlobReferences(
+                { type: 'text', text: part.text },
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            expandedParts.push(...expanded);
+            continue;
+        }
+
+        expandedParts.push(part);
     }
 
-    return content;
+    return expandedParts;
 }
 
 /**
@@ -1212,9 +1185,14 @@ export async function sanitizeToolResultToContentWithBlobs(
                 logger.debug(
                     `sanitizeToolResultToContentWithBlobs: truncating long text tool output (len=${result.length})`
                 );
-                return `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`;
+                return [
+                    {
+                        type: 'text',
+                        text: `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`,
+                    },
+                ];
             }
-            return result;
+            return [{ type: 'text', text: result }];
         }
 
         // Case 2: array of parts or mixed
@@ -1231,9 +1209,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                     namingOptions
                 );
 
-                if (typeof processedItem === 'string') {
-                    parts.push({ type: 'text', text: processedItem });
-                } else if (Array.isArray(processedItem)) {
+                if (Array.isArray(processedItem)) {
                     parts.push(
                         ...(processedItem as Array<
                             TextPart | ImagePart | FilePart | UIResourcePart
@@ -1526,19 +1502,19 @@ export async function sanitizeToolResultToContentWithBlobs(
 
             // Generic object: remove huge base64 fields and stringify
             const cleaned = sanitizeDeepObject(anyObj, logger);
-            return safeStringify(cleaned);
+            return [{ type: 'text', text: safeStringify(cleaned) }];
         }
 
         // Fallback
-        return safeStringify(result ?? '');
+        return [{ type: 'text', text: safeStringify(result ?? '') }];
     } catch (err) {
         logger.warn(
             `sanitizeToolResultToContentWithBlobs failed, falling back to string: ${String(err)}`
         );
         try {
-            return safeStringify(result ?? '');
+            return [{ type: 'text', text: safeStringify(result ?? '') }];
         } catch {
-            return String(result ?? '');
+            return [{ type: 'text', text: String(result ?? '') }];
         }
     }
 }

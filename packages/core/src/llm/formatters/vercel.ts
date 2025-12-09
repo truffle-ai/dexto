@@ -6,6 +6,22 @@ import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { DextoLogComponent } from '@core/logger/v2/types.js';
 
 /**
+ * Checks if a string is a URL (http:// or https://).
+ * Returns a URL object if it's a valid URL string, otherwise returns the original value.
+ */
+function toUrlIfString<T>(value: T): T | URL {
+    if (typeof value === 'string' && /^https?:\/\//i.test(value)) {
+        try {
+            return new URL(value);
+        } catch {
+            // Invalid URL, return original string
+            return value;
+        }
+    }
+    return value;
+}
+
+/**
  * Message formatter for Vercel AI SDK.
  *
  * Converts the internal message format to Vercel's specific structure:
@@ -80,14 +96,14 @@ export class VercelMessageFormatter {
                                           if (part.type === 'file') {
                                               return {
                                                   type: 'file' as const,
-                                                  data: part.data,
+                                                  data: toUrlIfString(part.data),
                                                   mediaType: part.mimeType, // Convert mimeType -> mediaType
                                                   ...(part.filename && { filename: part.filename }),
                                               };
                                           } else if (part.type === 'image') {
                                               return {
                                                   type: 'image' as const,
-                                                  image: part.image,
+                                                  image: toUrlIfString(part.image),
                                                   ...(part.mimeType && {
                                                       mediaType: part.mimeType,
                                                   }), // Convert mimeType -> mediaType
@@ -188,10 +204,8 @@ export class VercelMessageFormatter {
     } {
         if (msg.toolCalls && msg.toolCalls.length > 0) {
             const contentParts: AssistantContent = [];
-            if (typeof msg.content === 'string' && msg.content.length > 0) {
-                contentParts.push({ type: 'text', text: msg.content });
-            } else if (Array.isArray(msg.content)) {
-                // Robustness: if assistant content is accidentally an array, extract text parts
+            if (Array.isArray(msg.content)) {
+                // Extract text parts from content array
                 const combined = msg.content
                     .map((part) => (part.type === 'text' ? part.text : ''))
                     .filter(Boolean)

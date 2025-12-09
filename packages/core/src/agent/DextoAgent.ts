@@ -659,25 +659,36 @@ export class DextoAgent {
      * Generate a complete response (waits for full completion).
      * This is the recommended method for non-streaming use cases.
      *
-     * @param message The user's message
-     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @param content String message or array of content parts (text, images, files)
+     * @param sessionId Session ID for the conversation
+     * @param options Optional configuration (signal for cancellation)
      * @returns Promise that resolves to the complete response
      *
      * @example
      * ```typescript
-     * const response = await agent.generate("What is 2+2?", { sessionId: "default" });
+     * // Simple text message
+     * const response = await agent.generate('What is 2+2?', 'session-1');
      * console.log(response.content); // "4"
-     * console.log(response.usage.totalTokens); // 50
+     *
+     * // Multimodal with image
+     * const response = await agent.generate(
+     *     [
+     *         { type: 'text', text: 'Describe this image' },
+     *         { type: 'image', image: base64Data, mimeType: 'image/png' }
+     *     ],
+     *     'session-1'
+     * );
      * ```
      */
     public async generate(
-        message: string,
-        options: import('./types.js').GenerateOptions
+        content: import('./types.js').ContentInput,
+        sessionId: string,
+        options?: import('./types.js').GenerateOptions
     ): Promise<import('./types.js').GenerateResponse> {
         // Collect all events from stream
         const events: StreamingEvent[] = [];
 
-        for await (const event of await this.stream(message, options)) {
+        for await (const event of await this.stream(content, sessionId, options)) {
             events.push(event);
         }
 
@@ -693,7 +704,7 @@ export class DextoAgent {
                 throw fatalErrorEvent.error;
             }
             // Otherwise wrap plain Error in DextoRuntimeError for proper HTTP status handling
-            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            const llmConfig = this.stateManager.getLLMConfig(sessionId);
             throw LLMError.generationFailed(
                 fatalErrorEvent.error.message,
                 llmConfig.provider,
@@ -705,7 +716,7 @@ export class DextoAgent {
         const responseEvent = events.find((e) => e.name === 'llm:response');
         if (!responseEvent || responseEvent.name !== 'llm:response') {
             // Get current LLM config for error context
-            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            const llmConfig = this.stateManager.getLLMConfig(sessionId);
             throw LLMError.generationFailed(
                 'Stream did not complete successfully - no response received',
                 llmConfig.provider,
@@ -751,7 +762,7 @@ export class DextoAgent {
             reasoning: responseEvent.reasoning,
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
-            sessionId: options.sessionId,
+            sessionId,
         };
     }
 
@@ -766,37 +777,55 @@ export class DextoAgent {
      * Events are forwarded directly from the AgentEventBus with no mapping layer,
      * providing a unified event system across all API layers.
      *
-     * @param message The user's message
-     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @param content String message or array of content parts (text, images, files)
+     * @param sessionId Session ID for the conversation
+     * @param options Optional configuration (signal for cancellation)
      * @returns AsyncIterator that yields StreamingEvent objects (core events with name property)
      *
      * @example
      * ```typescript
-     * for await (const event of await agent.stream("Write a poem", { sessionId: "default" })) {
-     *   if (event.name === 'llm:chunk') {
-     *     process.stdout.write(event.content);
-     *   }
-     *   if (event.name === 'llm:tool-call') {
-     *     console.log(`\n[Using ${event.toolName}]\n`);
-     *   }
+     * // Simple text
+     * for await (const event of await agent.stream('Write a poem', 'session-1')) {
+     *   if (event.name === 'llm:chunk') process.stdout.write(event.content);
      * }
+     *
+     * // Multimodal
+     * for await (const event of await agent.stream(
+     *     [{ type: 'text', text: 'Describe this' }, { type: 'image', image: data, mimeType: 'image/png' }],
+     *     'session-1'
+     * )) { ... }
      * ```
      */
     public async stream(
-        message: string,
-        options: import('./types.js').StreamOptions
+        content: import('./types.js').ContentInput,
+        sessionId: string,
+        options?: import('./types.js').StreamOptions
     ): Promise<AsyncIterableIterator<StreamingEvent>> {
         this.ensureStarted();
 
         // Validate sessionId is provided
-        if (!options.sessionId) {
-            throw new Error('sessionId is required in StreamOptions');
+        if (!sessionId) {
+            throw new Error('sessionId is required');
         }
 
-        const sessionId = options.sessionId;
-        const imageData = options.imageData;
-        const fileData = options.fileData;
-        const signal = options.signal;
+        const signal = options?.signal;
+
+        // Normalize content: string -> [{ type: 'text', text: string }]
+        const contentParts: import('./types.js').ContentPart[] =
+            typeof content === 'string' ? [{ type: 'text', text: content }] : content;
+
+        // Extract text, first image, and first file from content array
+        // Internal run() only supports one image and one file currently
+        const textParts = contentParts.filter(
+            (p): p is import('./types.js').TextPart => p.type === 'text'
+        );
+        const message = textParts.map((p) => p.text).join('\n');
+        const imagePart = contentParts.find(
+            (p): p is import('./types.js').ImagePart => p.type === 'image'
+        );
+        const filePart = contentParts.find(
+            (p): p is import('./types.js').FilePart => p.type === 'file'
+        );
 
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
@@ -960,24 +989,24 @@ export class DextoAgent {
         listeners.push({ event: 'run:complete', listener: runCompleteListener });
 
         // Start run in background (fire-and-forget)
-        // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
-        const imageDataForRun = imageData
+        // Convert imagePart to format expected by run() (image must be string)
+        const imageDataForRun = imagePart
             ? {
                   image:
-                      typeof imageData.image === 'string'
-                          ? imageData.image
-                          : imageData.image.toString(),
-                  mimeType: imageData.mimeType || 'image/png',
+                      typeof imagePart.image === 'string'
+                          ? imagePart.image
+                          : imagePart.image.toString(),
+                  mimeType: imagePart.mimeType || 'image/png',
               }
             : undefined;
 
-        // Convert fileData to format expected by run() (data must be string)
-        const fileDataForRun = fileData
+        // Convert filePart to format expected by run() (data must be string)
+        const fileDataForRun = filePart
             ? {
                   data:
-                      typeof fileData.data === 'string' ? fileData.data : fileData.data.toString(),
-                  mimeType: fileData.mimeType,
-                  ...(fileData.filename && { filename: fileData.filename }),
+                      typeof filePart.data === 'string' ? filePart.data : filePart.data.toString(),
+                  mimeType: filePart.mimeType,
+                  ...(filePart.filename && { filename: filePart.filename }),
               }
             : undefined;
 

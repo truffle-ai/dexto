@@ -1,5 +1,6 @@
 import type { SessionEventBus } from '../events/index.js';
-import type { QueuedMessage, CoalescedMessage, UserMessageContentPart } from './types.js';
+import type { QueuedMessage, CoalescedMessage } from './types.js';
+import type { MessageContentPart } from '../context/types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
 /**
@@ -14,7 +15,7 @@ function generateId(): string {
  */
 export interface UserMessage {
     /** Multimodal content array (text, images, files, etc.) */
-    content: UserMessageContentPart[];
+    content: MessageContentPart[];
     /** Optional metadata to attach to the message */
     metadata?: Record<string, unknown>;
 }
@@ -148,7 +149,7 @@ export class MessageQueueService {
         }
 
         // Multiple messages - combine with numbered prefixes
-        const combinedContent: UserMessageContentPart[] = [];
+        const combinedContent: MessageContentPart[] = [];
 
         for (const [i, msg] of messages.entries()) {
             // Add prefix based on message count

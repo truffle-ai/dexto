@@ -881,6 +881,236 @@ describe('fileTypesToMimePatterns', () => {
     });
 });
 
+describe('expandBlobReferences', () => {
+    // Import the function we're testing
+    let expandBlobReferences: typeof import('./utils.js').expandBlobReferences;
+
+    beforeEach(async () => {
+        const utils = await import('./utils.js');
+        expandBlobReferences = utils.expandBlobReferences;
+    });
+
+    // Create a mock ResourceManager
+    function createMockResourceManager(
+        blobData: Record<string, { blob?: string; mimeType?: string; text?: string }>
+    ) {
+        return {
+            read: vi.fn(async (uri: string) => {
+                const id = uri.startsWith('blob:') ? uri.slice(5) : uri;
+                const data = blobData[id];
+                if (!data) {
+                    throw new Error(`Blob not found: ${uri}`);
+                }
+                return {
+                    contents: [
+                        {
+                            ...(data.blob ? { blob: data.blob } : {}),
+                            ...(data.mimeType ? { mimeType: data.mimeType } : {}),
+                            ...(data.text ? { text: data.text } : {}),
+                        },
+                    ],
+                    _meta: {},
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+    }
+
+    test('should return empty array for null content', async () => {
+        const resourceManager = createMockResourceManager({});
+        const result = await expandBlobReferences(null, resourceManager, mockLogger);
+        expect(result).toEqual([]);
+    });
+
+    test('should return TextPart unchanged if no blob references', async () => {
+        const resourceManager = createMockResourceManager({});
+        const result = await expandBlobReferences(
+            { type: 'text', text: 'Hello world' },
+            resourceManager,
+            mockLogger
+        );
+        expect(result).toEqual([{ type: 'text', text: 'Hello world' }]);
+    });
+
+    test('should expand blob reference in TextPart', async () => {
+        const resourceManager = createMockResourceManager({
+            abc123: { blob: 'base64imagedata', mimeType: 'image/png' },
+        });
+
+        const result = await expandBlobReferences(
+            { type: 'text', text: 'Check this image: @blob:abc123' },
+            resourceManager,
+            mockLogger
+        );
+
+        expect(result.length).toBe(2);
+        expect(result[0]).toEqual({ type: 'text', text: 'Check this image: ' });
+        expect(result[1]).toMatchObject({
+            type: 'image',
+            image: 'base64imagedata',
+            mimeType: 'image/png',
+        });
+    });
+
+    test('should expand multiple blob references in TextPart', async () => {
+        const resourceManager = createMockResourceManager({
+            aaa111: { blob: 'imagedata1', mimeType: 'image/png' },
+            bbb222: { blob: 'imagedata2', mimeType: 'image/jpeg' },
+        });
+
+        const result = await expandBlobReferences(
+            { type: 'text', text: 'Image 1: @blob:aaa111 and Image 2: @blob:bbb222' },
+            resourceManager,
+            mockLogger
+        );
+
+        expect(result.length).toBe(4);
+        expect(result[0]).toEqual({ type: 'text', text: 'Image 1: ' });
+        expect(result[1]).toMatchObject({ type: 'image', image: 'imagedata1' });
+        expect(result[2]).toEqual({ type: 'text', text: ' and Image 2: ' });
+        expect(result[3]).toMatchObject({ type: 'image', image: 'imagedata2' });
+    });
+
+    test('should pass through array content without blob references', async () => {
+        const resourceManager = createMockResourceManager({});
+        const content = [
+            { type: 'text' as const, text: 'Hello' },
+            { type: 'image' as const, image: 'regularbase64', mimeType: 'image/png' },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result).toEqual(content);
+    });
+
+    test('should expand blob reference in image part', async () => {
+        const resourceManager = createMockResourceManager({
+            aaa000bbb111: { blob: 'resolvedimagedata', mimeType: 'image/png' },
+        });
+
+        const content = [
+            { type: 'image' as const, image: '@blob:aaa000bbb111', mimeType: 'image/png' },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'image',
+            image: 'resolvedimagedata',
+            mimeType: 'image/png',
+        });
+    });
+
+    test('should expand blob reference in file part', async () => {
+        const resourceManager = createMockResourceManager({
+            fff000eee111: { blob: 'resolvedfiledata', mimeType: 'application/pdf' },
+        });
+
+        const content = [
+            {
+                type: 'file' as const,
+                data: '@blob:fff000eee111',
+                mimeType: 'application/pdf',
+                filename: 'doc.pdf',
+            },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'file',
+            data: 'resolvedfiledata',
+            mimeType: 'application/pdf',
+        });
+    });
+
+    test('should handle failed blob resolution gracefully', async () => {
+        const resourceManager = createMockResourceManager({}); // No blobs available
+
+        const result = await expandBlobReferences(
+            { type: 'text', text: 'Check: @blob:abc000def111' },
+            resourceManager,
+            mockLogger
+        );
+
+        // Should return a fallback text part
+        expect(result.length).toBe(2);
+        expect(result[0]).toEqual({ type: 'text', text: 'Check: ' });
+        expect(result[1]).toMatchObject({
+            type: 'text',
+            text: expect.stringContaining('unavailable'),
+        });
+    });
+
+    test('should preserve UI resource parts unchanged', async () => {
+        const resourceManager = createMockResourceManager({});
+        const content = [
+            { type: 'text' as const, text: 'Hello' },
+            {
+                type: 'ui-resource' as const,
+                uri: 'ui://example',
+                mimeType: 'text/html',
+                content: '<div>test</div>',
+            },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result).toEqual(content);
+    });
+
+    test('should filter blobs by allowedMediaTypes', async () => {
+        const resourceManager = {
+            read: vi.fn(async (uri: string) => {
+                return {
+                    contents: [{ blob: 'videodata', mimeType: 'video/mp4' }],
+                    _meta: { size: 1000, originalName: 'video.mp4' },
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            { type: 'text', text: '@blob:abc123def456' },
+            resourceManager,
+            mockLogger,
+            ['image/*'] // Only allow images
+        );
+
+        // Should return a placeholder since video is not in allowedMediaTypes
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'text',
+            text: expect.stringContaining('Video'),
+        });
+    });
+
+    test('should expand allowed media types', async () => {
+        const resourceManager = {
+            read: vi.fn(async (uri: string) => {
+                return {
+                    contents: [{ blob: 'imagedata', mimeType: 'image/png' }],
+                    _meta: { size: 1000 },
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            { type: 'text', text: '@blob:abc123def456' },
+            resourceManager,
+            mockLogger,
+            ['image/*'] // Allow images
+        );
+
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'image',
+            image: 'imagedata',
+            mimeType: 'image/png',
+        });
+    });
+});
+
 describe('filterCompacted', () => {
     it('should return all messages if no summary exists', () => {
         const messages: InternalMessage[] = [

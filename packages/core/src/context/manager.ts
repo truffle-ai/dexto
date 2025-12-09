@@ -247,14 +247,17 @@ export class ContextManager<TMessage = unknown> {
             throw ContextError.messageNotAssistant(messageId);
         }
 
-        // Append text
-        if (typeof message.content === 'string') {
-            message.content += text;
-        } else if (message.content === null) {
-            message.content = text;
-        } else {
-            // Should not happen for assistant messages unless we support multimodal assistant output
-            throw ContextError.assistantContentNotString();
+        // Append text to content array
+        if (message.content === null) {
+            message.content = [{ type: 'text', text }];
+        } else if (Array.isArray(message.content)) {
+            // Find last text part and append, or add new text part
+            const lastPart = message.content[message.content.length - 1];
+            if (lastPart && lastPart.type === 'text') {
+                lastPart.text += text;
+            } else {
+                message.content.push({ type: 'text', text });
+            }
         }
 
         await this.historyProvider.updateMessage(message);
@@ -386,14 +389,10 @@ export class ContextManager<TMessage = unknown> {
     async addMessage(message: InternalMessage): Promise<void> {
         switch (message.role) {
             case 'user':
-                if (
-                    // Allow array content for user messages
-                    !(Array.isArray(message.content) && message.content.length > 0) &&
-                    (typeof message.content !== 'string' || message.content.trim() === '')
-                ) {
+                // User messages must have non-empty content array
+                if (!Array.isArray(message.content) || message.content.length === 0) {
                     throw ContextError.userMessageContentInvalid();
                 }
-                // Optional: Add validation for the structure of array parts if needed
                 break;
 
             case 'assistant':
@@ -426,15 +425,21 @@ export class ContextManager<TMessage = unknown> {
                 }
                 break;
 
-            case 'system':
+            case 'system': {
                 // System messages should be handled via SystemPromptManager, not added to history
                 this.logger.warn(
                     'ContextManager: Adding system message directly to history. Use SystemPromptManager instead.'
                 );
-                if (typeof message.content !== 'string' || message.content.trim() === '') {
+                // Extract text from content array for validation
+                const textContent = message.content
+                    ?.filter((p): p is import('./types.js').TextPart => p.type === 'text')
+                    .map((p) => p.text)
+                    .join('');
+                if (!textContent || textContent.trim() === '') {
                     throw ContextError.systemMessageContentInvalid();
                 }
                 break;
+            }
         }
 
         // Generate ID and timestamp if not provided
@@ -564,11 +569,14 @@ export class ContextManager<TMessage = unknown> {
         if (content === null && (!toolCalls || toolCalls.length === 0)) {
             throw ContextError.assistantMessageContentOrToolsRequired();
         }
+        // Convert string content to content array
+        const contentArray: InternalMessage['content'] =
+            content !== null ? [{ type: 'text', text: content }] : null;
         // Further validation happens within addMessage
         // addMessage will populate llm config metadata also
         await this.addMessage({
             role: 'assistant' as const,
-            content,
+            content: contentArray,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
@@ -740,7 +748,12 @@ export class ContextManager<TMessage = unknown> {
         if (compactedCount > 0) {
             history = history.map((msg) => {
                 if (msg.role === 'tool' && msg.compactedAt) {
-                    return { ...msg, content: '[Old tool result content cleared]' };
+                    return {
+                        ...msg,
+                        content: [
+                            { type: 'text' as const, text: '[Old tool result content cleared]' },
+                        ],
+                    };
                 }
                 return msg;
             });

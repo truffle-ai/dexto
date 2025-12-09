@@ -408,7 +408,7 @@ export interface AgentEventMap {
         ids: string[];
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
-        content: import('../session/types.js').UserMessageContentPart[];
+        content: import('../context/types.js').MessageContentPart[];
         sessionId: string;
     };
 
@@ -573,7 +573,7 @@ export interface SessionEventMap {
         ids: string[];
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
-        content: import('../session/types.js').UserMessageContentPart[];
+        content: import('../context/types.js').MessageContentPart[];
     };
 
     /** Queued message was removed from queue */

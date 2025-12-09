@@ -241,14 +241,14 @@ export class ChatSession {
         // we shouldn't store the original content to comply with data minimization principles
         const userMessage: InternalMessage = {
             role: 'user',
-            content: '[Blocked by content policy: input redacted]',
+            content: [{ type: 'text', text: '[Blocked by content policy: input redacted]' }],
         };
 
         // Create assistant error message
         const errorContent = `Error: ${errorMessage}`;
         const assistantMessage: InternalMessage = {
             role: 'assistant',
-            content: errorContent,
+            content: [{ type: 'text', text: errorContent }],
         };
 
         // Add both messages to history
