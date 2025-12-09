@@ -271,8 +271,8 @@ dexto --agent ./agents/examples/email_slack.yml
 | **Headless Server** | `dexto --mode server` | REST & SSE streaming APIs for agent interaction |
 | **MCP Server (Agent)** | `dexto --mode mcp` | Exposing your agent as a tool for others via stdio |
 | **MCP Server (Aggregator)** | `dexto mcp --group-servers` | Re-exposing tools from multiple MCP servers via stdio |
-| **Discord Bot** | `dexto --mode discord` | Community servers & channels ([Requires Setup](packages/cli/src/discord/README.md)) |
-| **Telegram Bot** | `dexto --mode telegram` | Mobile chat ([Requires Setup](packages/cli/src/telegram/README.md)) |
+| **Discord Bot** | [See `examples/discord-bot/`](examples/discord-bot/) | Community servers & channels (reference implementation) |
+| **Telegram Bot** | [See `examples/telegram-bot/`](examples/telegram-bot/) | Mobile chat (reference implementation) |
 
 Run `dexto --help` for **all flags, sub-commands, and environment variables**.
 
@@ -509,9 +509,11 @@ Agent Selection:
 
 Advanced Modes:
   dexto --mode server      Run as API server
-  dexto --mode discord     Run as Discord bot
-  dexto --mode telegram    Run as Telegram bot
   dexto --mode mcp         Run as MCP server
+
+Platform Integrations (Reference Implementations):
+  See examples/discord-bot/     Run as Discord bot
+  See examples/telegram-bot/    Run as Telegram bot
 
 Session Commands: dexto session list|history|delete • search
 Search: dexto search <query> [--session <id>] [--role <role>]
@@ -540,8 +542,8 @@ Options:
   -c, --continue                   Continue most recent conversation
   -r, --resume <sessionId>         Resume session by ID
   --mode <mode>                    The application in which dexto should talk
-                                   to you - web | cli | server | discord |
-                                   telegram | mcp (default: "web")
+                                   to you - web | cli | server | mcp
+                                   (default: "web")
   --port <port>                    port for the server (default: 3000 for web,
                                    3001 for server mode)
   --no-auto-install                Disable automatic installation of missing

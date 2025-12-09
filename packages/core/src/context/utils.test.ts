@@ -152,6 +152,100 @@ class FakeBlobStore implements BlobStore {
     }
 }
 
+import { sanitizeToolResult } from './utils.js';
+
+describe('sanitizeToolResult success tracking', () => {
+    it('should include success=true in meta when tool succeeds', async () => {
+        const result = await sanitizeToolResult(
+            { data: 'test result' },
+            {
+                toolName: 'test_tool',
+                toolCallId: 'call-123',
+                success: true,
+            },
+            mockLogger
+        );
+
+        expect(result.meta.success).toBe(true);
+        expect(result.meta.toolName).toBe('test_tool');
+        expect(result.meta.toolCallId).toBe('call-123');
+    });
+
+    it('should include success=false in meta when tool fails', async () => {
+        const result = await sanitizeToolResult(
+            { error: 'Something went wrong' },
+            {
+                toolName: 'failing_tool',
+                toolCallId: 'call-456',
+                success: false,
+            },
+            mockLogger
+        );
+
+        expect(result.meta.success).toBe(false);
+        expect(result.meta.toolName).toBe('failing_tool');
+        expect(result.meta.toolCallId).toBe('call-456');
+    });
+
+    it('should preserve success status through blob storage', async () => {
+        const store = new FakeBlobStore();
+        const payload = Buffer.alloc(4096, 7);
+        const dataUri = `data:image/jpeg;base64,${payload.toString('base64')}`;
+
+        const result = await sanitizeToolResult(
+            dataUri,
+            {
+                blobStore: store,
+                toolName: 'image_tool',
+                toolCallId: 'call-789',
+                success: true,
+            },
+            mockLogger
+        );
+
+        expect(result.meta.success).toBe(true);
+        expect(result.content).toHaveLength(1);
+    });
+
+    it('should track failed tool results with complex output', async () => {
+        const errorOutput = {
+            error: 'Tool execution failed',
+            details: { code: 'TIMEOUT', message: 'Request timed out after 30s' },
+        };
+
+        const result = await sanitizeToolResult(
+            errorOutput,
+            {
+                toolName: 'api_call',
+                toolCallId: 'call-error',
+                success: false,
+            },
+            mockLogger
+        );
+
+        expect(result.meta.success).toBe(false);
+        // Content should still be present even for failures
+        expect(result.content).toBeDefined();
+        expect(result.content.length).toBeGreaterThan(0);
+    });
+
+    it('should handle empty result with success status', async () => {
+        const result = await sanitizeToolResult(
+            '',
+            {
+                toolName: 'void_tool',
+                toolCallId: 'call-empty',
+                success: true,
+            },
+            mockLogger
+        );
+
+        expect(result.meta.success).toBe(true);
+        // Should have fallback content
+        expect(result.content).toBeDefined();
+    });
+});
+
 describe('tool result normalization pipeline', () => {
     it('normalizes data URI media into typed parts with inline media hints', async () => {
         const payload = Buffer.alloc(2048, 1);

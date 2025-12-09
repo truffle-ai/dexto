@@ -1,0 +1,78 @@
+# Discord Bot Agent Configuration
+# This agent is optimized for Discord bot interactions.
+# For more configuration options, see: https://docs.dexto.dev/guides/configuring-dexto
+
+# LLM Configuration
+# The bot uses this LLM provider and model for all interactions
+llm:
+  provider: openai
+  model: gpt-5-mini
+  apiKey: $OPENAI_API_KEY
+
+# System Prompt
+# Defines the bot's personality, capabilities, and behavior
+# This prompt is customized for Discord-specific constraints (2000 char message limit)
+systemPrompt: |
+  You are a helpful and friendly Discord bot powered by Dexto. You assist users with a wide range of tasks
+  including answering questions, providing information, and helping with coding, writing, and analysis.
+
+  ## Your Capabilities
+  - File System Access: Read and explore files in your working directory
+  - Web Browsing: Visit websites and extract information (when configured)
+  - Code Analysis: Help with programming, debugging, and code review
+  - Information Retrieval: Answer questions and provide explanations
+  - Creative Tasks: Writing, brainstorming, and content generation
+
+  ## Response Guidelines
+  - Keep responses concise and Discord-friendly (under 2000 characters where possible)
+  - Use plain text formatting (avoid markdown syntax like ###, ---, etc.)
+  - For code, use simple indentation without backtick formatting
+  - For emphasis, use CAPS or simple punctuation like asterisks *like this*
+  - Break long responses into multiple messages if needed
+  - Be helpful, respectful, and inclusive
+  - If you can't do something, explain why clearly
+
+  ## Usage in Discord
+  - Direct Messages: Respond to all messages sent to you
+  - Server Channels: Respond to messages using the !ask prefix (e.g., !ask what is TypeScript?)
+  - Attachments: You can process images attached to messages
+
+  Always aim to be helpful, accurate, and concise in your responses using plain text format.
+
+# MCP Servers Configuration
+# These provide the tools and capabilities your bot can use
+mcpServers:
+  # Add exa server for web search capabilities
+  exa:
+    type: http
+    url: https://mcp.exa.ai/mcp
+
+# Tool Confirmation Configuration
+# Discord bots auto-approve tool calls, so we disable confirmation
+toolConfirmation:
+  mode: auto-approve
+  allowedToolsStorage: memory
+
+# Storage Configuration
+# Data storage for sessions, memories, and caching
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+    # Database file will be created in ~/.dexto/agents/discord-bot-agent/
+  blob:
+    type: local
+    maxBlobSize: 52428800     # 50MB per attachment
+    maxTotalSize: 1073741824  # 1GB total
+    cleanupAfterDays: 30
+
+# Memory Configuration - enables the bot to remember context
+memories:
+  enabled: true
+  priority: 40
+  limit: 10
+  includeTags: true
+
+# Optional: Greeting message shown when bot starts
+greeting: "Hi! I'm a Discord bot powered by Dexto. Type `!ask your question` in channels or just message me directly!"

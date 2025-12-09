@@ -543,14 +543,17 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            // Verify addToolResult was called with sanitized result structure
+            // Verify addToolResult was called with sanitized result containing meta.success
             expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
                 'call-1',
                 'test_tool',
                 expect.objectContaining({
                     content: expect.arrayContaining([expect.objectContaining({ type: 'text' })]),
+                    meta: expect.objectContaining({
+                        success: true, // Success status is in sanitizedResult.meta
+                    }),
                 }),
-                undefined // No approval metadata in this test
+                undefined // No approval metadata for this call
             );
         });
 
@@ -587,6 +590,99 @@ describe('StreamProcessor', () => {
             expect((toolResultEvent?.payload as { success: boolean }).success).toBe(true);
             expect((toolResultEvent?.payload as { toolName: string }).toolName).toBe('test_tool');
             expect((toolResultEvent?.payload as { callId: string }).callId).toBe('call-1');
+        });
+
+        test('stores tool result with success status for rehydration', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                {
+                    type: 'tool-result',
+                    toolCallId: 'call-rehydrate',
+                    toolName: 'storage_tool',
+                    output: { stored: true, id: 'doc-123' },
+                },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            // Verify addToolResult is called with success in meta for storage/rehydration
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
+                'call-rehydrate',
+                'storage_tool',
+                expect.objectContaining({
+                    meta: expect.objectContaining({
+                        success: true, // Success status is in sanitizedResult.meta
+                    }),
+                }),
+                undefined // No approval metadata for this call
+            );
+        });
+
+        test('passes approval metadata separately from success status', async () => {
+            const mocks = createMocks();
+
+            // Create approval metadata to pass via constructor
+            const approvalMetadata = new Map<
+                string,
+                { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+            >([['call-with-approval', { requireApproval: true, approvalStatus: 'approved' }]]);
+
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true,
+                approvalMetadata
+            );
+
+            const events = [
+                {
+                    type: 'tool-result',
+                    toolCallId: 'call-with-approval',
+                    toolName: 'approved_tool',
+                    output: { result: 'approved execution' },
+                },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            // Verify success is in meta, approval metadata passed separately
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
+                'call-with-approval',
+                'approved_tool',
+                expect.objectContaining({
+                    meta: expect.objectContaining({
+                        success: true, // Success status is in sanitizedResult.meta
+                    }),
+                }),
+                expect.objectContaining({
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                })
+            );
         });
     });
 
