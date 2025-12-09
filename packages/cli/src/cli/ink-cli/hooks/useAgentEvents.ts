@@ -81,26 +81,15 @@ export function useAgentEvents({
         const { signal } = controller;
 
         // Handle thinking event (when LLM starts processing)
+        // Don't create message here - wait for first chunk or response
+        // This ensures correct message ordering when tools are called
         bus.on(
             'llm:thinking',
             () => {
                 if (isCancellingRef.current) return;
                 setUi((prev) => ({ ...prev, isThinking: true }));
-
-                // Start streaming: create new streaming message
-                const streamId = generateMessageId('assistant');
-                streamingRef.current = { id: streamId, content: '' };
-
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: streamId,
-                        role: 'assistant',
-                        content: '',
-                        timestamp: new Date(),
-                        isStreaming: true,
-                    },
-                ]);
+                // Reset streaming state for new response
+                streamingRef.current = { id: null, content: '' };
             },
             { signal }
         );
@@ -141,25 +130,36 @@ export function useAgentEvents({
                 if (isCancellingRef.current) return;
 
                 const streaming = streamingRef.current;
-                if (!streaming.id) return;
+                const finalContent = payload.content || '';
 
-                // Finalize the streaming message
-                const streamId = streaming.id;
-                const finalContent =
-                    payload.content && payload.content.length > 0
-                        ? payload.content
-                        : streaming.content;
+                if (streaming.id) {
+                    // Finalize existing streaming message
+                    const streamId = streaming.id;
+                    const content = finalContent || streaming.content;
 
-                setMessages((prev) =>
-                    prev.map((msg) =>
-                        msg.id === streamId
-                            ? { ...msg, content: finalContent, isStreaming: false }
-                            : msg
-                    )
-                );
+                    setMessages((prev) =>
+                        prev.map((msg) =>
+                            msg.id === streamId ? { ...msg, content, isStreaming: false } : msg
+                        )
+                    );
 
-                // Clear streaming state
-                streamingRef.current = { id: null, content: '' };
+                    // Clear streaming state
+                    streamingRef.current = { id: null, content: '' };
+                } else if (finalContent) {
+                    // No streaming message exists - create one if we have content
+                    // This handles multi-step turns where response arrives after tool calls
+                    const newId = generateMessageId('assistant');
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: newId,
+                            role: 'assistant',
+                            content: finalContent,
+                            timestamp: new Date(),
+                            isStreaming: false,
+                        },
+                    ]);
+                }
             },
             { signal }
         );
