@@ -109,38 +109,13 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
             };
 
         case 'MESSAGE_INSERT_BEFORE_STREAMING': {
-            // Insert message before the streaming message (for tool calls)
-            if (!state.streamingMessage) {
-                // No streaming message, just append
-                return {
-                    ...state,
-                    messages: [...state.messages, action.message],
-                };
-            }
-
-            // Find streaming message and insert before it
-            const streamingIndex = state.messages.findIndex(
-                (msg) => msg.id === state.streamingMessage?.id
-            );
-
-            if (streamingIndex === -1) {
-                // Streaming message not found, append
-                return {
-                    ...state,
-                    messages: [...state.messages, action.message],
-                };
-            }
-
-            // Insert before streaming message
-            const newMessages = [
-                ...state.messages.slice(0, streamingIndex),
-                action.message,
-                ...state.messages.slice(streamingIndex),
-            ];
-
+            // Append tool messages AFTER all current messages (matching WebUI behavior)
+            // This ensures tool calls appear after any assistant text that preceded them
+            // Note: Despite the action name, we now append (not insert before) to match
+            // how the WebUI handles tool calls during streaming
             return {
                 ...state,
-                messages: newMessages,
+                messages: [...state.messages, action.message],
             };
         }
 
