@@ -24,23 +24,14 @@ import {
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
 import * as registry from '../llm/registry.js';
-import { IDextoLogger } from '../logger/v2/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock the registry module
 vi.mock('../llm/registry.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
 
 // Create a mock logger for tests
-const mockLogger: IDextoLogger = {
-    debug: vi.fn(),
-    silly: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    trackException: vi.fn(),
-    createChild: vi.fn(),
-    destroy: vi.fn(),
-};
+const mockLogger = createMockLogger();
 
 class FakeBlobStore implements BlobStore {
     private counter = 0;

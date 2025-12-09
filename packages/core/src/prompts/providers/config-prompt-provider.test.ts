@@ -3,20 +3,12 @@ import { ConfigPromptProvider } from './config-prompt-provider.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createSilentMockLogger } from '../../logger/v2/test-utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, '__fixtures__');
 
-const mockLogger = {
-    debug: () => {},
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    silly: () => {},
-    trackException: () => {},
-    createChild: () => mockLogger,
-    destroy: async () => {},
-} as any;
+const mockLogger = createSilentMockLogger();
 
 function makeAgentConfig(prompts: any[]): ValidatedAgentConfig {
     return { prompts } as ValidatedAgentConfig;

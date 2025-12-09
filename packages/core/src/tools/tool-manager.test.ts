@@ -8,6 +8,7 @@ import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { ApprovalStatus } from '../approval/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -24,7 +25,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     let mockApprovalManager: ApprovalManager;
     let mockAllowedToolsProvider: IAllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     beforeEach(() => {
         mockMcpManager = {
@@ -57,16 +58,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             off: vi.fn(),
             once: vi.fn(),
             removeAllListeners: vi.fn(),
-        } as any;
-
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(() => mockLogger),
-            destroy: vi.fn(),
         } as any;
 
         vi.clearAllMocks();

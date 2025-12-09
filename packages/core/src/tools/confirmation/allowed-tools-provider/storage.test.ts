@@ -1,18 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StorageAllowedToolsProvider } from './storage.js';
 import type { StorageManager } from '@core/storage/index.js';
-import { IDextoLogger } from '@core/logger/v2/types.js';
+import { createMockLogger } from '@core/logger/v2/test-utils.js';
 
-const mockLogger: IDextoLogger = {
-    debug: vi.fn(),
-    silly: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    trackException: vi.fn(),
-    createChild: vi.fn(),
-    destroy: vi.fn(),
-};
+const mockLogger = createMockLogger();
 
 describe('StorageAllowedToolsProvider', () => {
     let provider: StorageAllowedToolsProvider;
