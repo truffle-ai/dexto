@@ -50,7 +50,7 @@ async function main() {
     console.log('\nAsking the coding agent a question...\n');
     const response = await codingAgent.generate(
         'Write a TypeScript function that checks if a string is a palindrome.',
-        { sessionId: session.id }
+        session.id
     );
 
     console.log('Response:');
@@ -68,7 +68,7 @@ async function main() {
     const supportSession = await supportAgent.createSession();
     const supportResponse = await supportAgent.generate(
         "Hi, I'm having trouble logging into my account. Can you help?",
-        { sessionId: supportSession.id }
+        supportSession.id
     );
 
     console.log('Response:');
