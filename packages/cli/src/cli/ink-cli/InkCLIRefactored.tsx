@@ -17,7 +17,8 @@ import { registerGracefulShutdown } from '../../utils/graceful-shutdown.js';
 
 // Rendering mode: true = alternate buffer with VirtualizedList, false = Static pattern
 // Toggle this to switch between modes for testing
-const USE_ALTERNATE_BUFFER = true;
+//const USE_ALTERNATE_BUFFER = true;
+const USE_ALTERNATE_BUFFER = false;
 
 // Types
 import type { Message, OverlayType, McpWizardServerType, StartupInfo } from './state/types.js';
@@ -168,14 +169,17 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
 
     // Main input handler - routes to InputContainer with keyboard scroll support
     const inputHandler = useCallback((inputStr: string, key: Key): boolean => {
-        // Handle keyboard scroll: Page Up/Down or Shift+Up/Down
-        if (key.pageUp || (key.shift && key.upArrow)) {
-            listRef.current?.scrollBy(-10); // Scroll up 10 lines
-            return true;
-        }
-        if (key.pageDown || (key.shift && key.downArrow)) {
-            listRef.current?.scrollBy(10); // Scroll down 10 lines
-            return true;
+        // Handle keyboard scroll only in alternate buffer mode (VirtualizedList)
+        // In Static mode, let terminal handle native scrollback
+        if (USE_ALTERNATE_BUFFER) {
+            if (key.pageUp || (key.shift && key.upArrow)) {
+                listRef.current?.scrollBy(-10); // Scroll up 10 lines
+                return true;
+            }
+            if (key.pageDown || (key.shift && key.downArrow)) {
+                listRef.current?.scrollBy(10); // Scroll down 10 lines
+                return true;
+            }
         }
 
         return inputContainerRef.current?.handleInput(inputStr, key) ?? false;
@@ -208,6 +212,8 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
 
     const hasFocus = useCallback(() => true, []); // List always has focus for scroll
 
+    // Only register scrollable in alternate buffer mode
+    // In Static mode, native terminal scrollback handles scrolling
     useScrollable(
         {
             ref: listContainerRef,
@@ -215,7 +221,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
             scrollBy,
             hasFocus,
         },
-        true // Always active
+        USE_ALTERNATE_BUFFER // Only active in alternate buffer mode
     );
 
     // Hydrate conversation history when resuming a session
@@ -310,7 +316,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
 
     // For Static pattern: split messages into finalized (static) and pending (dynamic)
     // A message is finalized if it's not a running tool
-    const { staticMessages, dynamicMessages } = useMemo(() => {
+    const { staticItems, dynamicMessages } = useMemo(() => {
         // Find cutoff - all messages before this are finalized
         let cutoff = 0;
         for (const msg of visibleMessages) {
@@ -320,11 +326,27 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
             }
             cutoff++;
         }
+
+        // Pre-render static items as JSX elements (Gemini pattern)
+        // Header must be in Static or it appears below static content!
+        const items: React.ReactElement[] = [
+            <Header
+                key="header"
+                modelName={session.modelName}
+                sessionId={session.id || undefined}
+                hasActiveSession={session.hasActiveSession}
+                startupInfo={startupInfo}
+            />,
+            ...visibleMessages
+                .slice(0, cutoff)
+                .map((msg) => <MessageItem key={msg.id} message={msg} />),
+        ];
+
         return {
-            staticMessages: visibleMessages.slice(0, cutoff),
+            staticItems: items,
             dynamicMessages: visibleMessages.slice(cutoff),
         };
-    }, [visibleMessages]);
+    }, [visibleMessages, session.modelName, session.id, session.hasActiveSession, startupInfo]);
 
     // Get terminal dimensions - updates on resize
     const { rows: terminalHeight } = useTerminalSize();
@@ -417,26 +439,18 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
         }
 
         // Static pattern mode - copy-friendly, uses terminal scrollback
+        // Following Gemini's pattern: Static contains pre-rendered JSX elements
+        // including header. Dynamic items render after in the "active" terminal area.
         return (
-            <Box flexDirection="column" flexGrow={1}>
-                {/* Header always renders first */}
-                <Header
-                    modelName={session.modelName}
-                    sessionId={session.id || undefined}
-                    hasActiveSession={session.hasActiveSession}
-                    startupInfo={startupInfo}
-                />
-
-                {/* Static: finalized messages - rendered once, never re-render */}
-                <Static items={staticMessages}>
-                    {(message) => <MessageItem key={message.id} message={message} />}
-                </Static>
+            <>
+                {/* Static: header + finalized messages - rendered once to terminal scrollback */}
+                <Static items={staticItems}>{(item) => item}</Static>
 
                 {/* Dynamic: pending messages - re-render on updates */}
                 {dynamicMessages.map((message) => (
                     <MessageItem key={message.id} message={message} />
                 ))}
-            </Box>
+            </>
         );
     };
 
@@ -499,7 +513,8 @@ export function InkCLIRefactored({ agent, initialSessionId, startupInfo }: InkCL
     return (
         <ErrorBoundary>
             <KeypressProvider>
-                <MouseProvider mouseEventsEnabled={true}>
+                {/* Mouse events only in alternate buffer mode - Static mode uses native terminal selection */}
+                <MouseProvider mouseEventsEnabled={USE_ALTERNATE_BUFFER}>
                     <ScrollProvider>
                         <InkCLIInner
                             agent={agent}
