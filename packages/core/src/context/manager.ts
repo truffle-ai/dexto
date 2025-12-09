@@ -534,9 +534,12 @@ export class ContextManager<TMessage = unknown> {
         if (messageParts.length === 0) {
             messageParts.push({ type: 'text' as const, text: finalTextContent });
         }
-        this.logger.debug(
-            `ContextManager: Adding user message: ${JSON.stringify(messageParts, null, 2)}`
-        );
+        this.logger.info('User message received', {
+            textLength: finalTextContent.length,
+            content: messageParts,
+            hasImage: !!imageData,
+            hasFile: !!fileData,
+        });
         await this.addMessage({ role: 'user', content: messageParts });
     }
 

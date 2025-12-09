@@ -125,6 +125,13 @@ export class StreamProcessor {
                         // PERSISTENCE HAPPENS HERE
                         const rawResult = event.output;
 
+                        // Log raw tool output for debugging
+                        this.logger.debug('Tool result received', {
+                            toolName: event.toolName,
+                            toolCallId: event.toolCallId,
+                            rawResult,
+                        });
+
                         // Sanitize
                         const sanitized = await sanitizeToolResult(
                             rawResult,
@@ -208,6 +215,20 @@ export class StreamProcessor {
                             }),
                         };
                         this.actualTokens = usage;
+
+                        // Log complete LLM response for debugging
+                        this.logger.info('LLM response complete', {
+                            finishReason: event.finishReason,
+                            contentLength: this.accumulatedText.length,
+                            content: this.accumulatedText,
+                            ...(this.reasoningText && {
+                                reasoningLength: this.reasoningText.length,
+                                reasoning: this.reasoningText,
+                            }),
+                            usage,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                        });
 
                         // Finalize assistant message with usage
                         if (this.assistantMessageId) {
