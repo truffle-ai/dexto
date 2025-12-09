@@ -1,17 +1,7 @@
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
-import type {
-    InternalMessage,
-    ImageData,
-    FileData,
-    AssistantMessage,
-    ToolCall,
-    SystemMessage,
-    UserMessage,
-    ToolMessage,
-    ContentPart,
-} from './types.js';
+import type { InternalMessage, ImageData, FileData, AssistantMessage, ToolCall } from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';

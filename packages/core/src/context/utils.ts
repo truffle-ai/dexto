@@ -6,7 +6,6 @@ import {
     UIResourcePart,
     ContentPart,
     SanitizedToolResult,
-    ToolMessage,
     isToolMessage,
 } from './types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
