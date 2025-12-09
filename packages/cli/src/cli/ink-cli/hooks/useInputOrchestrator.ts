@@ -21,6 +21,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { DextoAgent } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
 import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
+import type { TextBuffer } from '../components/shared/text-buffer.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
@@ -111,6 +112,8 @@ export interface UseInputOrchestratorProps {
     approval: ApprovalRequest | null;
     input: InputState;
     session: SessionState;
+    /** Text buffer for clearing input on first Ctrl+C */
+    buffer: TextBuffer;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     agent: DextoAgent;
     handlers: InputHandlers;
@@ -148,6 +151,7 @@ export function useInputOrchestrator({
     approval,
     input,
     session,
+    buffer,
     setUi,
     agent,
     handlers,
@@ -159,6 +163,7 @@ export function useInputOrchestrator({
     const approvalRef = useRef(approval);
     const inputRef = useRef(input);
     const sessionRef = useRef(session);
+    const bufferRef = useRef(buffer);
     const handlersRef = useRef(handlers);
 
     // Keep refs in sync
@@ -167,8 +172,9 @@ export function useInputOrchestrator({
         approvalRef.current = approval;
         inputRef.current = input;
         sessionRef.current = session;
+        bufferRef.current = buffer;
         handlersRef.current = handlers;
-    }, [ui, approval, input, session, handlers]);
+    }, [ui, approval, input, session, buffer, handlers]);
 
     // Auto-clear exit warning after timeout
     useEffect(() => {
@@ -190,9 +196,11 @@ export function useInputOrchestrator({
     }, [ui.exitWarningShown, ui.exitWarningTimestamp, setUi]);
 
     // Handle Ctrl+C (special case - handled globally regardless of focus)
+    // Priority: 1) Cancel if processing, 2) Clear input if has text, 3) Exit warning/exit
     const handleCtrlC = useCallback(() => {
         const currentUi = uiRef.current;
         const currentSession = sessionRef.current;
+        const currentBuffer = bufferRef.current;
 
         if (currentUi.isProcessing) {
             // Cancel the current operation via agent
@@ -210,8 +218,19 @@ export function useInputOrchestrator({
                     exitWarningTimestamp: null,
                 }));
             }
+        } else if (currentBuffer.text.length > 0) {
+            // Has input text - clear it (following Gemini's CLEAR_INPUT pattern)
+            currentBuffer.setText('');
+            // Clear exit warning if it was shown
+            if (currentUi.exitWarningShown) {
+                setUi((prev) => ({
+                    ...prev,
+                    exitWarningShown: false,
+                    exitWarningTimestamp: null,
+                }));
+            }
         } else {
-            // Not processing - handle exit with double-press safety
+            // No text, not processing - handle exit with double-press safety
             if (currentUi.exitWarningShown) {
                 // Second Ctrl+C within timeout - actually exit
                 exit();

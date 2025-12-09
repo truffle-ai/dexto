@@ -164,6 +164,7 @@ export function useCLIState({
         approval,
         input,
         session,
+        buffer,
         setUi,
         agent,
         handlers: {
