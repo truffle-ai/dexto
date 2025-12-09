@@ -212,13 +212,16 @@ export const MultiLineTextInput = forwardRef<MultiLineTextInputHandle, MultiLine
                     // - Ctrl+J sends \n (0x0a) with NO ctrl flag (Enter sends \r with key.return)
                     // - Shift+Enter sends backslash + \r (0x5c 0x0d) on many terminals
                     // - Alt+Enter may set key.meta with key.return
+                    // - Paste mode: Enter during paste should insert newline (Gemini pattern)
                     const isCtrlJ = input === '\n'; // Ctrl+J sends 0x0a, regular Enter sends 0x0d
                     const isShiftEnter =
                         input === '\\\r' ||
                         (key.return && key.shift) ||
                         input === '\x1b[13;2u' ||
                         input === '\x1bOM';
-                    const wantsNewline = isCtrlJ || isShiftEnter || (key.return && key.meta);
+                    const isPasteReturn = key.return && key.paste;
+                    const wantsNewline =
+                        isCtrlJ || isShiftEnter || (key.return && key.meta) || isPasteReturn;
                     if (wantsNewline) {
                         const newValue =
                             currentValue.slice(0, currentCursorPos) +
@@ -229,8 +232,8 @@ export const MultiLineTextInput = forwardRef<MultiLineTextInputHandle, MultiLine
                         return true;
                     }
 
-                    // Enter = submit
-                    if (key.return) {
+                    // Enter = submit (only when NOT pasting)
+                    if (key.return && !key.paste) {
                         if (currentValue.trim()) {
                             onSubmit(currentValue);
                         }

@@ -79,8 +79,47 @@ const findScrollableCandidates = (
     return candidates;
 };
 
-export const ScrollProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export interface ScrollProviderProps {
+    children: React.ReactNode;
+    /** Callback when user attempts to select text (drag without Option key) */
+    onSelectionAttempt?: () => void;
+}
+
+/**
+ * Hook to detect text selection attempts (click + drag)
+ * Returns a handler to process mouse events for drag detection
+ */
+function useDragDetection(onSelectionAttempt?: () => void) {
+    const isLeftButtonDownRef = useRef(false);
+    const selectionHintShownRef = useRef(false);
+
+    const handleDragDetection = useCallback(
+        (event: MouseEvent) => {
+            if (event.name === 'left-press') {
+                isLeftButtonDownRef.current = true;
+                selectionHintShownRef.current = false;
+            } else if (event.name === 'left-release') {
+                isLeftButtonDownRef.current = false;
+            } else if (event.name === 'move' && isLeftButtonDownRef.current) {
+                // User is dragging (trying to select text)
+                // Only show hint once per drag operation
+                if (!selectionHintShownRef.current && onSelectionAttempt) {
+                    selectionHintShownRef.current = true;
+                    onSelectionAttempt();
+                }
+            }
+        },
+        [onSelectionAttempt]
+    );
+
+    return handleDragDetection;
+}
+
+export const ScrollProvider: React.FC<ScrollProviderProps> = ({ children, onSelectionAttempt }) => {
     const [scrollables, setScrollables] = useState(new Map<string, ScrollableEntry>());
+
+    // Drag detection for selection hint
+    const handleDragDetection = useDragDetection(onSelectionAttempt);
 
     const register = useCallback((entry: ScrollableEntry) => {
         setScrollables((prev) => new Map(prev).set(entry.id, entry));
@@ -154,14 +193,19 @@ export const ScrollProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     useMouse(
         useCallback(
             (event: MouseEvent) => {
+                // Handle scroll events
                 if (event.name === 'scroll-up') {
                     return handleScroll('up', event);
                 } else if (event.name === 'scroll-down') {
                     return handleScroll('down', event);
                 }
+
+                // Detect selection attempts (click + drag)
+                handleDragDetection(event);
+
                 return false;
             },
-            [handleScroll]
+            [handleScroll, handleDragDetection]
         ),
         { isActive: true }
     );

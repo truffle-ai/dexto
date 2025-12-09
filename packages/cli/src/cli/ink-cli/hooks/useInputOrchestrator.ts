@@ -76,6 +76,8 @@ export interface Key {
     tab: boolean;
     backspace: boolean;
     delete: boolean;
+    /** True if this input came from a paste operation (bracketed paste) */
+    paste: boolean;
 }
 
 /**
@@ -97,6 +99,7 @@ function convertKey(rawKey: RawKey): { input: string; key: Key } {
         tab: rawKey.name === 'tab',
         backspace: rawKey.name === 'backspace',
         delete: rawKey.name === 'delete',
+        paste: rawKey.paste,
     };
 
     // For insertable characters, use the sequence
