@@ -20,6 +20,14 @@ export type OverlayTrigger = 'slash-autocomplete' | 'resource-autocomplete' | 'c
 const PASTE_COLLAPSE_LINE_THRESHOLD = 3;
 const PASTE_COLLAPSE_CHAR_THRESHOLD = 150;
 
+/** Platform-aware keyboard shortcut labels */
+const isMac = process.platform === 'darwin';
+const KEY_LABELS = {
+    ctrlT: isMac ? '⌃T' : 'Ctrl+T',
+    altUp: isMac ? '⌥↑' : 'Alt+Up',
+    altDown: isMac ? '⌥↓' : 'Alt+Down',
+};
+
 interface TextBufferInputProps {
     /** Text buffer (owned by parent) */
     buffer: TextBuffer;
@@ -541,7 +549,8 @@ export function TextBufferInput({
             </Text>
             {startLine > 0 && (
                 <Text color="gray" dimColor>
-                    {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above (⌥↑ to jump)
+                    {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above (
+                    {KEY_LABELS.altUp} to jump)
                 </Text>
             )}
             {visibleLines.map((line: string, idx: number) => {
@@ -592,7 +601,7 @@ export function TextBufferInput({
             {endLine < totalLines && (
                 <Text color="gray" dimColor>
                     {'  '}↓ {totalLines - endLine} more line{totalLines - endLine > 1 ? 's' : ''}{' '}
-                    below (⌥↓ to jump)
+                    below ({KEY_LABELS.altDown} to jump)
                 </Text>
             )}
             {/* Paste block hints */}
@@ -626,7 +635,8 @@ function PasteBlockHint({
     if (expandedBlock) {
         return (
             <Text color="cyan" dimColor>
-                {'  '}⌃T to collapse expanded paste
+                {'  '}
+                {KEY_LABELS.ctrlT} to collapse expanded paste
             </Text>
         );
     }
@@ -635,7 +645,8 @@ function PasteBlockHint({
     if (cursorOnCollapsed) {
         return (
             <Text color="cyan" dimColor>
-                {'  '}⌃T to expand paste
+                {'  '}
+                {KEY_LABELS.ctrlT} to expand paste
             </Text>
         );
     }
@@ -645,8 +656,8 @@ function PasteBlockHint({
         return (
             <Text color="gray" dimColor>
                 {'  '}
-                {collapsedCount} collapsed paste{collapsedCount > 1 ? 's' : ''} (⌃T on placeholder
-                to expand)
+                {collapsedCount} collapsed paste{collapsedCount > 1 ? 's' : ''} ({KEY_LABELS.ctrlT}{' '}
+                on placeholder to expand)
             </Text>
         );
     }
