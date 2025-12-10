@@ -5,6 +5,7 @@
 
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
+import { usePhraseCycler } from '../hooks/usePhraseCycler.js';
 
 interface StatusBarProps {
     isProcessing: boolean;
@@ -25,6 +26,8 @@ export function StatusBar({
     exitWarningShown = false,
     copyModeEnabled = false,
 }: StatusBarProps) {
+    // Cycle through witty phrases while processing
+    const { phrase } = usePhraseCycler({ isActive: isProcessing });
     // Show copy mode warning (highest priority)
     if (copyModeEnabled) {
         return (
@@ -73,7 +76,7 @@ export function StatusBar({
                 <Text color="magenta">
                     <Spinner type="dots" />
                 </Text>
-                <Text color="magenta"> Processing</Text>
+                <Text color="magenta"> {phrase}</Text>
                 <Text color="gray" dimColor>
                     {' '}
                     • Press Esc or Ctrl+C to cancel
@@ -88,7 +91,7 @@ export function StatusBar({
             <Text color="cyan">
                 <Spinner type="dots" />
             </Text>
-            <Text color="cyan"> Processing</Text>
+            <Text color="cyan"> {phrase}</Text>
             {approvalQueueCount > 0 && (
                 <Text color="yellow"> • {approvalQueueCount} approval(s) queued</Text>
             )}
