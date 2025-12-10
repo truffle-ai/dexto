@@ -128,6 +128,9 @@ export class TurnExecutor {
         // Automatic cleanup when scope exits (normal, throw, or return)
         using _ = defer(() => this.cleanup());
 
+        // Track run duration
+        const startTime = Date.now();
+
         let stepCount = 0;
         let lastStepTokens: TokenUsage | null = null;
         let lastFinishReason: LLMFinishReason = 'unknown';
@@ -275,6 +278,7 @@ export class TurnExecutor {
             this.eventBus.emit('run:complete', {
                 finishReason: 'error',
                 stepCount,
+                durationMs: Date.now() - startTime,
                 error: mappedError,
             });
 
@@ -291,6 +295,7 @@ export class TurnExecutor {
         this.eventBus.emit('run:complete', {
             finishReason: lastFinishReason,
             stepCount,
+            durationMs: Date.now() - startTime,
         });
 
         return {

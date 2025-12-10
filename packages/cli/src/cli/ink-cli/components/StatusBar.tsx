@@ -6,6 +6,7 @@
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import { usePhraseCycler } from '../hooks/usePhraseCycler.js';
+import { useElapsedTime } from '../hooks/useElapsedTime.js';
 
 interface StatusBarProps {
     isProcessing: boolean;
@@ -28,6 +29,8 @@ export function StatusBar({
 }: StatusBarProps) {
     // Cycle through witty phrases while processing
     const { phrase } = usePhraseCycler({ isActive: isProcessing });
+    // Track elapsed time during processing
+    const { formatted: elapsedTime } = useElapsedTime({ isActive: isProcessing });
     // Show copy mode warning (highest priority)
     if (copyModeEnabled) {
         return (
@@ -79,7 +82,7 @@ export function StatusBar({
                 <Text color="magenta"> {phrase}</Text>
                 <Text color="gray" dimColor>
                     {' '}
-                    • Press Esc to cancel
+                    ({elapsedTime}) • Press Esc to cancel
                 </Text>
             </Box>
         );
@@ -97,7 +100,7 @@ export function StatusBar({
             )}
             <Text color="gray" dimColor>
                 {' '}
-                • Press Esc to cancel
+                ({elapsedTime}) • Press Esc to cancel
             </Text>
         </Box>
     );

@@ -424,6 +424,8 @@ export interface AgentEventMap {
         finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
+        /** Total wall-clock duration of the run in milliseconds */
+        durationMs: number;
         /** Error that caused termination (only if finishReason === 'error') */
         error?: Error;
         sessionId: string;
@@ -587,6 +589,8 @@ export interface SessionEventMap {
         finishReason: LLMFinishReason;
         /** Number of steps executed */
         stepCount: number;
+        /** Total wall-clock duration of the run in milliseconds */
+        durationMs: number;
         /** Error that caused termination (only if finishReason === 'error') */
         error?: Error;
     };
