@@ -74,6 +74,8 @@ export function AlternateBufferCLI({
         setMessages,
         pendingMessages,
         setPendingMessages,
+        dequeuedBuffer,
+        setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
         ui,
@@ -133,19 +135,25 @@ export function AlternateBufferCLI({
     // Get terminal dimensions - updates on resize
     const { rows: terminalHeight } = useTerminalSize();
 
-    // Build list data: header as first item, then finalized + pending messages
-    // In alternate buffer mode, everything is re-rendered anyway, so we combine both
+    // Build list data: header as first item, then finalized + pending + dequeued buffer
+    // In alternate buffer mode, everything is re-rendered anyway, so we combine all
+    // Order: finalized messages → pending/streaming → dequeued user messages (guarantees order)
     const listData = useMemo<ListItem[]>(() => {
         const items: ListItem[] = [{ type: 'header' }];
         for (const msg of visibleMessages) {
             items.push({ type: 'message', message: msg });
         }
-        // Add pending/streaming messages at the end
+        // Add pending/streaming messages
         for (const msg of pendingMessages) {
             items.push({ type: 'message', message: msg });
         }
+        // Add dequeued buffer (user messages waiting to be flushed to finalized)
+        // These render AFTER pending to guarantee correct visual order
+        for (const msg of dequeuedBuffer) {
+            items.push({ type: 'message', message: msg });
+        }
         return items;
-    }, [visibleMessages, pendingMessages]);
+    }, [visibleMessages, pendingMessages, dequeuedBuffer]);
 
     // Render callback for VirtualizedList items
     const renderListItem = useCallback(
@@ -266,6 +274,7 @@ export function AlternateBufferCLI({
                     setSession={setSession}
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
+                    setDequeuedBuffer={setDequeuedBuffer}
                     setQueuedMessages={setQueuedMessages}
                     agent={agent}
                     inputService={inputService}

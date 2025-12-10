@@ -27,6 +27,8 @@ export interface ProcessStreamSetters {
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     /** Setter for pending/streaming messages (rendered dynamically outside <Static>) */
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    /** Setter for dequeued buffer (user messages waiting to render after pending) */
+    setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     /** Setter for queued messages (cleared when dequeued) */
     setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
@@ -69,10 +71,11 @@ export async function processStream(
     setters: ProcessStreamSetters,
     options?: ProcessStreamOptions
 ): Promise<void> {
-    const { setMessages, setPendingMessages, setUi, setQueuedMessages } = setters;
+    const { setMessages, setPendingMessages, setDequeuedBuffer, setUi, setQueuedMessages } =
+        setters;
     const isCancellingRef = options?.isCancellingRef;
 
-    // Track streaming state
+    // Track streaming state (synchronous, not React state)
     const state: StreamState = {
         messageId: null,
         content: '',
@@ -122,8 +125,25 @@ export async function processStream(
     };
 
     /**
+     * Move dequeued buffer to messages (called at start of new run)
+     * This ensures user messages appear in correct order after previous response
+     */
+    const flushDequeuedBuffer = () => {
+        setDequeuedBuffer((buffer) => {
+            if (buffer.length > 0) {
+                setMessages((prev) => [...prev, ...buffer]);
+            }
+            return [];
+        });
+    };
+
+    /**
      * Progressive finalization: split large streaming content at safe markdown
      * boundaries and move completed portions to Static to reduce flickering.
+     *
+     * Safe to use with message queueing because dequeued user messages are
+     * rendered in a separate buffer AFTER pendingMessages, guaranteeing
+     * correct visual order regardless of React batching timing.
      */
     const progressiveFinalize = (content: string): string => {
         const splitResult = checkForSplit(content);
@@ -167,6 +187,10 @@ export async function processStream(
 
             switch (event.name) {
                 case 'llm:thinking': {
+                    // Flush dequeued buffer to messages at start of new run
+                    // This ensures user messages appear after the previous response
+                    flushDequeuedBuffer();
+
                     // Start thinking state, reset streaming state
                     setUi((prev) => ({ ...prev, isThinking: true }));
                     state.messageId = null;
@@ -441,8 +465,18 @@ export async function processStream(
                 }
 
                 case 'message:dequeued': {
-                    // Queued message is being processed - add user message to chat
-                    // This event comes through the iterator, synchronized with streaming
+                    // Queued message is being processed
+                    // NOTE: llm:thinking only fires ONCE at the start of execute(),
+                    // NOT when each queued message starts. So we must finalize here.
+
+                    // 1. Finalize any pending from previous response
+                    //    This ensures the previous assistant response is in messages
+                    //    before we add the next user message
+                    finalizeAllPending();
+
+                    // 2. Add user message directly to messages (not buffer)
+                    //    The buffer approach doesn't work because llm:thinking
+                    //    doesn't fire between queued message runs
                     const textContent = extractTextContent(event.content);
 
                     if (textContent || event.content.length > 0) {

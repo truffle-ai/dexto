@@ -42,6 +42,8 @@ interface InputContainerProps {
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     /** Setter for pending/streaming messages (rendered dynamically) */
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    /** Setter for dequeued buffer (user messages waiting to render after pending) */
+    setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
     /** Setter for queued messages */
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     agent: DextoAgent;
@@ -66,6 +68,7 @@ export function InputContainer({
     setSession,
     setMessages,
     setPendingMessages,
+    setDequeuedBuffer,
     setQueuedMessages,
     agent,
     inputService,
@@ -552,6 +555,7 @@ export function InputContainer({
                     await processStream(iterator, {
                         setMessages,
                         setPendingMessages,
+                        setDequeuedBuffer,
                         setUi,
                         setQueuedMessages,
                     });

@@ -42,6 +42,10 @@ export interface CLIStateReturn {
     // Pending messages (streaming/in-progress, rendered dynamically)
     pendingMessages: Message[];
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    // Dequeued buffer - user messages waiting to render after pending
+    // (ensures correct visual order regardless of React batching)
+    dequeuedBuffer: Message[];
+    setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
     // Queued messages (messages waiting to be processed)
     queuedMessages: QueuedMessage[];
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
@@ -84,6 +88,8 @@ export function useCLIState({
     const [messages, setMessages] = useState<Message[]>([]);
     // Pending messages - streaming/in-progress (rendered dynamically outside <Static>)
     const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
+    // Dequeued buffer - user messages rendered after pending (guarantees visual order)
+    const [dequeuedBuffer, setDequeuedBuffer] = useState<Message[]>([]);
     // Queued messages - messages waiting to be processed (uses core type)
     const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
 
@@ -271,6 +277,8 @@ export function useCLIState({
         setMessages,
         pendingMessages,
         setPendingMessages,
+        dequeuedBuffer,
+        setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
         ui,

@@ -48,6 +48,8 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
         setMessages,
         pendingMessages,
         setPendingMessages,
+        dequeuedBuffer,
+        setDequeuedBuffer,
         queuedMessages,
         setQueuedMessages,
         ui,
@@ -97,6 +99,12 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                 <MessageItem key={message.id} message={message} />
             ))}
 
+            {/* Dequeued buffer: user messages waiting to be flushed to finalized */}
+            {/* Rendered AFTER pending to guarantee correct visual order */}
+            {dequeuedBuffer.map((message) => (
+                <MessageItem key={message.id} message={message} />
+            ))}
+
             {/* Controls area */}
             <Box flexDirection="column" flexShrink={0}>
                 <StatusBar
@@ -123,6 +131,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                     setSession={setSession}
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
+                    setDequeuedBuffer={setDequeuedBuffer}
                     setQueuedMessages={setQueuedMessages}
                     agent={agent}
                     inputService={inputService}
