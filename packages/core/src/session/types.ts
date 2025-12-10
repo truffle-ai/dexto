@@ -1,15 +1,15 @@
-import { MessageContentPart } from '../context/types.js';
+import { ContentPart } from '../context/types.js';
 
 export interface QueuedMessage {
     id: string;
-    content: MessageContentPart[];
+    content: ContentPart[];
     queuedAt: number;
     metadata?: Record<string, unknown>;
 }
 
 export interface CoalescedMessage {
     messages: QueuedMessage[];
-    combinedContent: MessageContentPart[];
+    combinedContent: ContentPart[];
     firstQueuedAt: number;
     lastQueuedAt: number;
 }

@@ -5,6 +5,7 @@ import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
+import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
@@ -1092,7 +1093,7 @@ export class DextoAgent {
      */
     public async queueMessage(
         sessionId: string,
-        message: import('../session/message-queue.js').UserMessage
+        message: import('../session/message-queue.js').UserMessageInput
     ): Promise<{ queued: true; position: number; id: string }> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
@@ -1333,7 +1334,7 @@ export class DextoAgent {
      * @returns Promise that resolves to the session's conversation history
      * @throws Error if session doesn't exist
      */
-    public async getSessionHistory(sessionId: string) {
+    public async getSessionHistory(sessionId: string): Promise<InternalMessage[]> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
@@ -1344,7 +1345,7 @@ export class DextoAgent {
             return history;
         }
 
-        return await Promise.all(
+        return (await Promise.all(
             history.map(async (message) => ({
                 ...message,
                 content: await expandBlobReferences(
@@ -1358,7 +1359,7 @@ export class DextoAgent {
                     return message.content; // Return original content on error
                 }),
             }))
-        );
+        )) as InternalMessage[];
     }
 
     /**

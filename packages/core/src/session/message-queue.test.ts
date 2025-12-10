@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageQueueService } from './message-queue.js';
 import type { SessionEventBus } from '../events/index.js';
-import type { MessageContentPart } from '../context/types.js';
+import type { ContentPart } from '../context/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
@@ -29,7 +29,7 @@ describe('MessageQueueService', () => {
 
     describe('enqueue()', () => {
         it('should add a message to the queue and return position and id', () => {
-            const content: MessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
 
             const result = queue.enqueue({ content });
 
@@ -39,7 +39,7 @@ describe('MessageQueueService', () => {
         });
 
         it('should increment position for multiple enqueued messages', () => {
-            const content: MessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
 
             const result1 = queue.enqueue({ content });
             const result2 = queue.enqueue({ content });
@@ -51,7 +51,7 @@ describe('MessageQueueService', () => {
         });
 
         it('should emit message:queued event with correct data', () => {
-            const content: MessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
 
             const result = queue.enqueue({ content });
 
@@ -62,7 +62,7 @@ describe('MessageQueueService', () => {
         });
 
         it('should include metadata when provided', () => {
-            const content: MessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
             const metadata = { source: 'api', priority: 'high' };
 
             queue.enqueue({ content, metadata });
@@ -74,7 +74,7 @@ describe('MessageQueueService', () => {
         });
 
         it('should not include metadata field when not provided', () => {
-            const content: MessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
 
             queue.enqueue({ content });
             const coalesced = queue.dequeueAll();
@@ -92,7 +92,7 @@ describe('MessageQueueService', () => {
         });
 
         it('should return CoalescedMessage with single message', () => {
-            const content: MessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
             queue.enqueue({ content });
 
             const result = queue.dequeueAll();
@@ -140,7 +140,7 @@ describe('MessageQueueService', () => {
 
     describe('coalescing', () => {
         it('should return single message content as-is', () => {
-            const content: MessageContentPart[] = [
+            const content: ContentPart[] = [
                 { type: 'text', text: 'hello world' },
                 { type: 'image', image: 'base64data', mimeType: 'image/png' },
             ];
@@ -311,7 +311,7 @@ describe('MessageQueueService', () => {
         });
 
         it('should return message by id', () => {
-            const content: MessageContentPart[] = [{ type: 'text', text: 'hello' }];
+            const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
             const result = queue.enqueue({ content });
 
             const msg = queue.get(result.id);

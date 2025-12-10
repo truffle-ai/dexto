@@ -22,7 +22,7 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
-import type { UserMessage } from './message-queue.js';
+import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 
 /**
@@ -655,7 +655,7 @@ export class ChatSession {
      * @param message The user message to queue
      * @returns Queue position and message ID
      */
-    public queueMessage(message: UserMessage): { queued: true; position: number; id: string } {
+    public queueMessage(message: UserMessageInput): { queued: true; position: number; id: string } {
         return this.llmService.getMessageQueue().enqueue(message);
     }
 
