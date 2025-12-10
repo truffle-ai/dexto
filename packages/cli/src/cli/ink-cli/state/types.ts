@@ -135,6 +135,24 @@ export interface PendingImage {
 }
 
 /**
+ * Pasted content block (for collapsible paste feature)
+ */
+export interface PastedBlock {
+    /** Unique ID for tracking */
+    id: string;
+    /** Sequential number for display (Paste 1, Paste 2, etc.) */
+    number: number;
+    /** The full original pasted text */
+    fullText: string;
+    /** Line count for display */
+    lineCount: number;
+    /** Whether this block is currently collapsed */
+    isCollapsed: boolean;
+    /** The placeholder text when collapsed (e.g., "[Paste 1: ~32 lines]") */
+    placeholder: string;
+}
+
+/**
  * Input state management
  */
 export interface InputState {
@@ -144,6 +162,10 @@ export interface InputState {
     draftBeforeHistory: string;
     /** Pending images to be sent with the next message */
     images: PendingImage[];
+    /** Pasted content blocks (collapsed/expandable) */
+    pastedBlocks: PastedBlock[];
+    /** Counter for generating sequential paste numbers */
+    pasteCounter: number;
 }
 
 /**

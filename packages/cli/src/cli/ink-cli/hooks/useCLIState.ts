@@ -96,6 +96,8 @@ export function useCLIState({
         historyIndex: -1,
         draftBeforeHistory: '',
         images: [],
+        pastedBlocks: [],
+        pasteCounter: 0,
     });
 
     // Session state

@@ -18,6 +18,8 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             historyIndex: -1,
             draftBeforeHistory: '',
             images: [],
+            pastedBlocks: [],
+            pasteCounter: 0,
         },
         ui: {
             isProcessing: false,

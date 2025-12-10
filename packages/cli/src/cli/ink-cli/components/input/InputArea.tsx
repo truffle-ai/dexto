@@ -7,7 +7,7 @@ import React from 'react';
 import { Box } from 'ink';
 import { TextBufferInput, type OverlayTrigger } from '../TextBufferInput.js';
 import type { TextBuffer } from '../shared/text-buffer.js';
-import type { PendingImage } from '../../state/types.js';
+import type { PendingImage, PastedBlock } from '../../state/types.js';
 
 export type { OverlayTrigger };
 
@@ -36,6 +36,14 @@ interface InputAreaProps {
     images?: PendingImage[] | undefined;
     /** Called when an image placeholder is removed from text */
     onImageRemove?: ((imageId: string) => void) | undefined;
+    /** Current pasted blocks for collapse/expand feature */
+    pastedBlocks?: PastedBlock[] | undefined;
+    /** Called when a large paste is detected and should be collapsed */
+    onPasteBlock?: ((block: PastedBlock) => void) | undefined;
+    /** Called to update a pasted block (e.g., toggle collapse) */
+    onPasteBlockUpdate?: ((blockId: string, updates: Partial<PastedBlock>) => void) | undefined;
+    /** Called when a paste block placeholder is removed from text */
+    onPasteBlockRemove?: ((blockId: string) => void) | undefined;
 }
 
 export function InputArea({
@@ -51,6 +59,10 @@ export function InputArea({
     onImagePaste,
     images,
     onImageRemove,
+    pastedBlocks,
+    onPasteBlock,
+    onPasteBlockUpdate,
+    onPasteBlockRemove,
 }: InputAreaProps) {
     return (
         <Box flexDirection="column">
@@ -67,6 +79,10 @@ export function InputArea({
                 onImagePaste={onImagePaste}
                 images={images}
                 onImageRemove={onImageRemove}
+                pastedBlocks={pastedBlocks}
+                onPasteBlock={onPasteBlock}
+                onPasteBlockUpdate={onPasteBlockUpdate}
+                onPasteBlockRemove={onPasteBlockRemove}
             />
         </Box>
     );

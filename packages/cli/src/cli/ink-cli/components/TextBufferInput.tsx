@@ -10,11 +10,15 @@ import React, { useCallback, useRef, useEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import type { TextBuffer } from './shared/text-buffer.js';
-import type { PendingImage } from '../state/types.js';
+import type { PendingImage, PastedBlock } from '../state/types.js';
 import { readClipboardImage } from '../utils/clipboardUtils.js';
 
 /** Overlay trigger types for event-driven overlay detection */
 export type OverlayTrigger = 'slash-autocomplete' | 'resource-autocomplete' | 'close';
+
+/** Threshold for collapsing pasted content */
+const PASTE_COLLAPSE_LINE_THRESHOLD = 3;
+const PASTE_COLLAPSE_CHAR_THRESHOLD = 150;
 
 interface TextBufferInputProps {
     /** Text buffer (owned by parent) */
@@ -43,6 +47,14 @@ interface TextBufferInputProps {
     images?: PendingImage[] | undefined;
     /** Called when an image placeholder is removed from text */
     onImageRemove?: ((imageId: string) => void) | undefined;
+    /** Current pasted blocks for collapse/expand feature */
+    pastedBlocks?: PastedBlock[] | undefined;
+    /** Called when a large paste is detected and should be collapsed */
+    onPasteBlock?: ((block: PastedBlock) => void) | undefined;
+    /** Called to update a pasted block (e.g., toggle collapse) */
+    onPasteBlockUpdate?: ((blockId: string, updates: Partial<PastedBlock>) => void) | undefined;
+    /** Called when a paste block placeholder is removed from text */
+    onPasteBlockRemove?: ((blockId: string) => void) | undefined;
 }
 
 function isBackspaceKey(key: Key): boolean {
@@ -67,6 +79,10 @@ export function TextBufferInput({
     onImagePaste,
     images = [],
     onImageRemove,
+    pastedBlocks = [],
+    onPasteBlock,
+    onPasteBlockUpdate,
+    onPasteBlockRemove,
 }: TextBufferInputProps) {
     const { stdout } = useStdout();
     const terminalWidth = stdout?.columns || 80;
@@ -76,6 +92,13 @@ export function TextBufferInput({
     useEffect(() => {
         imageCountRef.current = imageCount;
     }, [imageCount]);
+
+    // Use ref to track paste number for generating sequential IDs
+    const pasteCounterRef = useRef(pastedBlocks.length);
+    useEffect(() => {
+        // Update counter to be at least the current number of blocks
+        pasteCounterRef.current = Math.max(pasteCounterRef.current, pastedBlocks.length);
+    }, [pastedBlocks.length]);
 
     // Check for removed image placeholders after text changes
     const checkRemovedImages = useCallback(() => {
@@ -87,6 +110,107 @@ export function TextBufferInput({
             }
         }
     }, [buffer, images, onImageRemove]);
+
+    // Check for removed paste block placeholders after text changes
+    const checkRemovedPasteBlocks = useCallback(() => {
+        if (!onPasteBlockRemove || pastedBlocks.length === 0) return;
+        const currentText = buffer.text;
+        for (const block of pastedBlocks) {
+            // Check if either the placeholder or the full text (when expanded) is present
+            const textToFind = block.isCollapsed ? block.placeholder : block.fullText;
+            if (!currentText.includes(textToFind)) {
+                onPasteBlockRemove(block.id);
+            }
+        }
+    }, [buffer, pastedBlocks, onPasteBlockRemove]);
+
+    // Find the currently expanded paste block (only one can be expanded at a time)
+    const findExpandedBlock = useCallback((): PastedBlock | null => {
+        return pastedBlocks.find((block) => !block.isCollapsed) || null;
+    }, [pastedBlocks]);
+
+    // Find which collapsed paste block the cursor is on (by placeholder)
+    const findCollapsedBlockAtCursor = useCallback((): PastedBlock | null => {
+        if (pastedBlocks.length === 0) return null;
+        const currentText = buffer.text;
+        const [cursorRow, cursorCol] = buffer.cursor;
+        const cursorOffset = getCursorPosition(buffer.lines, cursorRow, cursorCol);
+
+        for (const block of pastedBlocks) {
+            if (!block.isCollapsed) continue; // Skip expanded blocks
+            const startIdx = currentText.indexOf(block.placeholder);
+            if (startIdx === -1) continue;
+            const endIdx = startIdx + block.placeholder.length;
+            if (cursorOffset >= startIdx && cursorOffset <= endIdx) {
+                return block;
+            }
+        }
+        return null;
+    }, [buffer, pastedBlocks]);
+
+    // Handle Ctrl+T toggle:
+    // - If something is expanded: collapse it
+    // - If cursor is on a collapsed paste: expand it
+    const handlePasteToggle = useCallback(() => {
+        if (!onPasteBlockUpdate) return;
+
+        const expandedBlock = findExpandedBlock();
+        const currentText = buffer.text;
+
+        // If something is expanded, collapse it
+        if (expandedBlock) {
+            // Normalize for comparison (buffer might have different line endings)
+            const normalizedCurrent = currentText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const normalizedFullText = expandedBlock.fullText
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n');
+
+            const startIdx = normalizedCurrent.indexOf(normalizedFullText);
+            if (startIdx === -1) {
+                // Fallback: just mark as collapsed without text replacement
+                // This handles edge cases where text was modified
+                onPasteBlockUpdate(expandedBlock.id, { isCollapsed: true });
+                return;
+            }
+
+            // Replace full text with placeholder
+            const before = currentText.slice(0, startIdx);
+            const after = currentText.slice(startIdx + normalizedFullText.length);
+            const newText = before + expandedBlock.placeholder + after;
+
+            // Adjust cursor
+            const [cursorRow, cursorCol] = buffer.cursor;
+            const cursorOffset = getCursorPosition(buffer.lines, cursorRow, cursorCol);
+            let newCursorOffset = cursorOffset;
+            if (cursorOffset > startIdx) {
+                // Cursor is after the start of expanded block - adjust
+                const lengthDiff = expandedBlock.placeholder.length - normalizedFullText.length;
+                newCursorOffset = Math.max(startIdx, cursorOffset + lengthDiff);
+            }
+
+            buffer.setText(newText);
+            buffer.moveToOffset(Math.min(newCursorOffset, newText.length));
+            onPasteBlockUpdate(expandedBlock.id, { isCollapsed: true });
+            return;
+        }
+
+        // Otherwise, check if cursor is on a collapsed paste to expand
+        const collapsedBlock = findCollapsedBlockAtCursor();
+        if (collapsedBlock) {
+            const startIdx = currentText.indexOf(collapsedBlock.placeholder);
+            if (startIdx === -1) return;
+
+            // Replace placeholder with full text
+            const before = currentText.slice(0, startIdx);
+            const after = currentText.slice(startIdx + collapsedBlock.placeholder.length);
+            const newText = before + collapsedBlock.fullText + after;
+
+            buffer.setText(newText);
+            // Move cursor to start of expanded content
+            buffer.moveToOffset(startIdx);
+            onPasteBlockUpdate(collapsedBlock.id, { isCollapsed: false });
+        }
+    }, [buffer, findExpandedBlock, findCollapsedBlockAtCursor, onPasteBlockUpdate]);
 
     // Handle keyboard input directly - reads buffer state fresh each time
     const handleKeypress = useCallback(
@@ -175,6 +299,12 @@ export function TextBufferInput({
                 return;
             }
 
+            // === PASTE BLOCK TOGGLE (Ctrl+T) ===
+            if (key.ctrl && key.name === 't') {
+                handlePasteToggle();
+                return;
+            }
+
             // === BACKSPACE ===
             if (isBackspaceKey(key) && !key.meta) {
                 const prevText = buffer.text;
@@ -183,6 +313,7 @@ export function TextBufferInput({
 
                 buffer.backspace();
                 checkRemovedImages();
+                checkRemovedPasteBlocks();
 
                 if (onTriggerOverlay && cursorPos > 0) {
                     const deletedChar = prevText[cursorPos - 1];
@@ -200,6 +331,7 @@ export function TextBufferInput({
             if (isForwardDeleteKey(key)) {
                 buffer.del();
                 checkRemovedImages();
+                checkRemovedPasteBlocks();
                 return;
             }
 
@@ -207,11 +339,13 @@ export function TextBufferInput({
             if (key.ctrl && key.name === 'w') {
                 buffer.deleteWordLeft();
                 checkRemovedImages();
+                checkRemovedPasteBlocks();
                 return;
             }
             if (key.meta && isBackspaceKey(key)) {
                 buffer.deleteWordLeft();
                 checkRemovedImages();
+                checkRemovedPasteBlocks();
                 return;
             }
 
@@ -265,11 +399,13 @@ export function TextBufferInput({
             if (key.ctrl && key.name === 'k') {
                 buffer.killLineRight();
                 checkRemovedImages();
+                checkRemovedPasteBlocks();
                 return;
             }
             if (key.ctrl && key.name === 'u') {
                 buffer.killLineLeft();
                 checkRemovedImages();
+                checkRemovedPasteBlocks();
                 return;
             }
 
@@ -287,6 +423,37 @@ export function TextBufferInput({
             if (key.insertable && !key.ctrl && !key.meta) {
                 const [cursorRow, cursorCol] = buffer.cursor;
                 const cursorPos = getCursorPosition(buffer.lines, cursorRow, cursorCol);
+
+                // Check if this is a large paste that should be collapsed
+                if (key.paste && onPasteBlock) {
+                    // Normalize line endings to \n for consistent handling
+                    const pastedText = key.sequence.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                    const lineCount = (pastedText.match(/\n/g)?.length ?? 0) + 1;
+
+                    if (
+                        lineCount >= PASTE_COLLAPSE_LINE_THRESHOLD ||
+                        pastedText.length > PASTE_COLLAPSE_CHAR_THRESHOLD
+                    ) {
+                        // Create collapsed paste block
+                        pasteCounterRef.current += 1;
+                        const pasteNumber = pasteCounterRef.current;
+                        const placeholder = `[Paste ${pasteNumber}: ~${lineCount} lines]`;
+
+                        const pasteBlock: PastedBlock = {
+                            id: `paste-${Date.now()}-${pasteNumber}`,
+                            number: pasteNumber,
+                            fullText: pastedText,
+                            lineCount,
+                            isCollapsed: true,
+                            placeholder,
+                        };
+
+                        // Insert placeholder instead of full text
+                        buffer.insert(placeholder);
+                        onPasteBlock(pasteBlock);
+                        return;
+                    }
+                }
 
                 buffer.insert(key.sequence, { paste: key.paste });
 
@@ -309,6 +476,9 @@ export function TextBufferInput({
             imageCount,
             onImagePaste,
             checkRemovedImages,
+            checkRemovedPasteBlocks,
+            handlePasteToggle,
+            onPasteBlock,
         ]
     );
 
@@ -425,11 +595,63 @@ export function TextBufferInput({
                     below (⌥↓ to jump)
                 </Text>
             )}
+            {/* Paste block hints */}
+            {pastedBlocks.length > 0 && (
+                <PasteBlockHint
+                    pastedBlocks={pastedBlocks}
+                    expandedBlock={findExpandedBlock()}
+                    cursorOnCollapsed={findCollapsedBlockAtCursor()}
+                />
+            )}
             <Text color="gray" dimColor>
                 {separator}
             </Text>
         </Box>
     );
+}
+
+/** Hint component for paste blocks */
+function PasteBlockHint({
+    pastedBlocks,
+    expandedBlock,
+    cursorOnCollapsed,
+}: {
+    pastedBlocks: PastedBlock[];
+    expandedBlock: PastedBlock | null;
+    cursorOnCollapsed: PastedBlock | null;
+}) {
+    const collapsedCount = pastedBlocks.filter((b) => b.isCollapsed).length;
+
+    // If something is expanded, always show collapse hint
+    if (expandedBlock) {
+        return (
+            <Text color="cyan" dimColor>
+                {'  '}⌃T to collapse expanded paste
+            </Text>
+        );
+    }
+
+    // If cursor is on a collapsed paste, show expand hint
+    if (cursorOnCollapsed) {
+        return (
+            <Text color="cyan" dimColor>
+                {'  '}⌃T to expand paste
+            </Text>
+        );
+    }
+
+    // Otherwise show count of collapsed pastes
+    if (collapsedCount > 0) {
+        return (
+            <Text color="gray" dimColor>
+                {'  '}
+                {collapsedCount} collapsed paste{collapsedCount > 1 ? 's' : ''} (⌃T on placeholder
+                to expand)
+            </Text>
+        );
+    }
+
+    return null;
 }
 
 function getCursorPosition(lines: string[], cursorRow: number, cursorCol: number): number {

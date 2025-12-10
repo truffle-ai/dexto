@@ -10,7 +10,14 @@ import React, { useCallback, useRef, useEffect } from 'react';
 import type { DextoAgent, ContentPart, ImagePart, TextPart } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService } from '../services/InputService.js';
-import type { Message, UIState, InputState, SessionState, PendingImage } from '../state/types.js';
+import type {
+    Message,
+    UIState,
+    InputState,
+    SessionState,
+    PendingImage,
+    PastedBlock,
+} from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -161,10 +168,67 @@ export function InputContainer({
         [setInput]
     );
 
+    // Handle new paste block creation (when large text is pasted)
+    const handlePasteBlock = useCallback(
+        (block: PastedBlock) => {
+            setInput((prev) => ({
+                ...prev,
+                pastedBlocks: [...prev.pastedBlocks, block],
+                pasteCounter: Math.max(prev.pasteCounter, block.number),
+            }));
+        },
+        [setInput]
+    );
+
+    // Handle paste block update (e.g., toggle collapse)
+    const handlePasteBlockUpdate = useCallback(
+        (blockId: string, updates: Partial<PastedBlock>) => {
+            setInput((prev) => ({
+                ...prev,
+                pastedBlocks: prev.pastedBlocks.map((block) =>
+                    block.id === blockId ? { ...block, ...updates } : block
+                ),
+            }));
+        },
+        [setInput]
+    );
+
+    // Handle paste block removal (when placeholder is deleted from text)
+    const handlePasteBlockRemove = useCallback(
+        (blockId: string) => {
+            setInput((prev) => ({
+                ...prev,
+                pastedBlocks: prev.pastedBlocks.filter((block) => block.id !== blockId),
+            }));
+        },
+        [setInput]
+    );
+
+    // Expand all collapsed paste blocks in a text string
+    const expandPasteBlocks = useCallback((text: string, blocks: PastedBlock[]): string => {
+        let result = text;
+        // Sort blocks by placeholder position descending to avoid offset issues
+        const sortedBlocks = [...blocks].sort((a, b) => {
+            const posA = result.indexOf(a.placeholder);
+            const posB = result.indexOf(b.placeholder);
+            return posB - posA;
+        });
+
+        for (const block of sortedBlocks) {
+            if (block.isCollapsed) {
+                // Replace placeholder with full text
+                result = result.replace(block.placeholder, block.fullText);
+            }
+        }
+        return result;
+    }, []);
+
     // Handle submission
     const handleSubmit = useCallback(
         async (value: string) => {
-            const trimmed = value.trim();
+            // Expand all collapsed paste blocks before processing
+            const expandedValue = expandPasteBlocks(value, input.pastedBlocks);
+            const trimmed = expandedValue.trim();
             if (!trimmed || ui.isProcessing) return;
 
             // Prevent double submission when autocomplete/selector is active
@@ -192,6 +256,8 @@ export function InputContainer({
                     historyIndex: -1,
                     draftBeforeHistory: '',
                     images: [], // Clear images on submit
+                    pastedBlocks: [], // Clear paste blocks on submit
+                    pasteCounter: prev.pasteCounter, // Keep counter for next session
                 };
             });
 
@@ -417,6 +483,8 @@ export function InputContainer({
         [
             buffer,
             input.images,
+            input.pastedBlocks,
+            expandPasteBlocks,
             setInput,
             setUi,
             setMessages,
@@ -455,6 +523,10 @@ export function InputContainer({
             onImagePaste={handleImagePaste}
             images={input.images}
             onImageRemove={handleImageRemove}
+            pastedBlocks={input.pastedBlocks}
+            onPasteBlock={handlePasteBlock}
+            onPasteBlockUpdate={handlePasteBlockUpdate}
+            onPasteBlockRemove={handlePasteBlockRemove}
         />
     );
 }
