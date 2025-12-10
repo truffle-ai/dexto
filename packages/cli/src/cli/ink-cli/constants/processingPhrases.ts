@@ -9,7 +9,7 @@ export const processingPhrases: string[] = [
     // pop culture
     'I want to be the very best...',
     'I will be the next hokage...',
-    'Shinzo Sasageyo...',
+    'Shinzou Sasageyo...',
     'My soldiers! Rage! ...',
     'May the force be with you...',
     'Why so serious? ...',
