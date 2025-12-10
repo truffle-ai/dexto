@@ -25,6 +25,7 @@ export const tips: string[] = [
     'Use /docs to access documentation...',
 
     // Keyboard shortcut tips
+    'Press Escape to cancel the current request...',
     'Press Ctrl+C twice to exit dexto...',
     'Press Escape to close overlays and menus...',
     'Use Up/Down arrows to navigate command history...',

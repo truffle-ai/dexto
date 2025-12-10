@@ -79,7 +79,7 @@ export function StatusBar({
                 <Text color="magenta"> {phrase}</Text>
                 <Text color="gray" dimColor>
                     {' '}
-                    • Press Esc or Ctrl+C to cancel
+                    • Press Esc to cancel
                 </Text>
             </Box>
         );
@@ -97,7 +97,7 @@ export function StatusBar({
             )}
             <Text color="gray" dimColor>
                 {' '}
-                • Press Esc or Ctrl+C to cancel
+                • Press Esc to cancel
             </Text>
         </Box>
     );
