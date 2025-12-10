@@ -39,9 +39,16 @@ interface StaticCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
     startupInfo: StartupInfo;
+    /** Whether to stream chunks or wait for complete response */
+    useStreaming?: boolean;
 }
 
-export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIProps) {
+export function StaticCLI({
+    agent,
+    initialSessionId,
+    startupInfo,
+    useStreaming = true,
+}: StaticCLIProps) {
     // Use shared CLI state (no keyboard scroll in Static mode)
     const {
         messages,
@@ -135,6 +142,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                     setQueuedMessages={setQueuedMessages}
                     agent={agent}
                     inputService={inputService}
+                    useStreaming={useStreaming}
                 />
 
                 <OverlayContainer

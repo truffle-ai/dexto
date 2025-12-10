@@ -32,6 +32,10 @@ import { getStartupInfo } from './utils/messageFormatting.js';
 //const USE_ALTERNATE_BUFFER = true;
 const USE_ALTERNATE_BUFFER = false;
 
+// Streaming mode: true = show chunks as they arrive, false = show complete response only
+// Non-streaming mode avoids React batching race conditions but loses live output
+const USE_STREAMING = true;
+
 interface InkCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
@@ -57,6 +61,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
                     initialSessionId={initialSessionId}
                     startupInfo={startupInfo}
                     onSelectionAttempt={handleSelectionAttempt}
+                    useStreaming={USE_STREAMING}
                 />
             </ScrollProvider>
         );
@@ -64,7 +69,12 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
 
     // Static mode - no ScrollProvider needed
     return (
-        <StaticCLI agent={agent} initialSessionId={initialSessionId} startupInfo={startupInfo} />
+        <StaticCLI
+            agent={agent}
+            initialSessionId={initialSessionId}
+            startupInfo={startupInfo}
+            useStreaming={USE_STREAMING}
+        />
     );
 }
 

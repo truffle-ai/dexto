@@ -50,6 +50,8 @@ interface InputContainerProps {
     inputService: InputService;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
     onKeyboardScroll?: (direction: 'up' | 'down') => void;
+    /** Whether to stream chunks or wait for complete response (default: true) */
+    useStreaming?: boolean;
 }
 
 /**
@@ -73,6 +75,7 @@ export function InputContainer({
     agent,
     inputService,
     onKeyboardScroll,
+    useStreaming = true,
 }: InputContainerProps) {
     // Track pending session creation to prevent race conditions
     const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
@@ -552,13 +555,17 @@ export function InputContainer({
 
                     // Use streaming API and process events directly
                     const iterator = await agent.stream(content, currentSessionId);
-                    await processStream(iterator, {
-                        setMessages,
-                        setPendingMessages,
-                        setDequeuedBuffer,
-                        setUi,
-                        setQueuedMessages,
-                    });
+                    await processStream(
+                        iterator,
+                        {
+                            setMessages,
+                            setPendingMessages,
+                            setDequeuedBuffer,
+                            setUi,
+                            setQueuedMessages,
+                        },
+                        { useStreaming }
+                    );
 
                     if (isFirstMessage) {
                         agent.generateSessionTitle(currentSessionId).catch((error) => {

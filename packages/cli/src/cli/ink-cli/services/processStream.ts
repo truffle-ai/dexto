@@ -47,6 +47,8 @@ export interface ProcessStreamSetters {
 export interface ProcessStreamOptions {
     /** Reference to check if cancellation was requested */
     isCancellingRef?: React.MutableRefObject<boolean>;
+    /** Whether to stream chunks (true) or wait for complete response (false). Default: true */
+    useStreaming?: boolean;
 }
 
 /**
@@ -81,6 +83,7 @@ export async function processStream(
     const { setMessages, setPendingMessages, setDequeuedBuffer, setUi, setQueuedMessages } =
         setters;
     const isCancellingRef = options?.isCancellingRef;
+    const useStreaming = options?.useStreaming ?? true;
 
     // Track streaming state (synchronous, not React state)
     const state: StreamState = {
@@ -252,6 +255,10 @@ export async function processStream(
                 case 'llm:chunk': {
                     if (isCancellingRef?.current) break;
 
+                    // In non-streaming mode, skip chunk processing entirely
+                    // We'll show the complete response when llm:response arrives
+                    if (!useStreaming) break;
+
                     // End thinking state when first chunk arrives
                     setUi((prev) => ({ ...prev, isThinking: false }));
 
@@ -294,6 +301,12 @@ export async function processStream(
                 case 'llm:response': {
                     if (isCancellingRef?.current) break;
 
+                    // In non-streaming mode, end thinking state when response arrives
+                    // (In streaming mode, thinking ends when first chunk arrives)
+                    if (!useStreaming) {
+                        setUi((prev) => ({ ...prev, isThinking: false }));
+                    }
+
                     // Accumulate token usage
                     if (event.tokenUsage?.outputTokens) {
                         state.outputTokens += event.tokenUsage.outputTokens;
@@ -302,7 +315,7 @@ export async function processStream(
                     const finalContent = event.content || '';
 
                     if (state.messageId) {
-                        // Finalize existing streaming message
+                        // Finalize existing streaming message (streaming mode)
                         const messageId = state.messageId;
                         const content = state.content || finalContent;
 
@@ -314,7 +327,7 @@ export async function processStream(
                         state.content = '';
                     } else if (finalContent) {
                         // No streaming message exists - add directly to finalized
-                        // This handles multi-step turns where response arrives after tool calls
+                        // This handles: non-streaming mode, or multi-step turns after tool calls
                         setMessages((prev) => [
                             ...prev,
                             {

@@ -47,6 +47,8 @@ interface AlternateBufferCLIProps {
     startupInfo: StartupInfo;
     /** Callback when user attempts to select text (drag without Option key) */
     onSelectionAttempt?: () => void;
+    /** Whether to stream chunks or wait for complete response */
+    useStreaming?: boolean;
 }
 
 export function AlternateBufferCLI({
@@ -54,6 +56,7 @@ export function AlternateBufferCLI({
     initialSessionId,
     startupInfo,
     onSelectionAttempt,
+    useStreaming = true,
 }: AlternateBufferCLIProps) {
     // Refs for VirtualizedList
     const listRef = useRef<VirtualizedListRef<ListItem>>(null);
@@ -279,6 +282,7 @@ export function AlternateBufferCLI({
                     agent={agent}
                     inputService={inputService}
                     onKeyboardScroll={handleKeyboardScroll}
+                    useStreaming={useStreaming}
                 />
 
                 <OverlayContainer
