@@ -64,16 +64,8 @@ export function StatusBar({
     }
 
     if (!isProcessing) {
-        // Show idle state - minimal, non-intrusive
-        return (
-            <Box paddingX={1} marginBottom={0}>
-                <Text color="green">●</Text>
-                <Text color="gray" dimColor>
-                    {' '}
-                    Ready
-                </Text>
-            </Box>
-        );
+        // No status bar when idle
+        return null;
     }
 
     // Show initial processing state (before streaming starts) - magenta color

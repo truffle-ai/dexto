@@ -16,7 +16,6 @@ import type {
     LogConfigStyledData,
     RunSummaryStyledData,
 } from '../../state/types.js';
-import { ToolIcon } from './ToolIcon.js';
 import {
     ConfigBox,
     StatsBox,
@@ -97,7 +96,7 @@ export const MessageItem = memo(
             }
         }
 
-        // User message: Simple '>' with dim background for easy scanning
+        // User message: '>' prefix with gray background
         if (message.role === 'user') {
             return (
                 <Box flexDirection="column" marginTop={2} marginBottom={1}>
@@ -111,14 +110,12 @@ export const MessageItem = memo(
             );
         }
 
-        // Assistant message: Cyan accent bar with white text
+        // Assistant message: Gray circle indicator
         if (message.role === 'assistant') {
             return (
                 <Box flexDirection="column" marginBottom={1}>
                     <Box flexDirection="row">
-                        <Text color="cyan" bold>
-                            ▍{' '}
-                        </Text>
+                        <Text color="gray">⏺ </Text>
                         <Box flexDirection="column" flexGrow={1}>
                             <Text color="white">{message.content || ' '}</Text>
                         </Box>
@@ -127,18 +124,16 @@ export const MessageItem = memo(
             );
         }
 
-        // Tool message: Animated icon with status-based colors
+        // Tool message: Green for success, red for failure
         if (message.role === 'tool') {
-            const toolStatus = message.toolStatus || 'running';
-            const textColor = toolStatus === 'finished' ? 'green' : 'magentaBright';
+            const isError = message.content?.toLowerCase().includes('error');
+            const iconColor = isError ? 'red' : 'green';
 
             return (
                 <Box flexDirection="column" marginBottom={1}>
                     <Box flexDirection="row">
-                        <ToolIcon status={toolStatus} />
-                        <Text color={textColor} bold>
-                            {message.content}
-                        </Text>
+                        <Text color={iconColor}>⏺ </Text>
+                        <Text color={iconColor}>{message.content}</Text>
                     </Box>
                     {message.toolResult && (
                         <Box marginLeft={2} marginTop={0} flexDirection="column">
