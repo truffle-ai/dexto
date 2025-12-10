@@ -5,9 +5,11 @@
  * This replaces the event bus subscriptions for streaming events,
  * providing direct, synchronous control over the streaming lifecycle.
  *
- * Architecture Note (Gemini CLI pattern):
+ * Architecture Note (Gemini CLI + Codex patterns):
  * - Messages being streamed are tracked in `pendingMessages` (rendered dynamically)
  * - Only finalized messages are added to `messages` (rendered in <Static>)
+ * - Progressive finalization: large streaming content is split at safe markdown
+ *   boundaries, moving completed paragraphs to Static to reduce flickering
  * - This prevents duplicate output in static terminal mode
  */
 
@@ -15,6 +17,7 @@ import type React from 'react';
 import type { StreamingEvent } from '@dexto/core';
 import type { Message, UIState } from '../state/types.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import { checkForSplit } from '../utils/streamSplitter.js';
 
 /**
  * State setters needed by processStream
@@ -42,6 +45,10 @@ interface StreamState {
     messageId: string | null;
     content: string;
     outputTokens: number;
+    /** Content that has been finalized (moved to Static) */
+    finalizedContent: string;
+    /** Counter for generating unique IDs for split messages */
+    splitCounter: number;
 }
 
 /**
@@ -68,6 +75,8 @@ export async function processStream(
         messageId: null,
         content: '',
         outputTokens: 0,
+        finalizedContent: '',
+        splitCounter: 0,
     };
 
     /**
@@ -97,6 +106,43 @@ export async function processStream(
         });
     };
 
+    /**
+     * Progressive finalization: split large streaming content at safe markdown
+     * boundaries and move completed portions to Static to reduce flickering.
+     */
+    const progressiveFinalize = (content: string): string => {
+        const splitResult = checkForSplit(content);
+
+        if (splitResult.shouldSplit && splitResult.before && splitResult.after !== undefined) {
+            // Add the completed portion directly to finalized messages
+            state.splitCounter++;
+            const splitId = `${state.messageId}-split-${state.splitCounter}`;
+            const beforeContent = splitResult.before;
+            const isFirstSplit = state.splitCounter === 1;
+
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: splitId,
+                    role: 'assistant' as const,
+                    content: beforeContent,
+                    timestamp: new Date(),
+                    isStreaming: false,
+                    // First split shows the indicator, subsequent splits are continuations
+                    isContinuation: !isFirstSplit,
+                },
+            ]);
+
+            // Track total finalized content for final message assembly
+            state.finalizedContent += beforeContent;
+
+            // Return only the remaining content for pending
+            return splitResult.after;
+        }
+
+        return content;
+    };
+
     try {
         for await (const event of iterator) {
             // Check for cancellation
@@ -111,6 +157,8 @@ export async function processStream(
                     state.messageId = null;
                     state.content = '';
                     state.outputTokens = 0;
+                    state.finalizedContent = '';
+                    state.splitCounter = 0;
                     break;
                 }
 
@@ -126,6 +174,8 @@ export async function processStream(
                             const newId = generateMessageId('assistant');
                             state.messageId = newId;
                             state.content = event.content;
+                            state.finalizedContent = '';
+                            state.splitCounter = 0;
 
                             // Add to PENDING (not messages) - renders dynamically
                             setPendingMessages((prev) => [
@@ -139,14 +189,23 @@ export async function processStream(
                                 },
                             ]);
                         } else {
-                            // Accumulate content in pending
+                            // Accumulate content
                             state.content += event.content;
-                            const newContent = state.content;
+
+                            // Check for progressive finalization (move completed paragraphs to Static)
+                            const pendingContent = progressiveFinalize(state.content);
+
+                            // Update pending message with remaining content
                             const messageId = state.messageId;
+                            state.content = pendingContent;
+                            // Mark as continuation if we've had any splits
+                            const isContinuation = state.splitCounter > 0;
 
                             setPendingMessages((prev) =>
                                 prev.map((msg) =>
-                                    msg.id === messageId ? { ...msg, content: newContent } : msg
+                                    msg.id === messageId
+                                        ? { ...msg, content: pendingContent, isContinuation }
+                                        : msg
                                 )
                             );
                         }

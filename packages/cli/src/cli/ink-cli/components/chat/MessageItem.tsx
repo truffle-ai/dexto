@@ -110,8 +110,18 @@ export const MessageItem = memo(
             );
         }
 
-        // Assistant message: Gray circle indicator
+        // Assistant message: Gray circle indicator (unless continuation)
         if (message.role === 'assistant') {
+            // Continuation messages: no indicator, no margins - flows seamlessly from previous
+            if (message.isContinuation) {
+                return (
+                    <Box flexDirection="row">
+                        <Text>{'  '}</Text>
+                        <Text color="white">{message.content || ''}</Text>
+                    </Box>
+                );
+            }
+
             return (
                 <Box flexDirection="column" marginBottom={1}>
                     <Box flexDirection="row">
@@ -164,7 +174,8 @@ export const MessageItem = memo(
             prev.message.toolStatus === next.message.toolStatus &&
             prev.message.toolResult === next.message.toolResult &&
             prev.message.isStreaming === next.message.isStreaming &&
-            prev.message.styledType === next.message.styledType
+            prev.message.styledType === next.message.styledType &&
+            prev.message.isContinuation === next.message.isContinuation
         );
     }
 );

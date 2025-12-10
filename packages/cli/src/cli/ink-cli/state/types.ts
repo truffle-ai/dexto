@@ -119,6 +119,8 @@ export interface Message {
     toolStatus?: ToolStatus; // Status for tool messages (running/finished)
     styledType?: StyledMessageType; // Type of styled rendering (if any)
     styledData?: StyledData; // Structured data for styled rendering
+    /** True for split messages that continue a previous message (no role indicator) */
+    isContinuation?: boolean;
 }
 
 /**
