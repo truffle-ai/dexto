@@ -269,7 +269,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Basic Execution Flow', () => {
         it('should execute and return result with real context manager', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
             const result = await executor.execute({ mcpManager }, true);
 
@@ -283,7 +283,7 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('should persist assistant response to history', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             const history = await contextManager.getHistory();
@@ -302,7 +302,7 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus.on('llm:response', responseHandler);
             sessionEventBus.on('run:complete', runCompleteHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(thinkingHandler).toHaveBeenCalled();
@@ -319,7 +319,7 @@ describe('TurnExecutor Integration Tests', () => {
             const chunkHandler = vi.fn();
             sessionEventBus.on('llm:chunk', chunkHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(chunkHandler).toHaveBeenCalled();
@@ -330,7 +330,7 @@ describe('TurnExecutor Integration Tests', () => {
             const chunkHandler = vi.fn();
             sessionEventBus.on('llm:chunk', chunkHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, false);
 
             expect(chunkHandler).not.toHaveBeenCalled();
@@ -357,7 +357,7 @@ describe('TurnExecutor Integration Tests', () => {
                 }) as unknown as ReturnType<typeof streamText>;
             });
 
-            await contextManager.addUserMessage('Do something');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Do something' }]);
             const result = await executor.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('stop');
@@ -388,7 +388,7 @@ describe('TurnExecutor Integration Tests', () => {
                 messageQueue
             );
 
-            await contextManager.addUserMessage('Keep going');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Keep going' }]);
             const result = await limitedExecutor.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('max-steps');
@@ -402,7 +402,7 @@ describe('TurnExecutor Integration Tests', () => {
                 content: [{ type: 'text', text: 'User guidance: focus on performance' }],
             });
 
-            await contextManager.addUserMessage('Initial request');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial request' }]);
             await executor.execute({ mcpManager }, true);
 
             const history = await contextManager.getHistory();
@@ -435,7 +435,7 @@ describe('TurnExecutor Integration Tests', () => {
                 }) as unknown as ReturnType<typeof streamText>;
             });
 
-            await contextManager.addUserMessage('Initial');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
             const result = await executor.execute({ mcpManager }, true);
 
             expect(callCount).toBe(2);
@@ -445,7 +445,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Tool Support Validation', () => {
         it('should skip validation for providers without baseURL', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(generateText).not.toHaveBeenCalled();
@@ -469,7 +469,7 @@ describe('TurnExecutor Integration Tests', () => {
                 messageQueue
             );
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor1.execute({ mcpManager }, true);
 
             expect(generateText).toHaveBeenCalledTimes(1);
@@ -509,7 +509,7 @@ describe('TurnExecutor Integration Tests', () => {
                 messageQueue
             );
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executorWithBaseURL.execute({ mcpManager }, true);
 
             expect(streamText).toHaveBeenCalledWith(
@@ -531,7 +531,7 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus.on('llm:error', errorHandler);
             sessionEventBus.on('run:complete', completeHandler);
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
             expect(errorHandler).toHaveBeenCalledWith(
@@ -565,7 +565,7 @@ describe('TurnExecutor Integration Tests', () => {
                 throw rateLimitError;
             });
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
             await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
                 code: 'llm_rate_limit_exceeded',
@@ -578,7 +578,7 @@ describe('TurnExecutor Integration Tests', () => {
         it('should clear message queue on normal completion', async () => {
             messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(messageQueue.dequeueAll()).toBeNull();
@@ -591,7 +591,7 @@ describe('TurnExecutor Integration Tests', () => {
                 throw new Error('Failed');
             });
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
             expect(messageQueue.dequeueAll()).toBeNull();
@@ -632,7 +632,7 @@ describe('TurnExecutor Integration Tests', () => {
                 abortController.signal
             );
 
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             const result = await executorWithSignal.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('cancelled');
@@ -658,7 +658,7 @@ describe('TurnExecutor Integration Tests', () => {
             const responseHandler = vi.fn();
             sessionEventBus.on('llm:response', responseHandler);
 
-            await contextManager.addUserMessage('Think about this');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Think about this' }]);
             const result = await executor.execute({ mcpManager }, true);
 
             expect(result.usage).toMatchObject({
@@ -672,7 +672,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Context Formatting', () => {
         it('should format messages correctly for LLM', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             expect(streamText).toHaveBeenCalledWith(
@@ -687,7 +687,7 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('should include system prompt in formatted messages', async () => {
-            await contextManager.addUserMessage('Hello');
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
             const call = vi.mocked(streamText).mock.calls[0]?.[0];

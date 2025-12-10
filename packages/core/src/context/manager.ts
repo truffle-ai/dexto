@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
-import type { InternalMessage, ImageData, FileData, AssistantMessage, ToolCall } from './types.js';
+import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -469,42 +469,7 @@ export class ContextManager<TMessage = unknown> {
      * @param content Array of content parts (text, images, files)
      * @throws Error if content is empty or invalid
      */
-    async addUserMessage(content: import('./types.js').ContentPart[]): Promise<void>;
-    /**
-     * Adds a user message to the conversation (legacy signature).
-     * @deprecated Use addUserMessage(ContentPart[]) instead for multi-image support.
-     *
-     * @param textContent The user message content
-     * @param imageData Optional image data for multimodal input (single image only)
-     * @param fileData Optional file data for file input (single file only)
-     * @throws Error if content is empty or not a string
-     */
-    async addUserMessage(
-        textContent: string,
-        imageData?: ImageData,
-        fileData?: FileData
-    ): Promise<void>;
-    async addUserMessage(
-        contentOrText: import('./types.js').ContentPart[] | string,
-        imageData?: ImageData,
-        fileData?: FileData
-    ): Promise<void> {
-        // Detect which signature was used
-        if (Array.isArray(contentOrText)) {
-            // New signature: ContentPart[]
-            await this.addUserMessageFromParts(contentOrText);
-        } else {
-            // Legacy signature: string, imageData?, fileData?
-            await this.addUserMessageLegacy(contentOrText, imageData, fileData);
-        }
-    }
-
-    /**
-     * Internal: Process ContentPart[] for user message
-     */
-    private async addUserMessageFromParts(
-        content: import('./types.js').ContentPart[]
-    ): Promise<void> {
+    async addUserMessage(content: import('./types.js').ContentPart[]): Promise<void> {
         if (!Array.isArray(content) || content.length === 0) {
             throw ContextError.userMessageContentEmpty();
         }
@@ -573,85 +538,6 @@ export class ContextManager<TMessage = unknown> {
         });
 
         await this.addMessage({ role: 'user', content: processedParts });
-    }
-
-    /**
-     * Internal: Legacy addUserMessage implementation for backward compatibility
-     * @deprecated
-     */
-    private async addUserMessageLegacy(
-        textContent: string,
-        imageData?: ImageData,
-        fileData?: FileData
-    ): Promise<void> {
-        // Allow empty text if we have image or file data
-        if (
-            typeof textContent !== 'string' ||
-            (textContent.trim() === '' && !imageData && !fileData)
-        ) {
-            throw ContextError.userMessageContentEmpty();
-        }
-
-        // If text is empty but we have attachments, use a placeholder
-        const finalTextContent = textContent.trim() || (imageData || fileData ? '' : textContent);
-
-        // Build message parts array to support multiple attachment types
-        const messageParts: InternalMessage['content'] = [];
-
-        // Add text if present
-        if (finalTextContent) {
-            messageParts.push({ type: 'text' as const, text: finalTextContent });
-        }
-
-        // Add image if present - store as blob if large
-        if (imageData) {
-            const processedImage = await this.processUserInput(imageData.image, {
-                mimeType: imageData.mimeType || 'image/jpeg',
-                source: 'user',
-            });
-
-            messageParts.push({
-                type: 'image' as const,
-                image: processedImage,
-                mimeType: imageData.mimeType || 'image/jpeg',
-            });
-        }
-
-        // Add file if present - store as blob if large
-        if (fileData) {
-            const metadata: {
-                mimeType: string;
-                originalName?: string;
-                source?: 'user' | 'system';
-            } = {
-                mimeType: fileData.mimeType,
-                source: 'user',
-            };
-            if (fileData.filename) {
-                metadata.originalName = fileData.filename;
-            }
-
-            const processedData = await this.processUserInput(fileData.data, metadata);
-
-            messageParts.push({
-                type: 'file' as const,
-                data: processedData,
-                mimeType: fileData.mimeType,
-                ...(fileData.filename && { filename: fileData.filename }),
-            });
-        }
-
-        // Fallback to text-only if no parts were added
-        if (messageParts.length === 0) {
-            messageParts.push({ type: 'text' as const, text: finalTextContent });
-        }
-        this.logger.info('User message received', {
-            textLength: finalTextContent.length,
-            content: messageParts,
-            hasImage: !!imageData,
-            hasFile: !!fileData,
-        });
-        await this.addMessage({ role: 'user', content: messageParts });
     }
 
     /**
