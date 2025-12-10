@@ -54,6 +54,11 @@ interface StreamingState {
     content: string;
 }
 
+// Token usage accumulator for run summary
+interface RunStats {
+    outputTokens: number;
+}
+
 /**
  * Subscribes to agent event bus and handles events directly.
  * Event handlers are inlined to leverage TypeScript's type inference from AgentEventMap.
@@ -76,6 +81,9 @@ export function useAgentEvents({
     // Track streaming state in ref to avoid closure issues
     const streamingRef = useRef<StreamingState>({ id: null, content: '' });
 
+    // Track run stats for summary
+    const runStatsRef = useRef<RunStats>({ outputTokens: 0 });
+
     useEffect(() => {
         const bus = agent.agentEventBus;
         const controller = new AbortController();
@@ -94,6 +102,8 @@ export function useAgentEvents({
                 setUi((prev) => ({ ...prev, isThinking: true }));
                 // Reset streaming state for new response
                 streamingRef.current = { id: null, content: '' };
+                // Reset run stats for new run
+                runStatsRef.current = { outputTokens: 0 };
             },
             { signal }
         );
@@ -133,6 +143,11 @@ export function useAgentEvents({
             (payload) => {
                 if (isCancellingRef.current) return;
 
+                // Accumulate token usage for run summary
+                if (payload.tokenUsage?.outputTokens) {
+                    runStatsRef.current.outputTokens += payload.tokenUsage.outputTokens;
+                }
+
                 const streaming = streamingRef.current;
                 const finalContent = payload.content || '';
 
@@ -171,8 +186,47 @@ export function useAgentEvents({
         // Handle run completion (fires once when entire run finishes)
         bus.on(
             'run:complete',
-            () => {
+            (payload) => {
                 if (isCancellingRef.current) return;
+
+                // Add run summary message before the assistant's response
+                const { durationMs } = payload;
+                const { outputTokens } = runStatsRef.current;
+
+                // Only add summary if we have meaningful data
+                if (durationMs > 0 || outputTokens > 0) {
+                    setMessages((prev) => {
+                        // Find index of the last user message
+                        let lastUserIndex = -1;
+                        for (let i = prev.length - 1; i >= 0; i--) {
+                            if (prev[i]?.role === 'user') {
+                                lastUserIndex = i;
+                                break;
+                            }
+                        }
+
+                        // Insert summary after user message (before assistant response)
+                        const insertIndex = lastUserIndex + 1;
+                        const summaryMessage = {
+                            id: generateMessageId('summary'),
+                            role: 'system' as const,
+                            content: '', // Content rendered via styledType
+                            timestamp: new Date(),
+                            styledType: 'run-summary' as const,
+                            styledData: {
+                                durationMs,
+                                outputTokens,
+                            },
+                        };
+
+                        return [
+                            ...prev.slice(0, insertIndex),
+                            summaryMessage,
+                            ...prev.slice(insertIndex),
+                        ];
+                    });
+                }
+
                 setUi((prev) => ({
                     ...prev,
                     isProcessing: false,

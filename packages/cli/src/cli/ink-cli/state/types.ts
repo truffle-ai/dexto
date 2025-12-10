@@ -29,7 +29,8 @@ export type StyledMessageType =
     | 'help'
     | 'session-list'
     | 'session-history'
-    | 'log-config';
+    | 'log-config'
+    | 'run-summary';
 
 /**
  * Structured data for styled messages
@@ -89,13 +90,21 @@ export interface LogConfigStyledData {
     availableLevels: string[];
 }
 
+export interface RunSummaryStyledData {
+    /** Duration in milliseconds */
+    durationMs: number;
+    /** Output tokens used */
+    outputTokens: number;
+}
+
 export type StyledData =
     | ConfigStyledData
     | StatsStyledData
     | HelpStyledData
     | SessionListStyledData
     | SessionHistoryStyledData
-    | LogConfigStyledData;
+    | LogConfigStyledData
+    | RunSummaryStyledData;
 
 /**
  * Message in the chat interface
