@@ -18,7 +18,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useApp } from 'ink';
 import type { UIState, InputState, SessionState, OverlayType, Message } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import type { DextoAgent, QueuedMessage, ContentPart } from '@dexto/core';
+import type { DextoAgent, QueuedMessage } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
 import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
@@ -113,10 +113,14 @@ export interface UseInputOrchestratorProps {
     approval: ApprovalRequest | null;
     input: InputState;
     session: SessionState;
+    /** Queued messages (for cancel handling) */
+    queuedMessages: QueuedMessage[];
     /** Text buffer for clearing input on first Ctrl+C */
     buffer: TextBuffer;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     agent: DextoAgent;
     handlers: InputHandlers;
 }
@@ -153,9 +157,12 @@ export function useInputOrchestrator({
     approval,
     input,
     session,
+    queuedMessages,
     buffer,
     setUi,
+    setInput,
     setMessages,
+    setPendingMessages,
     agent,
     handlers,
 }: UseInputOrchestratorProps): void {
@@ -166,6 +173,7 @@ export function useInputOrchestrator({
     const approvalRef = useRef(approval);
     const inputRef = useRef(input);
     const sessionRef = useRef(session);
+    const queuedMessagesRef = useRef(queuedMessages);
     const bufferRef = useRef(buffer);
     const handlersRef = useRef(handlers);
 
@@ -175,9 +183,10 @@ export function useInputOrchestrator({
         approvalRef.current = approval;
         inputRef.current = input;
         sessionRef.current = session;
+        queuedMessagesRef.current = queuedMessages;
         bufferRef.current = buffer;
         handlersRef.current = handlers;
-    }, [ui, approval, input, session, buffer, handlers]);
+    }, [ui, approval, input, session, queuedMessages, buffer, handlers]);
 
     // Auto-clear exit warning after timeout
     useEffect(() => {
@@ -250,6 +259,8 @@ export function useInputOrchestrator({
     const handleEscape = useCallback((): boolean => {
         const currentUi = uiRef.current;
         const currentSession = sessionRef.current;
+        const currentQueuedMessages = queuedMessagesRef.current;
+        const currentBuffer = bufferRef.current;
 
         // Clear exit warning if shown
         if (currentUi.exitWarningShown) {
@@ -260,8 +271,20 @@ export function useInputOrchestrator({
         // Cancel processing if active
         if (currentUi.isProcessing) {
             if (currentSession.id) {
+                // Cancel current run
                 void agent.cancel(currentSession.id).catch(() => {});
+                // Clear the queue on server (we'll bring messages to input for editing)
+                void agent.clearMessageQueue(currentSession.id).catch(() => {});
             }
+
+            // Finalize any pending messages first (move to messages)
+            setPendingMessages((pending) => {
+                if (pending.length > 0) {
+                    setMessages((prev) => [...prev, ...pending]);
+                }
+                return [];
+            });
+
             setUi((prev) => ({
                 ...prev,
                 isCancelling: true,
@@ -279,6 +302,29 @@ export function useInputOrchestrator({
                     timestamp: new Date(),
                 },
             ]);
+
+            // If there were queued messages, bring them back to input for editing
+            if (currentQueuedMessages.length > 0) {
+                // Extract and coalesce text content from all queued messages
+                const coalescedText = currentQueuedMessages
+                    .map((msg) =>
+                        msg.content
+                            .filter(
+                                (part): part is { type: 'text'; text: string } =>
+                                    part.type === 'text'
+                            )
+                            .map((part) => part.text)
+                            .join('\n')
+                    )
+                    .filter((text) => text.length > 0)
+                    .join('\n\n');
+
+                if (coalescedText) {
+                    currentBuffer.setText(coalescedText);
+                    setInput((prev) => ({ ...prev, value: coalescedText }));
+                }
+            }
+
             return true;
         }
 
@@ -289,7 +335,7 @@ export function useInputOrchestrator({
         }
 
         return false;
-    }, [agent, setUi, setMessages]);
+    }, [agent, setUi, setMessages, setPendingMessages, setInput]);
 
     // The keypress handler for the entire application
     const handleKeypress = useCallback(

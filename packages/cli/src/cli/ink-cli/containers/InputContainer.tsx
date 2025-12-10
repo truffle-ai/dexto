@@ -18,7 +18,7 @@ import type {
     PendingImage,
     PastedBlock,
 } from '../state/types.js';
-import { createUserMessage, createQueuedUserMessage } from '../utils/messageFormatting.js';
+import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
@@ -110,6 +110,9 @@ export function InputContainer({
                     }
                 }
 
+                // Don't navigate history when processing (only queue editing is allowed)
+                if (ui.isProcessing) return;
+
                 // No queued messages, navigate history
                 if (history.length === 0) return;
 
@@ -136,6 +139,8 @@ export function InputContainer({
                 setInput((prev) => ({ ...prev, value: historyItem, historyIndex: newIndex }));
             } else {
                 // Down - navigate history (queued messages don't affect down navigation)
+                // Don't navigate history when processing
+                if (ui.isProcessing) return;
                 if (historyIndex < 0) return; // Not navigating history
                 if (historyIndex < history.length - 1) {
                     const newIndex = historyIndex + 1;
@@ -154,7 +159,16 @@ export function InputContainer({
                 }
             }
         },
-        [buffer, input, setInput, queuedMessages, session.id, agent, extractTextFromContent]
+        [
+            buffer,
+            input,
+            setInput,
+            queuedMessages,
+            session.id,
+            agent,
+            extractTextFromContent,
+            ui.isProcessing,
+        ]
     );
 
     // Handle overlay triggers
@@ -281,10 +295,9 @@ export function InputContainer({
                 }
 
                 try {
-                    const result = await agent.queueMessage(session.id, { content });
-                    // Show queued user message
-                    const queuedUserMessage = createQueuedUserMessage(trimmed, result.position);
-                    setMessages((prev) => [...prev, queuedUserMessage]);
+                    await agent.queueMessage(session.id, { content });
+                    // Queued messages are displayed via QueuedMessagesDisplay component
+                    // (state updated by message:queued event handler in useAgentEvents)
 
                     // Clear input and images
                     buffer.setText('');
@@ -583,7 +596,9 @@ export function InputContainer({
     const isInputActive = !approval;
     const isInputDisabled = !!approval;
     const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
-    const canNavigateHistory = !ui.isProcessing && !approval && ui.activeOverlay === 'none';
+    // Allow history navigation when not blocked by approval/overlay
+    // When processing: handler allows queue editing but blocks history navigation
+    const canNavigateHistory = !approval && ui.activeOverlay === 'none';
 
     const placeholder = approval
         ? 'Approval required above...'

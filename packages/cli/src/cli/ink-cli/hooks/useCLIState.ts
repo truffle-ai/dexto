@@ -178,9 +178,12 @@ export function useCLIState({
         approval,
         input,
         session,
+        queuedMessages,
         buffer,
         setUi,
+        setInput,
         setMessages,
+        setPendingMessages,
         agent,
         handlers: {
             approval: approvalHandler,

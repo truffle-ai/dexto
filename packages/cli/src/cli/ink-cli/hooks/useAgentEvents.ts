@@ -16,10 +16,11 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
-import type { DextoAgent, QueuedMessage } from '@dexto/core';
+import type { DextoAgent, QueuedMessage, ContentPart } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
 import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 /**
  * UI state shape (must match InkCLIRefactored)
@@ -184,7 +185,28 @@ export function useAgentEvents({
         // Handle messages dequeued (processed by executor)
         bus.on(
             'message:dequeued',
-            () => {
+            (payload) => {
+                // Add dequeued messages as user message to chat (like webui does)
+                const textContent = payload.content
+                    .filter(
+                        (part): part is ContentPart & { type: 'text'; text: string } =>
+                            part.type === 'text'
+                    )
+                    .map((part) => part.text)
+                    .join('\n');
+
+                if (textContent || payload.content.length > 0) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('user'),
+                            role: 'user' as const,
+                            content: textContent || '[attachment]',
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+
                 // Clear queue state - messages were consumed
                 setQueuedMessages([]);
             },
