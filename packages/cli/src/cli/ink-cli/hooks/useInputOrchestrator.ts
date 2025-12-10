@@ -16,12 +16,13 @@
 import type React from 'react';
 import { useEffect, useRef, useCallback } from 'react';
 import { useApp } from 'ink';
-import type { UIState, InputState, SessionState, OverlayType } from '../state/types.js';
+import type { UIState, InputState, SessionState, OverlayType, Message } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { DextoAgent } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
 import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
@@ -115,6 +116,7 @@ export interface UseInputOrchestratorProps {
     /** Text buffer for clearing input on first Ctrl+C */
     buffer: TextBuffer;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     agent: DextoAgent;
     handlers: InputHandlers;
 }
@@ -153,6 +155,7 @@ export function useInputOrchestrator({
     session,
     buffer,
     setUi,
+    setMessages,
     agent,
     handlers,
 }: UseInputOrchestratorProps): void {
@@ -259,7 +262,23 @@ export function useInputOrchestrator({
             if (currentSession.id) {
                 void agent.cancel(currentSession.id).catch(() => {});
             }
-            setUi((prev) => ({ ...prev, isCancelling: true, isProcessing: false }));
+            setUi((prev) => ({
+                ...prev,
+                isCancelling: true,
+                isProcessing: false,
+                isThinking: false,
+            }));
+
+            // Add interrupted message
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system',
+                    content: 'Interrupted - what should Dexto do next?',
+                    timestamp: new Date(),
+                },
+            ]);
             return true;
         }
 
@@ -270,7 +289,7 @@ export function useInputOrchestrator({
         }
 
         return false;
-    }, [agent, setUi]);
+    }, [agent, setUi, setMessages]);
 
     // The keypress handler for the entire application
     const handleKeypress = useCallback(
