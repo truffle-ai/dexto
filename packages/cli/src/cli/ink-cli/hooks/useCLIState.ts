@@ -7,7 +7,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, QueuedMessage } from '@dexto/core';
 import type {
     Message,
     StartupInfo,
@@ -42,6 +42,9 @@ export interface CLIStateReturn {
     // Pending messages (streaming/in-progress, rendered dynamically)
     pendingMessages: Message[];
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    // Queued messages (messages waiting to be processed)
+    queuedMessages: QueuedMessage[];
+    setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     ui: UIState;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     input: InputState;
@@ -81,6 +84,8 @@ export function useCLIState({
     const [messages, setMessages] = useState<Message[]>([]);
     // Pending messages - streaming/in-progress (rendered dynamically outside <Static>)
     const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
+    // Queued messages - messages waiting to be processed (uses core type)
+    const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
 
     // UI state
     const [ui, setUi] = useState<UIState>({
@@ -154,6 +159,7 @@ export function useCLIState({
         setSession,
         setApproval,
         setApprovalQueue,
+        setQueuedMessages,
     });
 
     // Create input handlers for the orchestrator
@@ -261,6 +267,8 @@ export function useCLIState({
         setMessages,
         pendingMessages,
         setPendingMessages,
+        queuedMessages,
+        setQueuedMessages,
         ui,
         setUi,
         input,

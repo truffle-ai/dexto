@@ -18,7 +18,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useApp } from 'ink';
 import type { UIState, InputState, SessionState, OverlayType, Message } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, QueuedMessage, ContentPart } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
 import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';

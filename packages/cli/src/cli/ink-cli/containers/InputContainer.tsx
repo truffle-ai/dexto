@@ -7,7 +7,7 @@
  */
 
 import React, { useCallback, useRef, useEffect } from 'react';
-import type { DextoAgent, ContentPart, ImagePart, TextPart } from '@dexto/core';
+import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
 import type {
@@ -18,7 +18,7 @@ import type {
     PendingImage,
     PastedBlock,
 } from '../state/types.js';
-import { createUserMessage } from '../utils/messageFormatting.js';
+import { createUserMessage, createQueuedUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
@@ -33,6 +33,8 @@ interface InputContainerProps {
     ui: UIState;
     session: SessionState;
     approval: ApprovalRequest | null;
+    /** Queued messages waiting to be processed */
+    queuedMessages: QueuedMessage[];
     setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     setSession: React.Dispatch<React.SetStateAction<SessionState>>;
@@ -56,6 +58,7 @@ export function InputContainer({
     ui,
     session,
     approval,
+    queuedMessages,
     setInput,
     setUi,
     setSession,
@@ -75,15 +78,42 @@ export function InputContainer({
         }
     }, [session.id]);
 
+    // Extract text content from ContentPart[]
+    const extractTextFromContent = useCallback((content: ContentPart[]): string => {
+        return content
+            .filter((part): part is TextPart => part.type === 'text')
+            .map((part) => part.text)
+            .join('\n');
+    }, []);
+
     // Handle history navigation - set text directly on buffer
-    // Saves current draft when first pressing up, restores it when pressing down past newest
+    // Up arrow first edits queued messages (removes from queue), then navigates history
     const handleHistoryNavigate = useCallback(
         (direction: 'up' | 'down') => {
             const { history, historyIndex, draftBeforeHistory } = input;
-            if (direction === 'up' && history.length === 0) return;
 
-            let newIndex = historyIndex;
             if (direction === 'up') {
+                // First check if there are queued messages to edit
+                if (queuedMessages.length > 0 && session.id) {
+                    // Get the last queued message
+                    const lastQueued = queuedMessages[queuedMessages.length - 1];
+                    if (lastQueued) {
+                        // Extract text content and put it in the input
+                        const text = extractTextFromContent(lastQueued.content);
+                        buffer.setText(text);
+                        setInput((prev) => ({ ...prev, value: text }));
+                        // Remove from queue (this will trigger the event and update queuedMessages state)
+                        agent.removeQueuedMessage(session.id, lastQueued.id).catch(() => {
+                            // Silently ignore errors - queue might have been cleared
+                        });
+                        return;
+                    }
+                }
+
+                // No queued messages, navigate history
+                if (history.length === 0) return;
+
+                let newIndex = historyIndex;
                 if (newIndex < 0) {
                     // First time pressing up - save current input as draft
                     const currentText = buffer.text;
@@ -100,11 +130,18 @@ export function InputContainer({
                 } else {
                     return; // Already at oldest
                 }
+
+                const historyItem = history[newIndex] || '';
+                buffer.setText(historyItem);
+                setInput((prev) => ({ ...prev, value: historyItem, historyIndex: newIndex }));
             } else {
-                // Down
-                if (newIndex < 0) return; // Not navigating history
-                if (newIndex < history.length - 1) {
-                    newIndex = newIndex + 1;
+                // Down - navigate history (queued messages don't affect down navigation)
+                if (historyIndex < 0) return; // Not navigating history
+                if (historyIndex < history.length - 1) {
+                    const newIndex = historyIndex + 1;
+                    const historyItem = history[newIndex] || '';
+                    buffer.setText(historyItem);
+                    setInput((prev) => ({ ...prev, value: historyItem, historyIndex: newIndex }));
                 } else {
                     // At newest history item, restore draft
                     buffer.setText(draftBeforeHistory);
@@ -114,15 +151,10 @@ export function InputContainer({
                         historyIndex: -1,
                         draftBeforeHistory: '',
                     }));
-                    return;
                 }
             }
-
-            const historyItem = history[newIndex] || '';
-            buffer.setText(historyItem);
-            setInput((prev) => ({ ...prev, value: historyItem, historyIndex: newIndex }));
         },
-        [buffer, input, setInput]
+        [buffer, input, setInput, queuedMessages, session.id, agent, extractTextFromContent]
     );
 
     // Handle overlay triggers
@@ -233,7 +265,48 @@ export function InputContainer({
             // Expand all collapsed paste blocks before processing
             const expandedValue = expandPasteBlocks(value, input.pastedBlocks);
             const trimmed = expandedValue.trim();
-            if (!trimmed || ui.isProcessing) return;
+            if (!trimmed) return;
+
+            // Auto-queue when agent is processing
+            if (ui.isProcessing && session.id) {
+                // Build content parts for queueing
+                const content: ContentPart[] = [{ type: 'text', text: trimmed } as TextPart];
+                // Add images if any
+                for (const img of input.images) {
+                    content.push({
+                        type: 'image',
+                        image: img.data,
+                        mimeType: img.mimeType,
+                    } as ImagePart);
+                }
+
+                try {
+                    const result = await agent.queueMessage(session.id, { content });
+                    // Show queued user message
+                    const queuedUserMessage = createQueuedUserMessage(trimmed, result.position);
+                    setMessages((prev) => [...prev, queuedUserMessage]);
+
+                    // Clear input and images
+                    buffer.setText('');
+                    setInput((prev) => ({
+                        ...prev,
+                        value: '',
+                        images: [],
+                        pastedBlocks: [],
+                    }));
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `Failed to queue message: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+                return;
+            }
 
             // Prevent double submission when autocomplete/selector is active
             if (ui.activeOverlay !== 'none' && ui.activeOverlay !== 'approval') {

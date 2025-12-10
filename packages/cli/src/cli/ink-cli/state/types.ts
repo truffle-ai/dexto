@@ -121,6 +121,10 @@ export interface Message {
     styledData?: StyledData; // Structured data for styled rendering
     /** True for split messages that continue a previous message (no role indicator) */
     isContinuation?: boolean;
+    /** True for messages that are queued while agent is processing */
+    isQueued?: boolean;
+    /** Queue position (1-indexed) for queued messages */
+    queuePosition?: number;
 }
 
 /**

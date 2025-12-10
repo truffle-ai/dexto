@@ -27,6 +27,7 @@ import { useCLIState } from '../../hooks/useCLIState.js';
 // Components
 import { Header } from '../chat/Header.js';
 import { MessageItem } from '../chat/MessageItem.js';
+import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
 import { Footer } from '../Footer.js';
 
@@ -47,6 +48,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
         setMessages,
         pendingMessages,
         setPendingMessages,
+        queuedMessages,
         ui,
         setUi,
         input,
@@ -105,12 +107,16 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                     copyModeEnabled={ui.copyModeEnabled}
                 />
 
+                {/* Queued messages display (shows when messages are pending) */}
+                <QueuedMessagesDisplay messages={queuedMessages} />
+
                 <InputContainer
                     buffer={buffer}
                     input={input}
                     ui={ui}
                     session={session}
                     approval={approval}
+                    queuedMessages={queuedMessages}
                     setInput={setInput}
                     setUi={setUi}
                     setSession={setSession}

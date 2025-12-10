@@ -16,7 +16,7 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, QueuedMessage } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
 import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -51,6 +51,7 @@ interface UseAgentEventsProps {
     setSession: React.Dispatch<React.SetStateAction<SessionState>>;
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
+    setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
 }
 
 /**
@@ -64,6 +65,7 @@ export function useAgentEvents({
     setSession,
     setApproval,
     setApprovalQueue,
+    setQueuedMessages,
 }: UseAgentEventsProps): void {
     useEffect(() => {
         const bus = agent.agentEventBus;
@@ -140,6 +142,7 @@ export function useAgentEvents({
                     setMessages([]);
                     setApproval(null);
                     setApprovalQueue([]);
+                    setQueuedMessages([]);
 
                     if (payload.sessionId === null) {
                         setSession((prev) => ({ ...prev, id: null, hasActiveSession: false }));
@@ -156,9 +159,41 @@ export function useAgentEvents({
             { signal }
         );
 
+        // Handle message queued - fetch full queue state from agent
+        bus.on(
+            'message:queued',
+            (payload) => {
+                if (!payload.sessionId) return;
+                // Fetch fresh queue state from agent to ensure consistency
+                agent.getQueuedMessages(payload.sessionId).then((messages) => {
+                    setQueuedMessages(messages);
+                });
+            },
+            { signal }
+        );
+
+        // Handle message removed from queue
+        bus.on(
+            'message:removed',
+            (payload) => {
+                setQueuedMessages((prev) => prev.filter((m) => m.id !== payload.id));
+            },
+            { signal }
+        );
+
+        // Handle messages dequeued (processed by executor)
+        bus.on(
+            'message:dequeued',
+            () => {
+                // Clear queue state - messages were consumed
+                setQueuedMessages([]);
+            },
+            { signal }
+        );
+
         // Cleanup: abort controller removes all listeners at once
         return () => {
             controller.abort();
         };
-    }, [agent, setMessages, setUi, setSession, setApproval, setApprovalQueue]);
+    }, [agent, setMessages, setUi, setSession, setApproval, setApprovalQueue, setQueuedMessages]);
 }
