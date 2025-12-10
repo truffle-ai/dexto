@@ -25,32 +25,21 @@ export const tips: string[] = [
     'Use /docs to access documentation...',
 
     // Keyboard shortcut tips
-    'Press Ctrl+C to cancel the current request...',
     'Press Ctrl+C twice to exit dexto...',
     'Press Escape to close overlays and menus...',
     'Use Up/Down arrows to navigate command history...',
     'Press Enter to submit your message...',
-    'Use Tab to accept autocomplete suggestions...',
 
     // Feature tips
-    'You can paste images directly into the input...',
+    'Paste images directly into the input with Ctrl+V...',
     'Large pastes are automatically collapsed - press Ctrl+T to toggle...',
     'Use @ to reference files and resources...',
     'Type / to see available slash commands...',
     'MCP servers extend dexto with custom tools...',
     'Sessions are automatically saved for later...',
-    'Use the arrow keys to navigate long messages...',
 
     // Platform tips
     'On Mac, use Option+Up/Down to jump to start/end of input...',
-    'Dexto supports multiple LLM providers via configuration...',
-    'Custom agents can be created in the agents/ directory...',
-
-    // General tips
-    'Dexto can help you write, debug, and understand code...',
-    'Ask follow-up questions to refine responses...',
-    'Be specific in your prompts for better results...',
-    'You can ask dexto to explain its reasoning...',
 ];
 
 /**
