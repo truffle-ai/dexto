@@ -28,7 +28,7 @@ export const processingPhrases: string[] = [
     'Making you rich...',
     'Farming easy points...',
     'Using 200+ IQ...',
-    'Being jarvis...',
+    'Turning into Jarvis...',
     'Dextomaxxing...',
     'Zapping...',
     'Braining...',
