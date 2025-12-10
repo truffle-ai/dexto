@@ -224,6 +224,16 @@ export function TextBufferInput({
                 buffer.move(key.meta || key.ctrl ? 'wordRight' : 'right');
                 return;
             }
+            // Cmd+Up: Move to start of input
+            if (key.meta && key.name === 'up') {
+                buffer.moveToOffset(0);
+                return;
+            }
+            // Cmd+Down: Move to end of input
+            if (key.meta && key.name === 'down') {
+                buffer.moveToOffset(currentText.length);
+                return;
+            }
             if (key.name === 'up') {
                 // Only trigger history navigation when at top visual line
                 if (cursorVisualRow === 0 && onHistoryNavigate) {
@@ -361,7 +371,7 @@ export function TextBufferInput({
             </Text>
             {startLine > 0 && (
                 <Text color="gray" dimColor>
-                    {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above
+                    {'  '}↑ {startLine} more line{startLine > 1 ? 's' : ''} above (⌥↑ to jump)
                 </Text>
             )}
             {visibleLines.map((line: string, idx: number) => {
@@ -412,7 +422,7 @@ export function TextBufferInput({
             {endLine < totalLines && (
                 <Text color="gray" dimColor>
                     {'  '}↓ {totalLines - endLine} more line{totalLines - endLine > 1 ? 's' : ''}{' '}
-                    below
+                    below (⌥↓ to jump)
                 </Text>
             )}
             <Text color="gray" dimColor>
