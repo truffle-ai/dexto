@@ -75,6 +75,7 @@ export function AlternateBufferCLI({
         pendingMessages,
         setPendingMessages,
         queuedMessages,
+        setQueuedMessages,
         ui,
         setUi,
         input,
@@ -265,6 +266,7 @@ export function AlternateBufferCLI({
                     setSession={setSession}
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
+                    setQueuedMessages={setQueuedMessages}
                     agent={agent}
                     inputService={inputService}
                     onKeyboardScroll={handleKeyboardScroll}

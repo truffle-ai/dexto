@@ -121,6 +121,7 @@ export interface UseInputOrchestratorProps {
     setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     agent: DextoAgent;
     handlers: InputHandlers;
 }
@@ -163,6 +164,7 @@ export function useInputOrchestrator({
     setInput,
     setMessages,
     setPendingMessages,
+    setQueuedMessages,
     agent,
     handlers,
 }: UseInputOrchestratorProps): void {
@@ -323,6 +325,9 @@ export function useInputOrchestrator({
                     currentBuffer.setText(coalescedText);
                     setInput((prev) => ({ ...prev, value: coalescedText }));
                 }
+
+                // Clear the queue state immediately (don't wait for server events)
+                setQueuedMessages([]);
             }
 
             return true;
@@ -335,7 +340,7 @@ export function useInputOrchestrator({
         }
 
         return false;
-    }, [agent, setUi, setMessages, setPendingMessages, setInput]);
+    }, [agent, setUi, setMessages, setPendingMessages, setInput, setQueuedMessages]);
 
     // The keypress handler for the entire application
     const handleKeypress = useCallback(

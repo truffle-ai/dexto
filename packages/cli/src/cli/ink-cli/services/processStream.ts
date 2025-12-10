@@ -28,6 +28,8 @@ export interface ProcessStreamSetters {
     /** Setter for pending/streaming messages (rendered dynamically outside <Static>) */
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    /** Setter for queued messages (cleared when dequeued) */
+    setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
 }
 
 /**
@@ -67,7 +69,7 @@ export async function processStream(
     setters: ProcessStreamSetters,
     options?: ProcessStreamOptions
 ): Promise<void> {
-    const { setMessages, setPendingMessages, setUi } = setters;
+    const { setMessages, setPendingMessages, setUi, setQueuedMessages } = setters;
     const isCancellingRef = options?.isCancellingRef;
 
     // Track streaming state
@@ -77,6 +79,16 @@ export async function processStream(
         outputTokens: 0,
         finalizedContent: '',
         splitCounter: 0,
+    };
+
+    /**
+     * Extract text content from ContentPart array
+     */
+    const extractTextContent = (content: import('@dexto/core').ContentPart[]): string => {
+        return content
+            .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+            .map((part) => part.text)
+            .join('\n');
     };
 
     /**
@@ -96,6 +108,9 @@ export async function processStream(
 
     /**
      * Move all pending messages to finalized (used at run:complete)
+     * NOTE: Nested setState is intentional - the inner setMessages runs when
+     * React processes the setPendingMessages update, ensuring we have the
+     * actual pending value (not a stale closure).
      */
     const finalizeAllPending = () => {
         setPendingMessages((pending) => {
@@ -422,6 +437,31 @@ export async function processStream(
                         isCancelling: false,
                         isThinking: false,
                     }));
+                    break;
+                }
+
+                case 'message:dequeued': {
+                    // Queued message is being processed - add user message to chat
+                    // This event comes through the iterator, synchronized with streaming
+                    const textContent = extractTextContent(event.content);
+
+                    if (textContent || event.content.length > 0) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('user'),
+                                role: 'user' as const,
+                                content: textContent || '[attachment]',
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+
+                    // Clear queue state - message was consumed
+                    setQueuedMessages([]);
+
+                    // Set processing state for the queued message run
+                    setUi((prev) => ({ ...prev, isProcessing: true }));
                     break;
                 }
 

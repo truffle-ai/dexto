@@ -42,6 +42,8 @@ interface InputContainerProps {
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     /** Setter for pending/streaming messages (rendered dynamically) */
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    /** Setter for queued messages */
+    setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     agent: DextoAgent;
     inputService: InputService;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
@@ -64,6 +66,7 @@ export function InputContainer({
     setSession,
     setMessages,
     setPendingMessages,
+    setQueuedMessages,
     agent,
     inputService,
     onKeyboardScroll,
@@ -546,7 +549,12 @@ export function InputContainer({
 
                     // Use streaming API and process events directly
                     const iterator = await agent.stream(content, currentSessionId);
-                    await processStream(iterator, { setMessages, setPendingMessages, setUi });
+                    await processStream(iterator, {
+                        setMessages,
+                        setPendingMessages,
+                        setUi,
+                        setQueuedMessages,
+                    });
 
                     if (isFirstMessage) {
                         agent.generateSessionTitle(currentSessionId).catch((error) => {

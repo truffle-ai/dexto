@@ -2,13 +2,15 @@
  * Hook for managing agent event bus subscriptions for NON-STREAMING events.
  *
  * Streaming events (llm:thinking, llm:chunk, llm:response, llm:tool-call, llm:tool-result,
- * llm:error, run:complete) are handled directly via agent.stream() iterator in InputContainer.
+ * llm:error, run:complete, message:dequeued) are handled via agent.stream() iterator in processStream.
  *
  * This hook handles:
  * - approval:request - Tool/command confirmation requests
  * - llm:switched - Model change notifications
  * - session:reset - Conversation reset
  * - session:created - New session creation (e.g., from /clear)
+ * - message:queued - New message added to queue
+ * - message:removed - Message removed from queue (e.g., up arrow edit)
  *
  * Uses AbortController pattern for cleanup.
  */
@@ -16,11 +18,10 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
-import type { DextoAgent, QueuedMessage, ContentPart } from '@dexto/core';
+import type { DextoAgent, QueuedMessage } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
 import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import { generateMessageId } from '../utils/idGenerator.js';
 
 /**
  * UI state shape (must match InkCLIRefactored)
@@ -182,36 +183,8 @@ export function useAgentEvents({
             { signal }
         );
 
-        // Handle messages dequeued (processed by executor)
-        bus.on(
-            'message:dequeued',
-            (payload) => {
-                // Add dequeued messages as user message to chat (like webui does)
-                const textContent = payload.content
-                    .filter(
-                        (part): part is ContentPart & { type: 'text'; text: string } =>
-                            part.type === 'text'
-                    )
-                    .map((part) => part.text)
-                    .join('\n');
-
-                if (textContent || payload.content.length > 0) {
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            id: generateMessageId('user'),
-                            role: 'user' as const,
-                            content: textContent || '[attachment]',
-                            timestamp: new Date(),
-                        },
-                    ]);
-                }
-
-                // Clear queue state - messages were consumed
-                setQueuedMessages([]);
-            },
-            { signal }
-        );
+        // Note: message:dequeued is handled in processStream (via iterator) for proper synchronization
+        // with streaming events. Don't handle it here via event bus.
 
         // Cleanup: abort controller removes all listeners at once
         return () => {

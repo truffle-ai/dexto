@@ -49,6 +49,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
         pendingMessages,
         setPendingMessages,
         queuedMessages,
+        setQueuedMessages,
         ui,
         setUi,
         input,
@@ -122,6 +123,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                     setSession={setSession}
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
+                    setQueuedMessages={setQueuedMessages}
                     agent={agent}
                     inputService={inputService}
                 />
