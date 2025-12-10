@@ -3,90 +3,41 @@
  * These cycle during processing to provide entertaining feedback
  */
 
+import { no } from 'zod/v4/locales';
+
 export const processingPhrases: string[] = [
-    // Thinking/Processing
-    'Thinking...',
-    'Processing...',
-    'Pondering...',
-    'Contemplating...',
-    'Analyzing...',
-    'Computing...',
-    'Cogitating...',
-    'Deliberating...',
-    'Ruminating...',
-    'Mulling it over...',
-
-    // Creative/Fun
-    'Consulting the oracle...',
-    'Asking the magic 8-ball...',
-    'Reading the tea leaves...',
-    'Channeling the wisdom...',
-    'Summoning intelligence...',
-    'Brewing ideas...',
-    'Crafting response...',
-    'Weaving thoughts...',
-    'Connecting neurons...',
-    'Firing synapses...',
-
-    // Tech-themed
-    'Crunching numbers...',
-    'Parsing possibilities...',
-    'Compiling thoughts...',
-    'Optimizing response...',
-    'Running inference...',
-    'Querying knowledge base...',
-    'Searching solution space...',
-    'Traversing decision tree...',
-    'Evaluating options...',
-    'Processing tokens...',
+    // pop culture
+    'I want to be the very best...',
+    'I will be the next hokage...',
+    'Shinzo Sasageyo...',
+    'My soldiers! rage! ...',
+    'May the force be with you...',
+    'Why so serious? ...',
+    "That's what she said ...",
+    'Winter is coming...',
 
     // Playful
-    'One moment please...',
-    'Bear with me...',
-    'Almost there...',
-    'Working on it...',
-    'Hang tight...',
-    'Give me a sec...',
-    'Let me think...',
-    'Hmm, interesting...',
-    'Good question...',
-    'On it...',
-
-    // Dramatic
-    'Diving deep...',
-    'Exploring possibilities...',
-    'Venturing forth...',
-    'Seeking answers...',
-    'Unraveling mysteries...',
-    'Decoding request...',
-    'Assembling response...',
-    'Formulating reply...',
-    'Generating wisdom...',
-    'Crafting magic...',
+    'Let me cook...',
+    'Manifesting greatness..',
+    'Rizzing the huzz...',
+    'Memeing...',
+    'Outperforming other AI agents...',
+    'Rolling with the squad...',
+    'Incanting secret scripts...',
+    'Making no mistakes...',
+    'Making you rich...',
+    'Farming easy points...',
+    'Using 200+ IQ...',
+    'Being jarvis...',
+    'Dextomaxxing...',
+    'Zapping...',
+    'Braining...',
+    'Using all 3 brain cells...',
+    'Installing malware (just kidding)...',
 
     // Nerdy
-    'Consulting the docs...',
-    'Checking Stack Overflow...',
-    'Reading the source...',
-    'Grepping for answers...',
-    'Running the algorithm...',
-    'Executing plan...',
-    'Loading context...',
-    'Warming up GPUs...',
     'Attention is all I need...',
     'Transformer powers activate...',
-
-    // Casual
-    "Let's see here...",
-    'Alright, working on it...',
-    'Just a moment...',
-    'Coming right up...',
-    'Getting there...',
-    'Making progress...',
-    'Stay tuned...',
-    'Loading...',
-    'Please wait...',
-    'In progress...',
 ];
 
 /**
