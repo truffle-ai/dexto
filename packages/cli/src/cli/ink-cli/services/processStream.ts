@@ -11,6 +11,13 @@
  * - Progressive finalization: large streaming content is split at safe markdown
  *   boundaries, moving completed paragraphs to Static to reduce flickering
  * - This prevents duplicate output in static terminal mode
+ *
+ * IMPORTANT: React batching fix (see commit history for race condition details)
+ * - We use a local `localPending` array that mirrors React state synchronously
+ * - This allows us to flatten nested setState calls (which caused ordering bugs)
+ * - Nested setState: inner setMessages inside setPendingMessages callback gets
+ *   queued and runs AFTER other setMessages calls in the same batch
+ * - Flattened: setMessages and setPendingMessages are sibling calls, processed in order
  */
 
 import type React from 'react';
@@ -84,6 +91,11 @@ export async function processStream(
         splitCounter: 0,
     };
 
+    // LOCAL PENDING TRACKING - mirrors React state synchronously
+    // This allows us to flatten nested setState calls (which caused ordering bugs).
+    // See: https://github.com/facebook/react/issues/8132 - nested setState not supported
+    let localPending: Message[] = [];
+
     /**
      * Extract text content from ContentPart array
      */
@@ -95,38 +107,42 @@ export async function processStream(
     };
 
     /**
-     * Move a message from pending to finalized
+     * Move a message from pending to finalized.
+     * FLATTENED: Uses localPending to avoid nested setState (which breaks ordering).
      */
     const finalizeMessage = (messageId: string, updates: Partial<Message> = {}) => {
-        setPendingMessages((pending) => {
-            const msg = pending.find((m) => m.id === messageId);
-            if (msg) {
-                // Add finalized message to history
-                setMessages((prev) => [...prev, { ...msg, ...updates }]);
-            }
-            // Remove from pending
-            return pending.filter((m) => m.id !== messageId);
-        });
+        const msg = localPending.find((m) => m.id === messageId);
+        if (msg) {
+            // Add to messages FIRST (sibling call, not nested)
+            setMessages((prev) => [...prev, { ...msg, ...updates }]);
+        }
+        // Update local tracking
+        localPending = localPending.filter((m) => m.id !== messageId);
+        // Then update React state (sibling call)
+        setPendingMessages(localPending);
     };
 
     /**
-     * Move all pending messages to finalized (used at run:complete)
-     * NOTE: Nested setState is intentional - the inner setMessages runs when
-     * React processes the setPendingMessages update, ensuring we have the
-     * actual pending value (not a stale closure).
+     * Move all pending messages to finalized (used at run:complete and message:dequeued).
+     * FLATTENED: Uses localPending to avoid nested setState.
      */
     const finalizeAllPending = () => {
-        setPendingMessages((pending) => {
-            if (pending.length > 0) {
-                setMessages((prev) => [...prev, ...pending]);
-            }
-            return [];
-        });
+        if (localPending.length > 0) {
+            // Add to messages FIRST (sibling call, not nested)
+            const toFinalize = [...localPending];
+            setMessages((prev) => [...prev, ...toFinalize]);
+        }
+        // Update local tracking
+        localPending = [];
+        // Then update React state (sibling call)
+        setPendingMessages([]);
     };
 
     /**
      * Move dequeued buffer to messages (called at start of new run)
      * This ensures user messages appear in correct order after previous response
+     * NOTE: This still uses nested setState but dequeuedBuffer is separate from
+     * the main message flow and only flushed at llm:thinking (start of run)
      */
     const flushDequeuedBuffer = () => {
         setDequeuedBuffer((buffer) => {
@@ -135,6 +151,38 @@ export async function processStream(
             }
             return [];
         });
+    };
+
+    /**
+     * Add message to pending (updates both local tracking and React state)
+     */
+    const addToPending = (msg: Message) => {
+        localPending = [...localPending, msg];
+        setPendingMessages(localPending);
+    };
+
+    /**
+     * Update a message in pending (updates both local tracking and React state)
+     */
+    const updatePending = (messageId: string, updates: Partial<Message>) => {
+        localPending = localPending.map((m) => (m.id === messageId ? { ...m, ...updates } : m));
+        setPendingMessages(localPending);
+    };
+
+    /**
+     * Remove a message from pending without finalizing (updates both local and React state)
+     */
+    const removeFromPending = (messageId: string) => {
+        localPending = localPending.filter((m) => m.id !== messageId);
+        setPendingMessages(localPending);
+    };
+
+    /**
+     * Clear all pending (updates both local tracking and React state)
+     */
+    const clearPending = () => {
+        localPending = [];
+        setPendingMessages([]);
     };
 
     /**
@@ -217,16 +265,13 @@ export async function processStream(
                             state.splitCounter = 0;
 
                             // Add to PENDING (not messages) - renders dynamically
-                            setPendingMessages((prev) => [
-                                ...prev,
-                                {
-                                    id: newId,
-                                    role: 'assistant',
-                                    content: event.content,
-                                    timestamp: new Date(),
-                                    isStreaming: true,
-                                },
-                            ]);
+                            addToPending({
+                                id: newId,
+                                role: 'assistant',
+                                content: event.content,
+                                timestamp: new Date(),
+                                isStreaming: true,
+                            });
                         } else {
                             // Accumulate content
                             state.content += event.content;
@@ -240,13 +285,7 @@ export async function processStream(
                             // Mark as continuation if we've had any splits
                             const isContinuation = state.splitCounter > 0;
 
-                            setPendingMessages((prev) =>
-                                prev.map((msg) =>
-                                    msg.id === messageId
-                                        ? { ...msg, content: pendingContent, isContinuation }
-                                        : msg
-                                )
-                            );
+                            updatePending(messageId, { content: pendingContent, isContinuation });
                         }
                     }
                     break;
@@ -312,16 +351,13 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Tool calls go to PENDING (running state)
-                    setPendingMessages((prev) => [
-                        ...prev,
-                        {
-                            id: toolMessageId,
-                            role: 'tool',
-                            content: `${event.toolName}${argsPreview}`,
-                            timestamp: new Date(),
-                            toolStatus: 'running',
-                        },
-                    ]);
+                    addToPending({
+                        id: toolMessageId,
+                        role: 'tool',
+                        content: `${event.toolName}${argsPreview}`,
+                        timestamp: new Date(),
+                        toolStatus: 'running',
+                    });
                     break;
                 }
 
@@ -384,7 +420,7 @@ export async function processStream(
                     // Cancel any streaming message in pending
                     if (state.messageId) {
                         const messageId = state.messageId;
-                        setPendingMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+                        removeFromPending(messageId);
                         state.messageId = null;
                         state.content = '';
                     }
@@ -401,7 +437,7 @@ export async function processStream(
                     ]);
 
                     // Clear any remaining pending messages
-                    setPendingMessages([]);
+                    clearPending();
 
                     setUi((prev) => ({
                         ...prev,
@@ -508,7 +544,7 @@ export async function processStream(
         // Handle iterator errors (e.g., aborted)
         if (error instanceof Error && error.name === 'AbortError') {
             // Expected when cancelled, clean up UI state
-            setPendingMessages([]);
+            clearPending();
             setUi((prev) => ({
                 ...prev,
                 isProcessing: false,
@@ -517,7 +553,7 @@ export async function processStream(
             }));
         } else {
             // Unexpected error, show to user
-            setPendingMessages([]);
+            clearPending();
             setMessages((prev) => [
                 ...prev,
                 {
