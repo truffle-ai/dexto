@@ -111,6 +111,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
             {/* Controls area */}
             <Box flexDirection="column" flexShrink={0}>
                 <StatusBar
+                    agent={agent}
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
                     approvalQueueCount={approvalQueue.length}

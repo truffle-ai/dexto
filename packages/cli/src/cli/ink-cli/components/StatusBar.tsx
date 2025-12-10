@@ -5,10 +5,13 @@
 
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
+import type { DextoAgent } from '@dexto/core';
 import { usePhraseCycler } from '../hooks/usePhraseCycler.js';
 import { useElapsedTime } from '../hooks/useElapsedTime.js';
+import { useTokenCounter } from '../hooks/useTokenCounter.js';
 
 interface StatusBarProps {
+    agent: DextoAgent;
     isProcessing: boolean;
     isThinking: boolean;
     approvalQueueCount: number;
@@ -21,6 +24,7 @@ interface StatusBarProps {
  * Provides clear feedback on whether the agent is running or idle
  */
 export function StatusBar({
+    agent,
     isProcessing,
     isThinking,
     approvalQueueCount,
@@ -31,6 +35,8 @@ export function StatusBar({
     const { phrase } = usePhraseCycler({ isActive: isProcessing });
     // Track elapsed time during processing
     const { formatted: elapsedTime } = useElapsedTime({ isActive: isProcessing });
+    // Track token usage during processing
+    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
     // Show copy mode warning (highest priority)
     if (copyModeEnabled) {
         return (
@@ -100,7 +106,7 @@ export function StatusBar({
             )}
             <Text color="gray" dimColor>
                 {' '}
-                ({elapsedTime}) • Press Esc to cancel
+                ({elapsedTime}){tokenCount && ` • ${tokenCount}`} • Press Esc to cancel
             </Text>
         </Box>
     );

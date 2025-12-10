@@ -223,6 +223,7 @@ export function AlternateBufferCLI({
             {/* Controls area - fixed at bottom */}
             <Box flexDirection="column" flexShrink={0}>
                 <StatusBar
+                    agent={agent}
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
                     approvalQueueCount={approvalQueue.length}
