@@ -197,8 +197,8 @@ interface MessageBase {
  */
 export interface SystemMessage extends MessageBase {
     role: 'system';
-    /** System prompt content (always a string) */
-    content: string;
+    /** System prompt content as array of content parts */
+    content: ContentPart[];
 }
 
 /**
@@ -207,8 +207,8 @@ export interface SystemMessage extends MessageBase {
  */
 export interface UserMessage extends MessageBase {
     role: 'user';
-    /** User input content - string, null, or array of content parts */
-    content: string | null | ContentPart[];
+    /** User input content as array of content parts */
+    content: ContentPart[];
 }
 
 /**
@@ -218,7 +218,7 @@ export interface UserMessage extends MessageBase {
 export interface AssistantMessage extends MessageBase {
     role: 'assistant';
     /** Response content - null if message only contains tool calls */
-    content: string | null;
+    content: ContentPart[] | null;
 
     /**
      * Model reasoning text associated with this response.
@@ -248,8 +248,8 @@ export interface AssistantMessage extends MessageBase {
  */
 export interface ToolMessage extends MessageBase {
     role: 'tool';
-    /** Tool execution result - string or array of content parts */
-    content: string | ContentPart[];
+    /** Tool execution result as array of content parts */
+    content: ContentPart[];
 
     /** ID of the tool call this message is responding to (REQUIRED) */
     toolCallId: string;

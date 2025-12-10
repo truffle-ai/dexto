@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent, MessageContentPart } from '@dexto/core';
+import type { DextoAgent, ContentPart } from '@dexto/core';
 import { ContentPartSchema } from '../schemas/responses.js';
 
 // Schema for queued message in responses
@@ -194,13 +194,13 @@ export function createQueueRouter(getAgent: () => DextoAgent) {
             const { sessionId } = ctx.req.valid('param');
             const { content: rawContent } = ctx.req.valid('json');
 
-            // Normalize content to array format and cast to MessageContentPart[]
+            // Normalize content to array format and cast to ContentPart[]
             // (same exactOptionalPropertyTypes issue as messages.ts - see TODO there)
             const content = (
                 typeof rawContent === 'string'
                     ? [{ type: 'text' as const, text: rawContent }]
                     : rawContent
-            ) as MessageContentPart[];
+            ) as ContentPart[];
 
             const result = await agent.queueMessage(sessionId, { content });
             return ctx.json(

@@ -926,7 +926,7 @@ describe('expandBlobReferences', () => {
     test('should return TextPart unchanged if no blob references', async () => {
         const resourceManager = createMockResourceManager({});
         const result = await expandBlobReferences(
-            { type: 'text', text: 'Hello world' },
+            [{ type: 'text', text: 'Hello world' }],
             resourceManager,
             mockLogger
         );
@@ -939,7 +939,7 @@ describe('expandBlobReferences', () => {
         });
 
         const result = await expandBlobReferences(
-            { type: 'text', text: 'Check this image: @blob:abc123' },
+            [{ type: 'text', text: 'Check this image: @blob:abc123' }],
             resourceManager,
             mockLogger
         );
@@ -960,7 +960,7 @@ describe('expandBlobReferences', () => {
         });
 
         const result = await expandBlobReferences(
-            { type: 'text', text: 'Image 1: @blob:aaa111 and Image 2: @blob:bbb222' },
+            [{ type: 'text', text: 'Image 1: @blob:aaa111 and Image 2: @blob:bbb222' }],
             resourceManager,
             mockLogger
         );
@@ -1031,7 +1031,7 @@ describe('expandBlobReferences', () => {
         const resourceManager = createMockResourceManager({}); // No blobs available
 
         const result = await expandBlobReferences(
-            { type: 'text', text: 'Check: @blob:abc000def111' },
+            [{ type: 'text', text: 'Check: @blob:abc000def111' }],
             resourceManager,
             mockLogger
         );
@@ -1073,7 +1073,7 @@ describe('expandBlobReferences', () => {
         } as unknown as import('../resources/index.js').ResourceManager;
 
         const result = await expandBlobReferences(
-            { type: 'text', text: '@blob:abc123def456' },
+            [{ type: 'text', text: '@blob:abc123def456' }],
             resourceManager,
             mockLogger,
             ['image/*'] // Only allow images
@@ -1098,7 +1098,7 @@ describe('expandBlobReferences', () => {
         } as unknown as import('../resources/index.js').ResourceManager;
 
         const result = await expandBlobReferences(
-            { type: 'text', text: '@blob:abc123def456' },
+            [{ type: 'text', text: '@blob:abc123def456' }],
             resourceManager,
             mockLogger,
             ['image/*'] // Allow images

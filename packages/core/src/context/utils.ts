@@ -1,6 +1,5 @@
 import {
     InternalMessage,
-    MessageContentPart,
     TextPart,
     ImagePart,
     FilePart,
@@ -109,7 +108,7 @@ function clonePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart 
 }
 
 function coerceContentToParts(
-    content: InternalMessage['content']
+    content: ContentPart[] | null
 ): Array<TextPart | ImagePart | FilePart> {
     if (content == null) {
         return [];
@@ -547,6 +546,74 @@ export async function getFileDataWithBlobSupport(
 }
 
 /**
+ * Helper: Expand blob references within a single text string.
+ * Returns array of parts (text segments + resolved blobs).
+ */
+async function expandBlobsInText(
+    text: string,
+    resourceManager: import('../resources/index.js').ResourceManager,
+    logger: IDextoLogger,
+    allowedMediaTypes?: string[]
+): Promise<Array<TextPart | ImagePart | FilePart>> {
+    if (!text.includes('@blob:')) {
+        return [{ type: 'text', text }];
+    }
+
+    const blobRefPattern = /@blob:[a-f0-9]+/g;
+    const matches = [...text.matchAll(blobRefPattern)];
+
+    if (matches.length === 0) {
+        return [{ type: 'text', text }];
+    }
+
+    const resolvedCache = new Map<string, Array<TextPart | ImagePart | FilePart>>();
+    const parts: Array<TextPart | ImagePart | FilePart> = [];
+    let lastIndex = 0;
+
+    for (const match of matches) {
+        const matchIndex = match.index ?? 0;
+        const token = match[0];
+        if (matchIndex > lastIndex) {
+            const segment = text.slice(lastIndex, matchIndex);
+            if (segment.length > 0) {
+                parts.push({ type: 'text', text: segment });
+            }
+        }
+
+        const uri = token.substring(1); // Remove leading @
+        const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
+
+        let resolvedParts = resolvedCache.get(resourceUri);
+        if (!resolvedParts) {
+            resolvedParts = await resolveBlobReferenceToParts(
+                resourceUri,
+                resourceManager,
+                logger,
+                allowedMediaTypes
+            );
+            resolvedCache.set(resourceUri, resolvedParts);
+        }
+
+        if (resolvedParts.length > 0) {
+            parts.push(...resolvedParts.map((p) => ({ ...p })));
+        } else {
+            parts.push({ type: 'text', text: token });
+        }
+
+        lastIndex = matchIndex + token.length;
+    }
+
+    if (lastIndex < text.length) {
+        const trailing = text.slice(lastIndex);
+        if (trailing.length > 0) {
+            parts.push({ type: 'text', text: trailing });
+        }
+    }
+
+    return parts.filter((p) => p.type !== 'text' || p.text.length > 0);
+}
+
+/**
  * Resolves blob references in message content to actual data.
  * Expands @blob:id references to their actual base64 content for LLM consumption.
  * Can optionally filter by MIME type patterns - unsupported types are replaced with descriptive placeholders.
@@ -558,116 +625,36 @@ export async function getFileDataWithBlobSupport(
  *                          If omitted, all blobs are expanded (legacy behavior).
  * @returns Promise<Resolved content with blob references expanded or replaced with placeholders>
  */
-// Overload: string input can become ContentPart[] if blobs are found
-export async function expandBlobReferences(
-    content: string,
-    resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
-    allowedMediaTypes?: string[]
-): Promise<string | ContentPart[]>;
-// Overload: null passes through unchanged
+// Overload: null returns empty array
 export async function expandBlobReferences(
     content: null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: IDextoLogger,
     allowedMediaTypes?: string[]
-): Promise<null>;
-// Overload: ContentPart[] stays as ContentPart[]
+): Promise<ContentPart[]>;
+// Overload: ContentPart[] returns ContentPart[]
 export async function expandBlobReferences(
     content: ContentPart[],
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: IDextoLogger,
     allowedMediaTypes?: string[]
 ): Promise<ContentPart[]>;
-// Overload: ToolMessage content type (string | ContentPart[]) - MUST come before UserMessage overload
+// Overload: ContentPart[] | null (for InternalMessage['content'])
 export async function expandBlobReferences(
-    content: string | ContentPart[],
+    content: ContentPart[] | null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: IDextoLogger,
     allowedMediaTypes?: string[]
-): Promise<string | ContentPart[]>;
-// Overload: UserMessage content type (string | null | ContentPart[])
+): Promise<ContentPart[]>;
+// Implementation
 export async function expandBlobReferences(
-    content: string | null | ContentPart[],
+    content: ContentPart[] | null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: IDextoLogger,
     allowedMediaTypes?: string[]
-): Promise<string | null | ContentPart[]>;
-// Implementation signature
-export async function expandBlobReferences(
-    content: TextPart | MessageContentPart[] | null,
-    resourceManager: import('../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
-    allowedMediaTypes?: string[]
-): Promise<MessageContentPart[]> {
+): Promise<ContentPart[]> {
     // Handle null/undefined content
-    if (content == null) {
-        return [];
-    }
-
-    // Handle TextPart - expand blob references in the text
-    if ('type' in content && content.type === 'text') {
-        const text = content.text;
-        if (!text.includes('@blob:')) {
-            return [content];
-        }
-
-        const blobRefPattern = /@blob:[a-f0-9]+/g;
-        const matches = [...text.matchAll(blobRefPattern)];
-
-        if (matches.length === 0) {
-            return [content];
-        }
-
-        const resolvedCache = new Map<string, Array<TextPart | ImagePart | FilePart>>();
-        const parts: Array<TextPart | ImagePart | FilePart> = [];
-        let lastIndex = 0;
-
-        for (const match of matches) {
-            const matchIndex = match.index ?? 0;
-            const token = match[0];
-            if (matchIndex > lastIndex) {
-                const segment = text.slice(lastIndex, matchIndex);
-                if (segment.length > 0) {
-                    parts.push({ type: 'text', text: segment });
-                }
-            }
-
-            const uri = token.substring(1); // Remove leading @
-            const resourceUri = uri.startsWith('blob:') ? uri : `blob:${uri}`;
-
-            let resolvedParts = resolvedCache.get(resourceUri);
-            if (!resolvedParts) {
-                resolvedParts = await resolveBlobReferenceToParts(
-                    resourceUri,
-                    resourceManager,
-                    logger,
-                    allowedMediaTypes
-                );
-                resolvedCache.set(resourceUri, resolvedParts);
-            }
-
-            if (resolvedParts.length > 0) {
-                parts.push(...resolvedParts.map((p) => ({ ...p })));
-            } else {
-                parts.push({ type: 'text', text: token });
-            }
-
-            lastIndex = matchIndex + token.length;
-        }
-
-        if (lastIndex < text.length) {
-            const trailing = text.slice(lastIndex);
-            if (trailing.length > 0) {
-                parts.push({ type: 'text', text: trailing });
-            }
-        }
-
-        return parts.filter((p) => p.type !== 'text' || p.text.length > 0);
-    }
-
-    // Handle array of parts - content must be MessageContentPart[] at this point
-    if (!Array.isArray(content)) {
+    if (content == null || !Array.isArray(content)) {
         return [];
     }
 
@@ -733,9 +720,9 @@ export async function expandBlobReferences(
         }
 
         if (part.type === 'text' && part.text.includes('@blob:')) {
-            // Recursively expand blob references in text part
-            const expanded = await expandBlobReferences(
-                { type: 'text', text: part.text },
+            // Expand blob references in text part using helper
+            const expanded = await expandBlobsInText(
+                part.text,
                 resourceManager,
                 logger,
                 allowedMediaTypes
