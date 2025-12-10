@@ -86,7 +86,7 @@ export const MessageItem = memo(
                     const tokensStr =
                         data.outputTokens > 0 ? `, Used ${data.outputTokens} tokens` : '';
                     return (
-                        <Box marginTop={1}>
+                        <Box marginTop={1} marginBottom={1}>
                             <Text color="gray" dimColor>
                                 ─ Worked for {durationStr}
                                 {tokensStr} ─
