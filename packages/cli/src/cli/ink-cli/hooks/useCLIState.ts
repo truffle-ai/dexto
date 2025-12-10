@@ -36,9 +36,12 @@ export interface UseCLIStateProps {
 }
 
 export interface CLIStateReturn {
-    // State
+    // State - finalized messages (rendered in <Static>)
     messages: Message[];
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    // Pending messages (streaming/in-progress, rendered dynamically)
+    pendingMessages: Message[];
+    setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     ui: UIState;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     input: InputState;
@@ -74,8 +77,10 @@ export function useCLIState({
     startupInfo,
     onKeyboardScroll,
 }: UseCLIStateProps): CLIStateReturn {
-    // Messages state
+    // Messages state - finalized messages (rendered in <Static>)
     const [messages, setMessages] = useState<Message[]>([]);
+    // Pending messages - streaming/in-progress (rendered dynamically outside <Static>)
+    const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
 
     // UI state
     const [ui, setUi] = useState<UIState>({
@@ -140,10 +145,10 @@ export function useCLIState({
     // Ref for overlay container (input no longer needs ref)
     const overlayContainerRef = useRef<OverlayContainerHandle>(null);
 
-    // Setup event bus subscriptions
+    // Setup event bus subscriptions for non-streaming events
+    // (streaming events are handled directly via agent.stream() iterator in InputContainer)
     useAgentEvents({
         agent,
-        isCancelling: ui.isCancelling,
         setMessages,
         setUi,
         setSession,
@@ -254,6 +259,8 @@ export function useCLIState({
     return {
         messages,
         setMessages,
+        pendingMessages,
+        setPendingMessages,
         ui,
         setUi,
         input,

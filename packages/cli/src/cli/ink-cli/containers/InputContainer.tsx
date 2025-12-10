@@ -9,7 +9,7 @@
 import React, { useCallback, useRef, useEffect } from 'react';
 import type { DextoAgent, ContentPart, ImagePart, TextPart } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
-import { InputService } from '../services/InputService.js';
+import { InputService, processStream } from '../services/index.js';
 import type {
     Message,
     UIState,
@@ -36,7 +36,10 @@ interface InputContainerProps {
     setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     setSession: React.Dispatch<React.SetStateAction<SessionState>>;
+    /** Setter for finalized messages (rendered in <Static>) */
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    /** Setter for pending/streaming messages (rendered dynamically) */
+    setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     agent: DextoAgent;
     inputService: InputService;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
@@ -57,6 +60,7 @@ export function InputContainer({
     setUi,
     setSession,
     setMessages,
+    setPendingMessages,
     agent,
     inputService,
     onKeyboardScroll,
@@ -454,7 +458,9 @@ export function InputContainer({
                         content = trimmed;
                     }
 
-                    await agent.generate(content, currentSessionId);
+                    // Use streaming API and process events directly
+                    const iterator = await agent.stream(content, currentSessionId);
+                    await processStream(iterator, { setMessages, setPendingMessages, setUi });
 
                     if (isFirstMessage) {
                         agent.generateSessionTitle(currentSessionId).catch((error) => {
@@ -488,6 +494,7 @@ export function InputContainer({
             setInput,
             setUi,
             setMessages,
+            setPendingMessages,
             setSession,
             agent,
             inputService,

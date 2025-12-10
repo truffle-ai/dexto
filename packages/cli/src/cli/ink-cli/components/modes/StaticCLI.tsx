@@ -8,8 +8,10 @@
  * - No mouse event interception
  * - Simpler, more compatible with traditional terminal workflows
  *
- * Pattern from Gemini CLI: Static contains pre-rendered JSX elements.
- * Header must be in Static or it appears below the static content.
+ * Architecture (Gemini CLI pattern):
+ * - `messages` = finalized messages → rendered in <Static> (permanent output)
+ * - `pendingMessages` = streaming/in-progress → rendered dynamically (redrawn)
+ * This prevents duplicate output when streaming completes.
  */
 
 import React, { useMemo } from 'react';
@@ -43,6 +45,8 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
     const {
         messages,
         setMessages,
+        pendingMessages,
+        setPendingMessages,
         ui,
         setUi,
         input,
@@ -64,21 +68,9 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
         // No keyboard scroll handler - let terminal handle scrollback
     });
 
-    // Split messages into finalized (static) and pending (dynamic)
-    // A message is finalized if it's not a running tool
-    const { staticItems, dynamicMessages } = useMemo(() => {
-        // Find cutoff - all messages before this are finalized
-        let cutoff = 0;
-        for (const msg of visibleMessages) {
-            // Running tools are not finalized yet
-            if (msg.toolStatus === 'running') {
-                break;
-            }
-            cutoff++;
-        }
-
-        // Pre-render static items as JSX elements (Gemini pattern)
-        // Header must be in Static or it appears below static content!
+    // Pre-render static items as JSX elements (Gemini pattern)
+    // Header + finalized messages go in <Static> (rendered once, permanent)
+    const staticItems = useMemo(() => {
         const items: React.ReactElement[] = [
             <Header
                 key="header"
@@ -87,15 +79,9 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                 hasActiveSession={session.hasActiveSession}
                 startupInfo={startupInfo}
             />,
-            ...visibleMessages
-                .slice(0, cutoff)
-                .map((msg) => <MessageItem key={msg.id} message={msg} />),
+            ...visibleMessages.map((msg) => <MessageItem key={msg.id} message={msg} />),
         ];
-
-        return {
-            staticItems: items,
-            dynamicMessages: visibleMessages.slice(cutoff),
-        };
+        return items;
     }, [visibleMessages, session.modelName, session.id, session.hasActiveSession, startupInfo]);
 
     return (
@@ -103,8 +89,8 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
             {/* Static: header + finalized messages - rendered once to terminal scrollback */}
             <Static items={staticItems}>{(item) => item}</Static>
 
-            {/* Dynamic: pending messages - re-render on updates */}
-            {dynamicMessages.map((message) => (
+            {/* Dynamic: pending/streaming messages - re-rendered on updates */}
+            {pendingMessages.map((message) => (
                 <MessageItem key={message.id} message={message} />
             ))}
 
@@ -129,6 +115,7 @@ export function StaticCLI({ agent, initialSessionId, startupInfo }: StaticCLIPro
                     setUi={setUi}
                     setSession={setSession}
                     setMessages={setMessages}
+                    setPendingMessages={setPendingMessages}
                     agent={agent}
                     inputService={inputService}
                 />

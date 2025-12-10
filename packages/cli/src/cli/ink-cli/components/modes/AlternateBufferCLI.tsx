@@ -71,6 +71,8 @@ export function AlternateBufferCLI({
     const {
         messages,
         setMessages,
+        pendingMessages,
+        setPendingMessages,
         ui,
         setUi,
         input,
@@ -128,14 +130,19 @@ export function AlternateBufferCLI({
     // Get terminal dimensions - updates on resize
     const { rows: terminalHeight } = useTerminalSize();
 
-    // Build list data: header as first item, then messages
+    // Build list data: header as first item, then finalized + pending messages
+    // In alternate buffer mode, everything is re-rendered anyway, so we combine both
     const listData = useMemo<ListItem[]>(() => {
         const items: ListItem[] = [{ type: 'header' }];
         for (const msg of visibleMessages) {
             items.push({ type: 'message', message: msg });
         }
+        // Add pending/streaming messages at the end
+        for (const msg of pendingMessages) {
+            items.push({ type: 'message', message: msg });
+        }
         return items;
-    }, [visibleMessages]);
+    }, [visibleMessages, pendingMessages]);
 
     // Render callback for VirtualizedList items
     const renderListItem = useCallback(
@@ -251,6 +258,7 @@ export function AlternateBufferCLI({
                     setUi={setUi}
                     setSession={setSession}
                     setMessages={setMessages}
+                    setPendingMessages={setPendingMessages}
                     agent={agent}
                     inputService={inputService}
                     onKeyboardScroll={handleKeyboardScroll}
