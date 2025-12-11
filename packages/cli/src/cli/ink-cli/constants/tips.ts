@@ -32,7 +32,7 @@ export const tips: string[] = [
     'Press Enter to submit your message...',
 
     // Feature tips
-    'Paste images directly into the input with Ctrl+V...',
+    'Paste copied images with Ctrl+V...',
     'Large pastes are automatically collapsed - press Ctrl+T to toggle...',
     'Use @ to reference files and resources...',
     'Type / to see available slash commands...',

@@ -515,34 +515,24 @@ const SlashCommandAutocompleteInner = forwardRef<
                     const categoryText = cmd.category ? ` (${cmd.category})` : '';
                     const descText = cmd.description || '';
 
-                    // Two-column layout: ~30% for command, ~70% for description
-                    const cmdColumnWidth = Math.max(15, Math.floor(terminalWidth * 0.3));
-                    const descColumnWidth = terminalWidth - cmdColumnWidth;
-
-                    // Truncate to fit columns
-                    const truncatedName = truncateText(nameText + categoryText, cmdColumnWidth - 1);
-                    const truncatedDesc = truncateText(descText, descColumnWidth - 2);
-                    const paddedName = truncatedName.padEnd(cmdColumnWidth - 1);
-                    const paddedDesc = truncatedDesc.padEnd(descColumnWidth - 2);
-
+                    // Two-line layout like Claude Code:
+                    // Line 1: /command-name
+                    // Line 2:     Description text (category)
                     return (
-                        <Box
-                            key={`system-${cmd.name}`}
-                            width={terminalWidth}
-                            paddingX={0}
-                            paddingY={0}
-                        >
+                        <Box key={`system-${cmd.name}`} flexDirection="column" paddingX={0}>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                {paddedName}
+                                {nameText}
                             </Text>
                             <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                                {paddedDesc}
+                                {'    '}
+                                {descText}
+                                {categoryText}
                             </Text>
                         </Box>
                     );
                 }
 
-                // Prompt command
+                // Prompt command (MCP prompts)
                 const prompt = item.prompt;
                 const nameText = `/${prompt.name}`;
                 const argsString =
@@ -554,29 +544,20 @@ const SlashCommandAutocompleteInner = forwardRef<
                         : '';
                 const description = prompt.title || prompt.description || '';
 
-                // Two-column layout: ~30% for command+args, ~70% for description
-                const cmdColumnWidth = Math.max(15, Math.floor(terminalWidth * 0.3));
-                const descColumnWidth = terminalWidth - cmdColumnWidth;
-
-                // Build command text and truncate
-                const commandText = nameText + (argsString ? argsString : '');
-                const truncatedCmd = truncateText(commandText, cmdColumnWidth - 1);
-                const truncatedDesc = truncateText(description, descColumnWidth - 2);
-                const paddedCmd = truncatedCmd.padEnd(cmdColumnWidth - 1);
-                const paddedDesc = truncatedDesc.padEnd(descColumnWidth - 2);
+                // Two-line layout like Claude Code:
+                // Line 1: /command-name <args>
+                // Line 2:     Description text (mcp)
+                const commandText = nameText + argsString;
 
                 return (
-                    <Box
-                        key={`prompt-${prompt.name}`}
-                        width={terminalWidth}
-                        paddingX={0}
-                        paddingY={0}
-                    >
+                    <Box key={`prompt-${prompt.name}`} flexDirection="column" paddingX={0}>
                         <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                            {paddedCmd}
+                            {commandText}
                         </Text>
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                            {paddedDesc}
+                            {'    '}
+                            {description}
+                            {' (mcp)'}
                         </Text>
                     </Box>
                 );
