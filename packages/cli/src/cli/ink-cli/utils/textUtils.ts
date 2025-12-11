@@ -30,10 +30,12 @@ export function toCodePoints(str: string): string[] {
     }
 
     // Cache short strings
+    // We return a copy ([...cached]) to prevent callers from mutating the cache.
+    // This has O(n) overhead but n is bounded by MAX_STRING_LENGTH_TO_CACHE (1000).
     if (str.length <= MAX_STRING_LENGTH_TO_CACHE) {
         const cached = codePointsCache.get(str);
         if (cached) {
-            return cached;
+            return [...cached];
         }
     }
 

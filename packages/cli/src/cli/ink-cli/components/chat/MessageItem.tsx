@@ -175,6 +175,7 @@ export const MessageItem = memo(
             prev.message.toolResult === next.message.toolResult &&
             prev.message.isStreaming === next.message.isStreaming &&
             prev.message.styledType === next.message.styledType &&
+            prev.message.styledData === next.message.styledData &&
             prev.message.isContinuation === next.message.isContinuation
         );
     }
