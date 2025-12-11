@@ -132,17 +132,22 @@ export function clearStringWidthCache(): void {
 }
 
 // Word character detection helpers
-export const isWordCharStrict = (char: string): boolean => /[\w\p{L}\p{N}]/u.test(char);
+// These accept string | undefined to safely handle array bounds access (chars[i] may be undefined)
+export const isWordCharStrict = (char: string | undefined): boolean =>
+    char !== undefined && /[\w\p{L}\p{N}]/u.test(char);
 
-export const isWhitespace = (char: string): boolean => /\s/.test(char);
+export const isWhitespace = (char: string | undefined): boolean =>
+    char !== undefined && /\s/.test(char);
 
-export const isCombiningMark = (char: string): boolean => /\p{M}/u.test(char);
+export const isCombiningMark = (char: string | undefined): boolean =>
+    char !== undefined && /\p{M}/u.test(char);
 
-export const isWordCharWithCombining = (char: string): boolean =>
+export const isWordCharWithCombining = (char: string | undefined): boolean =>
     isWordCharStrict(char) || isCombiningMark(char);
 
-// Get the script of a character
-export const getCharScript = (char: string): string => {
+// Get the script of a character (simplified for common scripts)
+export const getCharScript = (char: string | undefined): string => {
+    if (!char) return 'other';
     if (/[\p{Script=Latin}]/u.test(char)) return 'latin';
     if (/[\p{Script=Han}]/u.test(char)) return 'han';
     if (/[\p{Script=Arabic}]/u.test(char)) return 'arabic';
@@ -152,7 +157,10 @@ export const getCharScript = (char: string): string => {
     return 'other';
 };
 
-export const isDifferentScript = (char1: string, char2: string): boolean => {
+export const isDifferentScript = (
+    char1: string | undefined,
+    char2: string | undefined
+): boolean => {
     if (!isWordCharStrict(char1) || !isWordCharStrict(char2)) return false;
     return getCharScript(char1) !== getCharScript(char2);
 };

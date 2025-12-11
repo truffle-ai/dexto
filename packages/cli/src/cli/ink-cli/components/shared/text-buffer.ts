@@ -9,6 +9,12 @@ import {
     cpSlice,
     stripUnsafeCharacters,
     getCachedStringWidth,
+    isWordCharStrict,
+    isWhitespace,
+    isCombiningMark,
+    isWordCharWithCombining,
+    getCharScript,
+    isDifferentScript,
 } from '../../utils/textUtils.js';
 import type { Key } from '../../hooks/useKeypress.js';
 
@@ -21,42 +27,6 @@ export type Direction =
     | 'wordRight'
     | 'home'
     | 'end';
-
-// Helper functions for line-based word navigation
-export const isWordCharStrict = (char: string | undefined): boolean =>
-    char !== undefined && /[\w\p{L}\p{N}]/u.test(char);
-
-export const isWhitespace = (char: string | undefined): boolean =>
-    char !== undefined && /\s/.test(char);
-
-// Check if a character is a combining mark (only diacritics for now)
-export const isCombiningMark = (char: string | undefined): boolean =>
-    char !== undefined && /\p{M}/u.test(char);
-
-// Check if a character should be considered part of a word (including combining marks)
-export const isWordCharWithCombining = (char: string | undefined): boolean =>
-    isWordCharStrict(char) || isCombiningMark(char);
-
-// Get the script of a character (simplified for common scripts)
-export const getCharScript = (char: string | undefined): string => {
-    if (!char) return 'other';
-    if (/[\p{Script=Latin}]/u.test(char)) return 'latin'; // All Latin script chars including diacritics
-    if (/[\p{Script=Han}]/u.test(char)) return 'han'; // Chinese
-    if (/[\p{Script=Arabic}]/u.test(char)) return 'arabic';
-    if (/[\p{Script=Hiragana}]/u.test(char)) return 'hiragana';
-    if (/[\p{Script=Katakana}]/u.test(char)) return 'katakana';
-    if (/[\p{Script=Cyrillic}]/u.test(char)) return 'cyrillic';
-    return 'other';
-};
-
-// Check if two characters are from different scripts (indicating word boundary)
-export const isDifferentScript = (
-    char1: string | undefined,
-    char2: string | undefined
-): boolean => {
-    if (!isWordCharStrict(char1) || !isWordCharStrict(char2)) return false;
-    return getCharScript(char1) !== getCharScript(char2);
-};
 
 // Find next word start within a line, starting from col
 export const findNextWordStartInLine = (line: string, col: number): number | null => {
