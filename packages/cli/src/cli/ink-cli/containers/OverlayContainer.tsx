@@ -163,6 +163,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return mcpServerActionsRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-add-choice':
                             return mcpAddChoiceRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-add-selector':
+                            return mcpAddSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-custom-type-selector':
                             return (
                                 mcpCustomTypeSelectorRef.current?.handleInput(inputStr, key) ??
