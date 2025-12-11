@@ -23,6 +23,7 @@ import { InputService, MessageService } from '../services/index.js';
 import { convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import type { OverlayContainerHandle } from '../containers/OverlayContainer.js';
 import { useTextBuffer, type TextBuffer } from '../components/shared/text-buffer.js';
+import { getProtectedOverlays, getAutoDetectOverlay } from '../utils/commandOverlays.js';
 
 // Re-export types for backwards compatibility
 export type { UIState, InputState, SessionState } from '../state/types.js';
@@ -232,41 +233,32 @@ export function useCLIState({
         };
     }, [agent, initialSessionId, messages.length, session.hasActiveSession]);
 
-    // Detect selector overlays based on exact command matches
+    // Detect selector overlays based on exact command matches (real-time while typing)
     useEffect(() => {
         if (ui.isProcessing || approval) return;
         if (!input.value.startsWith('/')) return;
 
-        const selectorType = inputService.detectInteractiveSelector(input.value);
+        // Parse command from input
+        const parsed = inputService.parseInput(input.value);
+        if (parsed.type !== 'command' || !parsed.command) return;
 
-        let desiredOverlay: OverlayType = 'none';
-        switch (selectorType) {
-            case 'model':
-                desiredOverlay = 'model-selector';
-                break;
-            case 'session':
-                desiredOverlay = 'session-selector';
-                break;
-        }
+        const hasArgs = (parsed.args?.length ?? 0) > 0;
+        const hasSpaceAfterCommand =
+            parsed.rawInput.includes(' ') &&
+            parsed.rawInput.trim().length > parsed.command.length + 1;
 
-        const protectedOverlays: OverlayType[] = [
-            'slash-autocomplete',
-            'resource-autocomplete',
-            'log-level-selector',
-            'mcp-selector',
-            'mcp-add-selector',
-            'mcp-remove-selector',
-            'mcp-custom-type-selector',
-            'mcp-custom-wizard',
-            'session-subcommand-selector',
-            'api-key-input',
-            'search',
-            'approval',
-        ];
+        // Get overlay to auto-show while typing (only for select commands)
+        const desiredOverlay = getAutoDetectOverlay(parsed.command, hasArgs, hasSpaceAfterCommand);
+
+        // Don't auto-close protected overlays (those triggered by other commands)
+        const protectedOverlays = getProtectedOverlays();
         const isProtectedOverlay = protectedOverlays.includes(ui.activeOverlay);
 
-        if (desiredOverlay !== ui.activeOverlay && !isProtectedOverlay) {
+        if (desiredOverlay && desiredOverlay !== ui.activeOverlay && !isProtectedOverlay) {
             setUi((prev) => ({ ...prev, activeOverlay: desiredOverlay }));
+        } else if (!desiredOverlay && ui.activeOverlay !== 'none' && !isProtectedOverlay) {
+            // Reset to none if no auto-detect overlay and not protected
+            setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
         }
     }, [input.value, ui.isProcessing, ui.activeOverlay, approval, inputService]);
 

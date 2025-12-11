@@ -373,65 +373,15 @@ export function InputContainer({
             // Parse and handle command or prompt
             const parsed = inputService.parseInput(trimmed);
 
-            // Check if this is a command that should show an interactive selector
+            // Check if this command should show an interactive overlay
             if (parsed.type === 'command' && parsed.command) {
-                const command = parsed.command;
-                const hasArgs = parsed.args && parsed.args.length > 0;
-
-                if (command === 'mcp' && !hasArgs) {
+                const { getCommandOverlay } = await import('../utils/commandOverlays.js');
+                const overlay = getCommandOverlay(parsed.command, parsed.args || []);
+                if (overlay) {
                     setUi((prev) => ({
                         ...prev,
                         isProcessing: false,
-                        activeOverlay: 'mcp-selector',
-                    }));
-                    return;
-                }
-
-                if (command === 'mcp' && parsed.args?.[0] === 'add' && parsed.args.length === 1) {
-                    setUi((prev) => ({
-                        ...prev,
-                        isProcessing: false,
-                        activeOverlay: 'mcp-add-selector',
-                    }));
-                    return;
-                }
-
-                if (
-                    command === 'mcp' &&
-                    parsed.args?.[0] === 'remove' &&
-                    parsed.args.length === 1
-                ) {
-                    setUi((prev) => ({
-                        ...prev,
-                        isProcessing: false,
-                        activeOverlay: 'mcp-remove-selector',
-                    }));
-                    return;
-                }
-
-                if (command === 'log' && !hasArgs) {
-                    setUi((prev) => ({
-                        ...prev,
-                        isProcessing: false,
-                        activeOverlay: 'log-level-selector',
-                    }));
-                    return;
-                }
-
-                if (command === 'session' && !hasArgs) {
-                    setUi((prev) => ({
-                        ...prev,
-                        isProcessing: false,
-                        activeOverlay: 'session-subcommand-selector',
-                    }));
-                    return;
-                }
-
-                if (command === 'search' && !hasArgs) {
-                    setUi((prev) => ({
-                        ...prev,
-                        isProcessing: false,
-                        activeOverlay: 'search',
+                        activeOverlay: overlay,
                     }));
                     return;
                 }

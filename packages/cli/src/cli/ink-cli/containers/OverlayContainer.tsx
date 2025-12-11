@@ -609,49 +609,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         const handleSystemCommandSelect = useCallback(
             async (command: string) => {
-                // Check if this is an interactive command that should show a selector
-                if (command === 'model') {
-                    setInput((prev) => ({ ...prev, value: '/model' }));
-                    setUi((prev) => ({ ...prev, activeOverlay: 'model-selector' }));
-                    return;
-                }
-                if (command === 'resume' || command === 'switch') {
-                    setInput((prev) => ({ ...prev, value: `/${command}` }));
-                    setUi((prev) => ({ ...prev, activeOverlay: 'session-selector' }));
-                    return;
-                }
-                if (command === 'log') {
+                // Check if this command has an interactive overlay
+                const { getCommandOverlayForSelect } = await import('../utils/commandOverlays.js');
+                const overlay = getCommandOverlayForSelect(command);
+                if (overlay) {
                     setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
                     setUi((prev) => ({
                         ...prev,
-                        activeOverlay: 'log-level-selector',
-                        mcpWizardServerType: null,
-                    }));
-                    return;
-                }
-                if (command === 'mcp') {
-                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
-                    setUi((prev) => ({
-                        ...prev,
-                        activeOverlay: 'mcp-selector',
-                        mcpWizardServerType: null,
-                    }));
-                    return;
-                }
-                if (command === 'session') {
-                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
-                    setUi((prev) => ({
-                        ...prev,
-                        activeOverlay: 'session-subcommand-selector',
-                        mcpWizardServerType: null,
-                    }));
-                    return;
-                }
-                if (command === 'search' || command === 'find') {
-                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
-                    setUi((prev) => ({
-                        ...prev,
-                        activeOverlay: 'search',
+                        activeOverlay: overlay,
                         mcpWizardServerType: null,
                     }));
                     return;
