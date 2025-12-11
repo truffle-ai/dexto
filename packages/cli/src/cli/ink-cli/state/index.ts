@@ -1,5 +1,8 @@
 /**
  * State management module exports
+ *
+ * Note: State is now managed via useState hooks in InkCLIRefactored.
+ * This module exports types and remaining actions for UI/overlay state.
  */
 
 // Types
@@ -8,46 +11,44 @@ export type {
     Message,
     StreamingMessage,
     InputState,
+    PendingImage,
     OverlayType,
+    McpWizardServerType,
     UIState,
     SessionState,
     CLIState,
 } from './types.js';
 
-// Actions
+// Actions (reduced set - UI/overlay/session only, no message/streaming actions)
 export type {
     InputChangeAction,
     InputClearAction,
     InputHistoryNavigateAction,
     InputHistoryResetAction,
-    MessageAddAction,
-    MessageAddMultipleAction,
-    MessageInsertBeforeStreamingAction,
-    MessageUpdateAction,
-    MessageRemoveAction,
-    StreamingStartAction,
-    StreamingChunkAction,
-    StreamingEndAction,
-    StreamingCancelAction,
-    SubmitStartAction,
-    SubmitCompleteAction,
-    SubmitErrorAction,
+    InputHistoryAddAction,
+    ImageAddAction,
+    ImageRemoveAction,
+    ImagesClearAction,
+    CancelStartAction,
+    ThinkingStartAction,
+    ThinkingEndAction,
     ProcessingStartAction,
     ProcessingEndAction,
     ShowOverlayAction,
     CloseOverlayAction,
+    SetMcpWizardServerTypeAction,
     SessionSetAction,
     SessionClearAction,
     ModelUpdateAction,
     ConversationResetAction,
     ApprovalRequestAction,
     ApprovalCompleteAction,
-    ErrorAction,
+    ExitWarningShowAction,
+    ExitWarningClearAction,
+    CopyModeEnableAction,
+    CopyModeDisableAction,
     CLIAction,
 } from './actions.js';
 
-// Reducer
-export { cliReducer } from './reducer.js';
-
-// Initial state
+// Initial state (for types reference only)
 export { createInitialState } from './initialState.js';

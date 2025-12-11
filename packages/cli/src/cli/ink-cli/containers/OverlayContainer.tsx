@@ -5,12 +5,15 @@
 
 import React, { useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Box } from 'ink';
-import type { Key } from 'ink';
 import type { DextoAgent } from '@dexto/core';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
-import type { CLIAction } from '../state/actions.js';
-import type { CLIState } from '../state/types.js';
-import { ApprovalPrompt, type ApprovalPromptHandle } from '../components/ApprovalPrompt.js';
+import type { Message, UIState, InputState, SessionState } from '../state/types.js';
+import {
+    ApprovalPrompt,
+    type ApprovalPromptHandle,
+    type ApprovalRequest,
+} from '../components/ApprovalPrompt.js';
 import {
     SlashCommandAutocomplete,
     type SlashCommandAutocompleteHandle,
@@ -24,7 +27,34 @@ import ModelSelectorRefactored, {
 import SessionSelectorRefactored, {
     type SessionSelectorHandle,
 } from '../components/overlays/SessionSelectorRefactored.js';
+import LogLevelSelector, {
+    type LogLevelSelectorHandle,
+} from '../components/overlays/LogLevelSelector.js';
+import McpSelector, {
+    type McpSelectorHandle,
+    type McpAction,
+} from '../components/overlays/McpSelector.js';
+import McpAddSelector, {
+    type McpAddSelectorHandle,
+    type McpAddResult,
+} from '../components/overlays/McpAddSelector.js';
+import McpRemoveSelector, {
+    type McpRemoveSelectorHandle,
+} from '../components/overlays/McpRemoveSelector.js';
+import SessionSubcommandSelector, {
+    type SessionSubcommandSelectorHandle,
+    type SessionAction,
+} from '../components/overlays/SessionSubcommandSelector.js';
+import McpCustomTypeSelector, {
+    type McpCustomTypeSelectorHandle,
+    type McpServerType,
+} from '../components/overlays/McpCustomTypeSelector.js';
+import McpCustomWizard, {
+    type McpCustomWizardHandle,
+    type McpCustomConfig,
+} from '../components/overlays/McpCustomWizard.js';
 import type { PromptInfo, ResourceMetadata } from '@dexto/core';
+import type { LogLevel } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -34,8 +64,16 @@ export interface OverlayContainerHandle {
 }
 
 interface OverlayContainerProps {
-    state: CLIState;
-    dispatch: React.Dispatch<CLIAction>;
+    ui: UIState;
+    input: InputState;
+    session: SessionState;
+    approval: ApprovalRequest | null;
+    setInput: React.Dispatch<React.SetStateAction<InputState>>;
+    setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    setSession: React.Dispatch<React.SetStateAction<SessionState>>;
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
+    setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     agent: DextoAgent;
     inputService: InputService;
 }
@@ -45,8 +83,23 @@ interface OverlayContainerProps {
  * Handles all modal interactions (selectors, autocomplete, approval)
  */
 export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContainerProps>(
-    function OverlayContainer({ state, dispatch, agent, inputService }, ref) {
-        const { ui, input, approval } = state;
+    function OverlayContainer(
+        {
+            ui,
+            input,
+            session,
+            approval,
+            setInput,
+            setUi,
+            setSession,
+            setMessages,
+            setApproval,
+            setApprovalQueue,
+            agent,
+            inputService,
+        },
+        ref
+    ) {
         const eventBus = agent.agentEventBus;
 
         // Refs to overlay components for input handling
@@ -55,46 +108,89 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const resourceAutocompleteRef = useRef<ResourceAutocompleteHandle>(null);
         const modelSelectorRef = useRef<ModelSelectorHandle>(null);
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
+        const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
+        const mcpSelectorRef = useRef<McpSelectorHandle>(null);
+        const mcpAddSelectorRef = useRef<McpAddSelectorHandle>(null);
+        const mcpRemoveSelectorRef = useRef<McpRemoveSelectorHandle>(null);
+        const mcpCustomTypeSelectorRef = useRef<McpCustomTypeSelectorHandle>(null);
+        const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
+        const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
             ref,
             () => ({
                 handleInput: (inputStr: string, key: Key): boolean => {
-                    // Route to active overlay
+                    // Route to approval first (highest priority)
                     if (approval && approvalRef.current) {
                         return approvalRef.current.handleInput(inputStr, key);
                     }
 
-                    if (ui.activeOverlay === 'slash-autocomplete' && slashAutocompleteRef.current) {
-                        return slashAutocompleteRef.current.handleInput(inputStr, key);
+                    // Route to active overlay based on type
+                    switch (ui.activeOverlay) {
+                        case 'slash-autocomplete':
+                            return (
+                                slashAutocompleteRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'resource-autocomplete':
+                            return (
+                                resourceAutocompleteRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'model-selector':
+                            return modelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'session-selector':
+                            return sessionSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'log-level-selector':
+                            return logLevelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-selector':
+                            return mcpSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-add-selector':
+                            return mcpAddSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-remove-selector':
+                            return (
+                                mcpRemoveSelectorRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'mcp-custom-type-selector':
+                            return (
+                                mcpCustomTypeSelectorRef.current?.handleInput(inputStr, key) ??
+                                false
+                            );
+                        case 'mcp-custom-wizard':
+                            return mcpCustomWizardRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'session-subcommand-selector':
+                            return (
+                                sessionSubcommandSelectorRef.current?.handleInput(inputStr, key) ??
+                                false
+                            );
+                        default:
+                            return false;
                     }
-
-                    if (
-                        ui.activeOverlay === 'resource-autocomplete' &&
-                        resourceAutocompleteRef.current
-                    ) {
-                        return resourceAutocompleteRef.current.handleInput(inputStr, key);
-                    }
-
-                    if (ui.activeOverlay === 'model-selector' && modelSelectorRef.current) {
-                        return modelSelectorRef.current.handleInput(inputStr, key);
-                    }
-
-                    if (ui.activeOverlay === 'session-selector' && sessionSelectorRef.current) {
-                        return sessionSelectorRef.current.handleInput(inputStr, key);
-                    }
-
-                    // Return false to indicate input was not consumed
-                    return false;
                 },
             }),
             [approval, ui.activeOverlay]
         );
 
         // NOTE: Automatic overlay detection removed to prevent infinite loop
-        // Overlays are now shown explicitly via SHOW_OVERLAY actions from InputContainer
+        // Overlays are now shown explicitly via setUi from InputContainer
         // or from the main component's input detection logic
+
+        // Helper: Complete approval and process queue
+        const completeApproval = useCallback(() => {
+            setApprovalQueue((queue) => {
+                if (queue.length > 0) {
+                    // Show next approval from queue
+                    const [next, ...rest] = queue;
+                    setApproval(next!);
+                    setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                    return rest;
+                } else {
+                    // No more approvals
+                    setApproval(null);
+                    setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                    return [];
+                }
+            });
+        }, [setApproval, setApprovalQueue, setUi]);
 
         // Handle approval responses
         const handleApprove = useCallback(
@@ -108,9 +204,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     data: { rememberChoice },
                 });
 
-                dispatch({ type: 'APPROVAL_COMPLETE' });
+                completeApproval();
             },
-            [approval, eventBus, dispatch]
+            [approval, eventBus, completeApproval]
         );
 
         const handleDeny = useCallback(() => {
@@ -124,8 +220,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 message: 'User denied the tool execution',
             });
 
-            dispatch({ type: 'APPROVAL_COMPLETE' });
-        }, [approval, eventBus, dispatch]);
+            completeApproval();
+        }, [approval, eventBus, completeApproval]);
 
         const handleCancelApproval = useCallback(() => {
             if (!approval || !eventBus) return;
@@ -138,87 +234,89 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 message: 'User cancelled the approval request',
             });
 
-            dispatch({ type: 'APPROVAL_COMPLETE' });
-        }, [approval, eventBus, dispatch]);
+            completeApproval();
+        }, [approval, eventBus, completeApproval]);
 
         // Handle model selection
         const handleModelSelect = useCallback(
             async (provider: string, model: string) => {
-                dispatch({ type: 'CLOSE_OVERLAY' });
-                dispatch({ type: 'INPUT_CLEAR' });
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
 
                 try {
-                    dispatch({
-                        type: 'MESSAGE_ADD',
-                        message: {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
                             id: generateMessageId('system'),
                             role: 'system',
                             content: `🔄 Switching to ${model} (${provider})...`,
                             timestamp: new Date(),
                         },
-                    });
+                    ]);
 
-                    // Pass sessionId from state to switchLLM (WebUI pattern)
-                    const currentSessionId = state.session.id;
                     await agent.switchLLM(
                         { provider: provider as any, model },
-                        currentSessionId || undefined
+                        session.id || undefined
                     );
 
-                    dispatch({
-                        type: 'MESSAGE_ADD',
-                        message: {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
                             id: generateMessageId('system'),
                             role: 'system',
                             content: `✅ Successfully switched to ${model} (${provider})`,
                             timestamp: new Date(),
                         },
-                    });
+                    ]);
                 } catch (error) {
-                    dispatch({
-                        type: 'ERROR',
-                        errorMessage: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
-                    });
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
                 }
             },
-            [dispatch, agent, state.session.id]
+            [setUi, setInput, setMessages, agent, session.id]
         );
 
         // Handle session selection
         const handleSessionSelect = useCallback(
             async (newSessionId: string) => {
-                dispatch({ type: 'CLOSE_OVERLAY' });
-                dispatch({ type: 'INPUT_CLEAR' });
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
 
                 try {
-                    // Check if already on this session (use state, not getCurrentSessionId)
-                    const currentId = state.session.id;
-                    if (newSessionId === currentId) {
-                        dispatch({
-                            type: 'MESSAGE_ADD',
-                            message: {
+                    // Check if already on this session
+                    if (newSessionId === session.id) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
                                 id: generateMessageId('system'),
                                 role: 'system',
                                 content: `ℹ️  Already using session ${newSessionId.slice(0, 8)}`,
                                 timestamp: new Date(),
                             },
-                        });
+                        ]);
                         return;
                     }
 
-                    // Clear messages immediately before any async operations
-                    // This ensures old conversation is cleared before showing new session
-                    dispatch({ type: 'SESSION_CLEAR' });
-
-                    dispatch({
-                        type: 'SESSION_SET',
-                        sessionId: newSessionId,
+                    // Clear messages and session state before switching
+                    setMessages([]);
+                    setApproval(null);
+                    setApprovalQueue([]);
+                    setSession({
+                        id: newSessionId,
                         hasActiveSession: true,
+                        modelName: session.modelName,
                     });
 
                     // Verify session exists
-                    const session = await agent.getSession(newSessionId);
-                    if (!session) {
+                    const sessionData = await agent.getSession(newSessionId);
+                    if (!sessionData) {
                         throw new Error(`Session ${newSessionId} not found`);
                     }
 
@@ -226,55 +324,65 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const history = await agent.getSessionHistory(newSessionId);
                     if (history && history.length > 0) {
                         const historyMessages = convertHistoryToUIMessages(history, newSessionId);
-                        dispatch({ type: 'MESSAGE_ADD_MULTIPLE', messages: historyMessages });
+                        setMessages(historyMessages);
                     }
 
-                    dispatch({
-                        type: 'MESSAGE_ADD',
-                        message: {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
                             id: generateMessageId('system'),
                             role: 'system',
                             content: `✅ Switched to session ${newSessionId.slice(0, 8)}`,
                             timestamp: new Date(),
                         },
-                    });
+                    ]);
                 } catch (error) {
-                    dispatch({
-                        type: 'ERROR',
-                        errorMessage: `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
-                    });
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
                 }
             },
-            [dispatch, agent, state.session.id]
+            [
+                setUi,
+                setInput,
+                setMessages,
+                setApproval,
+                setApprovalQueue,
+                setSession,
+                agent,
+                session.id,
+                session.modelName,
+            ]
         );
 
         // Handle slash command/prompt selection
         const handlePromptSelect = useCallback(
             async (prompt: PromptInfo) => {
                 const commandText = `/${prompt.name}`;
-                dispatch({ type: 'CLOSE_OVERLAY' });
-                dispatch({ type: 'INPUT_CLEAR' });
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
 
                 // Show user message for the executed command
                 const userMessage = createUserMessage(commandText);
-                dispatch({
-                    type: 'MESSAGE_ADD',
-                    message: userMessage,
-                });
+                setMessages((prev) => [...prev, userMessage]);
 
-                dispatch({ type: 'PROCESSING_START' });
+                setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
 
                 const { CommandService } = await import('../services/CommandService.js');
                 const commandService = new CommandService();
 
                 try {
-                    // Pass sessionId from state to command execution
-                    const currentSessionId = state.session.id;
                     const result = await commandService.executeCommand(
                         prompt.name,
                         [],
                         agent,
-                        currentSessionId || undefined
+                        session.id || undefined
                     );
 
                     if (result.type === 'prompt') {
@@ -283,26 +391,58 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     if (result.type === 'output' && result.output) {
-                        dispatch({
-                            type: 'MESSAGE_ADD',
-                            message: {
+                        const output = result.output;
+                        setMessages((prev) => [
+                            ...prev,
+                            {
                                 id: generateMessageId('command'),
                                 role: 'system',
-                                content: result.output,
+                                content: output,
                                 timestamp: new Date(),
                             },
-                        });
+                        ]);
                     }
 
-                    dispatch({ type: 'PROCESSING_END' });
+                    if (result.type === 'styled' && result.styled) {
+                        const { fallbackText, styledType, styledData } = result.styled;
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: fallbackText,
+                                timestamp: new Date(),
+                                styledType,
+                                styledData,
+                            },
+                        ]);
+                    }
+
+                    setUi((prev) => ({
+                        ...prev,
+                        isProcessing: false,
+                        isCancelling: false,
+                        isThinking: false,
+                    }));
                 } catch (error) {
-                    dispatch({
-                        type: 'ERROR',
-                        errorMessage: error instanceof Error ? error.message : String(error),
-                    });
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    setUi((prev) => ({
+                        ...prev,
+                        isProcessing: false,
+                        isCancelling: false,
+                        isThinking: false,
+                    }));
                 }
             },
-            [dispatch, agent, state.session.id]
+            [setUi, setInput, setMessages, agent, session.id]
         );
 
         // Handle loading command/prompt into input for editing (Tab key)
@@ -310,44 +450,63 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleSystemCommandSelect = useCallback(
             async (command: string) => {
                 // Check if this is an interactive command that should show a selector
-                // instead of being executed
                 if (command === 'model') {
-                    // Update input to full command so auto-detection keeps selector open
-                    dispatch({ type: 'INPUT_CHANGE', value: '/model' });
-                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'model-selector' });
+                    setInput((prev) => ({ ...prev, value: '/model' }));
+                    setUi((prev) => ({ ...prev, activeOverlay: 'model-selector' }));
                     return;
                 }
                 if (command === 'resume' || command === 'switch') {
-                    // Update input to full command so auto-detection keeps selector open
-                    dispatch({ type: 'INPUT_CHANGE', value: `/${command}` });
-                    dispatch({ type: 'SHOW_OVERLAY', overlay: 'session-selector' });
+                    setInput((prev) => ({ ...prev, value: `/${command}` }));
+                    setUi((prev) => ({ ...prev, activeOverlay: 'session-selector' }));
+                    return;
+                }
+                if (command === 'log') {
+                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'log-level-selector',
+                        mcpWizardServerType: null,
+                    }));
+                    return;
+                }
+                if (command === 'mcp') {
+                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'mcp-selector',
+                        mcpWizardServerType: null,
+                    }));
+                    return;
+                }
+                if (command === 'session') {
+                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'session-subcommand-selector',
+                        mcpWizardServerType: null,
+                    }));
                     return;
                 }
 
                 const commandText = `/${command}`;
-                dispatch({ type: 'CLOSE_OVERLAY' });
-                dispatch({ type: 'INPUT_CLEAR' });
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
 
                 // Show user message for the executed command
                 const userMessage = createUserMessage(commandText);
-                dispatch({
-                    type: 'MESSAGE_ADD',
-                    message: userMessage,
-                });
+                setMessages((prev) => [...prev, userMessage]);
 
-                dispatch({ type: 'PROCESSING_START' });
+                setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
 
                 const { CommandService } = await import('../services/CommandService.js');
                 const commandService = new CommandService();
 
                 try {
-                    // Pass sessionId from state to command execution
-                    const currentSessionId = state.session.id;
                     const result = await commandService.executeCommand(
                         command,
                         [],
                         agent,
-                        currentSessionId || undefined
+                        session.id || undefined
                     );
 
                     if (result.type === 'prompt') {
@@ -356,34 +515,66 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     if (result.type === 'output' && result.output) {
-                        dispatch({
-                            type: 'MESSAGE_ADD',
-                            message: {
+                        const output = result.output;
+                        setMessages((prev) => [
+                            ...prev,
+                            {
                                 id: generateMessageId('command'),
                                 role: 'system',
-                                content: result.output,
+                                content: output,
                                 timestamp: new Date(),
                             },
-                        });
+                        ]);
                     }
 
-                    dispatch({ type: 'PROCESSING_END' });
+                    if (result.type === 'styled' && result.styled) {
+                        const { fallbackText, styledType, styledData } = result.styled;
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: fallbackText,
+                                timestamp: new Date(),
+                                styledType,
+                                styledData,
+                            },
+                        ]);
+                    }
+
+                    setUi((prev) => ({
+                        ...prev,
+                        isProcessing: false,
+                        isCancelling: false,
+                        isThinking: false,
+                    }));
                 } catch (error) {
-                    dispatch({
-                        type: 'ERROR',
-                        errorMessage: error instanceof Error ? error.message : String(error),
-                    });
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    setUi((prev) => ({
+                        ...prev,
+                        isProcessing: false,
+                        isCancelling: false,
+                        isThinking: false,
+                    }));
                 }
             },
-            [dispatch, agent, state.session.id]
+            [setInput, setUi, setMessages, agent, session.id]
         );
 
         const handleLoadIntoInput = useCallback(
             (text: string) => {
-                dispatch({ type: 'INPUT_CHANGE', value: text });
-                dispatch({ type: 'CLOSE_OVERLAY' });
+                setInput((prev) => ({ ...prev, value: text }));
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
             },
-            [dispatch]
+            [setInput, setUi]
         );
 
         // Handle resource selection
@@ -396,16 +587,383 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const uriParts = resource.uri.split('/');
                     const reference =
                         resource.name || uriParts[uriParts.length - 1] || resource.uri;
-                    dispatch({ type: 'INPUT_CHANGE', value: `${before}${reference} ` });
+                    setInput((prev) => ({ ...prev, value: `${before}${reference} ` }));
                 }
-                dispatch({ type: 'CLOSE_OVERLAY' });
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
             },
-            [dispatch, input.value]
+            [input.value, setInput, setUi]
         );
 
         const handleClose = useCallback(() => {
-            dispatch({ type: 'CLOSE_OVERLAY' });
-        }, [dispatch]);
+            setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+        }, [setUi]);
+
+        // Handle log level selection
+        const handleLogLevelSelect = useCallback(
+            (level: string) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+
+                // Set level on agent's logger (propagates to all child loggers via shared ref)
+                agent.logger.setLevel(level as LogLevel);
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `📊 Log level set to: ${level}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setUi, setInput, setMessages, agent]
+        );
+
+        // Handle main MCP action selection
+        const handleMcpAction = useCallback(
+            async (action: McpAction) => {
+                switch (action) {
+                    case 'list': {
+                        setUi((prev) => ({
+                            ...prev,
+                            activeOverlay: 'none',
+                            mcpWizardServerType: null,
+                        }));
+                        setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                        setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
+
+                        try {
+                            const { CommandService } = await import(
+                                '../services/CommandService.js'
+                            );
+                            const commandService = new CommandService();
+                            const result = await commandService.executeCommand(
+                                'mcp',
+                                ['list'],
+                                agent,
+                                session.id || undefined
+                            );
+
+                            if (result.type === 'output' && result.output) {
+                                const output = result.output;
+                                setMessages((prev) => [
+                                    ...prev,
+                                    {
+                                        id: generateMessageId('command'),
+                                        role: 'system',
+                                        content: output,
+                                        timestamp: new Date(),
+                                    },
+                                ]);
+                            }
+                            if (result.type === 'styled' && result.styled) {
+                                const { fallbackText, styledType, styledData } = result.styled;
+                                setMessages((prev) => [
+                                    ...prev,
+                                    {
+                                        id: generateMessageId('command'),
+                                        role: 'system',
+                                        content: fallbackText,
+                                        timestamp: new Date(),
+                                        styledType,
+                                        styledData,
+                                    },
+                                ]);
+                            }
+                            setUi((prev) => ({
+                                ...prev,
+                                isProcessing: false,
+                                isCancelling: false,
+                                isThinking: false,
+                            }));
+                        } catch (error) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('error'),
+                                    role: 'system',
+                                    content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                            setUi((prev) => ({
+                                ...prev,
+                                isProcessing: false,
+                                isCancelling: false,
+                                isThinking: false,
+                            }));
+                        }
+                        break;
+                    }
+                    case 'add-preset':
+                        setUi((prev) => ({ ...prev, activeOverlay: 'mcp-add-selector' }));
+                        break;
+                    case 'add-custom':
+                        setUi((prev) => ({ ...prev, activeOverlay: 'mcp-custom-type-selector' }));
+                        break;
+                    case 'remove':
+                        setUi((prev) => ({ ...prev, activeOverlay: 'mcp-remove-selector' }));
+                        break;
+                }
+            },
+            [setUi, setInput, setMessages, agent, session.id]
+        );
+
+        // Handle MCP add selection (presets only)
+        const handleMcpAddSelect = useCallback(
+            async (result: McpAddResult) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🔌 Connecting to ${result.entry.name}...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                try {
+                    await agent.connectMcpServer(result.entry.id, result.entry.config as any);
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Connected to ${result.entry.name}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+                setUi((prev) => ({
+                    ...prev,
+                    isProcessing: false,
+                    isCancelling: false,
+                    isThinking: false,
+                }));
+            },
+            [setUi, setInput, setMessages, agent]
+        );
+
+        // Handle MCP remove selection
+        const handleMcpRemoveSelect = useCallback(
+            async (serverName: string) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🗑️ Removing ${serverName}...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                try {
+                    await agent.removeMcpServer(serverName);
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Removed ${serverName}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `❌ Failed to remove: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+                setUi((prev) => ({
+                    ...prev,
+                    isProcessing: false,
+                    isCancelling: false,
+                    isThinking: false,
+                }));
+            },
+            [setUi, setInput, setMessages, agent]
+        );
+
+        // Handle MCP custom type selection
+        const handleMcpCustomTypeSelect = useCallback(
+            (serverType: McpServerType) => {
+                setUi((prev) => ({
+                    ...prev,
+                    mcpWizardServerType: serverType,
+                    activeOverlay: 'mcp-custom-wizard',
+                }));
+            },
+            [setUi]
+        );
+
+        // Handle MCP custom wizard completion
+        const handleMcpCustomWizardComplete = useCallback(
+            async (config: McpCustomConfig) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🔌 Connecting to ${config.name}...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                try {
+                    // Build the appropriate config based on server type
+                    let serverConfig: any;
+                    if (config.serverType === 'stdio') {
+                        serverConfig = {
+                            transport: 'stdio',
+                            command: config.command,
+                            args: config.args || [],
+                        };
+                    } else if (config.serverType === 'http') {
+                        serverConfig = {
+                            transport: 'http',
+                            url: config.url,
+                        };
+                    } else if (config.serverType === 'sse') {
+                        serverConfig = {
+                            transport: 'sse',
+                            url: config.url,
+                        };
+                    }
+
+                    await agent.connectMcpServer(config.name, serverConfig);
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Connected to ${config.name}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+                setUi((prev) => ({
+                    ...prev,
+                    isProcessing: false,
+                    isCancelling: false,
+                    isThinking: false,
+                }));
+            },
+            [setUi, setInput, setMessages, agent]
+        );
+
+        // Handle session subcommand selection
+        const handleSessionSubcommandSelect = useCallback(
+            async (action: SessionAction) => {
+                if (action === 'switch') {
+                    setInput((prev) => ({ ...prev, value: '/session switch' }));
+                    setUi((prev) => ({ ...prev, activeOverlay: 'session-selector' }));
+                    return;
+                }
+
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
+
+                try {
+                    const { CommandService } = await import('../services/CommandService.js');
+                    const commandService = new CommandService();
+                    const result = await commandService.executeCommand(
+                        'session',
+                        [action],
+                        agent,
+                        session.id || undefined
+                    );
+
+                    if (result.type === 'output' && result.output) {
+                        const output = result.output;
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: output,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+                    if (result.type === 'styled' && result.styled) {
+                        const { fallbackText, styledType, styledData } = result.styled;
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('command'),
+                                role: 'system',
+                                content: fallbackText,
+                                timestamp: new Date(),
+                                styledType,
+                                styledData,
+                            },
+                        ]);
+                    }
+                    setUi((prev) => ({
+                        ...prev,
+                        isProcessing: false,
+                        isCancelling: false,
+                        isThinking: false,
+                    }));
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    setUi((prev) => ({
+                        ...prev,
+                        isProcessing: false,
+                        isCancelling: false,
+                        isThinking: false,
+                    }));
+                }
+            },
+            [setInput, setUi, setMessages, agent, session.id]
+        );
 
         return (
             <>
@@ -473,7 +1031,92 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onSelectSession={handleSessionSelect}
                             onClose={handleClose}
                             agent={agent}
-                            currentSessionId={state.session.id || undefined}
+                            currentSessionId={session.id || undefined}
+                        />
+                    </Box>
+                )}
+
+                {/* Log level selector */}
+                {ui.activeOverlay === 'log-level-selector' && (
+                    <Box marginTop={1}>
+                        <LogLevelSelector
+                            ref={logLevelSelectorRef}
+                            isVisible={true}
+                            onSelect={handleLogLevelSelect}
+                            onClose={handleClose}
+                            agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP selector */}
+                {ui.activeOverlay === 'mcp-selector' && (
+                    <Box marginTop={1}>
+                        <McpSelector
+                            ref={mcpSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpAction}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP add selector */}
+                {ui.activeOverlay === 'mcp-add-selector' && (
+                    <Box marginTop={1}>
+                        <McpAddSelector
+                            ref={mcpAddSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpAddSelect}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP remove selector */}
+                {ui.activeOverlay === 'mcp-remove-selector' && (
+                    <Box marginTop={1}>
+                        <McpRemoveSelector
+                            ref={mcpRemoveSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpRemoveSelect}
+                            onClose={handleClose}
+                            agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP custom type selector */}
+                {ui.activeOverlay === 'mcp-custom-type-selector' && (
+                    <Box marginTop={1}>
+                        <McpCustomTypeSelector
+                            ref={mcpCustomTypeSelectorRef}
+                            isVisible={true}
+                            onSelect={handleMcpCustomTypeSelect}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP custom wizard */}
+                {ui.activeOverlay === 'mcp-custom-wizard' && ui.mcpWizardServerType && (
+                    <McpCustomWizard
+                        ref={mcpCustomWizardRef}
+                        isVisible={true}
+                        serverType={ui.mcpWizardServerType}
+                        onComplete={handleMcpCustomWizardComplete}
+                        onClose={handleClose}
+                    />
+                )}
+
+                {/* Session subcommand selector */}
+                {ui.activeOverlay === 'session-subcommand-selector' && (
+                    <Box marginTop={1}>
+                        <SessionSubcommandSelector
+                            ref={sessionSubcommandSelectorRef}
+                            isVisible={true}
+                            onSelect={handleSessionSubcommandSelect}
+                            onClose={handleClose}
                         />
                     </Box>
                 )}

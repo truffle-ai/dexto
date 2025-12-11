@@ -21,6 +21,20 @@ export function createUserMessage(content: string): Message {
 }
 
 /**
+ * Creates a queued user message (shown when message is queued while processing)
+ */
+export function createQueuedUserMessage(content: string, queuePosition: number): Message {
+    return {
+        id: generateMessageId('user-queued'),
+        role: 'user',
+        content,
+        timestamp: new Date(),
+        isQueued: true,
+        queuePosition,
+    };
+}
+
+/**
  * Creates a system message
  */
 export function createSystemMessage(content: string): Message {

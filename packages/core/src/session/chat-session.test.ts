@@ -30,6 +30,7 @@ vi.mock('../logger/index.js', () => ({
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
@@ -43,7 +44,7 @@ describe('ChatSession', () => {
     let mockCache: any;
     let mockDatabase: any;
     let mockBlobStore: any;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     const sessionId = 'test-session-123';
     const mockLLMConfig = LLMConfigSchema.parse({
@@ -67,7 +68,7 @@ describe('ChatSession', () => {
 
         // Mock LLM service
         mockLLMService = {
-            completeTask: vi.fn().mockResolvedValue('Mock response'),
+            stream: vi.fn().mockResolvedValue('Mock response'),
             switchLLM: vi.fn().mockResolvedValue(undefined),
             eventBus: {
                 emit: vi.fn(),
@@ -165,18 +166,6 @@ describe('ChatSession', () => {
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
-
-        // Create mock logger
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            silly: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn().mockReturnThis(),
-            destroy: vi.fn().mockResolvedValue(undefined),
-        };
 
         // Create ChatSession instance
         chatSession = new ChatSession(mockServices, sessionId, mockLogger);
@@ -368,9 +357,9 @@ describe('ChatSession', () => {
         test('should handle conversation errors from LLM service', async () => {
             await chatSession.init();
 
-            mockLLMService.completeTask.mockRejectedValue(new Error('LLM service error'));
+            mockLLMService.stream.mockRejectedValue(new Error('LLM service error'));
 
-            await expect(chatSession.run('test message')).rejects.toThrow('LLM service error');
+            await expect(chatSession.stream('test message')).rejects.toThrow('LLM service error');
         });
     });
 
@@ -383,17 +372,14 @@ describe('ChatSession', () => {
             const userMessage = 'Hello, world!';
             const expectedResponse = 'Hello! How can I help you?';
 
-            mockLLMService.completeTask.mockResolvedValue(expectedResponse);
+            mockLLMService.stream.mockResolvedValue(expectedResponse);
 
-            const response = await chatSession.run(userMessage);
+            const response = await chatSession.stream(userMessage);
 
             expect(response).toBe(expectedResponse);
-            expect(mockLLMService.completeTask).toHaveBeenCalledWith(
-                userMessage,
-                expect.objectContaining({ signal: expect.any(AbortSignal) }),
-                undefined,
-                undefined,
-                undefined
+            expect(mockLLMService.stream).toHaveBeenCalledWith(
+                [{ type: 'text', text: userMessage }],
+                expect.objectContaining({ signal: expect.any(AbortSignal) })
             );
         });
 

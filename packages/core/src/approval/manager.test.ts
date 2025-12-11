@@ -1,25 +1,17 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ApprovalManager } from './manager.js';
 import { ApprovalStatus, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 describe('ApprovalManager', () => {
     let agentEventBus: AgentEventBus;
-    let mockLogger: IDextoLogger;
+    const mockLogger = createMockLogger();
 
     beforeEach(() => {
         agentEventBus = new AgentEventBus();
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            silly: vi.fn(),
-            createChild: vi.fn().mockReturnThis(),
-        } as any;
     });
 
     describe('Configuration - Separate tool and elicitation control', () => {

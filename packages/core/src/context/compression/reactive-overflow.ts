@@ -112,7 +112,7 @@ export class ReactiveOverflowStrategy implements ICompressionStrategy {
         // Create summary message (will be ADDED to history, not replace)
         const summaryMessage: InternalMessage = {
             role: 'assistant',
-            content: summary,
+            content: [{ type: 'text', text: summary }],
             timestamp: Date.now(),
             metadata: {
                 isSummary: true,

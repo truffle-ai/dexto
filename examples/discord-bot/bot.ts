@@ -236,12 +236,28 @@ export function startDiscordBot(agent: DextoAgent) {
                 const sessionId = getDiscordSessionId(message.author.id);
                 await message.channel.sendTyping();
 
-                // Use modern generate() API with proper options structure
-                const response = await agent.generate(userText, {
-                    sessionId,
-                    imageData: imageDataInput,
-                    fileData: fileDataInput,
-                });
+                // Build content array from message and attachments
+                const content: import('@dexto/core').ContentPart[] = [];
+                if (userText) {
+                    content.push({ type: 'text', text: userText });
+                }
+                if (imageDataInput) {
+                    content.push({
+                        type: 'image',
+                        image: imageDataInput.image,
+                        mimeType: imageDataInput.mimeType,
+                    });
+                }
+                if (fileDataInput) {
+                    content.push({
+                        type: 'file',
+                        data: fileDataInput.data,
+                        mimeType: fileDataInput.mimeType,
+                        filename: fileDataInput.filename,
+                    });
+                }
+
+                const response = await agent.generate(content, sessionId);
 
                 const responseText = response.content;
 

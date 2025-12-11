@@ -61,7 +61,6 @@ function useSessionUserMessages(sessionId: string | null) {
  * - History cursor resets when user types new input
  * - Loads previous user messages from session history via TanStack Query
  *
- * Similar to Codex CLI's chat_composer_history.rs
  */
 export function useInputHistory(sessionId: string | null) {
     const queryClient = useQueryClient();

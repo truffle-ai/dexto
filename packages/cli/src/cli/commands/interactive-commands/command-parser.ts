@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
+import type { StyledOutput } from '../../ink-cli/services/CommandService.js';
 
 export interface CommandResult {
     type: 'command' | 'prompt';
@@ -8,6 +9,14 @@ export interface CommandResult {
     rawInput: string;
 }
 
+/**
+ * Command handler return type:
+ * - boolean: Command handled (true) or not found (false)
+ * - string: Output text to display
+ * - StyledOutput: Styled output with structured data for rich rendering
+ */
+export type CommandHandlerResult = boolean | string | StyledOutput;
+
 export interface CommandDefinition {
     name: string;
     description: string;
@@ -15,7 +24,7 @@ export interface CommandDefinition {
     category?: string;
     aliases?: string[];
     subcommands?: CommandDefinition[];
-    handler: (args: string[], agent: DextoAgent) => Promise<boolean | string>; // Can return string for ink-cli output
+    handler: (args: string[], agent: DextoAgent) => Promise<CommandHandlerResult>;
 }
 
 /**

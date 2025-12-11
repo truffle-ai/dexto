@@ -24,7 +24,7 @@ await agent.start();
 const session = await agent.createSession();
 const response = await agent.generate(
   'Read package.json and tell me the version',
-  { sessionId: session.id }
+  session.id
 );
 
 console.log(response.content);
@@ -54,7 +54,7 @@ const session = await agent.createSession();
 
 const response = await agent.generate(
   'Read package.json and tell me the version',
-  { sessionId: session.id }
+  session.id
 );
 
 console.log(response.content);
@@ -98,7 +98,7 @@ Now ask it to do both:
 ```typescript
 await agent.generate(
   'Search for TypeScript best practices and save a summary to tips.md',
-  { sessionId: session.id }
+  session.id
 );
 ```
 

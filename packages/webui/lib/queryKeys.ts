@@ -12,7 +12,7 @@
  * - queryClient.invalidateQueries({ queryKey: queryKeys.agents.all })
  */
 
-import type { ServerRegistryFilter } from '@/types';
+import type { ServerRegistryFilter } from '@dexto/registry';
 
 export const queryKeys = {
     // Agent-related queries

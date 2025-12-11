@@ -20,27 +20,19 @@ import {
     matchesAnyMimePattern,
     fileTypesToMimePatterns,
     filterCompacted,
+    sanitizeToolResultToContentWithBlobs,
 } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
 import * as registry from '../llm/registry.js';
-import { IDextoLogger } from '../logger/v2/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock the registry module
 vi.mock('../llm/registry.js');
 const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
 
 // Create a mock logger for tests
-const mockLogger: IDextoLogger = {
-    debug: vi.fn(),
-    silly: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    trackException: vi.fn(),
-    createChild: vi.fn(),
-    destroy: vi.fn(),
-};
+const mockLogger = createMockLogger();
 
 class FakeBlobStore implements BlobStore {
     private counter = 0;
@@ -506,7 +498,9 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should only filter user messages with array content', () => {
-        const messages: InternalMessage[] = [
+        // Note: system, assistant, and tool messages use string content for simplicity in tests.
+        // The function only processes user messages with array content.
+        const messages = [
             {
                 role: 'system',
                 content: 'You are a helpful assistant',
@@ -528,7 +522,7 @@ describe('filterMessagesByLLMCapabilities', () => {
                     { type: 'file', data: 'data', mimeType: 'application/pdf' },
                 ],
             },
-        ];
+        ] as unknown as InternalMessage[];
 
         // Mock validation to reject the file
         mockValidateModelFileSupport.mockReturnValue({
@@ -890,13 +884,247 @@ describe('fileTypesToMimePatterns', () => {
     });
 });
 
+describe('expandBlobReferences', () => {
+    // Import the function we're testing
+    let expandBlobReferences: typeof import('./utils.js').expandBlobReferences;
+
+    beforeEach(async () => {
+        const utils = await import('./utils.js');
+        expandBlobReferences = utils.expandBlobReferences;
+    });
+
+    // Create a mock ResourceManager
+    function createMockResourceManager(
+        blobData: Record<string, { blob?: string; mimeType?: string; text?: string }>
+    ) {
+        return {
+            read: vi.fn(async (uri: string) => {
+                const id = uri.startsWith('blob:') ? uri.slice(5) : uri;
+                const data = blobData[id];
+                if (!data) {
+                    throw new Error(`Blob not found: ${uri}`);
+                }
+                return {
+                    contents: [
+                        {
+                            ...(data.blob ? { blob: data.blob } : {}),
+                            ...(data.mimeType ? { mimeType: data.mimeType } : {}),
+                            ...(data.text ? { text: data.text } : {}),
+                        },
+                    ],
+                    _meta: {},
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+    }
+
+    test('should return empty array for null content', async () => {
+        const resourceManager = createMockResourceManager({});
+        const result = await expandBlobReferences(null, resourceManager, mockLogger);
+        expect(result).toEqual([]);
+    });
+
+    test('should return TextPart unchanged if no blob references', async () => {
+        const resourceManager = createMockResourceManager({});
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: 'Hello world' }],
+            resourceManager,
+            mockLogger
+        );
+        expect(result).toEqual([{ type: 'text', text: 'Hello world' }]);
+    });
+
+    test('should expand blob reference in TextPart', async () => {
+        const resourceManager = createMockResourceManager({
+            abc123: { blob: 'base64imagedata', mimeType: 'image/png' },
+        });
+
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: 'Check this image: @blob:abc123' }],
+            resourceManager,
+            mockLogger
+        );
+
+        expect(result.length).toBe(2);
+        expect(result[0]).toEqual({ type: 'text', text: 'Check this image: ' });
+        expect(result[1]).toMatchObject({
+            type: 'image',
+            image: 'base64imagedata',
+            mimeType: 'image/png',
+        });
+    });
+
+    test('should expand multiple blob references in TextPart', async () => {
+        const resourceManager = createMockResourceManager({
+            aaa111: { blob: 'imagedata1', mimeType: 'image/png' },
+            bbb222: { blob: 'imagedata2', mimeType: 'image/jpeg' },
+        });
+
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: 'Image 1: @blob:aaa111 and Image 2: @blob:bbb222' }],
+            resourceManager,
+            mockLogger
+        );
+
+        expect(result.length).toBe(4);
+        expect(result[0]).toEqual({ type: 'text', text: 'Image 1: ' });
+        expect(result[1]).toMatchObject({ type: 'image', image: 'imagedata1' });
+        expect(result[2]).toEqual({ type: 'text', text: ' and Image 2: ' });
+        expect(result[3]).toMatchObject({ type: 'image', image: 'imagedata2' });
+    });
+
+    test('should pass through array content without blob references', async () => {
+        const resourceManager = createMockResourceManager({});
+        const content = [
+            { type: 'text' as const, text: 'Hello' },
+            { type: 'image' as const, image: 'regularbase64', mimeType: 'image/png' },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result).toEqual(content);
+    });
+
+    test('should expand blob reference in image part', async () => {
+        const resourceManager = createMockResourceManager({
+            aaa000bbb111: { blob: 'resolvedimagedata', mimeType: 'image/png' },
+        });
+
+        const content = [
+            { type: 'image' as const, image: '@blob:aaa000bbb111', mimeType: 'image/png' },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'image',
+            image: 'resolvedimagedata',
+            mimeType: 'image/png',
+        });
+    });
+
+    test('should expand blob reference in file part', async () => {
+        const resourceManager = createMockResourceManager({
+            fff000eee111: { blob: 'resolvedfiledata', mimeType: 'application/pdf' },
+        });
+
+        const content = [
+            {
+                type: 'file' as const,
+                data: '@blob:fff000eee111',
+                mimeType: 'application/pdf',
+                filename: 'doc.pdf',
+            },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'file',
+            data: 'resolvedfiledata',
+            mimeType: 'application/pdf',
+        });
+    });
+
+    test('should handle failed blob resolution gracefully', async () => {
+        const resourceManager = createMockResourceManager({}); // No blobs available
+
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: 'Check: @blob:abc000def111' }],
+            resourceManager,
+            mockLogger
+        );
+
+        // Should return a fallback text part
+        expect(result.length).toBe(2);
+        expect(result[0]).toEqual({ type: 'text', text: 'Check: ' });
+        expect(result[1]).toMatchObject({
+            type: 'text',
+            text: expect.stringContaining('unavailable'),
+        });
+    });
+
+    test('should preserve UI resource parts unchanged', async () => {
+        const resourceManager = createMockResourceManager({});
+        const content = [
+            { type: 'text' as const, text: 'Hello' },
+            {
+                type: 'ui-resource' as const,
+                uri: 'ui://example',
+                mimeType: 'text/html',
+                content: '<div>test</div>',
+            },
+        ];
+
+        const result = await expandBlobReferences(content, resourceManager, mockLogger);
+
+        expect(result).toEqual(content);
+    });
+
+    test('should filter blobs by allowedMediaTypes', async () => {
+        const resourceManager = {
+            read: vi.fn(async (_uri: string) => {
+                return {
+                    contents: [{ blob: 'videodata', mimeType: 'video/mp4' }],
+                    _meta: { size: 1000, originalName: 'video.mp4' },
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: '@blob:abc123def456' }],
+            resourceManager,
+            mockLogger,
+            ['image/*'] // Only allow images
+        );
+
+        // Should return a placeholder since video is not in allowedMediaTypes
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'text',
+            text: expect.stringContaining('Video'),
+        });
+    });
+
+    test('should expand allowed media types', async () => {
+        const resourceManager = {
+            read: vi.fn(async (_uri: string) => {
+                return {
+                    contents: [{ blob: 'imagedata', mimeType: 'image/png' }],
+                    _meta: { size: 1000 },
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: '@blob:abc123def456' }],
+            resourceManager,
+            mockLogger,
+            ['image/*'] // Allow images
+        );
+
+        expect(result.length).toBe(1);
+        expect(result[0]).toMatchObject({
+            type: 'image',
+            image: 'imagedata',
+            mimeType: 'image/png',
+        });
+    });
+});
+
 describe('filterCompacted', () => {
+    // Note: These tests use string content for simplicity. The actual InternalMessage type
+    // requires MessageContentPart[], but filterCompacted only checks metadata.isSummary
+    // and slices the array - it doesn't inspect content structure.
+
     it('should return all messages if no summary exists', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Hello' },
             { role: 'assistant', content: 'Hi there' },
             { role: 'user', content: 'How are you?' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -905,7 +1133,7 @@ describe('filterCompacted', () => {
     });
 
     it('should return summary and messages after it when summary exists', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Old message 1' },
             { role: 'assistant', content: 'Old response 1' },
             {
@@ -915,7 +1143,7 @@ describe('filterCompacted', () => {
             },
             { role: 'user', content: 'New message' },
             { role: 'assistant', content: 'New response' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -927,13 +1155,13 @@ describe('filterCompacted', () => {
     });
 
     it('should use most recent summary when multiple exist', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Very old' },
             { role: 'assistant', content: 'First summary', metadata: { isSummary: true } },
             { role: 'user', content: 'Medium old' },
             { role: 'assistant', content: 'Second summary', metadata: { isSummary: true } },
             { role: 'user', content: 'Recent message' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -950,9 +1178,9 @@ describe('filterCompacted', () => {
     });
 
     it('should handle history with only a summary', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'assistant', content: 'Just a summary', metadata: { isSummary: true } },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -961,11 +1189,11 @@ describe('filterCompacted', () => {
     });
 
     it('should not treat messages with other metadata as summaries', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Message 1' },
             { role: 'assistant', content: 'Response with metadata', metadata: { important: true } },
             { role: 'user', content: 'Message 2' },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
@@ -974,15 +1202,213 @@ describe('filterCompacted', () => {
     });
 
     it('should handle summary at the end of history', () => {
-        const messages: InternalMessage[] = [
+        const messages = [
             { role: 'user', content: 'Old message' },
             { role: 'assistant', content: 'Old response' },
             { role: 'assistant', content: 'Final summary', metadata: { isSummary: true } },
-        ];
+        ] as unknown as InternalMessage[];
 
         const result = filterCompacted(messages);
 
         expect(result).toHaveLength(1);
         expect(result[0]?.content).toBe('Final summary');
+    });
+});
+
+describe('sanitizeToolResultToContentWithBlobs', () => {
+    describe('string input handling', () => {
+        it('should wrap simple string in ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs('Hello, world!', mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]).toEqual({ type: 'text', text: 'Hello, world!' });
+        });
+
+        it('should wrap empty string in ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs('', mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]).toEqual({ type: 'text', text: '' });
+        });
+
+        it('should truncate long strings and return ContentPart array', async () => {
+            // MAX_TOOL_TEXT_CHARS is 8000, so create a string longer than that
+            // Use text with spaces/punctuation to avoid being detected as base64-like
+            const longString = 'This is a sample text line. '.repeat(400); // ~11200 chars
+
+            const result = await sanitizeToolResultToContentWithBlobs(longString, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+            // Verify truncation happened
+            const textPart = result![0] as { type: 'text'; text: string };
+            expect(textPart.text).toContain('chars omitted');
+            expect(textPart.text.length).toBeLessThan(longString.length);
+        });
+
+        it('should convert data URI to image ContentPart', async () => {
+            const dataUri =
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+            const result = await sanitizeToolResultToContentWithBlobs(dataUri, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('image');
+        });
+
+        it('should convert data URI to file ContentPart for non-image types', async () => {
+            const dataUri = 'data:application/pdf;base64,JVBERi0xLjQK';
+
+            const result = await sanitizeToolResultToContentWithBlobs(dataUri, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('file');
+            expect((result![0] as any).mimeType).toBe('application/pdf');
+        });
+
+        it('should treat base64-like strings as text (MCP tools use structured content)', async () => {
+            // MCP-compliant tools return structured { type: 'image', data: base64, mimeType }
+            // Raw base64 strings should be treated as regular text
+            const base64String = Buffer.from('test binary data here for base64 encoding test')
+                .toString('base64')
+                .repeat(20); // ~1280 chars
+
+            const result = await sanitizeToolResultToContentWithBlobs(base64String, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            // Should be text, not file - raw base64 strings aren't valid MCP content
+            expect(result![0]?.type).toBe('text');
+            expect((result![0] as any).text).toBe(base64String);
+        });
+    });
+
+    describe('object input handling', () => {
+        it('should stringify simple object and wrap in ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                { key: 'value', number: 42 },
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+            const text = (result![0] as { type: 'text'; text: string }).text;
+            expect(text).toContain('key');
+            expect(text).toContain('value');
+        });
+
+        it('should handle null input', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(null, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+        });
+
+        it('should handle undefined input', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(undefined, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+        });
+    });
+
+    describe('array input handling', () => {
+        it('should process array of strings into ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                ['first', 'second', 'third'],
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(3);
+            expect(result![0]).toEqual({ type: 'text', text: 'first' });
+            expect(result![1]).toEqual({ type: 'text', text: 'second' });
+            expect(result![2]).toEqual({ type: 'text', text: 'third' });
+        });
+
+        it('should handle mixed array with strings and objects', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                ['text message', { data: 123 }],
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(2);
+            expect(result![0]).toEqual({ type: 'text', text: 'text message' });
+            expect(result![1]?.type).toBe('text');
+        });
+
+        it('should skip null items in array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                ['first', null, 'third'],
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(2);
+            expect(result![0]).toEqual({ type: 'text', text: 'first' });
+            expect(result![1]).toEqual({ type: 'text', text: 'third' });
+        });
+
+        it('should handle empty array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs([], mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(0);
+        });
+    });
+
+    describe('MCP content handling', () => {
+        it('should handle MCP text content type', async () => {
+            const mcpResult = {
+                content: [{ type: 'text', text: 'MCP text response' }],
+            };
+
+            const result = await sanitizeToolResultToContentWithBlobs(mcpResult, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]).toEqual({ type: 'text', text: 'MCP text response' });
+        });
+
+        it('should handle MCP image content type', async () => {
+            const mcpResult = {
+                content: [
+                    {
+                        type: 'image',
+                        data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk',
+                        mimeType: 'image/png',
+                    },
+                ],
+            };
+
+            const result = await sanitizeToolResultToContentWithBlobs(mcpResult, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('image');
+        });
+    });
+
+    describe('error handling', () => {
+        it('should handle circular references gracefully', async () => {
+            const circular: Record<string, any> = { a: 1 };
+            circular.self = circular;
+
+            // Should not throw, should return some text representation
+            const result = await sanitizeToolResultToContentWithBlobs(circular, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+        });
     });
 });

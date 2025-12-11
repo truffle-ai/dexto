@@ -2473,57 +2473,106 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "message": {
-                    "type": "string",
-                    "description": "The user message text"
+                  "content": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "Text content"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "text"
+                              ],
+                              "description": "Text content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "image"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "image": {
+                                  "type": "string",
+                                  "description": "Base64-encoded image data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., image/png)"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "image"
+                              ],
+                              "description": "Image content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "data": {
+                                  "type": "string",
+                                  "description": "Base64-encoded file data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., application/pdf)"
+                                },
+                                "filename": {
+                                  "type": "string",
+                                  "description": "Optional filename"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "data",
+                                "mimeType"
+                              ],
+                              "description": "File content part"
+                            }
+                          ],
+                          "description": "Content part - text, image, or file"
+                        }
+                      }
+                    ],
+                    "description": "Message content - string for text, or ContentPart[] for multimodal"
                   },
                   "sessionId": {
                     "type": "string",
                     "minLength": 1,
                     "description": "The session to use for this message"
-                  },
-                  "imageData": {
-                    "type": "object",
-                    "properties": {
-                      "image": {
-                        "type": "string",
-                        "description": "Base64-encoded image data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the image (e.g., image/png)"
-                      }
-                    },
-                    "required": [
-                      "image",
-                      "mimeType"
-                    ],
-                    "description": "Optional image data to include with the message"
-                  },
-                  "fileData": {
-                    "type": "object",
-                    "properties": {
-                      "data": {
-                        "type": "string",
-                        "description": "Base64-encoded file data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the file (e.g., application/pdf)"
-                      },
-                      "filename": {
-                        "type": "string",
-                        "description": "The filename"
-                      }
-                    },
-                    "required": [
-                      "data",
-                      "mimeType"
-                    ],
-                    "description": "Optional file data to include with the message"
                   }
                 },
                 "required": [
+                  "content",
                   "sessionId"
                 ],
                 "description": "Request body for sending a message to the agent"
@@ -2579,57 +2628,106 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "message": {
-                    "type": "string",
-                    "description": "The user message text"
+                  "content": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "Text content"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "text"
+                              ],
+                              "description": "Text content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "image"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "image": {
+                                  "type": "string",
+                                  "description": "Base64-encoded image data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., image/png)"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "image"
+                              ],
+                              "description": "Image content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "data": {
+                                  "type": "string",
+                                  "description": "Base64-encoded file data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., application/pdf)"
+                                },
+                                "filename": {
+                                  "type": "string",
+                                  "description": "Optional filename"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "data",
+                                "mimeType"
+                              ],
+                              "description": "File content part"
+                            }
+                          ],
+                          "description": "Content part - text, image, or file"
+                        }
+                      }
+                    ],
+                    "description": "Message content - string for text, or ContentPart[] for multimodal"
                   },
                   "sessionId": {
                     "type": "string",
                     "minLength": 1,
                     "description": "The session to use for this message"
-                  },
-                  "imageData": {
-                    "type": "object",
-                    "properties": {
-                      "image": {
-                        "type": "string",
-                        "description": "Base64-encoded image data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the image (e.g., image/png)"
-                      }
-                    },
-                    "required": [
-                      "image",
-                      "mimeType"
-                    ],
-                    "description": "Optional image data to include with the message"
-                  },
-                  "fileData": {
-                    "type": "object",
-                    "properties": {
-                      "data": {
-                        "type": "string",
-                        "description": "Base64-encoded file data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the file (e.g., application/pdf)"
-                      },
-                      "filename": {
-                        "type": "string",
-                        "description": "The filename"
-                      }
-                    },
-                    "required": [
-                      "data",
-                      "mimeType"
-                    ],
-                    "description": "Optional file data to include with the message"
                   }
                 },
                 "required": [
+                  "content",
                   "sessionId"
                 ],
                 "description": "Request body for sending a message to the agent"
@@ -2786,57 +2884,106 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "message": {
-                    "type": "string",
-                    "description": "The user message text"
+                  "content": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "Text content"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "text"
+                              ],
+                              "description": "Text content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "image"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "image": {
+                                  "type": "string",
+                                  "description": "Base64-encoded image data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., image/png)"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "image"
+                              ],
+                              "description": "Image content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "data": {
+                                  "type": "string",
+                                  "description": "Base64-encoded file data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., application/pdf)"
+                                },
+                                "filename": {
+                                  "type": "string",
+                                  "description": "Optional filename"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "data",
+                                "mimeType"
+                              ],
+                              "description": "File content part"
+                            }
+                          ],
+                          "description": "Content part - text, image, or file"
+                        }
+                      }
+                    ],
+                    "description": "Message content - string for text, or ContentPart[] for multimodal"
                   },
                   "sessionId": {
                     "type": "string",
                     "minLength": 1,
                     "description": "The session to use for this message"
-                  },
-                  "imageData": {
-                    "type": "object",
-                    "properties": {
-                      "image": {
-                        "type": "string",
-                        "description": "Base64-encoded image data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the image (e.g., image/png)"
-                      }
-                    },
-                    "required": [
-                      "image",
-                      "mimeType"
-                    ],
-                    "description": "Optional image data to include with the message"
-                  },
-                  "fileData": {
-                    "type": "object",
-                    "properties": {
-                      "data": {
-                        "type": "string",
-                        "description": "Base64-encoded file data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "The MIME type of the file (e.g., application/pdf)"
-                      },
-                      "filename": {
-                        "type": "string",
-                        "description": "The filename"
-                      }
-                    },
-                    "required": [
-                      "data",
-                      "mimeType"
-                    ],
-                    "description": "Optional file data to include with the message"
                   }
                 },
                 "required": [
+                  "content",
                   "sessionId"
                 ],
                 "description": "Request body for sending a message to the agent"
@@ -12333,52 +12480,103 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "message": {
-                    "type": "string",
-                    "description": "Text message to queue"
-                  },
-                  "imageData": {
-                    "type": "object",
-                    "properties": {
-                      "image": {
-                        "type": "string",
-                        "description": "Base64-encoded image data"
+                  "content": {
+                    "anyOf": [
+                      {
+                        "type": "string"
                       },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "MIME type of the image"
+                      {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "Text content"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "text"
+                              ],
+                              "description": "Text content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "image"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "image": {
+                                  "type": "string",
+                                  "description": "Base64-encoded image data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., image/png)"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "image"
+                              ],
+                              "description": "Image content part"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ],
+                                  "description": "Content type identifier"
+                                },
+                                "data": {
+                                  "type": "string",
+                                  "description": "Base64-encoded file data or URL"
+                                },
+                                "mimeType": {
+                                  "type": "string",
+                                  "description": "MIME type (e.g., application/pdf)"
+                                },
+                                "filename": {
+                                  "type": "string",
+                                  "description": "Optional filename"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "data",
+                                "mimeType"
+                              ],
+                              "description": "File content part"
+                            }
+                          ],
+                          "description": "Content part - text, image, or file"
+                        }
                       }
-                    },
-                    "required": [
-                      "image",
-                      "mimeType"
                     ],
-                    "description": "Optional image data"
-                  },
-                  "fileData": {
-                    "type": "object",
-                    "properties": {
-                      "data": {
-                        "type": "string",
-                        "description": "Base64-encoded file data"
-                      },
-                      "mimeType": {
-                        "type": "string",
-                        "description": "MIME type of the file"
-                      },
-                      "filename": {
-                        "type": "string",
-                        "description": "Optional filename"
-                      }
-                    },
-                    "required": [
-                      "data",
-                      "mimeType"
-                    ],
-                    "description": "Optional file data"
+                    "description": "Message content - string for text, or ContentPart[] for multimodal"
                   }
                 },
-                "description": "Request body for queueing a message. At least one of message, imageData, or fileData must be provided."
+                "required": [
+                  "content"
+                ],
+                "description": "Request body for queueing a message"
               }
             }
           }

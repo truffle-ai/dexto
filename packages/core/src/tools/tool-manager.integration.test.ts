@@ -10,6 +10,7 @@ import type { IMCPClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
 import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -30,22 +31,9 @@ describe('ToolManager Integration Tests', () => {
     let internalToolsServices: InternalToolsServices;
     let internalToolsConfig: InternalToolsConfig;
     let mockAgentEventBus: AgentEventBus;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     beforeEach(() => {
-        mockLogger = {
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            silly: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(function (this: any) {
-                return this;
-            }),
-            destroy: vi.fn(),
-        } as any;
-
         // Create real MCPManager
         mcpManager = new MCPManager(mockLogger);
 

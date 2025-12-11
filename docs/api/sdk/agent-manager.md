@@ -158,9 +158,7 @@ await agent.start();
 
 // Use the agent
 const session = await agent.createSession();
-const response = await agent.generate('Write a function to reverse a string', {
-  sessionId: session.id
-});
+const response = await agent.generate('Write a function to reverse a string', session.id);
 
 console.log(response.content);
 await agent.stop();
@@ -227,7 +225,7 @@ async function main() {
     await agent.start();
 
     const session = await agent.createSession();
-    const response = await agent.generate('Hello!', { sessionId: session.id });
+    const response = await agent.generate('Hello!', session.id);
     console.log(response.content);
 
     await agent.stop();

@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
-import { Text, type Key } from 'ink';
+import { Text } from 'ink';
+import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent, SessionMetadata } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';

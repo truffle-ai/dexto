@@ -5,12 +5,18 @@
 
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
+import type { DextoAgent } from '@dexto/core';
+import { usePhraseCycler } from '../hooks/usePhraseCycler.js';
+import { useElapsedTime } from '../hooks/useElapsedTime.js';
+import { useTokenCounter } from '../hooks/useTokenCounter.js';
 
 interface StatusBarProps {
+    agent: DextoAgent;
     isProcessing: boolean;
     isThinking: boolean;
     approvalQueueCount: number;
     exitWarningShown?: boolean;
+    copyModeEnabled?: boolean;
 }
 
 /**
@@ -18,11 +24,30 @@ interface StatusBarProps {
  * Provides clear feedback on whether the agent is running or idle
  */
 export function StatusBar({
+    agent,
     isProcessing,
     isThinking,
     approvalQueueCount,
     exitWarningShown = false,
+    copyModeEnabled = false,
 }: StatusBarProps) {
+    // Cycle through witty phrases while processing
+    const { phrase } = usePhraseCycler({ isActive: isProcessing });
+    // Track elapsed time during processing
+    const { formatted: elapsedTime } = useElapsedTime({ isActive: isProcessing });
+    // Track token usage during processing
+    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+    // Show copy mode warning (highest priority)
+    if (copyModeEnabled) {
+        return (
+            <Box paddingX={1} marginBottom={0}>
+                <Text color="yellow" bold>
+                    📋 Copy Mode - Select text with mouse. Press any key to exit.
+                </Text>
+            </Box>
+        );
+    }
+
     // Show exit warning if Ctrl+C was pressed
     if (exitWarningShown) {
         return (
@@ -39,16 +64,8 @@ export function StatusBar({
     }
 
     if (!isProcessing) {
-        // Show idle state - minimal, non-intrusive
-        return (
-            <Box paddingX={1} marginBottom={0}>
-                <Text color="green">●</Text>
-                <Text color="gray" dimColor>
-                    {' '}
-                    Ready
-                </Text>
-            </Box>
-        );
+        // No status bar when idle
+        return null;
     }
 
     // Show initial processing state (before streaming starts) - magenta color
@@ -60,10 +77,10 @@ export function StatusBar({
                 <Text color="magenta">
                     <Spinner type="dots" />
                 </Text>
-                <Text color="magenta"> Processing</Text>
+                <Text color="magenta"> {phrase}</Text>
                 <Text color="gray" dimColor>
                     {' '}
-                    • Press Esc or Ctrl+C to cancel
+                    ({elapsedTime}) • Press Esc to cancel
                 </Text>
             </Box>
         );
@@ -75,13 +92,13 @@ export function StatusBar({
             <Text color="cyan">
                 <Spinner type="dots" />
             </Text>
-            <Text color="cyan"> Processing</Text>
+            <Text color="cyan"> {phrase}</Text>
             {approvalQueueCount > 0 && (
                 <Text color="yellow"> • {approvalQueueCount} approval(s) queued</Text>
             )}
             <Text color="gray" dimColor>
                 {' '}
-                • Press Esc or Ctrl+C to cancel
+                ({elapsedTime}){tokenCount && ` • ${tokenCount}`} • Press Esc to cancel
             </Text>
         </Box>
     );

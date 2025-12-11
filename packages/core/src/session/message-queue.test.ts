@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageQueueService } from './message-queue.js';
 import type { SessionEventBus } from '../events/index.js';
 import type { ContentPart } from '../context/types.js';
+import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 
 // Create a mock SessionEventBus
@@ -13,20 +14,6 @@ function createMockEventBus(): SessionEventBus {
         once: vi.fn(),
         removeAllListeners: vi.fn(),
     } as unknown as SessionEventBus;
-}
-
-// Create a mock logger
-function createMockLogger(): IDextoLogger {
-    return {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        fatal: vi.fn(),
-        child: vi.fn().mockReturnThis(),
-        setLevel: vi.fn(),
-        getLevel: vi.fn().mockReturnValue('info'),
-    } as unknown as IDextoLogger;
 }
 
 describe('MessageQueueService', () => {

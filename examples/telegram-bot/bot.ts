@@ -232,7 +232,7 @@ export async function startTelegramBot(agent: DextoAgent) {
                 }
 
                 // Generate response using the resolved prompt
-                const response = await agent.generate(result.text, { sessionId });
+                const response = await agent.generate(result.text, sessionId);
                 await ctx.reply(response.content || '🤖 No response generated');
             } catch (err) {
                 logger.error(
@@ -289,7 +289,7 @@ export async function startTelegramBot(agent: DextoAgent) {
                     }
 
                     // Prompt is self-contained, execute it directly
-                    const response = await agent.generate(result.text, { sessionId });
+                    const response = await agent.generate(result.text, sessionId);
                     await ctx.reply(response.content || '🤖 No response generated');
                 } catch (error) {
                     logger.error(
@@ -351,7 +351,7 @@ export async function startTelegramBot(agent: DextoAgent) {
         const sessionId = getTelegramSessionId(ctx.from.id);
         try {
             await ctx.replyWithChatAction('typing');
-            const response = await agent.generate(question, { sessionId });
+            const response = await agent.generate(question, sessionId);
             await ctx.reply(response.content || '🤖 No response generated');
         } catch (err) {
             logger.error(
@@ -392,7 +392,7 @@ export async function startTelegramBot(agent: DextoAgent) {
         try {
             const sessionId = getTelegramSessionId(userId);
             const queryTimeout = 15000; // 15 seconds timeout
-            const responsePromise = agent.generate(query, { sessionId });
+            const responsePromise = agent.generate(query, sessionId);
 
             const response = await Promise.race([
                 responsePromise,
@@ -535,12 +535,28 @@ export async function startTelegramBot(agent: DextoAgent) {
         try {
             await ctx.replyWithChatAction('typing');
 
-            // Use modern generate() API with proper options structure
-            const response = await agent.generate(userText, {
-                sessionId,
-                imageData: imageDataInput,
-                fileData: fileDataInput,
-            });
+            // Build content array from message and attachments
+            const content: import('@dexto/core').ContentPart[] = [];
+            if (userText) {
+                content.push({ type: 'text', text: userText });
+            }
+            if (imageDataInput) {
+                content.push({
+                    type: 'image',
+                    image: imageDataInput.image,
+                    mimeType: imageDataInput.mimeType,
+                });
+            }
+            if (fileDataInput) {
+                content.push({
+                    type: 'file',
+                    data: fileDataInput.data,
+                    mimeType: fileDataInput.mimeType,
+                    filename: fileDataInput.filename,
+                });
+            }
+
+            const response = await agent.generate(content, sessionId);
 
             await ctx.reply(response.content || '🤖 No response generated');
 

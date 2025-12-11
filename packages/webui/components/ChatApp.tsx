@@ -68,7 +68,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { serverRegistry } from '@/lib/serverRegistry';
 import { buildConfigFromRegistryEntry, hasEmptyOrPlaceholderValue } from '@/lib/serverConfig';
 import type { McpServerConfig } from '@dexto/core';
-import type { ServerRegistryEntry } from '@/types';
+import type { ServerRegistryEntry } from '@dexto/registry';
 
 interface ChatAppProps {
     sessionId?: string;

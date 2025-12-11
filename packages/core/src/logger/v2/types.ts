@@ -116,6 +116,19 @@ export interface IDextoLogger {
     createChild(component: DextoLogComponent): IDextoLogger;
 
     /**
+     * Set the log level dynamically
+     * Affects this logger and all child loggers created from it (shared level reference)
+     * @param level New log level
+     */
+    setLevel(level: LogLevel): void;
+
+    /**
+     * Get the current log level
+     * @returns Current log level
+     */
+    getLevel(): LogLevel;
+
+    /**
      * Cleanup resources and close transports
      */
     destroy(): Promise<void>;

@@ -1,263 +1,199 @@
 /**
- * Hook for managing agent event bus subscriptions
- * Transforms agent events into state actions
+ * Hook for managing agent event bus subscriptions for NON-STREAMING events.
+ *
+ * Streaming events (llm:thinking, llm:chunk, llm:response, llm:tool-call, llm:tool-result,
+ * llm:error, run:complete, message:dequeued) are handled via agent.stream() iterator in processStream.
+ *
+ * This hook handles:
+ * - approval:request - Tool/command confirmation requests
+ * - llm:switched - Model change notifications
+ * - session:reset - Conversation reset
+ * - session:created - New session creation (e.g., from /clear)
+ * - message:queued - New message added to queue
+ * - message:removed - Message removed from queue (e.g., up arrow edit)
+ *
+ * Uses AbortController pattern for cleanup.
  */
 
 import type React from 'react';
-import { useEffect, useRef } from 'react';
-import type { DextoAgent, AgentEventBus } from '@dexto/core';
+import { useEffect } from 'react';
+import { setMaxListeners } from 'events';
+import type { DextoAgent, QueuedMessage } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
-import type { CLIAction } from '../state/actions.js';
+import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import { generateMessageId } from '../utils/idGenerator.js';
 
-interface UseAgentEventsProps {
-    agent: DextoAgent;
-    dispatch: React.Dispatch<CLIAction>;
+/**
+ * UI state shape (must match InkCLIRefactored)
+ */
+interface UIState {
+    isProcessing: boolean;
     isCancelling: boolean;
+    isThinking: boolean;
+    activeOverlay: OverlayType;
+    exitWarningShown: boolean;
+    exitWarningTimestamp: number | null;
+    mcpWizardServerType: McpWizardServerType;
+    copyModeEnabled: boolean;
 }
 
 /**
- * Subscribes to agent event bus and dispatches state actions
- * Decouples event bus from UI components
+ * Session state shape
  */
-export function useAgentEvents({ agent, dispatch, isCancelling }: UseAgentEventsProps): void {
-    // Use ref for isCancelling to avoid re-registering event handlers on every state change
-    // This prevents race conditions where events could be lost during handler re-registration
-    const isCancellingRef = useRef(isCancelling);
+interface SessionState {
+    id: string | null;
+    hasActiveSession: boolean;
+    modelName: string;
+}
+
+interface UseAgentEventsProps {
+    agent: DextoAgent;
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    setSession: React.Dispatch<React.SetStateAction<SessionState>>;
+    setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
+    setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
+    setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+}
+
+/**
+ * Subscribes to agent event bus for non-streaming events only.
+ * Streaming events are handled via agent.stream() iterator.
+ */
+export function useAgentEvents({
+    agent,
+    setMessages,
+    setUi,
+    setSession,
+    setApproval,
+    setApprovalQueue,
+    setQueuedMessages,
+}: UseAgentEventsProps): void {
     useEffect(() => {
-        isCancellingRef.current = isCancelling;
-    }, [isCancelling]);
+        const bus = agent.agentEventBus;
+        const controller = new AbortController();
+        const { signal } = controller;
 
-    useEffect(() => {
-        const bus: AgentEventBus = agent.agentEventBus;
+        // Increase listener limit for safety
+        setMaxListeners(15, signal);
 
-        // Handle thinking event (when LLM starts processing)
-        // TODO: This event should be renamed to handle actual reasoning tokens (extended thinking)
-        // Currently it just indicates LLM request start, not reasoning token generation
-        // See: https://www.anthropic.com/news/3-5-models-and-computer-use (extended thinking)
-        const handleThinking = () => {
-            if (isCancellingRef.current) return;
-            dispatch({ type: 'THINKING_START' });
-        };
+        // Handle approval requests - these can arrive during streaming
+        bus.on(
+            'approval:request',
+            (event) => {
+                if (
+                    event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
+                    event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION
+                ) {
+                    const newApproval: ApprovalRequest = {
+                        approvalId: event.approvalId,
+                        type: event.type,
+                        timestamp: event.timestamp,
+                        metadata: event.metadata,
+                    };
 
-        // Handle streaming chunks
-        const handleChunk = (payload: {
-            chunkType: 'text' | 'reasoning';
-            content: string;
-            isComplete?: boolean;
-            sessionId: string;
-        }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
-            // End thinking state when first chunk arrives
-            dispatch({ type: 'THINKING_END' });
-            if (payload.chunkType === 'text') {
-                dispatch({
-                    type: 'STREAMING_CHUNK',
-                    content: payload.content,
-                });
-            }
-        };
-
-        // Handle response completion
-        const handleResponse = (payload: { content: string }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
-            dispatch({
-                type: 'STREAMING_END',
-                content: payload.content,
-            });
-            dispatch({
-                type: 'PROCESSING_END',
-            });
-        };
-
-        // Handle errors
-        const handleError = (payload: { error: Error }) => {
-            dispatch({
-                type: 'STREAMING_CANCEL',
-            });
-            dispatch({
-                type: 'SUBMIT_ERROR',
-                errorMessage: payload.error.message,
-            });
-        };
-
-        // Handle tool calls
-        const handleToolCall = (payload: { toolName: string; args: any; callId?: string }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
-
-            // Format args for display (compact, one-line)
-            let argsPreview = '';
-            try {
-                const argsStr = JSON.stringify(payload.args);
-                // Remove outer braces and limit length
-                const cleanArgs = argsStr.replace(/^\{|\}$/g, '').trim();
-                if (cleanArgs.length > 80) {
-                    argsPreview = ` • ${cleanArgs.slice(0, 80)}...`;
-                } else if (cleanArgs.length > 0) {
-                    argsPreview = ` • ${cleanArgs}`;
-                }
-            } catch {
-                argsPreview = '';
-            }
-
-            // Insert before streaming message so tools appear in correct order
-            // Use callId if available for matching with result later
-            const toolMessageId = payload.callId
-                ? `tool-${payload.callId}`
-                : generateMessageId('tool');
-
-            dispatch({
-                type: 'MESSAGE_INSERT_BEFORE_STREAMING',
-                message: {
-                    id: toolMessageId,
-                    role: 'tool',
-                    content: `${payload.toolName}${argsPreview}`,
-                    timestamp: new Date(),
-                    toolStatus: 'running',
-                },
-            });
-        };
-
-        // Handle tool results
-        const handleToolResult = (payload: {
-            toolName: string;
-            callId?: string;
-            sanitized?: any;
-            rawResult?: any;
-            success: boolean;
-        }) => {
-            if (isCancellingRef.current) return; // Ignore events during cancellation
-
-            // Format result preview (4-5 CLI lines, ~400 chars accounting for wrapping)
-            let resultPreview = '';
-            try {
-                const result = payload.sanitized || payload.rawResult;
-                if (result) {
-                    const resultStr =
-                        typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-
-                    // Limit to ~400 chars (roughly 4-5 terminal lines at 80-100 chars width)
-                    const maxChars = 400;
-                    if (resultStr.length > maxChars) {
-                        resultPreview = resultStr.slice(0, maxChars) + '\n...';
-                    } else {
-                        resultPreview = resultStr;
+                    if (event.sessionId !== undefined) {
+                        newApproval.sessionId = event.sessionId;
                     }
-                }
-            } catch {
-                resultPreview = '';
-            }
+                    if (event.timeout !== undefined) {
+                        newApproval.timeout = event.timeout;
+                    }
 
-            // Update the tool message with result preview and mark as finished
-            if (payload.callId) {
-                const toolMessageId = `tool-${payload.callId}`;
-                dispatch({
-                    type: 'MESSAGE_UPDATE',
-                    id: toolMessageId,
-                    update: {
-                        toolResult: resultPreview,
-                        toolStatus: 'finished',
-                    },
-                });
-            }
-        };
-
-        // Handle approval requests
-        const handleApprovalRequest = (event: {
-            approvalId: string;
-            type: string;
-            sessionId?: string | undefined;
-            timeout?: number | undefined;
-            timestamp: Date;
-            metadata: Record<string, any>;
-        }) => {
-            // Handle both tool confirmation and command confirmation approvals in ink-cli
-            if (
-                event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
-                event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION
-            ) {
-                const approval: ApprovalRequest = {
-                    approvalId: event.approvalId,
-                    type: event.type,
-                    timestamp: event.timestamp,
-                    metadata: event.metadata,
-                };
-
-                // Only include optional properties if they're defined
-                if (event.sessionId !== undefined) {
-                    approval.sessionId = event.sessionId;
-                }
-                if (event.timeout !== undefined) {
-                    approval.timeout = event.timeout;
-                }
-
-                dispatch({
-                    type: 'APPROVAL_REQUEST',
-                    approval,
-                });
-            }
-        };
-
-        // Subscribe to events
-        bus.on('llm:thinking', handleThinking);
-        bus.on('llm:chunk', handleChunk);
-        bus.on('llm:response', handleResponse);
-        bus.on('llm:error', handleError);
-        bus.on('llm:tool-call', handleToolCall);
-        bus.on('llm:tool-result', handleToolResult);
-        bus.on('approval:request', handleApprovalRequest);
-
-        // Handle model switch
-        const handleModelSwitch = (payload: any) => {
-            if (payload.newConfig?.model) {
-                dispatch({
-                    type: 'MODEL_UPDATE',
-                    modelName: payload.newConfig.model,
-                });
-            }
-        };
-
-        // Handle conversation reset
-        const handleConversationReset = () => {
-            dispatch({ type: 'CONVERSATION_RESET' });
-        };
-
-        // Handle session creation (e.g., from /clear command)
-        // This maintains separation of concerns: commands emit events, UI handles state
-        const handleSessionCreated = (payload: { sessionId: string | null; switchTo: boolean }) => {
-            if (payload.switchTo) {
-                if (payload.sessionId === null) {
-                    // Clear without creating a new session (deferred creation)
-                    dispatch({ type: 'SESSION_CLEAR' });
-                } else {
-                    // Clear current messages and switch to new session
-                    dispatch({ type: 'SESSION_CLEAR' });
-                    dispatch({
-                        type: 'SESSION_SET',
-                        sessionId: payload.sessionId,
-                        hasActiveSession: true,
+                    // Queue if there's already an approval, otherwise show immediately
+                    setApproval((current) => {
+                        if (current !== null) {
+                            setApprovalQueue((queue) => [...queue, newApproval]);
+                            return current;
+                        }
+                        setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                        return newApproval;
                     });
                 }
-            }
-        };
-        // Subscribe to events
-        bus.on('llm:switched', handleModelSwitch);
-        bus.on('session:reset', handleConversationReset);
-        bus.on('session:created', handleSessionCreated);
+            },
+            { signal }
+        );
 
-        // Cleanup on unmount
+        // Handle model switch
+        bus.on(
+            'llm:switched',
+            (payload) => {
+                if (payload.newConfig?.model) {
+                    setSession((prev) => ({ ...prev, modelName: payload.newConfig.model }));
+                }
+            },
+            { signal }
+        );
+
+        // Handle conversation reset
+        bus.on(
+            'session:reset',
+            () => {
+                setMessages([]);
+                setApproval(null);
+                setApprovalQueue([]);
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+            },
+            { signal }
+        );
+
+        // Handle session creation (e.g., from /clear command)
+        bus.on(
+            'session:created',
+            (payload) => {
+                if (payload.switchTo) {
+                    setMessages([]);
+                    setApproval(null);
+                    setApprovalQueue([]);
+                    setQueuedMessages([]);
+
+                    if (payload.sessionId === null) {
+                        setSession((prev) => ({ ...prev, id: null, hasActiveSession: false }));
+                    } else {
+                        setSession((prev) => ({
+                            ...prev,
+                            id: payload.sessionId,
+                            hasActiveSession: true,
+                        }));
+                    }
+                    setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                }
+            },
+            { signal }
+        );
+
+        // Handle message queued - fetch full queue state from agent
+        bus.on(
+            'message:queued',
+            (payload) => {
+                if (!payload.sessionId) return;
+                // Fetch fresh queue state from agent to ensure consistency
+                agent
+                    .getQueuedMessages(payload.sessionId)
+                    .then((messages) => {
+                        setQueuedMessages(messages);
+                    })
+                    .catch(() => {
+                        // Silently ignore - queue state will sync on next event
+                    });
+            },
+            { signal }
+        );
+
+        // Handle message removed from queue
+        bus.on(
+            'message:removed',
+            (payload) => {
+                setQueuedMessages((prev) => prev.filter((m) => m.id !== payload.id));
+            },
+            { signal }
+        );
+
+        // Note: message:dequeued is handled in processStream (via iterator) for proper synchronization
+        // with streaming events. Don't handle it here via event bus.
+
+        // Cleanup: abort controller removes all listeners at once
         return () => {
-            bus.off('llm:thinking', handleThinking);
-            bus.off('llm:chunk', handleChunk);
-            bus.off('llm:response', handleResponse);
-            bus.off('llm:error', handleError);
-            bus.off('llm:tool-call', handleToolCall);
-            bus.off('llm:tool-result', handleToolResult);
-            bus.off('approval:request', handleApprovalRequest);
-            bus.off('llm:switched', handleModelSwitch);
-            bus.off('session:reset', handleConversationReset);
-            bus.off('session:created', handleSessionCreated);
+            controller.abort();
         };
-    }, [agent, dispatch]); // Note: isCancelling is accessed via ref to avoid re-registering handlers
+    }, [agent, setMessages, setUi, setSession, setApproval, setApprovalQueue, setQueuedMessages]);
 }

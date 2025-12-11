@@ -1,4 +1,5 @@
 // src/agent/DextoAgent.ts
+import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -23,6 +24,7 @@ import { LLMError } from '../llm/errors.js';
 import { AgentError } from './errors.js';
 import { MCPError } from '../mcp/errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { DextoValidationError } from '../errors/DextoValidationError.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
@@ -168,6 +170,9 @@ export class DextoAgent {
     // Approval handler for manual tool confirmation and elicitation
     // Set via setApprovalHandler() before start() if needed
     private approvalHandler?: ApprovalHandler | undefined;
+
+    // Active stream controllers per session - allows cancel() to abort iterators
+    private activeStreamControllers: Map<string, AbortController> = new Map();
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
@@ -465,235 +470,109 @@ export class DextoAgent {
     // ============= CORE AGENT FUNCTIONALITY =============
 
     /**
-     * Main method for processing user input.
-     * Processes user input through the agent's LLM service and returns the response.
+     * Process user input and return the response.
      *
-     * @param textInput - The user's text message or query to process
-     * @param imageDataInput - Optional image data and MIME type for multimodal input
-     * @param fileDataInput - Optional file data and MIME type for file input
+     * @deprecated Use generate() or stream() instead for multi-image support.
+     * This method is kept for backward compatibility and only supports single image/file.
+     *
+     * @param textInput - The user's text message
+     * @param imageDataInput - Optional single image data
+     * @param fileDataInput - Optional single file data
      * @param sessionId - Session ID for the conversation (required)
-     * @param stream - Whether to stream the response (default: false)
-     * @returns Promise that resolves to the AI's response text, or null if no significant response
-     * @throws Error if processing fails
+     * @param _stream - Ignored (streaming is handled internally)
+     * @returns Promise that resolves to the AI's response text
      */
     public async run(
         textInput: string,
         imageDataInput: { image: string; mimeType: string } | undefined,
         fileDataInput: { data: string; mimeType: string; filename?: string } | undefined,
         sessionId: string,
-        stream: boolean = false
+        _stream: boolean = false
     ): Promise<string> {
-        this.ensureStarted();
+        // Convert legacy signature to ContentPart[]
+        const parts: import('./types.js').ContentPart[] = [];
 
-        // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
-        if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
-        }
-        const targetSessionId: string = sessionId;
-
-        // Propagate sessionId through OpenTelemetry context for distributed tracing
-        // This ensures all child spans will have access to the sessionId
-        const activeContext = context.active();
-        const span = trace.getActiveSpan();
-
-        // Add sessionId to span attributes
-        if (span) {
-            span.setAttribute('sessionId', targetSessionId);
+        if (textInput) {
+            parts.push({ type: 'text', text: textInput });
         }
 
-        // Preserve existing baggage entries and add sessionId
-        const existingBaggage = propagation.getBaggage(activeContext);
-        const baggageEntries: Record<string, BaggageEntry> = {};
-
-        // Copy existing baggage entries to preserve them (including metadata)
-        if (existingBaggage) {
-            existingBaggage.getAllEntries().forEach(([key, entry]) => {
-                baggageEntries[key] = { ...entry };
+        if (imageDataInput) {
+            parts.push({
+                type: 'image',
+                image: imageDataInput.image,
+                mimeType: imageDataInput.mimeType,
             });
         }
 
-        // Add or update sessionId while preserving any existing metadata
-        baggageEntries.sessionId = { ...baggageEntries.sessionId, value: targetSessionId };
+        if (fileDataInput) {
+            parts.push({
+                type: 'file',
+                data: fileDataInput.data,
+                mimeType: fileDataInput.mimeType,
+                ...(fileDataInput.filename && { filename: fileDataInput.filename }),
+            });
+        }
 
-        // Create updated context with merged baggage
-        const updatedContext = propagation.setBaggage(
-            activeContext,
-            propagation.createBaggage(baggageEntries)
-        );
-
-        // Debug logging to verify baggage propagation
-        const verifyBaggage = propagation.getBaggage(updatedContext);
-        this.logger.debug(
-            `Baggage after setting sessionId: ${JSON.stringify(
-                Array.from(verifyBaggage?.getAllEntries() || [])
-            )}`
-        );
-
-        // Execute the rest of the method within the updated context
-        return await context.with(updatedContext, async () => {
-            try {
-                // Get session-specific LLM config for validation
-                const llmConfig = this.stateManager.getLLMConfig(targetSessionId);
-
-                // Validate inputs early using session-specific config
-                const validation = validateInputForLLM(
-                    {
-                        text: textInput,
-                        ...(imageDataInput && { imageData: imageDataInput }),
-                        ...(fileDataInput && { fileData: fileDataInput }),
-                    },
-                    {
-                        provider: llmConfig.provider,
-                        model: llmConfig.model,
-                    },
-                    this.logger
-                );
-
-                // Validate input and throw if invalid
-                ensureOk(validation, this.logger);
-
-                // Resolve the concrete ChatSession for the target session id
-                const session: ChatSession =
-                    (await this.sessionManager.getSession(targetSessionId)) ||
-                    (await this.sessionManager.createSession(targetSessionId));
-
-                this.logger.debug(
-                    `DextoAgent.run: sessionId=${targetSessionId}, textLength=${textInput?.length ?? 0}, hasImage=${Boolean(
-                        imageDataInput
-                    )}, hasFile=${Boolean(fileDataInput)}`
-                );
-                // Expand @resource mentions into content before sending to the model
-                let finalText = textInput;
-                let finalImageData = imageDataInput;
-                if (textInput && textInput.includes('@')) {
-                    try {
-                        const resources = await this.resourceManager.list();
-                        const expansion = await expandMessageReferences(
-                            textInput,
-                            resources,
-                            (uri) => this.resourceManager.read(uri)
-                        );
-
-                        // Warn about unresolved references
-                        if (expansion.unresolvedReferences.length > 0) {
-                            const unresolvedNames = expansion.unresolvedReferences
-                                .map((ref) => ref.originalRef)
-                                .join(', ');
-                            this.logger.warn(
-                                `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
-                            );
-                        }
-
-                        // Validate expanded message size (5MB limit)
-                        const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
-                        const expandedSize = Buffer.byteLength(expansion.expandedMessage, 'utf-8');
-                        if (expandedSize > MAX_EXPANDED_SIZE) {
-                            this.logger.warn(
-                                `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
-                            );
-                        }
-
-                        finalText = expansion.expandedMessage;
-
-                        // If we extracted images from resources and don't already have image data, use the first extracted image
-                        if (expansion.extractedImages.length > 0 && !imageDataInput) {
-                            const firstImage = expansion.extractedImages[0];
-                            if (firstImage) {
-                                finalImageData = {
-                                    image: firstImage.image,
-                                    mimeType: firstImage.mimeType,
-                                };
-                                this.logger.debug(
-                                    `Using extracted image: ${firstImage.name} (${firstImage.mimeType})`
-                                );
-                            }
-                        }
-                    } catch (error) {
-                        // Log error but continue with original message to avoid blocking the user
-                        this.logger.error(
-                            `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
-                        );
-                        // Continue with original text instead of throwing
-                    }
-                }
-
-                // Validate that we have either text or media content after expansion
-                if (!finalText.trim() && !finalImageData && !fileDataInput) {
-                    this.logger.warn(
-                        'Resource expansion resulted in empty content. Using original message.'
-                    );
-                    finalText = textInput;
-                }
-
-                // Title generation moved to on-demand API endpoint
-                // Users can call generateSessionTitle() explicitly
-
-                const response = await session.run(
-                    finalText,
-                    finalImageData,
-                    fileDataInput,
-                    stream
-                );
-
-                // Increment message count for this session (counts each)
-                // Fire-and-forget to avoid race conditions during shutdown
-                this.sessionManager
-                    .incrementMessageCount(session.id)
-                    .catch((error) =>
-                        this.logger.warn(
-                            `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
-                        )
-                    );
-
-                return response;
-            } catch (error) {
-                this.logger.error(
-                    `Error during DextoAgent.run: ${error instanceof Error ? error.message : JSON.stringify(error)}`
-                );
-                throw error;
-            }
-        });
+        // Call generate() which handles everything
+        const response = await this.generate(parts.length > 0 ? parts : textInput, sessionId);
+        return response.content;
     }
 
     /**
      * Generate a complete response (waits for full completion).
      * This is the recommended method for non-streaming use cases.
      *
-     * @param message The user's message
-     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @param content String message or array of content parts (text, images, files)
+     * @param sessionId Session ID for the conversation
+     * @param options Optional configuration (signal for cancellation)
      * @returns Promise that resolves to the complete response
      *
      * @example
      * ```typescript
-     * const response = await agent.generate("What is 2+2?", { sessionId: "default" });
+     * // Simple text message
+     * const response = await agent.generate('What is 2+2?', 'session-1');
      * console.log(response.content); // "4"
-     * console.log(response.usage.totalTokens); // 50
+     *
+     * // Multimodal with image
+     * const response = await agent.generate(
+     *     [
+     *         { type: 'text', text: 'Describe this image' },
+     *         { type: 'image', image: base64Data, mimeType: 'image/png' }
+     *     ],
+     *     'session-1'
+     * );
      * ```
      */
     public async generate(
-        message: string,
-        options: import('./types.js').GenerateOptions
+        content: import('./types.js').ContentInput,
+        sessionId: string,
+        options?: import('./types.js').GenerateOptions
     ): Promise<import('./types.js').GenerateResponse> {
         // Collect all events from stream
         const events: StreamingEvent[] = [];
 
-        for await (const event of await this.stream(message, options)) {
+        for await (const event of await this.stream(content, sessionId, options)) {
             events.push(event);
         }
 
-        // Check for error events first - if generation failed, throw the actual error
-        const errorEvent = events.find(
-            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> => e.name === 'llm:error'
+        // Check for non-recoverable error events - only throw on fatal errors
+        // Recoverable errors (like tool failures) are included in the response for the caller to handle
+        const fatalErrorEvent = events.find(
+            (e): e is Extract<StreamingEvent, { name: 'llm:error' }> =>
+                e.name === 'llm:error' && e.recoverable !== true
         );
-        if (errorEvent) {
-            // If it's already a DextoRuntimeError, throw it directly
-            if (errorEvent.error instanceof DextoRuntimeError) {
-                throw errorEvent.error;
+        if (fatalErrorEvent) {
+            // If it's already a Dexto error (Runtime or Validation), throw it directly
+            if (
+                fatalErrorEvent.error instanceof DextoRuntimeError ||
+                fatalErrorEvent.error instanceof DextoValidationError
+            ) {
+                throw fatalErrorEvent.error;
             }
             // Otherwise wrap plain Error in DextoRuntimeError for proper HTTP status handling
-            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            const llmConfig = this.stateManager.getLLMConfig(sessionId);
             throw LLMError.generationFailed(
-                errorEvent.error.message,
+                fatalErrorEvent.error.message,
                 llmConfig.provider,
                 llmConfig.model
             );
@@ -703,7 +582,7 @@ export class DextoAgent {
         const responseEvent = events.find((e) => e.name === 'llm:response');
         if (!responseEvent || responseEvent.name !== 'llm:response') {
             // Get current LLM config for error context
-            const llmConfig = this.stateManager.getLLMConfig(options.sessionId);
+            const llmConfig = this.stateManager.getLLMConfig(sessionId);
             throw LLMError.generationFailed(
                 'Stream did not complete successfully - no response received',
                 llmConfig.provider,
@@ -749,7 +628,7 @@ export class DextoAgent {
             reasoning: responseEvent.reasoning,
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
-            sessionId: options.sessionId,
+            sessionId,
         };
     }
 
@@ -764,46 +643,56 @@ export class DextoAgent {
      * Events are forwarded directly from the AgentEventBus with no mapping layer,
      * providing a unified event system across all API layers.
      *
-     * @param message The user's message
-     * @param options Configuration options (sessionId is required, imageData, fileData, signal are optional)
+     * @param content String message or array of content parts (text, images, files)
+     * @param sessionId Session ID for the conversation
+     * @param options Optional configuration (signal for cancellation)
      * @returns AsyncIterator that yields StreamingEvent objects (core events with name property)
      *
      * @example
      * ```typescript
-     * for await (const event of await agent.stream("Write a poem", { sessionId: "default" })) {
-     *   if (event.name === 'llm:chunk') {
-     *     process.stdout.write(event.content);
-     *   }
-     *   if (event.name === 'llm:tool-call') {
-     *     console.log(`\n[Using ${event.toolName}]\n`);
-     *   }
+     * // Simple text
+     * for await (const event of await agent.stream('Write a poem', 'session-1')) {
+     *   if (event.name === 'llm:chunk') process.stdout.write(event.content);
      * }
+     *
+     * // Multimodal
+     * for await (const event of await agent.stream(
+     *     [{ type: 'text', text: 'Describe this' }, { type: 'image', image: data, mimeType: 'image/png' }],
+     *     'session-1'
+     * )) { ... }
      * ```
      */
     public async stream(
-        message: string,
-        options: import('./types.js').StreamOptions
+        content: import('./types.js').ContentInput,
+        sessionId: string,
+        options?: import('./types.js').StreamOptions
     ): Promise<AsyncIterableIterator<StreamingEvent>> {
         this.ensureStarted();
 
         // Validate sessionId is provided
-        if (!options.sessionId) {
-            throw new Error('sessionId is required in StreamOptions');
+        if (!sessionId) {
+            throw AgentError.apiValidationError('sessionId is required');
         }
 
-        const sessionId = options.sessionId;
-        const imageData = options.imageData;
-        const fileData = options.fileData;
-        const signal = options.signal;
+        const signal = options?.signal;
+
+        // Normalize content: string -> [{ type: 'text', text: string }]
+        let contentParts: import('./types.js').ContentPart[] =
+            typeof content === 'string' ? [{ type: 'text', text: content }] : [...content];
 
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
         let completed = false;
-        let _streamError: Error | null = null;
 
         // Create AbortController for cleanup
         const controller = new AbortController();
         const cleanupSignal = controller.signal;
+
+        // Store controller so cancel() can abort this stream
+        this.activeStreamControllers.set(sessionId, controller);
+
+        // Increase listener limit - stream() registers 12+ event listeners on this signal
+        setMaxListeners(30, cleanupSignal);
 
         // Track listener references for manual cleanup
         // Using Function type here because listeners have different signatures per event
@@ -812,7 +701,7 @@ export class DextoAgent {
             listener: Function;
         }> = [];
 
-        // Cleanup function to remove all listeners
+        // Cleanup function to remove all listeners and stream controller
         const cleanupListeners = () => {
             if (listeners.length === 0) {
                 return; // Already cleaned up
@@ -824,6 +713,8 @@ export class DextoAgent {
                 );
             }
             listeners.length = 0;
+            // Remove from active controllers map
+            this.activeStreamControllers.delete(sessionId);
         };
 
         // Wire external signal to trigger cleanup
@@ -954,45 +845,210 @@ export class DextoAgent {
         });
         listeners.push({ event: 'run:complete', listener: runCompleteListener });
 
-        // Start run in background (fire-and-forget)
-        // Cast imageData to expected format (run() expects simpler { image: string, mimeType: string })
-        const imageDataForRun = imageData
-            ? {
-                  image:
-                      typeof imageData.image === 'string'
-                          ? imageData.image
-                          : imageData.image.toString(),
-                  mimeType: imageData.mimeType || 'image/png',
-              }
-            : undefined;
+        // Start streaming in background (fire-and-forget)
+        (async () => {
+            // Propagate sessionId through OpenTelemetry context for distributed tracing
+            const activeContext = context.active();
+            const activeSpan = trace.getActiveSpan();
 
-        // Convert fileData to format expected by run() (data must be string)
-        const fileDataForRun = fileData
-            ? {
-                  data:
-                      typeof fileData.data === 'string' ? fileData.data : fileData.data.toString(),
-                  mimeType: fileData.mimeType,
-                  ...(fileData.filename && { filename: fileData.filename }),
-              }
-            : undefined;
+            // Add sessionId to span attributes
+            if (activeSpan) {
+                activeSpan.setAttribute('sessionId', sessionId);
+            }
 
-        this.run(message, imageDataForRun, fileDataForRun, sessionId, true).catch((err) => {
-            // Ensure error is always an Error instance for proper typing
-            const error = err instanceof Error ? err : new Error(String(err));
-            _streamError = error;
-            completed = true;
-            this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
+            // Preserve existing baggage entries and add sessionId
+            const existingBaggage = propagation.getBaggage(activeContext);
+            const baggageEntries: Record<string, BaggageEntry> = {};
+            if (existingBaggage) {
+                existingBaggage.getAllEntries().forEach(([key, entry]) => {
+                    baggageEntries[key] = { ...entry };
+                });
+            }
+            baggageEntries.sessionId = { ...baggageEntries.sessionId, value: sessionId };
 
-            // Construct properly typed error event
-            const errorEvent: { name: 'llm:error' } & AgentEventMap['llm:error'] = {
-                name: 'llm:error',
-                error,
-                recoverable: false,
-                context: 'run_failed',
-                sessionId,
-            };
-            eventQueue.push(errorEvent);
-        });
+            const updatedContext = propagation.setBaggage(
+                activeContext,
+                propagation.createBaggage(baggageEntries)
+            );
+
+            // Execute within updated OpenTelemetry context
+            await context.with(updatedContext, async () => {
+                try {
+                    // Get session-specific LLM config for validation
+                    const llmConfig = this.stateManager.getLLMConfig(sessionId);
+
+                    // Extract parts for validation
+                    const textParts = contentParts.filter(
+                        (p): p is import('./types.js').TextPart => p.type === 'text'
+                    );
+                    const textContent = textParts.map((p) => p.text).join('\n');
+                    const imageParts = contentParts.filter(
+                        (p): p is import('./types.js').ImagePart => p.type === 'image'
+                    );
+                    const fileParts = contentParts.filter(
+                        (p): p is import('./types.js').FilePart => p.type === 'file'
+                    );
+
+                    this.logger.debug(
+                        `DextoAgent.stream: sessionId=${sessionId}, textLength=${textContent?.length ?? 0}, imageCount=${imageParts.length}, fileCount=${fileParts.length}`
+                    );
+
+                    // Validate ALL inputs early using session-specific config
+                    // Validate text first (once)
+                    const textValidation = validateInputForLLM(
+                        { text: textContent },
+                        { provider: llmConfig.provider, model: llmConfig.model },
+                        this.logger
+                    );
+                    ensureOk(textValidation, this.logger);
+
+                    // Validate each image
+                    for (const imagePart of imageParts) {
+                        const imageValidation = validateInputForLLM(
+                            {
+                                imageData: {
+                                    image:
+                                        typeof imagePart.image === 'string'
+                                            ? imagePart.image
+                                            : imagePart.image.toString(),
+                                    mimeType: imagePart.mimeType || 'image/png',
+                                },
+                            },
+                            { provider: llmConfig.provider, model: llmConfig.model },
+                            this.logger
+                        );
+                        ensureOk(imageValidation, this.logger);
+                    }
+
+                    // Validate each file
+                    for (const filePart of fileParts) {
+                        const fileValidation = validateInputForLLM(
+                            {
+                                fileData: {
+                                    data:
+                                        typeof filePart.data === 'string'
+                                            ? filePart.data
+                                            : filePart.data.toString(),
+                                    mimeType: filePart.mimeType,
+                                },
+                            },
+                            { provider: llmConfig.provider, model: llmConfig.model },
+                            this.logger
+                        );
+                        ensureOk(fileValidation, this.logger);
+                    }
+
+                    // Expand @resource mentions - returns ALL images as ContentPart[]
+                    if (textContent.includes('@')) {
+                        try {
+                            const resources = await this.resourceManager.list();
+                            const expansion = await expandMessageReferences(
+                                textContent,
+                                resources,
+                                (uri) => this.resourceManager.read(uri)
+                            );
+
+                            // Warn about unresolved references
+                            if (expansion.unresolvedReferences.length > 0) {
+                                const unresolvedNames = expansion.unresolvedReferences
+                                    .map((ref) => ref.originalRef)
+                                    .join(', ');
+                                this.logger.warn(
+                                    `Could not resolve ${expansion.unresolvedReferences.length} resource reference(s): ${unresolvedNames}`
+                                );
+                            }
+
+                            // Validate expanded message size (5MB limit)
+                            const MAX_EXPANDED_SIZE = 5 * 1024 * 1024; // 5MB
+                            const expandedSize = Buffer.byteLength(
+                                expansion.expandedMessage,
+                                'utf-8'
+                            );
+                            if (expandedSize > MAX_EXPANDED_SIZE) {
+                                this.logger.warn(
+                                    `Expanded message size (${(expandedSize / 1024 / 1024).toFixed(2)}MB) exceeds limit (${MAX_EXPANDED_SIZE / 1024 / 1024}MB). Content may be truncated.`
+                                );
+                            }
+
+                            // Update text parts with expanded message
+                            contentParts = contentParts.filter((p) => p.type !== 'text');
+                            if (expansion.expandedMessage.trim()) {
+                                contentParts.unshift({
+                                    type: 'text',
+                                    text: expansion.expandedMessage,
+                                });
+                            }
+
+                            // Add ALL extracted images to content parts
+                            for (const img of expansion.extractedImages) {
+                                contentParts.push({
+                                    type: 'image',
+                                    image: img.image,
+                                    mimeType: img.mimeType,
+                                });
+                                this.logger.debug(
+                                    `Added extracted image: ${img.name} (${img.mimeType})`
+                                );
+                            }
+                        } catch (error) {
+                            this.logger.error(
+                                `Failed to expand resource references: ${error instanceof Error ? error.message : String(error)}. Continuing with original message.`
+                            );
+                        }
+                    }
+
+                    // Validate that we have content after expansion - fallback to original if empty
+                    const hasTextContent = contentParts.some(
+                        (p) => p.type === 'text' && p.text.trim()
+                    );
+                    const hasMediaContent = contentParts.some(
+                        (p) => p.type === 'image' || p.type === 'file'
+                    );
+                    if (!hasTextContent && !hasMediaContent) {
+                        this.logger.warn(
+                            'Resource expansion resulted in empty content. Using original message.'
+                        );
+                        contentParts = [{ type: 'text', text: textContent }];
+                    }
+
+                    // Get or create session
+                    const session: ChatSession =
+                        (await this.sessionManager.getSession(sessionId)) ||
+                        (await this.sessionManager.createSession(sessionId));
+
+                    // Call session.stream() directly with ALL content parts
+                    await session.stream(contentParts, signal ? { signal } : undefined);
+
+                    // Increment message count
+                    this.sessionManager
+                        .incrementMessageCount(session.id)
+                        .catch((error) =>
+                            this.logger.warn(
+                                `Failed to increment message count: ${error instanceof Error ? error.message : String(error)}`
+                            )
+                        );
+                } catch (err) {
+                    // Preserve typed errors, wrap unknown values in AgentError.streamFailed
+                    const error =
+                        err instanceof DextoRuntimeError || err instanceof DextoValidationError
+                            ? err
+                            : err instanceof Error
+                              ? err
+                              : AgentError.streamFailed(String(err));
+                    completed = true;
+                    this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
+
+                    const errorEvent: { name: 'llm:error' } & AgentEventMap['llm:error'] = {
+                        name: 'llm:error',
+                        error,
+                        recoverable: false,
+                        context: 'run_failed',
+                        sessionId,
+                    };
+                    eventQueue.push(errorEvent);
+                }
+            });
+        })();
 
         // Return async iterable iterator
         const iterator: AsyncIterableIterator<StreamingEvent> = {
@@ -1001,8 +1057,8 @@ export class DextoAgent {
                 while (!completed && eventQueue.length === 0) {
                     await new Promise((resolve) => setTimeout(resolve, 0));
 
-                    // Check for abort
-                    if (signal?.aborted) {
+                    // Check for abort (external signal OR internal via cancel())
+                    if (signal?.aborted || cleanupSignal.aborted) {
                         cleanupListeners();
                         controller.abort();
                         return { done: true, value: undefined };
@@ -1129,16 +1185,25 @@ export class DextoAgent {
 
         // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
         if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
         }
 
-        // Attempt to fetch from sessionManager cache (memory only)
+        // Abort the stream iterator first (so consumer's for-await loop exits cleanly)
+        const streamController = this.activeStreamControllers.get(sessionId);
+        if (streamController) {
+            streamController.abort();
+            this.activeStreamControllers.delete(sessionId);
+        }
+
+        // Then cancel the session's LLM/tool execution
         const existing = await this.sessionManager.getSession(sessionId, false);
         if (existing) {
             return existing.cancel();
         }
-        // If not found, nothing to cancel
-        return false;
+        // If no session found but stream was aborted, still return true
+        return !!streamController;
     }
 
     // ============= SESSION MANAGEMENT =============
@@ -1368,7 +1433,9 @@ export class DextoAgent {
 
         // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
         if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
         }
 
         try {

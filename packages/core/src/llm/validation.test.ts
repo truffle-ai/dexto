@@ -1,23 +1,10 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { validateInputForLLM } from './validation.js';
 import { LLMErrorCode } from './error-codes.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import { createSilentMockLogger } from '../logger/v2/test-utils.js';
 
 describe('validateInputForLLM', () => {
-    let mockLogger: IDextoLogger;
-
-    beforeEach(() => {
-        mockLogger = {
-            debug: () => {},
-            info: () => {},
-            warn: () => {},
-            error: () => {},
-            silly: () => {},
-            trackException: () => {},
-            createChild: () => mockLogger,
-            destroy: async () => {},
-        } as IDextoLogger;
-    });
+    const mockLogger = createSilentMockLogger();
 
     describe('text validation', () => {
         test('should pass validation for valid text input', () => {

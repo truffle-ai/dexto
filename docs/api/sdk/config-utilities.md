@@ -178,7 +178,7 @@ async function createAgentFromConfig(configPath: string): Promise<DextoAgent> {
 // Usage
 const agent = await createAgentFromConfig('./agents/my-agent.yml');
 const session = await agent.createSession();
-const response = await agent.generate('Hello!', { sessionId: session.id });
+const response = await agent.generate('Hello!', session.id);
 ```
 
 ---

@@ -9,17 +9,85 @@
  * 2. Active overlay (selector/autocomplete)
  * 3. Global shortcuts (Ctrl+C, Escape - handled specially)
  * 4. Main text input (default)
+ *
+ * Mouse scroll events are handled separately by ScrollProvider.
  */
 
 import type React from 'react';
 import { useEffect, useRef, useCallback } from 'react';
-import { useInput, useApp, type Key } from 'ink';
-import type { CLIState } from '../state/types.js';
-import type { CLIAction } from '../state/actions.js';
-import type { DextoAgent } from '@dexto/core';
+import { useApp } from 'ink';
+import type { UIState, InputState, SessionState, OverlayType, Message } from '../state/types.js';
+import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
+import type { DextoAgent, QueuedMessage } from '@dexto/core';
+import { useKeypress, type Key as RawKey } from './useKeypress.js';
+import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
+import type { TextBuffer } from '../components/shared/text-buffer.js';
+import { generateMessageId } from '../utils/idGenerator.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
+
+/**
+ * Ink-compatible Key interface
+ * Converted from our custom KeypressContext Key
+ */
+export interface Key {
+    upArrow: boolean;
+    downArrow: boolean;
+    leftArrow: boolean;
+    rightArrow: boolean;
+    pageUp: boolean;
+    pageDown: boolean;
+    return: boolean;
+    escape: boolean;
+    ctrl: boolean;
+    shift: boolean;
+    meta: boolean;
+    tab: boolean;
+    backspace: boolean;
+    delete: boolean;
+    /** True if this input came from a paste operation (bracketed paste) */
+    paste: boolean;
+}
+
+/**
+ * Convert our KeypressContext Key to Ink-compatible Key
+ */
+function convertKey(rawKey: RawKey): { input: string; key: Key } {
+    const key: Key = {
+        upArrow: rawKey.name === 'up',
+        downArrow: rawKey.name === 'down',
+        leftArrow: rawKey.name === 'left',
+        rightArrow: rawKey.name === 'right',
+        pageUp: rawKey.name === 'pageup',
+        pageDown: rawKey.name === 'pagedown',
+        return: rawKey.name === 'return' || rawKey.name === 'enter',
+        escape: rawKey.name === 'escape',
+        ctrl: rawKey.ctrl,
+        shift: rawKey.shift,
+        meta: rawKey.meta,
+        tab: rawKey.name === 'tab',
+        backspace: rawKey.name === 'backspace',
+        delete: rawKey.name === 'delete',
+        paste: rawKey.paste,
+    };
+
+    // For insertable characters, use the sequence
+    // For named keys like 'a', 'b', use the name
+    let input = rawKey.sequence;
+
+    // For Ctrl+letter combinations, use the name (e.g., 'c' for Ctrl+C)
+    if (rawKey.ctrl && rawKey.name && rawKey.name.length === 1) {
+        input = rawKey.name;
+    }
+
+    // For paste events, use the full sequence
+    if (rawKey.paste) {
+        input = rawKey.sequence;
+    }
+
+    return { input, key };
+}
 
 /**
  * Input handler function signature
@@ -29,19 +97,31 @@ export type InputHandler = (input: string, key: Key) => boolean | void;
 
 /**
  * Handler configuration for the orchestrator
+ *
+ * Note: Main text input is NOT routed through the orchestrator.
+ * TextBufferInput handles its own input directly via useKeypress.
  */
 export interface InputHandlers {
     /** Handler for approval prompt (highest priority) */
     approval?: InputHandler;
     /** Handler for active overlay (selector/autocomplete) */
     overlay?: InputHandler;
-    /** Handler for main text input (lowest priority) */
-    input?: InputHandler;
 }
 
 export interface UseInputOrchestratorProps {
-    state: CLIState;
-    dispatch: React.Dispatch<CLIAction>;
+    ui: UIState;
+    approval: ApprovalRequest | null;
+    input: InputState;
+    session: SessionState;
+    /** Queued messages (for cancel handling) */
+    queuedMessages: QueuedMessage[];
+    /** Text buffer for clearing input on first Ctrl+C */
+    buffer: TextBuffer;
+    setUi: React.Dispatch<React.SetStateAction<UIState>>;
+    setInput: React.Dispatch<React.SetStateAction<InputState>>;
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     agent: DextoAgent;
     handlers: InputHandlers;
 }
@@ -51,14 +131,14 @@ export interface UseInputOrchestratorProps {
  */
 type FocusTarget = 'approval' | 'overlay' | 'input';
 
-function getFocusTarget(state: CLIState): FocusTarget {
+function getFocusTarget(approval: ApprovalRequest | null, activeOverlay: OverlayType): FocusTarget {
     // Approval has highest priority
-    if (state.approval !== null) {
+    if (approval !== null) {
         return 'approval';
     }
 
     // Active overlay has next priority
-    if (state.ui.activeOverlay !== 'none' && state.ui.activeOverlay !== 'approval') {
+    if (activeOverlay !== 'none' && activeOverlay !== 'approval') {
         return 'overlay';
     }
 
@@ -69,185 +149,285 @@ function getFocusTarget(state: CLIState): FocusTarget {
 /**
  * Unified input orchestrator hook
  *
- * This is the ONLY useInput hook in the entire ink-cli.
+ * This is the ONLY keyboard input hook in the entire ink-cli.
  * All keyboard handling is routed through this single point.
+ * Mouse events are handled separately by MouseProvider/ScrollProvider.
  */
 export function useInputOrchestrator({
-    state,
-    dispatch,
+    ui,
+    approval,
+    input,
+    session,
+    queuedMessages,
+    buffer,
+    setUi,
+    setInput,
+    setMessages,
+    setPendingMessages,
+    setQueuedMessages,
     agent,
     handlers,
 }: UseInputOrchestratorProps): void {
     const { exit } = useApp();
 
-    // Use refs to avoid stale closures in the useInput callback
-    const stateRef = useRef(state);
+    // Use refs to avoid stale closures in the callback
+    const uiRef = useRef(ui);
+    const approvalRef = useRef(approval);
+    const inputRef = useRef(input);
+    const sessionRef = useRef(session);
+    const queuedMessagesRef = useRef(queuedMessages);
+    const bufferRef = useRef(buffer);
     const handlersRef = useRef(handlers);
-    const sessionIdRef = useRef(state.session.id);
 
     // Keep refs in sync
     useEffect(() => {
-        stateRef.current = state;
+        uiRef.current = ui;
+        approvalRef.current = approval;
+        inputRef.current = input;
+        sessionRef.current = session;
+        queuedMessagesRef.current = queuedMessages;
+        bufferRef.current = buffer;
         handlersRef.current = handlers;
-        sessionIdRef.current = state.session.id;
-    }, [state, handlers]);
+    }, [ui, approval, input, session, queuedMessages, buffer, handlers]);
 
     // Auto-clear exit warning after timeout
     useEffect(() => {
-        if (!state.ui.exitWarningShown || !state.ui.exitWarningTimestamp) return;
+        if (!ui.exitWarningShown || !ui.exitWarningTimestamp) return;
 
-        const elapsed = Date.now() - state.ui.exitWarningTimestamp;
+        const elapsed = Date.now() - ui.exitWarningTimestamp;
         const remaining = EXIT_WARNING_TIMEOUT - elapsed;
 
         if (remaining <= 0) {
-            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+            setUi((prev) => ({ ...prev, exitWarningShown: false, exitWarningTimestamp: null }));
             return;
         }
 
         const timer = setTimeout(() => {
-            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+            setUi((prev) => ({ ...prev, exitWarningShown: false, exitWarningTimestamp: null }));
         }, remaining);
 
         return () => clearTimeout(timer);
-    }, [state.ui.exitWarningShown, state.ui.exitWarningTimestamp, dispatch]);
+    }, [ui.exitWarningShown, ui.exitWarningTimestamp, setUi]);
 
     // Handle Ctrl+C (special case - handled globally regardless of focus)
+    // Priority: 1) Cancel if processing, 2) Clear input if has text, 3) Exit warning/exit
     const handleCtrlC = useCallback(() => {
-        const currentState = stateRef.current;
+        const currentUi = uiRef.current;
+        const currentSession = sessionRef.current;
+        const currentBuffer = bufferRef.current;
 
-        if (currentState.ui.isProcessing) {
-            // Cancel the current operation
-            const currentSessionId = sessionIdRef.current;
-            if (!currentSessionId) {
-                // No session - force exit as fallback
-                exit();
-                return;
+        if (currentUi.isProcessing) {
+            // Cancel the current operation via agent
+            // useAgentEvents will handle the UI state updates when error/complete fires
+            if (currentSession.id) {
+                void agent.cancel(currentSession.id).catch(() => {});
             }
-            void agent.cancel(currentSessionId).catch(() => {});
-            dispatch({ type: 'CANCEL_START' });
-            dispatch({ type: 'STREAMING_CANCEL' });
+            setUi((prev) => ({ ...prev, isCancelling: true, isProcessing: false }));
+
             // Clear exit warning if it was shown
-            if (currentState.ui.exitWarningShown) {
-                dispatch({ type: 'EXIT_WARNING_CLEAR' });
+            if (currentUi.exitWarningShown) {
+                setUi((prev) => ({
+                    ...prev,
+                    exitWarningShown: false,
+                    exitWarningTimestamp: null,
+                }));
             }
+        } else if (currentBuffer.text.length > 0) {
+            // Has input text - clear it AND show exit warning
+            // This way: first Ctrl+C clears, second Ctrl+C exits
+            currentBuffer.setText('');
+            setUi((prev) => ({
+                ...prev,
+                exitWarningShown: true,
+                exitWarningTimestamp: Date.now(),
+            }));
         } else {
-            // Not processing - handle exit with double-press safety
-            if (currentState.ui.exitWarningShown) {
+            // No text, not processing - handle exit with double-press safety
+            if (currentUi.exitWarningShown) {
                 // Second Ctrl+C within timeout - actually exit
                 exit();
             } else {
                 // First Ctrl+C - show warning
-                dispatch({ type: 'EXIT_WARNING_SHOW' });
+                setUi((prev) => ({
+                    ...prev,
+                    exitWarningShown: true,
+                    exitWarningTimestamp: Date.now(),
+                }));
             }
         }
-    }, [agent, dispatch, exit]);
+    }, [agent, setUi, exit]);
 
     // Handle Escape (context-aware)
     const handleEscape = useCallback((): boolean => {
-        const currentState = stateRef.current;
+        const currentUi = uiRef.current;
+        const currentSession = sessionRef.current;
+        const currentQueuedMessages = queuedMessagesRef.current;
+        const currentBuffer = bufferRef.current;
 
         // Clear exit warning if shown
-        if (currentState.ui.exitWarningShown) {
-            dispatch({ type: 'EXIT_WARNING_CLEAR' });
+        if (currentUi.exitWarningShown) {
+            setUi((prev) => ({ ...prev, exitWarningShown: false, exitWarningTimestamp: null }));
             return true;
         }
 
         // Cancel processing if active
-        if (currentState.ui.isProcessing) {
-            const currentSessionId = sessionIdRef.current;
-            if (currentSessionId) {
-                void agent.cancel(currentSessionId).catch(() => {});
-                dispatch({ type: 'CANCEL_START' });
-                dispatch({ type: 'STREAMING_CANCEL' });
+        if (currentUi.isProcessing) {
+            if (currentSession.id) {
+                // Cancel current run
+                void agent.cancel(currentSession.id).catch(() => {});
+                // Clear the queue on server (we'll bring messages to input for editing)
+                void agent.clearMessageQueue(currentSession.id).catch(() => {});
             }
+
+            // Finalize any pending messages first (move to messages)
+            setPendingMessages((pending) => {
+                if (pending.length > 0) {
+                    setMessages((prev) => [...prev, ...pending]);
+                }
+                return [];
+            });
+
+            setUi((prev) => ({
+                ...prev,
+                isCancelling: true,
+                isProcessing: false,
+                isThinking: false,
+            }));
+
+            // Add interrupted message
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system',
+                    content: 'Interrupted - what should Dexto do next?',
+                    timestamp: new Date(),
+                },
+            ]);
+
+            // If there were queued messages, bring them back to input for editing
+            if (currentQueuedMessages.length > 0) {
+                // Extract and coalesce text content from all queued messages
+                const coalescedText = currentQueuedMessages
+                    .map((msg) =>
+                        msg.content
+                            .filter(
+                                (part): part is { type: 'text'; text: string } =>
+                                    part.type === 'text'
+                            )
+                            .map((part) => part.text)
+                            .join('\n')
+                    )
+                    .filter((text) => text.length > 0)
+                    .join('\n\n');
+
+                if (coalescedText) {
+                    currentBuffer.setText(coalescedText);
+                    setInput((prev) => ({ ...prev, value: coalescedText }));
+                }
+
+                // Clear the queue state immediately (don't wait for server events)
+                setQueuedMessages([]);
+            }
+
             return true;
         }
 
         // Close overlay if active (let the overlay handler deal with specifics)
-        if (currentState.ui.activeOverlay !== 'none') {
+        if (currentUi.activeOverlay !== 'none') {
             // Don't consume - let overlay handler close it with proper cleanup
             return false;
         }
 
         return false;
-    }, [agent, dispatch]);
+    }, [agent, setUi, setMessages, setPendingMessages, setInput, setQueuedMessages]);
 
-    // The single useInput hook for the entire application
-    useInput((input, key) => {
-        const currentState = stateRef.current;
-        const currentHandlers = handlersRef.current;
+    // The keypress handler for the entire application
+    const handleKeypress = useCallback(
+        (rawKey: RawKey) => {
+            const currentUi = uiRef.current;
+            const currentApproval = approvalRef.current;
+            const currentHandlers = handlersRef.current;
 
-        // === GLOBAL SHORTCUTS (always handled first) ===
+            // Convert to Ink-compatible format
+            const { input: inputStr, key } = convertKey(rawKey);
 
-        // Ctrl+C: Always handle globally for cancellation/exit
-        if (key.ctrl && input === 'c') {
-            handleCtrlC();
-            return;
-        }
-
-        // Escape: Try global handling first
-        if (key.escape) {
-            if (handleEscape()) {
-                return; // Consumed by global handler
+            // === COPY MODE HANDLING ===
+            // When in copy mode, any key exits copy mode (mouse events re-enabled)
+            if (currentUi.copyModeEnabled) {
+                setUi((prev) => ({ ...prev, copyModeEnabled: false }));
+                enableMouseEvents(); // Re-enable mouse events
+                return; // Don't process any other keys while exiting copy mode
             }
-            // Fall through to focused component
-        }
 
-        // === ROUTE TO FOCUSED COMPONENT ===
-        // Handlers return true if they consumed the input, false otherwise.
-        // When overlay handlers don't consume input (e.g., backspace while autocomplete shown),
-        // we fall through to the main input handler.
+            // === GLOBAL SHORTCUTS (always handled first) ===
 
-        const focusTarget = getFocusTarget(currentState);
-        let consumed = false;
+            // Ctrl+S: Toggle copy mode (for text selection in alternate buffer)
+            if (key.ctrl && inputStr === 's') {
+                setUi((prev) => ({ ...prev, copyModeEnabled: true }));
+                disableMouseEvents(); // Disable mouse events so terminal can handle selection
+                return;
+            }
 
-        switch (focusTarget) {
-            case 'approval':
-                if (currentHandlers.approval) {
-                    consumed = currentHandlers.approval(input, key) ?? false;
+            // Ctrl+C: Always handle globally for cancellation/exit
+            if (key.ctrl && inputStr === 'c') {
+                handleCtrlC();
+                return;
+            }
+
+            // Escape: Try global handling first
+            if (key.escape) {
+                if (handleEscape()) {
+                    return; // Consumed by global handler
                 }
-                // Approval always consumes - don't fall through
-                break;
+                // Fall through to focused component
+            }
 
-            case 'overlay':
-                if (currentHandlers.overlay) {
-                    consumed = currentHandlers.overlay(input, key) ?? false;
-                }
-                // If overlay didn't consume, fall through to input handler
-                // This allows typing/deleting while autocomplete is shown
-                if (!consumed && currentHandlers.input) {
+            // === ROUTE TO FOCUSED COMPONENT ===
+            // Only approval and overlay handlers are routed through the orchestrator.
+            // Main text input handles its own keypress directly (via TextBufferInput).
+
+            const focusTarget = getFocusTarget(currentApproval, currentUi.activeOverlay);
+
+            switch (focusTarget) {
+                case 'approval':
+                    if (currentHandlers.approval) {
+                        currentHandlers.approval(inputStr, key);
+                    }
+                    // Approval always consumes - main input won't see it
+                    break;
+
+                case 'overlay':
+                    if (currentHandlers.overlay) {
+                        currentHandlers.overlay(inputStr, key);
+                    }
+                    // Overlay may or may not consume - main input handles independently
+                    break;
+
+                case 'input':
+                    // No routing needed - TextBufferInput handles its own input
                     // Clear exit warning on any typing (user changed their mind)
                     if (
-                        currentState.ui.exitWarningShown &&
+                        currentUi.exitWarningShown &&
                         !key.ctrl &&
                         !key.meta &&
                         !key.escape &&
-                        input.length > 0
+                        inputStr.length > 0
                     ) {
-                        dispatch({ type: 'EXIT_WARNING_CLEAR' });
+                        setUi((prev) => ({
+                            ...prev,
+                            exitWarningShown: false,
+                            exitWarningTimestamp: null,
+                        }));
                     }
-                    currentHandlers.input(input, key);
-                }
-                break;
+                    break;
+            }
+        },
+        [handleCtrlC, handleEscape, setUi]
+    );
 
-            case 'input':
-                // Clear exit warning on any typing (user changed their mind)
-                if (
-                    currentState.ui.exitWarningShown &&
-                    !key.ctrl &&
-                    !key.meta &&
-                    !key.escape &&
-                    input.length > 0
-                ) {
-                    dispatch({ type: 'EXIT_WARNING_CLEAR' });
-                }
-
-                if (currentHandlers.input) {
-                    currentHandlers.input(input, key);
-                }
-                break;
-        }
-    });
+    // Subscribe to keypress events
+    useKeypress(handleKeypress, { isActive: true });
 }
 
 /**

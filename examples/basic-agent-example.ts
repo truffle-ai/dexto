@@ -26,23 +26,17 @@ const session = await agent.createSession();
 
 // Use generate() for simple request/response
 console.log('Asking a question...\n');
-const response = await agent.generate('What is TypeScript and why is it useful?', {
-    sessionId: session.id,
-});
+const response = await agent.generate('What is TypeScript and why is it useful?', session.id);
 console.log(response.content);
 console.log(`\n(Used ${response.usage.totalTokens} tokens)\n`);
 
 // Conversations maintain context within a session
 console.log('---\nAsking for a haiku...\n');
-const haiku = await agent.generate('Write a haiku about TypeScript', {
-    sessionId: session.id,
-});
+const haiku = await agent.generate('Write a haiku about TypeScript', session.id);
 console.log(haiku.content);
 
 console.log('\n---\nAsking to make it funnier...\n');
-const funnier = await agent.generate('Make it funnier', {
-    sessionId: session.id,
-});
+const funnier = await agent.generate('Make it funnier', session.id);
 console.log(funnier.content);
 
 await agent.stop();

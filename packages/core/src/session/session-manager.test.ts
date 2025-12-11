@@ -6,6 +6,7 @@ import { LLMConfigSchema } from '@core/llm/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { ErrorScope, ErrorType } from '@core/errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
+import { createMockLogger } from '@core/logger/v2/test-utils.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
@@ -28,7 +29,7 @@ describe('SessionManager', () => {
     let mockServices: any;
     let mockStorageManager: any;
     let mockLLMConfig: ValidatedLLMConfig;
-    let mockLogger: any;
+    const mockLogger = createMockLogger();
 
     const mockSessionData = {
         id: 'test-session',
@@ -39,19 +40,6 @@ describe('SessionManager', () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
-
-        mockLogger = {
-            silly: vi.fn(),
-            debug: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(function (this: any) {
-                return this;
-            }),
-            destroy: vi.fn(),
-        } as any;
 
         // Mock storage manager with proper getter structure
         const mockCache = {

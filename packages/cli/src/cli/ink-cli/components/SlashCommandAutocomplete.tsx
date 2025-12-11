@@ -8,7 +8,7 @@ import React, {
     useImperativeHandle,
 } from 'react';
 import { Box, Text, useStdout } from 'ink';
-import type { Key } from 'ink';
+import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { PromptInfo } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
 import { getAllCommands } from '../../commands/interactive-commands/commands.js';
@@ -135,7 +135,10 @@ function truncateText(text: string, maxLength: number): string {
     return text.slice(0, maxLength - 1) + '…';
 }
 
-export const SlashCommandAutocomplete = forwardRef<
+/**
+ * Inner component - wrapped with React.memo below
+ */
+const SlashCommandAutocompleteInner = forwardRef<
     SlashCommandAutocompleteHandle,
     SlashCommandAutocompleteProps
 >(function SlashCommandAutocomplete(
@@ -154,21 +157,35 @@ export const SlashCommandAutocomplete = forwardRef<
     const [prompts, setPrompts] = useState<PromptItem[]>([]);
     const [systemCommands, setSystemCommands] = useState<SystemCommandItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedIndex, setSelectedIndex] = useState(0);
-    const [scrollOffset, setScrollOffset] = useState(0);
+    // Combined state to guarantee single render on navigation
+    const [selection, setSelection] = useState({ index: 0, offset: 0 });
     const selectedIndexRef = useRef(0);
     const { stdout } = useStdout();
     const terminalWidth = stdout?.columns || 80;
-    const MAX_VISIBLE_ITEMS = 7; // Reduced from 10 for better spacing
+    const MAX_VISIBLE_ITEMS = 8;
 
-    // Wrapper to set both state and ref synchronously to prevent race conditions
-    const setSelectedIndexSync = useCallback((newIndex: number | ((prev: number) => number)) => {
-        setSelectedIndex((prev) => {
-            const resolved = typeof newIndex === 'function' ? newIndex(prev) : newIndex;
-            selectedIndexRef.current = resolved;
-            return resolved;
-        });
-    }, []);
+    // Update selection AND scroll offset in a single state update
+    // This guarantees exactly one render per navigation action
+    const updateSelection = useCallback(
+        (indexUpdater: number | ((prev: number) => number)) => {
+            setSelection((prev) => {
+                const newIndex =
+                    typeof indexUpdater === 'function' ? indexUpdater(prev.index) : indexUpdater;
+                selectedIndexRef.current = newIndex;
+
+                // Calculate new scroll offset
+                let newOffset = prev.offset;
+                if (newIndex < prev.offset) {
+                    newOffset = newIndex;
+                } else if (newIndex >= prev.offset + MAX_VISIBLE_ITEMS) {
+                    newOffset = Math.max(0, newIndex - MAX_VISIBLE_ITEMS + 1);
+                }
+
+                return { index: newIndex, offset: newOffset };
+            });
+        },
+        [MAX_VISIBLE_ITEMS]
+    );
 
     // Fetch prompts and system commands from agent
     useEffect(() => {
@@ -201,11 +218,9 @@ export const SlashCommandAutocomplete = forwardRef<
                     setSystemCommands(commandList);
                     setIsLoading(false);
                 }
-            } catch (error) {
+            } catch {
                 if (!cancelled) {
-                    console.error(
-                        `Error in fetchCommands: ${error instanceof Error ? error.message : String(error)}`
-                    );
+                    // Silently fail - don't use console.error as it interferes with Ink rendering
                     setPrompts([]);
                     setSystemCommands([]);
                     setIsLoading(false);
@@ -304,27 +319,50 @@ export const SlashCommandAutocomplete = forwardRef<
         return items;
     }, [hasArguments, showCreateOption, filteredPrompts, filteredSystemCommands]);
 
-    // Reset selected index and scroll when items change
-    useEffect(() => {
-        setSelectedIndexSync(0);
-        setScrollOffset(0);
-    }, [combinedItems.length, setSelectedIndexSync]);
+    // Get stable identity for first item (used to detect content changes)
+    const getFirstItemId = (): string | null => {
+        const first = combinedItems[0];
+        if (!first) return null;
+        if (first.kind === 'system') return `sys:${first.command.name}`;
+        if (first.kind === 'prompt') return `prompt:${first.prompt.name}`;
+        return 'create';
+    };
 
-    // Auto-scroll to keep selected item visible
+    // Track items for reset detection (length + first item identity)
+    const currentFirstId = getFirstItemId();
+    const prevItemsRef = useRef({ length: combinedItems.length, firstId: currentFirstId });
+    const itemsChanged =
+        combinedItems.length !== prevItemsRef.current.length ||
+        currentFirstId !== prevItemsRef.current.firstId;
+
+    // Derive clamped selection values during render (always valid, no setState needed)
+    // This prevents the double-render that was causing flickering
+    const selectedIndex = itemsChanged
+        ? 0
+        : Math.min(selection.index, Math.max(0, combinedItems.length - 1));
+    const scrollOffset = itemsChanged
+        ? 0
+        : Math.min(selection.offset, Math.max(0, combinedItems.length - MAX_VISIBLE_ITEMS));
+
+    // Sync state only when items actually changed AND state differs
+    // This effect runs AFTER render, updating state for next user interaction
     useEffect(() => {
-        if (selectedIndex < scrollOffset) {
-            // Selected item is above visible area, scroll up
-            setScrollOffset(selectedIndex);
-        } else if (selectedIndex >= scrollOffset + MAX_VISIBLE_ITEMS) {
-            // Selected item is below visible area, scroll down
-            setScrollOffset(Math.max(0, selectedIndex - MAX_VISIBLE_ITEMS + 1));
+        if (itemsChanged) {
+            prevItemsRef.current = { length: combinedItems.length, firstId: currentFirstId };
+            // Only setState if values actually differ (prevents unnecessary re-render)
+            if (selection.index !== 0 || selection.offset !== 0) {
+                selectedIndexRef.current = 0;
+                setSelection({ index: 0, offset: 0 });
+            } else {
+                selectedIndexRef.current = 0;
+            }
         }
-    }, [selectedIndex, scrollOffset]);
+    }, [itemsChanged, combinedItems.length, currentFirstId, selection.index, selection.offset]);
 
     // Calculate visible items based on scroll offset
     const visibleItems = useMemo(() => {
         return combinedItems.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
-    }, [combinedItems, scrollOffset]);
+    }, [combinedItems, scrollOffset, MAX_VISIBLE_ITEMS]);
 
     // Expose handleInput method via ref
     useImperativeHandle(
@@ -348,12 +386,12 @@ export const SlashCommandAutocomplete = forwardRef<
                 }
 
                 if (key.upArrow) {
-                    setSelectedIndexSync((prev) => (prev - 1 + itemsLength) % itemsLength);
+                    updateSelection((prev) => (prev - 1 + itemsLength) % itemsLength);
                     return true;
                 }
 
                 if (key.downArrow) {
-                    setSelectedIndexSync((prev) => (prev + 1) % itemsLength);
+                    updateSelection((prev) => (prev + 1) % itemsLength);
                     return true;
                 }
 
@@ -421,7 +459,7 @@ export const SlashCommandAutocomplete = forwardRef<
             onSelectPrompt,
             onSelectSystemCommand,
             onCreatePrompt,
-            setSelectedIndexSync,
+            updateSelection,
         ]
     );
 
@@ -464,7 +502,7 @@ export const SlashCommandAutocomplete = forwardRef<
                     const createText = `+ Create new prompt: /${commandQuery || 'name'}`;
                     return (
                         <Box key="create" width={terminalWidth} paddingX={0} paddingY={0}>
-                            <Text color={isSelected ? 'white' : 'gray'} bold={isSelected}>
+                            <Text color={isSelected ? 'green' : 'gray'} bold={isSelected}>
                                 {truncateText(createText, terminalWidth)}
                             </Text>
                         </Box>
@@ -546,3 +584,11 @@ export const SlashCommandAutocomplete = forwardRef<
         </Box>
     );
 });
+
+/**
+ * Export with React.memo to prevent unnecessary re-renders from parent
+ * Only re-renders when props actually change (shallow comparison)
+ */
+export const SlashCommandAutocomplete = React.memo(
+    SlashCommandAutocompleteInner
+) as typeof SlashCommandAutocompleteInner;

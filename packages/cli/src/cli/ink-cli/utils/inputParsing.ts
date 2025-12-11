@@ -13,6 +13,8 @@ export type AutocompleteType = 'none' | 'slash' | 'resource';
 
 /**
  * Interactive selector type
+ * Note: mcp, mcp-add, mcp-remove, log, session-subcommand are NOT auto-detected.
+ * They are shown on Enter via InputContainer to avoid showing while typing.
  */
 export type InteractiveSelectorType = 'none' | 'model' | 'session';
 
@@ -71,6 +73,10 @@ export function detectInteractiveSelector(parsed: CommandResult): InteractiveSel
     ) {
         return 'session';
     }
+
+    // Note: mcp, log, session-subcommand selectors are NOT auto-detected.
+    // They are triggered on Enter via InputContainer.handleSubmit to avoid
+    // showing selectors while user is still typing the command.
 
     return 'none';
 }

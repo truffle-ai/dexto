@@ -154,6 +154,9 @@ importers:
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/registry':
+        specifier: workspace:*
+        version: link:../registry
       '@dexto/server':
         specifier: workspace:*
         version: link:../server
@@ -206,14 +209,14 @@ importers:
         specifier: ^4.7.13
         version: 4.10.4
       ink:
-        specifier: ^6.4.0
-        version: 6.4.0(@types/react@19.1.12)(react@19.1.1)
+        specifier: npm:@jrichman/ink@6.4.6
+        version: '@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1)'
       ink-spinner:
         specifier: ^5.0.0
-        version: 5.0.0(ink@6.4.0(@types/react@19.1.12)(react@19.1.1))(react@19.1.1)
+        version: 5.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1))(react@19.1.1)
       ink-text-input:
         specifier: ^6.0.0
-        version: 6.0.0(ink@6.4.0(@types/react@19.1.12)(react@19.1.1))(react@19.1.1)
+        version: 6.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1))(react@19.1.1)
       ioredis:
         specifier: ^5.7.0
         version: 5.7.0
@@ -235,6 +238,12 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
+      string-width:
+        specifier: ^8.1.0
+        version: 8.1.0
+      strip-ansi:
+        specifier: ^7.1.2
+        version: 7.1.2
       tsx:
         specifier: ^4.19.2
         version: 4.20.5
@@ -377,6 +386,15 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
 
+  packages/registry:
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.20.5)(typescript@5.9.2)(yaml@2.8.1)
+      typescript:
+        specifier: ^5
+        version: 5.9.2
+
   packages/server:
     dependencies:
       '@dexto/agent-management':
@@ -422,6 +440,9 @@ importers:
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/registry':
+        specifier: workspace:*
+        version: link:../registry
       '@mcp-ui/client':
         specifier: ^5.14.1
         version: 5.14.1(@preact/signals-core@1.12.1)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1377,6 +1398,19 @@ packages:
   '@jest/schemas@29.6.3':
     resolution: {integrity: sha512-mo5j5X+jIZmJQveBKeS/clAueipV7KgiX1vMgCxam1RNYiqE1w62n0/tJJnHtjW8ZHcQco5gY85jA3mi0L+nSA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
+
+  '@jrichman/ink@6.4.6':
+    resolution: {integrity: sha512-QHl6l1cl3zPCaRMzt9TUbTX6Q5SzvkGEZDDad0DmSf5SPmT1/90k6pGPejEvDCJprkitwObXpPaTWGHItqsy4g==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@types/react': ^19
+      react: '>=19.0.0'
+      react-devtools-core: ^6.1.2
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react-devtools-core:
+        optional: true
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -4450,19 +4484,6 @@ packages:
       ink: '>=5'
       react: '>=18'
 
-  ink@6.4.0:
-    resolution: {integrity: sha512-v43isNGrHeFfipbQbwz7/Eg0+aWz3ASEdT/s1Ty2JtyBzR3maE0P77FwkMET+Nzh5KbRL3efLgkT/ZzPFzW3BA==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@types/react': ^19
-      react: '>=19.0.0'
-      react-devtools-core: ^6.1.2
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      react-devtools-core:
-        optional: true
-
   inline-style-parser@0.2.4:
     resolution: {integrity: sha512-0aO8FkhNZlj/ZIbNi7Lxxr12obT7cL1moPfE4tg1LkX7LlLfC6DeX4l2ZEud1ukP9jNQyNnfzQVqwbwmAATY4Q==}
 
@@ -5175,6 +5196,9 @@ packages:
   mlly@1.8.0:
     resolution: {integrity: sha512-l8D9ODSRWLe2KHJSifWGwBqpTZXIXTeo8mlKjY+E2HAakaTeNpqAyBZ8GSqLzHgw4XmHmC8whvpjJNMbFZN7/g==}
 
+  mnemonist@0.40.3:
+    resolution: {integrity: sha512-Vjyr90sJ23CKKH/qPAgUKicw/v6pRoamxIEDFOF8uSgFME7DqPRpHgRTejWVjkdGg5dXj0/NyxZHZ9bcjH+2uQ==}
+
   module-details-from-path@1.0.4:
     resolution: {integrity: sha512-EGWKgxALGMgzvxYF1UyGTy0HXX/2vHLkw6+NvDKW2jypWbHpjQuj4UMcqQWXHERJhVGKikolT06G3bcKe4fi7w==}
 
@@ -5293,6 +5317,9 @@ packages:
   object-inspect@1.13.4:
     resolution: {integrity: sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==}
     engines: {node: '>= 0.4'}
+
+  obliterator@2.0.5:
+    resolution: {integrity: sha512-42CPE9AhahZRsMNslczq0ctAEtqk8Eka26QofnqC346BZdHDySk3LWka23LI7ULIw11NmltpiLagIq8gBozxTw==}
 
   on-exit-leak-free@2.1.2:
     resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==}
@@ -6114,6 +6141,10 @@ packages:
     resolution: {integrity: sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ==}
     engines: {node: '>=18'}
 
+  string-width@8.1.0:
+    resolution: {integrity: sha512-Kxl3KJGb/gxkaUMOjRsQ8IrXiGW75O4E3RPjFIINOVH8AMl2SQ/yWdTzWwF3FevIX9LcMAjJW+GRwAlAbTSXdg==}
+    engines: {node: '>=20'}
+
   string_decoder@1.1.1:
     resolution: {integrity: sha512-n/ShnvDi6FHbbVfviro+WojiFzv+s8MPMHBczVePfUpDJLwoLT0ht1l4YwBCbi8pJAveEEdnkHyPyTP/mzRfwg==}
 
@@ -6129,6 +6160,10 @@ packages:
 
   strip-ansi@7.1.0:
     resolution: {integrity: sha512-iq6eVVI64nQQTRYq2KtEg2d2uU7LElhTJwsH4YzIHZshxlgZms/wIc4VoDQTlG/IvVIrBKG06CrZnp0qv7hkcQ==}
+    engines: {node: '>=12'}
+
+  strip-ansi@7.1.2:
+    resolution: {integrity: sha512-gmBGslpoQJtgnMAvOVqGZpEz9dyoKTCzy2nfz/n8aIFhN/jCE/rCmcxabB6jOOHV+0WNnylOxaxBQPSvcWklhA==}
     engines: {node: '>=12'}
 
   strip-bom@3.0.0:
@@ -6812,10 +6847,6 @@ packages:
   widest-line@4.0.1:
     resolution: {integrity: sha512-o0cyEG0e8GPzT4iGHphIOh0cJOV8fivsXxddQasHPHfoZf1ZexrfeA21w2NaEN1RHE+fXlfISmOE8R9N3u3Qig==}
     engines: {node: '>=12'}
-
-  widest-line@5.0.0:
-    resolution: {integrity: sha512-c9bZp7b5YtRj2wOe6dlj32MK+Bx/M/d+9VB2SHM1OtsUHR0aV0tdP6DWh/iMt0kWi1t5g1Iudu6hQRNd1A4PVA==}
-    engines: {node: '>=18'}
 
   winston-transport@4.9.0:
     resolution: {integrity: sha512-8drMJ4rkgaPo1Me4zD/3WLfI/zPdA9o2IipKODunnGDcuqbHwjsbB79ylv04LCGGzU0xQ6vTznOMpQGaLhhm6A==}
@@ -7709,6 +7740,38 @@ snapshots:
   '@jest/schemas@29.6.3':
     dependencies:
       '@sinclair/typebox': 0.27.8
+
+  '@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1)':
+    dependencies:
+      '@alcalzone/ansi-tokenize': 0.2.2
+      ansi-escapes: 7.0.0
+      ansi-styles: 6.2.1
+      auto-bind: 5.0.1
+      chalk: 5.6.0
+      cli-boxes: 3.0.0
+      cli-cursor: 4.0.0
+      cli-truncate: 4.0.0
+      code-excerpt: 4.0.0
+      es-toolkit: 1.41.0
+      indent-string: 5.0.0
+      is-in-ci: 2.0.0
+      mnemonist: 0.40.3
+      patch-console: 2.0.0
+      react: 19.1.1
+      react-reconciler: 0.32.0(react@19.1.1)
+      signal-exit: 3.0.7
+      slice-ansi: 7.1.0
+      stack-utils: 2.0.6
+      string-width: 8.1.0
+      type-fest: 4.41.0
+      wrap-ansi: 9.0.0
+      ws: 8.18.3
+      yoga-layout: 3.2.1
+    optionalDependencies:
+      '@types/react': 19.1.12
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -11231,50 +11294,18 @@ snapshots:
 
   ini@1.3.8: {}
 
-  ink-spinner@5.0.0(ink@6.4.0(@types/react@19.1.12)(react@19.1.1))(react@19.1.1):
+  ink-spinner@5.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1))(react@19.1.1):
     dependencies:
       cli-spinners: 2.9.2
-      ink: 6.4.0(@types/react@19.1.12)(react@19.1.1)
+      ink: '@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1)'
       react: 19.1.1
 
-  ink-text-input@6.0.0(ink@6.4.0(@types/react@19.1.12)(react@19.1.1))(react@19.1.1):
+  ink-text-input@6.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1))(react@19.1.1):
     dependencies:
       chalk: 5.6.0
-      ink: 6.4.0(@types/react@19.1.12)(react@19.1.1)
+      ink: '@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1)'
       react: 19.1.1
       type-fest: 4.41.0
-
-  ink@6.4.0(@types/react@19.1.12)(react@19.1.1):
-    dependencies:
-      '@alcalzone/ansi-tokenize': 0.2.2
-      ansi-escapes: 7.0.0
-      ansi-styles: 6.2.1
-      auto-bind: 5.0.1
-      chalk: 5.6.0
-      cli-boxes: 3.0.0
-      cli-cursor: 4.0.0
-      cli-truncate: 4.0.0
-      code-excerpt: 4.0.0
-      es-toolkit: 1.41.0
-      indent-string: 5.0.0
-      is-in-ci: 2.0.0
-      patch-console: 2.0.0
-      react: 19.1.1
-      react-reconciler: 0.32.0(react@19.1.1)
-      signal-exit: 3.0.7
-      slice-ansi: 7.1.0
-      stack-utils: 2.0.6
-      string-width: 7.2.0
-      type-fest: 4.41.0
-      widest-line: 5.0.0
-      wrap-ansi: 9.0.0
-      ws: 8.18.3
-      yoga-layout: 3.2.1
-    optionalDependencies:
-      '@types/react': 19.1.12
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
 
   inline-style-parser@0.2.4: {}
 
@@ -12135,6 +12166,10 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.1
 
+  mnemonist@0.40.3:
+    dependencies:
+      obliterator: 2.0.5
+
   module-details-from-path@1.0.4: {}
 
   monaco-editor@0.53.0:
@@ -12220,6 +12255,8 @@ snapshots:
   object-assign@4.1.1: {}
 
   object-inspect@1.13.4: {}
+
+  obliterator@2.0.5: {}
 
   on-exit-leak-free@2.1.2: {}
 
@@ -13152,13 +13189,18 @@ snapshots:
     dependencies:
       eastasianwidth: 0.2.0
       emoji-regex: 9.2.2
-      strip-ansi: 7.1.0
+      strip-ansi: 7.1.2
 
   string-width@7.2.0:
     dependencies:
       emoji-regex: 10.5.0
       get-east-asian-width: 1.3.1
-      strip-ansi: 7.1.0
+      strip-ansi: 7.1.2
+
+  string-width@8.1.0:
+    dependencies:
+      get-east-asian-width: 1.3.1
+      strip-ansi: 7.1.2
 
   string_decoder@1.1.1:
     dependencies:
@@ -13178,6 +13220,10 @@ snapshots:
       ansi-regex: 5.0.1
 
   strip-ansi@7.1.0:
+    dependencies:
+      ansi-regex: 6.2.0
+
+  strip-ansi@7.1.2:
     dependencies:
       ansi-regex: 6.2.0
 
@@ -13883,10 +13929,6 @@ snapshots:
     dependencies:
       string-width: 5.1.2
 
-  widest-line@5.0.0:
-    dependencies:
-      string-width: 7.2.0
-
   winston-transport@4.9.0:
     dependencies:
       logform: 2.7.0
@@ -13921,13 +13963,13 @@ snapshots:
     dependencies:
       ansi-styles: 6.2.1
       string-width: 5.1.2
-      strip-ansi: 7.1.0
+      strip-ansi: 7.1.2
 
   wrap-ansi@9.0.0:
     dependencies:
       ansi-styles: 6.2.1
       string-width: 7.2.0
-      strip-ansi: 7.1.0
+      strip-ansi: 7.1.2
 
   wrappy@1.0.2: {}
 

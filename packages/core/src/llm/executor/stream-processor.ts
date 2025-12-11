@@ -1,6 +1,6 @@
 import { StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { ContextManager } from '../../context/manager.js';
-import { SessionEventBus } from '../../events/index.js';
+import { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
 import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
@@ -17,7 +17,7 @@ export interface StreamProcessorConfig {
 export class StreamProcessor {
     private assistantMessageId: string | null = null;
     private actualTokens: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-    private finishReason: string = 'unknown';
+    private finishReason: LLMFinishReason = 'unknown';
     private reasoningText: string = '';
     private accumulatedText: string = '';
     private logger: IDextoLogger;
@@ -125,6 +125,13 @@ export class StreamProcessor {
                         // PERSISTENCE HAPPENS HERE
                         const rawResult = event.output;
 
+                        // Log raw tool output for debugging
+                        this.logger.debug('Tool result received', {
+                            toolName: event.toolName,
+                            toolCallId: event.toolCallId,
+                            rawResult,
+                        });
+
                         // Sanitize
                         const sanitized = await sanitizeToolResult(
                             rawResult,
@@ -210,6 +217,20 @@ export class StreamProcessor {
                         };
                         this.actualTokens = usage;
 
+                        // Log complete LLM response for debugging
+                        this.logger.info('LLM response complete', {
+                            finishReason: event.finishReason,
+                            contentLength: this.accumulatedText.length,
+                            content: this.accumulatedText,
+                            ...(this.reasoningText && {
+                                reasoningLength: this.reasoningText.length,
+                                reasoning: this.reasoningText,
+                            }),
+                            usage,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                        });
+
                         // Finalize assistant message with usage
                         if (this.assistantMessageId) {
                             await this.contextManager.updateAssistantMessage(
@@ -220,14 +241,19 @@ export class StreamProcessor {
                             );
                         }
 
-                        this.eventBus.emit('llm:response', {
-                            content: this.accumulatedText,
-                            ...(this.reasoningText && { reasoning: this.reasoningText }),
-                            provider: this.config.provider,
-                            model: this.config.model,
-                            tokenUsage: usage,
-                            finishReason: this.finishReason,
-                        });
+                        // Skip empty responses when tools are being called
+                        // The meaningful response will come after tool execution completes
+                        const hasContent = this.accumulatedText || this.reasoningText;
+                        if (this.finishReason !== 'tool-calls' || hasContent) {
+                            this.eventBus.emit('llm:response', {
+                                content: this.accumulatedText,
+                                ...(this.reasoningText && { reasoning: this.reasoningText }),
+                                provider: this.config.provider,
+                                model: this.config.model,
+                                tokenUsage: usage,
+                                finishReason: this.finishReason,
+                            });
+                        }
                         break;
                     }
 

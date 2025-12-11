@@ -14,7 +14,7 @@
 
 import chalk from 'chalk';
 import { DextoAgent, DextoRuntimeError, DextoValidationError } from '@dexto/core';
-import { CommandDefinition } from '../command-parser.js';
+import { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 
 /**
@@ -203,7 +203,7 @@ export const modelCommands: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+    handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
         // Default to showing help about interactive selector if no subcommand
         if (args.length === 0) {
             const helpText = [

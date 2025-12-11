@@ -6,6 +6,8 @@
 import chalk from 'chalk';
 import { logger } from '@dexto/core';
 import { formatForInkCli } from './format-output.js';
+import type { StyledOutput } from '../../../ink-cli/services/CommandService.js';
+import type { StyledMessageType, StyledData } from '../../../ink-cli/state/types.js';
 
 /**
  * Command output helper for consistent display and error handling
@@ -85,5 +87,27 @@ export class CommandOutputHelper {
      */
     static noOutput(): string {
         return '';
+    }
+
+    /**
+     * Create styled output for rich rendering in ink-cli
+     * @param styledType - The type of styled rendering
+     * @param styledData - The structured data for rendering
+     * @param fallbackText - Plain text fallback for logging/non-ink environments
+     *
+     * NOTE: Do NOT console.log here - it interferes with Ink's terminal rendering.
+     * The styled output will be rendered by Ink components, and fallbackText
+     * is stored for headless/non-ink environments.
+     */
+    static styled(
+        styledType: StyledMessageType,
+        styledData: StyledData,
+        fallbackText: string
+    ): StyledOutput {
+        return {
+            styledType,
+            styledData,
+            fallbackText: formatForInkCli(fallbackText),
+        };
     }
 }

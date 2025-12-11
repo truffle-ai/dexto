@@ -488,7 +488,7 @@ const agent = new DextoAgent(config);
 await agent.start();
 
 // Use the stream() API to get streaming events
-for await (const event of await agent.stream('Hello!', { sessionId: 'session-1' })) {
+for await (const event of await agent.stream('Hello!', 'session-1')) {
   switch (event.name) {
     case 'llm:thinking':
       console.log('Agent is thinking...');

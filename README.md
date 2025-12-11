@@ -354,19 +354,28 @@ await agent.start();
 const session = await agent.createSession();
 
 // Use generate() for simple request/response
-const response = await agent.generate('What is TypeScript?', {
-  sessionId: session.id
-});
+const response = await agent.generate('What is TypeScript?', session.id);
 console.log(response.content);
 
 // Conversations maintain context within a session
-await agent.generate('Write a haiku about it', { sessionId: session.id });
-await agent.generate('Make it funnier', { sessionId: session.id });
+await agent.generate('Write a haiku about it', session.id);
+await agent.generate('Make it funnier', session.id);
+
+// Multimodal: send images or files
+await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: base64Data, mimeType: 'image/png' }
+], session.id);
+
+// Streaming for real-time UIs
+for await (const event of await agent.stream('Write a story', session.id)) {
+  if (event.name === 'llm:chunk') process.stdout.write(event.content);
+}
 
 await agent.stop();
 ```
 
-See our [Dexto Agent SDK docs](https://docs.dexto.ai/api/category/dexto-sdk/) for complete examples with MCP tools, sessions, and advanced features.
+See our [Dexto Agent SDK docs](https://docs.dexto.ai/docs/guides/dexto-sdk) for multimodal content, streaming, MCP tools, and advanced features.
 
 ---
 
@@ -382,7 +391,7 @@ await agent.start();
 
 // Create and manage sessions
 const session = await agent.createSession('user-123');
-await agent.generate('Hello, how can you help me?', { sessionId: session.id });
+await agent.generate('Hello, how can you help me?', session.id);
 
 // List and manage sessions
 const sessions = await agent.listSessions();
