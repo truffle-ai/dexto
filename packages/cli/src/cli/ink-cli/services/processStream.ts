@@ -424,6 +424,7 @@ export async function processStream(
                         finalizeMessage(toolMessageId, {
                             toolResult: resultPreview,
                             toolStatus: 'finished',
+                            isError: !event.success,
                         });
                     }
                     break;

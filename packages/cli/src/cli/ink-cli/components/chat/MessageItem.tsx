@@ -136,8 +136,7 @@ export const MessageItem = memo(
 
         // Tool message: Green for success, red for failure
         if (message.role === 'tool') {
-            const isError = message.content?.toLowerCase().includes('error');
-            const iconColor = isError ? 'red' : 'green';
+            const iconColor = message.isError ? 'red' : 'green';
 
             return (
                 <Box flexDirection="column" marginBottom={1}>
@@ -176,7 +175,8 @@ export const MessageItem = memo(
             prev.message.isStreaming === next.message.isStreaming &&
             prev.message.styledType === next.message.styledType &&
             prev.message.styledData === next.message.styledData &&
-            prev.message.isContinuation === next.message.isContinuation
+            prev.message.isContinuation === next.message.isContinuation &&
+            prev.message.isError === next.message.isError
         );
     }
 );

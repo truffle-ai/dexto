@@ -117,6 +117,7 @@ export interface Message {
     isStreaming?: boolean;
     toolResult?: string; // Tool result preview (first 4-5 lines)
     toolStatus?: ToolStatus; // Status for tool messages (running/finished)
+    isError?: boolean; // True if tool execution failed
     styledType?: StyledMessageType; // Type of styled rendering (if any)
     styledData?: StyledData; // Structured data for styled rendering
     /** True for split messages that continue a previous message (no role indicator) */
