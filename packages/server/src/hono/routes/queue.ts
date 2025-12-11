@@ -16,29 +16,33 @@ const QueuedMessageSchema = z
 // ContentPart schemas matching @dexto/core types
 // TODO: Same as messages.ts - Zod-inferred types don't exactly match core's ContentInput
 // due to exactOptionalPropertyTypes. We cast to ContentPart after validation.
-const TextPartSchema = z.object({
-    type: z.literal('text'),
-    text: z.string().describe('Text content'),
-});
+const TextPartSchema = z
+    .object({
+        type: z.literal('text').describe('Content type identifier'),
+        text: z.string().describe('Text content'),
+    })
+    .describe('Text content part');
 
-const ImagePartSchema = z.object({
-    type: z.literal('image'),
-    image: z.string().describe('Base64-encoded image data or URL'),
-    mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
-});
+const ImagePartSchema = z
+    .object({
+        type: z.literal('image').describe('Content type identifier'),
+        image: z.string().describe('Base64-encoded image data or URL'),
+        mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
+    })
+    .describe('Image content part');
 
-const FilePartSchema = z.object({
-    type: z.literal('file'),
-    data: z.string().describe('Base64-encoded file data or URL'),
-    mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
-    filename: z.string().optional().describe('Optional filename'),
-});
+const FilePartSchema = z
+    .object({
+        type: z.literal('file').describe('Content type identifier'),
+        data: z.string().describe('Base64-encoded file data or URL'),
+        mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
+        filename: z.string().optional().describe('Optional filename'),
+    })
+    .describe('File content part');
 
-const QueueContentPartSchema = z.discriminatedUnion('type', [
-    TextPartSchema,
-    ImagePartSchema,
-    FilePartSchema,
-]);
+const QueueContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Content part - text, image, or file');
 
 // Schema for queue message request body - matches messages.ts MessageBodySchema
 const QueueMessageBodySchema = z

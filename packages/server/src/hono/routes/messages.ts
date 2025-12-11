@@ -12,29 +12,33 @@ import { TokenUsageSchema } from '../schemas/responses.js';
 // 1. Export Zod schemas from @dexto/core and reuse here
 // 2. Use .transform() to convert to exact types
 // 3. Relax exactOptionalPropertyTypes in tsconfig
-const TextPartSchema = z.object({
-    type: z.literal('text'),
-    text: z.string().describe('Text content'),
-});
+const TextPartSchema = z
+    .object({
+        type: z.literal('text').describe('Content type identifier'),
+        text: z.string().describe('Text content'),
+    })
+    .describe('Text content part');
 
-const ImagePartSchema = z.object({
-    type: z.literal('image'),
-    image: z.string().describe('Base64-encoded image data or URL'),
-    mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
-});
+const ImagePartSchema = z
+    .object({
+        type: z.literal('image').describe('Content type identifier'),
+        image: z.string().describe('Base64-encoded image data or URL'),
+        mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
+    })
+    .describe('Image content part');
 
-const FilePartSchema = z.object({
-    type: z.literal('file'),
-    data: z.string().describe('Base64-encoded file data or URL'),
-    mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
-    filename: z.string().optional().describe('Optional filename'),
-});
+const FilePartSchema = z
+    .object({
+        type: z.literal('file').describe('Content type identifier'),
+        data: z.string().describe('Base64-encoded file data or URL'),
+        mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
+        filename: z.string().optional().describe('Optional filename'),
+    })
+    .describe('File content part');
 
-const ContentPartSchema = z.discriminatedUnion('type', [
-    TextPartSchema,
-    ImagePartSchema,
-    FilePartSchema,
-]);
+const ContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Content part - text, image, or file');
 
 const MessageBodySchema = z
     .object({
