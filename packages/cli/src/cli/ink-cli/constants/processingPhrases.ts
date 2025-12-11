@@ -8,11 +8,12 @@ export const processingPhrases: string[] = [
     'I want to be the very best...',
     'I will be the next hokage...',
     'Shinzou Sasageyo...',
-    'My soldiers! Rage! ...',
+    'My soldiers! Rage!...',
     'May the force be with you...',
-    'Why so serious? ...',
+    'Why so serious?...',
     "That's what she said ...",
     'Winter is coming...',
+    "It's over 9000!...",
 
     // Playful
     'Let me cook...',
