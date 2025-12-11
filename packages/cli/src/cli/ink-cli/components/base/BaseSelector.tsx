@@ -65,7 +65,6 @@ function BaseSelectorInner<T>(
     // Track scroll offset as state, but derive during render when needed
     const [scrollOffsetState, setScrollOffset] = useState(0);
     const selectedIndexRef = useRef(selectedIndex);
-    const prevSelectedIndexRef = useRef(selectedIndex);
     const prevItemsLengthRef = useRef(items.length);
 
     // Keep ref in sync
@@ -97,9 +96,8 @@ function BaseSelectorInner<T>(
 
     // Update refs after render (not during useMemo which can run multiple times)
     useEffect(() => {
-        prevSelectedIndexRef.current = selectedIndex;
         prevItemsLengthRef.current = items.length;
-    }, [selectedIndex, items.length]);
+    }, [items.length]);
 
     // Sync scroll offset state after render if it changed
     // This ensures the stored state is correct for next navigation

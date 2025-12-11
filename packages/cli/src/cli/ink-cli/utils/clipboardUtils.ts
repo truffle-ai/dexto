@@ -129,8 +129,8 @@ async function readClipboardImageWindows(): Promise<ClipboardImageContent | unde
             }
         `.trim();
 
-        // Use powershell.exe for both native Windows and WSL
-        const powershellCmd = platform() === 'win32' ? 'powershell' : 'powershell.exe';
+        // Use powershell.exe for both native Windows and WSL (works on both)
+        const powershellCmd = 'powershell.exe';
         const result = await execCommand(powershellCmd, ['-command', script]);
 
         const base64 = result.stdout.toString().trim();
@@ -155,9 +155,12 @@ async function readClipboardImageWindows(): Promise<ClipboardImageContent | unde
 
 /**
  * Check if current environment is WSL (Windows Subsystem for Linux)
+ * Checks for both 'wsl' (WSL2) and 'microsoft' (WSL1) in kernel release
  */
 function isWSL(): boolean {
-    return platform() === 'linux' && release().toLowerCase().includes('wsl');
+    if (platform() !== 'linux') return false;
+    const rel = release().toLowerCase();
+    return rel.includes('wsl') || rel.includes('microsoft');
 }
 
 /**
@@ -260,7 +263,7 @@ export async function clipboardHasImage(): Promise<boolean> {
                 [System.Windows.Forms.Clipboard]::ContainsImage()
             `.trim();
 
-            const powershellCmd = os === 'win32' ? 'powershell' : 'powershell.exe';
+            const powershellCmd = 'powershell.exe';
             const result = await execCommand(powershellCmd, ['-command', script]);
             return result.stdout.toString().trim().toLowerCase() === 'true';
         } catch {

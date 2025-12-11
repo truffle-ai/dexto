@@ -600,12 +600,15 @@ export function InputContainer({
             setUi,
             setMessages,
             setPendingMessages,
+            setDequeuedBuffer,
+            setQueuedMessages,
             setSession,
             agent,
             inputService,
             ui.isProcessing,
             ui.activeOverlay,
             session.id,
+            useStreaming,
         ]
     );
 
