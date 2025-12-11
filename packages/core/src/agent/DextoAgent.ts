@@ -680,7 +680,6 @@ export class DextoAgent {
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
         let completed = false;
-        let _streamError: Error | null = null;
 
         // Create AbortController for cleanup
         const controller = new AbortController();
@@ -875,22 +874,30 @@ export class DextoAgent {
                         (p): p is import('./types.js').TextPart => p.type === 'text'
                     );
                     const textContent = textParts.map((p) => p.text).join('\n');
-                    const imagePart = contentParts.find(
+                    const imageParts = contentParts.filter(
                         (p): p is import('./types.js').ImagePart => p.type === 'image'
                     );
-                    const filePart = contentParts.find(
+                    const fileParts = contentParts.filter(
                         (p): p is import('./types.js').FilePart => p.type === 'file'
                     );
 
                     this.logger.debug(
-                        `DextoAgent.stream: sessionId=${sessionId}, textLength=${textContent?.length ?? 0}, hasImage=${Boolean(imagePart)}, hasFile=${Boolean(filePart)}`
+                        `DextoAgent.stream: sessionId=${sessionId}, textLength=${textContent?.length ?? 0}, imageCount=${imageParts.length}, fileCount=${fileParts.length}`
                     );
 
-                    // Validate inputs early using session-specific config
-                    const validation = validateInputForLLM(
-                        {
-                            text: textContent,
-                            ...(imagePart && {
+                    // Validate ALL inputs early using session-specific config
+                    // Validate text first (once)
+                    const textValidation = validateInputForLLM(
+                        { text: textContent },
+                        { provider: llmConfig.provider, model: llmConfig.model },
+                        this.logger
+                    );
+                    ensureOk(textValidation, this.logger);
+
+                    // Validate each image
+                    for (const imagePart of imageParts) {
+                        const imageValidation = validateInputForLLM(
+                            {
                                 imageData: {
                                     image:
                                         typeof imagePart.image === 'string'
@@ -898,8 +905,17 @@ export class DextoAgent {
                                             : imagePart.image.toString(),
                                     mimeType: imagePart.mimeType || 'image/png',
                                 },
-                            }),
-                            ...(filePart && {
+                            },
+                            { provider: llmConfig.provider, model: llmConfig.model },
+                            this.logger
+                        );
+                        ensureOk(imageValidation, this.logger);
+                    }
+
+                    // Validate each file
+                    for (const filePart of fileParts) {
+                        const fileValidation = validateInputForLLM(
+                            {
                                 fileData: {
                                     data:
                                         typeof filePart.data === 'string'
@@ -907,15 +923,12 @@ export class DextoAgent {
                                             : filePart.data.toString(),
                                     mimeType: filePart.mimeType,
                                 },
-                            }),
-                        },
-                        {
-                            provider: llmConfig.provider,
-                            model: llmConfig.model,
-                        },
-                        this.logger
-                    );
-                    ensureOk(validation, this.logger);
+                            },
+                            { provider: llmConfig.provider, model: llmConfig.model },
+                            this.logger
+                        );
+                        ensureOk(fileValidation, this.logger);
+                    }
 
                     // Expand @resource mentions - returns ALL images as ContentPart[]
                     if (textContent.includes('@')) {
@@ -1007,8 +1020,13 @@ export class DextoAgent {
                             )
                         );
                 } catch (err) {
-                    const error = err instanceof Error ? err : new Error(String(err));
-                    _streamError = error;
+                    // Preserve typed errors, wrap unknown values in AgentError.streamFailed
+                    const error =
+                        err instanceof DextoRuntimeError || err instanceof DextoValidationError
+                            ? err
+                            : err instanceof Error
+                              ? err
+                              : AgentError.streamFailed(String(err));
                     completed = true;
                     this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
 
