@@ -105,6 +105,7 @@ export function useCLIState({
         mcpWizardServerType: null,
         copyModeEnabled: false,
         pendingModelSwitch: null,
+        selectedMcpServer: null,
     });
 
     // Input state

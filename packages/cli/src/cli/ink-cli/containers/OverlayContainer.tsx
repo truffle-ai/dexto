@@ -30,17 +30,23 @@ import SessionSelectorRefactored, {
 import LogLevelSelector, {
     type LogLevelSelectorHandle,
 } from '../components/overlays/LogLevelSelector.js';
-import McpSelector, {
-    type McpSelectorHandle,
-    type McpAction,
-} from '../components/overlays/McpSelector.js';
+import McpServerList, {
+    type McpServerListHandle,
+    type McpServerListAction,
+    type McpServerInfo,
+} from '../components/overlays/McpServerList.js';
+import McpServerActions, {
+    type McpServerActionsHandle,
+    type McpServerAction,
+} from '../components/overlays/McpServerActions.js';
+import McpAddChoice, {
+    type McpAddChoiceHandle,
+    type McpAddChoiceType,
+} from '../components/overlays/McpAddChoice.js';
 import McpAddSelector, {
     type McpAddSelectorHandle,
     type McpAddResult,
 } from '../components/overlays/McpAddSelector.js';
-import McpRemoveSelector, {
-    type McpRemoveSelectorHandle,
-} from '../components/overlays/McpRemoveSelector.js';
 import SessionSubcommandSelector, {
     type SessionSubcommandSelectorHandle,
     type SessionAction,
@@ -112,9 +118,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const modelSelectorRef = useRef<ModelSelectorHandle>(null);
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
-        const mcpSelectorRef = useRef<McpSelectorHandle>(null);
+        const mcpServerListRef = useRef<McpServerListHandle>(null);
+        const mcpServerActionsRef = useRef<McpServerActionsHandle>(null);
+        const mcpAddChoiceRef = useRef<McpAddChoiceHandle>(null);
         const mcpAddSelectorRef = useRef<McpAddSelectorHandle>(null);
-        const mcpRemoveSelectorRef = useRef<McpRemoveSelectorHandle>(null);
         const mcpCustomTypeSelectorRef = useRef<McpCustomTypeSelectorHandle>(null);
         const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
@@ -147,14 +154,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return sessionSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'log-level-selector':
                             return logLevelSelectorRef.current?.handleInput(inputStr, key) ?? false;
-                        case 'mcp-selector':
-                            return mcpSelectorRef.current?.handleInput(inputStr, key) ?? false;
-                        case 'mcp-add-selector':
-                            return mcpAddSelectorRef.current?.handleInput(inputStr, key) ?? false;
-                        case 'mcp-remove-selector':
-                            return (
-                                mcpRemoveSelectorRef.current?.handleInput(inputStr, key) ?? false
-                            );
+                        case 'mcp-server-list':
+                            return mcpServerListRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-server-actions':
+                            return mcpServerActionsRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'mcp-add-choice':
+                            return mcpAddChoiceRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-custom-type-selector':
                             return (
                                 mcpCustomTypeSelectorRef.current?.handleInput(inputStr, key) ??
@@ -754,94 +759,236 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi, setInput, setMessages, agent]
         );
 
-        // Handle main MCP action selection
-        const handleMcpAction = useCallback(
-            async (action: McpAction) => {
-                switch (action) {
-                    case 'list': {
-                        setUi((prev) => ({
-                            ...prev,
-                            activeOverlay: 'none',
-                            mcpWizardServerType: null,
-                        }));
-                        setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
-                        setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
-
-                        try {
-                            const { CommandService } = await import(
-                                '../services/CommandService.js'
-                            );
-                            const commandService = new CommandService();
-                            const result = await commandService.executeCommand(
-                                'mcp',
-                                ['list'],
-                                agent,
-                                session.id || undefined
-                            );
-
-                            if (result.type === 'output' && result.output) {
-                                const output = result.output;
-                                setMessages((prev) => [
-                                    ...prev,
-                                    {
-                                        id: generateMessageId('command'),
-                                        role: 'system',
-                                        content: output,
-                                        timestamp: new Date(),
-                                    },
-                                ]);
-                            }
-                            if (result.type === 'styled' && result.styled) {
-                                const { fallbackText, styledType, styledData } = result.styled;
-                                setMessages((prev) => [
-                                    ...prev,
-                                    {
-                                        id: generateMessageId('command'),
-                                        role: 'system',
-                                        content: fallbackText,
-                                        timestamp: new Date(),
-                                        styledType,
-                                        styledData,
-                                    },
-                                ]);
-                            }
-                            setUi((prev) => ({
-                                ...prev,
-                                isProcessing: false,
-                                isCancelling: false,
-                                isThinking: false,
-                            }));
-                        } catch (error) {
-                            setMessages((prev) => [
-                                ...prev,
-                                {
-                                    id: generateMessageId('error'),
-                                    role: 'system',
-                                    content: `❌ ${error instanceof Error ? error.message : String(error)}`,
-                                    timestamp: new Date(),
-                                },
-                            ]);
-                            setUi((prev) => ({
-                                ...prev,
-                                isProcessing: false,
-                                isCancelling: false,
-                                isThinking: false,
-                            }));
-                        }
-                        break;
-                    }
-                    case 'add-preset':
-                        setUi((prev) => ({ ...prev, activeOverlay: 'mcp-add-selector' }));
-                        break;
-                    case 'add-custom':
-                        setUi((prev) => ({ ...prev, activeOverlay: 'mcp-custom-type-selector' }));
-                        break;
-                    case 'remove':
-                        setUi((prev) => ({ ...prev, activeOverlay: 'mcp-remove-selector' }));
-                        break;
+        // Handle MCP server list actions (select server or add new)
+        const handleMcpServerListAction = useCallback(
+            (action: McpServerListAction) => {
+                if (action.type === 'select-server') {
+                    // Show server actions overlay
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'mcp-server-actions',
+                        selectedMcpServer: action.server,
+                    }));
+                } else if (action.type === 'add-new') {
+                    // Show add choice overlay
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'mcp-add-choice',
+                    }));
                 }
             },
-            [setUi, setInput, setMessages, agent, session.id]
+            [setUi]
+        );
+
+        // Handle MCP server actions (enable/disable/delete/back)
+        const handleMcpServerAction = useCallback(
+            async (action: McpServerAction) => {
+                const { server } = action;
+
+                if (action.type === 'back') {
+                    // Go back to server list
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'mcp-server-list',
+                        selectedMcpServer: null,
+                    }));
+                    return;
+                }
+
+                // Close overlay and reset input for actual actions
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                    selectedMcpServer: null,
+                    mcpWizardServerType: null,
+                }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+
+                if (action.type === 'enable' || action.type === 'disable') {
+                    const newEnabled = action.type === 'enable';
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `${newEnabled ? '▶️' : '⏸️'} ${newEnabled ? 'Enabling' : 'Disabling'} ${server.name}...`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    try {
+                        // Import persistence utilities
+                        const { updateAgentConfigFile } = await import('@dexto/agent-management');
+
+                        // Get current config and update the enabled field
+                        const currentConfig = agent.getEffectiveConfig();
+                        const serverConfig = currentConfig.mcpServers?.[server.name];
+
+                        if (!serverConfig) {
+                            throw new Error(`Server ${server.name} not found in config`);
+                        }
+
+                        const updates = {
+                            mcpServers: {
+                                ...(currentConfig.mcpServers || {}),
+                                [server.name]: {
+                                    ...serverConfig,
+                                    enabled: newEnabled,
+                                },
+                            },
+                        };
+
+                        // Persist to config file
+                        const newConfig = await updateAgentConfigFile(
+                            agent.getAgentFilePath(),
+                            updates
+                        );
+
+                        // Reload agent with new config
+                        await agent.reload(newConfig);
+
+                        // If enabling, try to connect
+                        if (newEnabled) {
+                            try {
+                                await agent.connectMcpServer(server.name, serverConfig as any);
+                            } catch (connectError) {
+                                // Connection failed but server is enabled - will retry on next reload
+                                setMessages((prev) => [
+                                    ...prev,
+                                    {
+                                        id: generateMessageId('system'),
+                                        role: 'system',
+                                        content: `⚠️ Server enabled but connection failed: ${connectError instanceof Error ? connectError.message : String(connectError)}`,
+                                        timestamp: new Date(),
+                                    },
+                                ]);
+                                return;
+                            }
+                        } else {
+                            // If disabling, disconnect
+                            await agent.removeMcpServer(server.name);
+                        }
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ ${server.name} ${newEnabled ? 'enabled' : 'disabled'}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } catch (error) {
+                        // Format error message with details if available
+                        let errorMessage = error instanceof Error ? error.message : String(error);
+                        if (error instanceof DextoValidationError && error.issues.length > 0) {
+                            const issueDetails = error.issues
+                                .map((i) => {
+                                    const path = i.path?.length ? `[${i.path.join('.')}] ` : '';
+                                    return `  - ${path}${i.message}`;
+                                })
+                                .join('\n');
+                            errorMessage = `Validation failed:\n${issueDetails}`;
+                        }
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `❌ Failed to ${action.type} server: ${errorMessage}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+                } else if (action.type === 'delete') {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `🗑️ Deleting ${server.name}...`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    try {
+                        // Import persistence utilities
+                        const { updateAgentConfigFile } = await import('@dexto/agent-management');
+
+                        // Get current config and remove the server
+                        const currentConfig = agent.getEffectiveConfig();
+                        const mcpServers = { ...(currentConfig.mcpServers || {}) };
+                        delete mcpServers[server.name];
+
+                        const updates = {
+                            mcpServers,
+                        };
+
+                        // Persist to config file
+                        const newConfig = await updateAgentConfigFile(
+                            agent.getAgentFilePath(),
+                            updates
+                        );
+
+                        // Also disconnect if connected
+                        try {
+                            await agent.removeMcpServer(server.name);
+                        } catch {
+                            // Ignore - server might not be connected
+                        }
+
+                        // Reload agent with new config
+                        await agent.reload(newConfig);
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Deleted ${server.name}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } catch (error) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('error'),
+                                role: 'system',
+                                content: `❌ Failed to delete server: ${error instanceof Error ? error.message : String(error)}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
+                }
+            },
+            [setUi, setInput, setMessages, agent]
+        );
+
+        // Handle MCP add choice (registry/custom/back)
+        const handleMcpAddChoice = useCallback(
+            (choice: McpAddChoiceType) => {
+                if (choice === 'back') {
+                    // Go back to server list
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'mcp-server-list',
+                    }));
+                } else if (choice === 'registry') {
+                    // Show registry selector (McpAddSelector)
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'mcp-add-selector',
+                    }));
+                } else if (choice === 'custom') {
+                    // Show custom type selector
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'mcp-custom-type-selector',
+                    }));
+                }
+            },
+            [setUi]
         );
 
         // Handle MCP add selection (presets only)
@@ -879,55 +1026,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             id: generateMessageId('system'),
                             role: 'system',
                             content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
-                            timestamp: new Date(),
-                        },
-                    ]);
-                }
-                setUi((prev) => ({
-                    ...prev,
-                    isProcessing: false,
-                    isCancelling: false,
-                    isThinking: false,
-                }));
-            },
-            [setUi, setInput, setMessages, agent]
-        );
-
-        // Handle MCP remove selection
-        const handleMcpRemoveSelect = useCallback(
-            async (serverName: string) => {
-                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
-                setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
-
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content: `🗑️ Removing ${serverName}...`,
-                        timestamp: new Date(),
-                    },
-                ]);
-
-                try {
-                    await agent.removeMcpServer(serverName);
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            id: generateMessageId('system'),
-                            role: 'system',
-                            content: `✅ Removed ${serverName}`,
-                            timestamp: new Date(),
-                        },
-                    ]);
-                } catch (error) {
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            id: generateMessageId('system'),
-                            role: 'system',
-                            content: `❌ Failed to remove: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1183,19 +1281,45 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     </Box>
                 )}
 
-                {/* MCP selector */}
-                {ui.activeOverlay === 'mcp-selector' && (
+                {/* MCP server list (first screen) */}
+                {ui.activeOverlay === 'mcp-server-list' && (
                     <Box marginTop={1}>
-                        <McpSelector
-                            ref={mcpSelectorRef}
+                        <McpServerList
+                            ref={mcpServerListRef}
                             isVisible={true}
-                            onSelect={handleMcpAction}
+                            onAction={handleMcpServerListAction}
+                            onClose={handleClose}
+                            agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP server actions (enable/disable/delete) */}
+                {ui.activeOverlay === 'mcp-server-actions' && ui.selectedMcpServer && (
+                    <Box marginTop={1}>
+                        <McpServerActions
+                            ref={mcpServerActionsRef}
+                            isVisible={true}
+                            server={ui.selectedMcpServer}
+                            onAction={handleMcpServerAction}
                             onClose={handleClose}
                         />
                     </Box>
                 )}
 
-                {/* MCP add selector */}
+                {/* MCP add choice (registry vs custom) */}
+                {ui.activeOverlay === 'mcp-add-choice' && (
+                    <Box marginTop={1}>
+                        <McpAddChoice
+                            ref={mcpAddChoiceRef}
+                            isVisible={true}
+                            onSelect={handleMcpAddChoice}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* MCP add selector (registry presets) */}
                 {ui.activeOverlay === 'mcp-add-selector' && (
                     <Box marginTop={1}>
                         <McpAddSelector
@@ -1203,19 +1327,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onSelect={handleMcpAddSelect}
                             onClose={handleClose}
-                        />
-                    </Box>
-                )}
-
-                {/* MCP remove selector */}
-                {ui.activeOverlay === 'mcp-remove-selector' && (
-                    <Box marginTop={1}>
-                        <McpRemoveSelector
-                            ref={mcpRemoveSelectorRef}
-                            isVisible={true}
-                            onSelect={handleMcpRemoveSelect}
-                            onClose={handleClose}
-                            agent={agent}
                         />
                     </Box>
                 )}

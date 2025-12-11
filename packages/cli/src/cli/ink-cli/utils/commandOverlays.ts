@@ -25,7 +25,7 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
  */
 const NO_ARGS_OVERLAY: Record<string, OverlayType> = {
     session: 'session-subcommand-selector',
-    mcp: 'mcp-selector',
+    mcp: 'mcp-server-list',
     log: 'log-level-selector',
 };
 
@@ -38,8 +38,9 @@ const SYSTEM_OVERLAYS: OverlayType[] = [
     'resource-autocomplete',
     'api-key-input',
     'approval',
+    'mcp-server-actions',
+    'mcp-add-choice',
     'mcp-add-selector',
-    'mcp-remove-selector',
     'mcp-custom-type-selector',
     'mcp-custom-wizard',
 ];

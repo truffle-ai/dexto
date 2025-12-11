@@ -193,9 +193,10 @@ export type OverlayType =
     | 'resource-autocomplete'
     | 'model-selector'
     | 'session-selector'
-    | 'mcp-selector'
+    | 'mcp-server-list'
+    | 'mcp-server-actions'
+    | 'mcp-add-choice'
     | 'mcp-add-selector'
-    | 'mcp-remove-selector'
     | 'mcp-custom-type-selector'
     | 'mcp-custom-wizard'
     | 'log-level-selector'
@@ -208,6 +209,16 @@ export type OverlayType =
  * MCP server type for custom wizard
  */
 export type McpWizardServerType = 'stdio' | 'http' | 'sse' | null;
+
+/**
+ * MCP server info for actions screen
+ */
+export interface SelectedMcpServer {
+    name: string;
+    enabled: boolean;
+    status: 'connected' | 'disabled' | 'failed';
+    type: 'stdio' | 'http' | 'sse';
+}
 
 /**
  * Pending model switch info (when waiting for API key input)
@@ -230,6 +241,7 @@ export interface UIState {
     mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard
     copyModeEnabled: boolean; // True when copy mode is active (mouse events disabled for text selection)
     pendingModelSwitch: PendingModelSwitch | null; // Pending model switch waiting for API key
+    selectedMcpServer: SelectedMcpServer | null; // Selected server for MCP actions screen
 }
 
 /**
