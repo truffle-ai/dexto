@@ -147,10 +147,22 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         if (msg.role === 'assistant') {
             // Create assistant message
             if (msg.content) {
+                // Extract text content from string or ContentPart array
+                let textContent: string | null = null;
+                if (typeof msg.content === 'string') {
+                    textContent = msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    // Extract text from ContentPart array
+                    const textParts = msg.content
+                        .filter((part): part is TextPart => part.type === 'text')
+                        .map((part) => part.text);
+                    textContent = textParts.length > 0 ? textParts.join('\n') : null;
+                }
+
                 const assistantMessage: UIAssistantMessage = {
                     id: baseId,
                     role: 'assistant',
-                    content: typeof msg.content === 'string' ? msg.content : null,
+                    content: textContent,
                     createdAt,
                     sessionId,
                     tokenUsage: msg.tokenUsage,
