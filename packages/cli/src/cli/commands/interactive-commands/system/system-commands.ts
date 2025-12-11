@@ -12,7 +12,7 @@
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
+import type { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 import type { ConfigStyledData, StatsStyledData } from '../../../ink-cli/state/types.js';
@@ -27,7 +27,11 @@ export const systemCommands: CommandDefinition[] = [
         usage: '/log [level]',
         category: 'System',
         aliases: [],
-        handler: async (args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             const validLevels = ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'];
             const level = args[0];
 
@@ -84,7 +88,11 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show current configuration',
         usage: '/config',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
@@ -121,7 +129,11 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show system statistics',
         usage: '/stats',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
                 // Session stats
                 const sessionStats = await agent.sessionManager.getSessionStats();

@@ -10,7 +10,7 @@
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
+import type { CommandDefinition, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 
 /**
@@ -22,7 +22,11 @@ export const toolCommands: CommandDefinition[] = [
         description: 'List all available tools (MCP and internal tools)',
         usage: '/tools',
         category: 'Tool Management',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             try {
                 const allTools = await agent.getAllTools();
                 const mcpTools = await agent.getAllMcpTools();

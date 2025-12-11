@@ -13,8 +13,7 @@
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
-import { getCLISessionId } from './command-parser.js';
+import type { CommandDefinition, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
@@ -27,7 +26,11 @@ export const promptCommands: CommandDefinition[] = [
         description: 'Display the current system prompt',
         usage: '/sysprompt',
         category: 'Prompt Management',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             try {
                 const systemPrompt = await agent.getSystemPrompt();
 
@@ -52,7 +55,11 @@ export const promptCommands: CommandDefinition[] = [
         description: 'List all available prompts (use /<prompt-name> to execute)',
         usage: '/prompts',
         category: 'Prompt Management',
-        handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             try {
                 const prompts = await agent.listPrompts();
                 const promptNames = Object.keys(prompts || {});
@@ -209,7 +216,11 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
         description: promptInfo.description || `Execute ${promptInfo.name} prompt`,
         usage: `/${promptInfo.name} [context]`,
         category: 'Dynamic Prompts',
-        handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<boolean | string> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
 
@@ -254,7 +265,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 if (finalText.trim()) {
                     // agent.run() will expand @resource mentions automatically
                     // This will trigger the normal message flow in ink-cli
-                    const sessionId = getCLISessionId(agent);
+                    const { sessionId } = ctx;
                     if (!sessionId) {
                         const errorMsg =
                             '❌ No active session. This should not happen in interactive mode.';

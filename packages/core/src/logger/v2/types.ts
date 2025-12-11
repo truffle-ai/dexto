@@ -2,7 +2,6 @@
  * Logger Types and Interfaces
  *
  * Defines the core abstractions for the multi-transport logger architecture.
- * Based on Mastra's transport pattern with Dexto-specific adaptations.
  */
 
 /**

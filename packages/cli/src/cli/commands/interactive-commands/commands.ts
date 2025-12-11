@@ -97,10 +97,9 @@ export async function executeCommand(
     agent: DextoAgent,
     sessionId?: string
 ): Promise<CommandHandlerResult> {
-    // Store sessionId in agent context for command handlers to access
-    if (sessionId) {
-        (agent as any).__cliSessionId = sessionId;
-    }
+    // Create command context with sessionId
+    const ctx = { sessionId: sessionId ?? null };
+
     // Find the command (including aliases)
     const cmd = CLI_COMMANDS.find(
         (c) => c.name === command || (c.aliases && c.aliases.includes(command))
@@ -108,8 +107,8 @@ export async function executeCommand(
 
     if (cmd) {
         try {
-            // Execute the handler with error handling
-            const result = await cmd.handler(args, agent);
+            // Execute the handler with context
+            const result = await cmd.handler(args, agent, ctx);
             // If handler returns a string, it's formatted output for ink-cli
             // If it returns boolean, it's the old behavior (handled or not)
             return result;
@@ -133,7 +132,7 @@ export async function executeCommand(
 
             if (promptCmd) {
                 try {
-                    const result = await promptCmd.handler(args, agent);
+                    const result = await promptCmd.handler(args, agent, ctx);
                     // If result is a string, return it (for ink-cli display)
                     // If result is boolean true, return empty string (command handled, message shown via agent.run())
                     // If result is boolean false, return empty string (command handled)

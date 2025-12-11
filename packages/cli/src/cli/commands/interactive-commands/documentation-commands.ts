@@ -9,7 +9,7 @@
  */
 
 import type { DextoAgent } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
+import type { CommandDefinition, CommandContext } from './command-parser.js';
 import { CommandOutputHelper } from './utils/command-output.js';
 
 /**
@@ -22,7 +22,11 @@ export const documentationCommands: CommandDefinition[] = [
         usage: '/docs',
         category: 'Documentation',
         aliases: ['doc'],
-        handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             const docsUrl = 'https://docs.dexto.ai/docs/category/getting-started';
             try {
                 const { spawn } = await import('child_process');
