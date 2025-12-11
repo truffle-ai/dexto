@@ -1074,11 +1074,8 @@ function textBufferReducerLogic(
                         newPreferredCol = null;
                         newVisualCol = currentVisLineLen;
                         break;
-                    default: {
-                        const exhaustiveCheck: never = dir;
-                        console.error(`Unknown visual movement direction: ${exhaustiveCheck}`);
+                    default:
                         return state;
-                    }
                 }
 
                 if (visualToLogicalMap[newVisualRow]) {
@@ -1344,11 +1341,8 @@ function textBufferReducerLogic(
             return pushUndoLocal(state);
         }
 
-        default: {
-            const exhaustiveCheck: never = action;
-            console.error(`Unknown action encountered: ${exhaustiveCheck}`);
+        default:
             return state;
-        }
     }
 }
 

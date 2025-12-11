@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 export interface ElapsedTimeOptions {
     /** Whether timing is active (should only run during processing) */
     isActive: boolean;
-    /** Update interval in milliseconds (default: 1000ms = 1 second) */
+    /** Update interval in milliseconds (default: 100ms) */
     intervalMs?: number;
 }
 

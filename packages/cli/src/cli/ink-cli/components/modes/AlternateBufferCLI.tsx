@@ -10,7 +10,7 @@
  * - Selection hint when user tries to drag without Option key
  */
 
-import React, { useMemo, useCallback, useRef, useState } from 'react';
+import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { Box, Text, type DOMElement } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 
@@ -128,12 +128,16 @@ export function AlternateBufferCLI({
     const handleSelectionAttempt = useCallback(() => {
         setSelectionHintVisible(true);
         onSelectionAttempt?.();
+    }, [onSelectionAttempt]);
 
-        // Auto-hide after 3 seconds
-        setTimeout(() => {
+    // Auto-hide selection hint after 3 seconds
+    useEffect(() => {
+        if (!selectionHintVisible) return;
+        const timer = setTimeout(() => {
             setSelectionHintVisible(false);
         }, 3000);
-    }, [onSelectionAttempt]);
+        return () => clearTimeout(timer);
+    }, [selectionHintVisible]);
 
     // Get terminal dimensions - updates on resize
     const { rows: terminalHeight } = useTerminalSize();

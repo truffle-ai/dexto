@@ -77,6 +77,11 @@ const McpAddSelector = forwardRef<McpAddSelectorHandle, McpAddSelectorProps>(
 
                     setOptions(optionList);
                     setSelectedIndex(0);
+                } catch {
+                    // On error, options remain empty - BaseSelector will show emptyMessage
+                    if (!cancelled) {
+                        setOptions([]);
+                    }
                 } finally {
                     if (!cancelled) {
                         setIsLoading(false);

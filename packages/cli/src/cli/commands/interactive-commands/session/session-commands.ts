@@ -185,7 +185,9 @@ export const sessionCommand: CommandDefinition = {
                                 typeof msg.content === 'string'
                                     ? msg.content
                                     : JSON.stringify(msg.content),
-                            timestamp: new Date().toLocaleTimeString(),
+                            timestamp: msg.timestamp
+                                ? new Date(msg.timestamp).toLocaleTimeString()
+                                : '',
                         })),
                         total: history.length,
                     };
