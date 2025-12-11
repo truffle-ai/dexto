@@ -1754,7 +1754,24 @@ export class DextoAgent {
     }
 
     /**
-     * Removes and disconnects an MCP server.
+     * Disconnects an MCP server without removing it from runtime state.
+     * Use this for disabling a server - the config remains but the server is disconnected.
+     * @param name The name of the server to disconnect.
+     */
+    public async disconnectMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+        // Disconnect the client (removes from MCPManager's clients map)
+        await this.mcpManager.removeClient(name);
+
+        // Refresh tool cache after disconnection so the LLM sees updated set
+        await this.toolManager.refresh();
+
+        this.logger.info(`Disconnected MCP server '${name}' (config retained)`);
+    }
+
+    /**
+     * Removes and disconnects an MCP server completely.
+     * Use this for deleting a server - removes from both runtime state and disconnects.
      * @param name The name of the server to remove.
      */
     public async removeMcpServer(name: string): Promise<void> {

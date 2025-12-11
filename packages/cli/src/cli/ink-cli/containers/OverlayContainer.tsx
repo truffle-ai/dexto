@@ -839,13 +839,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         };
 
                         // Persist to config file
-                        const newConfig = await updateAgentConfigFile(
-                            agent.getAgentFilePath(),
-                            updates
-                        );
-
-                        // Reload agent with new config
-                        await agent.reload(newConfig);
+                        await updateAgentConfigFile(agent.getAgentFilePath(), updates);
 
                         // If enabling, try to connect
                         if (newEnabled) {
@@ -865,8 +859,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 return;
                             }
                         } else {
-                            // If disabling, disconnect
-                            await agent.removeMcpServer(server.name);
+                            // If disabling, disconnect (but keep in runtime state)
+                            await agent.disconnectMcpServer(server.name);
                         }
 
                         setMessages((prev) => [
@@ -925,10 +919,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         };
 
                         // Persist to config file
-                        const newConfig = await updateAgentConfigFile(
-                            agent.getAgentFilePath(),
-                            updates
-                        );
+                        await updateAgentConfigFile(agent.getAgentFilePath(), updates);
 
                         // Also disconnect if connected
                         try {
@@ -936,9 +927,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         } catch {
                             // Ignore - server might not be connected
                         }
-
-                        // Reload agent with new config
-                        await agent.reload(newConfig);
 
                         setMessages((prev) => [
                             ...prev,
