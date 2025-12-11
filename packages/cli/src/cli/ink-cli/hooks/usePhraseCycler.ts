@@ -4,9 +4,8 @@
  * Similar to gemini-cli's implementation
  *
  * Behavior:
- * - First request after startup: always shows a tip
- * - Subsequent requests: 1/6 chance to show tip, 5/6 chance for witty phrase
- * - Phrases cycle every 8 seconds during processing
+ * - 1/3 chance to show tip, 2/3 chance for witty phrase
+ * - Phrases cycle every 8 seconds while isActive is true
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -29,27 +28,17 @@ export interface PhraseCyclerResult {
     nextPhrase: () => void;
 }
 
-// Track whether we've shown the first tip (persists across component remounts)
-let hasShownFirstTip = false;
-
 /**
  * Get a random phrase or tip based on probability
- * - First request: always tip
- * - After that: 1/6 chance tip, 5/6 chance phrase
+ * 1/3 chance tip, 2/3 chance phrase
  */
 function getRandomPhraseOrTip(disableTips: boolean = false): string {
     if (disableTips) {
         return getRandomPhrase();
     }
 
-    // First request always shows a tip
-    if (!hasShownFirstTip) {
-        hasShownFirstTip = true;
-        return getRandomTip();
-    }
-
-    // 1/6 chance to show a tip (roughly 16.7%)
-    const showTip = Math.random() < 1 / 6;
+    // 1/3 chance to show a tip (roughly 33%)
+    const showTip = Math.random() < 1 / 3;
     return showTip ? getRandomTip() : getRandomPhrase();
 }
 
@@ -105,11 +94,4 @@ export function usePhraseCycler({
     }, [isActive, intervalMs, disableTips]);
 
     return { phrase, nextPhrase };
-}
-
-/**
- * Reset the first tip flag (useful for testing)
- */
-export function resetFirstTipFlag(): void {
-    hasShownFirstTip = false;
 }
