@@ -3,8 +3,8 @@
  * Helpers for creating and formatting messages
  */
 
-import type { DextoAgent } from '@dexto/core';
-import { getDextoPath, logger } from '@dexto/core';
+import type { DextoAgent, InternalMessage, ContentPart } from '@dexto/core';
+import { getDextoPath, logger, isTextPart } from '@dexto/core';
 import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
 
@@ -85,40 +85,34 @@ export function createStreamingMessage(): Message {
 }
 
 /**
- * Extracts text content from message content (handles string or content parts array)
+ * Extracts text content from message content (handles ContentPart array or null)
  */
-function extractTextContent(content: any): string {
-    // Simple string content
-    if (typeof content === 'string') {
-        return content;
+function extractTextContent(content: ContentPart[] | null): string {
+    if (!content) {
+        return '';
     }
 
-    // Array of content parts (from Anthropic/OpenAI format)
-    if (Array.isArray(content)) {
-        return content
-            .filter((part: any) => part.type === 'text')
-            .map((part: any) => part.text || '')
-            .join('\n');
-    }
-
-    // Fallback for unexpected formats
-    return String(content);
+    return content
+        .filter(isTextPart)
+        .map((part) => part.text)
+        .join('\n');
 }
 
 /**
  * Converts session history messages to UI messages
  */
-export function convertHistoryToUIMessages(history: any[], sessionId: string): Message[] {
+export function convertHistoryToUIMessages(
+    history: InternalMessage[],
+    sessionId: string
+): Message[] {
     const uiMessages: Message[] = [];
 
-    for (let index = 0; index < history.length; index++) {
-        const msg = history[index];
-
+    history.forEach((msg, index) => {
         // Extract text content properly
         const textContent = extractTextContent(msg.content);
 
         // Skip empty messages
-        if (!textContent) continue;
+        if (!textContent) return;
 
         uiMessages.push({
             id: `session-${sessionId}-${index}`,
@@ -126,7 +120,7 @@ export function convertHistoryToUIMessages(history: any[], sessionId: string): M
             content: textContent,
             timestamp: new Date(msg.timestamp || Date.now() - (history.length - index) * 1000),
         });
-    }
+    });
 
     return uiMessages;
 }
