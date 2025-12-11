@@ -113,7 +113,7 @@ export interface AgentEventSubscriber {
  * const response = await agent.run("Hello", undefined, 'user-123');
  *
  * // Connect MCP servers
- * await agent.connectMcpServer('filesystem', { command: 'mcp-filesystem' });
+ * await agent.addMcpServer('filesystem', { command: 'mcp-filesystem' });
  *
  * // Inspect available tools and system prompt
  * const tools = await agent.getAllMcpTools();
@@ -1687,14 +1687,14 @@ export class DextoAgent {
     // ============= MCP SERVER MANAGEMENT =============
 
     /**
-     * Connects a new MCP server and adds it to the runtime configuration.
+     * Adds a new MCP server to the runtime configuration and connects it if enabled.
      * This method handles validation, state management, and establishing the connection.
      *
-     * @param name The name of the server to connect.
+     * @param name The name of the server to add.
      * @param config The configuration object for the server.
      * @throws DextoError if validation fails or connection fails
      */
-    public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
+    public async addMcpServer(name: string, config: McpServerConfig): Promise<void> {
         this.ensureStarted();
 
         // Validate the server configuration
@@ -1703,7 +1703,13 @@ export class DextoAgent {
         const validatedConfig = ensureOk(validation, this.logger);
 
         // Add to runtime state (no validation needed - already validated)
-        this.stateManager.addMcpServer(name, validatedConfig);
+        this.stateManager.setMcpServer(name, validatedConfig);
+
+        // Only connect if server is enabled (default is true)
+        if (validatedConfig.enabled === false) {
+            this.logger.info(`MCP server '${name}' added but not connected (disabled)`);
+            return;
+        }
 
         try {
             // Connect the server
@@ -1721,9 +1727,7 @@ export class DextoAgent {
                 source: 'mcp',
             });
 
-            this.logger.info(
-                `DextoAgent: Successfully added and connected to MCP server '${name}'.`
-            );
+            this.logger.info(`MCP server '${name}' added and connected successfully`);
 
             // Log warnings if present
             const warnings = validation.issues.filter((i) => i.severity === 'warning');
@@ -1732,13 +1736,9 @@ export class DextoAgent {
                     `MCP server connected with warnings: ${warnings.map((w) => w.message).join(', ')}`
                 );
             }
-
-            // Connection successful - method completes without returning data
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            this.logger.error(
-                `DextoAgent: Failed to connect to MCP server '${name}': ${errorMessage}`
-            );
+            this.logger.error(`Failed to connect MCP server '${name}': ${errorMessage}`);
 
             // Clean up state if connection failed
             this.stateManager.removeMcpServer(name);
@@ -1754,19 +1754,71 @@ export class DextoAgent {
     }
 
     /**
-     * Disconnects an MCP server without removing it from runtime state.
-     * Use this for disabling a server - the config remains but the server is disconnected.
-     * @param name The name of the server to disconnect.
+     * @deprecated Use `addMcpServer` instead. This method will be removed in a future version.
      */
-    public async disconnectMcpServer(name: string): Promise<void> {
-        this.ensureStarted();
-        // Disconnect the client (removes from MCPManager's clients map)
-        await this.mcpManager.removeClient(name);
+    public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
+        return this.addMcpServer(name, config);
+    }
 
-        // Refresh tool cache after disconnection so the LLM sees updated set
+    /**
+     * Enables a disabled MCP server and connects it.
+     * Updates the runtime state to enabled=true and establishes the connection.
+     *
+     * @param name The name of the server to enable.
+     * @throws MCPError if server is not found or connection fails
+     */
+    public async enableMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        // Update state with enabled=true
+        const updatedConfig = { ...currentConfig, enabled: true };
+        this.stateManager.setMcpServer(name, updatedConfig);
+
+        try {
+            // Connect the server
+            await this.mcpManager.connectServer(name, updatedConfig);
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('mcp:server-connected', { name, success: true });
+            this.logger.info(`MCP server '${name}' enabled and connected`);
+        } catch (error) {
+            // Revert state on failure
+            this.stateManager.setMcpServer(name, currentConfig);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to enable MCP server '${name}': ${errorMessage}`);
+            throw MCPError.connectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
+     * Disables an MCP server and disconnects it.
+     * Updates the runtime state to enabled=false and closes the connection.
+     *
+     * @param name The name of the server to disable.
+     * @throws MCPError if server is not found
+     */
+    public async disableMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        // Update state with enabled=false
+        const updatedConfig = { ...currentConfig, enabled: false };
+        this.stateManager.setMcpServer(name, updatedConfig);
+
+        // Disconnect the server
+        await this.mcpManager.removeClient(name);
         await this.toolManager.refresh();
 
-        this.logger.info(`Disconnected MCP server '${name}' (config retained)`);
+        this.logger.info(`MCP server '${name}' disabled and disconnected`);
     }
 
     /**

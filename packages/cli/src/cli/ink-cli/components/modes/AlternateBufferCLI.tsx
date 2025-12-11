@@ -303,6 +303,7 @@ export function AlternateBufferCLI({
                     setApprovalQueue={setApprovalQueue}
                     agent={agent}
                     inputService={inputService}
+                    buffer={buffer}
                 />
 
                 {/* Footer status line */}

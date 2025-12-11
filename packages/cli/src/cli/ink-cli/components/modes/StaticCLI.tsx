@@ -196,6 +196,7 @@ export function StaticCLI({
                     setApprovalQueue={setApprovalQueue}
                     agent={agent}
                     inputService={inputService}
+                    buffer={buffer}
                 />
 
                 {/* Footer status line */}

@@ -5,7 +5,8 @@
 
 import React, { useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Box } from 'ink';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, McpServerConfig } from '@dexto/core';
+import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
 import type { Message, UIState, InputState, SessionState } from '../state/types.js';
@@ -85,6 +86,7 @@ interface OverlayContainerProps {
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     agent: DextoAgent;
     inputService: InputService;
+    buffer: TextBuffer;
 }
 
 /**
@@ -106,6 +108,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setApprovalQueue,
             agent,
             inputService,
+            buffer,
         },
         ref
     ) {
@@ -272,7 +275,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleModelSelect = useCallback(
             async (provider: string, model: string) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
                 try {
                     setMessages((prev) => [
@@ -425,7 +429,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleSearchResultSelect = useCallback(
             (result: SearchResult) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
                 // Display the selected search result as a system message
                 const roleLabel =
@@ -452,7 +457,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleSessionSelect = useCallback(
             async (newSessionId: string) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
                 try {
                     // Check if already on this session
@@ -531,7 +537,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             async (prompt: PromptInfo) => {
                 const commandText = `/${prompt.name}`;
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
                 // Show user message for the executed command
                 const userMessage = createUserMessage(commandText);
@@ -618,7 +625,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 const { getCommandOverlayForSelect } = await import('../utils/commandOverlays.js');
                 const overlay = getCommandOverlayForSelect(command);
                 if (overlay) {
-                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                    buffer.setText('');
+                    setInput((prev) => ({ ...prev, historyIndex: -1 }));
                     setUi((prev) => ({
                         ...prev,
                         activeOverlay: overlay,
@@ -629,7 +637,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 const commandText = `/${command}`;
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
                 // Show user message for the executed command
                 const userMessage = createUserMessage(commandText);
@@ -741,7 +750,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleLogLevelSelect = useCallback(
             (level: string) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
                 // Set level on agent's logger (propagates to all child loggers via shared ref)
                 agent.logger.setLevel(level as LogLevel);
@@ -802,7 +812,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     selectedMcpServer: null,
                     mcpWizardServerType: null,
                 }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
                 if (action.type === 'enable' || action.type === 'disable') {
                     const newEnabled = action.type === 'enable';
@@ -841,26 +852,25 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         // Persist to config file
                         await updateAgentConfigFile(agent.getAgentFilePath(), updates);
 
-                        // If enabling, try to connect
+                        // Enable or disable the server
                         if (newEnabled) {
                             try {
-                                await agent.connectMcpServer(server.name, serverConfig as any);
+                                await agent.enableMcpServer(server.name);
                             } catch (connectError) {
-                                // Connection failed but server is enabled - will retry on next reload
+                                // Connection failed
                                 setMessages((prev) => [
                                     ...prev,
                                     {
                                         id: generateMessageId('system'),
                                         role: 'system',
-                                        content: `⚠️ Server enabled but connection failed: ${connectError instanceof Error ? connectError.message : String(connectError)}`,
+                                        content: `⚠️ Failed to enable server: ${connectError instanceof Error ? connectError.message : String(connectError)}`,
                                         timestamp: new Date(),
                                     },
                                 ]);
                                 return;
                             }
                         } else {
-                            // If disabling, disconnect (but keep in runtime state)
-                            await agent.disconnectMcpServer(server.name);
+                            await agent.disableMcpServer(server.name);
                         }
 
                         setMessages((prev) => [
@@ -983,7 +993,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleMcpAddSelect = useCallback(
             async (result: McpAddResult) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
                 setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
 
                 setMessages((prev) => [
@@ -997,7 +1008,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
 
                 try {
-                    await agent.connectMcpServer(result.entry.id, result.entry.config as any);
+                    await agent.addMcpServer(
+                        result.entry.id,
+                        result.entry.config as McpServerConfig
+                    );
                     setMessages((prev) => [
                         ...prev,
                         {
@@ -1044,7 +1058,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleMcpCustomWizardComplete = useCallback(
             async (config: McpCustomConfig) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
                 setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
 
                 setMessages((prev) => [
@@ -1078,7 +1093,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         };
                     }
 
-                    await agent.connectMcpServer(config.name, serverConfig);
+                    await agent.addMcpServer(config.name, serverConfig);
                     setMessages((prev) => [
                         ...prev,
                         {
@@ -1119,7 +1134,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 }
 
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
-                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
                 setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
 
                 try {

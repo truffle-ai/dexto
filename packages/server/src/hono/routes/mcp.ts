@@ -294,7 +294,7 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             const { name, config, persistToAgent } = ctx.req.valid('json');
 
             // Connect the server
-            await agent.connectMcpServer(name, config);
+            await agent.addMcpServer(name, config);
             logger.info(`Successfully connected to new server '${name}' via API request.`);
 
             // If persistToAgent is true, save to agent config file

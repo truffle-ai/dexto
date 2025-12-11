@@ -39,7 +39,7 @@ async function handleMcpAddStdio(args: string[], agent: DextoAgent): Promise<boo
     }
 
     try {
-        await agent.connectMcpServer(serverName, config);
+        await agent.addMcpServer(serverName, config);
         console.log(chalk.green(`✅ STDIO MCP server '${serverName}' added successfully`));
         console.log(chalk.dim(`   Command: ${config.command} ${config.args?.join(' ') ?? ''}`));
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
@@ -73,7 +73,7 @@ async function handleMcpAddHttp(args: string[], agent: DextoAgent): Promise<bool
     }
 
     try {
-        await agent.connectMcpServer(serverName, config);
+        await agent.addMcpServer(serverName, config);
         console.log(chalk.green(`✅ HTTP MCP server '${serverName}' added successfully`));
         console.log(chalk.dim(`   URL: ${config.url}`));
         if (config.headers && Object.keys(config.headers).length > 0) {
@@ -110,7 +110,7 @@ async function handleMcpAddSse(args: string[], agent: DextoAgent): Promise<boole
     }
 
     try {
-        await agent.connectMcpServer(serverName, config);
+        await agent.addMcpServer(serverName, config);
         console.log(chalk.green(`✅ SSE MCP server '${serverName}' added successfully`));
         console.log(chalk.dim(`   URL: ${config.url}`));
         if (config.headers && Object.keys(config.headers).length > 0) {
