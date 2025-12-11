@@ -20,6 +20,7 @@ import {
     matchesAnyMimePattern,
     fileTypesToMimePatterns,
     filterCompacted,
+    sanitizeToolResultToContentWithBlobs,
 } from './utils.js';
 import { InternalMessage } from './types.js';
 import { LLMContext } from '../llm/types.js';
@@ -1211,5 +1212,203 @@ describe('filterCompacted', () => {
 
         expect(result).toHaveLength(1);
         expect(result[0]?.content).toBe('Final summary');
+    });
+});
+
+describe('sanitizeToolResultToContentWithBlobs', () => {
+    describe('string input handling', () => {
+        it('should wrap simple string in ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs('Hello, world!', mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]).toEqual({ type: 'text', text: 'Hello, world!' });
+        });
+
+        it('should wrap empty string in ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs('', mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]).toEqual({ type: 'text', text: '' });
+        });
+
+        it('should truncate long strings and return ContentPart array', async () => {
+            // MAX_TOOL_TEXT_CHARS is 8000, so create a string longer than that
+            // Use text with spaces/punctuation to avoid being detected as base64-like
+            const longString = 'This is a sample text line. '.repeat(400); // ~11200 chars
+
+            const result = await sanitizeToolResultToContentWithBlobs(longString, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+            // Verify truncation happened
+            const textPart = result![0] as { type: 'text'; text: string };
+            expect(textPart.text).toContain('chars omitted');
+            expect(textPart.text.length).toBeLessThan(longString.length);
+        });
+
+        it('should convert data URI to image ContentPart', async () => {
+            const dataUri =
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+            const result = await sanitizeToolResultToContentWithBlobs(dataUri, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('image');
+        });
+
+        it('should convert data URI to file ContentPart for non-image types', async () => {
+            const dataUri = 'data:application/pdf;base64,JVBERi0xLjQK';
+
+            const result = await sanitizeToolResultToContentWithBlobs(dataUri, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('file');
+            expect((result![0] as any).mimeType).toBe('application/pdf');
+        });
+
+        it('should treat base64-like strings as text (MCP tools use structured content)', async () => {
+            // MCP-compliant tools return structured { type: 'image', data: base64, mimeType }
+            // Raw base64 strings should be treated as regular text
+            const base64String = Buffer.from('test binary data here for base64 encoding test')
+                .toString('base64')
+                .repeat(20); // ~1280 chars
+
+            const result = await sanitizeToolResultToContentWithBlobs(base64String, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            // Should be text, not file - raw base64 strings aren't valid MCP content
+            expect(result![0]?.type).toBe('text');
+            expect((result![0] as any).text).toBe(base64String);
+        });
+    });
+
+    describe('object input handling', () => {
+        it('should stringify simple object and wrap in ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                { key: 'value', number: 42 },
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+            const text = (result![0] as { type: 'text'; text: string }).text;
+            expect(text).toContain('key');
+            expect(text).toContain('value');
+        });
+
+        it('should handle null input', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(null, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+        });
+
+        it('should handle undefined input', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(undefined, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+        });
+    });
+
+    describe('array input handling', () => {
+        it('should process array of strings into ContentPart array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                ['first', 'second', 'third'],
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(3);
+            expect(result![0]).toEqual({ type: 'text', text: 'first' });
+            expect(result![1]).toEqual({ type: 'text', text: 'second' });
+            expect(result![2]).toEqual({ type: 'text', text: 'third' });
+        });
+
+        it('should handle mixed array with strings and objects', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                ['text message', { data: 123 }],
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(2);
+            expect(result![0]).toEqual({ type: 'text', text: 'text message' });
+            expect(result![1]?.type).toBe('text');
+        });
+
+        it('should skip null items in array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs(
+                ['first', null, 'third'],
+                mockLogger
+            );
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(2);
+            expect(result![0]).toEqual({ type: 'text', text: 'first' });
+            expect(result![1]).toEqual({ type: 'text', text: 'third' });
+        });
+
+        it('should handle empty array', async () => {
+            const result = await sanitizeToolResultToContentWithBlobs([], mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(0);
+        });
+    });
+
+    describe('MCP content handling', () => {
+        it('should handle MCP text content type', async () => {
+            const mcpResult = {
+                content: [{ type: 'text', text: 'MCP text response' }],
+            };
+
+            const result = await sanitizeToolResultToContentWithBlobs(mcpResult, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]).toEqual({ type: 'text', text: 'MCP text response' });
+        });
+
+        it('should handle MCP image content type', async () => {
+            const mcpResult = {
+                content: [
+                    {
+                        type: 'image',
+                        data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk',
+                        mimeType: 'image/png',
+                    },
+                ],
+            };
+
+            const result = await sanitizeToolResultToContentWithBlobs(mcpResult, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('image');
+        });
+    });
+
+    describe('error handling', () => {
+        it('should handle circular references gracefully', async () => {
+            const circular: Record<string, any> = { a: 1 };
+            circular.self = circular;
+
+            // Should not throw, should return some text representation
+            const result = await sanitizeToolResultToContentWithBlobs(circular, mockLogger);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(1);
+            expect(result![0]?.type).toBe('text');
+        });
     });
 });

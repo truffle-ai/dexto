@@ -1160,49 +1160,6 @@ export async function sanitizeToolResultToContentWithBlobs(
                 ];
             }
 
-            // Raw base64-like blob
-            if (isLikelyBase64String(result)) {
-                logger.debug('sanitizeToolResultToContentWithBlobs: detected base64-like string');
-
-                // Check if we should store as blob
-                const approxSize = Math.floor((result.length * 3) / 4);
-                const shouldStoreAsBlob = blobStore && approxSize > 1024;
-
-                if (shouldStoreAsBlob) {
-                    try {
-                        const blobRef = await blobStore.store(result, {
-                            mimeType: 'application/octet-stream',
-                            source: 'tool',
-                            originalName: buildToolBlobName('output', undefined, namingOptions),
-                        });
-                        logger.debug(
-                            `Stored tool result as blob: ${blobRef.uri} (${approxSize} bytes)`
-                        );
-                        return [
-                            createBlobFilePart(
-                                blobRef.uri,
-                                'application/octet-stream',
-                                'tool-output.bin'
-                            ),
-                        ];
-                    } catch (error) {
-                        logger.warn(
-                            `Failed to store blob, falling back to inline: ${String(error)}`
-                        );
-                    }
-                }
-
-                // Original behavior: return as file part
-                return [
-                    {
-                        type: 'file',
-                        data: result,
-                        mimeType: 'application/octet-stream',
-                        filename: 'tool-output.bin',
-                    },
-                ];
-            }
-
             // Long text: truncate with ellipsis to keep context sane
             if (result.length > MAX_TOOL_TEXT_CHARS) {
                 const head = result.slice(0, 4000);
