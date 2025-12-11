@@ -319,9 +319,21 @@ const SlashCommandAutocompleteInner = forwardRef<
         return items;
     }, [hasArguments, showCreateOption, filteredPrompts, filteredSystemCommands]);
 
-    // Track items length for reset detection
-    const prevItemsLengthRef = useRef(combinedItems.length);
-    const itemsChanged = combinedItems.length !== prevItemsLengthRef.current;
+    // Get stable identity for first item (used to detect content changes)
+    const getFirstItemId = (): string | null => {
+        const first = combinedItems[0];
+        if (!first) return null;
+        if (first.kind === 'system') return `sys:${first.command.name}`;
+        if (first.kind === 'prompt') return `prompt:${first.prompt.name}`;
+        return 'create';
+    };
+
+    // Track items for reset detection (length + first item identity)
+    const currentFirstId = getFirstItemId();
+    const prevItemsRef = useRef({ length: combinedItems.length, firstId: currentFirstId });
+    const itemsChanged =
+        combinedItems.length !== prevItemsRef.current.length ||
+        currentFirstId !== prevItemsRef.current.firstId;
 
     // Derive clamped selection values during render (always valid, no setState needed)
     // This prevents the double-render that was causing flickering
@@ -336,7 +348,7 @@ const SlashCommandAutocompleteInner = forwardRef<
     // This effect runs AFTER render, updating state for next user interaction
     useEffect(() => {
         if (itemsChanged) {
-            prevItemsLengthRef.current = combinedItems.length;
+            prevItemsRef.current = { length: combinedItems.length, firstId: currentFirstId };
             // Only setState if values actually differ (prevents unnecessary re-render)
             if (selection.index !== 0 || selection.offset !== 0) {
                 selectedIndexRef.current = 0;
@@ -345,7 +357,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                 selectedIndexRef.current = 0;
             }
         }
-    }, [itemsChanged, combinedItems.length, selection.index, selection.offset]);
+    }, [itemsChanged, combinedItems.length, currentFirstId, selection.index, selection.offset]);
 
     // Calculate visible items based on scroll offset
     const visibleItems = useMemo(() => {
