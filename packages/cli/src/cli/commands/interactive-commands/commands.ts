@@ -115,7 +115,9 @@ export async function executeCommand(
             return result;
         } catch (error) {
             const errorMsg = `❌ Error executing command /${command}:\n${error instanceof Error ? error.message : String(error)}`;
-            console.error(errorMsg);
+            logger.error(
+                `Error executing command /${command}: ${error instanceof Error ? error.message : String(error)}`
+            );
             return errorMsg; // Return for ink-cli
         }
     }
@@ -138,7 +140,9 @@ export async function executeCommand(
                     return typeof result === 'string' ? result : '';
                 } catch (error) {
                     const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
-                    console.error(errorMsg);
+                    logger.error(
+                        `Error executing prompt /${command}: ${error instanceof Error ? error.message : String(error)}`
+                    );
                     return errorMsg;
                 }
             }

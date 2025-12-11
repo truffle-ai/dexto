@@ -269,7 +269,7 @@ sequenceDiagram
     User1->>ChatApp: handleUserMessage
     ChatApp->>ChatApp: Get or create session
     ChatApp->>Agent: createSession (if new)
-    ChatApp->>Agent: generate(message, {sessionId})
+    ChatApp->>Agent: generate(message, sessionId)
     Agent->>Agent: Process message
     Agent-->>ChatApp: Response
     ChatApp-->>User1: broadcastToUser

@@ -21,7 +21,6 @@
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { CommandDefinition, CommandHandlerResult, getCLISessionId } from '../command-parser.js';
-import { formatHistoryMessage } from '../../helpers/formatters.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 import type {
     SessionListStyledData,
@@ -47,32 +46,6 @@ async function getCurrentSessionInfo(
     }
     const metadata = await agent.getSessionMetadata(currentId);
     return { id: currentId, metadata };
-}
-
-/**
- * Helper to display session history with consistent formatting
- */
-async function _displaySessionHistory(sessionId: string, agent: DextoAgent): Promise<void> {
-    console.log(chalk.blue(`\n💬 Session History for: ${chalk.bold(sessionId)}\n`));
-
-    const history = await agent.getSessionHistory(sessionId);
-
-    if (history.length === 0) {
-        console.log(chalk.dim('  No messages in this session yet.\n'));
-        return;
-    }
-
-    // Display each message with formatting
-    history.forEach((message, index) => {
-        console.log(formatHistoryMessage(message, index));
-    });
-
-    console.log(chalk.dim(`\n  Total: ${history.length} messages`));
-    console.log(
-        chalk.dim(
-            '  💡 Use /clear to reset session or dexto -r <id> to resume a different session\n'
-        )
-    );
 }
 
 /**
