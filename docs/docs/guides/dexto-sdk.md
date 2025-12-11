@@ -45,7 +45,7 @@ await agent.start();
 const session = await agent.createSession();
 
 // Use generate() for simple request/response
-const response = await agent.generate('Hello, world!', { sessionId: session.id });
+const response = await agent.generate('Hello, world!', session.id);
 console.log(response.content);
 
 await agent.stop();

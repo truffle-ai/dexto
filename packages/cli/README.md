@@ -391,7 +391,7 @@ await agent.start();
 
 // Create and manage sessions
 const session = await agent.createSession('user-123');
-await agent.generate('Hello, how can you help me?', { sessionId: session.id });
+await agent.generate('Hello, how can you help me?', session.id);
 
 // List and manage sessions
 const sessions = await agent.listSessions();

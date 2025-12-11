@@ -88,7 +88,7 @@ await agent.start();
 
 // Create and manage sessions
 const session = await agent.createSession('user-123');
-await agent.generate('Hello, how can you help me?', { sessionId: session.id });
+await agent.generate('Hello, how can you help me?', session.id);
 
 // List and manage sessions
 const sessions = await agent.listSessions();
@@ -165,7 +165,7 @@ const session = await agent.createSession();
 await agent.generate(`
   Please delegate this task to the PDF analyzer agent at http://localhost:3001:
   "Extract all tables from the Q4 sales report"
-`, { sessionId: session.id });
+`, session.id);
 
 // Or call the tool directly
 const tools = await agent.getAllTools();

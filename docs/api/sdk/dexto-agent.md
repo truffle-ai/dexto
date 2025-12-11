@@ -223,7 +223,7 @@ const session = await agent.createSession();
 // Recommended: Use generate() for most use cases
 const response = await agent.generate(
   "Explain quantum computing",
-  { sessionId: session.id }
+  session.id
 );
 console.log(response.content);
 
