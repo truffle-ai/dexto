@@ -87,6 +87,8 @@ interface OverlayContainerProps {
     agent: DextoAgent;
     inputService: InputService;
     buffer: TextBuffer;
+    /** Callback to refresh static content (clear terminal and force re-render) */
+    refreshStatic?: () => void;
 }
 
 /**
@@ -109,6 +111,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             agent,
             inputService,
             buffer,
+            refreshStatic,
         },
         ref
     ) {
@@ -509,6 +512,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             timestamp: new Date(),
                         },
                     ]);
+
+                    // Force Static component to re-render with the new history
+                    refreshStatic?.();
                 } catch (error) {
                     setMessages((prev) => [
                         ...prev,
@@ -531,6 +537,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 agent,
                 session.id,
                 session.modelName,
+                buffer,
+                refreshStatic,
             ]
         );
 

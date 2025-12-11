@@ -197,6 +197,7 @@ export function StaticCLI({
                     agent={agent}
                     inputService={inputService}
                     buffer={buffer}
+                    refreshStatic={refreshStatic}
                 />
 
                 {/* Footer status line */}
