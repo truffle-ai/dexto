@@ -13,10 +13,10 @@ export const FOCUS_IN = `${ESC}[I`;
 export const FOCUS_OUT = `${ESC}[O`;
 
 // Mouse event regex patterns
-// eslint-disable-next-line no-control-regex
-export const SGR_MOUSE_REGEX = /^\x1b\[<(\d+);(\d+);(\d+)([mM])/;
-// eslint-disable-next-line no-control-regex
-export const X11_MOUSE_REGEX = /^\x1b\[M([\s\S]{3})/;
+// Using ESC constant to avoid control-character lint warnings
+const ESC_CHAR = String.fromCharCode(0x1b);
+export const SGR_MOUSE_REGEX = new RegExp(`^${ESC_CHAR}\\[<(\\d+);(\\d+);(\\d+)([mM])`);
+export const X11_MOUSE_REGEX = new RegExp(`^${ESC_CHAR}\\[M([\\s\\S]{3})`);
 
 /**
  * Check if buffer could be a SGR mouse sequence (or prefix thereof)

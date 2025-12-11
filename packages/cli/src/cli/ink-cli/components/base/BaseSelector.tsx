@@ -74,12 +74,7 @@ function BaseSelectorInner<T>(
     // Derive the correct scroll offset during render (no second render needed)
     // This handles both selectedIndex changes from parent AND items length changes
     const scrollOffset = useMemo(() => {
-        const selectionChanged = selectedIndex !== prevSelectedIndexRef.current;
         const itemsChanged = items.length !== prevItemsLengthRef.current;
-
-        // Update refs for next render
-        prevSelectedIndexRef.current = selectedIndex;
-        prevItemsLengthRef.current = items.length;
 
         // Reset scroll if items changed significantly
         if (itemsChanged && items.length <= maxVisibleItems) {
@@ -99,6 +94,12 @@ function BaseSelectorInner<T>(
         const maxOffset = Math.max(0, items.length - maxVisibleItems);
         return Math.min(maxOffset, Math.max(0, offset));
     }, [selectedIndex, items.length, maxVisibleItems, scrollOffsetState]);
+
+    // Update refs after render (not during useMemo which can run multiple times)
+    useEffect(() => {
+        prevSelectedIndexRef.current = selectedIndex;
+        prevItemsLengthRef.current = items.length;
+    }, [selectedIndex, items.length]);
 
     // Sync scroll offset state after render if it changed
     // This ensures the stored state is correct for next navigation

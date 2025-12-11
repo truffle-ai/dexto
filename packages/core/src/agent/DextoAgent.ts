@@ -668,7 +668,7 @@ export class DextoAgent {
 
         // Validate sessionId is provided
         if (!sessionId) {
-            throw new Error('sessionId is required');
+            throw AgentError.apiValidationError('sessionId is required');
         }
 
         const signal = options?.signal;

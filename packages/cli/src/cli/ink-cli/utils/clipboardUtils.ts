@@ -260,7 +260,7 @@ export async function clipboardHasImage(): Promise<boolean> {
                 [System.Windows.Forms.Clipboard]::ContainsImage()
             `.trim();
 
-            const powershellCmd = platform() === 'win32' ? 'powershell' : 'powershell.exe';
+            const powershellCmd = os === 'win32' ? 'powershell' : 'powershell.exe';
             const result = await execCommand(powershellCmd, ['-command', script]);
             return result.stdout.toString().trim().toLowerCase() === 'true';
         } catch {

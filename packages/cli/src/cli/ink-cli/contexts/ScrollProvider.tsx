@@ -228,13 +228,31 @@ export const useScrollable = (entry: Omit<ScrollableEntry, 'id'>, isActive: bool
 
     const [id] = useState(() => `scrollable-${nextId++}`);
 
+    // Store entry in ref to avoid re-registration on every render
+    // when callers don't memoize the entry object
+    const entryRef = useRef(entry);
+    entryRef.current = entry;
+
     useEffect(() => {
         if (isActive) {
-            context.register({ ...entry, id });
+            // Build entry object, conditionally including scrollTo to satisfy exactOptionalPropertyTypes
+            const registrationEntry: ScrollableEntry = {
+                id,
+                ref: entryRef.current.ref,
+                getScrollState: () => entryRef.current.getScrollState(),
+                scrollBy: (delta) => entryRef.current.scrollBy(delta),
+                hasFocus: () => entryRef.current.hasFocus(),
+            };
+            if (entryRef.current.scrollTo) {
+                registrationEntry.scrollTo = (scrollTop: number, duration?: number) => {
+                    entryRef.current.scrollTo?.(scrollTop, duration);
+                };
+            }
+            context.register(registrationEntry);
             return () => {
                 context.unregister(id);
             };
         }
         return;
-    }, [context, entry, id, isActive]);
+    }, [context, id, isActive]);
 };

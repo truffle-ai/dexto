@@ -89,6 +89,9 @@ export function stripUnsafeCharacters(str: string): string {
             // Remove C0 control chars (except CR/LF/TAB)
             if (code >= 0x00 && code <= 0x1f) return false;
 
+            // Remove DEL control char
+            if (code === 0x7f) return false;
+
             // Remove C1 control chars (0x80-0x9f)
             if (code >= 0x80 && code <= 0x9f) return false;
 

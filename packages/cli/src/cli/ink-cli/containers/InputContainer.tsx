@@ -568,8 +568,8 @@ export function InputContainer({
                     );
 
                     if (isFirstMessage) {
-                        agent.generateSessionTitle(currentSessionId).catch((error) => {
-                            console.error('Failed to generate session title:', error);
+                        agent.generateSessionTitle(currentSessionId).catch(() => {
+                            // Title generation is non-critical - silently ignore failures
                         });
                     }
                 } catch (error) {

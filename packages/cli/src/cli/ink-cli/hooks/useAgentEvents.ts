@@ -167,9 +167,14 @@ export function useAgentEvents({
             (payload) => {
                 if (!payload.sessionId) return;
                 // Fetch fresh queue state from agent to ensure consistency
-                agent.getQueuedMessages(payload.sessionId).then((messages) => {
-                    setQueuedMessages(messages);
-                });
+                agent
+                    .getQueuedMessages(payload.sessionId)
+                    .then((messages) => {
+                        setQueuedMessages(messages);
+                    })
+                    .catch(() => {
+                        // Silently ignore - queue state will sync on next event
+                    });
             },
             { signal }
         );
