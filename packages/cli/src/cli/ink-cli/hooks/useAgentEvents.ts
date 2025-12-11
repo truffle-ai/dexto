@@ -20,31 +20,8 @@ import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
 import type { DextoAgent, QueuedMessage } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
-import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
+import type { Message, UIState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-
-/**
- * UI state shape (must match InkCLIRefactored)
- */
-interface UIState {
-    isProcessing: boolean;
-    isCancelling: boolean;
-    isThinking: boolean;
-    activeOverlay: OverlayType;
-    exitWarningShown: boolean;
-    exitWarningTimestamp: number | null;
-    mcpWizardServerType: McpWizardServerType;
-    copyModeEnabled: boolean;
-}
-
-/**
- * Session state shape
- */
-interface SessionState {
-    id: string | null;
-    hasActiveSession: boolean;
-    modelName: string;
-}
 
 interface UseAgentEventsProps {
     agent: DextoAgent;

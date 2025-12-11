@@ -200,12 +200,21 @@ export type OverlayType =
     | 'mcp-custom-wizard'
     | 'log-level-selector'
     | 'session-subcommand-selector'
+    | 'api-key-input'
     | 'approval';
 
 /**
  * MCP server type for custom wizard
  */
 export type McpWizardServerType = 'stdio' | 'http' | 'sse' | null;
+
+/**
+ * Pending model switch info (when waiting for API key input)
+ */
+export interface PendingModelSwitch {
+    provider: string;
+    model: string;
+}
 
 /**
  * UI state management
@@ -219,6 +228,7 @@ export interface UIState {
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
     mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard
     copyModeEnabled: boolean; // True when copy mode is active (mouse events disabled for text selection)
+    pendingModelSwitch: PendingModelSwitch | null; // Pending model switch waiting for API key
 }
 
 /**

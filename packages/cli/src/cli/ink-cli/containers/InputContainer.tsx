@@ -613,10 +613,12 @@ export function InputContainer({
     );
 
     // Determine if input should be active (not blocked by approval/overlay)
-    // Input stays active even with overlays (so user can keep typing to filter)
-    // Only disable for approval prompts
-    const isInputActive = !approval;
-    const isInputDisabled = !!approval;
+    // Input stays active for filter-type overlays (so user can keep typing to filter)
+    // Disable for approval prompts and overlays with their own text input
+    const overlaysWithOwnInput = ['mcp-custom-wizard', 'api-key-input'];
+    const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
+    const isInputActive = !approval && !hasOverlayWithOwnInput;
+    const isInputDisabled = !!approval || hasOverlayWithOwnInput;
     const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
     // Allow history navigation when not blocked by approval/overlay
     // When processing: handler allows queue editing but blocks history navigation

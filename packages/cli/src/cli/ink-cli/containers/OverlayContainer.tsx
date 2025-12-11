@@ -53,8 +53,10 @@ import McpCustomWizard, {
     type McpCustomWizardHandle,
     type McpCustomConfig,
 } from '../components/overlays/McpCustomWizard.js';
-import type { PromptInfo, ResourceMetadata } from '@dexto/core';
+import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
+import type { PromptInfo, ResourceMetadata, LLMProvider } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
+import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -115,6 +117,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const mcpCustomTypeSelectorRef = useRef<McpCustomTypeSelectorHandle>(null);
         const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
+        const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -162,6 +165,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 sessionSubcommandSelectorRef.current?.handleInput(inputStr, key) ??
                                 false
                             );
+                        case 'api-key-input':
+                            return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
                         default:
                             return false;
                     }
@@ -237,6 +242,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             completeApproval();
         }, [approval, eventBus, completeApproval]);
 
+        // Helper: Check if error is due to missing API key
+        const isApiKeyMissingError = (error: unknown): LLMProvider | null => {
+            if (error instanceof DextoValidationError) {
+                const apiKeyIssue = error.issues.find(
+                    (issue) => issue.code === LLMErrorCode.API_KEY_MISSING
+                );
+                if (apiKeyIssue && apiKeyIssue.context) {
+                    // Extract provider from context
+                    const context = apiKeyIssue.context as { provider?: string };
+                    if (context.provider) {
+                        return context.provider as LLMProvider;
+                    }
+                }
+            }
+            return null;
+        };
+
         // Handle model selection
         const handleModelSelect = useCallback(
             async (provider: string, model: string) => {
@@ -255,9 +277,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: provider as any, model },
+                        { provider: provider as LLMProvider, model },
                         session.id || undefined
                     );
+
+                    // Update session state with new model name
+                    setSession((prev) => ({ ...prev, modelName: model }));
 
                     setMessages((prev) => [
                         ...prev,
@@ -265,6 +290,101 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             id: generateMessageId('system'),
                             role: 'system',
                             content: `✅ Successfully switched to ${model} (${provider})`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    // Check if error is due to missing API key
+                    const missingProvider = isApiKeyMissingError(error);
+                    if (missingProvider) {
+                        // Store pending model switch and show API key input
+                        setUi((prev) => ({
+                            ...prev,
+                            activeOverlay: 'api-key-input',
+                            pendingModelSwitch: { provider, model },
+                        }));
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `🔑 API key required for ${provider}`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        return;
+                    }
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [setUi, setInput, setMessages, setSession, agent, session.id]
+        );
+
+        // Handle API key saved - retry the model switch
+        const handleApiKeySaved = useCallback(
+            async (meta: { provider: LLMProvider; envVar: string }) => {
+                const pending = ui.pendingModelSwitch;
+                if (!pending) {
+                    // No pending switch, just close
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'none',
+                        pendingModelSwitch: null,
+                    }));
+                    return;
+                }
+
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                    pendingModelSwitch: null,
+                }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ API key saved for ${meta.provider}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                // Retry the model switch
+                try {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `🔄 Retrying switch to ${pending.model} (${pending.provider})...`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    await agent.switchLLM(
+                        { provider: pending.provider as LLMProvider, model: pending.model },
+                        session.id || undefined
+                    );
+
+                    // Update session state with new model name
+                    setSession((prev) => ({ ...prev, modelName: pending.model }));
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Successfully switched to ${pending.model} (${pending.provider})`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -280,8 +400,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [setUi, setInput, setMessages, agent, session.id]
+            [ui.pendingModelSwitch, setUi, setMessages, setSession, agent, session.id]
         );
+
+        // Handle API key input close (without saving)
+        const handleApiKeyClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                pendingModelSwitch: null,
+            }));
+        }, [setUi]);
 
         // Handle session selection
         const handleSessionSelect = useCallback(
@@ -1119,6 +1248,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onClose={handleClose}
                         />
                     </Box>
+                )}
+
+                {/* API key input */}
+                {ui.activeOverlay === 'api-key-input' && ui.pendingModelSwitch && (
+                    <ApiKeyInput
+                        ref={apiKeyInputRef}
+                        isVisible={true}
+                        provider={ui.pendingModelSwitch.provider as LLMProvider}
+                        onSaved={handleApiKeySaved}
+                        onClose={handleApiKeyClose}
+                    />
                 )}
             </>
         );

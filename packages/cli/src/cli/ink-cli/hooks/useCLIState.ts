@@ -103,6 +103,7 @@ export function useCLIState({
         exitWarningTimestamp: null,
         mcpWizardServerType: null,
         copyModeEnabled: false,
+        pendingModelSwitch: null,
     });
 
     // Input state
