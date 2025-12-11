@@ -171,6 +171,9 @@ export class DextoAgent {
     // Set via setApprovalHandler() before start() if needed
     private approvalHandler?: ApprovalHandler | undefined;
 
+    // Active stream controllers per session - allows cancel() to abort iterators
+    private activeStreamControllers: Map<string, AbortController> = new Map();
+
     // Logger instance for this agent (dependency injection)
     public readonly logger: IDextoLogger;
 
@@ -685,6 +688,9 @@ export class DextoAgent {
         const controller = new AbortController();
         const cleanupSignal = controller.signal;
 
+        // Store controller so cancel() can abort this stream
+        this.activeStreamControllers.set(sessionId, controller);
+
         // Increase listener limit - stream() registers 12+ event listeners on this signal
         setMaxListeners(30, cleanupSignal);
 
@@ -695,7 +701,7 @@ export class DextoAgent {
             listener: Function;
         }> = [];
 
-        // Cleanup function to remove all listeners
+        // Cleanup function to remove all listeners and stream controller
         const cleanupListeners = () => {
             if (listeners.length === 0) {
                 return; // Already cleaned up
@@ -707,6 +713,8 @@ export class DextoAgent {
                 );
             }
             listeners.length = 0;
+            // Remove from active controllers map
+            this.activeStreamControllers.delete(sessionId);
         };
 
         // Wire external signal to trigger cleanup
@@ -1049,8 +1057,8 @@ export class DextoAgent {
                 while (!completed && eventQueue.length === 0) {
                     await new Promise((resolve) => setTimeout(resolve, 0));
 
-                    // Check for abort
-                    if (signal?.aborted) {
+                    // Check for abort (external signal OR internal via cancel())
+                    if (signal?.aborted || cleanupSignal.aborted) {
                         cleanupListeners();
                         controller.abort();
                         return { done: true, value: undefined };
@@ -1180,13 +1188,20 @@ export class DextoAgent {
             throw new Error('sessionId is required and must be a non-empty string');
         }
 
-        // Attempt to fetch from sessionManager cache (memory only)
+        // Abort the stream iterator first (so consumer's for-await loop exits cleanly)
+        const streamController = this.activeStreamControllers.get(sessionId);
+        if (streamController) {
+            streamController.abort();
+            this.activeStreamControllers.delete(sessionId);
+        }
+
+        // Then cancel the session's LLM/tool execution
         const existing = await this.sessionManager.getSession(sessionId, false);
         if (existing) {
             return existing.cancel();
         }
-        // If not found, nothing to cancel
-        return false;
+        // If no session found but stream was aborted, still return true
+        return !!streamController;
     }
 
     // ============= SESSION MANAGEMENT =============

@@ -45,8 +45,6 @@ export interface ProcessStreamSetters {
  * Options for processStream
  */
 export interface ProcessStreamOptions {
-    /** Reference to check if cancellation was requested */
-    isCancellingRef?: React.MutableRefObject<boolean>;
     /** Whether to stream chunks (true) or wait for complete response (false). Default: true */
     useStreaming?: boolean;
 }
@@ -82,7 +80,6 @@ export async function processStream(
 ): Promise<void> {
     const { setMessages, setPendingMessages, setDequeuedBuffer, setUi, setQueuedMessages } =
         setters;
-    const isCancellingRef = options?.isCancellingRef;
     const useStreaming = options?.useStreaming ?? true;
 
     // Track streaming state (synchronous, not React state)
@@ -231,11 +228,6 @@ export async function processStream(
 
     try {
         for await (const event of iterator) {
-            // Check for cancellation
-            if (isCancellingRef?.current) {
-                break;
-            }
-
             switch (event.name) {
                 case 'llm:thinking': {
                     // Flush dequeued buffer to messages at start of new run
@@ -253,8 +245,6 @@ export async function processStream(
                 }
 
                 case 'llm:chunk': {
-                    if (isCancellingRef?.current) break;
-
                     // In non-streaming mode, skip chunk processing entirely
                     // We'll show the complete response when llm:response arrives
                     if (!useStreaming) break;
@@ -299,8 +289,6 @@ export async function processStream(
                 }
 
                 case 'llm:response': {
-                    if (isCancellingRef?.current) break;
-
                     // In non-streaming mode, end thinking state when response arrives
                     // (In streaming mode, thinking ends when first chunk arrives)
                     if (!useStreaming) {
@@ -343,8 +331,6 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
-                    if (isCancellingRef?.current) break;
-
                     // Format args for display (compact, one-line)
                     let argsPreview = '';
                     try {
@@ -375,8 +361,6 @@ export async function processStream(
                 }
 
                 case 'llm:tool-result': {
-                    if (isCancellingRef?.current) break;
-
                     let resultPreview = '';
                     try {
                         const result = event.sanitized || event.rawResult;
@@ -463,8 +447,6 @@ export async function processStream(
                 }
 
                 case 'run:complete': {
-                    if (isCancellingRef?.current) break;
-
                     const { durationMs } = event;
                     const { outputTokens } = state;
 
