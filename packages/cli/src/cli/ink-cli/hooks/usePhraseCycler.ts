@@ -10,8 +10,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getRandomPhrase, processingPhrases } from '../constants/processingPhrases.js';
-import { getRandomTip, tips } from '../constants/tips.js';
+import { getRandomPhrase } from '../constants/processingPhrases.js';
+import { getRandomTip } from '../constants/tips.js';
 
 export interface PhraseCyclerOptions {
     /** Whether the cycler is active (should only run during processing) */

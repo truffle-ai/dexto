@@ -21,7 +21,7 @@
 import chalk from 'chalk';
 import { logger, DextoAgent, type SessionMetadata } from '@dexto/core';
 import { CommandDefinition, CommandHandlerResult, getCLISessionId } from '../command-parser.js';
-import { formatSessionInfo, formatHistoryMessage } from '../../helpers/formatters.js';
+import { formatHistoryMessage } from '../../helpers/formatters.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 import type {
     SessionListStyledData,
@@ -52,7 +52,7 @@ async function getCurrentSessionInfo(
 /**
  * Helper to display session history with consistent formatting
  */
-async function displaySessionHistory(sessionId: string, agent: DextoAgent): Promise<void> {
+async function _displaySessionHistory(sessionId: string, agent: DextoAgent): Promise<void> {
     console.log(chalk.blue(`\n💬 Session History for: ${chalk.bold(sessionId)}\n`));
 
     const history = await agent.getSessionHistory(sessionId);

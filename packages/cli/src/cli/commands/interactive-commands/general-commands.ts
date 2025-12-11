@@ -13,7 +13,7 @@
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult } from './command-parser.js';
-import { displayAllCommands, formatCommandHelp } from './command-parser.js';
+import { formatCommandHelp } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
 import type { HelpStyledData } from '../../ink-cli/state/types.js';

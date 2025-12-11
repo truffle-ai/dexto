@@ -6,7 +6,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry.js';
-import { ImageData, FileData, ContentPart } from '../../context/types.js';
+import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { IConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';

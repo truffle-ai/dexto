@@ -3,8 +3,6 @@
  * These cycle during processing to provide entertaining feedback
  */
 
-import { no } from 'zod/v4/locales';
-
 export const processingPhrases: string[] = [
     // pop culture
     'I want to be the very best...',

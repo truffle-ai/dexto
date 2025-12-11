@@ -1064,7 +1064,7 @@ describe('expandBlobReferences', () => {
 
     test('should filter blobs by allowedMediaTypes', async () => {
         const resourceManager = {
-            read: vi.fn(async (uri: string) => {
+            read: vi.fn(async (_uri: string) => {
                 return {
                     contents: [{ blob: 'videodata', mimeType: 'video/mp4' }],
                     _meta: { size: 1000, originalName: 'video.mp4' },
@@ -1089,7 +1089,7 @@ describe('expandBlobReferences', () => {
 
     test('should expand allowed media types', async () => {
         const resourceManager = {
-            read: vi.fn(async (uri: string) => {
+            read: vi.fn(async (_uri: string) => {
                 return {
                     contents: [{ blob: 'imagedata', mimeType: 'image/png' }],
                     _meta: { size: 1000 },

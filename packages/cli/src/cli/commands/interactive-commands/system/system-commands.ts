@@ -15,11 +15,7 @@ import { logger, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
-import type {
-    ConfigStyledData,
-    StatsStyledData,
-    LogConfigStyledData,
-} from '../../../ink-cli/state/types.js';
+import type { ConfigStyledData, StatsStyledData } from '../../../ink-cli/state/types.js';
 
 /**
  * System commands for configuration and monitoring

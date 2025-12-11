@@ -82,7 +82,7 @@ export function useCLIState({
     agent,
     initialSessionId,
     startupInfo,
-    onKeyboardScroll,
+    onKeyboardScroll: _onKeyboardScroll,
 }: UseCLIStateProps): CLIStateReturn {
     // Messages state - finalized messages (rendered in <Static>)
     const [messages, setMessages] = useState<Message[]>([]);
