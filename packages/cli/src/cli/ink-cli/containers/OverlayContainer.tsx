@@ -1076,22 +1076,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 try {
                     // Build the appropriate config based on server type
-                    let serverConfig: any;
+                    let serverConfig: McpServerConfig;
                     if (config.serverType === 'stdio') {
                         serverConfig = {
-                            transport: 'stdio',
-                            command: config.command,
+                            type: 'stdio',
+                            command: config.command!,
                             args: config.args || [],
                         };
                     } else if (config.serverType === 'http') {
                         serverConfig = {
-                            transport: 'http',
-                            url: config.url,
+                            type: 'http',
+                            url: config.url!,
                         };
-                    } else if (config.serverType === 'sse') {
+                    } else {
+                        // sse
                         serverConfig = {
-                            transport: 'sse',
-                            url: config.url,
+                            type: 'sse',
+                            url: config.url!,
                         };
                     }
 
