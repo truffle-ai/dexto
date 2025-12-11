@@ -1185,7 +1185,9 @@ export class DextoAgent {
 
         // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
         if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
         }
 
         // Abort the stream iterator first (so consumer's for-await loop exits cleanly)
@@ -1431,7 +1433,9 @@ export class DextoAgent {
 
         // Defensive runtime validation (protects against JavaScript callers, any types, @ts-ignore)
         if (!sessionId || typeof sessionId !== 'string') {
-            throw new Error('sessionId is required and must be a non-empty string');
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
         }
 
         try {
