@@ -5,7 +5,7 @@
  * This replaces the event bus subscriptions for streaming events,
  * providing direct, synchronous control over the streaming lifecycle.
  *
- * Architecture Note (Gemini CLI + Codex patterns):
+ * Architecture:
  * - Messages being streamed are tracked in `pendingMessages` (rendered dynamically)
  * - Only finalized messages are added to `messages` (rendered in <Static>)
  * - Progressive finalization: large streaming content is split at safe markdown
@@ -67,7 +67,7 @@ interface StreamState {
 /**
  * Processes the async iterator from agent.stream() and updates UI state.
  *
- * Uses Gemini CLI pattern for static mode compatibility:
+ * For static mode compatibility:
  * - Streaming content goes to `pendingMessages` (rendered dynamically)
  * - Finalized content is moved to `messages` (rendered in <Static>)
  *

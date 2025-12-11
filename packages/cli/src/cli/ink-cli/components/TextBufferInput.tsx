@@ -1,7 +1,7 @@
 /**
  * TextBufferInput Component
  *
- * Following Gemini CLI's pattern - buffer is passed as prop from parent.
+ * Buffer is passed as prop from parent.
  * Uses direct useKeypress for input handling (no ref chain).
  * Parent owns the buffer and can read values directly.
  */

@@ -3,7 +3,6 @@
  *
  * Provides mouse event handling by reading stdin directly.
  * Runs in parallel with KeypressProvider - each reads stdin independently.
- * Ported from Gemini CLI.
  */
 
 import { useStdin } from 'ink';

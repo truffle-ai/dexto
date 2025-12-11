@@ -1,6 +1,6 @@
 /**
  * Mouse Event Utilities
- * Ported from Gemini CLI for trackpad/mouse scroll support.
+ * Provides trackpad/mouse scroll support.
  */
 
 import {

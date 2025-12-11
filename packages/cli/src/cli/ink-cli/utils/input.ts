@@ -1,7 +1,6 @@
 /**
  * Input Utilities
  * Constants and helpers for parsing terminal input sequences.
- * Ported from Gemini CLI.
  */
 
 export const ESC = '\u001B';

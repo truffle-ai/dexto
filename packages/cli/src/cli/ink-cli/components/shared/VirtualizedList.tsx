@@ -1,7 +1,6 @@
 /**
  * VirtualizedList Component
  * Only renders items visible in the viewport for performance.
- * Ported from Gemini CLI.
  */
 
 import {

@@ -2,12 +2,9 @@
  * Stream Splitter Utilities
  *
  * Provides markdown-aware splitting for streaming content to reduce flickering.
- * Inspired by Gemini CLI and Codex approaches:
- * - Gemini: Split at paragraph boundaries (\n\n) avoiding code blocks
- * - Codex: Newline-gated commits (only render complete lines)
  *
- * Our hybrid approach:
- * - Find safe split points at paragraph boundaries
+ * Approach:
+ * - Find safe split points at paragraph boundaries (\n\n)
  * - Protect code blocks from being split mid-block
  * - Allow progressive finalization during streaming
  */
@@ -101,7 +98,7 @@ export function findLastSafeSplitPoint(content: string): number {
 
 /**
  * Find the last newline that's not inside a code block.
- * Used for line-based batching (Codex approach).
+ * Used for line-based batching.
  */
 export function findLastSafeNewline(content: string): number {
     let searchPos = content.length;

@@ -1,6 +1,5 @@
 /**
  * Text Buffer - Core text editing buffer with visual line wrapping
- * Based on Gemini CLI's text-buffer implementation
  */
 
 import { useState, useCallback, useEffect, useMemo, useReducer } from 'react';

@@ -1,7 +1,6 @@
 /**
  * Unicode-aware text utilities for terminal rendering
  *
- * Ported from Gemini CLI's textUtils.ts
  * These utilities work at the code-point level rather than UTF-16 code units,
  * so that surrogate-pair emoji count as one "column".
  */

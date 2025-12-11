@@ -8,7 +8,7 @@
  * - No mouse event interception
  * - Simpler, more compatible with traditional terminal workflows
  *
- * Architecture (Gemini CLI pattern):
+ * Architecture:
  * - `messages` = finalized messages → rendered in <Static> (permanent output)
  * - `pendingMessages` = streaming/in-progress → rendered dynamically (redrawn)
  * This prevents duplicate output when streaming completes.

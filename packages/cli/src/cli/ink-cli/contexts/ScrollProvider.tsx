@@ -4,7 +4,6 @@
  * Manages scrollable components and handles mouse scroll events.
  * Components register themselves as scrollable, and the provider
  * routes scroll events to the appropriate component.
- * Ported from Gemini CLI (simplified).
  */
 
 import type React from 'react';

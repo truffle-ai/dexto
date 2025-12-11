@@ -2,7 +2,6 @@
  * useTerminalSize Hook
  *
  * Listens to terminal resize events and provides current dimensions.
- * Ported from Gemini CLI.
  */
 
 import { useState, useEffect } from 'react';

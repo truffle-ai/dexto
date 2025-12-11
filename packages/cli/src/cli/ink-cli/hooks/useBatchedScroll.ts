@@ -1,7 +1,6 @@
 /**
  * useBatchedScroll Hook
  * Prevents scroll jitter by batching multiple scroll updates in the same frame.
- * Ported from Gemini CLI.
  */
 
 import { useRef, useEffect, useCallback } from 'react';

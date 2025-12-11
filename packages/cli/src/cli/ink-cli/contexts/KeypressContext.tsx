@@ -3,7 +3,6 @@
  *
  * Provides keyboard input handling by reading stdin directly.
  * Filters out mouse events before broadcasting to subscribers.
- * Ported from Gemini CLI.
  *
  * This replaces Ink's useInput hook with a custom implementation that:
  * 1. Reads stdin directly for full control over escape sequence parsing

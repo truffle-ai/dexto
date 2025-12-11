@@ -1,6 +1,6 @@
 /**
  * Footer Component
- * Status line at the bottom showing CWD, branch, and model info (like Gemini CLI)
+ * Status line at the bottom showing CWD, branch, and model info.
  */
 
 import React from 'react';

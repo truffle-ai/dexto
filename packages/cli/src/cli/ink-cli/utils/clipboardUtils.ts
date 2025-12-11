@@ -3,7 +3,6 @@
  *
  * Supports macOS, Windows/WSL, and Linux (Wayland + X11).
  *
- * Based on OpenCode's clipboard implementation.
  */
 
 import { spawn } from 'node:child_process';
