@@ -201,6 +201,7 @@ export type OverlayType =
     | 'log-level-selector'
     | 'session-subcommand-selector'
     | 'api-key-input'
+    | 'search'
     | 'approval';
 
 /**

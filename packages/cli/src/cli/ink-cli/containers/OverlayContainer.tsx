@@ -54,7 +54,8 @@ import McpCustomWizard, {
     type McpCustomConfig,
 } from '../components/overlays/McpCustomWizard.js';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
-import type { PromptInfo, ResourceMetadata, LLMProvider } from '@dexto/core';
+import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
+import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
 import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
@@ -118,6 +119,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
+        const searchOverlayRef = useRef<SearchOverlayHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -167,6 +169,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'api-key-input':
                             return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'search':
+                            return searchOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         default:
                             return false;
                     }
@@ -412,6 +416,33 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             }));
         }, [setUi]);
 
+        // Handle search result selection - display the result context
+        const handleSearchResultSelect = useCallback(
+            (result: SearchResult) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+
+                // Display the selected search result as a system message
+                const roleLabel =
+                    result.message.role === 'user'
+                        ? '👤 User'
+                        : result.message.role === 'assistant'
+                          ? '🤖 Assistant'
+                          : `📋 ${result.message.role}`;
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🔍 Search Result from session ${result.sessionId.slice(0, 8)}:\n\n${roleLabel}:\n${result.context}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setUi, setInput, setMessages]
+        );
+
         // Handle session selection
         const handleSessionSelect = useCallback(
             async (newSessionId: string) => {
@@ -612,6 +643,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     setUi((prev) => ({
                         ...prev,
                         activeOverlay: 'session-subcommand-selector',
+                        mcpWizardServerType: null,
+                    }));
+                    return;
+                }
+                if (command === 'search' || command === 'find') {
+                    setInput((prev) => ({ ...prev, value: '', historyIndex: -1 }));
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'search',
                         mcpWizardServerType: null,
                     }));
                     return;
@@ -1258,6 +1298,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         provider={ui.pendingModelSwitch.provider as LLMProvider}
                         onSaved={handleApiKeySaved}
                         onClose={handleApiKeyClose}
+                    />
+                )}
+
+                {/* Search overlay */}
+                {ui.activeOverlay === 'search' && (
+                    <SearchOverlay
+                        ref={searchOverlayRef}
+                        isVisible={true}
+                        agent={agent}
+                        onClose={handleClose}
+                        onSelectResult={handleSearchResultSelect}
                     />
                 )}
             </>

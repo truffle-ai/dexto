@@ -259,6 +259,8 @@ export function useCLIState({
             'mcp-custom-type-selector',
             'mcp-custom-wizard',
             'session-subcommand-selector',
+            'api-key-input',
+            'search',
             'approval',
         ];
         const isProtectedOverlay = protectedOverlays.includes(ui.activeOverlay);

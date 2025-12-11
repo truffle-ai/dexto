@@ -426,6 +426,15 @@ export function InputContainer({
                     }));
                     return;
                 }
+
+                if (command === 'search' && !hasArgs) {
+                    setUi((prev) => ({
+                        ...prev,
+                        isProcessing: false,
+                        activeOverlay: 'search',
+                    }));
+                    return;
+                }
             }
 
             if (parsed.type === 'command' && parsed.command) {
@@ -615,7 +624,7 @@ export function InputContainer({
     // Determine if input should be active (not blocked by approval/overlay)
     // Input stays active for filter-type overlays (so user can keep typing to filter)
     // Disable for approval prompts and overlays with their own text input
-    const overlaysWithOwnInput = ['mcp-custom-wizard', 'api-key-input'];
+    const overlaysWithOwnInput = ['mcp-custom-wizard', 'api-key-input', 'search'];
     const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
     const isInputActive = !approval && !hasOverlayWithOwnInput;
     const isInputDisabled = !!approval || hasOverlayWithOwnInput;
