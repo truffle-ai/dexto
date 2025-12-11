@@ -56,6 +56,11 @@ export function disableMouseEvents(): void {
 
 /**
  * Get mouse event name from button code
+ *
+ * NOTE: X11 mouse protocol limitation - all button releases report the same code (3),
+ * so we cannot distinguish between left-release, middle-release, and right-release.
+ * This function returns 'left-release' for all releases in X11 mode.
+ * Consumers needing accurate release identification should track press state themselves.
  */
 export function getMouseEventName(buttonCode: number, isRelease: boolean): MouseEventName | null {
     const isMove = (buttonCode & 32) !== 0;

@@ -55,7 +55,7 @@ interface Message {
 
 ## Component Hierarchy
 
-```
+```text
 InkCLIRefactored
 ├── KeypressProvider
 ├── MouseProvider (alternate buffer only)

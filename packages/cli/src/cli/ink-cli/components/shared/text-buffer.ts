@@ -906,13 +906,7 @@ function textBufferReducerLogic(
         }
 
         case 'insert': {
-            const nextState = pushUndoLocal(state);
-            const newLines = [...nextState.lines];
-            let newCursorRow = nextState.cursorRow;
-            let newCursorCol = nextState.cursorCol;
-
-            const currentLine = (r: number) => newLines[r] ?? '';
-
+            // Validate payload before pushing undo to avoid orphaned undo entries
             let payload = action.payload;
             if (options.singleLine) {
                 payload = payload.replace(/[\r\n]/g, '');
@@ -924,6 +918,14 @@ function textBufferReducerLogic(
             if (payload.length === 0) {
                 return state;
             }
+
+            // Now push undo since we know we'll make a change
+            const nextState = pushUndoLocal(state);
+            const newLines = [...nextState.lines];
+            let newCursorRow = nextState.cursorRow;
+            let newCursorCol = nextState.cursorCol;
+
+            const currentLine = (r: number) => newLines[r] ?? '';
 
             const str = stripUnsafeCharacters(payload.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
             const parts = str.split('\n');
@@ -954,14 +956,15 @@ function textBufferReducerLogic(
         }
 
         case 'backspace': {
+            // Early return before pushing undo to avoid orphaned undo entries
+            if (state.cursorCol === 0 && state.cursorRow === 0) return state;
+
             const nextState = pushUndoLocal(state);
             const newLines = [...nextState.lines];
             let newCursorRow = nextState.cursorRow;
             let newCursorCol = nextState.cursorCol;
 
             const currentLine = (r: number) => newLines[r] ?? '';
-
-            if (newCursorCol === 0 && newCursorRow === 0) return state;
 
             if (newCursorCol > 0) {
                 const lineContent = currentLine(newCursorRow);

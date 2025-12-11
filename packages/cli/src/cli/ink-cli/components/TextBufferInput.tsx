@@ -481,7 +481,7 @@ export function TextBufferInput({
             onHistoryNavigate,
             onTriggerOverlay,
             onKeyboardScroll,
-            imageCount,
+            // imageCount intentionally omitted - callback uses imageCountRef which is synced via useEffect
             onImagePaste,
             checkRemovedImages,
             checkRemovedPasteBlocks,

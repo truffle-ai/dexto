@@ -378,9 +378,9 @@ function* emitKeys(keypressHandler: KeypressHandler): Generator<void, void, stri
                 }
             }
 
-            // Parse modifiers
+            // Parse modifiers (xterm encoding: shift=1, meta/alt=2, ctrl=4)
             ctrl = !!(modifier & 4);
-            meta = !!(modifier & 10);
+            meta = !!(modifier & 2);
             shift = !!(modifier & 1);
 
             const keyInfo = KEY_INFO_MAP[code];

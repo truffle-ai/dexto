@@ -20,15 +20,30 @@ export interface ClipboardImageContent {
 
 /**
  * Execute a command and return stdout as a buffer
+ * @param command - The command to execute
+ * @param args - Command arguments
+ * @param timeoutMs - Timeout in milliseconds (default: 10000)
  */
 async function execCommand(
     command: string,
-    args: string[]
+    args: string[],
+    timeoutMs: number = 10000
 ): Promise<{ stdout: Buffer; stderr: string; exitCode: number }> {
     return new Promise((resolve) => {
+        let timedOut = false;
         const proc = spawn(command, args);
         const stdoutChunks: Buffer[] = [];
         let stderr = '';
+
+        const timer = setTimeout(() => {
+            timedOut = true;
+            proc.kill();
+            resolve({
+                stdout: Buffer.concat(stdoutChunks),
+                stderr: stderr + '\nCommand timed out',
+                exitCode: 1,
+            });
+        }, timeoutMs);
 
         proc.stdout.on('data', (chunk: Buffer) => {
             stdoutChunks.push(chunk);
@@ -39,6 +54,8 @@ async function execCommand(
         });
 
         proc.on('close', (exitCode) => {
+            if (timedOut) return;
+            clearTimeout(timer);
             resolve({
                 stdout: Buffer.concat(stdoutChunks),
                 stderr,
@@ -47,6 +64,8 @@ async function execCommand(
         });
 
         proc.on('error', () => {
+            if (timedOut) return;
+            clearTimeout(timer);
             resolve({
                 stdout: Buffer.concat(stdoutChunks),
                 stderr,
@@ -72,7 +91,7 @@ async function execOsascript(script: string): Promise<{ stdout: string; success:
  * Uses osascript to save clipboard image to temp file, reads it, then cleans up
  */
 async function readClipboardImageMacOS(): Promise<ClipboardImageContent | undefined> {
-    const tmpFile = path.join(os.tmpdir(), `dexto-clipboard-${Date.now()}.png`);
+    const tmpFile = path.join(os.tmpdir(), `dexto-clipboard-${Date.now()}-${process.pid}.png`);
 
     try {
         // AppleScript to save clipboard image as PNG to temp file
