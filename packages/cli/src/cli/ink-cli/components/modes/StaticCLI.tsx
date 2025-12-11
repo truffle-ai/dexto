@@ -14,15 +14,19 @@
  * This prevents duplicate output when streaming completes.
  */
 
-import React, { useMemo } from 'react';
-import { Box, Static } from 'ink';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { Box, Static, useStdout } from 'ink';
 import type { DextoAgent } from '@dexto/core';
+
+// ANSI escape sequence to clear terminal (equivalent to ansiEscapes.clearTerminal)
+const CLEAR_TERMINAL = '\x1B[2J\x1B[3J\x1B[H';
 
 // Types
 import type { StartupInfo } from '../../state/types.js';
 
 // Hooks
 import { useCLIState } from '../../hooks/useCLIState.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 
 // Components
 import { Header } from '../chat/Header.js';
@@ -80,6 +84,36 @@ export function StaticCLI({
         // No keyboard scroll handler - let terminal handle scrollback
     });
 
+    // Terminal resize handling - clear and re-render Static content
+    const { write: stdoutWrite } = useStdout();
+    const { columns: terminalWidth } = useTerminalSize();
+    const [staticRemountKey, setStaticRemountKey] = useState(0);
+    const isInitialMount = useRef(true);
+
+    // Function to refresh static content (clear terminal and force re-render)
+    const refreshStatic = useCallback(() => {
+        stdoutWrite(CLEAR_TERMINAL);
+        setStaticRemountKey((prev) => prev + 1);
+    }, [stdoutWrite]);
+
+    // Handle terminal resize - debounced refresh of static content
+    useEffect(() => {
+        // Skip initial mount to avoid unnecessary clear on startup
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+
+        // Debounce resize handling (300ms like gemini-cli)
+        const handler = setTimeout(() => {
+            refreshStatic();
+        }, 300);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [terminalWidth, refreshStatic]);
+
     // Pre-render static items as JSX elements (Gemini pattern)
     // Header + finalized messages go in <Static> (rendered once, permanent)
     const staticItems = useMemo(() => {
@@ -99,7 +133,10 @@ export function StaticCLI({
     return (
         <Box flexDirection="column">
             {/* Static: header + finalized messages - rendered once to terminal scrollback */}
-            <Static items={staticItems}>{(item) => item}</Static>
+            {/* Key changes on resize to force full re-render after terminal clear */}
+            <Static key={staticRemountKey} items={staticItems}>
+                {(item) => item}
+            </Static>
 
             {/* Dynamic: pending/streaming messages - re-rendered on updates */}
             {pendingMessages.map((message) => (
