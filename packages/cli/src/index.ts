@@ -27,7 +27,13 @@ import {
     isPath,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
+    blobStoreRegistry,
 } from '@dexto/core';
+import { supabaseBlobStoreProvider } from './storage/supabase-provider.js';
+
+// Register Supabase blob store provider for CLI layer
+// This makes Supabase storage available via config without bundling it in core
+blobStoreRegistry.register(supabaseBlobStoreProvider);
 import {
     resolveAgentPath,
     loadAgentConfig,

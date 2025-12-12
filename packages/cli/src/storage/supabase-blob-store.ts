@@ -9,9 +9,9 @@ import type {
     BlobData,
     BlobStats,
     StoredBlobMetadata,
-} from './types.js';
-import type { SupabaseBlobStoreConfig } from './schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+} from '@dexto/core';
+import type { IDextoLogger } from '@dexto/core';
+import type { SupabaseBlobStoreConfig } from './supabase-provider.js';
 
 /**
  * Database row structure for blob metadata in Supabase.

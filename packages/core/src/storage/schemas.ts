@@ -25,11 +25,12 @@ export {
 export {
     BLOB_STORE_TYPES,
     BlobStoreConfigSchema,
+    InMemoryBlobStoreSchema,
+    LocalBlobStoreSchema,
     type BlobStoreType,
     type BlobStoreConfig,
     type InMemoryBlobStoreConfig,
     type LocalBlobStoreConfig,
-    type SupabaseBlobStoreConfig,
 } from './blob/schemas.js';
 
 // Import for composition
@@ -40,6 +41,9 @@ import { BlobStoreConfigSchema } from './blob/schemas.js';
 /**
  * Top-level storage configuration schema
  * Composes cache, database, and blob store configurations
+ *
+ * Note: Blob config uses runtime validation via the provider registry,
+ * allowing custom providers to be registered at the CLI/server layer.
  */
 export const StorageSchema = z
     .object({

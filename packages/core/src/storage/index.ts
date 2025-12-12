@@ -56,6 +56,10 @@ export {
     StorageSchema,
 } from './schemas.js';
 
+// Blob storage - factory, registry, and provider pattern
+export { createBlobStore, blobStoreRegistry, BlobStoreRegistry } from './blob/index.js';
+export type { BlobStoreProvider } from './blob/index.js';
+
 // Blob storage interface and types
 export type { BlobStore } from './blob/types.js';
 export type {
@@ -67,13 +71,11 @@ export type {
     BlobStats,
 } from './blob/types.js';
 
-// Blob storage config types
-export type {
-    BlobStoreConfig,
-    InMemoryBlobStoreConfig,
-    LocalBlobStoreConfig,
-    SupabaseBlobStoreConfig,
-} from './schemas.js';
+// Blob storage config types (built-in providers only)
+export type { BlobStoreConfig, InMemoryBlobStoreConfig, LocalBlobStoreConfig } from './schemas.js';
+
+// Blob store implementations (for advanced usage and external providers)
+export { LocalBlobStore, InMemoryBlobStore } from './blob/index.js';
 
 // Cache config types
 export type { CacheConfig, InMemoryCacheConfig, RedisCacheConfig } from './schemas.js';
