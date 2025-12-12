@@ -48,7 +48,8 @@ export default function ModelPickerModal() {
     const [search, setSearch] = useState('');
     const [baseURL, setBaseURL] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [providerFilter, setProviderFilter] = useState<LLMProvider | 'all' | 'custom'>('all');
+    // Provider filter - empty array means 'all', can include 'custom' or any LLMProvider
+    const [providerFilter, setProviderFilter] = useState<Array<LLMProvider | 'custom'>>([]);
     const [activeView, setActiveView] = useState<'favorites' | 'all'>('all');
     const [showCustomForm, setShowCustomForm] = useState(false);
 
@@ -85,8 +86,8 @@ export default function ModelPickerModal() {
         error: catalogError,
     } = useLLMCatalog({ enabled: open });
 
-    // Load custom models from API
-    const { data: customModels = [] } = useCustomModels({ enabled: open });
+    // Load custom models from API (always enabled so trigger shows correct icon)
+    const { data: customModels = [] } = useCustomModels();
     const { mutate: createCustomModel } = useCreateCustomModel();
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
 
@@ -339,6 +340,19 @@ export default function ModelPickerModal() {
     const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
     const isWelcomeScreen = !currentSessionId;
 
+    // Check if current model is a custom model (show Bot icon instead of provider logo)
+    const isCurrentModelCustom = useMemo(() => {
+        if (!currentLLM) return false;
+        return customModels.some((cm) => cm.name === currentLLM.model);
+    }, [currentLLM, customModels]);
+
+    // Toggle a filter (add if not present, remove if present)
+    const toggleFilter = useCallback((filter: LLMProvider | 'custom') => {
+        setProviderFilter((prev) =>
+            prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter]
+        );
+    }, []);
+
     // Build favorites list (includes both catalog models and custom models)
     const favoriteModels = useMemo(() => {
         return favorites
@@ -438,8 +452,10 @@ export default function ModelPickerModal() {
                         className="flex items-center gap-2 cursor-pointer"
                         title="Choose model"
                     >
-                        {currentLLM?.provider &&
-                        PROVIDER_LOGOS[currentLLM.provider as LLMProvider] ? (
+                        {isCurrentModelCustom ? (
+                            <Bot className="h-4 w-4" />
+                        ) : currentLLM?.provider &&
+                          PROVIDER_LOGOS[currentLLM.provider as LLMProvider] ? (
                             <img
                                 src={PROVIDER_LOGOS[currentLLM.provider as LLMProvider]}
                                 alt={`${currentLLM.provider} logo`}
