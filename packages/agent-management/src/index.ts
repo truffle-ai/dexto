@@ -71,8 +71,13 @@ export {
     loadAgentConfig,
     enrichAgentConfig,
     deriveAgentId,
+    addPromptToAgentConfig,
+    removePromptFromAgentConfig,
     ConfigError,
     ConfigErrorCode,
+    type FilePromptInput,
+    type InlinePromptInput,
+    type PromptInput,
 } from './config/index.js';
 
 // API Key utilities

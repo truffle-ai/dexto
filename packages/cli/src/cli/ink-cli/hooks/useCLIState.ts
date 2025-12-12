@@ -113,6 +113,7 @@ export function useCLIState({
             originalInput: '',
             lastMatch: '',
         },
+        promptAddWizard: null,
     });
 
     // Input state

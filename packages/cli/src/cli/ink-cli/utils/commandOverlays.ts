@@ -29,6 +29,7 @@ const NO_ARGS_OVERLAY: Record<string, OverlayType> = {
     session: 'session-subcommand-selector',
     mcp: 'mcp-server-list',
     log: 'log-level-selector',
+    prompts: 'prompt-list',
 };
 
 /**
@@ -45,6 +46,9 @@ const SYSTEM_OVERLAYS: OverlayType[] = [
     'mcp-add-selector',
     'mcp-custom-type-selector',
     'mcp-custom-wizard',
+    'prompt-add-choice',
+    'prompt-add-wizard',
+    'prompt-delete-selector',
 ];
 
 /**

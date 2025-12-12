@@ -70,6 +70,23 @@ import CustomModelWizard, {
 import type { CustomModel } from '@dexto/agent-management';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
 import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
+import PromptList, {
+    type PromptListHandle,
+    type PromptListAction,
+} from '../components/overlays/PromptList.js';
+import PromptAddChoice, {
+    type PromptAddChoiceHandle,
+    type PromptAddChoiceResult,
+} from '../components/overlays/PromptAddChoice.js';
+import PromptAddWizard, {
+    type PromptAddWizardHandle,
+    type NewPromptData,
+} from '../components/overlays/PromptAddWizard.js';
+import PromptDeleteSelector, {
+    type PromptDeleteSelectorHandle,
+    type DeletablePrompt,
+} from '../components/overlays/PromptDeleteSelector.js';
+import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
 import { DextoValidationError, LLMErrorCode } from '@dexto/core';
@@ -147,6 +164,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const searchOverlayRef = useRef<SearchOverlayHandle>(null);
+        const promptListRef = useRef<PromptListHandle>(null);
+        const promptAddChoiceRef = useRef<PromptAddChoiceHandle>(null);
+        const promptAddWizardRef = useRef<PromptAddWizardHandle>(null);
+        const promptDeleteSelectorRef = useRef<PromptDeleteSelectorHandle>(null);
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -206,6 +227,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
                         case 'search':
                             return searchOverlayRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'prompt-list':
+                            return promptListRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'prompt-add-choice':
+                            return promptAddChoiceRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'prompt-add-wizard':
+                            return promptAddWizardRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'prompt-delete-selector':
+                            return (
+                                promptDeleteSelectorRef.current?.handleInput(inputStr, key) ?? false
+                            );
                         default:
                             return false;
                     }
@@ -1293,6 +1324,329 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setInput, setUi, setMessages, agent, session.id]
         );
 
+        // Handle prompt list actions (select/add/delete)
+        const handlePromptListAction = useCallback(
+            async (action: PromptListAction) => {
+                if (action.type === 'add-prompt') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'prompt-add-choice',
+                    }));
+                } else if (action.type === 'delete-prompt') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'prompt-delete-selector',
+                    }));
+                } else if (action.type === 'select-prompt') {
+                    // Execute the prompt
+                    const displayName = action.prompt.displayName || action.prompt.name;
+                    const commandText = `/${displayName}`;
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'none',
+                        promptAddWizard: null,
+                    }));
+                    buffer.setText('');
+                    setInput((prev) => ({ ...prev, historyIndex: -1 }));
+
+                    // Route through streaming pipeline
+                    if (onSubmitPromptCommand) {
+                        await onSubmitPromptCommand(commandText);
+                    }
+                }
+            },
+            [setUi, setInput, buffer, onSubmitPromptCommand]
+        );
+
+        // Handle prompt list load into input
+        const handlePromptLoadIntoInput = useCallback(
+            (text: string) => {
+                buffer.setText(text);
+                setInput((prev) => ({ ...prev, value: text }));
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                    promptAddWizard: null,
+                }));
+            },
+            [buffer, setInput, setUi]
+        );
+
+        // Handle prompt add choice (agent vs shared)
+        const handlePromptAddChoice = useCallback(
+            (choice: PromptAddChoiceResult) => {
+                if (choice === 'back') {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'prompt-list',
+                    }));
+                } else {
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'prompt-add-wizard',
+                        promptAddWizard: {
+                            scope: choice,
+                            step: 'name',
+                            name: '',
+                            title: '',
+                            description: '',
+                            content: '',
+                        },
+                    }));
+                }
+            },
+            [setUi]
+        );
+
+        // Handle prompt add wizard completion
+        const handlePromptAddComplete = useCallback(
+            async (data: NewPromptData) => {
+                const scope = ui.promptAddWizard?.scope || 'agent';
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                    promptAddWizard: null,
+                }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `📝 Creating ${scope === 'shared' ? 'shared' : 'agent'} prompt "${data.name}"...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                try {
+                    const { mkdir, writeFile } = await import('fs/promises');
+                    const { dirname, join } = await import('path');
+
+                    // Build frontmatter
+                    const frontmatterLines = [
+                        '---',
+                        `id: ${data.name}`,
+                        data.title ? `title: "${data.title}"` : null,
+                        data.description ? `description: "${data.description}"` : null,
+                        data.argumentHint ? `argument-hint: ${data.argumentHint}` : null,
+                        '---',
+                    ].filter(Boolean);
+
+                    const fileContent = `${frontmatterLines.join('\n')}\n\n${data.content}\n`;
+
+                    let filePath: string;
+
+                    if (scope === 'shared') {
+                        // Create in commands directory based on execution context
+                        // Matches discovery logic in discoverCommandPrompts()
+                        const {
+                            getExecutionContext,
+                            findDextoSourceRoot,
+                            findDextoProjectRoot,
+                            getDextoGlobalPath,
+                        } = await import('@dexto/agent-management');
+
+                        const context = getExecutionContext();
+                        let commandsDir: string;
+
+                        if (context === 'dexto-source') {
+                            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+                            if (isDevMode) {
+                                const sourceRoot = findDextoSourceRoot();
+                                commandsDir = sourceRoot
+                                    ? join(sourceRoot, 'commands')
+                                    : getDextoGlobalPath('commands');
+                            } else {
+                                commandsDir = getDextoGlobalPath('commands');
+                            }
+                        } else if (context === 'dexto-project') {
+                            const projectRoot = findDextoProjectRoot();
+                            commandsDir = projectRoot
+                                ? join(projectRoot, 'commands')
+                                : getDextoGlobalPath('commands');
+                        } else {
+                            // global-cli
+                            commandsDir = getDextoGlobalPath('commands');
+                        }
+
+                        filePath = join(commandsDir, `${data.name}.md`);
+                        await mkdir(commandsDir, { recursive: true });
+                        await writeFile(filePath, fileContent, 'utf-8');
+                    } else {
+                        // Create in agent's prompts directory
+                        const agentDir = dirname(agent.getAgentFilePath());
+                        const promptsDir = join(agentDir, 'prompts');
+                        filePath = join(promptsDir, `${data.name}.md`);
+                        await mkdir(promptsDir, { recursive: true });
+                        await writeFile(filePath, fileContent, 'utf-8');
+
+                        // Add file reference to agent config using surgical helper
+                        const { addPromptToAgentConfig } = await import('@dexto/agent-management');
+                        await addPromptToAgentConfig(agent.getAgentFilePath(), {
+                            type: 'file',
+                            file: `\${{dexto.agent_dir}}/prompts/${data.name}.md`,
+                        });
+                    }
+
+                    // Refresh prompts cache so the new prompt is immediately available
+                    await agent.refreshPrompts();
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Created prompt "${data.name}"\n📄 File: ${filePath}\n\nUse /${data.name} to run it.`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to create prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [ui.promptAddWizard?.scope, setUi, setInput, setMessages, buffer, agent]
+        );
+
+        // Handle prompt delete
+        const handlePromptDelete = useCallback(
+            async (deletable: DeletablePrompt) => {
+                const displayName = deletable.prompt.displayName || deletable.prompt.name;
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🗑️ Deleting prompt "${displayName}"...`,
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                try {
+                    const promptName = deletable.prompt.displayName || deletable.prompt.name;
+
+                    if (deletable.filePath) {
+                        const { unlink } = await import('fs/promises');
+                        await unlink(deletable.filePath);
+
+                        // If it's an agent prompt (not shared), also remove from config
+                        if (deletable.sourceType === 'config') {
+                            const { removePromptFromAgentConfig } = await import(
+                                '@dexto/agent-management'
+                            );
+                            await removePromptFromAgentConfig(agent.getAgentFilePath(), {
+                                type: 'file',
+                                filePattern: `/prompts/${promptName}.md`,
+                            });
+                        }
+
+                        // Refresh prompts cache so the deletion is immediately reflected
+                        await agent.refreshPrompts();
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Deleted prompt "${displayName}"`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+
+                        // Return to prompt list and refresh
+                        setUi((prev) => ({
+                            ...prev,
+                            activeOverlay: 'prompt-list',
+                        }));
+                        promptListRef.current?.refresh();
+                    } else {
+                        // No file path - inline prompt
+                        const { removePromptFromAgentConfig } = await import(
+                            '@dexto/agent-management'
+                        );
+                        await removePromptFromAgentConfig(agent.getAgentFilePath(), {
+                            type: 'inline',
+                            id: promptName,
+                        });
+
+                        // Refresh prompts cache so the deletion is immediately reflected
+                        await agent.refreshPrompts();
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Deleted prompt "${displayName}"`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+
+                        // Return to prompt list and refresh
+                        setUi((prev) => ({
+                            ...prev,
+                            activeOverlay: 'prompt-list',
+                        }));
+                        promptListRef.current?.refresh();
+                    }
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to delete prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    // Return to prompt list even on error
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'prompt-list',
+                    }));
+                }
+            },
+            [setUi, setMessages, agent]
+        );
+
+        // Handle prompt add wizard close
+        const handlePromptAddWizardClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'prompt-add-choice',
+                promptAddWizard: null,
+            }));
+        }, [setUi]);
+
+        // Handle prompt delete selector close
+        const handlePromptDeleteClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'prompt-list',
+            }));
+            // Refresh prompt list to show updated list
+            promptListRef.current?.refresh();
+        }, [setUi]);
+
+        // Handle prompt add choice close
+        const handlePromptAddChoiceClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'prompt-list',
+            }));
+        }, [setUi]);
+
         return (
             <>
                 {/* Approval prompt */}
@@ -1517,6 +1871,56 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         onClose={handleClose}
                         onSelectResult={handleSearchResultSelect}
                     />
+                )}
+
+                {/* Prompt list */}
+                {ui.activeOverlay === 'prompt-list' && (
+                    <Box marginTop={1}>
+                        <PromptList
+                            ref={promptListRef}
+                            isVisible={true}
+                            onAction={handlePromptListAction}
+                            onLoadIntoInput={handlePromptLoadIntoInput}
+                            onClose={handleClose}
+                            agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* Prompt add choice */}
+                {ui.activeOverlay === 'prompt-add-choice' && (
+                    <Box marginTop={1}>
+                        <PromptAddChoice
+                            ref={promptAddChoiceRef}
+                            isVisible={true}
+                            onSelect={handlePromptAddChoice}
+                            onClose={handlePromptAddChoiceClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Prompt add wizard */}
+                {ui.activeOverlay === 'prompt-add-wizard' && ui.promptAddWizard && (
+                    <PromptAddWizard
+                        ref={promptAddWizardRef}
+                        isVisible={true}
+                        scope={ui.promptAddWizard.scope}
+                        onComplete={handlePromptAddComplete}
+                        onClose={handlePromptAddWizardClose}
+                    />
+                )}
+
+                {/* Prompt delete selector */}
+                {ui.activeOverlay === 'prompt-delete-selector' && (
+                    <Box marginTop={1}>
+                        <PromptDeleteSelector
+                            ref={promptDeleteSelectorRef}
+                            isVisible={true}
+                            onDelete={handlePromptDelete}
+                            onClose={handlePromptDeleteClose}
+                            agent={agent}
+                        />
+                    </Box>
                 )}
             </>
         );

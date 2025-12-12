@@ -2079,6 +2079,15 @@ export class DextoAgent {
     }
 
     /**
+     * Refreshes the prompts cache, reloading from all providers.
+     * Call this after adding/deleting prompts to make them immediately available.
+     */
+    public async refreshPrompts(): Promise<void> {
+        this.ensureStarted();
+        await this.promptManager.refresh();
+    }
+
+    /**
      * Gets a prompt with its messages.
      * @param name The name of the prompt
      * @param args Optional arguments to pass to the prompt

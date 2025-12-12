@@ -39,6 +39,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
                 originalInput: '',
                 lastMatch: '',
             },
+            promptAddWizard: null,
         },
         session: {
             id: null,

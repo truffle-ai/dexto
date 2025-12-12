@@ -246,7 +246,11 @@ export type OverlayType =
     | 'api-key-input'
     | 'search'
     | 'approval'
-    | 'tool-browser';
+    | 'tool-browser'
+    | 'prompt-list'
+    | 'prompt-add-choice'
+    | 'prompt-add-wizard'
+    | 'prompt-delete-selector';
 
 /**
  * MCP server type for custom wizard
@@ -269,6 +273,20 @@ export interface SelectedMcpServer {
 export interface PendingModelSwitch {
     provider: string;
     model: string;
+}
+
+/**
+ * Prompt add wizard state
+ */
+export type PromptAddScope = 'agent' | 'shared';
+
+export interface PromptAddWizardState {
+    scope: PromptAddScope;
+    step: 'name' | 'title' | 'description' | 'content';
+    name: string;
+    title: string;
+    description: string;
+    content: string;
 }
 
 /**
@@ -297,6 +315,7 @@ export interface UIState {
     pendingModelSwitch: PendingModelSwitch | null; // Pending model switch waiting for API key
     selectedMcpServer: SelectedMcpServer | null; // Selected server for MCP actions screen
     historySearch: HistorySearchState; // Ctrl+R reverse history search
+    promptAddWizard: PromptAddWizardState | null; // Prompt add wizard state
 }
 
 /**

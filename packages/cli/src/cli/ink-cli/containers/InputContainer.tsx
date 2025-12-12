@@ -662,6 +662,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'api-key-input',
             'search',
             'tool-browser',
+            'prompt-add-wizard',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;

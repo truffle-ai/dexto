@@ -1,4 +1,12 @@
-export { updateAgentConfigFile, reloadAgentConfigFromFile } from './config-manager.js';
+export {
+    updateAgentConfigFile,
+    reloadAgentConfigFromFile,
+    addPromptToAgentConfig,
+    removePromptFromAgentConfig,
+    type FilePromptInput,
+    type InlinePromptInput,
+    type PromptInput,
+} from './config-manager.js';
 export { loadAgentConfig } from './loader.js';
 export {
     enrichAgentConfig,
