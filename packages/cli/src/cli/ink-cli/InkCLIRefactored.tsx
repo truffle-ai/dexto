@@ -24,6 +24,9 @@ import { KeypressProvider, MouseProvider, ScrollProvider } from './contexts/inde
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { AlternateBufferCLI, StaticCLI } from './components/modes/index.js';
 
+// Hooks
+import { useStreaming } from './hooks/useStreaming.js';
+
 // Utils
 import { getStartupInfo } from './utils/messageFormatting.js';
 
@@ -31,10 +34,6 @@ import { getStartupInfo } from './utils/messageFormatting.js';
 // Toggle this to switch between modes for testing
 //const USE_ALTERNATE_BUFFER = true;
 const USE_ALTERNATE_BUFFER = false;
-
-// Streaming mode: true = show chunks as they arrive, false = show complete response only
-// Non-streaming mode avoids React batching race conditions but loses live output
-const USE_STREAMING = true;
 
 interface InkCLIProps {
     agent: DextoAgent;
@@ -49,6 +48,9 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
     // Selection hint callback for alternate buffer mode
     const [, setSelectionHintShown] = useState(false);
 
+    // Streaming mode - can be toggled via /stream command
+    const { streaming } = useStreaming();
+
     const handleSelectionAttempt = useCallback(() => {
         setSelectionHintShown(true);
     }, []);
@@ -61,7 +63,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
                     initialSessionId={initialSessionId}
                     startupInfo={startupInfo}
                     onSelectionAttempt={handleSelectionAttempt}
-                    useStreaming={USE_STREAMING}
+                    useStreaming={streaming}
                 />
             </ScrollProvider>
         );
@@ -73,7 +75,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo }: InkCLIProps) {
             agent={agent}
             initialSessionId={initialSessionId}
             startupInfo={startupInfo}
-            useStreaming={USE_STREAMING}
+            useStreaming={streaming}
         />
     );
 }

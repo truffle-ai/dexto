@@ -8,6 +8,7 @@
  * - /log [level] - Set or view log level
  * - /config - Show current configuration
  * - /stats - Show system statistics
+ * - /stream - Toggle streaming mode for LLM responses
  */
 
 import chalk from 'chalk';
@@ -181,6 +182,20 @@ export const systemCommands: CommandDefinition[] = [
                 logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
+        },
+    },
+    {
+        name: 'stream',
+        description: 'Toggle streaming mode for LLM responses',
+        usage: '/stream',
+        category: 'System',
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
+            // Overlay is handled via commandOverlays.ts mapping
+            return true;
         },
     },
 ];

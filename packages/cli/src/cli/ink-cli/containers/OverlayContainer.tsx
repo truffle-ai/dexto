@@ -31,6 +31,9 @@ import SessionSelectorRefactored, {
 import LogLevelSelector, {
     type LogLevelSelectorHandle,
 } from '../components/overlays/LogLevelSelector.js';
+import StreamSelector, {
+    type StreamSelectorHandle,
+} from '../components/overlays/StreamSelector.js';
 import McpServerList, {
     type McpServerListHandle,
     type McpServerListAction,
@@ -128,6 +131,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const modelSelectorRef = useRef<ModelSelectorHandle>(null);
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
+        const streamSelectorRef = useRef<StreamSelectorHandle>(null);
         const mcpServerListRef = useRef<McpServerListHandle>(null);
         const mcpServerActionsRef = useRef<McpServerActionsHandle>(null);
         const mcpAddChoiceRef = useRef<McpAddChoiceHandle>(null);
@@ -165,6 +169,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return sessionSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'log-level-selector':
                             return logLevelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'stream-selector':
+                            return streamSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-list':
                             return mcpServerListRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-actions':
@@ -813,6 +819,28 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi, setInput, setMessages, agent]
         );
 
+        // Handle stream mode selection
+        const handleStreamSelect = useCallback(
+            (enabled: boolean) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: enabled
+                            ? '▶️ Streaming enabled - responses will appear as they are generated'
+                            : '⏸️ Streaming disabled - responses will appear when complete',
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setUi, setInput, setMessages]
+        );
+
         // Handle MCP server list actions (select server or add new)
         const handleMcpServerListAction = useCallback(
             (action: McpServerListAction) => {
@@ -1327,6 +1355,18 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onSelect={handleLogLevelSelect}
                             onClose={handleClose}
                             agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* Stream mode selector */}
+                {ui.activeOverlay === 'stream-selector' && (
+                    <Box marginTop={1}>
+                        <StreamSelector
+                            ref={streamSelectorRef}
+                            isVisible={true}
+                            onSelect={handleStreamSelect}
+                            onClose={handleClose}
                         />
                     </Box>
                 )}

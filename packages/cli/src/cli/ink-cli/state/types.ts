@@ -201,6 +201,7 @@ export type OverlayType =
     | 'mcp-custom-type-selector'
     | 'mcp-custom-wizard'
     | 'log-level-selector'
+    | 'stream-selector'
     | 'session-subcommand-selector'
     | 'api-key-input'
     | 'search'
