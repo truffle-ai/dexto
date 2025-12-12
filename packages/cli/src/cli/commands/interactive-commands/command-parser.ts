@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
-import type { StyledOutput } from '../../ink-cli/services/CommandService.js';
+import type { StyledOutput, SendMessageMarker } from '../../ink-cli/services/CommandService.js';
 
 export interface CommandResult {
     type: 'command' | 'prompt';
@@ -14,8 +14,9 @@ export interface CommandResult {
  * - boolean: Command handled (true) or not found (false)
  * - string: Output text to display
  * - StyledOutput: Styled output with structured data for rich rendering
+ * - SendMessageMarker: Send text through normal streaming flow (for prompt commands)
  */
-export type CommandHandlerResult = boolean | string | StyledOutput;
+export type CommandHandlerResult = boolean | string | StyledOutput | SendMessageMarker;
 
 /**
  * Context passed to command handlers

@@ -13,8 +13,9 @@
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
 import type { PromptInfo } from '@dexto/core';
-import type { CommandDefinition, CommandContext } from './command-parser.js';
+import type { CommandDefinition, CommandContext, CommandHandlerResult } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
+import { createSendMessageMarker } from '../../ink-cli/services/index.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
 /**
@@ -220,7 +221,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
             args: string[],
             agent: DextoAgent,
             ctx: CommandContext
-        ): Promise<boolean | string> => {
+        ): Promise<CommandHandlerResult> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
 
@@ -263,18 +264,9 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 }
 
                 if (finalText.trim()) {
-                    // agent.run() will expand @resource mentions automatically
-                    // This will trigger the normal message flow in ink-cli
-                    const { sessionId } = ctx;
-                    if (!sessionId) {
-                        const errorMsg =
-                            '❌ No active session. This should not happen in interactive mode.';
-                        console.error(chalk.red(errorMsg));
-                        return formatForInkCli(errorMsg);
-                    }
-                    await agent.run(finalText.trim(), undefined, undefined, sessionId);
-                    // Return empty string to indicate command handled (ink-cli will show the message)
-                    return '';
+                    // Return the resolved text so CLI can send it through normal streaming flow
+                    // This matches WebUI behavior: resolvePrompt() -> handleSend(text)
+                    return createSendMessageMarker(finalText.trim());
                 } else {
                     const warningMsg = `⚠️  Prompt '${promptInfo.name}' returned no content`;
                     console.log(chalk.yellow(warningMsg));

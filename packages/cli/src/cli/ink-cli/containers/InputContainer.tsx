@@ -431,6 +431,54 @@ export function InputContainer({
                         ]);
                     }
 
+                    // Handle sendMessage - send through normal streaming flow
+                    if (result.type === 'sendMessage' && result.messageToSend) {
+                        let currentSessionId = session.id;
+
+                        if (!currentSessionId) {
+                            if (sessionCreationPromiseRef.current) {
+                                try {
+                                    const existingSession = await sessionCreationPromiseRef.current;
+                                    currentSessionId = existingSession.id;
+                                } catch {
+                                    sessionCreationPromiseRef.current = null;
+                                }
+                            }
+
+                            if (!currentSessionId) {
+                                const sessionPromise = agent.createSession();
+                                sessionCreationPromiseRef.current = sessionPromise;
+
+                                const newSession = await sessionPromise;
+                                currentSessionId = newSession.id;
+                                setSession((prev) => ({
+                                    ...prev,
+                                    id: currentSessionId,
+                                    hasActiveSession: true,
+                                }));
+                            }
+                        }
+
+                        if (!currentSessionId) {
+                            throw new Error('Failed to create or retrieve session');
+                        }
+
+                        // Send through normal streaming flow (matches WebUI pattern)
+                        const iterator = await agent.stream(result.messageToSend, currentSessionId);
+                        await processStream(
+                            iterator,
+                            {
+                                setMessages,
+                                setPendingMessages,
+                                setDequeuedBuffer,
+                                setUi,
+                                setQueuedMessages,
+                            },
+                            { useStreaming }
+                        );
+                        return; // processStream handles UI state
+                    }
+
                     setUi((prev) => ({
                         ...prev,
                         isProcessing: false,
