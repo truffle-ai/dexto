@@ -141,6 +141,205 @@ async function writeFileAtomic(configPath: string, content: string): Promise<voi
     await fs.rename(tmpPath, configPath);
 }
 
+// ============================================================================
+// MCP Server Config Helpers
+// ============================================================================
+
+/**
+ * Finds the line range of a specific MCP server in the YAML file.
+ * Returns the start and end line indices (inclusive) of the server block.
+ */
+function findMcpServerRange(
+    lines: string[],
+    serverName: string
+): { startLine: number; endLine: number; indent: string } | null {
+    let inMcpServersSection = false;
+    let mcpServersIndent = '';
+    let serverLevelIndent = -1; // Indent level for server names (one level below mcpServers)
+    let serverIndent = '';
+    let inTargetServer = false;
+    let serverStartLine = -1;
+    let serverEndLine = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        const trimmed = line.trimStart();
+
+        // Skip empty lines and comments (but track them as part of server block)
+        if (!trimmed || trimmed.startsWith('#')) {
+            if (inTargetServer && serverStartLine >= 0) {
+                // Don't extend serverEndLine for trailing empty lines/comments
+            }
+            continue;
+        }
+
+        const currentIndent = line.slice(0, line.length - trimmed.length);
+        const currentIndentLen = currentIndent.length;
+
+        // Find the start of mcpServers section
+        if (!inMcpServersSection && trimmed.startsWith('mcpServers:')) {
+            inMcpServersSection = true;
+            mcpServersIndent = currentIndent;
+            continue;
+        }
+
+        if (inMcpServersSection) {
+            // Check if we've exited the mcpServers section (same or lower indent)
+            if (currentIndentLen <= mcpServersIndent.length && trimmed.includes(':')) {
+                // We've hit a new section - close any open server
+                if (inTargetServer && serverStartLine >= 0) {
+                    return {
+                        startLine: serverStartLine,
+                        endLine: serverEndLine >= 0 ? serverEndLine : serverStartLine,
+                        indent: serverIndent,
+                    };
+                }
+                return null;
+            }
+
+            // Determine server-level indent from first server we see
+            if (serverLevelIndent < 0 && currentIndentLen > mcpServersIndent.length) {
+                serverLevelIndent = currentIndentLen;
+            }
+
+            // Check if this is a server name line (at server level indent)
+            if (serverLevelIndent >= 0 && currentIndentLen === serverLevelIndent) {
+                const serverMatch = trimmed.match(/^([a-zA-Z0-9_-]+):(\s|$)/);
+                if (serverMatch) {
+                    const foundServerName = serverMatch[1];
+
+                    // Close previous server if we were tracking one
+                    if (inTargetServer && serverStartLine >= 0) {
+                        return {
+                            startLine: serverStartLine,
+                            endLine: serverEndLine >= 0 ? serverEndLine : serverStartLine,
+                            indent: serverIndent,
+                        };
+                    }
+
+                    // Check if this is the target server
+                    if (foundServerName === serverName) {
+                        inTargetServer = true;
+                        serverStartLine = i;
+                        serverEndLine = i;
+                        serverIndent = currentIndent;
+                    } else {
+                        inTargetServer = false;
+                    }
+                }
+            } else if (inTargetServer && currentIndentLen > serverLevelIndent) {
+                // Content of current server (deeper indent)
+                serverEndLine = i;
+            }
+        }
+    }
+
+    // If we reached end of file while tracking the target server
+    if (inTargetServer && serverStartLine >= 0) {
+        return {
+            startLine: serverStartLine,
+            endLine: serverEndLine >= 0 ? serverEndLine : serverStartLine,
+            indent: serverIndent,
+        };
+    }
+
+    return null;
+}
+
+/**
+ * Updates a specific field within an MCP server configuration.
+ * Uses string manipulation to preserve all formatting, comments, and structure.
+ *
+ * @param configPath Path to the agent configuration file
+ * @param serverName Name of the MCP server to update
+ * @param field Field name to update (e.g., 'enabled')
+ * @param value New value for the field
+ * @returns true if the field was updated, false if server not found
+ *
+ * @example
+ * ```typescript
+ * // Toggle enabled state
+ * await updateMcpServerField('/path/to/agent.yml', 'filesystem', 'enabled', true);
+ * ```
+ */
+export async function updateMcpServerField(
+    configPath: string,
+    serverName: string,
+    field: string,
+    value: boolean | string | number
+): Promise<boolean> {
+    const rawYaml = await fs.readFile(configPath, 'utf-8');
+    const lines = rawYaml.split('\n');
+
+    const serverRange = findMcpServerRange(lines, serverName);
+    if (!serverRange) {
+        return false;
+    }
+
+    // Format the value for YAML
+    const formattedValue =
+        typeof value === 'string' ? (value.includes(':') ? `"${value}"` : value) : String(value);
+
+    // Look for existing field within the server block
+    // Field should be at server indent + 2 spaces
+    const fieldIndent = serverRange.indent + '  ';
+    const fieldPrefix = `${fieldIndent}${field}:`;
+    let fieldLineIndex = -1;
+
+    for (let i = serverRange.startLine + 1; i <= serverRange.endLine; i++) {
+        const line = lines[i] ?? '';
+        // Check if line starts with the field prefix (e.g., "    enabled:")
+        if (line.startsWith(fieldPrefix)) {
+            fieldLineIndex = i;
+            break;
+        }
+    }
+
+    if (fieldLineIndex >= 0) {
+        // Replace the existing field line
+        lines[fieldLineIndex] = `${fieldIndent}${field}: ${formattedValue}`;
+    } else {
+        // Field doesn't exist, add it after the server name line
+        const newFieldLine = `${fieldIndent}${field}: ${formattedValue}`;
+        lines.splice(serverRange.startLine + 1, 0, newFieldLine);
+    }
+
+    await writeFileAtomic(configPath, lines.join('\n'));
+    return true;
+}
+
+/**
+ * Removes an MCP server from the agent configuration file.
+ * Uses string manipulation to preserve all formatting, comments, and structure.
+ *
+ * @param configPath Path to the agent configuration file
+ * @param serverName Name of the MCP server to remove
+ * @returns true if the server was removed, false if not found
+ *
+ * @example
+ * ```typescript
+ * await removeMcpServerFromConfig('/path/to/agent.yml', 'filesystem');
+ * ```
+ */
+export async function removeMcpServerFromConfig(
+    configPath: string,
+    serverName: string
+): Promise<boolean> {
+    const rawYaml = await fs.readFile(configPath, 'utf-8');
+    const lines = rawYaml.split('\n');
+
+    const serverRange = findMcpServerRange(lines, serverName);
+    if (!serverRange) {
+        return false;
+    }
+
+    // Remove the server lines
+    lines.splice(serverRange.startLine, serverRange.endLine - serverRange.startLine + 1);
+
+    await writeFileAtomic(configPath, lines.join('\n'));
+    return true;
+}
+
 /**
  * Finds the end position of the prompts array in the YAML file.
  * Returns the line index where we should insert a new prompt entry.
@@ -253,13 +452,15 @@ function findPromptEntryRanges(
     let inPromptsSection = false;
     let promptsIndent = '';
     let currentEntryStart = -1;
+    let currentEntryEnd = -1;
+    let itemIndent = '';
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i] ?? '';
         const trimmed = line.trimStart();
 
         // Find the start of prompts section
-        if (trimmed.startsWith('prompts:')) {
+        if (!inPromptsSection && trimmed.startsWith('prompts:')) {
             inPromptsSection = true;
             const idx = line.indexOf('prompts:');
             promptsIndent = idx >= 0 ? line.slice(0, idx) : '';
@@ -267,18 +468,42 @@ function findPromptEntryRanges(
         }
 
         if (inPromptsSection) {
-            // Check if we've exited the prompts section (new top-level key)
-            if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('-')) {
+            // Check if we've exited the prompts section (new top-level key or comment at top level)
+            if (trimmed && !trimmed.startsWith('-')) {
                 const currentIndent = line.slice(0, line.length - trimmed.length);
+                // Exit if we hit a top-level key (same or less indent than prompts:)
                 if (currentIndent.length <= promptsIndent.length && trimmed.includes(':')) {
                     // We've hit a new section - close any open entry
                     if (currentEntryStart >= 0) {
                         entries.push({
                             startLine: currentEntryStart,
-                            endLine: i - 1,
-                            content: lines.slice(currentEntryStart, i).join('\n'),
+                            endLine: currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart,
+                            content: lines
+                                .slice(
+                                    currentEntryStart,
+                                    (currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart) + 1
+                                )
+                                .join('\n'),
                         });
                     }
+                    inPromptsSection = false;
+                    break;
+                }
+                // Also exit if we hit a top-level comment (# at column 0 or at prompts indent)
+                if (trimmed.startsWith('#') && currentIndent.length <= promptsIndent.length) {
+                    if (currentEntryStart >= 0) {
+                        entries.push({
+                            startLine: currentEntryStart,
+                            endLine: currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart,
+                            content: lines
+                                .slice(
+                                    currentEntryStart,
+                                    (currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart) + 1
+                                )
+                                .join('\n'),
+                        });
+                    }
+                    inPromptsSection = false;
                     break;
                 }
             }
@@ -289,26 +514,40 @@ function findPromptEntryRanges(
                 if (currentEntryStart >= 0) {
                     entries.push({
                         startLine: currentEntryStart,
-                        endLine: i - 1,
-                        content: lines.slice(currentEntryStart, i).join('\n'),
+                        endLine: currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart,
+                        content: lines
+                            .slice(
+                                currentEntryStart,
+                                (currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart) + 1
+                            )
+                            .join('\n'),
                     });
                 }
                 currentEntryStart = i;
+                currentEntryEnd = i;
+                const dashIdx = line.indexOf('-');
+                itemIndent = dashIdx >= 0 ? line.slice(0, dashIdx) : '';
+            } else if (currentEntryStart >= 0 && trimmed) {
+                // Check if this line is still part of current entry (more indented than the dash)
+                const lineIndent = line.slice(0, line.length - trimmed.length);
+                if (lineIndent.length > itemIndent.length) {
+                    currentEntryEnd = i;
+                }
             }
         }
     }
 
-    // Close final entry if still open
-    if (currentEntryStart >= 0) {
-        // Find the actual end (skip trailing empty lines)
-        let endLine = lines.length - 1;
-        while (endLine > currentEntryStart && !(lines[endLine] ?? '').trim()) {
-            endLine--;
-        }
+    // Close final entry if still open (prompts section goes to end of file)
+    if (inPromptsSection && currentEntryStart >= 0) {
         entries.push({
             startLine: currentEntryStart,
-            endLine,
-            content: lines.slice(currentEntryStart, endLine + 1).join('\n'),
+            endLine: currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart,
+            content: lines
+                .slice(
+                    currentEntryStart,
+                    (currentEntryEnd >= 0 ? currentEntryEnd : currentEntryStart) + 1
+                )
+                .join('\n'),
         });
     }
 

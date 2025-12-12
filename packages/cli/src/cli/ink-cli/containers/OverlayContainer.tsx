@@ -951,28 +951,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     try {
                         // Import persistence utilities
-                        const { updateAgentConfigFile } = await import('@dexto/agent-management');
+                        const { updateMcpServerField } = await import('@dexto/agent-management');
 
-                        // Get current config and update the enabled field
-                        const currentConfig = agent.getEffectiveConfig();
-                        const serverConfig = currentConfig.mcpServers?.[server.name];
-
-                        if (!serverConfig) {
-                            throw new Error(`Server ${server.name} not found in config`);
-                        }
-
-                        const updates = {
-                            mcpServers: {
-                                ...(currentConfig.mcpServers || {}),
-                                [server.name]: {
-                                    ...serverConfig,
-                                    enabled: newEnabled,
-                                },
-                            },
-                        };
-
-                        // Persist to config file
-                        await updateAgentConfigFile(agent.getAgentFilePath(), updates);
+                        // Persist to config file using surgical update
+                        await updateMcpServerField(
+                            agent.getAgentFilePath(),
+                            server.name,
+                            'enabled',
+                            newEnabled
+                        );
 
                         // Enable or disable the server
                         if (newEnabled) {
@@ -1039,19 +1026,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     try {
                         // Import persistence utilities
-                        const { updateAgentConfigFile } = await import('@dexto/agent-management');
+                        const { removeMcpServerFromConfig } = await import(
+                            '@dexto/agent-management'
+                        );
 
-                        // Get current config and remove the server
-                        const currentConfig = agent.getEffectiveConfig();
-                        const mcpServers = { ...(currentConfig.mcpServers || {}) };
-                        delete mcpServers[server.name];
-
-                        const updates = {
-                            mcpServers,
-                        };
-
-                        // Persist to config file
-                        await updateAgentConfigFile(agent.getAgentFilePath(), updates);
+                        // Persist to config file using surgical removal
+                        await removeMcpServerFromConfig(agent.getAgentFilePath(), server.name);
 
                         // Also disconnect if connected
                         try {

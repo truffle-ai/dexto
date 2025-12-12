@@ -73,6 +73,8 @@ export {
     deriveAgentId,
     addPromptToAgentConfig,
     removePromptFromAgentConfig,
+    updateMcpServerField,
+    removeMcpServerFromConfig,
     ConfigError,
     ConfigErrorCode,
     type FilePromptInput,

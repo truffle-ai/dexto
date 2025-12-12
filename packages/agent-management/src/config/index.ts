@@ -3,6 +3,8 @@ export {
     reloadAgentConfigFromFile,
     addPromptToAgentConfig,
     removePromptFromAgentConfig,
+    updateMcpServerField,
+    removeMcpServerFromConfig,
     type FilePromptInput,
     type InlinePromptInput,
     type PromptInput,
