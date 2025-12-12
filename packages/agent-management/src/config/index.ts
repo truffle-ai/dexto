@@ -3,11 +3,14 @@ export {
     reloadAgentConfigFromFile,
     addPromptToAgentConfig,
     removePromptFromAgentConfig,
+    deletePromptByMetadata,
     updateMcpServerField,
     removeMcpServerFromConfig,
     type FilePromptInput,
     type InlinePromptInput,
     type PromptInput,
+    type PromptMetadataForDeletion,
+    type PromptDeletionResult,
 } from './config-manager.js';
 export { loadAgentConfig } from './loader.js';
 export {

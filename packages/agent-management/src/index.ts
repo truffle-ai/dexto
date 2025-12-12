@@ -73,6 +73,7 @@ export {
     deriveAgentId,
     addPromptToAgentConfig,
     removePromptFromAgentConfig,
+    deletePromptByMetadata,
     updateMcpServerField,
     removeMcpServerFromConfig,
     ConfigError,
@@ -80,6 +81,8 @@ export {
     type FilePromptInput,
     type InlinePromptInput,
     type PromptInput,
+    type PromptMetadataForDeletion,
+    type PromptDeletionResult,
 } from './config/index.js';
 
 // API Key utilities

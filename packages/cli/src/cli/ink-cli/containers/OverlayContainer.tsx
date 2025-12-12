@@ -1533,101 +1533,51 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
 
                 try {
-                    const promptName = deletable.prompt.displayName || deletable.prompt.name;
+                    const { deletePromptByMetadata, reloadAgentConfigFromFile, enrichAgentConfig } =
+                        await import('@dexto/agent-management');
 
-                    if (deletable.filePath) {
-                        const { unlink } = await import('fs/promises');
-                        await unlink(deletable.filePath);
-
-                        // If it's an agent prompt (not shared), also remove from config
-                        if (deletable.sourceType === 'config') {
-                            const {
-                                removePromptFromAgentConfig,
-                                reloadAgentConfigFromFile,
-                                enrichAgentConfig,
-                            } = await import('@dexto/agent-management');
-                            await removePromptFromAgentConfig(agent.getAgentFilePath(), {
-                                type: 'file',
-                                filePattern: `/prompts/${promptName}.md`,
-                            });
-
-                            // Reload config from disk, enrich to include discovered commands, then refresh
-                            const newConfig = await reloadAgentConfigFromFile(
-                                agent.getAgentFilePath()
-                            );
-                            const enrichedConfig = enrichAgentConfig(
-                                newConfig,
-                                agent.getAgentFilePath()
-                            );
-                            await agent.refreshPrompts(enrichedConfig.prompts);
-                        } else {
-                            // Shared prompt - re-discover commands and refresh
-                            const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
-                                '@dexto/agent-management'
-                            );
-                            const newConfig = await reloadAgentConfigFromFile(
-                                agent.getAgentFilePath()
-                            );
-                            const enrichedConfig = enrichAgentConfig(
-                                newConfig,
-                                agent.getAgentFilePath()
-                            );
-                            await agent.refreshPrompts(enrichedConfig.prompts);
-                        }
-
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: `✅ Deleted prompt "${displayName}"`,
-                                timestamp: new Date(),
+                    // Use the higher-level delete function that handles file + config
+                    // Pass full metadata including originalId for inline prompt deletion
+                    const promptMetadata = deletable.prompt.metadata as
+                        | { filePath?: string; originalId?: string }
+                        | undefined;
+                    const result = await deletePromptByMetadata(
+                        agent.getAgentFilePath(),
+                        {
+                            name: deletable.prompt.name,
+                            metadata: {
+                                filePath: deletable.filePath,
+                                originalId: promptMetadata?.originalId,
                             },
-                        ]);
+                        },
+                        { deleteFile: true }
+                    );
 
-                        // Return to prompt list and refresh
-                        setUi((prev) => ({
-                            ...prev,
-                            activeOverlay: 'prompt-list',
-                        }));
-                        promptListRef.current?.refresh();
-                    } else {
-                        // No file path - inline prompt
-                        const {
-                            removePromptFromAgentConfig,
-                            reloadAgentConfigFromFile,
-                            enrichAgentConfig,
-                        } = await import('@dexto/agent-management');
-                        await removePromptFromAgentConfig(agent.getAgentFilePath(), {
-                            type: 'inline',
-                            id: promptName,
-                        });
-
-                        // Reload config from disk, enrich to include discovered commands, then refresh
-                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        const enrichedConfig = enrichAgentConfig(
-                            newConfig,
-                            agent.getAgentFilePath()
-                        );
-                        await agent.refreshPrompts(enrichedConfig.prompts);
-
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: `✅ Deleted prompt "${displayName}"`,
-                                timestamp: new Date(),
-                            },
-                        ]);
-
-                        // Return to prompt list and refresh
-                        setUi((prev) => ({
-                            ...prev,
-                            activeOverlay: 'prompt-list',
-                        }));
-                        promptListRef.current?.refresh();
+                    if (!result.success) {
+                        throw new Error(result.error || 'Failed to delete prompt');
                     }
+
+                    // Reload config from disk, enrich to include discovered commands, then refresh
+                    const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
+                    const enrichedConfig = enrichAgentConfig(newConfig, agent.getAgentFilePath());
+                    await agent.refreshPrompts(enrichedConfig.prompts);
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: `✅ Deleted prompt "${displayName}"`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+
+                    // Return to prompt list and refresh
+                    setUi((prev) => ({
+                        ...prev,
+                        activeOverlay: 'prompt-list',
+                    }));
+                    promptListRef.current?.refresh();
                 } catch (error) {
                     setMessages((prev) => [
                         ...prev,

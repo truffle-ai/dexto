@@ -352,7 +352,7 @@ export class PromptManager {
         const metadata = { ...(prompt.metadata ?? {}) } as Record<string, unknown>;
         delete metadata.content;
         delete metadata.prompt;
-        delete metadata.filePath;
+        // Keep filePath - needed for prompt deletion
         delete metadata.messages;
 
         if (!metadata.originalName) {

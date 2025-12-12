@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import * as path from 'path';
 import { parseDocument, stringify } from 'yaml';
 import { loadAgentConfig } from './loader.js';
 import { enrichAgentConfig } from './config-enrichment.js';
@@ -627,4 +628,108 @@ export async function removePromptFromAgentConfig(
     }
 
     await writeFileAtomic(configPath, lines.join('\n'));
+}
+
+/**
+ * Prompt metadata expected from core's PromptInfo
+ */
+export interface PromptMetadataForDeletion {
+    name: string;
+    metadata?: {
+        filePath?: string | undefined;
+        originalId?: string | undefined;
+    };
+}
+
+/**
+ * Result of prompt deletion operation
+ */
+export interface PromptDeletionResult {
+    success: boolean;
+    deletedFile: boolean;
+    removedFromConfig: boolean;
+    error?: string;
+}
+
+/**
+ * Higher-level function to delete a prompt using its metadata.
+ * Handles both file-based and inline prompts, including file deletion.
+ *
+ * @param configPath - Path to the agent config file
+ * @param prompt - Prompt metadata (name and optional filePath in metadata)
+ * @param options - Options for deletion behavior
+ * @returns Result indicating what was deleted
+ *
+ * @example
+ * ```typescript
+ * // Delete a file-based prompt (deletes file and removes from config)
+ * await deletePromptByMetadata('/path/to/agent.yml', {
+ *   name: 'test-prompt',
+ *   metadata: { filePath: '/path/to/prompts/test-prompt.md' }
+ * });
+ *
+ * // Delete an inline prompt (only removes from config)
+ * await deletePromptByMetadata('/path/to/agent.yml', {
+ *   name: 'quick-help'
+ * });
+ * ```
+ */
+export async function deletePromptByMetadata(
+    configPath: string,
+    prompt: PromptMetadataForDeletion,
+    options: { deleteFile?: boolean } = { deleteFile: true }
+): Promise<PromptDeletionResult> {
+    const result: PromptDeletionResult = {
+        success: false,
+        deletedFile: false,
+        removedFromConfig: false,
+    };
+
+    const filePath = prompt.metadata?.filePath;
+
+    try {
+        if (filePath) {
+            // File-based prompt
+            const fileName = path.basename(filePath);
+
+            // Check if this is a config-based prompt (in prompts/ dir) vs shared (in commands/ dir)
+            const isSharedPrompt =
+                filePath.includes('/commands/') || filePath.includes('/.dexto/commands/');
+
+            if (!isSharedPrompt) {
+                // Remove from config file first
+                await removePromptFromAgentConfig(configPath, {
+                    type: 'file',
+                    filePattern: `/prompts/${fileName}`,
+                });
+                result.removedFromConfig = true;
+            }
+
+            // Delete the actual file if requested
+            if (options.deleteFile) {
+                try {
+                    await fs.unlink(filePath);
+                    result.deletedFile = true;
+                } catch {
+                    // File might not exist, that's okay
+                }
+            }
+
+            result.success = true;
+        } else {
+            // Inline prompt - remove from config by id
+            // Use originalId from metadata if available (name might have provider prefix like "config:")
+            const promptId = prompt.metadata?.originalId || prompt.name;
+            await removePromptFromAgentConfig(configPath, {
+                type: 'inline',
+                id: promptId,
+            });
+            result.removedFromConfig = true;
+            result.success = true;
+        }
+    } catch (err) {
+        result.error = err instanceof Error ? err.message : String(err);
+    }
+
+    return result;
 }

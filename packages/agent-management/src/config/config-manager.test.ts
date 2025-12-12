@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
     addPromptToAgentConfig,
     removePromptFromAgentConfig,
+    deletePromptByMetadata,
     updateMcpServerField,
     removeMcpServerFromConfig,
 } from './config-manager.js';
@@ -465,5 +466,120 @@ mcpServers:
         expect(result).toBe(false);
         const content = await fs.readFile(tmpFile, 'utf-8');
         expect(content).toContain('existing');
+    });
+});
+
+describe('deletePromptByMetadata', () => {
+    const tmpPromptFile = path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        'temp-prompt-test.md'
+    );
+
+    afterEach(async () => {
+        try {
+            await fs.unlink(tmpPromptFile);
+        } catch {
+            /* ignore */
+        }
+    });
+
+    it('deletes file prompt and removes from config', async () => {
+        const yamlContent =
+            'llm:\n  provider: test\n  model: test-model\nprompts:\n  - type: file\n    file: ${{dexto.agent_dir}}/prompts/temp-prompt-test.md\n  - type: inline\n    id: keep\n    prompt: Keep\n';
+        await fs.writeFile(tmpFile, yamlContent);
+        await fs.writeFile(tmpPromptFile, '---\nid: temp-prompt-test\n---\nTest content');
+
+        const result = await deletePromptByMetadata(
+            tmpFile,
+            {
+                name: 'temp-prompt-test',
+                metadata: { filePath: tmpPromptFile },
+            },
+            { deleteFile: true }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.deletedFile).toBe(true);
+        expect(result.removedFromConfig).toBe(true);
+
+        const configContent = await fs.readFile(tmpFile, 'utf-8');
+        expect(configContent).not.toContain('temp-prompt-test.md');
+        expect(configContent).toContain('id: keep');
+
+        // File should be deleted
+        await expect(fs.access(tmpPromptFile)).rejects.toThrow();
+    });
+
+    it('deletes inline prompt from config', async () => {
+        const yamlContent = `llm:
+  provider: test
+  model: test-model
+prompts:
+  - type: inline
+    id: to-delete
+    prompt: Delete me
+  - type: inline
+    id: keep
+    prompt: Keep me
+`;
+        await fs.writeFile(tmpFile, yamlContent);
+
+        const result = await deletePromptByMetadata(tmpFile, {
+            name: 'to-delete',
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.deletedFile).toBe(false);
+        expect(result.removedFromConfig).toBe(true);
+
+        const configContent = await fs.readFile(tmpFile, 'utf-8');
+        expect(configContent).not.toContain('to-delete');
+        expect(configContent).not.toContain('Delete me');
+        expect(configContent).toContain('id: keep');
+    });
+
+    it('skips config removal for shared prompts (commands directory)', async () => {
+        const yamlContent = `llm:
+  provider: test
+  model: test-model
+prompts:
+  - type: inline
+    id: keep
+    prompt: Keep me
+`;
+        await fs.writeFile(tmpFile, yamlContent);
+        await fs.writeFile(tmpPromptFile, '---\nid: shared\n---\nShared content');
+
+        // Simulate a commands directory path
+        const result = await deletePromptByMetadata(
+            tmpFile,
+            {
+                name: 'shared-prompt',
+                metadata: { filePath: '/some/path/.dexto/commands/shared-prompt.md' },
+            },
+            { deleteFile: false } // Don't try to delete non-existent file
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.removedFromConfig).toBe(false); // Should NOT remove from config
+    });
+
+    it('handles missing file gracefully', async () => {
+        const yamlContent =
+            'llm:\n  provider: test\n  model: test-model\nprompts:\n  - type: file\n    file: ${{dexto.agent_dir}}/prompts/nonexistent.md\n';
+        await fs.writeFile(tmpFile, yamlContent);
+
+        const result = await deletePromptByMetadata(
+            tmpFile,
+            {
+                name: 'nonexistent',
+                metadata: { filePath: '/path/to/nonexistent.md' },
+            },
+            { deleteFile: true }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.deletedFile).toBe(false); // File didn't exist
+        expect(result.removedFromConfig).toBe(true);
     });
 });
