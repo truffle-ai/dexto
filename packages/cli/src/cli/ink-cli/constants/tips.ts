@@ -14,11 +14,10 @@ export const tips: string[] = [
     'Use /model to switch between different AI models...',
     'Use /resume to load a previous conversation...',
     'Use /search to find messages across all sessions...',
-    'Use /mcp to to manage MCP servers...',
+    'Use /mcp to manage MCP servers...',
     'Use /tools to see all available tools...',
-    'Use /prompts to add/delete/run custom prompts...',
+    'Use /prompts to browse, add and delete custom prompts...',
     'Use /log to change logging verbosity...',
-    'Use /session to manage your conversations...',
     'Use /clear to clear the screen...',
     'Use /exit or /quit to close dexto...',
     'Use /docs to access documentation...',
@@ -42,6 +41,8 @@ export const tips: string[] = [
     'Type / to see available slash commands...',
     'MCP servers extend dexto with custom tools...',
     'Sessions are automatically saved for later...',
+    'You can create custom commands with /prompts...',
+    'You can submit messages while Dexto is processing...',
 
     // Platform tips
     'On Mac, use Option+Up/Down to jump to start/end of input...',
