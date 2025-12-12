@@ -267,7 +267,7 @@ describe('ConfigPromptProvider', () => {
             expect(result2.prompts).toHaveLength(1);
         });
 
-        test('updateConfig replaces prompts', async () => {
+        test('updatePrompts replaces prompts', async () => {
             const config1 = makeAgentConfig([
                 {
                     type: 'inline',
@@ -281,21 +281,21 @@ describe('ConfigPromptProvider', () => {
             expect(result.prompts).toHaveLength(1);
             expect(result.prompts[0]?.name).toBe('config:first');
 
-            // Update config
-            const config2 = makeAgentConfig([
+            // Update prompts
+            const newPrompts = [
                 {
-                    type: 'inline',
+                    type: 'inline' as const,
                     id: 'second',
                     prompt: 'Second content',
                 },
                 {
-                    type: 'inline',
+                    type: 'inline' as const,
                     id: 'third',
                     prompt: 'Third content',
                 },
-            ]);
+            ];
 
-            provider.updateConfig(config2);
+            provider.updatePrompts(newPrompts);
             result = await provider.listPrompts();
             expect(result.prompts).toHaveLength(2);
             expect(result.prompts.map((p) => p.name)).toContain('config:second');
