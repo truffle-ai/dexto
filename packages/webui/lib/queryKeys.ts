@@ -81,4 +81,9 @@ export const queryKeys = {
     queue: {
         list: (sessionId: string) => ['queue', sessionId] as const,
     },
+
+    // Approval queries
+    approvals: {
+        pending: (sessionId: string) => ['approvals', 'pending', sessionId] as const,
+    },
 } as const;

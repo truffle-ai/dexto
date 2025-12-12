@@ -55,12 +55,14 @@ export function useAgentEvents({
         setMaxListeners(15, signal);
 
         // Handle approval requests - these can arrive during streaming
+        // Includes: tool confirmation, command confirmation, and elicitation (ask_user)
         bus.on(
             'approval:request',
             (event) => {
                 if (
                     event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
-                    event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION
+                    event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                    event.type === ApprovalTypeEnum.ELICITATION
                 ) {
                     const newApproval: ApprovalRequest = {
                         approvalId: event.approvalId,
