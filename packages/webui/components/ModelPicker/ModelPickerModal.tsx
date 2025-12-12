@@ -48,7 +48,7 @@ export default function ModelPickerModal() {
     const [search, setSearch] = useState('');
     const [baseURL, setBaseURL] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [providerFilter, setProviderFilter] = useState<LLMProvider | 'all'>('all');
+    const [providerFilter, setProviderFilter] = useState<LLMProvider | 'all' | 'custom'>('all');
     const [activeView, setActiveView] = useState<'favorites' | 'all'>('all');
     const [showCustomForm, setShowCustomForm] = useState(false);
 
@@ -361,6 +361,9 @@ export default function ModelPickerModal() {
 
     // All models flat list (filtered by search and provider)
     const allModels = useMemo(() => {
+        // When 'custom' filter is selected, we only show custom models
+        if (providerFilter === 'custom') return [];
+
         const result: Array<{
             providerId: LLMProvider;
             provider: ProviderCatalog;
@@ -382,6 +385,19 @@ export default function ModelPickerModal() {
 
         return result;
     }, [providers, providerFilter, modelMatchesSearch]);
+
+    // Filtered custom models (shown in 'all' and 'custom' views)
+    const filteredCustomModels = useMemo(() => {
+        if (providerFilter !== 'custom' && providerFilter !== 'all') return [];
+        const q = search.trim().toLowerCase();
+        if (!q) return customModels;
+        return customModels.filter(
+            (cm) =>
+                cm.name.toLowerCase().includes(q) ||
+                (cm.displayName?.toLowerCase().includes(q) ?? false) ||
+                cm.baseURL.toLowerCase().includes(q)
+        );
+    }, [providerFilter, search, customModels]);
 
     // Available providers for filter
     const availableProviders = useMemo(() => {
@@ -513,6 +529,20 @@ export default function ModelPickerModal() {
                                         </span>
                                     </button>
                                 ))}
+                                {customModels.length > 0 && (
+                                    <button
+                                        onClick={() => setProviderFilter('custom')}
+                                        className={cn(
+                                            'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
+                                            providerFilter === 'custom'
+                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                        )}
+                                    >
+                                        <Bot className="h-2.5 w-2.5" />
+                                        <span className="hidden sm:inline">Custom</span>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -762,7 +792,7 @@ export default function ModelPickerModal() {
                         ) : (
                             /* All Models Card Grid View */
                             <div>
-                                {allModels.length === 0 ? (
+                                {allModels.length === 0 && filteredCustomModels.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-8 text-center">
                                         <p className="text-sm font-medium text-muted-foreground">
                                             No models found
@@ -793,6 +823,32 @@ export default function ModelPickerModal() {
                                                     toggleFavorite(providerId, model.name)
                                                 }
                                                 size="sm"
+                                            />
+                                        ))}
+                                        {filteredCustomModels.map((cm) => (
+                                            <ModelCard
+                                                key={`custom|${cm.name}`}
+                                                provider="openai-compatible"
+                                                model={{
+                                                    name: cm.name,
+                                                    displayName: cm.displayName || cm.name,
+                                                    maxInputTokens: cm.maxInputTokens || 128000,
+                                                    supportedFileTypes: ['pdf', 'image', 'audio'],
+                                                }}
+                                                isFavorite={favorites.includes(
+                                                    favKey('openai-compatible', cm.name)
+                                                )}
+                                                isActive={isCurrentModel(
+                                                    'openai-compatible',
+                                                    cm.name
+                                                )}
+                                                onClick={() => onPickCustomModel(cm)}
+                                                onToggleFavorite={() =>
+                                                    toggleFavorite('openai-compatible', cm.name)
+                                                }
+                                                onDelete={() => deleteCustomModel(cm.name)}
+                                                size="sm"
+                                                isCustom
                                             />
                                         ))}
                                     </div>
