@@ -323,14 +323,24 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         // Queued messages are displayed via QueuedMessagesDisplay component
                         // (state updated by message:queued event handler in useAgentEvents)
 
-                        // Clear input and images
+                        // Clear input, update history, and clear images
                         buffer.setText('');
-                        setInput((prev) => ({
-                            ...prev,
-                            value: '',
-                            images: [],
-                            pastedBlocks: [],
-                        }));
+                        setInput((prev) => {
+                            const newHistory =
+                                prev.history.length > 0 &&
+                                prev.history[prev.history.length - 1] === trimmed
+                                    ? prev.history
+                                    : [...prev.history, trimmed].slice(-100);
+                            return {
+                                ...prev,
+                                value: '',
+                                history: newHistory,
+                                historyIndex: -1,
+                                draftBeforeHistory: '',
+                                images: [],
+                                pastedBlocks: [],
+                            };
+                        });
                     } catch (error) {
                         setMessages((prev) => [
                             ...prev,
