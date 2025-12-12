@@ -249,7 +249,7 @@ describe('DextoAgent Lifecycle Management', () => {
             { name: 'resetConversation', args: [] },
             { name: 'getCurrentLLMConfig', args: [] },
             { name: 'switchLLM', args: [{ model: 'gpt-5' }] },
-            { name: 'connectMcpServer', args: ['test', { type: 'stdio', command: 'test' }] },
+            { name: 'addMcpServer', args: ['test', { type: 'stdio', command: 'test' }] },
             { name: 'getAllMcpTools', args: [] },
         ];
 

@@ -15,7 +15,6 @@ interface StatusBarProps {
     isProcessing: boolean;
     isThinking: boolean;
     approvalQueueCount: number;
-    exitWarningShown?: boolean;
     copyModeEnabled?: boolean;
 }
 
@@ -28,7 +27,6 @@ export function StatusBar({
     isProcessing,
     isThinking,
     approvalQueueCount,
-    exitWarningShown = false,
     copyModeEnabled = false,
 }: StatusBarProps) {
     // Cycle through witty phrases while processing
@@ -37,27 +35,13 @@ export function StatusBar({
     const { formatted: elapsedTime } = useElapsedTime({ isActive: isProcessing });
     // Track token usage during processing
     const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+
     // Show copy mode warning (highest priority)
     if (copyModeEnabled) {
         return (
             <Box paddingX={1} marginBottom={0}>
                 <Text color="yellow" bold>
                     📋 Copy Mode - Select text with mouse. Press any key to exit.
-                </Text>
-            </Box>
-        );
-    }
-
-    // Show exit warning if Ctrl+C was pressed
-    if (exitWarningShown) {
-        return (
-            <Box paddingX={1} marginBottom={0}>
-                <Text color="yellow" bold>
-                    ⚠ Press Ctrl+C again to exit
-                </Text>
-                <Text color="gray" dimColor>
-                    {' '}
-                    (or press any key to cancel)
                 </Text>
             </Box>
         );

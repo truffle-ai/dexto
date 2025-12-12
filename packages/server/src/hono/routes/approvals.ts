@@ -28,11 +28,80 @@ const ApprovalResponseSchema = z
     })
     .describe('Response after processing approval');
 
+const PendingApprovalSchema = z
+    .object({
+        approvalId: z.string().describe('The unique ID of the approval request'),
+        type: z.string().describe('The type of approval (tool_confirmation, elicitation, etc.)'),
+        sessionId: z.string().optional().describe('The session ID if applicable'),
+        timeout: z.number().optional().describe('Timeout in milliseconds'),
+        timestamp: z.string().describe('ISO timestamp when the request was created'),
+        metadata: z.record(z.unknown()).describe('Type-specific metadata'),
+    })
+    .describe('A pending approval request');
+
+const PendingApprovalsResponseSchema = z
+    .object({
+        ok: z.literal(true),
+        approvals: z.array(PendingApprovalSchema).describe('List of pending approval requests'),
+    })
+    .describe('Response containing pending approval requests');
+
 export function createApprovalsRouter(
     getAgent: () => DextoAgent,
     approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
+
+    // GET /approvals - Fetch pending approval requests
+    // Useful for restoring UI state after page refresh
+    const getPendingApprovalsRoute = createRoute({
+        method: 'get',
+        path: '/approvals',
+        summary: 'Get Pending Approvals',
+        description:
+            'Fetch all pending approval requests for a session. Use this to restore UI state after page refresh.',
+        tags: ['approvals'],
+        request: {
+            query: z.object({
+                sessionId: z.string().describe('The session ID to fetch pending approvals for'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'List of pending approval requests',
+                content: {
+                    'application/json': {
+                        schema: PendingApprovalsResponseSchema,
+                    },
+                },
+            },
+        },
+    });
+
+    app.openapi(getPendingApprovalsRoute, async (ctx) => {
+        const agent = getAgent();
+        const { sessionId } = ctx.req.valid('query');
+
+        const pendingRequests = agent.services.approvalManager.getPendingApprovalRequests();
+
+        // Filter by sessionId
+        const filtered = pendingRequests.filter((r) => r.sessionId === sessionId);
+
+        // Convert to API response format
+        const approvals = filtered.map((r) => ({
+            approvalId: r.approvalId,
+            type: r.type,
+            sessionId: r.sessionId,
+            timeout: r.timeout,
+            timestamp: r.timestamp.toISOString(),
+            metadata: r.metadata as Record<string, unknown>,
+        }));
+
+        return ctx.json({
+            ok: true as const,
+            approvals,
+        });
+    });
 
     // TODO: Consider adding auth & idempotency for production deployments
     // See: https://github.com/truffle-ai/dexto/pull/450#discussion_r2545039760

@@ -27,6 +27,7 @@ import { Header } from '../chat/Header.js';
 import { MessageItem } from '../chat/MessageItem.js';
 import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
+import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
 import {
     VirtualizedList,
@@ -35,7 +36,7 @@ import {
 } from '../shared/VirtualizedList.js';
 
 // Containers
-import { InputContainer } from '../../containers/InputContainer.js';
+import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
 
 // Union type for virtualized list items: header or message
@@ -61,6 +62,9 @@ export function AlternateBufferCLI({
     // Refs for VirtualizedList
     const listRef = useRef<VirtualizedListRef<ListItem>>(null);
     const listContainerRef = useRef<DOMElement>(null);
+
+    // Ref to InputContainer for programmatic submit
+    const inputContainerRef = useRef<InputContainerHandle>(null);
 
     // Selection hint state
     const [selectionHintVisible, setSelectionHintVisible] = useState(false);
@@ -113,6 +117,20 @@ export function AlternateBufferCLI({
     }, []);
 
     const hasFocus = useCallback(() => true, []); // List always has focus for scroll
+
+    // Compute whether history search has a match (for HistorySearchBar indicator)
+    const historySearchHasMatch = useMemo(() => {
+        if (!ui.historySearch.isActive || !ui.historySearch.query) return false;
+        const query = ui.historySearch.query.toLowerCase();
+        return input.history.some((item) => item.toLowerCase().includes(query));
+    }, [ui.historySearch.isActive, ui.historySearch.query, input.history]);
+
+    // Callback for OverlayContainer to submit prompt commands through InputContainer
+    const handleSubmitPromptCommand = useCallback(async (commandText: string) => {
+        if (inputContainerRef.current) {
+            await inputContainerRef.current.submit(commandText);
+        }
+    }, []);
 
     useScrollable(
         {
@@ -252,7 +270,6 @@ export function AlternateBufferCLI({
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
                     approvalQueueCount={approvalQueue.length}
-                    exitWarningShown={ui.exitWarningShown}
                     copyModeEnabled={ui.copyModeEnabled}
                 />
 
@@ -270,6 +287,7 @@ export function AlternateBufferCLI({
                 <QueuedMessagesDisplay messages={queuedMessages} />
 
                 <InputContainer
+                    ref={inputContainerRef}
                     buffer={buffer}
                     input={input}
                     ui={ui}
@@ -303,10 +321,33 @@ export function AlternateBufferCLI({
                     setApprovalQueue={setApprovalQueue}
                     agent={agent}
                     inputService={inputService}
+                    buffer={buffer}
+                    onSubmitPromptCommand={handleSubmitPromptCommand}
                 />
+
+                {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
+                {ui.exitWarningShown && (
+                    <Box paddingX={1}>
+                        <Text color="yellow" bold>
+                            ⚠ Press Ctrl+C again to exit
+                        </Text>
+                        <Text color="gray" dimColor>
+                            {' '}
+                            (or press any key to cancel)
+                        </Text>
+                    </Box>
+                )}
 
                 {/* Footer status line */}
                 <Footer modelName={session.modelName} cwd={process.cwd()} />
+
+                {/* History search bar (Ctrl+R) - shown at very bottom */}
+                {ui.historySearch.isActive && (
+                    <HistorySearchBar
+                        query={ui.historySearch.query}
+                        hasMatch={historySearchHasMatch}
+                    />
+                )}
             </Box>
         </Box>
     );

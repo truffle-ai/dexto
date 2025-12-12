@@ -52,7 +52,65 @@ export function useSaveApiKey() {
     });
 }
 
+// Custom models hooks
+export function useCustomModels(options?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: queryKeys.llm.customModels,
+        queryFn: async () => {
+            const response = await client.api.llm['custom-models'].$get();
+            if (!response.ok) {
+                throw new Error(`Failed to fetch custom models: ${response.status}`);
+            }
+            const data = await response.json();
+            return data.models;
+        },
+        enabled: options?.enabled ?? true,
+        staleTime: 60 * 1000, // 1 minute
+    });
+}
+
+export function useCreateCustomModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: CustomModelPayload) => {
+            const response = await client.api.llm['custom-models'].$post({ json: payload });
+            if (!response.ok) {
+                throw new Error(`Failed to create custom model: ${response.status}`);
+            }
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.customModels });
+        },
+    });
+}
+
+export function useDeleteCustomModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (name: string) => {
+            const response = await client.api.llm['custom-models'][':name'].$delete({
+                param: { name },
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to delete custom model: ${response.status}`);
+            }
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.customModels });
+        },
+    });
+}
+
 // Export inferred types for components to use
 export type SaveApiKeyPayload = Parameters<typeof client.api.llm.key.$post>[0]['json'];
 export type LLMProvider = SaveApiKeyPayload['provider'];
 export type SwitchLLMPayload = Parameters<typeof client.api.llm.switch.$post>[0]['json'];
+
+// Helper to extract the custom-models endpoint (Prettier can't parse hyphenated bracket notation in Parameters<>)
+type CustomModelsEndpoint = (typeof client.api.llm)['custom-models'];
+export type CustomModelPayload = Parameters<CustomModelsEndpoint['$post']>[0]['json'];
+export type CustomModel = NonNullable<ReturnType<typeof useCustomModels>['data']>[number];

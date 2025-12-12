@@ -293,4 +293,11 @@ export interface ApprovalHandler {
      * @remarks Not all handlers track pending requests (e.g., auto-approve handlers)
      */
     getPending?(): string[];
+
+    /**
+     * Get full pending approval requests (optional)
+     * @returns Array of pending approval requests
+     * @remarks Not all handlers track pending requests (e.g., auto-approve handlers)
+     */
+    getPendingRequests?(): ApprovalRequest[];
 }

@@ -9,7 +9,14 @@ import {
     type LLMProvider,
     LLMUpdatesSchema,
 } from '@dexto/core';
-import { getProviderKeyStatus, saveProviderApiKey } from '@dexto/agent-management';
+import {
+    getProviderKeyStatus,
+    saveProviderApiKey,
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    CustomModelSchema,
+} from '@dexto/agent-management';
 import {
     ProviderCatalogSchema,
     ModelFlatSchema,
@@ -234,6 +241,88 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
         },
     });
 
+    // Custom models routes
+    const listCustomModelsRoute = createRoute({
+        method: 'get',
+        path: '/llm/custom-models',
+        summary: 'List Custom Models',
+        description: 'Returns all saved custom openai-compatible model configurations',
+        tags: ['llm'],
+        responses: {
+            200: {
+                description: 'List of custom models',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            models: z.array(CustomModelSchema),
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
+    const createCustomModelRoute = createRoute({
+        method: 'post',
+        path: '/llm/custom-models',
+        summary: 'Create Custom Model',
+        description: 'Saves a new custom openai-compatible model configuration',
+        tags: ['llm'],
+        request: {
+            body: { content: { 'application/json': { schema: CustomModelSchema } } },
+        },
+        responses: {
+            200: {
+                description: 'Custom model saved',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            ok: z.literal(true),
+                            model: CustomModelSchema,
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
+    const deleteCustomModelRoute = createRoute({
+        method: 'delete',
+        path: '/llm/custom-models/{name}',
+        summary: 'Delete Custom Model',
+        description: 'Deletes a custom model by name',
+        tags: ['llm'],
+        request: {
+            params: z.object({
+                name: z.string().min(1).describe('Model name to delete'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Custom model deleted',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            ok: z.literal(true),
+                            deleted: z.string(),
+                        }),
+                    },
+                },
+            },
+            404: {
+                description: 'Custom model not found',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            ok: z.literal(false),
+                            error: z.string(),
+                        }),
+                    },
+                },
+            },
+        },
+    });
+
     return app
         .openapi(currentRoute, (ctx) => {
             const agent = getAgent();
@@ -380,5 +469,25 @@ export function createLlmRouter(getAgent: () => DextoAgent) {
                 },
                 sessionId,
             });
+        })
+        .openapi(listCustomModelsRoute, async (ctx) => {
+            const models = await loadCustomModels();
+            return ctx.json({ models });
+        })
+        .openapi(createCustomModelRoute, async (ctx) => {
+            const model = ctx.req.valid('json');
+            await saveCustomModel(model);
+            return ctx.json({ ok: true as const, model });
+        })
+        .openapi(deleteCustomModelRoute, async (ctx) => {
+            const { name } = ctx.req.valid('param');
+            const deleted = await deleteCustomModel(name);
+            if (!deleted) {
+                return ctx.json(
+                    { ok: false as const, error: `Model '${name}' not found` } as const,
+                    404
+                );
+            }
+            return ctx.json({ ok: true as const, deleted: name } as const, 200);
         });
 }

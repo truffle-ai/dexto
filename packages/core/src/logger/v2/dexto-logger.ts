@@ -149,6 +149,19 @@ export class DextoLogger implements IDextoLogger {
     }
 
     /**
+     * Get the log file path if file logging is configured
+     */
+    getLogFilePath(): string | null {
+        // Find the FileTransport and get its path
+        for (const transport of this.transports) {
+            if ('getFilePath' in transport && typeof transport.getFilePath === 'function') {
+                return transport.getFilePath();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Create a child logger for a different component
      * Shares the same transports and level reference but uses different component identifier
      */

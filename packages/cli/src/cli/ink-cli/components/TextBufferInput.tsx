@@ -63,6 +63,8 @@ interface TextBufferInputProps {
     onPasteBlockUpdate?: ((blockId: string, updates: Partial<PastedBlock>) => void) | undefined;
     /** Called when a paste block placeholder is removed from text */
     onPasteBlockRemove?: ((blockId: string) => void) | undefined;
+    /** Query to highlight in input text (for history search) */
+    highlightQuery?: string | undefined;
 }
 
 function isBackspaceKey(key: Key): boolean {
@@ -71,6 +73,35 @@ function isBackspaceKey(key: Key): boolean {
 
 function isForwardDeleteKey(key: Key): boolean {
     return key.name === 'delete';
+}
+
+/** Renders text with optional query highlighting in green */
+function HighlightedText({ text, query }: { text: string; query: string | undefined }) {
+    if (!query || !text) {
+        return <Text>{text}</Text>;
+    }
+
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const matchIndex = lowerText.indexOf(lowerQuery);
+
+    if (matchIndex === -1) {
+        return <Text>{text}</Text>;
+    }
+
+    const before = text.slice(0, matchIndex);
+    const match = text.slice(matchIndex, matchIndex + query.length);
+    const after = text.slice(matchIndex + query.length);
+
+    return (
+        <Text>
+            {before}
+            <Text color="green" bold>
+                {match}
+            </Text>
+            {after}
+        </Text>
+    );
 }
 
 export function TextBufferInput({
@@ -91,6 +122,7 @@ export function TextBufferInput({
     onPasteBlock,
     onPasteBlockUpdate,
     onPasteBlockRemove,
+    highlightQuery,
 }: TextBufferInputProps) {
     const { stdout } = useStdout();
     const terminalWidth = stdout?.columns || 80;
@@ -565,7 +597,7 @@ export function TextBufferInput({
                             <Text color="green" bold={isFirst}>
                                 {prefix}
                             </Text>
-                            <Text>{line}</Text>
+                            <HighlightedText text={line} query={highlightQuery} />
                             <Text>
                                 {' '.repeat(
                                     Math.max(0, terminalWidth - prefix.length - line.length)
@@ -584,9 +616,9 @@ export function TextBufferInput({
                         <Text color="green" bold={isFirst}>
                             {prefix}
                         </Text>
-                        <Text>{before}</Text>
+                        <HighlightedText text={before} query={highlightQuery} />
                         <Text inverse>{atCursor}</Text>
-                        <Text>{after}</Text>
+                        <HighlightedText text={after} query={highlightQuery} />
                         <Text>
                             {' '.repeat(
                                 Math.max(

@@ -8,9 +8,8 @@
  * - /docs, /doc - Open Dexto documentation in browser
  */
 
-import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
-import type { CommandDefinition } from './command-parser.js';
+import type { CommandDefinition, CommandContext } from './command-parser.js';
 import { CommandOutputHelper } from './utils/command-output.js';
 
 /**
@@ -23,12 +22,14 @@ export const documentationCommands: CommandDefinition[] = [
         usage: '/docs',
         category: 'Documentation',
         aliases: ['doc'],
-        handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             const docsUrl = 'https://docs.dexto.ai/docs/category/getting-started';
             try {
                 const { spawn } = await import('child_process');
-
-                console.log(chalk.blue(`🌐 Opening Dexto documentation: ${docsUrl}`));
 
                 // Cross-platform browser opening
                 const command =
@@ -39,10 +40,12 @@ export const documentationCommands: CommandDefinition[] = [
                           : 'xdg-open';
 
                 spawn(command, [docsUrl], { detached: true, stdio: 'ignore' });
-                return CommandOutputHelper.success('✅ Documentation opened in browser');
-            } catch (error) {
-                console.log(chalk.yellow(`💡 You can manually visit: ${docsUrl}`));
-                return CommandOutputHelper.error(error, 'Failed to open documentation');
+                return true; // Silent success
+            } catch {
+                return CommandOutputHelper.error(
+                    new Error(`Could not open browser. Visit: ${docsUrl}`),
+                    'Failed to open documentation'
+                );
             }
         },
     },

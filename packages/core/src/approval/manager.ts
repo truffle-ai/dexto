@@ -327,6 +327,13 @@ export class ApprovalManager {
     }
 
     /**
+     * Get full pending approval requests
+     */
+    getPendingApprovalRequests(): ApprovalRequest[] {
+        return this.handler?.getPendingRequests?.() ?? [];
+    }
+
+    /**
      * Get current configuration
      */
     getConfig(): ApprovalManagerConfig {

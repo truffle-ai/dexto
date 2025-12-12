@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTerminalSize } from '../../../hooks/useTerminalSize.js';
 
 interface StyledBoxProps {
     title: string;
@@ -14,10 +15,13 @@ interface StyledBoxProps {
 
 /**
  * Base styled box component with rounded border and title
+ * Automatically adjusts width to terminal size
  */
 export function StyledBox({ title, titleColor = 'cyan', children }: StyledBoxProps) {
+    const { columns } = useTerminalSize();
+
     return (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" marginBottom={1} width={columns}>
             <Box
                 flexDirection="column"
                 borderStyle="round"

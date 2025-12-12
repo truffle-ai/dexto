@@ -91,7 +91,7 @@ describe('AgentStateManager Events', () => {
             connectionMode: 'lenient' as const,
         });
 
-        stateManager.addMcpServer('new-server', newServerConfig);
+        stateManager.setMcpServer('new-server', newServerConfig);
 
         expect(eventSpy).toHaveBeenCalledWith({
             serverName: 'new-server',

@@ -395,6 +395,11 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Context was manually cleared via /clear command */
+    'context:cleared': {
+        sessionId: string;
+    };
+
     /** User message was queued during agent execution */
     'message:queued': {
         position: number;

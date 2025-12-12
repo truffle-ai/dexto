@@ -23,6 +23,7 @@ export function createMockLogger(): IDextoLogger {
         destroy: vi.fn(),
         setLevel: vi.fn(),
         getLevel: vi.fn((): LogLevel => 'info'),
+        getLogFilePath: vi.fn(() => null),
     };
     return mockLogger;
 }
@@ -43,6 +44,7 @@ export function createSilentMockLogger(): IDextoLogger {
         destroy: async () => {},
         setLevel: () => {},
         getLevel: () => 'info',
+        getLogFilePath: () => null,
     };
     return mockLogger;
 }

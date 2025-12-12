@@ -14,7 +14,7 @@
 
 import chalk from 'chalk';
 import { DextoAgent, DextoRuntimeError, DextoValidationError } from '@dexto/core';
-import { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
+import { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 
 /**
@@ -33,7 +33,11 @@ export const modelCommands: CommandDefinition = {
             name: 'list',
             description: 'List all supported providers and models',
             usage: '/model list',
-            handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (
+                _args: string[],
+                agent: DextoAgent,
+                _ctx: CommandContext
+            ): Promise<boolean | string> => {
                 try {
                     console.log(chalk.bold.blue('\n🤖 Supported Models and Providers:\n'));
 
@@ -70,7 +74,11 @@ export const modelCommands: CommandDefinition = {
             name: 'current',
             description: 'Show current model configuration',
             usage: '/model current',
-            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (
+                args: string[],
+                agent: DextoAgent,
+                _ctx: CommandContext
+            ): Promise<boolean | string> => {
                 try {
                     const config = agent.getEffectiveConfig();
                     console.log(chalk.blue('\n🤖 Current Model Configuration:\n'));
@@ -98,7 +106,11 @@ export const modelCommands: CommandDefinition = {
             name: 'switch',
             description: 'Switch to a different model',
             usage: '/model switch <model>',
-            handler: async (args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (
+                args: string[],
+                agent: DextoAgent,
+                _ctx: CommandContext
+            ): Promise<boolean | string> => {
                 const validationError = CommandOutputHelper.validateRequiredArg(
                     args,
                     0,
@@ -154,7 +166,11 @@ export const modelCommands: CommandDefinition = {
             name: 'help',
             description: 'Show detailed help for model commands',
             usage: '/model help',
-            handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (
+                _args: string[],
+                _agent: DextoAgent,
+                _ctx: CommandContext
+            ): Promise<boolean | string> => {
                 const helpText = [
                     '\n🤖 Model Management Commands:\n',
                     'Available subcommands:',
@@ -203,7 +219,11 @@ export const modelCommands: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+    handler: async (
+        args: string[],
+        agent: DextoAgent,
+        ctx: CommandContext
+    ): Promise<CommandHandlerResult> => {
         // Default to showing help about interactive selector if no subcommand
         if (args.length === 0) {
             const helpText = [
@@ -225,7 +245,7 @@ export const modelCommands: CommandDefinition = {
         // Find matching subcommand
         const subcmd = modelCommands.subcommands?.find((s) => s.name === subcommand);
         if (subcmd) {
-            return subcmd.handler(subArgs, agent);
+            return subcmd.handler(subArgs, agent, ctx);
         }
 
         const errorMsg = `❌ Unknown model subcommand: ${subcommand}\nUse /model for interactive selector or /model list to see all models`;

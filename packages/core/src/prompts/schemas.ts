@@ -120,6 +120,21 @@ export type ValidatedFilePrompt = z.output<typeof FilePromptSchema>;
 export type ValidatedPrompt = ValidatedInlinePrompt | ValidatedFilePrompt;
 
 /**
+ * Input type for a single inline prompt (before validation)
+ */
+export type InlinePrompt = z.input<typeof InlinePromptSchema>;
+
+/**
+ * Input type for a single file-based prompt (before validation)
+ */
+export type FilePrompt = z.input<typeof FilePromptSchema>;
+
+/**
+ * Input type for a single prompt (before validation)
+ */
+export type Prompt = InlinePrompt | FilePrompt;
+
+/**
  * Validated prompts configuration type
  */
 export type ValidatedPromptsConfig = z.output<typeof PromptsSchema>;

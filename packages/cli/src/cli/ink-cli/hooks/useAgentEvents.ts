@@ -20,31 +20,8 @@ import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
 import type { DextoAgent, QueuedMessage } from '@dexto/core';
 import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
-import type { Message, OverlayType, McpWizardServerType } from '../state/types.js';
+import type { Message, UIState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-
-/**
- * UI state shape (must match InkCLIRefactored)
- */
-interface UIState {
-    isProcessing: boolean;
-    isCancelling: boolean;
-    isThinking: boolean;
-    activeOverlay: OverlayType;
-    exitWarningShown: boolean;
-    exitWarningTimestamp: number | null;
-    mcpWizardServerType: McpWizardServerType;
-    copyModeEnabled: boolean;
-}
-
-/**
- * Session state shape
- */
-interface SessionState {
-    id: string | null;
-    hasActiveSession: boolean;
-    modelName: string;
-}
 
 interface UseAgentEventsProps {
     agent: DextoAgent;
@@ -78,12 +55,14 @@ export function useAgentEvents({
         setMaxListeners(15, signal);
 
         // Handle approval requests - these can arrive during streaming
+        // Includes: tool confirmation, command confirmation, and elicitation (ask_user)
         bus.on(
             'approval:request',
             (event) => {
                 if (
                     event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
-                    event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION
+                    event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                    event.type === ApprovalTypeEnum.ELICITATION
                 ) {
                     const newApproval: ApprovalRequest = {
                         approvalId: event.approvalId,
@@ -136,7 +115,7 @@ export function useAgentEvents({
             { signal }
         );
 
-        // Handle session creation (e.g., from /clear command)
+        // Handle session creation (e.g., from /new command if we add one)
         bus.on(
             'session:created',
             (payload) => {
@@ -157,6 +136,19 @@ export function useAgentEvents({
                     }
                     setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
                 }
+            },
+            { signal }
+        );
+
+        // Handle context cleared (from /clear command)
+        // Keep messages visible for user reference - only context sent to LLM is cleared
+        // Just clean up any pending approvals/overlays
+        bus.on(
+            'context:cleared',
+            () => {
+                setApproval(null);
+                setApprovalQueue([]);
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             },
             { signal }
         );

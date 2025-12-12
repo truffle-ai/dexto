@@ -12,7 +12,7 @@ export interface StartupInfo {
     connectedServers: { count: number; names: string[] };
     failedConnections: string[];
     toolCount: number;
-    logFile: string;
+    logFile: string | null;
 }
 
 /**
@@ -30,7 +30,10 @@ export type StyledMessageType =
     | 'session-list'
     | 'session-history'
     | 'log-config'
-    | 'run-summary';
+    | 'run-summary'
+    | 'prompts'
+    | 'sysprompt'
+    | 'shortcuts';
 
 /**
  * Structured data for styled messages
@@ -97,6 +100,40 @@ export interface RunSummaryStyledData {
     outputTokens: number;
 }
 
+export interface PromptsStyledData {
+    mcpPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+        args?: string[];
+    }>;
+    configPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+    }>;
+    customPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+    }>;
+    total: number;
+}
+
+export interface SysPromptStyledData {
+    content: string;
+}
+
+export interface ShortcutsStyledData {
+    categories: Array<{
+        name: string;
+        shortcuts: Array<{
+            keys: string;
+            description: string;
+        }>;
+    }>;
+}
+
 export type StyledData =
     | ConfigStyledData
     | StatsStyledData
@@ -104,7 +141,10 @@ export type StyledData =
     | SessionListStyledData
     | SessionHistoryStyledData
     | LogConfigStyledData
-    | RunSummaryStyledData;
+    | RunSummaryStyledData
+    | PromptsStyledData
+    | SysPromptStyledData
+    | ShortcutsStyledData;
 
 /**
  * Message in the chat interface
@@ -192,20 +232,73 @@ export type OverlayType =
     | 'slash-autocomplete'
     | 'resource-autocomplete'
     | 'model-selector'
+    | 'custom-model-wizard'
     | 'session-selector'
-    | 'mcp-selector'
+    | 'mcp-server-list'
+    | 'mcp-server-actions'
+    | 'mcp-add-choice'
     | 'mcp-add-selector'
-    | 'mcp-remove-selector'
     | 'mcp-custom-type-selector'
     | 'mcp-custom-wizard'
     | 'log-level-selector'
+    | 'stream-selector'
     | 'session-subcommand-selector'
-    | 'approval';
+    | 'api-key-input'
+    | 'search'
+    | 'approval'
+    | 'tool-browser'
+    | 'prompt-list'
+    | 'prompt-add-choice'
+    | 'prompt-add-wizard'
+    | 'prompt-delete-selector';
 
 /**
  * MCP server type for custom wizard
  */
 export type McpWizardServerType = 'stdio' | 'http' | 'sse' | null;
+
+/**
+ * MCP server info for actions screen
+ */
+export interface SelectedMcpServer {
+    name: string;
+    enabled: boolean;
+    status: 'connected' | 'disabled' | 'failed';
+    type: 'stdio' | 'http' | 'sse';
+}
+
+/**
+ * Pending model switch info (when waiting for API key input)
+ */
+export interface PendingModelSwitch {
+    provider: string;
+    model: string;
+}
+
+/**
+ * Prompt add wizard state
+ */
+export type PromptAddScope = 'agent' | 'shared';
+
+export interface PromptAddWizardState {
+    scope: PromptAddScope;
+    step: 'name' | 'title' | 'description' | 'content';
+    name: string;
+    title: string;
+    description: string;
+    content: string;
+}
+
+/**
+ * History search state (Ctrl+R reverse search)
+ */
+export interface HistorySearchState {
+    isActive: boolean;
+    query: string;
+    matchIndex: number; // Index into filtered matches (0 = most recent match)
+    originalInput: string; // Cached input to restore on Escape
+    lastMatch: string; // Last valid match (preserved when no results)
+}
 
 /**
  * UI state management
@@ -219,6 +312,10 @@ export interface UIState {
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
     mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard
     copyModeEnabled: boolean; // True when copy mode is active (mouse events disabled for text selection)
+    pendingModelSwitch: PendingModelSwitch | null; // Pending model switch waiting for API key
+    selectedMcpServer: SelectedMcpServer | null; // Selected server for MCP actions screen
+    historySearch: HistorySearchState; // Ctrl+R reverse history search
+    promptAddWizard: PromptAddWizardState | null; // Prompt add wizard state
 }
 
 /**

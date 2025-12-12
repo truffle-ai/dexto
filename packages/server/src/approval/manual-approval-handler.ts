@@ -146,6 +146,10 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
         getPending: (): string[] => {
             return Array.from(pendingApprovals.keys());
         },
+
+        getPendingRequests: (): ApprovalRequest[] => {
+            return Array.from(pendingApprovals.values()).map((p) => p.request);
+        },
     });
 
     return handler;

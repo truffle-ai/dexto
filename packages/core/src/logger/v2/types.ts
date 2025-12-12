@@ -2,7 +2,6 @@
  * Logger Types and Interfaces
  *
  * Defines the core abstractions for the multi-transport logger architecture.
- * Based on Mastra's transport pattern with Dexto-specific adaptations.
  */
 
 /**
@@ -127,6 +126,12 @@ export interface IDextoLogger {
      * @returns Current log level
      */
     getLevel(): LogLevel;
+
+    /**
+     * Get the log file path if file logging is enabled
+     * @returns Log file path or null if file logging is not configured
+     */
+    getLogFilePath(): string | null;
 
     /**
      * Cleanup resources and close transports

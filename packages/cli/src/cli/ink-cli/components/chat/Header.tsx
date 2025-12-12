@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { StartupInfo } from '../../state/types.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 
 interface HeaderProps {
     modelName: string;
@@ -16,8 +17,11 @@ interface HeaderProps {
 
 /**
  * Pure presentational component for CLI header
+ * Automatically adjusts width to terminal size
  */
 export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: HeaderProps) {
+    const { columns } = useTerminalSize();
+
     return (
         <Box
             borderStyle="single"
@@ -25,6 +29,7 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
             paddingX={1}
             flexDirection="column"
             flexShrink={0}
+            width={columns}
         >
             <Box marginTop={1}>
                 <Text color="greenBright">
@@ -77,11 +82,13 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
             )}
 
             {/* Log file */}
-            <Box flexDirection="row">
-                <Text color="gray" dimColor>
-                    Logs: {startupInfo.logFile}
-                </Text>
-            </Box>
+            {startupInfo.logFile && (
+                <Box flexDirection="row">
+                    <Text color="gray" dimColor>
+                        Logs: {startupInfo.logFile}
+                    </Text>
+                </Box>
+            )}
 
             <Box marginBottom={1}>
                 <Text> </Text>

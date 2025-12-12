@@ -1,6 +1,11 @@
 import React, { forwardRef, useState, useImperativeHandle, useRef, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../hooks/useInputOrchestrator.js';
+import {
+    ElicitationForm,
+    type ElicitationFormHandle,
+    type ElicitationMetadata,
+} from './ElicitationForm.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -17,7 +22,7 @@ export interface ApprovalPromptHandle {
 
 interface ApprovalPromptProps {
     approval: ApprovalRequest;
-    onApprove: (rememberChoice: boolean) => void;
+    onApprove: (rememberChoice: boolean, formData?: Record<string, unknown>) => void;
     onDeny: () => void;
     onCancel: () => void;
 }
@@ -27,11 +32,16 @@ type SelectionOption = 'yes' | 'yes-session' | 'no';
 /**
  * Compact approval prompt component that displays above the input area
  * Shows three options in a vertical list: Yes, Yes for Session, and No
+ * For elicitation requests, renders a form with input fields
  */
 export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptProps>(
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
         const isCommandConfirmation = approval.type === 'command_confirmation';
+        const isElicitation = approval.type === 'elicitation';
         const [selectedOption, setSelectedOption] = useState<SelectionOption>('yes');
+
+        // Ref for elicitation form
+        const elicitationFormRef = useRef<ElicitationFormHandle>(null);
 
         // Use ref to avoid stale closure issues in handleInput
         const selectedOptionRef = useRef<SelectionOption>('yes');
@@ -46,6 +56,11 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             ref,
             () => ({
                 handleInput: (input: string, key: Key) => {
+                    // For elicitation, delegate to the form
+                    if (isElicitation && elicitationFormRef.current) {
+                        return elicitationFormRef.current.handleInput(input, key);
+                    }
+
                     if (key.upArrow) {
                         // Move up (skip yes-session for command confirmations)
                         setSelectedOption((current) => {
@@ -83,8 +98,21 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     return false;
                 },
             }),
-            [isCommandConfirmation, onApprove, onDeny, onCancel]
+            [isCommandConfirmation, isElicitation, onApprove, onDeny, onCancel]
         );
+
+        // For elicitation, render the form
+        if (isElicitation) {
+            const metadata = approval.metadata as unknown as ElicitationMetadata;
+            return (
+                <ElicitationForm
+                    ref={elicitationFormRef}
+                    metadata={metadata}
+                    onSubmit={(formData) => onApprove(false, formData)}
+                    onCancel={onCancel}
+                />
+            );
+        }
 
         // Extract information from metadata based on approval type
         const toolName = approval.metadata.toolName as string | undefined;

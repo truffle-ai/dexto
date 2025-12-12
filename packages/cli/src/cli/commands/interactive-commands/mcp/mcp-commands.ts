@@ -6,8 +6,8 @@
  */
 
 import chalk from 'chalk';
-import { logger, DextoAgent } from '@dexto/core';
-import { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
+import type { DextoAgent } from '@dexto/core';
+import { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import {
     parseStdioArgs,
@@ -20,7 +20,11 @@ import {
 /**
  * Handler for /mcp add stdio command
  */
-async function handleMcpAddStdio(args: string[], agent: DextoAgent): Promise<boolean> {
+async function handleMcpAddStdio(
+    args: string[],
+    agent: DextoAgent,
+    _ctx: CommandContext
+): Promise<boolean> {
     const { serverName, config, errors } = parseStdioArgs(args);
 
     if (errors.length > 0) {
@@ -39,12 +43,12 @@ async function handleMcpAddStdio(args: string[], agent: DextoAgent): Promise<boo
     }
 
     try {
-        await agent.connectMcpServer(serverName, config);
+        await agent.addMcpServer(serverName, config);
         console.log(chalk.green(`✅ STDIO MCP server '${serverName}' added successfully`));
         console.log(chalk.dim(`   Command: ${config.command} ${config.args?.join(' ') ?? ''}`));
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to add STDIO MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -54,7 +58,11 @@ async function handleMcpAddStdio(args: string[], agent: DextoAgent): Promise<boo
 /**
  * Handler for /mcp add http command
  */
-async function handleMcpAddHttp(args: string[], agent: DextoAgent): Promise<boolean> {
+async function handleMcpAddHttp(
+    args: string[],
+    agent: DextoAgent,
+    _ctx: CommandContext
+): Promise<boolean> {
     const { serverName, config, errors } = parseHttpArgs(args);
 
     if (errors.length > 0) {
@@ -73,7 +81,7 @@ async function handleMcpAddHttp(args: string[], agent: DextoAgent): Promise<bool
     }
 
     try {
-        await agent.connectMcpServer(serverName, config);
+        await agent.addMcpServer(serverName, config);
         console.log(chalk.green(`✅ HTTP MCP server '${serverName}' added successfully`));
         console.log(chalk.dim(`   URL: ${config.url}`));
         if (config.headers && Object.keys(config.headers).length > 0) {
@@ -81,7 +89,7 @@ async function handleMcpAddHttp(args: string[], agent: DextoAgent): Promise<bool
         }
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to add HTTP MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -91,7 +99,11 @@ async function handleMcpAddHttp(args: string[], agent: DextoAgent): Promise<bool
 /**
  * Handler for /mcp add sse command
  */
-async function handleMcpAddSse(args: string[], agent: DextoAgent): Promise<boolean> {
+async function handleMcpAddSse(
+    args: string[],
+    agent: DextoAgent,
+    _ctx: CommandContext
+): Promise<boolean> {
     const { serverName, config, errors } = parseSseArgs(args);
 
     if (errors.length > 0) {
@@ -110,7 +122,7 @@ async function handleMcpAddSse(args: string[], agent: DextoAgent): Promise<boole
     }
 
     try {
-        await agent.connectMcpServer(serverName, config);
+        await agent.addMcpServer(serverName, config);
         console.log(chalk.green(`✅ SSE MCP server '${serverName}' added successfully`));
         console.log(chalk.dim(`   URL: ${config.url}`));
         if (config.headers && Object.keys(config.headers).length > 0) {
@@ -118,7 +130,7 @@ async function handleMcpAddSse(args: string[], agent: DextoAgent): Promise<boole
         }
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to add SSE MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -137,7 +149,11 @@ export const mcpCommands: CommandDefinition = {
             name: 'list',
             description: 'List all available MCP servers',
             usage: '/mcp list',
-            handler: async (_args: string[], agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (
+                _args: string[],
+                agent: DextoAgent,
+                _ctx: CommandContext
+            ): Promise<boolean | string> => {
                 try {
                     const clients = agent.getMcpClients();
                     const failedConnections = agent.getMcpFailedConnections();
@@ -198,7 +214,7 @@ export const mcpCommands: CommandDefinition = {
                     return formatForInkCli(output);
                 } catch (error) {
                     const errorMsg = `Failed to list MCP servers: ${error instanceof Error ? error.message : String(error)}`;
-                    logger.error(errorMsg);
+                    agent.logger.error(errorMsg);
                     return formatForInkCli(`❌ ${errorMsg}`);
                 }
             },
@@ -228,7 +244,11 @@ export const mcpCommands: CommandDefinition = {
                 },
                 // TODO: Add preset subcommand when implemented
             ],
-            handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+            handler: async (
+                args: string[],
+                agent: DextoAgent,
+                ctx: CommandContext
+            ): Promise<CommandHandlerResult> => {
                 if (args.length === 0) {
                     showMcpAddHelp();
                     return true;
@@ -241,7 +261,7 @@ export const mcpCommands: CommandDefinition = {
                     ?.find((s) => s.name === 'add')
                     ?.subcommands?.find((s) => s.name === subcommand);
                 if (subcmd) {
-                    return subcmd.handler(subArgs, agent);
+                    return subcmd.handler(subArgs, agent, ctx);
                 }
 
                 console.log(chalk.red(`❌ Unknown add subcommand: ${subcommand}`));
@@ -253,7 +273,11 @@ export const mcpCommands: CommandDefinition = {
             name: 'remove',
             description: 'Remove an MCP server',
             usage: '/mcp remove <name>',
-            handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+            handler: async (
+                args: string[],
+                agent: DextoAgent,
+                _ctx: CommandContext
+            ): Promise<CommandHandlerResult> => {
                 if (args.length === 0) {
                     const errorMsg = '❌ Usage: /mcp remove <name>';
                     console.log(chalk.red(errorMsg));
@@ -268,7 +292,7 @@ export const mcpCommands: CommandDefinition = {
                     return successMsg;
                 } catch (error) {
                     const errorMsg = `❌ Failed to remove MCP server '${name}': ${error instanceof Error ? error.message : String(error)}`;
-                    logger.error(errorMsg);
+                    agent.logger.error(errorMsg);
                     console.log(chalk.red(errorMsg));
                     return errorMsg;
                 }
@@ -278,7 +302,11 @@ export const mcpCommands: CommandDefinition = {
             name: 'help',
             description: 'Show detailed help for MCP commands',
             usage: '/mcp help',
-            handler: async (_args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+            handler: async (
+                _args: string[],
+                _agent: DextoAgent,
+                _ctx: CommandContext
+            ): Promise<boolean | string> => {
                 const helpText = [
                     '\n🔌 MCP Management Commands:\n',
                     'Available subcommands:',
@@ -383,11 +411,15 @@ export const mcpCommands: CommandDefinition = {
             },
         },
     ],
-    handler: async (args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+    handler: async (
+        args: string[],
+        agent: DextoAgent,
+        ctx: CommandContext
+    ): Promise<CommandHandlerResult> => {
         if (args.length === 0) {
             const helpSubcommand = mcpCommands.subcommands?.find((s) => s.name === 'help');
             if (helpSubcommand) {
-                return helpSubcommand.handler([], agent);
+                return helpSubcommand.handler([], agent, ctx);
             }
             return true;
         }
@@ -397,7 +429,7 @@ export const mcpCommands: CommandDefinition = {
         const subcmd = mcpCommands.subcommands?.find((s) => s.name === subcommand);
 
         if (subcmd) {
-            return subcmd.handler(subArgs, agent);
+            return subcmd.handler(subArgs, agent, ctx);
         }
 
         console.log(chalk.red(`❌ Unknown MCP subcommand: ${subcommand}`));

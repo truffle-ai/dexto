@@ -30,6 +30,16 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             exitWarningTimestamp: null,
             mcpWizardServerType: null,
             copyModeEnabled: false,
+            pendingModelSwitch: null,
+            selectedMcpServer: null,
+            historySearch: {
+                isActive: false,
+                query: '',
+                matchIndex: 0,
+                originalInput: '',
+                lastMatch: '',
+            },
+            promptAddWizard: null,
         },
         session: {
             id: null,

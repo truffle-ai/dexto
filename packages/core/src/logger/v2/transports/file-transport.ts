@@ -179,6 +179,13 @@ export class FileTransport implements ILoggerTransport {
     }
 
     /**
+     * Get the log file path
+     */
+    getFilePath(): string {
+        return this.filePath;
+    }
+
+    /**
      * Cleanup resources
      */
     destroy(): void {

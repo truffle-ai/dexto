@@ -5,12 +5,126 @@
  * This layer runs before agent initialization and injects explicit paths
  * into the configuration, eliminating the need for core services to resolve paths themselves.
  *
+ * Also discovers command prompts from:
+ * - Local: <projectRoot>/commands/ (in dev mode or dexto-project context)
+ * - Global: ~/.dexto/commands/
+ *
  * Core services now require explicit paths - this enrichment layer provides them.
  */
 
-import { getDextoPath } from '../utils/path.js';
+import { getDextoPath, getDextoGlobalPath } from '../utils/path.js';
+import {
+    getExecutionContext,
+    findDextoSourceRoot,
+    findDextoProjectRoot,
+} from '../utils/execution-context.js';
 import type { AgentConfig } from '@dexto/core';
 import * as path from 'path';
+import { existsSync, readdirSync } from 'fs';
+
+/**
+ * File prompt entry for discovered commands
+ */
+interface FilePromptEntry {
+    type: 'file';
+    file: string;
+    showInStarters?: boolean;
+}
+
+/**
+ * Discovers command prompts from local and global commands directories.
+ *
+ * Directory resolution follows execution context:
+ * - dexto-source + DEXTO_DEV_MODE=true: <sourceRoot>/commands/
+ * - dexto-source (normal): skip local (use global only)
+ * - dexto-project: <projectRoot>/commands/
+ * - global-cli: skip local (use global only)
+ *
+ * Global commands (~/.dexto/commands/) are always included.
+ *
+ * @returns Array of file prompt entries for discovered .md files
+ */
+export function discoverCommandPrompts(): FilePromptEntry[] {
+    const prompts: FilePromptEntry[] = [];
+    const seenFiles = new Set<string>();
+
+    // Determine local commands directory based on context
+    const context = getExecutionContext();
+    let localCommandsDir: string | null = null;
+
+    switch (context) {
+        case 'dexto-source': {
+            // Only use local commands in dev mode
+            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+            if (isDevMode) {
+                const sourceRoot = findDextoSourceRoot();
+                if (sourceRoot) {
+                    localCommandsDir = path.join(sourceRoot, 'commands');
+                }
+            }
+            break;
+        }
+        case 'dexto-project': {
+            const projectRoot = findDextoProjectRoot();
+            if (projectRoot) {
+                localCommandsDir = path.join(projectRoot, 'commands');
+            }
+            break;
+        }
+        case 'global-cli':
+            // No local commands for global CLI
+            break;
+    }
+
+    // Global commands directory
+    const globalCommandsDir = getDextoGlobalPath('commands');
+
+    // Scan local commands first (higher priority)
+    if (localCommandsDir && existsSync(localCommandsDir)) {
+        const files = scanCommandsDirectory(localCommandsDir);
+        for (const file of files) {
+            const basename = path.basename(file);
+            if (!seenFiles.has(basename)) {
+                seenFiles.add(basename);
+                prompts.push({ type: 'file', file });
+            }
+        }
+    }
+
+    // Scan global commands (lower priority - won't override local)
+    if (existsSync(globalCommandsDir)) {
+        const files = scanCommandsDirectory(globalCommandsDir);
+        for (const file of files) {
+            const basename = path.basename(file);
+            if (!seenFiles.has(basename)) {
+                seenFiles.add(basename);
+                prompts.push({ type: 'file', file });
+            }
+        }
+    }
+
+    return prompts;
+}
+
+/**
+ * Scans a directory for .md command files
+ * @param dir Directory to scan
+ * @returns Array of absolute file paths
+ */
+function scanCommandsDirectory(dir: string): string[] {
+    const files: string[] = [];
+    try {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md') {
+                files.push(path.join(dir, entry.name));
+            }
+        }
+    } catch {
+        // Directory doesn't exist or can't be read - ignore
+    }
+    return files;
+}
 
 /**
  * Derives an agent ID from config or file path for per-agent isolation.
@@ -54,18 +168,19 @@ export interface EnrichAgentConfigOptions {
 }
 
 /**
- * Enriches agent configuration with per-agent file paths.
+ * Enriches agent configuration with per-agent file paths and discovered commands.
  * This function is called before creating the DextoAgent instance.
  *
  * Enrichment adds:
  * - File transport to logger config (per-agent log file)
  * - Full paths to storage config (SQLite database, blob storage)
  * - Backup path to filesystem config (per-agent backups)
+ * - Discovered command prompts from local/global commands/ directories
  *
  * @param config Agent configuration from YAML file + CLI overrides
  * @param configPath Path to the agent config file (used for agent ID derivation)
  * @param options Enrichment options (isInteractiveCli, logLevel)
- * @returns Enriched configuration with explicit per-agent paths
+ * @returns Enriched configuration with explicit per-agent paths and discovered prompts
  */
 export function enrichAgentConfig(
     config: AgentConfig,
@@ -155,6 +270,15 @@ export function enrichAgentConfig(
     // Note: Filesystem service backup paths are configured separately
     // and not part of agent config. If backup config is added to agent schema
     // in the future, per-agent backup paths can be generated here.
+
+    // Discover and merge command prompts from commands/ directories
+    const discoveredPrompts = discoverCommandPrompts();
+    if (discoveredPrompts.length > 0) {
+        // Merge discovered prompts with existing config prompts
+        // Config prompts take precedence (come first), discovered prompts are appended
+        const existingPrompts = config.prompts ?? [];
+        enriched.prompts = [...existingPrompts, ...discoveredPrompts];
+    }
 
     return enriched;
 }

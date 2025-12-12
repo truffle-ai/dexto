@@ -71,8 +71,18 @@ export {
     loadAgentConfig,
     enrichAgentConfig,
     deriveAgentId,
+    addPromptToAgentConfig,
+    removePromptFromAgentConfig,
+    deletePromptByMetadata,
+    updateMcpServerField,
+    removeMcpServerFromConfig,
     ConfigError,
     ConfigErrorCode,
+    type FilePromptInput,
+    type InlinePromptInput,
+    type PromptInput,
+    type PromptMetadataForDeletion,
+    type PromptDeletionResult,
 } from './config/index.js';
 
 // API Key utilities
@@ -86,3 +96,14 @@ export {
     getPrimaryApiKeyEnvVar,
     PROVIDER_API_KEY_MAP,
 } from './utils/api-key-resolver.js';
+
+// Custom models
+export {
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    getCustomModel,
+    getCustomModelsPath,
+    CustomModelSchema,
+    type CustomModel,
+} from './models/custom-models.js';
