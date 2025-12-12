@@ -22,7 +22,7 @@ export function HistorySearchBar({ query, hasMatch }: HistorySearchBarProps) {
         <Box flexDirection="column" paddingX={1}>
             {/* Hints on separate line above */}
             <Text color="gray" dimColor>
-                Ctrl+R: older, Ctrl+Shift+R: newer, Enter: accept, Esc: cancel
+                Ctrl+R: older, Ctrl+E: newer, Enter: accept, Esc: cancel
             </Text>
             {/* Search query line */}
             <Box>

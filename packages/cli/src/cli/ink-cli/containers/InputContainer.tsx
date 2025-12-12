@@ -690,6 +690,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 onPasteBlock={handlePasteBlock}
                 onPasteBlockUpdate={handlePasteBlockUpdate}
                 onPasteBlockRemove={handlePasteBlockRemove}
+                highlightQuery={ui.historySearch.isActive ? ui.historySearch.query : undefined}
             />
         );
     }

@@ -44,6 +44,8 @@ interface InputAreaProps {
     onPasteBlockUpdate?: ((blockId: string, updates: Partial<PastedBlock>) => void) | undefined;
     /** Called when a paste block placeholder is removed from text */
     onPasteBlockRemove?: ((blockId: string) => void) | undefined;
+    /** Query to highlight in input text (for history search) */
+    highlightQuery?: string | undefined;
 }
 
 export function InputArea({
@@ -63,6 +65,7 @@ export function InputArea({
     onPasteBlock,
     onPasteBlockUpdate,
     onPasteBlockRemove,
+    highlightQuery,
 }: InputAreaProps) {
     return (
         <Box flexDirection="column">
@@ -83,6 +86,7 @@ export function InputArea({
                 onPasteBlock={onPasteBlock}
                 onPasteBlockUpdate={onPasteBlockUpdate}
                 onPasteBlockRemove={onPasteBlockRemove}
+                highlightQuery={highlightQuery}
             />
         </Box>
     );

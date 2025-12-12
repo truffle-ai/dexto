@@ -61,12 +61,12 @@ interface UseHistorySearchReturn {
 }
 
 /**
- * Find matches in history for a query
+ * Find matches in history for a query (reversed so newest is first)
  */
 function findMatches(history: string[], query: string): string[] {
     if (!query) return [];
     const lowerQuery = query.toLowerCase();
-    return history.filter((item) => item.toLowerCase().includes(lowerQuery));
+    return history.filter((item) => item.toLowerCase().includes(lowerQuery)).reverse();
 }
 
 /**
@@ -256,8 +256,8 @@ export function useHistorySearch({
 
             // In search mode - handle all keys
 
-            // Ctrl+Shift+R: cycle to previous (newer) match
-            if (key.ctrl && key.shift && inputStr.toLowerCase() === 'r') {
+            // Ctrl+E: cycle to previous (newer) match
+            if (key.ctrl && inputStr === 'e') {
                 cyclePrev();
                 return true;
             }

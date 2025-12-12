@@ -369,13 +369,13 @@ export function useInputOrchestrator({
                 const currentInput = inputRef.current;
                 const currentBuffer = bufferRef.current;
 
-                // Helper to find matches
+                // Helper to find matches (reversed so newest is first)
                 const findMatches = (query: string): string[] => {
                     if (!query) return [];
                     const lowerQuery = query.toLowerCase();
-                    return currentInput.history.filter((item) =>
-                        item.toLowerCase().includes(lowerQuery)
-                    );
+                    return currentInput.history
+                        .filter((item) => item.toLowerCase().includes(lowerQuery))
+                        .reverse();
                 };
 
                 // Helper to apply a match to the input buffer and track lastMatch
@@ -405,8 +405,8 @@ export function useInputOrchestrator({
                     // If no match, keep current buffer content (which has last valid match)
                 };
 
-                // Ctrl+Shift+R in search mode: cycle to previous (newer) match
-                if (key.ctrl && key.shift && inputStr.toLowerCase() === 'r') {
+                // Ctrl+E in search mode: cycle to previous (newer) match
+                if (key.ctrl && inputStr === 'e') {
                     const matches = findMatches(currentUi.historySearch.query);
                     if (matches.length > 0) {
                         const newIdx = Math.max(0, currentUi.historySearch.matchIndex - 1);

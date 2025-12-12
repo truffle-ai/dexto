@@ -279,7 +279,7 @@ export const generalCommands: CommandDefinition[] = [
                             { keys: 'Shift+Enter', description: 'New line (multi-line input)' },
                             { keys: 'Up/Down', description: 'Navigate input history' },
                             { keys: 'Ctrl+R', description: 'Search history (older match)' },
-                            { keys: 'Ctrl+Shift+R', description: 'Search history (newer match)' },
+                            { keys: 'Ctrl+E', description: 'Search history (newer match)' },
                             { keys: 'Tab', description: 'Autocomplete command' },
                             { keys: 'Ctrl+U', description: 'Clear input line' },
                             { keys: 'Ctrl+W', description: 'Delete word before cursor' },
