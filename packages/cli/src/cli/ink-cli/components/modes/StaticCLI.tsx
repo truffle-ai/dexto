@@ -15,7 +15,7 @@
  */
 
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Static, useStdout } from 'ink';
+import { Box, Static, Text, useStdout } from 'ink';
 import type { DextoAgent } from '@dexto/core';
 
 // ANSI escape sequence to clear terminal (equivalent to ansiEscapes.clearTerminal)
@@ -174,7 +174,6 @@ export function StaticCLI({
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
                     approvalQueueCount={approvalQueue.length}
-                    exitWarningShown={ui.exitWarningShown}
                     copyModeEnabled={ui.copyModeEnabled}
                 />
 
@@ -219,6 +218,19 @@ export function StaticCLI({
                     refreshStatic={refreshStatic}
                     onSubmitPromptCommand={handleSubmitPromptCommand}
                 />
+
+                {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
+                {ui.exitWarningShown && (
+                    <Box paddingX={1}>
+                        <Text color="yellow" bold>
+                            ⚠ Press Ctrl+C again to exit
+                        </Text>
+                        <Text color="gray" dimColor>
+                            {' '}
+                            (or press any key to cancel)
+                        </Text>
+                    </Box>
+                )}
 
                 {/* Footer status line */}
                 <Footer modelName={session.modelName} cwd={process.cwd()} />

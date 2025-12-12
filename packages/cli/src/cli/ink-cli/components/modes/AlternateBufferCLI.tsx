@@ -270,7 +270,6 @@ export function AlternateBufferCLI({
                     isProcessing={ui.isProcessing}
                     isThinking={ui.isThinking}
                     approvalQueueCount={approvalQueue.length}
-                    exitWarningShown={ui.exitWarningShown}
                     copyModeEnabled={ui.copyModeEnabled}
                 />
 
@@ -325,6 +324,19 @@ export function AlternateBufferCLI({
                     buffer={buffer}
                     onSubmitPromptCommand={handleSubmitPromptCommand}
                 />
+
+                {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
+                {ui.exitWarningShown && (
+                    <Box paddingX={1}>
+                        <Text color="yellow" bold>
+                            ⚠ Press Ctrl+C again to exit
+                        </Text>
+                        <Text color="gray" dimColor>
+                            {' '}
+                            (or press any key to cancel)
+                        </Text>
+                    </Box>
+                )}
 
                 {/* Footer status line */}
                 <Footer modelName={session.modelName} cwd={process.cwd()} />
