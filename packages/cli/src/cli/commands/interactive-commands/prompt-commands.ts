@@ -94,8 +94,9 @@ export const promptCommands: CommandDefinition[] = [
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             const args =
                                 info.arguments && info.arguments.length > 0
@@ -103,7 +104,7 @@ export const promptCommands: CommandDefinition[] = [
                                           .map((a) => `${a.name}${a.required ? '*' : ''}`)
                                           .join(', ')}]`
                                     : '';
-                            outputLines.push(`  ${name}${title}${desc}${args}`);
+                            outputLines.push(`  ${displayName}${title}${desc}${args}`);
                         }
                     });
                     outputLines.push('');
@@ -114,10 +115,11 @@ export const promptCommands: CommandDefinition[] = [
                     configPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
-                            outputLines.push(`  ${name}${title}${desc}`);
+                            outputLines.push(`  ${displayName}${title}${desc}`);
                         }
                     });
                     outputLines.push('');
@@ -128,10 +130,11 @@ export const promptCommands: CommandDefinition[] = [
                     customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
-                            outputLines.push(`  ${name}${title}${desc}`);
+                            outputLines.push(`  ${displayName}${title}${desc}`);
                         }
                     });
                     outputLines.push('');
@@ -147,8 +150,9 @@ export const promptCommands: CommandDefinition[] = [
                     mcpPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             const args =
                                 info.arguments && info.arguments.length > 0
@@ -157,7 +161,7 @@ export const promptCommands: CommandDefinition[] = [
                                           .join(', ')}]`
                                     : '';
                             console.log(
-                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}${chalk.gray(args)}`
+                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}${chalk.gray(args)}`
                             );
                         }
                     });
@@ -168,11 +172,12 @@ export const promptCommands: CommandDefinition[] = [
                     configPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
-                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}`
                             );
                         }
                     });
@@ -183,11 +188,12 @@ export const promptCommands: CommandDefinition[] = [
                     customPrompts.forEach((name) => {
                         const info = prompts[name];
                         if (info) {
+                            const displayName = info.displayName || name;
                             const title =
-                                info.title && info.title !== name ? ` (${info.title})` : '';
+                                info.title && info.title !== displayName ? ` (${info.title})` : '';
                             const desc = info.description ? ` - ${info.description}` : '';
                             console.log(
-                                `  ${chalk.blue(name)}${chalk.yellow(title)}${chalk.dim(desc)}`
+                                `  ${chalk.blue(displayName)}${chalk.yellow(title)}${chalk.dim(desc)}`
                             );
                         }
                     });
@@ -212,10 +218,15 @@ export const promptCommands: CommandDefinition[] = [
  * Create a dynamic command definition from a prompt
  */
 function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
+    // Use displayName for command registration (what user types), fall back to full name
+    const commandName = promptInfo.displayName || promptInfo.name;
+    // Keep internal name for prompt resolution
+    const internalName = promptInfo.name;
+
     return {
-        name: promptInfo.name,
-        description: promptInfo.description || `Execute ${promptInfo.name} prompt`,
-        usage: `/${promptInfo.name} [context]`,
+        name: commandName,
+        description: promptInfo.description || `Execute ${commandName} prompt`,
+        usage: `/${commandName} [context]`,
         category: 'Dynamic Prompts',
         handler: async (
             args: string[],
@@ -226,17 +237,17 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 const { argMap, context: contextString } = splitPromptArguments(args);
 
                 if (Object.keys(argMap).length > 0) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
+                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(chalk.dim(`Explicit arguments: ${JSON.stringify(argMap)}`));
                 } else if (contextString) {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
+                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(
                         chalk.dim(
                             `Context: ${contextString} (LLM will extrapolate template variables)`
                         )
                     );
                 } else {
-                    console.log(chalk.cyan(`🤖 Executing prompt: ${promptInfo.name}`));
+                    console.log(chalk.cyan(`🤖 Executing prompt: ${commandName}`));
                     console.log(
                         chalk.dim('No arguments provided - LLM will extrapolate from context')
                     );
@@ -253,7 +264,8 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 if (contextString) {
                     resolveOptions.context = contextString;
                 }
-                const result = await agent.resolvePrompt(promptInfo.name, resolveOptions);
+                // Use internal name for resolution (includes prefix like "config:")
+                const result = await agent.resolvePrompt(internalName, resolveOptions);
 
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
                 let finalText = result.text;
@@ -268,17 +280,15 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     // This matches WebUI behavior: resolvePrompt() -> handleSend(text)
                     return createSendMessageMarker(finalText.trim());
                 } else {
-                    const warningMsg = `⚠️  Prompt '${promptInfo.name}' returned no content`;
+                    const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
                     console.log(chalk.yellow(warningMsg));
                     return formatForInkCli(warningMsg);
                 }
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error(
-                    `Failed to execute prompt command '${promptInfo.name}': ${errorMessage}`
-                );
+                logger.error(`Failed to execute prompt command '${commandName}': ${errorMessage}`);
 
-                const errorMsg = `❌ Error executing prompt '${promptInfo.name}': ${errorMessage}`;
+                const errorMsg = `❌ Error executing prompt '${commandName}': ${errorMessage}`;
                 console.log(chalk.red(errorMsg));
                 return formatForInkCli(errorMsg);
             }

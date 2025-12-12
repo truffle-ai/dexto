@@ -416,7 +416,8 @@ const SlashCommandAutocompleteInner = forwardRef<
                         // Load system command into input
                         onLoadIntoInput?.(`/${item.command.name}`);
                     } else {
-                        // Load prompt command into input
+                        // Load prompt command into input (use displayName for user-friendly display)
+                        const promptDisplayName = item.prompt.displayName || item.prompt.name;
                         const argsString =
                             item.prompt.arguments && item.prompt.arguments.length > 0
                                 ? ' ' +
@@ -424,7 +425,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                                       .map((arg) => `<${arg.name}${arg.required ? '' : '?'}>`)
                                       .join(' ')
                                 : '';
-                        onLoadIntoInput?.(`/${item.prompt.name}${argsString}`);
+                        onLoadIntoInput?.(`/${promptDisplayName}${argsString}`);
                     }
                     return true;
                 }
@@ -534,7 +535,9 @@ const SlashCommandAutocompleteInner = forwardRef<
 
                 // Prompt command (MCP prompts)
                 const prompt = item.prompt;
-                const nameText = `/${prompt.name}`;
+                // Use displayName for user-friendly display, fall back to full name
+                const displayName = prompt.displayName || prompt.name;
+                const nameText = `/${displayName}`;
                 const argsString =
                     prompt.arguments && prompt.arguments.length > 0
                         ? ' ' +

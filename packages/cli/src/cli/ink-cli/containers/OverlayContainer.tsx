@@ -592,7 +592,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // Handle slash command/prompt selection
         const handlePromptSelect = useCallback(
             async (prompt: PromptInfo) => {
-                const commandText = `/${prompt.name}`;
+                // Use displayName for command text (user-friendly name without prefix)
+                const commandName = prompt.displayName || prompt.name;
+                const commandText = `/${commandName}`;
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
@@ -614,8 +616,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 const commandService = new CommandService();
 
                 try {
+                    // Use displayName to match the registered command name
                     const result = await commandService.executeCommand(
-                        prompt.name,
+                        commandName,
                         [],
                         agent,
                         session.id || undefined

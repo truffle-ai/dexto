@@ -155,6 +155,7 @@ export class ConfigPromptProvider implements PromptProvider {
         const promptName = `config:${prompt.id}`;
         const promptInfo: PromptInfo = {
             name: promptName,
+            displayName: prompt.id,
             title: prompt.title,
             description: prompt.description,
             source: 'config',
@@ -219,6 +220,7 @@ export class ConfigPromptProvider implements PromptProvider {
 
             const promptInfo: PromptInfo = {
                 name: `config:${parsed.id}`,
+                displayName: parsed.id,
                 title: parsed.title,
                 description: parsed.description,
                 source: 'config',
