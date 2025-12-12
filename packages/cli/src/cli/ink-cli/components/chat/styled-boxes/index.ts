@@ -9,3 +9,4 @@ export { HelpBox } from './HelpBox.js';
 export { SessionListBox } from './SessionListBox.js';
 export { SessionHistoryBox } from './SessionHistoryBox.js';
 export { LogConfigBox } from './LogConfigBox.js';
+export { ShortcutsBox } from './ShortcutsBox.js';

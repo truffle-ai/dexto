@@ -32,6 +32,13 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             copyModeEnabled: false,
             pendingModelSwitch: null,
             selectedMcpServer: null,
+            historySearch: {
+                isActive: false,
+                query: '',
+                matchIndex: 0,
+                originalInput: '',
+                lastMatch: '',
+            },
         },
         session: {
             id: null,

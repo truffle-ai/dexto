@@ -37,6 +37,7 @@ export function StatusBar({
     const { formatted: elapsedTime } = useElapsedTime({ isActive: isProcessing });
     // Track token usage during processing
     const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+
     // Show copy mode warning (highest priority)
     if (copyModeEnabled) {
         return (

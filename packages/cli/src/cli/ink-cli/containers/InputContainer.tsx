@@ -643,9 +643,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             ]
         );
 
-        // Determine if input should be active (not blocked by approval/overlay)
+        // Determine if input should be active (not blocked by approval/overlay/history search)
         // Input stays active for filter-type overlays (so user can keep typing to filter)
-        // Disable for approval prompts and overlays with their own text input
+        // Disable for approval prompts, overlays with their own text input, and history search mode
         const overlaysWithOwnInput = [
             'mcp-custom-wizard',
             'custom-model-wizard',
@@ -654,8 +654,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'tool-browser',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
-        const isInputActive = !approval && !hasOverlayWithOwnInput;
-        const isInputDisabled = !!approval || hasOverlayWithOwnInput;
+        const isHistorySearchActive = ui.historySearch.isActive;
+        const isInputActive = !approval && !hasOverlayWithOwnInput && !isHistorySearchActive;
+        const isInputDisabled = !!approval || hasOverlayWithOwnInput || isHistorySearchActive;
         const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
         // Allow history navigation when not blocked by approval/overlay
         // When processing: handler allows queue editing but blocks history navigation

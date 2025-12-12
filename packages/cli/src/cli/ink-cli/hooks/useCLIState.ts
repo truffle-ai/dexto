@@ -106,6 +106,13 @@ export function useCLIState({
         copyModeEnabled: false,
         pendingModelSwitch: null,
         selectedMcpServer: null,
+        historySearch: {
+            isActive: false,
+            query: '',
+            matchIndex: 0,
+            originalInput: '',
+            lastMatch: '',
+        },
     });
 
     // Input state

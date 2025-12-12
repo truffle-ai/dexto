@@ -1,0 +1,41 @@
+/**
+ * HistorySearchBar - UI for Ctrl+R reverse history search
+ *
+ * Displayed at the very bottom when search mode is active.
+ */
+
+import React from 'react';
+import { Box, Text } from 'ink';
+
+interface HistorySearchBarProps {
+    /** Current search query */
+    query: string;
+    /** Whether there's a match for the current query */
+    hasMatch: boolean;
+}
+
+/**
+ * Search bar displayed during bck-i-search mode
+ */
+export function HistorySearchBar({ query, hasMatch }: HistorySearchBarProps) {
+    return (
+        <Box flexDirection="column" paddingX={1}>
+            {/* Hints on separate line above */}
+            <Text color="gray" dimColor>
+                Ctrl+R: older, Ctrl+Shift+R: newer, Enter: accept, Esc: cancel
+            </Text>
+            {/* Search query line */}
+            <Box>
+                <Text color="green">bck-i-search:</Text>
+                <Text color="cyan">{query}</Text>
+                <Text color="gray">_</Text>
+                {query && !hasMatch && (
+                    <Text color="red" dimColor>
+                        {' '}
+                        (no match)
+                    </Text>
+                )}
+            </Box>
+        </Box>
+    );
+}

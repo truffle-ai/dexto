@@ -27,6 +27,7 @@ import { Header } from '../chat/Header.js';
 import { MessageItem } from '../chat/MessageItem.js';
 import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
+import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
 import {
     VirtualizedList,
@@ -116,6 +117,13 @@ export function AlternateBufferCLI({
     }, []);
 
     const hasFocus = useCallback(() => true, []); // List always has focus for scroll
+
+    // Compute whether history search has a match (for HistorySearchBar indicator)
+    const historySearchHasMatch = useMemo(() => {
+        if (!ui.historySearch.isActive || !ui.historySearch.query) return false;
+        const query = ui.historySearch.query.toLowerCase();
+        return input.history.some((item) => item.toLowerCase().includes(query));
+    }, [ui.historySearch.isActive, ui.historySearch.query, input.history]);
 
     // Callback for OverlayContainer to submit prompt commands through InputContainer
     const handleSubmitPromptCommand = useCallback(async (commandText: string) => {
@@ -320,6 +328,14 @@ export function AlternateBufferCLI({
 
                 {/* Footer status line */}
                 <Footer modelName={session.modelName} cwd={process.cwd()} />
+
+                {/* History search bar (bck-i-search) - shown at very bottom */}
+                {ui.historySearch.isActive && (
+                    <HistorySearchBar
+                        query={ui.historySearch.query}
+                        hasMatch={historySearchHasMatch}
+                    />
+                )}
             </Box>
         </Box>
     );

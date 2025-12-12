@@ -15,6 +15,7 @@ import type {
     SessionHistoryStyledData,
     LogConfigStyledData,
     RunSummaryStyledData,
+    ShortcutsStyledData,
 } from '../../state/types.js';
 import {
     ConfigBox,
@@ -23,6 +24,7 @@ import {
     SessionListBox,
     SessionHistoryBox,
     LogConfigBox,
+    ShortcutsBox,
 } from './styled-boxes/index.js';
 
 /**
@@ -93,6 +95,8 @@ export const MessageItem = memo(
                         </Box>
                     );
                 }
+                case 'shortcuts':
+                    return <ShortcutsBox data={message.styledData as ShortcutsStyledData} />;
             }
         }
 

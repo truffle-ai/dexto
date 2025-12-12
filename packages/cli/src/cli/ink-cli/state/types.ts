@@ -32,7 +32,8 @@ export type StyledMessageType =
     | 'log-config'
     | 'run-summary'
     | 'prompts'
-    | 'sysprompt';
+    | 'sysprompt'
+    | 'shortcuts';
 
 /**
  * Structured data for styled messages
@@ -123,6 +124,16 @@ export interface SysPromptStyledData {
     content: string;
 }
 
+export interface ShortcutsStyledData {
+    categories: Array<{
+        name: string;
+        shortcuts: Array<{
+            keys: string;
+            description: string;
+        }>;
+    }>;
+}
+
 export type StyledData =
     | ConfigStyledData
     | StatsStyledData
@@ -132,7 +143,8 @@ export type StyledData =
     | LogConfigStyledData
     | RunSummaryStyledData
     | PromptsStyledData
-    | SysPromptStyledData;
+    | SysPromptStyledData
+    | ShortcutsStyledData;
 
 /**
  * Message in the chat interface
@@ -260,6 +272,17 @@ export interface PendingModelSwitch {
 }
 
 /**
+ * History search state (Ctrl+R reverse search)
+ */
+export interface HistorySearchState {
+    isActive: boolean;
+    query: string;
+    matchIndex: number; // Index into filtered matches (0 = most recent match)
+    originalInput: string; // Cached input to restore on Escape
+    lastMatch: string; // Last valid match (preserved when no results)
+}
+
+/**
  * UI state management
  */
 export interface UIState {
@@ -273,6 +296,7 @@ export interface UIState {
     copyModeEnabled: boolean; // True when copy mode is active (mouse events disabled for text selection)
     pendingModelSwitch: PendingModelSwitch | null; // Pending model switch waiting for API key
     selectedMcpServer: SelectedMcpServer | null; // Selected server for MCP actions screen
+    historySearch: HistorySearchState; // Ctrl+R reverse history search
 }
 
 /**

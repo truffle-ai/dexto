@@ -16,7 +16,7 @@ import type { CommandDefinition, CommandHandlerResult, CommandContext } from './
 import { formatCommandHelp } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
-import type { HelpStyledData } from '../../ink-cli/state/types.js';
+import type { HelpStyledData, ShortcutsStyledData } from '../../ink-cli/state/types.js';
 import { writeToClipboard } from '../../ink-cli/utils/clipboardUtils.js';
 
 /**
@@ -250,6 +250,74 @@ export const generalCommands: CommandDefinition[] = [
                 logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
+        },
+    },
+    {
+        name: 'shortcuts',
+        description: 'Show keyboard shortcuts',
+        usage: '/shortcuts',
+        category: 'General',
+        aliases: ['keys', 'hotkeys'],
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
+            const styledData: ShortcutsStyledData = {
+                categories: [
+                    {
+                        name: 'Global',
+                        shortcuts: [
+                            { keys: 'Ctrl+C', description: 'Clear input, then exit (press twice)' },
+                            { keys: 'Escape', description: 'Cancel processing / close overlay' },
+                        ],
+                    },
+                    {
+                        name: 'Input',
+                        shortcuts: [
+                            { keys: 'Enter', description: 'Submit message' },
+                            { keys: 'Shift+Enter', description: 'New line (multi-line input)' },
+                            { keys: 'Up/Down', description: 'Navigate input history' },
+                            { keys: 'Ctrl+R', description: 'Search history (older match)' },
+                            { keys: 'Ctrl+Shift+R', description: 'Search history (newer match)' },
+                            { keys: 'Tab', description: 'Autocomplete command' },
+                            { keys: 'Ctrl+U', description: 'Clear input line' },
+                            { keys: 'Ctrl+W', description: 'Delete word before cursor' },
+                            { keys: 'Ctrl+A', description: 'Move cursor to start' },
+                            { keys: 'Ctrl+E', description: 'Move cursor to end' },
+                        ],
+                    },
+                    {
+                        name: 'Autocomplete & Selectors',
+                        shortcuts: [
+                            { keys: 'Up/Down', description: 'Navigate options' },
+                            { keys: 'Enter', description: 'Select / execute' },
+                            { keys: 'Tab', description: 'Load command into input' },
+                            { keys: 'Escape', description: 'Close overlay' },
+                        ],
+                    },
+                    {
+                        name: 'Tool Approval',
+                        shortcuts: [
+                            { keys: 'y', description: 'Allow once' },
+                            { keys: 'a', description: 'Allow for session' },
+                            { keys: 'n', description: 'Deny' },
+                            { keys: 'Escape', description: 'Cancel' },
+                        ],
+                    },
+                ],
+            };
+
+            // Build fallback text
+            const fallbackLines: string[] = ['Keyboard Shortcuts:'];
+            for (const category of styledData.categories) {
+                fallbackLines.push(`\n${category.name}:`);
+                for (const shortcut of category.shortcuts) {
+                    fallbackLines.push(`  ${shortcut.keys.padEnd(14)} ${shortcut.description}`);
+                }
+            }
+
+            return CommandOutputHelper.styled('shortcuts', styledData, fallbackLines.join('\n'));
         },
     },
 ];
