@@ -61,10 +61,13 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     const [detailScrollOffset, setDetailScrollOffset] = useState(0);
     const selectedIndexRef = useRef(selectedIndex);
     const viewModeRef = useRef(viewMode);
+    const detailScrollOffsetRef = useRef(detailScrollOffset);
+    const detailMaxScrollOffsetRef = useRef(0);
 
     // Keep refs in sync
     selectedIndexRef.current = selectedIndex;
     viewModeRef.current = viewMode;
+    detailScrollOffsetRef.current = detailScrollOffset;
 
     // Fetch tools from agent
     useEffect(() => {
@@ -193,13 +196,17 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                         goBackToList();
                         return true;
                     }
-                    // Handle scrolling in detail view
+                    // Handle scrolling in detail view - check refs before setState to avoid flicker
                     if (key.upArrow) {
-                        setDetailScrollOffset((prev) => Math.max(0, prev - 1));
+                        if (detailScrollOffsetRef.current > 0) {
+                            setDetailScrollOffset((prev) => prev - 1);
+                        }
                         return true;
                     }
                     if (key.downArrow) {
-                        setDetailScrollOffset((prev) => prev + 1);
+                        if (detailScrollOffsetRef.current < detailMaxScrollOffsetRef.current) {
+                            setDetailScrollOffset((prev) => prev + 1);
+                        }
                         return true;
                     }
                     return true; // Consume all input in detail view
@@ -286,6 +293,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 columns={columns}
                 scrollOffset={detailScrollOffset}
                 maxVisibleLines={maxVisibleLines}
+                maxScrollOffsetRef={detailMaxScrollOffsetRef}
             />
         );
     }
@@ -374,64 +382,40 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
 });
 
 /**
- * Content line for scrollable detail view
+ * Content line types for detail view
  */
-interface DetailLine {
-    key: string;
-    content: React.ReactNode;
-}
+type DetailLineType =
+    | { type: 'title'; text: string }
+    | { type: 'source'; source: 'internal' | 'mcp'; serverName: string | undefined }
+    | { type: 'empty' }
+    | { type: 'header'; text: string }
+    | { type: 'description'; text: string }
+    | { type: 'param-name'; name: string; paramType: string; required: boolean }
+    | { type: 'param-desc'; text: string }
+    | { type: 'param-enum'; values: string[] };
 
 /**
- * Build detail lines for a tool (extracted to avoid recreating during render)
+ * Build detail line data for a tool (plain data, not React elements)
  */
-function buildDetailLines(tool: ToolInfo, maxWidth: number): DetailLine[] {
-    const lines: DetailLine[] = [];
-    let lineKey = 0;
+function buildDetailLineData(tool: ToolInfo, maxWidth: number): DetailLineType[] {
+    const lines: DetailLineType[] = [];
 
     // Tool name
-    lines.push({
-        key: `line-${lineKey++}`,
-        content: (
-            <Text color="yellow" bold>
-                {tool.name}
-            </Text>
-        ),
-    });
+    lines.push({ type: 'title', text: tool.name });
 
     // Source
-    lines.push({
-        key: `line-${lineKey++}`,
-        content: (
-            <Box>
-                <Text dimColor>Source: </Text>
-                <Text color={tool.source === 'internal' ? 'magenta' : 'blue'}>
-                    {tool.source === 'internal' ? 'Internal' : 'MCP'}
-                </Text>
-                {tool.serverName && <Text dimColor> (server: {tool.serverName})</Text>}
-            </Box>
-        ),
-    });
+    lines.push({ type: 'source', source: tool.source, serverName: tool.serverName });
 
     // Empty line before description
-    lines.push({ key: `line-${lineKey++}`, content: <Text> </Text> });
+    lines.push({ type: 'empty' });
 
     // Description header
-    lines.push({
-        key: `line-${lineKey++}`,
-        content: <Text dimColor>Description:</Text>,
-    });
+    lines.push({ type: 'header', text: 'Description:' });
 
     // Description content (wrapped)
     const descriptionLines = wrapText(tool.description, maxWidth - 2).split('\n');
     for (const descLine of descriptionLines) {
-        lines.push({
-            key: `line-${lineKey++}`,
-            content: (
-                <Box marginLeft={2}>
-                    <Text>{descLine}</Text>
-                </Box>
-            ),
-        });
+        lines.push({ type: 'description', text: descLine });
     }
 
     // Parameters section
@@ -443,78 +427,108 @@ function buildDetailLines(tool: ToolInfo, maxWidth: number): DetailLine[] {
 
         if (properties && Object.keys(properties).length > 0) {
             // Empty line before parameters
-            lines.push({ key: `line-${lineKey++}`, content: <Text> </Text> });
+            lines.push({ type: 'empty' });
 
             // Parameters header
-            lines.push({
-                key: `line-${lineKey++}`,
-                content: <Text dimColor>Parameters:</Text>,
-            });
+            lines.push({ type: 'header', text: 'Parameters:' });
 
             // Each parameter
             for (const [propName, propSchema] of Object.entries(properties)) {
-                const type = propSchema.type as string | undefined;
+                const paramType = (propSchema.type as string) || 'any';
                 const description = propSchema.description as string | undefined;
                 const isRequired = required.includes(propName);
                 const enumValues = propSchema.enum as string[] | undefined;
 
                 // Parameter name line
                 lines.push({
-                    key: `line-${lineKey++}`,
-                    content: (
-                        <Box marginLeft={2}>
-                            <Text color="yellow">{propName}</Text>
-                            <Text dimColor> ({type || 'any'})</Text>
-                            {isRequired && <Text color="red"> *required</Text>}
-                        </Box>
-                    ),
+                    type: 'param-name',
+                    name: propName,
+                    paramType,
+                    required: isRequired,
                 });
 
                 // Parameter description (wrapped)
                 if (description) {
                     const paramDescLines = wrapText(description, maxWidth - 6).split('\n');
                     for (const paramDescLine of paramDescLines) {
-                        lines.push({
-                            key: `line-${lineKey++}`,
-                            content: (
-                                <Box marginLeft={4}>
-                                    <Text dimColor>{paramDescLine}</Text>
-                                </Box>
-                            ),
-                        });
+                        lines.push({ type: 'param-desc', text: paramDescLine });
                     }
                 }
 
                 // Enum values
                 if (enumValues) {
-                    lines.push({
-                        key: `line-${lineKey++}`,
-                        content: (
-                            <Box marginLeft={4}>
-                                <Text dimColor>Allowed: {enumValues.join(' | ')}</Text>
-                            </Box>
-                        ),
-                    });
+                    lines.push({ type: 'param-enum', values: enumValues });
                 }
 
                 // Empty line between parameters
-                lines.push({ key: `line-${lineKey++}`, content: <Text> </Text> });
+                lines.push({ type: 'empty' });
             }
         } else {
             // Empty line before "no parameters"
-            lines.push({ key: `line-${lineKey++}`, content: <Text> </Text> });
-            lines.push({
-                key: `line-${lineKey++}`,
-                content: (
-                    <Box marginLeft={2}>
-                        <Text dimColor>No parameters</Text>
-                    </Box>
-                ),
-            });
+            lines.push({ type: 'empty' });
+            lines.push({ type: 'param-desc', text: 'No parameters' });
         }
     }
 
     return lines;
+}
+
+/**
+ * Render a single detail line from data
+ */
+function renderDetailLine(line: DetailLineType, index: number): React.ReactNode {
+    switch (line.type) {
+        case 'title':
+            return (
+                <Text color="yellow" bold>
+                    {line.text}
+                </Text>
+            );
+        case 'source':
+            return (
+                <>
+                    <Text dimColor>Source: </Text>
+                    <Text color={line.source === 'internal' ? 'magenta' : 'blue'}>
+                        {line.source === 'internal' ? 'Internal' : 'MCP'}
+                    </Text>
+                    {line.serverName && <Text dimColor> (server: {line.serverName})</Text>}
+                </>
+            );
+        case 'empty':
+            return <Text> </Text>;
+        case 'header':
+            return <Text dimColor>{line.text}</Text>;
+        case 'description':
+            return (
+                <>
+                    <Text> </Text>
+                    <Text>{line.text}</Text>
+                </>
+            );
+        case 'param-name':
+            return (
+                <>
+                    <Text> </Text>
+                    <Text color="yellow">{line.name}</Text>
+                    <Text dimColor> ({line.paramType})</Text>
+                    {line.required && <Text color="red"> *required</Text>}
+                </>
+            );
+        case 'param-desc':
+            return (
+                <>
+                    <Text> </Text>
+                    <Text dimColor>{line.text}</Text>
+                </>
+            );
+        case 'param-enum':
+            return (
+                <>
+                    <Text> </Text>
+                    <Text dimColor>Allowed: {line.values.join(' | ')}</Text>
+                </>
+            );
+    }
 }
 
 /**
@@ -525,23 +539,26 @@ function ToolDetailView({
     columns,
     scrollOffset,
     maxVisibleLines,
+    maxScrollOffsetRef,
 }: {
     tool: ToolInfo;
     columns: number;
     scrollOffset: number;
     maxVisibleLines: number;
+    maxScrollOffsetRef: React.MutableRefObject<number>;
 }) {
     const maxWidth = Math.min(80, columns - 4);
 
-    // Build all content lines
-    const allLines = useMemo(() => buildDetailLines(tool, maxWidth), [tool, maxWidth]);
+    // Build plain data for lines (memoized)
+    const lineData = useMemo(() => buildDetailLineData(tool, maxWidth), [tool, maxWidth]);
 
-    // Calculate visible range (clamping handled in parent)
-    const totalLines = allLines.length;
-    const clampedOffset = Math.min(scrollOffset, Math.max(0, totalLines - maxVisibleLines));
+    // Calculate visible range and update max scroll offset ref
+    const totalLines = lineData.length;
+    const maxScrollOffset = Math.max(0, totalLines - maxVisibleLines);
+    maxScrollOffsetRef.current = maxScrollOffset;
+    const clampedOffset = Math.min(scrollOffset, maxScrollOffset);
 
-    // Get visible lines
-    const visibleLines = allLines.slice(clampedOffset, clampedOffset + maxVisibleLines);
+    // Calculate scroll indicators
     const hasMoreAbove = clampedOffset > 0;
     const hasMoreBelow = clampedOffset + maxVisibleLines < totalLines;
 
@@ -560,28 +577,30 @@ function ToolDetailView({
                 <Text dimColor>{'─'.repeat(Math.min(60, columns - 2))}</Text>
             </Box>
 
-            {/* Scroll indicator - above */}
-            {hasMoreAbove && (
-                <Box paddingX={0} paddingY={0}>
-                    <Text dimColor>↑ {clampedOffset} more above</Text>
-                </Box>
-            )}
+            {/* Scroll indicator - above (always present to avoid layout shift) */}
+            <Box paddingX={0} paddingY={0}>
+                <Text dimColor>{hasMoreAbove ? `↑ ${clampedOffset} more above` : ' '}</Text>
+            </Box>
 
-            {/* Visible content */}
-            {visibleLines.map((line) => (
-                <Box key={line.key} paddingX={0} paddingY={0}>
-                    {line.content}
-                </Box>
-            ))}
+            {/* Visible content - render directly from data like TextBufferInput */}
+            {Array.from({ length: maxVisibleLines }, (_, i) => {
+                const absoluteIndex = clampedOffset + i;
+                const line = lineData[absoluteIndex];
+                return (
+                    <Box key={i} paddingX={0} paddingY={0}>
+                        {line ? renderDetailLine(line, absoluteIndex) : <Text> </Text>}
+                    </Box>
+                );
+            })}
 
-            {/* Scroll indicator - below */}
-            {hasMoreBelow && (
-                <Box paddingX={0} paddingY={0}>
-                    <Text dimColor>
-                        ↓ {totalLines - clampedOffset - maxVisibleLines} more below
-                    </Text>
-                </Box>
-            )}
+            {/* Scroll indicator - below (always present to avoid layout shift) */}
+            <Box paddingX={0} paddingY={0}>
+                <Text dimColor>
+                    {hasMoreBelow
+                        ? `↓ ${totalLines - clampedOffset - maxVisibleLines} more below`
+                        : ' '}
+                </Text>
+            </Box>
         </Box>
     );
 }
