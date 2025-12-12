@@ -339,7 +339,7 @@ export default function ModelPickerModal() {
     const triggerLabel = currentLLM?.displayName || currentLLM?.model || 'Choose Model';
     const isWelcomeScreen = !currentSessionId;
 
-    // Build favorites list
+    // Build favorites list (includes both catalog models and custom models)
     const favoriteModels = useMemo(() => {
         return favorites
             .map((key) => {
@@ -347,17 +347,38 @@ export default function ModelPickerModal() {
                 const providerId = providerIdRaw as LLMProvider;
                 if (!LLM_PROVIDERS.includes(providerId)) return null;
 
+                // Check if it's a custom model
+                if (providerId === 'openai-compatible') {
+                    const customModel = customModels.find((cm) => cm.name === modelName);
+                    if (customModel) {
+                        return {
+                            providerId,
+                            provider: undefined,
+                            model: {
+                                name: customModel.name,
+                                displayName: customModel.displayName || customModel.name,
+                                maxInputTokens: customModel.maxInputTokens || 128000,
+                                supportedFileTypes: ['pdf', 'image', 'audio'] as string[],
+                            },
+                            isCustom: true,
+                            customModel,
+                        };
+                    }
+                }
+
                 const provider = providers[providerId];
                 const model = provider?.models.find((m) => m.name === modelName);
                 if (!provider || !model) return null;
-                return { providerId, provider, model };
+                return { providerId, provider, model, isCustom: false };
             })
             .filter(Boolean) as Array<{
             providerId: LLMProvider;
-            provider: ProviderCatalog;
+            provider?: ProviderCatalog;
             model: ModelInfo;
+            isCustom: boolean;
+            customModel?: CustomModel;
         }>;
-    }, [favorites, providers]);
+    }, [favorites, providers, customModels]);
 
     // All models flat list (filtered by search and provider)
     const allModels = useMemo(() => {
@@ -683,15 +704,21 @@ export default function ModelPickerModal() {
                                                 providerId.toLowerCase().includes(q)
                                             );
                                         })
-                                        .map(({ providerId, model }) => (
+                                        .map(({ providerId, model, isCustom, customModel }) => (
                                             <div
                                                 key={favKey(providerId, model.name)}
-                                                onClick={() => onPickModel(providerId, model)}
+                                                onClick={() =>
+                                                    isCustom && customModel
+                                                        ? onPickCustomModel(customModel)
+                                                        : onPickModel(providerId, model)
+                                                }
                                                 onKeyDown={(e) => {
                                                     if (e.target !== e.currentTarget) return;
                                                     if (e.key === 'Enter' || e.key === ' ') {
                                                         e.preventDefault();
-                                                        onPickModel(providerId, model);
+                                                        isCustom && customModel
+                                                            ? onPickCustomModel(customModel)
+                                                            : onPickModel(providerId, model);
                                                     }
                                                 }}
                                                 role="button"
@@ -705,7 +732,9 @@ export default function ModelPickerModal() {
                                                 )}
                                             >
                                                 <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-muted/60 flex-shrink-0">
-                                                    {PROVIDER_LOGOS[providerId] ? (
+                                                    {isCustom ? (
+                                                        <Bot className="h-4 w-4 text-muted-foreground" />
+                                                    ) : PROVIDER_LOGOS[providerId] ? (
                                                         <img
                                                             src={PROVIDER_LOGOS[providerId]}
                                                             alt=""
@@ -727,6 +756,11 @@ export default function ModelPickerModal() {
                                                     <div className="text-sm font-medium text-foreground truncate">
                                                         {model.displayName || model.name}
                                                     </div>
+                                                    {isCustom && (
+                                                        <div className="text-xs text-muted-foreground truncate">
+                                                            Custom
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-1 flex-shrink-0">
                                                     {model.supportedFileTypes.includes('image') && (
