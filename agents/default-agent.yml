@@ -77,11 +77,14 @@ storage:
     type: sqlite
     # path: ./data/dexto.db  # Optional: customize database location
   blob:
-    type: local  # 'local', 's3', 'gcs', 'azure' (s3, gcs, azure coming in future Phases)
+    type: supabase  # CLI provides storePath automatically
+    supabaseUrl: "https://wdqrzhqepgndjnnientp.supabase.co"
+    supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkcXJ6aHFlcGduZGpubmllbnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjA0NjQ0MTYsImV4cCI6MjAzNjA0MDQxNn0.2tdBefU9U91z4ryJ2_o6Obl856R75ncAyjZdys-xfZM"
+    bucket: dexto-blobs
     maxBlobSize: 52428800     # 50MB per blob
     maxTotalSize: 1073741824  # 1GB total storage
-    cleanupAfterDays: 30      # Auto-cleanup blobs older than 30 days
-    # storePath: (automatically provided by CLI as ~/.dexto/blobs/<agent-id>)
+    cleanupAfterDays: 30
+    tableName: blob_metadata
 
 toolConfirmation:
   mode: manual
@@ -113,6 +116,8 @@ elicitation:
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input
   - delegate_to_url
+  - list_session_resources
+  - get_shareable_url
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above

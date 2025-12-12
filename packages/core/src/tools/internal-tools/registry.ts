@@ -3,6 +3,7 @@ import { SearchService } from '../../search/index.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { FileSystemService } from '../../filesystem/index.js';
 import { ProcessService } from '../../process/index.js';
+import { ResourceManager } from '../../resources/manager.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createReadFileTool } from './implementations/read-file-tool.js';
@@ -14,6 +15,8 @@ import { createBashExecTool } from './implementations/bash-exec-tool.js';
 import { createBashOutputTool } from './implementations/bash-output-tool.js';
 import { createKillProcessTool } from './implementations/kill-process-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
+import { createListSessionResourcesTool } from './implementations/list-session-resources-tool.js';
+import { createGetShareableUrlTool } from './implementations/get-shareable-url-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
 /**
@@ -45,9 +48,9 @@ export interface InternalToolsServices {
     approvalManager?: ApprovalManager;
     fileSystemService?: FileSystemService;
     processService?: ProcessService;
+    resourceManager?: ResourceManager;
     // Future services can be added here:
     // sessionManager?: SessionManager;
-    // storageManager?: StorageManager;
     // eventBus?: AgentEventBus;
 }
 
@@ -122,6 +125,16 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
     delegate_to_url: {
         factory: (_services: InternalToolsServices) => createDelegateToUrlTool(),
         requiredServices: [] as const,
+    },
+    list_session_resources: {
+        factory: (services: InternalToolsServices) =>
+            createListSessionResourcesTool(services.resourceManager!),
+        requiredServices: ['resourceManager'] as const,
+    },
+    get_shareable_url: {
+        factory: (services: InternalToolsServices) =>
+            createGetShareableUrlTool(services.resourceManager!),
+        requiredServices: ['resourceManager'] as const,
     },
 };
 

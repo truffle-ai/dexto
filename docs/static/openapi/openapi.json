@@ -10787,7 +10787,9 @@
                             "bash_exec",
                             "bash_output",
                             "kill_process",
-                            "delegate_to_url"
+                            "delegate_to_url",
+                            "list_session_resources",
+                            "get_shareable_url"
                           ],
                           "description": "Available internal tool names"
                         },
@@ -11300,6 +11302,68 @@
                                 "required": [
                                   "type",
                                   "storePath"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "supabase"
+                                    ],
+                                    "description": "Blob store type identifier"
+                                  },
+                                  "supabaseUrl": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "description": "Supabase project URL (e.g., https://xxxxx.supabase.co)"
+                                  },
+                                  "supabaseKey": {
+                                    "type": "string",
+                                    "description": "Supabase anon or service role key"
+                                  },
+                                  "bucket": {
+                                    "type": "string",
+                                    "description": "Storage bucket name (must exist in Supabase project)"
+                                  },
+                                  "pathPrefix": {
+                                    "type": "string",
+                                    "description": "Optional path prefix within bucket for organizing blobs"
+                                  },
+                                  "maxBlobSize": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true,
+                                    "default": 52428800,
+                                    "description": "Maximum size per blob in bytes"
+                                  },
+                                  "maxTotalSize": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true,
+                                    "default": 1073741824,
+                                    "description": "Maximum total storage size in bytes (informational - not enforced by Supabase)"
+                                  },
+                                  "cleanupAfterDays": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true,
+                                    "default": 30,
+                                    "description": "Auto-cleanup blobs older than N days"
+                                  },
+                                  "tableName": {
+                                    "type": "string",
+                                    "default": "blob_metadata",
+                                    "description": "Database table name for blob metadata"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "supabaseUrl",
+                                  "supabaseKey",
+                                  "bucket"
                                 ],
                                 "additionalProperties": false
                               }

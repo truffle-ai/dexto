@@ -187,8 +187,20 @@ export async function createAgentServices(
     await processService.initialize();
     logger.debug('ProcessService initialized');
 
-    // 8. Initialize tool manager with internal tools options
-    // 8.1 - Create allowed tools provider based on configuration
+    // 8. Initialize resource manager (MCP + internal resources)
+    // Moved before tool manager so it can be passed to internal tools
+    const resourceManager = new ResourceManager(
+        mcpManager,
+        {
+            internalResourcesConfig: config.internalResources,
+            blobStore: storageManager.getBlobStore(),
+        },
+        logger
+    );
+    await resourceManager.initialize();
+
+    // 9. Initialize tool manager with internal tools options
+    // 9.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider(
         {
             type: config.toolConfirmation.allowedToolsStorage,
@@ -197,7 +209,7 @@ export async function createAgentServices(
         logger
     );
 
-    // 8.2 - Initialize tool manager with direct ApprovalManager integration
+    // 9.2 - Initialize tool manager with direct ApprovalManager integration
     const toolManager = new ToolManager(
         mcpManager,
         approvalManager,
@@ -210,6 +222,7 @@ export async function createAgentServices(
                 searchService,
                 fileSystemService,
                 processService,
+                resourceManager,
             },
             internalToolsConfig: config.internalTools,
         },
@@ -246,18 +259,7 @@ export async function createAgentServices(
     const stateManager = new AgentStateManager(config, agentEventBus, logger);
     logger.debug('Agent state manager initialized');
 
-    // 11. Initialize resource manager (MCP + internal resources)
-    const resourceManager = new ResourceManager(
-        mcpManager,
-        {
-            internalResourcesConfig: config.internalResources,
-            blobStore: storageManager.getBlobStore(),
-        },
-        logger
-    );
-    await resourceManager.initialize();
-
-    // 12. Initialize session manager
+    // 11. Initialize session manager
     const sessionManager = new SessionManager(
         {
             stateManager,

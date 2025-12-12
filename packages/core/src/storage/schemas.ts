@@ -29,6 +29,7 @@ export {
     type BlobStoreConfig,
     type InMemoryBlobStoreConfig,
     type LocalBlobStoreConfig,
+    type SupabaseBlobStoreConfig,
 } from './blob/schemas.js';
 
 // Import for composition

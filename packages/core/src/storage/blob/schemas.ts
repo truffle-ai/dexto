@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const BLOB_STORE_TYPES = ['in-memory', 'local'] as const;
+export const BLOB_STORE_TYPES = ['in-memory', 'local', 'supabase'] as const;
 export type BlobStoreType = (typeof BLOB_STORE_TYPES)[number];
 
 /**
@@ -66,19 +66,80 @@ const LocalBlobStoreSchema = z
 export type LocalBlobStoreConfig = z.output<typeof LocalBlobStoreSchema>;
 
 /**
+ * Supabase blob store configuration
+ */
+const SupabaseBlobStoreSchema = z
+    .object({
+        type: z.literal('supabase').describe('Blob store type identifier'),
+        supabaseUrl: z
+            .string()
+            .url()
+            .describe('Supabase project URL (e.g., https://xxxxx.supabase.co)'),
+        supabaseKey: z.string().describe('Supabase anon or service role key'),
+        bucket: z.string().describe('Storage bucket name (must exist in Supabase project)'),
+        pathPrefix: z
+            .string()
+            .optional()
+            .describe('Optional path prefix within bucket for organizing blobs'),
+        public: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe(
+                'If true, generate public URLs instead of signed URLs. ' +
+                    'Only works if the bucket is configured as public in Supabase.'
+            ),
+        maxBlobSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(50 * 1024 * 1024) // 50MB
+            .describe('Maximum size per blob in bytes'),
+        maxTotalSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(1024 * 1024 * 1024) // 1GB
+            .describe(
+                'Maximum total storage size in bytes (informational - not enforced by Supabase)'
+            ),
+        cleanupAfterDays: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(30)
+            .describe('Auto-cleanup blobs older than N days'),
+        tableName: z
+            .string()
+            .optional()
+            .default('blob_metadata')
+            .describe('Database table name for blob metadata'),
+    })
+    .strict();
+
+export type SupabaseBlobStoreConfig = z.output<typeof SupabaseBlobStoreSchema>;
+
+/**
  * Blob store configuration using discriminated union
  */
 export const BlobStoreConfigSchema = z
-    .discriminatedUnion('type', [InMemoryBlobStoreSchema, LocalBlobStoreSchema], {
-        errorMap: (issue, ctx) => {
-            if (issue.code === z.ZodIssueCode.invalid_union_discriminator) {
-                return {
-                    message: `Invalid blob store type. Expected 'in-memory' or 'local'.`,
-                };
-            }
-            return { message: ctx.defaultError };
-        },
-    })
+    .discriminatedUnion(
+        'type',
+        [InMemoryBlobStoreSchema, LocalBlobStoreSchema, SupabaseBlobStoreSchema],
+        {
+            errorMap: (issue, ctx) => {
+                if (issue.code === z.ZodIssueCode.invalid_union_discriminator) {
+                    return {
+                        message: `Invalid blob store type. Expected 'in-memory', 'local', or 'supabase'.`,
+                    };
+                }
+                return { message: ctx.defaultError };
+            },
+        }
+    )
     .describe('Blob store configuration');
 
 export type BlobStoreConfig = z.output<typeof BlobStoreConfigSchema>;

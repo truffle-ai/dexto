@@ -2,6 +2,7 @@ import type { BlobStore } from './types.js';
 import type { BlobStoreConfig } from './schemas.js';
 import { LocalBlobStore } from './local-blob-store.js';
 import { InMemoryBlobStore } from './memory-blob-store.js';
+import { SupabaseBlobStore } from './supabase-blob-store.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 
 /**
@@ -19,6 +20,10 @@ export function createBlobStore(config: BlobStoreConfig, logger: IDextoLogger): 
         case 'local':
             logger.info('Using local file-based blob store');
             return new LocalBlobStore(config, logger);
+
+        case 'supabase':
+            logger.info('Using Supabase blob store');
+            return new SupabaseBlobStore(config, logger);
 
         default:
             throw new Error(`Unknown blob store type: ${(config as any).type}`);

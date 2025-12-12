@@ -52,6 +52,7 @@
     "@opentelemetry/sdk-node": "^0.55.0",
     "@opentelemetry/sdk-trace-base": "^1.28.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
+    "@supabase/supabase-js": "^2.45.0",
     "better-sqlite3": "^11.10.0",
     "ioredis": "^5.7.0",
     "pg": "^8.15.4",
@@ -80,6 +81,9 @@
       "optional": true
     },
     "@opentelemetry/semantic-conventions": {
+      "optional": true
+    },
+    "@supabase/supabase-js": {
       "optional": true
     },
     "better-sqlite3": {

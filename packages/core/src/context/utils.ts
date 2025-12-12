@@ -1048,6 +1048,10 @@ export async function persistToolMedia(
               }
             : undefined;
 
+    // Track stored blobs for annotation
+    const storedBlobs: Array<{ uri: string; kind: string; mimeType: string; filename?: string }> =
+        [];
+
     if (blobStore) {
         for (const hint of normalized.inlineMedia) {
             if (!shouldPersistInlineMedia(hint)) {
@@ -1078,12 +1082,40 @@ export async function persistToolMedia(
                     const filename = blobRef.metadata.originalName ?? hint.filename;
                     parts[hint.index] = createBlobFilePart(resourceUri, resolvedMimeType, filename);
                 }
+
+                // Track for annotation
+                storedBlobs.push({
+                    uri: resourceUri,
+                    kind: hint.kind,
+                    mimeType: blobRef.metadata.mimeType,
+                    ...(blobRef.metadata.originalName && {
+                        filename: blobRef.metadata.originalName,
+                    }),
+                });
             } catch (error) {
                 logger.warn(
                     `Failed to persist tool media: ${error instanceof Error ? error.message : String(error)}`
                 );
             }
         }
+    }
+
+    // Add text annotations for stored blobs so the agent knows the references
+    // IMPORTANT: Use "resource_ref:" prefix (not "@blob:") to avoid expansion by expandBlobsInText()
+    // The @blob: pattern triggers base64 expansion which would duplicate the image data
+    if (storedBlobs.length > 0) {
+        const annotations = storedBlobs
+            .map((blob) => {
+                const label = blob.filename || blob.kind;
+                // Use resource_ref: prefix - agent should use this with get_shareable_url tool
+                // Format: resource_ref:blob:abc123 (can be used as "@blob:abc123" or "blob:abc123" in tool calls)
+                return `[Stored resource_ref:${blob.uri} (${label}, ${blob.mimeType})]`;
+            })
+            .join('\n');
+
+        // Add annotation as a text part at the end
+        parts.push({ type: 'text', text: annotations });
+        logger.debug(`Added blob reference annotations for ${storedBlobs.length} resource(s)`);
     }
 
     const resources = extractResourceDescriptors(parts);

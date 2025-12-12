@@ -68,7 +68,12 @@ export type {
 } from './blob/types.js';
 
 // Blob storage config types
-export type { BlobStoreConfig, InMemoryBlobStoreConfig, LocalBlobStoreConfig } from './schemas.js';
+export type {
+    BlobStoreConfig,
+    InMemoryBlobStoreConfig,
+    LocalBlobStoreConfig,
+    SupabaseBlobStoreConfig,
+} from './schemas.js';
 
 // Cache config types
 export type { CacheConfig, InMemoryCacheConfig, RedisCacheConfig } from './schemas.js';
