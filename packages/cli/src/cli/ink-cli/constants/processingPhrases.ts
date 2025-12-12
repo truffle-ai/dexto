@@ -32,6 +32,8 @@ export const processingPhrases: string[] = [
     'Avengers, assemble!',
     'I can do this all day...',
     'Elementary, my dear Watson...',
+    'Identity theft is not a joke, Jim! ...',
+    "I'm not superstitious, but I am a little stitious...",
 
     // Playful
     'Let me cook...',
