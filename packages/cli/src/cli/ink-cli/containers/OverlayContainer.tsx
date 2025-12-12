@@ -34,6 +34,7 @@ import LogLevelSelector, {
 import StreamSelector, {
     type StreamSelectorHandle,
 } from '../components/overlays/StreamSelector.js';
+import ToolBrowser, { type ToolBrowserHandle } from '../components/overlays/ToolBrowser.js';
 import McpServerList, {
     type McpServerListHandle,
     type McpServerListAction,
@@ -132,6 +133,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
+        const toolBrowserRef = useRef<ToolBrowserHandle>(null);
         const mcpServerListRef = useRef<McpServerListHandle>(null);
         const mcpServerActionsRef = useRef<McpServerActionsHandle>(null);
         const mcpAddChoiceRef = useRef<McpAddChoiceHandle>(null);
@@ -171,6 +173,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return logLevelSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'stream-selector':
                             return streamSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'tool-browser':
+                            return toolBrowserRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-list':
                             return mcpServerListRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-actions':
@@ -1367,6 +1371,18 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onSelect={handleStreamSelect}
                             onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Tool browser */}
+                {ui.activeOverlay === 'tool-browser' && (
+                    <Box marginTop={1}>
+                        <ToolBrowser
+                            ref={toolBrowserRef}
+                            isVisible={true}
+                            onClose={handleClose}
+                            agent={agent}
                         />
                     </Box>
                 )}

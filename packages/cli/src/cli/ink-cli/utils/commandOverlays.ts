@@ -18,6 +18,7 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     resume: 'session-selector',
     switch: 'session-selector',
     stream: 'stream-selector',
+    tools: 'tool-browser',
 };
 
 /**

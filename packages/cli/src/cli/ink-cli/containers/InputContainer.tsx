@@ -579,6 +579,7 @@ export function InputContainer({
         'custom-model-wizard',
         'api-key-input',
         'search',
+        'tool-browser',
     ];
     const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
     const isInputActive = !approval && !hasOverlayWithOwnInput;

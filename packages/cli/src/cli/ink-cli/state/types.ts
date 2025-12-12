@@ -30,7 +30,9 @@ export type StyledMessageType =
     | 'session-list'
     | 'session-history'
     | 'log-config'
-    | 'run-summary';
+    | 'run-summary'
+    | 'prompts'
+    | 'sysprompt';
 
 /**
  * Structured data for styled messages
@@ -97,6 +99,30 @@ export interface RunSummaryStyledData {
     outputTokens: number;
 }
 
+export interface PromptsStyledData {
+    mcpPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+        args?: string[];
+    }>;
+    configPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+    }>;
+    customPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+    }>;
+    total: number;
+}
+
+export interface SysPromptStyledData {
+    content: string;
+}
+
 export type StyledData =
     | ConfigStyledData
     | StatsStyledData
@@ -104,7 +130,9 @@ export type StyledData =
     | SessionListStyledData
     | SessionHistoryStyledData
     | LogConfigStyledData
-    | RunSummaryStyledData;
+    | RunSummaryStyledData
+    | PromptsStyledData
+    | SysPromptStyledData;
 
 /**
  * Message in the chat interface
@@ -205,7 +233,8 @@ export type OverlayType =
     | 'session-subcommand-selector'
     | 'api-key-input'
     | 'search'
-    | 'approval';
+    | 'approval'
+    | 'tool-browser';
 
 /**
  * MCP server type for custom wizard
