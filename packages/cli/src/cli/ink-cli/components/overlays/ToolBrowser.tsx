@@ -19,6 +19,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent } from '@dexto/core';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { writeToClipboard } from '../../utils/clipboardUtils.js';
 
 interface ToolBrowserProps {
     isVisible: boolean;
@@ -59,15 +60,18 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [selectedTool, setSelectedTool] = useState<ToolInfo | null>(null);
     const [detailScrollOffset, setDetailScrollOffset] = useState(0);
+    const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
     const selectedIndexRef = useRef(selectedIndex);
     const viewModeRef = useRef(viewMode);
     const detailScrollOffsetRef = useRef(detailScrollOffset);
     const detailMaxScrollOffsetRef = useRef(0);
+    const selectedToolRef = useRef<ToolInfo | null>(null);
 
     // Keep refs in sync
     selectedIndexRef.current = selectedIndex;
     viewModeRef.current = viewMode;
     detailScrollOffsetRef.current = detailScrollOffset;
+    selectedToolRef.current = selectedTool;
 
     // Fetch tools from agent
     useEffect(() => {
@@ -209,6 +213,25 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                         }
                         return true;
                     }
+                    // Copy schema to clipboard
+                    if (input === 'c' || input === 'C') {
+                        const tool = selectedToolRef.current;
+                        if (tool) {
+                            const schema = {
+                                type: 'function',
+                                name: tool.name,
+                                description: tool.description,
+                                parameters: tool.inputSchema || {},
+                            };
+                            void writeToClipboard(JSON.stringify(schema, null, 2)).then(
+                                (success) => {
+                                    setCopyFeedback(success ? 'Copied!' : 'Copy failed');
+                                    setTimeout(() => setCopyFeedback(null), 1500);
+                                }
+                            );
+                        }
+                        return true;
+                    }
                     return true; // Consume all input in detail view
                 }
 
@@ -286,7 +309,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     // Detail view
     if (viewMode === 'detail' && selectedTool) {
         // Calculate max visible lines based on terminal height
-        const maxVisibleLines = Math.max(5, rows - 6); // Reserve space for header/footer
+        const maxVisibleLines = Math.min(18, Math.max(5, rows - 6)); // Cap at 18 to reduce flicker
         return (
             <ToolDetailView
                 tool={selectedTool}
@@ -294,6 +317,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 scrollOffset={detailScrollOffset}
                 maxVisibleLines={maxVisibleLines}
                 maxScrollOffsetRef={detailMaxScrollOffsetRef}
+                copyFeedback={copyFeedback}
             />
         );
     }
@@ -540,12 +564,14 @@ function ToolDetailView({
     scrollOffset,
     maxVisibleLines,
     maxScrollOffsetRef,
+    copyFeedback,
 }: {
     tool: ToolInfo;
     columns: number;
     scrollOffset: number;
     maxVisibleLines: number;
     maxScrollOffsetRef: React.MutableRefObject<number>;
+    copyFeedback: string | null;
 }) {
     const maxWidth = Math.min(80, columns - 4);
 
@@ -569,7 +595,13 @@ function ToolDetailView({
                 <Text color="cyan" bold>
                     Tool Details
                 </Text>
-                <Text dimColor> - ↑↓ scroll, Esc/Backspace to go back</Text>
+                <Text dimColor> - ↑↓ scroll, c copy schema, Esc back</Text>
+                {copyFeedback && (
+                    <Text color="green" bold>
+                        {' '}
+                        {copyFeedback}
+                    </Text>
+                )}
             </Box>
 
             {/* Separator */}
