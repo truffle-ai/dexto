@@ -7,6 +7,7 @@ import { ResourceManager, expandMessageReferences } from '../resources/index.js'
 import { expandBlobReferences } from '../context/utils.js';
 import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
+import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -2081,9 +2082,16 @@ export class DextoAgent {
     /**
      * Refreshes the prompts cache, reloading from all providers.
      * Call this after adding/deleting prompts to make them immediately available.
+     *
+     * @param newPrompts Optional - if provided, updates the config prompts before refreshing.
+     *                   Use this when you've modified the agent config file and need to
+     *                   update both the runtime config and refresh the cache.
      */
-    public async refreshPrompts(): Promise<void> {
+    public async refreshPrompts(newPrompts?: PromptsConfig): Promise<void> {
         this.ensureStarted();
+        if (newPrompts) {
+            this.promptManager.updateConfigPrompts(newPrompts);
+        }
         await this.promptManager.refresh();
     }
 
