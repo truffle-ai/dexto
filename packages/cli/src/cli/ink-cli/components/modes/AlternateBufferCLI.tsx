@@ -35,7 +35,7 @@ import {
 } from '../shared/VirtualizedList.js';
 
 // Containers
-import { InputContainer } from '../../containers/InputContainer.js';
+import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
 
 // Union type for virtualized list items: header or message
@@ -61,6 +61,9 @@ export function AlternateBufferCLI({
     // Refs for VirtualizedList
     const listRef = useRef<VirtualizedListRef<ListItem>>(null);
     const listContainerRef = useRef<DOMElement>(null);
+
+    // Ref to InputContainer for programmatic submit
+    const inputContainerRef = useRef<InputContainerHandle>(null);
 
     // Selection hint state
     const [selectionHintVisible, setSelectionHintVisible] = useState(false);
@@ -113,6 +116,13 @@ export function AlternateBufferCLI({
     }, []);
 
     const hasFocus = useCallback(() => true, []); // List always has focus for scroll
+
+    // Callback for OverlayContainer to submit prompt commands through InputContainer
+    const handleSubmitPromptCommand = useCallback(async (commandText: string) => {
+        if (inputContainerRef.current) {
+            await inputContainerRef.current.submit(commandText);
+        }
+    }, []);
 
     useScrollable(
         {
@@ -270,6 +280,7 @@ export function AlternateBufferCLI({
                 <QueuedMessagesDisplay messages={queuedMessages} />
 
                 <InputContainer
+                    ref={inputContainerRef}
                     buffer={buffer}
                     input={input}
                     ui={ui}
@@ -304,6 +315,7 @@ export function AlternateBufferCLI({
                     agent={agent}
                     inputService={inputService}
                     buffer={buffer}
+                    onSubmitPromptCommand={handleSubmitPromptCommand}
                 />
 
                 {/* Footer status line */}

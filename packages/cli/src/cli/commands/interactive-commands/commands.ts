@@ -133,10 +133,8 @@ export async function executeCommand(
             if (promptCmd) {
                 try {
                     const result = await promptCmd.handler(args, agent, ctx);
-                    // If result is a string, return it (for ink-cli display)
-                    // If result is boolean true, return empty string (command handled, message shown via agent.run())
-                    // If result is boolean false, return empty string (command handled)
-                    return typeof result === 'string' ? result : '';
+                    // Return the result directly - can be string, boolean, StyledOutput, or SendMessageMarker
+                    return result;
                 } catch (error) {
                     const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
                     logger.error(

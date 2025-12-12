@@ -97,6 +97,8 @@ interface OverlayContainerProps {
     buffer: TextBuffer;
     /** Callback to refresh static content (clear terminal and force re-render) */
     refreshStatic?: () => void;
+    /** Callback to submit a prompt command through the normal streaming flow */
+    onSubmitPromptCommand?: (commandText: string) => Promise<void>;
 }
 
 /**
@@ -120,6 +122,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             inputService,
             buffer,
             refreshStatic,
+            onSubmitPromptCommand,
         },
         ref
     ) {
@@ -594,6 +597,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
+                // Route prompts through InputContainer for streaming pipeline
+                if (onSubmitPromptCommand) {
+                    await onSubmitPromptCommand(commandText);
+                    return;
+                }
+
+                // Fallback when callback not provided (shouldn't happen in normal usage)
                 // Show user message for the executed command
                 const userMessage = createUserMessage(commandText);
                 setMessages((prev) => [...prev, userMessage]);
@@ -668,7 +678,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
             },
-            [setUi, setInput, setMessages, agent, session.id]
+            [setUi, setInput, setMessages, agent, session.id, buffer, onSubmitPromptCommand]
         );
 
         // Handle loading command/prompt into input for editing (Tab key)

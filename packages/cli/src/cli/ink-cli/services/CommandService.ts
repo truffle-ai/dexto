@@ -94,7 +94,7 @@ export class CommandService {
 
         // If result is a send message marker, return the text to send through normal flow
         if (isSendMessageMarker(result)) {
-            return { type: 'sendMessage', messageToSend: result.text };
+            return { type: 'sendMessage' as const, messageToSend: result.text };
         }
 
         // If result is empty string, it means a prompt was executed via agent.generate()
