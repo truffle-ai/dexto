@@ -32,7 +32,7 @@ export const processingPhrases: string[] = [
     'Zapping...',
     'Braining...',
     'Using all 3 brain cells...',
-    'Installing malware (just kidding)...',
+    //'Installing malware (just kidding)...',
 
     // Nerdy
     'Attention is all I need...',
