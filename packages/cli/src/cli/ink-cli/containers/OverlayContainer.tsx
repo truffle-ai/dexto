@@ -773,10 +773,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         const handleLoadIntoInput = useCallback(
             (text: string) => {
+                // Update both buffer (source of truth) and state
+                buffer.setText(text);
                 setInput((prev) => ({ ...prev, value: text }));
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
             },
-            [setInput, setUi]
+            [buffer, setInput, setUi]
         );
 
         // Handle resource selection
