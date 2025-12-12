@@ -12,17 +12,19 @@ export const tips: string[] = [
     // Command tips
     'Type /help to see all available commands...',
     'Use /model to switch between different AI models...',
-    'Use /resume to continue a previous conversation...',
+    'Use /resume to load a previous conversation...',
     'Use /search to find messages across all sessions...',
-    'Use /mcp to manage MCP servers and tools...',
-    'Use /mcp add to connect new MCP servers...',
+    'Use /mcp to to manage MCP servers...',
     'Use /tools to see all available tools...',
-    'Use /prompt to manage custom prompts...',
+    'Use /prompts to add/delete/run custom prompts...',
     'Use /log to change logging verbosity...',
     'Use /session to manage your conversations...',
     'Use /clear to clear the screen...',
     'Use /exit or /quit to close dexto...',
     'Use /docs to access documentation...',
+    'Use /copy to copy the previous response...',
+    'Use /shortcuts to see all available shortcuts...',
+    'Use /sysprompt to see the current system prompt...',
 
     // Keyboard shortcut tips
     'Press Escape to cancel the current request...',
@@ -30,6 +32,8 @@ export const tips: string[] = [
     'Press Escape to close overlays and menus...',
     'Use Up/Down arrows to navigate command history...',
     'Press Enter to submit your message...',
+    'Press Ctrl+T to collapse/expand large pastes...',
+    'Press Ctrl+R to search previous prompts...',
 
     // Feature tips
     'Paste copied images with Ctrl+V...',
