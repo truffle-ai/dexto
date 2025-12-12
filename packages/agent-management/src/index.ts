@@ -86,3 +86,14 @@ export {
     getPrimaryApiKeyEnvVar,
     PROVIDER_API_KEY_MAP,
 } from './utils/api-key-resolver.js';
+
+// Custom models
+export {
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    getCustomModel,
+    getCustomModelsPath,
+    CustomModelSchema,
+    type CustomModel,
+} from './models/custom-models.js';

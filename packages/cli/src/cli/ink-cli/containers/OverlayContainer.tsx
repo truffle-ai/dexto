@@ -60,6 +60,10 @@ import McpCustomWizard, {
     type McpCustomWizardHandle,
     type McpCustomConfig,
 } from '../components/overlays/McpCustomWizard.js';
+import CustomModelWizard, {
+    type CustomModelWizardHandle,
+} from '../components/overlays/CustomModelWizard.js';
+import type { CustomModel } from '@dexto/agent-management';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
 import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
@@ -130,6 +134,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const mcpAddSelectorRef = useRef<McpAddSelectorHandle>(null);
         const mcpCustomTypeSelectorRef = useRef<McpCustomTypeSelectorHandle>(null);
         const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
+        const customModelWizardRef = useRef<CustomModelWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const searchOverlayRef = useRef<SearchOverlayHandle>(null);
@@ -175,6 +180,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'mcp-custom-wizard':
                             return mcpCustomWizardRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'custom-model-wizard':
+                            return (
+                                customModelWizardRef.current?.handleInput(inputStr, key) ?? false
+                            );
                         case 'session-subcommand-selector':
                             return (
                                 sessionSubcommandSelectorRef.current?.handleInput(inputStr, key) ??
@@ -278,7 +287,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         // Handle model selection
         const handleModelSelect = useCallback(
-            async (provider: string, model: string) => {
+            async (provider: string, model: string, baseURL?: string) => {
                 setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
@@ -295,7 +304,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: provider as LLMProvider, model },
+                        { provider: provider as LLMProvider, model, baseURL },
                         session.id || undefined
                     );
 
@@ -344,7 +353,32 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [setUi, setInput, setMessages, setSession, agent, session.id]
+            [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
+        );
+
+        // Handle "Add custom model" from model selector
+        const handleAddCustomModel = useCallback(() => {
+            setUi((prev) => ({ ...prev, activeOverlay: 'custom-model-wizard' }));
+        }, [setUi]);
+
+        // Handle custom model wizard completion
+        const handleCustomModelComplete = useCallback(
+            (model: CustomModel) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                buffer.setText('');
+                setInput((prev) => ({ ...prev, historyIndex: -1 }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ Custom model "${model.displayName || model.name}" saved`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setUi, setInput, setMessages, buffer]
         );
 
         // Handle API key saved - retry the model switch
@@ -1264,6 +1298,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onSelectModel={handleModelSelect}
                             onClose={handleClose}
+                            onAddCustomModel={handleAddCustomModel}
                             agent={agent}
                         />
                     </Box>
@@ -1365,6 +1400,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         isVisible={true}
                         serverType={ui.mcpWizardServerType}
                         onComplete={handleMcpCustomWizardComplete}
+                        onClose={handleClose}
+                    />
+                )}
+
+                {/* Custom model wizard */}
+                {ui.activeOverlay === 'custom-model-wizard' && (
+                    <CustomModelWizard
+                        ref={customModelWizardRef}
+                        isVisible={true}
+                        onComplete={handleCustomModelComplete}
                         onClose={handleClose}
                     />
                 )}

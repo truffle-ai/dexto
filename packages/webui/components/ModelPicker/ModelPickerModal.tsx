@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useLLMCatalog, useSwitchLLM, type SwitchLLMPayload } from '../hooks/useLLM';
+import {
+    useLLMCatalog,
+    useSwitchLLM,
+    useCustomModels,
+    useCreateCustomModel,
+    useDeleteCustomModel,
+    type SwitchLLMPayload,
+    type CustomModel,
+} from '../hooks/useLLM';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -24,7 +32,6 @@ import {
     DEFAULT_FAVORITES,
     ProviderCatalog,
     ModelInfo,
-    CustomModelStorage,
     favKey,
     validateBaseURL,
 } from './types';
@@ -45,8 +52,7 @@ export default function ModelPickerModal() {
     const [activeView, setActiveView] = useState<'favorites' | 'all'>('all');
     const [showCustomForm, setShowCustomForm] = useState(false);
 
-    // Custom models state
-    const [customModels, setCustomModels] = useState<CustomModelStorage[]>([]);
+    // Custom models form state (data comes from API via useCustomModels)
     const [customModelForm, setCustomModelForm] = useState({
         name: '',
         baseURL: '',
@@ -79,6 +85,11 @@ export default function ModelPickerModal() {
         error: catalogError,
     } = useLLMCatalog({ enabled: open });
 
+    // Load custom models from API
+    const { data: customModels = [] } = useCustomModels({ enabled: open });
+    const { mutate: createCustomModel } = useCreateCustomModel();
+    const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
+
     useEffect(() => {
         if (catalogData && 'providers' in catalogData) {
             setProviders(catalogData.providers);
@@ -95,7 +106,7 @@ export default function ModelPickerModal() {
 
     const [favorites, setFavorites] = useState<string[]>([]);
 
-    // Load favorites and custom models from localStorage
+    // Load favorites from localStorage (custom models come from API)
     useEffect(() => {
         if (open) {
             try {
@@ -104,19 +115,68 @@ export default function ModelPickerModal() {
                 const loadedFavorites =
                     favRaw !== null ? (JSON.parse(favRaw) as string[]) : DEFAULT_FAVORITES;
                 setFavorites(loadedFavorites);
-
-                const customRaw = localStorage.getItem(CUSTOM_MODELS_STORAGE_KEY);
-                const loadedCustom = customRaw
-                    ? (JSON.parse(customRaw) as CustomModelStorage[])
-                    : [];
-                setCustomModels(loadedCustom);
             } catch (err) {
-                console.warn('Failed to load favorites/custom models from localStorage:', err);
+                console.warn('Failed to load favorites from localStorage:', err);
                 setFavorites([]);
-                setCustomModels([]);
             }
         }
     }, [open]);
+
+    // Migrate localStorage custom models to API (one-time migration)
+    const [migrationDone, setMigrationDone] = useState(false);
+    useEffect(() => {
+        if (!open || migrationDone) return;
+
+        try {
+            const localStorageRaw = localStorage.getItem(CUSTOM_MODELS_STORAGE_KEY);
+            if (!localStorageRaw) {
+                setMigrationDone(true);
+                return;
+            }
+
+            const localModels = JSON.parse(localStorageRaw) as Array<{
+                name: string;
+                baseURL: string;
+                maxInputTokens?: number;
+                maxOutputTokens?: number;
+            }>;
+
+            if (localModels.length === 0) {
+                localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
+                setMigrationDone(true);
+                return;
+            }
+
+            // Check which models don't exist in API yet
+            const existingNames = new Set(customModels.map((m) => m.name));
+            const toMigrate = localModels.filter((m) => !existingNames.has(m.name));
+
+            if (toMigrate.length === 0) {
+                // All models already migrated, clean up localStorage
+                localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
+                setMigrationDone(true);
+                return;
+            }
+
+            // Migrate each model
+            for (const model of toMigrate) {
+                createCustomModel({
+                    name: model.name,
+                    baseURL: model.baseURL,
+                    maxInputTokens: model.maxInputTokens,
+                    maxOutputTokens: model.maxOutputTokens,
+                });
+            }
+
+            // Clear localStorage after migration
+            localStorage.removeItem(CUSTOM_MODELS_STORAGE_KEY);
+            console.info(`Migrated ${toMigrate.length} custom models from localStorage to API`);
+            setMigrationDone(true);
+        } catch (err) {
+            console.warn('Failed to migrate custom models from localStorage:', err);
+            setMigrationDone(true);
+        }
+    }, [open, migrationDone, customModels, createCustomModel]);
 
     const toggleFavorite = useCallback((providerId: LLMProvider, modelName: string) => {
         const key = favKey(providerId, modelName);
@@ -141,31 +201,40 @@ export default function ModelPickerModal() {
             return;
         }
 
-        const newModel: CustomModelStorage = {
-            name: name.trim(),
-            baseURL: baseURL.trim(),
-            maxInputTokens: maxInputTokens ? parseInt(maxInputTokens, 10) || undefined : undefined,
-            maxOutputTokens: maxOutputTokens
-                ? parseInt(maxOutputTokens, 10) || undefined
-                : undefined,
-        };
-
-        const updated = [...customModels, newModel];
-        setCustomModels(updated);
-        localStorage.setItem(CUSTOM_MODELS_STORAGE_KEY, JSON.stringify(updated));
-
-        setCustomModelForm({ name: '', baseURL: '', maxInputTokens: '', maxOutputTokens: '' });
-        setShowCustomForm(false);
-        setError(null);
-    }, [customModelForm, customModels]);
+        createCustomModel(
+            {
+                name: name.trim(),
+                baseURL: baseURL.trim(),
+                maxInputTokens: maxInputTokens ? parseInt(maxInputTokens, 10) : undefined,
+                maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens, 10) : undefined,
+            },
+            {
+                onSuccess: () => {
+                    setCustomModelForm({
+                        name: '',
+                        baseURL: '',
+                        maxInputTokens: '',
+                        maxOutputTokens: '',
+                    });
+                    setShowCustomForm(false);
+                    setError(null);
+                },
+                onError: (err: Error) => {
+                    setError(err.message);
+                },
+            }
+        );
+    }, [customModelForm, createCustomModel]);
 
     const deleteCustomModel = useCallback(
         (name: string) => {
-            const updated = customModels.filter((m) => m.name !== name);
-            setCustomModels(updated);
-            localStorage.setItem(CUSTOM_MODELS_STORAGE_KEY, JSON.stringify(updated));
+            deleteCustomModelMutation(name, {
+                onError: (err: Error) => {
+                    setError(err.message);
+                },
+            });
         },
-        [customModels]
+        [deleteCustomModelMutation]
     );
 
     const modelMatchesSearch = useCallback(
@@ -240,10 +309,10 @@ export default function ModelPickerModal() {
         });
     }
 
-    function onPickCustomModel(customModel: CustomModelStorage) {
+    function onPickCustomModel(customModel: CustomModel) {
         const modelInfo: ModelInfo = {
             name: customModel.name,
-            displayName: customModel.name,
+            displayName: customModel.displayName || customModel.name,
             maxInputTokens: customModel.maxInputTokens || 128000,
             supportedFileTypes: ['pdf', 'image', 'audio'],
         };

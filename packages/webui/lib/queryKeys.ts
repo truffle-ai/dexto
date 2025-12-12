@@ -31,6 +31,7 @@ export const queryKeys = {
         current: (sessionId: string | null | undefined) =>
             ['llm', 'current', sessionId ?? null] as const,
         catalog: ['llm', 'catalog'] as const,
+        customModels: ['llm', 'customModels'] as const,
     },
 
     // Session-related queries
