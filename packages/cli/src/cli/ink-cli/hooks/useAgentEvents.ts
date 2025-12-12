@@ -113,7 +113,7 @@ export function useAgentEvents({
             { signal }
         );
 
-        // Handle session creation (e.g., from /clear command)
+        // Handle session creation (e.g., from /new command if we add one)
         bus.on(
             'session:created',
             (payload) => {
@@ -134,6 +134,20 @@ export function useAgentEvents({
                     }
                     setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
                 }
+            },
+            { signal }
+        );
+
+        // Handle context cleared (from /clear command)
+        // Clears UI but stays in same session - history preserved in DB
+        bus.on(
+            'context:cleared',
+            () => {
+                setMessages([]);
+                setApproval(null);
+                setApprovalQueue([]);
+                setQueuedMessages([]);
+                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             },
             { signal }
         );

@@ -1454,6 +1454,42 @@ export class DextoAgent {
         }
     }
 
+    /**
+     * Clears the context window for a session without deleting history.
+     *
+     * This adds a "context clear" marker to the conversation history. When the
+     * context is loaded for LLM, messages before this marker are filtered out
+     * (via filterCompacted). The full history remains in the database for
+     * review via /resume or session history.
+     *
+     * Use this for /clear command - it preserves history but gives a fresh
+     * context window to the LLM.
+     *
+     * @param sessionId Session ID (required)
+     */
+    public async clearContext(sessionId: string): Promise<void> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const contextManager = session.getContextManager();
+        await contextManager.clearContext();
+
+        this.logger.info(`Context cleared for session: ${sessionId}`);
+        this.agentEventBus.emit('context:cleared', {
+            sessionId,
+        });
+    }
+
     // ============= LLM MANAGEMENT =============
 
     /**

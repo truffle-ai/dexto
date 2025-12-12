@@ -141,29 +141,32 @@ export const generalCommands: CommandDefinition[] = [
     },
     {
         name: 'clear',
-        description: 'Start a new session (clears viewable history without deleting)',
+        description: 'Clear context window (history preserved in DB, not sent to LLM)',
         usage: '/clear',
         category: 'General',
         aliases: ['new'],
         handler: async (
             _args: string[],
             agent: DextoAgent,
-            _ctx: CommandContext
+            ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
-                // Clear the viewable conversation without creating a new session yet
-                // Session will be created when user sends their first message (deferred creation)
-                // This prevents empty sessions from cluttering the session list
-                agent.agentEventBus.emit('session:created', {
-                    sessionId: null,
-                    switchTo: true,
-                });
+                const { sessionId } = ctx;
+                if (!sessionId) {
+                    const output = '⚠️  No active session to clear';
+                    console.log(chalk.yellow(output));
+                    return formatForInkCli(output);
+                }
 
-                const output = `🔄 Started new conversation\n💡 Previous session preserved. Use /resume to switch back.`;
+                // Clear context window - adds a marker so filterCompacted skips prior messages
+                // History stays in DB for review, but LLM won't see it
+                await agent.clearContext(sessionId);
+
+                const output = `🔄 Context cleared\n💡 Previous messages preserved in history but not sent to LLM.`;
                 console.log(chalk.green(output));
                 return formatForInkCli(output);
             } catch (error) {
-                const errorMsg = `Failed to start new conversation: ${error instanceof Error ? error.message : String(error)}`;
+                const errorMsg = `Failed to clear context: ${error instanceof Error ? error.message : String(error)}`;
                 logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
