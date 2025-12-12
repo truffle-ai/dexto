@@ -53,7 +53,7 @@ export const promptCommands: CommandDefinition[] = [
     },
     {
         name: 'prompts',
-        description: 'List all available prompts (use /<prompt-name> to execute)',
+        description: 'Browse, add, and delete prompts',
         usage: '/prompts',
         category: 'Prompt Management',
         handler: async (

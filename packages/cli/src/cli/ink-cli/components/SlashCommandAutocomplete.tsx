@@ -549,8 +549,9 @@ const SlashCommandAutocompleteInner = forwardRef<
 
                 // Two-line layout like Claude Code:
                 // Line 1: /command-name <args>
-                // Line 2:     Description text (mcp)
+                // Line 2:     Description text (source)
                 const commandText = nameText + argsString;
+                const sourceLabel = prompt.source || 'prompt';
 
                 return (
                     <Box key={`prompt-${prompt.name}`} flexDirection="column" paddingX={0}>
@@ -560,7 +561,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
                             {'    '}
                             {description}
-                            {' (mcp)'}
+                            {` (${sourceLabel})`}
                         </Text>
                     </Box>
                 );
