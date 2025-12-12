@@ -1455,8 +1455,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         await mkdir(commandsDir, { recursive: true });
                         await writeFile(filePath, fileContent, 'utf-8');
 
-                        // Refresh prompts cache (shared prompts are auto-discovered)
-                        await agent.refreshPrompts();
+                        // Re-discover commands and refresh with enriched prompts
+                        const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
+                            '@dexto/agent-management'
+                        );
+                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
+                        const enrichedConfig = enrichAgentConfig(
+                            newConfig,
+                            agent.getAgentFilePath()
+                        );
+                        await agent.refreshPrompts(enrichedConfig.prompts);
                     } else {
                         // Create in agent's prompts directory
                         const agentDir = dirname(agent.getAgentFilePath());
@@ -1466,17 +1474,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         await writeFile(filePath, fileContent, 'utf-8');
 
                         // Add file reference to agent config using surgical helper
-                        const { addPromptToAgentConfig, reloadAgentConfigFromFile } = await import(
-                            '@dexto/agent-management'
-                        );
+                        const {
+                            addPromptToAgentConfig,
+                            reloadAgentConfigFromFile,
+                            enrichAgentConfig,
+                        } = await import('@dexto/agent-management');
                         await addPromptToAgentConfig(agent.getAgentFilePath(), {
                             type: 'file',
                             file: `\${{dexto.agent_dir}}/prompts/${data.name}.md`,
                         });
 
-                        // Reload config from disk and refresh prompts with new prompts array
+                        // Reload config from disk, enrich to include discovered commands, then refresh
                         const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        await agent.refreshPrompts(newConfig.prompts);
+                        const enrichedConfig = enrichAgentConfig(
+                            newConfig,
+                            agent.getAgentFilePath()
+                        );
+                        await agent.refreshPrompts(enrichedConfig.prompts);
                     }
 
                     setMessages((prev) => [
@@ -1527,21 +1541,38 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                         // If it's an agent prompt (not shared), also remove from config
                         if (deletable.sourceType === 'config') {
-                            const { removePromptFromAgentConfig, reloadAgentConfigFromFile } =
-                                await import('@dexto/agent-management');
+                            const {
+                                removePromptFromAgentConfig,
+                                reloadAgentConfigFromFile,
+                                enrichAgentConfig,
+                            } = await import('@dexto/agent-management');
                             await removePromptFromAgentConfig(agent.getAgentFilePath(), {
                                 type: 'file',
                                 filePattern: `/prompts/${promptName}.md`,
                             });
 
-                            // Reload config from disk and refresh prompts with new prompts array
+                            // Reload config from disk, enrich to include discovered commands, then refresh
                             const newConfig = await reloadAgentConfigFromFile(
                                 agent.getAgentFilePath()
                             );
-                            await agent.refreshPrompts(newConfig.prompts);
+                            const enrichedConfig = enrichAgentConfig(
+                                newConfig,
+                                agent.getAgentFilePath()
+                            );
+                            await agent.refreshPrompts(enrichedConfig.prompts);
                         } else {
-                            // Shared prompt - just refresh (auto-discovered)
-                            await agent.refreshPrompts();
+                            // Shared prompt - re-discover commands and refresh
+                            const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
+                                '@dexto/agent-management'
+                            );
+                            const newConfig = await reloadAgentConfigFromFile(
+                                agent.getAgentFilePath()
+                            );
+                            const enrichedConfig = enrichAgentConfig(
+                                newConfig,
+                                agent.getAgentFilePath()
+                            );
+                            await agent.refreshPrompts(enrichedConfig.prompts);
                         }
 
                         setMessages((prev) => [
@@ -1562,16 +1593,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         promptListRef.current?.refresh();
                     } else {
                         // No file path - inline prompt
-                        const { removePromptFromAgentConfig, reloadAgentConfigFromFile } =
-                            await import('@dexto/agent-management');
+                        const {
+                            removePromptFromAgentConfig,
+                            reloadAgentConfigFromFile,
+                            enrichAgentConfig,
+                        } = await import('@dexto/agent-management');
                         await removePromptFromAgentConfig(agent.getAgentFilePath(), {
                             type: 'inline',
                             id: promptName,
                         });
 
-                        // Reload config from disk and refresh prompts with new prompts array
+                        // Reload config from disk, enrich to include discovered commands, then refresh
                         const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        await agent.refreshPrompts(newConfig.prompts);
+                        const enrichedConfig = enrichAgentConfig(
+                            newConfig,
+                            agent.getAgentFilePath()
+                        );
+                        await agent.refreshPrompts(enrichedConfig.prompts);
 
                         setMessages((prev) => [
                             ...prev,
