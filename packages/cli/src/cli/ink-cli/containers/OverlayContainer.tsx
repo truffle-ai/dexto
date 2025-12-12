@@ -1649,6 +1649,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onSelectPrompt={handlePromptSelect}
                             onSelectSystemCommand={handleSystemCommandSelect}
                             onLoadIntoInput={handleLoadIntoInput}
+                            onSubmitRaw={onSubmitPromptCommand}
                             onClose={handleClose}
                             agent={agent}
                         />

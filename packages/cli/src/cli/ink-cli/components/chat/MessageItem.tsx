@@ -16,6 +16,7 @@ import type {
     LogConfigStyledData,
     RunSummaryStyledData,
     ShortcutsStyledData,
+    SysPromptStyledData,
 } from '../../state/types.js';
 import {
     ConfigBox,
@@ -25,6 +26,7 @@ import {
     SessionHistoryBox,
     LogConfigBox,
     ShortcutsBox,
+    SyspromptBox,
 } from './styled-boxes/index.js';
 
 /**
@@ -97,6 +99,8 @@ export const MessageItem = memo(
                 }
                 case 'shortcuts':
                     return <ShortcutsBox data={message.styledData as ShortcutsStyledData} />;
+                case 'sysprompt':
+                    return <SyspromptBox data={message.styledData as SysPromptStyledData} />;
             }
         }
 

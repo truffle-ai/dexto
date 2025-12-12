@@ -19,7 +19,7 @@
  * into a single CLI_COMMANDS array for the command execution system.
  */
 
-import { logger, type DextoAgent } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult } from './command-parser.js';
 
 // Import modular command definitions
@@ -114,7 +114,7 @@ export async function executeCommand(
             return result;
         } catch (error) {
             const errorMsg = `❌ Error executing command /${command}:\n${error instanceof Error ? error.message : String(error)}`;
-            logger.error(
+            agent.logger.error(
                 `Error executing command /${command}: ${error instanceof Error ? error.message : String(error)}`
             );
             return errorMsg; // Return for ink-cli
@@ -137,7 +137,7 @@ export async function executeCommand(
                 return result;
             } catch (error) {
                 const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
-                logger.error(
+                agent.logger.error(
                     `Error executing prompt /${command}: ${error instanceof Error ? error.message : String(error)}`
                 );
                 return errorMsg;
@@ -145,7 +145,7 @@ export async function executeCommand(
         }
     } catch (error) {
         // If loading dynamic commands fails, continue to unknown command error
-        logger.debug(
+        agent.logger.debug(
             `Failed to check dynamic commands for ${command}: ${error instanceof Error ? error.message : String(error)}`
         );
     }

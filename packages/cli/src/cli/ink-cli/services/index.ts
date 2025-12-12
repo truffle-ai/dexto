@@ -7,6 +7,7 @@ export {
     createSendMessageMarker,
     type CommandExecutionResult,
     type SendMessageMarker,
+    type StyledOutput,
 } from './CommandService.js';
 export { MessageService } from './MessageService.js';
 export { InputService } from './InputService.js';

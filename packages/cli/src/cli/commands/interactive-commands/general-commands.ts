@@ -11,7 +11,7 @@
  */
 
 import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatCommandHelp } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
@@ -135,7 +135,7 @@ export const generalCommands: CommandDefinition[] = [
             _agent: DextoAgent,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
-            logger.warn('Exiting AI CLI. Goodbye!');
+            console.log(chalk.yellow('Exiting AI CLI. Goodbye!'));
             process.exit(0);
         },
     },
@@ -167,7 +167,7 @@ export const generalCommands: CommandDefinition[] = [
                 return formatForInkCli(output);
             } catch (error) {
                 const errorMsg = `Failed to clear context: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
@@ -247,7 +247,7 @@ export const generalCommands: CommandDefinition[] = [
                 }
             } catch (error) {
                 const errorMsg = `Failed to copy: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },

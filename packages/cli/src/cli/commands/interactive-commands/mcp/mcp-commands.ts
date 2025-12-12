@@ -6,7 +6,7 @@
  */
 
 import chalk from 'chalk';
-import { logger, DextoAgent } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
 import { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import {
@@ -48,7 +48,7 @@ async function handleMcpAddStdio(
         console.log(chalk.dim(`   Command: ${config.command} ${config.args?.join(' ') ?? ''}`));
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to add STDIO MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -89,7 +89,7 @@ async function handleMcpAddHttp(
         }
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to add HTTP MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -130,7 +130,7 @@ async function handleMcpAddSse(
         }
         console.log(chalk.dim(`   Connection mode: ${config.connectionMode}`));
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to add SSE MCP server '${serverName}': ${error instanceof Error ? error.message : String(error)}`
         );
     }
@@ -214,7 +214,7 @@ export const mcpCommands: CommandDefinition = {
                     return formatForInkCli(output);
                 } catch (error) {
                     const errorMsg = `Failed to list MCP servers: ${error instanceof Error ? error.message : String(error)}`;
-                    logger.error(errorMsg);
+                    agent.logger.error(errorMsg);
                     return formatForInkCli(`❌ ${errorMsg}`);
                 }
             },
@@ -292,7 +292,7 @@ export const mcpCommands: CommandDefinition = {
                     return successMsg;
                 } catch (error) {
                     const errorMsg = `❌ Failed to remove MCP server '${name}': ${error instanceof Error ? error.message : String(error)}`;
-                    logger.error(errorMsg);
+                    agent.logger.error(errorMsg);
                     console.log(chalk.red(errorMsg));
                     return errorMsg;
                 }

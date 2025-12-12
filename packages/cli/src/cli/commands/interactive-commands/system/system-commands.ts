@@ -120,7 +120,7 @@ export const systemCommands: CommandDefinition[] = [
                 return CommandOutputHelper.styled('config', styledData, fallbackLines.join('\n'));
             } catch (error) {
                 const errorMsg = `Failed to get configuration: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
@@ -179,7 +179,7 @@ export const systemCommands: CommandDefinition[] = [
                 return CommandOutputHelper.styled('stats', styledData, fallbackLines.join('\n'));
             } catch (error) {
                 const errorMsg = `Failed to get statistics: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },

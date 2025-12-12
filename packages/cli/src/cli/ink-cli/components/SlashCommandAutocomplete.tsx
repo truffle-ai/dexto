@@ -24,6 +24,7 @@ interface SlashCommandAutocompleteProps {
     onSelectPrompt: (prompt: PromptInfo) => void;
     onSelectSystemCommand?: (command: string) => void;
     onLoadIntoInput?: (command: string) => void; // For Tab - loads command into input
+    onSubmitRaw?: ((text: string) => Promise<void> | void) | undefined; // For Enter with no matches - submit raw text
     onClose: () => void;
     agent: DextoAgent;
 }
@@ -147,6 +148,7 @@ const SlashCommandAutocompleteInner = forwardRef<
         onSelectPrompt,
         onSelectSystemCommand,
         onLoadIntoInput,
+        onSubmitRaw,
         onClose,
         agent,
     },
@@ -379,9 +381,15 @@ const SlashCommandAutocompleteInner = forwardRef<
 
                 const itemsLength = combinedItems.length;
 
-                // If no items or arguments being typed, don't consume input
-                // Let it fall through to the main input handler for submit
+                // Handle Enter when no matches or typing arguments
+                // Submit raw text directly (main input won't handle it since overlay is active)
                 if (itemsLength === 0 || hasArguments) {
+                    if (key.return) {
+                        onSubmitRaw?.(searchQuery);
+                        onClose();
+                        return true;
+                    }
+                    // Let other keys (typing, backspace) fall through
                     return false;
                 }
 
@@ -427,7 +435,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                     return true;
                 }
 
-                // Enter: Always execute the highlighted command/prompt
+                // Enter: Execute the highlighted command/prompt and close overlay
                 if (key.return) {
                     const item = combinedItems[selectedIndexRef.current];
                     if (!item) return false;
@@ -436,6 +444,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                     } else {
                         onSelectPrompt(item.prompt);
                     }
+                    onClose();
                     return true;
                 }
 
@@ -449,9 +458,10 @@ const SlashCommandAutocompleteInner = forwardRef<
             combinedItems,
             hasArguments,
             selectedIndexRef,
-            commandQuery,
+            searchQuery,
             onClose,
             onLoadIntoInput,
+            onSubmitRaw,
             onSelectPrompt,
             onSelectSystemCommand,
             updateSelection,

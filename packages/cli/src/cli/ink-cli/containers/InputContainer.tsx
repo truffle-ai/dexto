@@ -357,12 +357,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                 // Prevent double submission when autocomplete/selector is active
                 // Skip this check when called programmatically (e.g., from OverlayContainer prompt selection)
-                // Allow slash-autocomplete so users can submit any command (validation happens in command handler)
                 if (
                     !bypassOverlayCheck &&
                     ui.activeOverlay !== 'none' &&
-                    ui.activeOverlay !== 'approval' &&
-                    ui.activeOverlay !== 'slash-autocomplete'
+                    ui.activeOverlay !== 'approval'
                 ) {
                     return;
                 }
@@ -674,11 +672,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Allow submit when:
         // - no overlay active
         // - approval active
-        // - slash-autocomplete (let user submit anything, validation happens in command handler)
-        const shouldHandleSubmit =
-            ui.activeOverlay === 'none' ||
-            ui.activeOverlay === 'approval' ||
-            ui.activeOverlay === 'slash-autocomplete';
+        // Note: slash-autocomplete handles its own Enter key (either executes command or submits raw text)
+        const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
         // Allow history navigation when not blocked by approval/overlay
         // When processing: handler allows queue editing but blocks history navigation
         const canNavigateHistory = !approval && ui.activeOverlay === 'none';

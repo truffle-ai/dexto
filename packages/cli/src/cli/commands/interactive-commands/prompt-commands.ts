@@ -11,11 +11,10 @@
  */
 
 import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
-import type { PromptInfo } from '@dexto/core';
+import type { DextoAgent, PromptInfo } from '@dexto/core';
 import type { CommandDefinition, CommandContext, CommandHandlerResult } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
-import { createSendMessageMarker } from '../../ink-cli/services/index.js';
+import { createSendMessageMarker, type StyledOutput } from '../../ink-cli/services/index.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
 /**
@@ -28,25 +27,24 @@ export const promptCommands: CommandDefinition[] = [
         usage: '/sysprompt',
         category: 'Prompt Management',
         handler: async (
-            args: string[],
+            _args: string[],
             agent: DextoAgent,
             _ctx: CommandContext
-        ): Promise<boolean | string> => {
+        ): Promise<CommandHandlerResult> => {
             try {
                 const systemPrompt = await agent.getSystemPrompt();
 
-                const output = `\n📋 Current System Prompt:\n${'─'.repeat(80)}\n${systemPrompt}\n${'─'.repeat(80)}\n`;
+                // Return styled output for ink-cli
+                const styledOutput: StyledOutput = {
+                    styledType: 'sysprompt',
+                    styledData: { content: systemPrompt },
+                    fallbackText: `System Prompt:\n${systemPrompt}`,
+                };
 
-                console.log(chalk.bold.green('\n📋 Current System Prompt:\n'));
-                console.log(chalk.dim('─'.repeat(80)));
-                console.log(systemPrompt);
-                console.log(chalk.dim('─'.repeat(80)));
-                console.log();
-
-                return formatForInkCli(output);
+                return styledOutput;
             } catch (error) {
                 const errorMsg = `Failed to get system prompt: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
@@ -286,10 +284,11 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 }
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error(`Failed to execute prompt command '${commandName}': ${errorMessage}`);
+                agent.logger.error(
+                    `Failed to execute prompt command '${commandName}': ${errorMessage}`
+                );
 
                 const errorMsg = `❌ Error executing prompt '${commandName}': ${errorMessage}`;
-                console.log(chalk.red(errorMsg));
                 return formatForInkCli(errorMsg);
             }
         },
@@ -304,7 +303,7 @@ export async function getDynamicPromptCommands(agent: DextoAgent): Promise<Comma
         const prompts = await agent.listPrompts();
         return Object.values(prompts).map(createPromptCommand);
     } catch (error) {
-        logger.error(
+        agent.logger.error(
             `Failed to get dynamic prompt commands: ${error instanceof Error ? error.message : String(error)}`
         );
         return [];
