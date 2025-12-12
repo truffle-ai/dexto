@@ -25,7 +25,6 @@ interface SlashCommandAutocompleteProps {
     onSelectSystemCommand?: (command: string) => void;
     onLoadIntoInput?: (command: string) => void; // For Tab - loads command into input
     onClose: () => void;
-    onCreatePrompt?: () => void;
     agent: DextoAgent;
 }
 
@@ -149,7 +148,6 @@ const SlashCommandAutocompleteInner = forwardRef<
         onSelectSystemCommand,
         onLoadIntoInput,
         onClose,
-        onCreatePrompt,
         agent,
     },
     ref
@@ -273,37 +271,38 @@ const SlashCommandAutocompleteInner = forwardRef<
             });
     }, [systemCommands, commandQuery]);
 
-    // Check if user has started typing arguments (hide autocomplete if so)
+    // Check if user has started typing arguments (hide autocomplete)
     const hasArguments = useMemo(() => {
         if (!searchQuery.startsWith('/')) return false;
         const afterSlash = searchQuery.slice(1).trim();
         return afterSlash.includes(' ');
     }, [searchQuery]);
 
-    // Show create option only if query doesn't match any commands and is a valid prompt name
-    const showCreateOption = useMemo(() => {
-        if (!commandQuery) return false; // Don't show create when just "/"
-        if (hasArguments) return false; // Don't show create when typing arguments
-        // Only show create if no matches and query looks like a prompt name (no spaces, valid chars)
-        return (
-            filteredPrompts.length === 0 &&
-            filteredSystemCommands.length === 0 &&
-            commandQuery.length > 0
-        );
-    }, [commandQuery, hasArguments, filteredPrompts.length, filteredSystemCommands.length]);
-
-    // Combine items: system commands first, then prompts, then create option
-    // Hide autocomplete if user has started typing arguments
+    // Combine items: system commands first, then prompts
+    // When typing arguments, show only exact matches (for argument hints)
     const combinedItems = useMemo(() => {
-        if (hasArguments) {
-            return []; // Hide autocomplete when typing arguments
-        }
-
         const items: Array<
-            | { kind: 'system'; command: SystemCommandItem }
-            | { kind: 'prompt'; prompt: PromptItem }
-            | { kind: 'create' }
+            { kind: 'system'; command: SystemCommandItem } | { kind: 'prompt'; prompt: PromptItem }
         > = [];
+
+        if (hasArguments) {
+            // When typing arguments, only show exact match for the command
+            const exactSystemCmd = systemCommands.find(
+                (cmd) => cmd.name.toLowerCase() === commandQuery.toLowerCase()
+            );
+            if (exactSystemCmd) {
+                items.push({ kind: 'system', command: exactSystemCmd });
+            }
+            const exactPrompt = prompts.find(
+                (p) =>
+                    p.name.toLowerCase() === commandQuery.toLowerCase() ||
+                    (p.displayName && p.displayName.toLowerCase() === commandQuery.toLowerCase())
+            );
+            if (exactPrompt) {
+                items.push({ kind: 'prompt', prompt: exactPrompt });
+            }
+            return items;
+        }
 
         // System commands first (they're more commonly used)
         filteredSystemCommands.forEach((cmd) => items.push({ kind: 'system', command: cmd }));
@@ -311,21 +310,22 @@ const SlashCommandAutocompleteInner = forwardRef<
         // Then prompts
         filteredPrompts.forEach((prompt) => items.push({ kind: 'prompt', prompt }));
 
-        // Create option last
-        if (showCreateOption) {
-            items.push({ kind: 'create' });
-        }
-
         return items;
-    }, [hasArguments, showCreateOption, filteredPrompts, filteredSystemCommands]);
+    }, [
+        hasArguments,
+        filteredPrompts,
+        filteredSystemCommands,
+        systemCommands,
+        prompts,
+        commandQuery,
+    ]);
 
     // Get stable identity for first item (used to detect content changes)
     const getFirstItemId = (): string | null => {
         const first = combinedItems[0];
         if (!first) return null;
         if (first.kind === 'system') return `sys:${first.command.name}`;
-        if (first.kind === 'prompt') return `prompt:${first.prompt.name}`;
-        return 'create';
+        return `prompt:${first.prompt.name}`;
     };
 
     // Track items for reset detection (length + first item identity)
@@ -380,7 +380,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                 const itemsLength = combinedItems.length;
 
                 // If no items or arguments being typed, don't consume input
-                // Let it fall through to the main input handler
+                // Let it fall through to the main input handler for submit
                 if (itemsLength === 0 || hasArguments) {
                     return false;
                 }
@@ -409,9 +409,6 @@ const SlashCommandAutocompleteInner = forwardRef<
                     if (isInteractiveCommand && item.kind === 'system') {
                         // Execute interactive command (same as Enter)
                         onSelectSystemCommand?.(item.command.name);
-                    } else if (item.kind === 'create') {
-                        // For create, load the command name into input
-                        onLoadIntoInput?.(`/${commandQuery || 'name'}`);
                     } else if (item.kind === 'system') {
                         // Load system command into input
                         onLoadIntoInput?.(`/${item.command.name}`);
@@ -434,9 +431,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                 if (key.return) {
                     const item = combinedItems[selectedIndexRef.current];
                     if (!item) return false;
-                    if (item.kind === 'create') {
-                        onCreatePrompt?.();
-                    } else if (item.kind === 'system') {
+                    if (item.kind === 'system') {
                         onSelectSystemCommand?.(item.command.name);
                     } else {
                         onSelectPrompt(item.prompt);
@@ -459,15 +454,16 @@ const SlashCommandAutocompleteInner = forwardRef<
             onLoadIntoInput,
             onSelectPrompt,
             onSelectSystemCommand,
-            onCreatePrompt,
             updateSelection,
         ]
     );
 
     if (!isVisible) return null;
 
-    // Hide autocomplete when user is typing arguments
-    if (hasArguments) return null;
+    // If no items, don't render
+    if (combinedItems.length === 0) {
+        return null;
+    }
 
     if (isLoading) {
         return (
@@ -477,38 +473,23 @@ const SlashCommandAutocompleteInner = forwardRef<
         );
     }
 
-    if (combinedItems.length === 0) {
-        return (
-            <Box width={terminalWidth} paddingX={0} paddingY={0}>
-                <Text dimColor>No commands found</Text>
-            </Box>
-        );
-    }
-
     const totalItems = combinedItems.length;
+
+    // Show simplified header when user is typing arguments
+    const headerText = hasArguments
+        ? 'Press Enter to execute'
+        : `Commands (${selectedIndex + 1}/${totalItems}) - ↑↓ navigate, Tab load, Enter execute, Esc close`;
 
     return (
         <Box flexDirection="column" width={terminalWidth}>
             <Box paddingX={0} paddingY={0}>
                 <Text color="purple" bold>
-                    Commands ({selectedIndex + 1}/{totalItems}) - ↑↓ navigate, Tab load, Enter
-                    execute, Esc close
+                    {headerText}
                 </Text>
             </Box>
             {visibleItems.map((item, visibleIndex) => {
                 const actualIndex = scrollOffset + visibleIndex;
                 const isSelected = actualIndex === selectedIndex;
-
-                if (item.kind === 'create') {
-                    const createText = `+ Create new prompt: /${commandQuery || 'name'}`;
-                    return (
-                        <Box key="create" width={terminalWidth} paddingX={0} paddingY={0}>
-                            <Text color={isSelected ? 'green' : 'gray'} bold={isSelected}>
-                                {truncateText(createText, terminalWidth)}
-                            </Text>
-                        </Box>
-                    );
-                }
 
                 if (item.kind === 'system') {
                     const cmd = item.command;

@@ -151,8 +151,7 @@ export async function executeCommand(
     }
 
     // Command not found and not a prompt
-    const errorMsg = `❌ Unknown command: /${command}\nType /help to see available commands`;
-    console.log(errorMsg);
+    const errorMsg = `❌ Unknown command: /${command}\nType / to see available commands, /prompts to add new ones`;
     return errorMsg; // Return for ink-cli
 }
 

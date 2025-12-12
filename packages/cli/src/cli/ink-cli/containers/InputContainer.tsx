@@ -357,10 +357,12 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                 // Prevent double submission when autocomplete/selector is active
                 // Skip this check when called programmatically (e.g., from OverlayContainer prompt selection)
+                // Allow slash-autocomplete so users can submit any command (validation happens in command handler)
                 if (
                     !bypassOverlayCheck &&
                     ui.activeOverlay !== 'none' &&
-                    ui.activeOverlay !== 'approval'
+                    ui.activeOverlay !== 'approval' &&
+                    ui.activeOverlay !== 'slash-autocomplete'
                 ) {
                     return;
                 }
@@ -663,12 +665,20 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'search',
             'tool-browser',
             'prompt-add-wizard',
+            'model-selector',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
         const isInputActive = !approval && !hasOverlayWithOwnInput && !isHistorySearchActive;
         const isInputDisabled = !!approval || hasOverlayWithOwnInput || isHistorySearchActive;
-        const shouldHandleSubmit = ui.activeOverlay === 'none' || ui.activeOverlay === 'approval';
+        // Allow submit when:
+        // - no overlay active
+        // - approval active
+        // - slash-autocomplete (let user submit anything, validation happens in command handler)
+        const shouldHandleSubmit =
+            ui.activeOverlay === 'none' ||
+            ui.activeOverlay === 'approval' ||
+            ui.activeOverlay === 'slash-autocomplete';
         // Allow history navigation when not blocked by approval/overlay
         // When processing: handler allows queue editing but blocks history navigation
         const canNavigateHistory = !approval && ui.activeOverlay === 'none';

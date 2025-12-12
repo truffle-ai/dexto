@@ -313,12 +313,15 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     return (
         <Box flexDirection="column">
-            {/* Header with search */}
+            {/* Header */}
             <Box paddingX={0} paddingY={0}>
                 <Text color="cyan" bold>
                     Select Model ({selectedIndex + 1}/{filteredItems.length})
                 </Text>
-                <Text dimColor> - ↑↓ navigate, Enter select, Esc close</Text>
+            </Box>
+            {/* Navigation hints */}
+            <Box paddingX={0} paddingY={0}>
+                <Text dimColor>↑↓ navigate, Enter select, Esc close</Text>
                 {hasCustomModels && <Text dimColor>, Shift+D delete custom</Text>}
             </Box>
 
