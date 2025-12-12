@@ -1,5 +1,5 @@
 /**
- * useHistorySearch - Hook for Ctrl+R reverse history search (bck-i-search)
+ * useHistorySearch - Hook for Ctrl+R reverse history search
  *
  * Manages search state and provides handlers for search operations.
  */

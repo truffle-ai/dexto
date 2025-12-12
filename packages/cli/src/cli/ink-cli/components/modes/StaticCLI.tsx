@@ -223,7 +223,7 @@ export function StaticCLI({
                 {/* Footer status line */}
                 <Footer modelName={session.modelName} cwd={process.cwd()} />
 
-                {/* History search bar (bck-i-search) - shown at very bottom */}
+                {/* History search bar (Ctrl+R) - shown at very bottom */}
                 {ui.historySearch.isActive && (
                     <HistorySearchBar
                         query={ui.historySearch.query}

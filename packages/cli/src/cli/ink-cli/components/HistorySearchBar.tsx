@@ -15,7 +15,7 @@ interface HistorySearchBarProps {
 }
 
 /**
- * Search bar displayed during bck-i-search mode
+ * Search bar displayed during history search mode
  */
 export function HistorySearchBar({ query, hasMatch }: HistorySearchBarProps) {
     return (
@@ -26,7 +26,7 @@ export function HistorySearchBar({ query, hasMatch }: HistorySearchBarProps) {
             </Text>
             {/* Search query line */}
             <Box>
-                <Text color="green">bck-i-search:</Text>
+                <Text color="green">search history: </Text>
                 <Text color="cyan">{query}</Text>
                 <Text color="gray">_</Text>
                 {query && !hasMatch && (
