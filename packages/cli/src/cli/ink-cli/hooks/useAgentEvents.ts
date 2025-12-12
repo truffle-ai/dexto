@@ -139,14 +139,13 @@ export function useAgentEvents({
         );
 
         // Handle context cleared (from /clear command)
-        // Clears UI but stays in same session - history preserved in DB
+        // Keep messages visible for user reference - only context sent to LLM is cleared
+        // Just clean up any pending approvals/overlays
         bus.on(
             'context:cleared',
             () => {
-                setMessages([]);
                 setApproval(null);
                 setApprovalQueue([]);
-                setQueuedMessages([]);
                 setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
             },
             { signal }
