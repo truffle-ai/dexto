@@ -4,7 +4,7 @@
  */
 
 import type { DextoAgent, InternalMessage, ContentPart } from '@dexto/core';
-import { getDextoPath, logger, isTextPart } from '@dexto/core';
+import { isTextPart } from '@dexto/core';
 import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
 
@@ -133,7 +133,8 @@ export async function getStartupInfo(agent: DextoAgent) {
     const failedConnections = agent.mcpManager.getFailedConnections();
     const tools = await agent.getAllTools();
     const toolCount = Object.keys(tools).length;
-    const logFile = logger.getLogFilePath() || getDextoPath('logs', 'dexto.log');
+    // Use agent's logger which has the correct per-agent log path from enriched config
+    const logFile = agent.logger.getLogFilePath();
 
     return {
         connectedServers: {

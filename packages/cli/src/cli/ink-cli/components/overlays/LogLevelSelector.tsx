@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
-import { Text } from 'ink';
+import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
@@ -56,6 +56,7 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
 
         const [levels, setLevels] = useState<LogLevelOption[]>([]);
         const [selectedIndex, setSelectedIndex] = useState(0);
+        const [logFilePath, setLogFilePath] = useState<string | null>(null);
 
         // Build levels list with current indicator
         useEffect(() => {
@@ -69,6 +70,7 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
             }));
 
             setLevels(levelList);
+            setLogFilePath(agent.logger.getLogFilePath());
 
             // Set initial selection to current level
             const currentIndex = levelList.findIndex((l) => l.isCurrent);
@@ -103,20 +105,29 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
         };
 
         return (
-            <BaseSelector
-                ref={baseSelectorRef}
-                items={levels}
-                isVisible={isVisible}
-                isLoading={false}
-                selectedIndex={selectedIndex}
-                onSelectIndex={setSelectedIndex}
-                onSelect={handleSelect}
-                onClose={onClose}
-                formatItem={formatItem}
-                title="Select Log Level"
-                borderColor="yellow"
-                emptyMessage="No log levels available"
-            />
+            <Box flexDirection="column">
+                <BaseSelector
+                    ref={baseSelectorRef}
+                    items={levels}
+                    isVisible={isVisible}
+                    isLoading={false}
+                    selectedIndex={selectedIndex}
+                    onSelectIndex={setSelectedIndex}
+                    onSelect={handleSelect}
+                    onClose={onClose}
+                    formatItem={formatItem}
+                    title="Select Log Level"
+                    borderColor="yellow"
+                    emptyMessage="No log levels available"
+                />
+                {logFilePath && (
+                    <Box marginTop={1}>
+                        <Text color="gray" dimColor>
+                            📁 Log file: {logFilePath}
+                        </Text>
+                    </Box>
+                )}
+            </Box>
         );
     }
 );

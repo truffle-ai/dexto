@@ -128,6 +128,12 @@ export interface IDextoLogger {
     getLevel(): LogLevel;
 
     /**
+     * Get the log file path if file logging is enabled
+     * @returns Log file path or null if file logging is not configured
+     */
+    getLogFilePath(): string | null;
+
+    /**
      * Cleanup resources and close transports
      */
     destroy(): Promise<void>;

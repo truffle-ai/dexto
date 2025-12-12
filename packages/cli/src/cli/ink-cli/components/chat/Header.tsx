@@ -77,11 +77,13 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
             )}
 
             {/* Log file */}
-            <Box flexDirection="row">
-                <Text color="gray" dimColor>
-                    Logs: {startupInfo.logFile}
-                </Text>
-            </Box>
+            {startupInfo.logFile && (
+                <Box flexDirection="row">
+                    <Text color="gray" dimColor>
+                        Logs: {startupInfo.logFile}
+                    </Text>
+                </Box>
+            )}
 
             <Box marginBottom={1}>
                 <Text> </Text>

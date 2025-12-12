@@ -305,12 +305,6 @@ export class DextoAgent {
             for (const subscriber of this.eventSubscribers) {
                 subscriber.subscribe(this.agentEventBus);
             }
-
-            // Show log location if file logging is configured
-            const fileTransport = this.config.logger?.transports?.find((t) => t.type === 'file');
-            if (fileTransport && 'path' in fileTransport) {
-                console.log(`📋 Logs available at: ${fileTransport.path}`);
-            }
         } catch (error) {
             this.logger.error('Failed to start DextoAgent', {
                 error: error instanceof Error ? error.message : String(error),

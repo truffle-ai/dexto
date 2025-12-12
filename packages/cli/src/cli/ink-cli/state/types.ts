@@ -12,7 +12,7 @@ export interface StartupInfo {
     connectedServers: { count: number; names: string[] };
     failedConnections: string[];
     toolCount: number;
-    logFile: string;
+    logFile: string | null;
 }
 
 /**
