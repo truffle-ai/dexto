@@ -396,8 +396,10 @@ export default function ModelPickerModal() {
 
     // All models flat list (filtered by search and provider)
     const allModels = useMemo(() => {
-        // When 'custom' filter is selected, we only show custom models
-        if (providerFilter === 'custom') return [];
+        // Get non-custom provider filters
+        const providerFilters = providerFilter.filter((f): f is LLMProvider => f !== 'custom');
+        // If only 'custom' is selected, don't show catalog models
+        if (providerFilter.length > 0 && providerFilters.length === 0) return [];
 
         const result: Array<{
             providerId: LLMProvider;
@@ -406,7 +408,8 @@ export default function ModelPickerModal() {
         }> = [];
 
         for (const providerId of LLM_PROVIDERS) {
-            if (providerFilter !== 'all' && providerId !== providerFilter) continue;
+            // Empty filter = show all, otherwise check if provider is in filter
+            if (providerFilter.length > 0 && !providerFilters.includes(providerId)) continue;
 
             const provider = providers[providerId];
             if (!provider) continue;
@@ -421,9 +424,10 @@ export default function ModelPickerModal() {
         return result;
     }, [providers, providerFilter, modelMatchesSearch]);
 
-    // Filtered custom models (shown in 'all' and 'custom' views)
+    // Filtered custom models (shown when no filter or 'custom' in filter)
     const filteredCustomModels = useMemo(() => {
-        if (providerFilter !== 'custom' && providerFilter !== 'all') return [];
+        // Show custom models if: no filter (show all) OR 'custom' is in filter
+        if (providerFilter.length > 0 && !providerFilter.includes('custom')) return [];
         const q = search.trim().toLowerCase();
         if (!q) return customModels;
         return customModels.filter(
@@ -526,10 +530,10 @@ export default function ModelPickerModal() {
                             <div className="flex items-center gap-1.5 flex-wrap pt-1">
                                 <Filter className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <button
-                                    onClick={() => setProviderFilter('all')}
+                                    onClick={() => setProviderFilter([])}
                                     className={cn(
                                         'px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                        providerFilter === 'all'
+                                        providerFilter.length === 0
                                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                             : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                                     )}
@@ -539,10 +543,10 @@ export default function ModelPickerModal() {
                                 {availableProviders.map((providerId) => (
                                     <button
                                         key={providerId}
-                                        onClick={() => setProviderFilter(providerId)}
+                                        onClick={() => toggleFilter(providerId)}
                                         className={cn(
                                             'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                            providerFilter === providerId
+                                            providerFilter.includes(providerId)
                                                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                                 : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                                         )}
@@ -556,7 +560,7 @@ export default function ModelPickerModal() {
                                                 className={cn(
                                                     'object-contain',
                                                     needsDarkModeInversion(providerId) &&
-                                                        providerFilter !== providerId &&
+                                                        !providerFilter.includes(providerId) &&
                                                         'dark:invert dark:brightness-0 dark:contrast-200'
                                                 )}
                                             />
@@ -568,10 +572,10 @@ export default function ModelPickerModal() {
                                 ))}
                                 {customModels.length > 0 && (
                                     <button
-                                        onClick={() => setProviderFilter('custom')}
+                                        onClick={() => toggleFilter('custom')}
                                         className={cn(
                                             'flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                                            providerFilter === 'custom'
+                                            providerFilter.includes('custom')
                                                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                                 : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                                         )}
