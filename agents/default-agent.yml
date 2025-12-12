@@ -116,8 +116,8 @@ elicitation:
 internalTools:
   - ask_user  # Allows the agent to ask you questions and collect structured input
   - delegate_to_url
-  - list_session_resources
-  - get_shareable_url
+  - list_resources
+  - get_resource
 
 # Internal resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above

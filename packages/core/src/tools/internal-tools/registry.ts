@@ -15,8 +15,8 @@ import { createBashExecTool } from './implementations/bash-exec-tool.js';
 import { createBashOutputTool } from './implementations/bash-output-tool.js';
 import { createKillProcessTool } from './implementations/kill-process-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
-import { createListSessionResourcesTool } from './implementations/list-session-resources-tool.js';
-import { createGetShareableUrlTool } from './implementations/get-shareable-url-tool.js';
+import { createListResourcesTool } from './implementations/list-resources-tool.js';
+import { createGetResourceTool } from './implementations/get-resource-tool.js';
 import type { KnownInternalTool } from './constants.js';
 
 /**
@@ -126,14 +126,14 @@ export const INTERNAL_TOOL_REGISTRY: Record<KnownInternalTool, InternalToolRegis
         factory: (_services: InternalToolsServices) => createDelegateToUrlTool(),
         requiredServices: [] as const,
     },
-    list_session_resources: {
+    list_resources: {
         factory: (services: InternalToolsServices) =>
-            createListSessionResourcesTool(services.resourceManager!),
+            createListResourcesTool(services.resourceManager!),
         requiredServices: ['resourceManager'] as const,
     },
-    get_shareable_url: {
+    get_resource: {
         factory: (services: InternalToolsServices) =>
-            createGetShareableUrlTool(services.resourceManager!),
+            createGetResourceTool(services.resourceManager!),
         requiredServices: ['resourceManager'] as const,
     },
 };
