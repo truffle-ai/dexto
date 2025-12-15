@@ -98,24 +98,59 @@ export const systemCommands: CommandDefinition[] = [
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
 
+                // Get config file path (may not exist for programmatic agents)
+                let configFilePath: string | null = null;
+                try {
+                    configFilePath = agent.getAgentFilePath();
+                } catch {
+                    // No config file path available
+                }
+
+                // Get enabled plugins
+                const pluginsEnabled: string[] = [];
+                if (config.plugins) {
+                    // Check built-in plugins
+                    if (config.plugins.contentPolicy?.enabled) {
+                        pluginsEnabled.push('contentPolicy');
+                    }
+                    if (config.plugins.responseSanitizer?.enabled) {
+                        pluginsEnabled.push('responseSanitizer');
+                    }
+                    // Check custom plugins
+                    for (const plugin of config.plugins.custom || []) {
+                        if (plugin.enabled) {
+                            pluginsEnabled.push(plugin.name);
+                        }
+                    }
+                }
+
                 // Build styled data
                 const styledData: ConfigStyledData = {
+                    configFilePath,
                     provider: config.llm.provider,
                     model: config.llm.model,
+                    maxTokens: config.llm.maxOutputTokens ?? null,
+                    temperature: config.llm.temperature ?? null,
+                    toolConfirmationMode: config.toolConfirmation?.mode || 'auto',
                     maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
                     sessionTTL: config.sessions?.sessionTTL
                         ? `${config.sessions.sessionTTL / 1000}s`
                         : 'Default',
                     mcpServers: servers,
+                    promptsCount: config.prompts?.length || 0,
+                    pluginsEnabled,
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)
                 const fallbackLines: string[] = [
                     'Configuration:',
+                    configFilePath ? `  Config: ${configFilePath}` : '',
                     `  LLM: ${config.llm.provider} / ${config.llm.model}`,
+                    `  Tool Confirmation: ${styledData.toolConfirmationMode}`,
                     `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
                     `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
-                ];
+                    `  Prompts: ${styledData.promptsCount}`,
+                ].filter(Boolean);
 
                 return CommandOutputHelper.styled('config', styledData, fallbackLines.join('\n'));
             } catch (error) {

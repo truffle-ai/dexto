@@ -39,11 +39,17 @@ export type StyledMessageType =
  * Structured data for styled messages
  */
 export interface ConfigStyledData {
+    configFilePath: string | null;
     provider: string;
     model: string;
+    maxTokens: number | null;
+    temperature: number | null;
+    toolConfirmationMode: string;
     maxSessions: string;
     sessionTTL: string;
     mcpServers: string[];
+    promptsCount: number;
+    pluginsEnabled: string[];
 }
 
 export interface StatsStyledData {
