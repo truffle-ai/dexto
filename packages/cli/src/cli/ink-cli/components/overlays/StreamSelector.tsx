@@ -56,7 +56,7 @@ const StreamSelector = forwardRef<StreamSelectorHandle, StreamSelectorProps>(
             const optionList: StreamOption[] = [
                 {
                     id: 'enabled',
-                    label: 'Enabled',
+                    label: 'Enabled (Experimental)',
                     description: 'Show responses as they are generated',
                     icon: '▶️',
                     isCurrent: currentEnabled,
@@ -64,7 +64,7 @@ const StreamSelector = forwardRef<StreamSelectorHandle, StreamSelectorProps>(
                 {
                     id: 'disabled',
                     label: 'Disabled',
-                    description: 'Show complete response when finished',
+                    description: 'Show complete response when finished (default)',
                     icon: '⏸️',
                     isCurrent: !currentEnabled,
                 },

@@ -3,10 +3,107 @@
  * Helpers for creating and formatting messages
  */
 
+import path from 'path';
+import os from 'os';
 import type { DextoAgent, InternalMessage, ContentPart } from '@dexto/core';
 import { isTextPart } from '@dexto/core';
 import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
+
+/**
+ * Convert absolute path to display-friendly relative path.
+ * Strategy (inspired by gemini-cli and codex):
+ * 1. If path is under cwd → relative from cwd (e.g., "src/file.ts")
+ * 2. If path is under home → use tilde (e.g., "~/Projects/file.ts")
+ * 3. Otherwise → return absolute path
+ */
+export function makeRelativePath(absolutePath: string, cwd: string = process.cwd()): string {
+    // Normalize paths for comparison
+    const normalizedPath = path.normalize(absolutePath);
+    const normalizedCwd = path.normalize(cwd);
+    const homeDir = os.homedir();
+
+    // If under cwd, return relative path
+    if (normalizedPath.startsWith(normalizedCwd + path.sep) || normalizedPath === normalizedCwd) {
+        const relative = path.relative(normalizedCwd, normalizedPath);
+        return relative || '.';
+    }
+
+    // If under home directory, use tilde
+    if (normalizedPath.startsWith(homeDir + path.sep) || normalizedPath === homeDir) {
+        return '~' + normalizedPath.slice(homeDir.length);
+    }
+
+    // Return absolute path as-is
+    return absolutePath;
+}
+
+/**
+ * Format a path for display: relative + center-truncate if needed.
+ * @param absolutePath - The absolute file path
+ * @param maxWidth - Maximum display width (default 60)
+ * @param cwd - Current working directory for relative path calculation
+ */
+export function formatPathForDisplay(
+    absolutePath: string,
+    maxWidth: number = 60,
+    cwd: string = process.cwd()
+): string {
+    // First convert to relative
+    const relativePath = makeRelativePath(absolutePath, cwd);
+
+    // If fits, return as-is
+    if (relativePath.length <= maxWidth) {
+        return relativePath;
+    }
+
+    // Apply center-truncation
+    return centerTruncatePath(relativePath, maxWidth);
+}
+
+/**
+ * Center-truncate a file path to keep the filename visible.
+ * e.g., "/Users/karaj/Projects/very/long/path/to/file.ts" → "/Users/karaj/…/to/file.ts"
+ *
+ * Strategy (inspired by codex):
+ * 1. If path fits within maxWidth, return as-is
+ * 2. Keep first segment (root/home) and last 2 segments (parent + filename)
+ * 3. Add "…" in the middle
+ */
+export function centerTruncatePath(filePath: string, maxWidth: number): string {
+    if (filePath.length <= maxWidth) {
+        return filePath;
+    }
+
+    const sep = path.sep;
+    const segments = filePath.split(sep).filter(Boolean);
+
+    if (segments.length <= 3) {
+        // Too few segments to center-truncate, just end-truncate
+        return filePath.slice(0, maxWidth - 1) + '…';
+    }
+
+    // Keep first segment and last 2 segments
+    const first = filePath.startsWith(sep) ? sep + segments[0] : segments[0];
+    const lastTwo = segments.slice(-2).join(sep);
+
+    const truncated = `${first}${sep}…${sep}${lastTwo}`;
+
+    if (truncated.length <= maxWidth) {
+        return truncated;
+    }
+
+    // Still too long - try with just the filename
+    const filename = segments[segments.length - 1] || '';
+    const withJustFilename = `…${sep}${filename}`;
+
+    if (withJustFilename.length <= maxWidth) {
+        return withJustFilename;
+    }
+
+    // Filename itself is too long, end-truncate it
+    return filename.slice(0, maxWidth - 1) + '…';
+}
 
 /**
  * Tool-specific display configuration.
@@ -107,12 +204,25 @@ const FALLBACK_PRIMARY_ARGS = new Set([
 ]);
 
 /**
+ * Arguments that are file paths and should use relative path formatting.
+ * These get converted to relative paths and center-truncated if needed.
+ */
+const PATH_ARGS = new Set(['file_path', 'path']);
+
+/**
+ * Arguments that should never be truncated (commands, urls, etc.)
+ * These provide important context that users need to see in full.
+ */
+const NEVER_TRUNCATE_ARGS = new Set(['command', 'url']);
+
+/**
  * Formats tool arguments for display in Claude Code style.
  * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
  *
  * Uses tool-specific config to determine which args to show.
- * Primary argument is shown without key name (not truncated).
- * Secondary arguments show key: value format (truncated at 40 chars).
+ * - File paths: converted to relative paths, center-truncated if needed
+ * - Commands/URLs: shown in full (never truncated)
+ * - Other args: truncated at 40 chars
  */
 export function formatToolArgsForDisplay(toolName: string, args: Record<string, unknown>): string {
     const entries = Object.entries(args);
@@ -121,22 +231,40 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     const config = getToolConfig(toolName);
     const parts: string[] = [];
 
+    /**
+     * Format a single argument value for display
+     */
+    const formatArgValue = (argName: string, value: unknown): string => {
+        const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+
+        // File paths: use relative path + center-truncation
+        if (PATH_ARGS.has(argName)) {
+            return formatPathForDisplay(strValue);
+        }
+
+        // Commands/URLs: never truncate
+        if (NEVER_TRUNCATE_ARGS.has(argName)) {
+            return strValue;
+        }
+
+        // Other args: simple truncation
+        return strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
+    };
+
     if (config) {
         // Use tool-specific config
         for (const argName of config.argsToShow) {
             if (!(argName in args)) continue;
             if (parts.length >= 3) break;
 
-            const value = args[argName];
-            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+            const formattedValue = formatArgValue(argName, args[argName]);
 
             if (argName === config.primaryArg) {
-                // Primary arg without key name - don't truncate (user needs to see full command/path)
-                parts.unshift(strValue);
+                // Primary arg without key name
+                parts.unshift(formattedValue);
             } else {
-                // Secondary args with key name - truncate long values
-                const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
-                parts.push(`${argName}: ${truncated}`);
+                // Secondary args with key name
+                parts.push(`${argName}: ${formattedValue}`);
             }
         }
     } else {
@@ -144,15 +272,14 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
         for (const [key, value] of entries) {
             if (parts.length >= 3) break;
 
-            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+            const formattedValue = formatArgValue(key, value);
 
-            if (FALLBACK_PRIMARY_ARGS.has(key)) {
-                // Primary arg - don't truncate
-                parts.unshift(strValue);
+            if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
+                // Primary arg without key name
+                parts.unshift(formattedValue);
             } else {
-                // Other args - truncate
-                const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
-                parts.push(`${key}: ${truncated}`);
+                // Other args with key name
+                parts.push(`${key}: ${formattedValue}`);
             }
         }
     }

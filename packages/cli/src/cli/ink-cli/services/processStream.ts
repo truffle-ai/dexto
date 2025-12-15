@@ -61,6 +61,8 @@ interface StreamState {
     finalizedContent: string;
     /** Counter for generating unique IDs for split messages */
     splitCounter: number;
+    /** Flag to track if text was finalized early (before tools) to avoid duplication */
+    textFinalizedBeforeTool: boolean;
 }
 
 /**
@@ -90,6 +92,7 @@ export async function processStream(
         outputTokens: 0,
         finalizedContent: '',
         splitCounter: 0,
+        textFinalizedBeforeTool: false,
     };
 
     // LOCAL PENDING TRACKING - mirrors React state synchronously
@@ -194,8 +197,9 @@ export async function processStream(
      * rendered in a separate buffer AFTER pendingMessages, guaranteeing
      * correct visual order regardless of React batching timing.
      *
-     * IMPORTANT: Updates pending message BEFORE adding split to prevent race condition
-     * where both messages briefly show indicators.
+     * RACE CONDITION FIX: We clear the pending message content BEFORE adding
+     * the split, then restore with afterContent. This ensures any intermediate
+     * render sees empty pending (not stale full content), avoiding duplication.
      */
     const progressiveFinalize = (content: string): string => {
         const splitResult = checkForSplit(content);
@@ -208,18 +212,16 @@ export async function processStream(
             const afterContent = splitResult.after;
             const isFirstSplit = state.splitCounter === 1;
 
-            // CRITICAL: Update pending message FIRST to prevent race condition
-            // This ensures the pending message shows as continuation before the split is added
+            // STEP 1: Clear pending message content to avoid showing stale content
+            // during React's batched render cycle
             if (state.messageId) {
                 localPending = localPending.map((m) =>
-                    m.id === state.messageId
-                        ? { ...m, content: afterContent, isContinuation: true }
-                        : m
+                    m.id === state.messageId ? { ...m, content: '', isContinuation: true } : m
                 );
                 setPendingMessages(localPending);
             }
 
-            // Now add the split message
+            // STEP 2: Add split message to finalized
             setMessages((prev) => [
                 ...prev,
                 {
@@ -232,6 +234,14 @@ export async function processStream(
                     isContinuation: !isFirstSplit,
                 },
             ]);
+
+            // STEP 3: Restore pending with afterContent
+            if (state.messageId) {
+                localPending = localPending.map((m) =>
+                    m.id === state.messageId ? { ...m, content: afterContent } : m
+                );
+                setPendingMessages(localPending);
+            }
 
             // Track total finalized content for final message assembly
             state.finalizedContent += beforeContent;
@@ -258,6 +268,7 @@ export async function processStream(
                     state.outputTokens = 0;
                     state.finalizedContent = '';
                     state.splitCounter = 0;
+                    state.textFinalizedBeforeTool = false;
                     break;
                 }
 
@@ -338,9 +349,10 @@ export async function processStream(
                         // Reset for potential next response (multi-step)
                         state.messageId = null;
                         state.content = '';
-                    } else if (finalContent) {
+                    } else if (finalContent && !state.textFinalizedBeforeTool) {
                         // No streaming message exists - add directly to finalized
                         // This handles: non-streaming mode, or multi-step turns after tool calls
+                        // Skip if text was already finalized before tools (avoid duplication)
                         setMessages((prev) => [
                             ...prev,
                             {
@@ -352,10 +364,28 @@ export async function processStream(
                             },
                         ]);
                     }
+                    // Reset the flag for this response (new text after tools will create new message)
+                    state.textFinalizedBeforeTool = false;
                     break;
                 }
 
                 case 'llm:tool-call': {
+                    // ORDERING FIX: Finalize any pending assistant text BEFORE adding tool
+                    // This ensures text appears before tools in the finalized message list.
+                    // Without this, tool results (finalized on llm:tool-result) would appear
+                    // before text (finalized on llm:response) due to event order.
+                    if (state.messageId && state.content) {
+                        const messageId = state.messageId;
+                        const content = state.content;
+                        // If we've done splits, this is a continuation
+                        const isContinuation = state.splitCounter > 0;
+                        finalizeMessage(messageId, { content, isStreaming: false, isContinuation });
+                        state.messageId = null;
+                        state.content = '';
+                        // Mark that we finalized text early - prevents duplicate in llm:response
+                        state.textFinalizedBeforeTool = true;
+                    }
+
                     const toolMessageId = event.callId
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
@@ -368,7 +398,7 @@ export async function processStream(
                     );
 
                     // Format: ToolName(args) - like Claude Code
-                    const content = argsFormatted
+                    const toolContent = argsFormatted
                         ? `${displayName}(${argsFormatted})`
                         : displayName;
 
@@ -376,7 +406,7 @@ export async function processStream(
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
-                        content,
+                        content: toolContent,
                         timestamp: new Date(),
                         toolStatus: 'running',
                     });
@@ -446,15 +476,7 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
-                    // Cancel any streaming message in pending
-                    if (state.messageId) {
-                        const messageId = state.messageId;
-                        removeFromPending(messageId);
-                        state.messageId = null;
-                        state.content = '';
-                    }
-
-                    // Add error message directly to finalized
+                    // Add error message to finalized
                     setMessages((prev) => [
                         ...prev,
                         {
@@ -465,15 +487,26 @@ export async function processStream(
                         },
                     ]);
 
-                    // Clear any remaining pending messages
-                    clearPending();
+                    // Only stop processing for non-recoverable errors (fatal)
+                    // Tool errors are recoverable - agent continues after them
+                    if (event.recoverable !== true) {
+                        // Cancel any streaming message in pending
+                        if (state.messageId) {
+                            removeFromPending(state.messageId);
+                            state.messageId = null;
+                            state.content = '';
+                        }
 
-                    setUi((prev) => ({
-                        ...prev,
-                        isProcessing: false,
-                        isCancelling: false,
-                        isThinking: false,
-                    }));
+                        // Clear any remaining pending messages
+                        clearPending();
+
+                        setUi((prev) => ({
+                            ...prev,
+                            isProcessing: false,
+                            isCancelling: false,
+                            isThinking: false,
+                        }));
+                    }
                     break;
                 }
 

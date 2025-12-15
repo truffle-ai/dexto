@@ -166,12 +166,15 @@ export const MessageItem = memo(
 
             return (
                 <Box flexDirection="column" marginTop={1} width="100%">
-                    <Box flexDirection="row">
-                        <Text wrap="wrap">
-                            <Text color={dotColor}>● </Text>
-                            <Text bold>{toolName}</Text>
-                            <Text>{toolArgs}</Text>
-                        </Text>
+                    {/* Single line, truncated - like gemini-cli */}
+                    <Box flexDirection="row" overflow="hidden">
+                        <Text color={dotColor}>● </Text>
+                        <Box flexGrow={1} flexShrink={1} overflow="hidden">
+                            <Text wrap="truncate-end">
+                                <Text bold>{toolName}</Text>
+                                <Text>{toolArgs}</Text>
+                            </Text>
+                        </Box>
                     </Box>
                     {hasStructuredDisplay ? (
                         <ToolResultRenderer

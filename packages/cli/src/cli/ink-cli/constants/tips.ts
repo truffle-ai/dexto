@@ -43,6 +43,7 @@ export const tips: string[] = [
     'Sessions are automatically saved for later...',
     'You can create custom commands with /prompts...',
     'You can submit messages while Dexto is processing...',
+    'Use /stream to toggle streaming mode...',
 
     // Platform tips
     'On Mac, use Option+Up/Down to jump to start/end of input...',

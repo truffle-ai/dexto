@@ -76,9 +76,14 @@ export function StatusBar({
                 <Text color="magenta">
                     <Spinner type="dots" />
                 </Text>
-                <Text color="magenta"> {phrase}</Text>
+                <Box flexShrink={1}>
+                    <Text color="magenta" wrap="truncate-end">
+                        {' '}
+                        {phrase}
+                    </Text>
+                </Box>
                 <Text color="gray" dimColor>
-                    {showTime ? ` (${elapsedTime})` : ''} • Press Esc to cancel
+                    {showTime ? ` (${elapsedTime})` : ''} • Esc to cancel
                 </Text>
             </Box>
         );
@@ -90,13 +95,16 @@ export function StatusBar({
             <Text color="cyan">
                 <Spinner type="dots" />
             </Text>
-            <Text color="cyan"> {phrase}</Text>
-            {approvalQueueCount > 0 && (
-                <Text color="yellow"> • {approvalQueueCount} approval(s) queued</Text>
-            )}
+            <Box flexShrink={1}>
+                <Text color="cyan" wrap="truncate-end">
+                    {' '}
+                    {phrase}
+                </Text>
+            </Box>
+            {approvalQueueCount > 0 && <Text color="yellow"> • {approvalQueueCount} queued</Text>}
             <Text color="gray" dimColor>
                 {showTime ? ` (${elapsedTime})` : ''}
-                {tokenCount && ` • ${tokenCount}`} • Press Esc to cancel
+                {tokenCount && ` • ${tokenCount}`} • Esc to cancel
             </Text>
         </Box>
     );

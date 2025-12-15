@@ -7,7 +7,7 @@
 
 type StreamingListener = (enabled: boolean) => void;
 
-let streamingEnabled = true;
+let streamingEnabled = false;
 const listeners = new Set<StreamingListener>();
 
 /**
