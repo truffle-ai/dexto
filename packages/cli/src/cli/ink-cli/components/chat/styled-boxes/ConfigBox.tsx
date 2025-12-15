@@ -16,13 +16,13 @@ export function ConfigBox({ data }: ConfigBoxProps) {
         <StyledBox title="Runtime Configuration" titleColor="cyan">
             {/* Config file path at the top */}
             {data.configFilePath && (
-                <Box marginBottom={1}>
+                <Box>
                     <Text dimColor>Agent config: </Text>
                     <Text color="blue">{data.configFilePath}</Text>
                 </Box>
             )}
 
-            <StyledSection title="LLM" icon="LLM">
+            <StyledSection title="LLM">
                 <StyledRow label="Provider" value={data.provider} />
                 <StyledRow label="Model" value={data.model} />
                 {data.maxTokens !== null && (
