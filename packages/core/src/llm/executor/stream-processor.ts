@@ -5,6 +5,7 @@ import { ResourceManager } from '../../resources/index.js';
 import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
+import type { SanitizedToolResult } from '../../context/types.js';
 import { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { LLMProvider, TokenUsage } from '../types.js';
@@ -291,7 +292,7 @@ export class StreamProcessor {
                         break;
                     }
 
-                    case 'tool-error':
+                    case 'tool-error': {
                         // Tool execution failed - emit error event with tool context
                         this.logger.error('Tool execution failed', {
                             toolName: event.toolName,
@@ -299,14 +300,35 @@ export class StreamProcessor {
                             error: event.error,
                         });
 
+                        const errorMessage =
+                            event.error instanceof Error
+                                ? event.error.message
+                                : String(event.error);
+
+                        // CRITICAL: Must persist error result to history to maintain tool_use/tool_result pairing
+                        // Without this, the conversation history has tool_use without tool_result,
+                        // causing "tool_use ids were found without tool_result blocks" API errors
+                        const errorResult: SanitizedToolResult = {
+                            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+                            meta: {
+                                toolName: event.toolName,
+                                toolCallId: event.toolCallId,
+                                success: false,
+                            },
+                        };
+
+                        await this.contextManager.addToolResult(
+                            event.toolCallId,
+                            event.toolName,
+                            errorResult,
+                            undefined // No approval metadata for errors
+                        );
+
                         this.eventBus.emit('llm:tool-result', {
                             toolName: event.toolName,
                             callId: event.toolCallId,
                             success: false,
-                            error:
-                                event.error instanceof Error
-                                    ? event.error.message
-                                    : String(event.error),
+                            error: errorMessage,
                         });
 
                         this.eventBus.emit('llm:error', {
@@ -319,6 +341,7 @@ export class StreamProcessor {
                             recoverable: true, // Tool errors are typically recoverable
                         });
                         break;
+                    }
 
                     case 'error': {
                         const err =
