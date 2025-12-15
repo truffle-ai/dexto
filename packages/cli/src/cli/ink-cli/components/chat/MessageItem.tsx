@@ -127,24 +127,24 @@ export const MessageItem = memo(
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
-            // Continuation messages: no indicator, no margins - flows seamlessly from previous
+            // Continuation messages: no indicator, just content with left padding to align
             if (message.isContinuation) {
                 return (
                     <Box flexDirection="column" width="100%">
-                        <Box paddingLeft={2}>
+                        <Box paddingLeft={2} flexDirection="column" width="100%">
                             <MarkdownText>{message.content || ''}</MarkdownText>
                         </Box>
                     </Box>
                 );
             }
 
+            // Regular assistant message: indicator inline with content
+            // Using row layout so indicator and content are on the same line
             return (
-                <Box flexDirection="column" marginTop={1} width="100%">
-                    <Box flexDirection="row">
-                        <Text color="gray">⏺ </Text>
-                        <Box flexGrow={1}>
-                            <MarkdownText>{message.content || ''}</MarkdownText>
-                        </Box>
+                <Box flexDirection="row" marginTop={1} width="100%">
+                    <Text color="gray">⏺ </Text>
+                    <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+                        <MarkdownText>{message.content || ''}</MarkdownText>
                     </Box>
                 </Box>
             );

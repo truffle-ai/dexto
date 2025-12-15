@@ -253,7 +253,7 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({ children, color = '
             return;
         }
 
-        // Unordered list
+        // Unordered list - use hyphen to avoid confusion with ⏺ message indicator
         const ulMatch = line.match(ulItemRegex);
         if (ulMatch && ulMatch[1] !== undefined && ulMatch[3] !== undefined) {
             const indent = ulMatch[1].length;
@@ -262,7 +262,7 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({ children, color = '
                 <RenderListItem
                     key={key}
                     indent={indent}
-                    marker="•"
+                    marker="-"
                     text={itemText}
                     defaultColor={defaultColor}
                 />
@@ -316,7 +316,8 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({ children, color = '
         );
     }
 
-    return <>{blocks}</>;
+    // Wrap in column layout to ensure proper vertical stacking
+    return <Box flexDirection="column">{blocks}</Box>;
 };
 
 // ============================================================================

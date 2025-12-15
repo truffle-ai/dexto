@@ -193,6 +193,9 @@ export async function processStream(
      * Safe to use with message queueing because dequeued user messages are
      * rendered in a separate buffer AFTER pendingMessages, guaranteeing
      * correct visual order regardless of React batching timing.
+     *
+     * IMPORTANT: Updates pending message BEFORE adding split to prevent race condition
+     * where both messages briefly show indicators.
      */
     const progressiveFinalize = (content: string): string => {
         const splitResult = checkForSplit(content);
@@ -202,8 +205,21 @@ export async function processStream(
             state.splitCounter++;
             const splitId = `${state.messageId}-split-${state.splitCounter}`;
             const beforeContent = splitResult.before;
+            const afterContent = splitResult.after;
             const isFirstSplit = state.splitCounter === 1;
 
+            // CRITICAL: Update pending message FIRST to prevent race condition
+            // This ensures the pending message shows as continuation before the split is added
+            if (state.messageId) {
+                localPending = localPending.map((m) =>
+                    m.id === state.messageId
+                        ? { ...m, content: afterContent, isContinuation: true }
+                        : m
+                );
+                setPendingMessages(localPending);
+            }
+
+            // Now add the split message
             setMessages((prev) => [
                 ...prev,
                 {
@@ -221,7 +237,7 @@ export async function processStream(
             state.finalizedContent += beforeContent;
 
             // Return only the remaining content for pending
-            return splitResult.after;
+            return afterContent;
         }
 
         return content;
@@ -275,15 +291,23 @@ export async function processStream(
                             state.content += event.content;
 
                             // Check for progressive finalization (move completed paragraphs to Static)
+                            // progressiveFinalize updates pending message internally when split occurs
                             const pendingContent = progressiveFinalize(state.content);
+                            const splitOccurred = pendingContent !== state.content;
 
-                            // Update pending message with remaining content
-                            const messageId = state.messageId;
+                            // Update state with remaining content
                             state.content = pendingContent;
-                            // Mark as continuation if we've had any splits
-                            const isContinuation = state.splitCounter > 0;
 
-                            updatePending(messageId, { content: pendingContent, isContinuation });
+                            // Only update pending if no split occurred (split already handled by progressiveFinalize)
+                            if (!splitOccurred) {
+                                const messageId = state.messageId;
+                                // Mark as continuation if we've had any splits
+                                const isContinuation = state.splitCounter > 0;
+                                updatePending(messageId, {
+                                    content: pendingContent,
+                                    isContinuation,
+                                });
+                            }
                         }
                     }
                     break;
