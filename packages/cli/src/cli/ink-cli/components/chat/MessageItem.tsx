@@ -154,11 +154,18 @@ export const MessageItem = memo(
             // Use structured renderers if display data is available
             const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
 
+            // Parse tool name and args for bold formatting: "ToolName(args)" → bold name + normal args
+            const parenIndex = message.content.indexOf('(');
+            const toolName =
+                parenIndex > 0 ? message.content.slice(0, parenIndex) : message.content;
+            const toolArgs = parenIndex > 0 ? message.content.slice(parenIndex) : '';
+
             return (
                 <Box flexDirection="column" marginTop={1} width="100%">
                     <Box flexDirection="row">
                         <Text color={dotColor}>● </Text>
-                        <Text>{message.content}</Text>
+                        <Text bold>{toolName}</Text>
+                        <Text>{toolArgs}</Text>
                     </Box>
                     {hasStructuredDisplay ? (
                         <ToolResultRenderer
