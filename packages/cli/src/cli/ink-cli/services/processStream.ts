@@ -25,7 +25,7 @@ import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
 import type { Message, UIState } from '../state/types.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import { getToolDisplayName, formatToolArgsPreview } from '../utils/messageFormatting.js';
+import { getToolDisplayName, formatToolArgsForDisplay } from '../utils/messageFormatting.js';
 
 /**
  * State setters needed by processStream
@@ -332,32 +332,27 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
-                    // Format args for display (compact, one-line)
-                    let argsPreview = '';
-                    try {
-                        const argsStr = JSON.stringify(event.args);
-                        const cleanArgs = argsStr.replace(/^\{|\}$/g, '').trim();
-                        if (cleanArgs.length > 80) {
-                            argsPreview = ` • ${cleanArgs.slice(0, 80)}...`;
-                        } else if (cleanArgs.length > 0) {
-                            argsPreview = ` • ${cleanArgs}`;
-                        }
-                    } catch {
-                        argsPreview = '';
-                    }
-
                     const toolMessageId = event.callId
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
-                    // Get friendly display name for the tool
+                    // Get friendly display name and format args like Claude Code
                     const displayName = getToolDisplayName(event.toolName);
+                    const argsFormatted = formatToolArgsForDisplay(
+                        event.toolName,
+                        event.args || {}
+                    );
+
+                    // Format: ToolName(args) - like Claude Code
+                    const content = argsFormatted
+                        ? `${displayName}(${argsFormatted})`
+                        : displayName;
 
                     // Tool calls go to PENDING (running state)
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
-                        content: `${displayName}${argsPreview}`,
+                        content,
                         timestamp: new Date(),
                         toolStatus: 'running',
                     });

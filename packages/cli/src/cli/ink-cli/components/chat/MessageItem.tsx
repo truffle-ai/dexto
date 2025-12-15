@@ -145,33 +145,29 @@ export const MessageItem = memo(
             );
         }
 
-        // Tool message: Green for success, red for failure
+        // Tool message: Colored dot only (green success, red failure), white text
         if (message.role === 'tool') {
-            const iconColor = message.isError ? 'red' : 'green';
+            const dotColor = message.isError ? 'red' : 'green';
 
             // Use structured renderers if display data is available
             const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
 
             return (
-                <Box flexDirection="column" marginBottom={1} width="100%">
+                <Box flexDirection="column" width="100%">
                     <Box flexDirection="row">
-                        <Text color={iconColor}>⏺ </Text>
-                        <Text color={iconColor}>{message.content}</Text>
+                        <Text color={dotColor}>● </Text>
+                        <Text>{message.content}</Text>
                     </Box>
                     {hasStructuredDisplay ? (
-                        <Box marginLeft={2} marginTop={0} flexDirection="column">
-                            <ToolResultRenderer
-                                display={message.toolDisplayData!}
-                                content={message.toolContent!}
-                                maxLines={15}
-                            />
-                        </Box>
+                        <ToolResultRenderer
+                            display={message.toolDisplayData!}
+                            content={message.toolContent!}
+                            maxLines={15}
+                        />
                     ) : (
                         message.toolResult && (
-                            <Box marginLeft={2} marginTop={0} flexDirection="column">
-                                <Text color="gray" dimColor>
-                                    {message.toolResult}
-                                </Text>
+                            <Box flexDirection="column">
+                                <Text dimColor> ⎿ {message.toolResult}</Text>
                             </Box>
                         )
                     )}

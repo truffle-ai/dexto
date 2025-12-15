@@ -31,6 +31,7 @@ function formatDuration(ms: number): string {
 
 /**
  * Renders shell command result with status and output.
+ * Uses ⎿ character for continuation lines like Claude Code.
  */
 export function ShellRenderer({ data, content, maxLines = 15 }: ShellRendererProps) {
     const { command, exitCode, duration, isBackground } = data;
@@ -50,41 +51,31 @@ export function ShellRenderer({ data, content, maxLines = 15 }: ShellRendererPro
 
     return (
         <Box flexDirection="column">
-            {/* Command header with status */}
+            {/* Status line with exit code and duration */}
             <Box>
-                <Text color="gray" dimColor>
-                    ${' '}
-                </Text>
-                <Text color="white">{displayCommand}</Text>
-                <Text> </Text>
+                <Text dimColor>{'  ⎿ '}</Text>
+                <Text dimColor>$ {displayCommand} </Text>
                 {exitCode === 0 ? (
                     <Text color="green">ok</Text>
                 ) : (
                     <Text color="red">exit {exitCode}</Text>
                 )}
-                <Text color="gray" dimColor>
-                    {' '}
-                    {formatDuration(duration)}
-                </Text>
-                {isBackground && (
-                    <Text color="yellow" dimColor>
-                        {' '}
-                        (bg)
-                    </Text>
-                )}
+                <Text dimColor> {formatDuration(duration)}</Text>
+                {isBackground && <Text color="yellow"> (bg)</Text>}
             </Box>
 
             {/* Output lines */}
             {displayLines.length > 0 && (
-                <Box flexDirection="column" marginLeft={2}>
+                <Box flexDirection="column">
                     {displayLines.map((line, i) => (
-                        <Text key={i} color="gray" dimColor wrap="truncate">
+                        <Text key={i} dimColor wrap="truncate">
+                            {'    '}
                             {line}
                         </Text>
                     ))}
                     {truncated && (
-                        <Text color="gray" dimColor>
-                            ... ({lines.length - maxLines} more lines)
+                        <Text dimColor>
+                            {'    '}... {lines.length - maxLines} more lines
                         </Text>
                     )}
                 </Box>

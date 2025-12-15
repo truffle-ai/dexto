@@ -175,6 +175,7 @@ export function StaticCLI({
                     isThinking={ui.isThinking}
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
+                    isAwaitingApproval={approval !== null}
                 />
 
                 {/* Queued messages display (shows when messages are pending) */}

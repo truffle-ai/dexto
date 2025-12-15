@@ -18,6 +18,7 @@ interface SearchRendererProps {
 
 /**
  * Renders search results with file paths and line numbers.
+ * Uses ⎿ character for continuation lines like Claude Code.
  */
 export function SearchRenderer({ data, maxMatches = 10 }: SearchRendererProps) {
     const { pattern, matches, totalMatches, truncated: dataTruncated } = data;
@@ -27,33 +28,24 @@ export function SearchRenderer({ data, maxMatches = 10 }: SearchRendererProps) {
     return (
         <Box flexDirection="column">
             {/* Summary header */}
-            <Text color="gray" dimColor>
+            <Text dimColor>
+                {'  ⎿ '}
                 {totalMatches} match{totalMatches !== 1 ? 'es' : ''} for "{pattern}"
                 {truncated && ' (truncated)'}
             </Text>
 
-            {/* Match results */}
+            {/* Match results - file paths only for clean output */}
             {displayMatches.map((match, i) => (
-                <Box key={i}>
-                    <Text color="cyan">{match.file}</Text>
-                    {match.line > 0 && (
-                        <Text color="gray" dimColor>
-                            :{match.line}
-                        </Text>
-                    )}
-                    {match.content && match.file !== match.content && (
-                        <Text color="gray" dimColor wrap="truncate">
-                            {' '}
-                            {match.content.slice(0, 60)}
-                            {match.content.length > 60 ? '...' : ''}
-                        </Text>
-                    )}
-                </Box>
+                <Text key={i} dimColor>
+                    {'    '}
+                    {match.file}
+                    {match.line > 0 && `:${match.line}`}
+                </Text>
             ))}
 
             {matches.length > maxMatches && (
-                <Text color="gray" dimColor>
-                    ... ({matches.length - maxMatches} more matches)
+                <Text dimColor>
+                    {'    '}... {matches.length - maxMatches} more
                 </Text>
             )}
         </Box>

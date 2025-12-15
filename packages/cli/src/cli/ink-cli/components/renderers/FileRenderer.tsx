@@ -47,30 +47,19 @@ function getOperationColor(operation: FileDisplayData['operation']): string {
 
 /**
  * Renders file operation status.
+ * Uses ⎿ character for continuation lines like Claude Code.
  */
 export function FileRenderer({ data }: FileRendererProps) {
-    const { path, operation, size, backupPath } = data;
-    const color = getOperationColor(operation);
+    const { path, operation, size } = data;
+
+    // For read operations, show line count if available
+    const sizeInfo = size !== undefined ? ` (${formatSize(size)})` : '';
 
     return (
-        <Box>
-            <Text color={color}>{operation}</Text>
-            <Text color="gray" dimColor>
-                {' '}
-                {path}
-            </Text>
-            {size !== undefined && (
-                <Text color="gray" dimColor>
-                    {' '}
-                    ({formatSize(size)})
-                </Text>
-            )}
-            {backupPath && (
-                <Text color="gray" dimColor>
-                    {' '}
-                    backup: {backupPath}
-                </Text>
-            )}
-        </Box>
+        <Text dimColor>
+            {'  ⎿ '}
+            {operation} {path}
+            {sizeInfo}
+        </Text>
     );
 }

@@ -57,7 +57,71 @@ export function getToolDisplayName(toolName: string): string {
 }
 
 /**
+ * Primary argument names by tool - these are shown without the key name
+ * for cleaner display like Claude Code does.
+ */
+const PRIMARY_ARGS: Record<string, string> = {
+    read_file: 'file_path',
+    write_file: 'file_path',
+    edit_file: 'file_path',
+    glob_files: 'pattern',
+    grep_content: 'pattern',
+    bash_exec: 'command',
+    kill_process: 'pid',
+    ask_user: 'question',
+    // With internal-- prefix
+    'internal--read_file': 'file_path',
+    'internal--write_file': 'file_path',
+    'internal--edit_file': 'file_path',
+    'internal--glob_files': 'pattern',
+    'internal--grep_content': 'pattern',
+    'internal--bash_exec': 'command',
+    'internal--kill_process': 'pid',
+    'internal--ask_user': 'question',
+};
+
+/**
+ * Formats tool arguments for display in Claude Code style.
+ * Format: ToolName(primary_arg, key: value, key2: value2)
+ *
+ * Primary arguments (like file_path for Read) are shown without the key name.
+ * Other arguments show key: "value" format.
+ */
+export function formatToolArgsForDisplay(
+    toolName: string,
+    args: Record<string, unknown>,
+    maxLength: number = 70
+): string {
+    const entries = Object.entries(args);
+    if (entries.length === 0) return '';
+
+    const primaryKey = PRIMARY_ARGS[toolName];
+    const parts: string[] = [];
+
+    // Process entries - primary arg first without key name
+    for (const [key, value] of entries) {
+        if (parts.length >= 3) break; // Max 3 params
+
+        const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+        // Truncate long values
+        const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
+
+        if (key === primaryKey) {
+            // Primary arg shown first without key
+            parts.unshift(truncated);
+        } else {
+            // Other args with key name
+            parts.push(`${key}: ${truncated}`);
+        }
+    }
+
+    const result = parts.join(', ');
+    return result.length > maxLength ? result.slice(0, maxLength - 3) + '...' : result;
+}
+
+/**
  * Formats tool arguments for display (compact preview).
+ * @deprecated Use formatToolArgsForDisplay instead
  */
 export function formatToolArgsPreview(
     args: Record<string, unknown>,

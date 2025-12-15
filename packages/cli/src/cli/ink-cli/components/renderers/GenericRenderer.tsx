@@ -19,6 +19,7 @@ interface GenericRendererProps {
 /**
  * Renders tool result content as plain text.
  * Used as fallback for tools without specific display data.
+ * Uses ⎿ character for continuation lines like Claude Code.
  */
 export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps) {
     // Extract text from content parts
@@ -31,20 +32,37 @@ export function GenericRenderer({ content, maxLines = 15 }: GenericRendererProps
         return null;
     }
 
-    const lines = text.split('\n');
+    const lines = text.split('\n').filter((line) => line.trim().length > 0);
     const displayLines = lines.slice(0, maxLines);
     const truncated = lines.length > maxLines;
 
+    // For single line results, show inline
+    if (lines.length === 1 && lines[0]) {
+        const line = lines[0];
+        return (
+            <Text dimColor>
+                {'  ⎿ '}
+                {line.slice(0, 80)}
+                {line.length > 80 ? '...' : ''}
+            </Text>
+        );
+    }
+
     return (
         <Box flexDirection="column">
+            <Text dimColor>
+                {'  ⎿ '}
+                {displayLines.length} lines
+            </Text>
             {displayLines.map((line, i) => (
-                <Text key={i} color="gray" dimColor wrap="truncate">
+                <Text key={i} dimColor wrap="truncate">
+                    {'    '}
                     {line}
                 </Text>
             ))}
             {truncated && (
-                <Text color="gray" dimColor>
-                    ... ({lines.length - maxLines} more lines)
+                <Text dimColor>
+                    {'    '}... {lines.length - maxLines} more lines
                 </Text>
             )}
         </Box>

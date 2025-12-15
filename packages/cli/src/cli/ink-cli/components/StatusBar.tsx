@@ -16,11 +16,17 @@ interface StatusBarProps {
     isThinking: boolean;
     approvalQueueCount: number;
     copyModeEnabled?: boolean;
+    /** Whether an approval prompt is currently shown */
+    isAwaitingApproval?: boolean;
 }
 
 /**
  * Status bar that shows processing state above input area
  * Provides clear feedback on whether the agent is running or idle
+ *
+ * Design decisions:
+ * - Hide spinner during approval wait (user is reviewing, not waiting)
+ * - Only show elapsed time after 30s (avoid visual noise for fast operations)
  */
 export function StatusBar({
     agent,
@@ -28,13 +34,17 @@ export function StatusBar({
     isThinking,
     approvalQueueCount,
     copyModeEnabled = false,
+    isAwaitingApproval = false,
 }: StatusBarProps) {
     // Cycle through witty phrases while processing
     const { phrase } = usePhraseCycler({ isActive: isProcessing });
     // Track elapsed time during processing
-    const { formatted: elapsedTime } = useElapsedTime({ isActive: isProcessing });
+    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({ isActive: isProcessing });
     // Track token usage during processing
     const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+
+    // Only show time after 30 seconds
+    const showTime = elapsedMs >= 30000;
 
     // Show copy mode warning (highest priority)
     if (copyModeEnabled) {
@@ -52,6 +62,11 @@ export function StatusBar({
         return null;
     }
 
+    // Hide status bar during approval wait - user is reviewing, not waiting
+    if (isAwaitingApproval) {
+        return null;
+    }
+
     // Show initial processing state (before streaming starts) - magenta color
     // TODO: Rename this event/state to "reasoning" and associate it with actual reasoning tokens
     // Currently "thinking" event fires before any response, not during reasoning token generation
@@ -63,8 +78,7 @@ export function StatusBar({
                 </Text>
                 <Text color="magenta"> {phrase}</Text>
                 <Text color="gray" dimColor>
-                    {' '}
-                    ({elapsedTime}) • Press Esc to cancel
+                    {showTime ? ` (${elapsedTime})` : ''} • Press Esc to cancel
                 </Text>
             </Box>
         );
@@ -81,8 +95,8 @@ export function StatusBar({
                 <Text color="yellow"> • {approvalQueueCount} approval(s) queued</Text>
             )}
             <Text color="gray" dimColor>
-                {' '}
-                ({elapsedTime}){tokenCount && ` • ${tokenCount}`} • Press Esc to cancel
+                {showTime ? ` (${elapsedTime})` : ''}
+                {tokenCount && ` • ${tokenCount}`} • Press Esc to cancel
             </Text>
         </Box>
     );

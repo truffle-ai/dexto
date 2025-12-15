@@ -271,6 +271,7 @@ export function AlternateBufferCLI({
                     isThinking={ui.isThinking}
                     approvalQueueCount={approvalQueue.length}
                     copyModeEnabled={ui.copyModeEnabled}
+                    isAwaitingApproval={approval !== null}
                 />
 
                 {/* Selection hint when user tries to select without Option key */}

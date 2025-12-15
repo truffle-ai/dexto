@@ -71,14 +71,18 @@ function DiffLine({ line }: { line: ParsedDiffLine }) {
 
 /**
  * Renders unified diff with colored additions/deletions.
+ * Uses ⎿ character for continuation lines like Claude Code.
  */
 export function DiffRenderer({ data, maxLines = 30 }: DiffRendererProps) {
     const { unified, filename, additions, deletions } = data;
     const allLines = parseDiffLines(unified);
 
-    // Filter out empty/noise lines for cleaner display
+    // Filter out empty/noise lines for cleaner display - only keep actual changes and hunk headers
     const meaningfulLines = allLines.filter(
-        (line) => line.type !== 'header' || line.content.startsWith('@@') // Keep hunk headers
+        (line) =>
+            line.type === 'addition' ||
+            line.type === 'deletion' ||
+            (line.type === 'header' && line.content.startsWith('@@'))
     );
 
     const displayLines = meaningfulLines.slice(0, maxLines);
@@ -87,22 +91,24 @@ export function DiffRenderer({ data, maxLines = 30 }: DiffRendererProps) {
     return (
         <Box flexDirection="column">
             {/* Summary header */}
-            <Box>
-                <Text color="gray" dimColor>
-                    {filename}
-                </Text>
+            <Text dimColor>
+                {'  ⎿ '}
+                {filename}
                 <Text color="green"> +{additions}</Text>
                 <Text color="red"> -{deletions}</Text>
-            </Box>
+            </Text>
 
-            {/* Diff lines */}
+            {/* Diff lines - indented */}
             {displayLines.map((line, i) => (
-                <DiffLine key={i} line={line} />
+                <Box key={i}>
+                    <Text>{'    '}</Text>
+                    <DiffLine line={line} />
+                </Box>
             ))}
 
             {truncated && (
-                <Text color="gray" dimColor>
-                    ... ({meaningfulLines.length - maxLines} more lines)
+                <Text dimColor>
+                    {'    '}... {meaningfulLines.length - maxLines} more lines
                 </Text>
             )}
         </Box>
