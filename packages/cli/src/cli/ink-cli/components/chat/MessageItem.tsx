@@ -113,7 +113,9 @@ export const MessageItem = memo(
                         <Text color="green" dimColor>
                             {'> '}
                         </Text>
-                        <Text color="white">{message.content}</Text>
+                        <Text color="white" wrap="wrap">
+                            {message.content}
+                        </Text>
                     </Box>
                 </Box>
             );
@@ -129,7 +131,9 @@ export const MessageItem = memo(
                 return (
                     <Box flexDirection="row" width="100%">
                         <Text>{'  '}</Text>
-                        <Text color="white">{message.content || ''}</Text>
+                        <Text color="white" wrap="wrap">
+                            {message.content || ''}
+                        </Text>
                     </Box>
                 );
             }
@@ -139,7 +143,9 @@ export const MessageItem = memo(
                     <Box flexDirection="row">
                         <Text color="gray">⏺ </Text>
                         <Box flexDirection="column" flexGrow={1}>
-                            <Text color="white">{message.content || ' '}</Text>
+                            <Text color="white" wrap="wrap">
+                                {message.content || ' '}
+                            </Text>
                         </Box>
                     </Box>
                 </Box>
