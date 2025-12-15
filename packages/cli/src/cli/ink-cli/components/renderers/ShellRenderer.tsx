@@ -30,12 +30,11 @@ function formatDuration(ms: number): string {
 }
 
 /**
- * Renders shell command result with status and output.
+ * Renders shell command result with output.
  * Uses ⎿ character for continuation lines like Claude Code.
+ * Shows just the output, "(No content)" for empty results.
  */
-export function ShellRenderer({ data, content, maxLines = 15 }: ShellRendererProps) {
-    const { command, exitCode, duration, isBackground } = data;
-
+export function ShellRenderer({ content, maxLines = 15 }: ShellRendererProps) {
     // Extract output from content
     const output = content
         .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
@@ -46,39 +45,34 @@ export function ShellRenderer({ data, content, maxLines = 15 }: ShellRendererPro
     const displayLines = lines.slice(0, maxLines);
     const truncated = lines.length > maxLines;
 
-    // Truncate long commands for display
-    const displayCommand = command.length > 60 ? command.slice(0, 57) + '...' : command;
+    // No output - show "(No content)" like Claude Code
+    if (lines.length === 0) {
+        return <Text dimColor>{'  ⎿ '}(No content)</Text>;
+    }
 
+    // Single line output - show inline
+    if (lines.length === 1 && lines[0]) {
+        return (
+            <Text dimColor>
+                {'  ⎿ '}
+                {lines[0]}
+            </Text>
+        );
+    }
+
+    // Multi-line output
     return (
         <Box flexDirection="column">
-            {/* Status line with exit code and duration */}
-            <Box>
-                <Text dimColor>{'  ⎿ '}</Text>
-                <Text dimColor>$ {displayCommand} </Text>
-                {exitCode === 0 ? (
-                    <Text color="green">ok</Text>
-                ) : (
-                    <Text color="red">exit {exitCode}</Text>
-                )}
-                <Text dimColor> {formatDuration(duration)}</Text>
-                {isBackground && <Text color="yellow"> (bg)</Text>}
-            </Box>
-
-            {/* Output lines */}
-            {displayLines.length > 0 && (
-                <Box flexDirection="column">
-                    {displayLines.map((line, i) => (
-                        <Text key={i} dimColor wrap="truncate">
-                            {'    '}
-                            {line}
-                        </Text>
-                    ))}
-                    {truncated && (
-                        <Text dimColor>
-                            {'    '}... {lines.length - maxLines} more lines
-                        </Text>
-                    )}
-                </Box>
+            {displayLines.map((line, i) => (
+                <Text key={i} dimColor wrap="truncate">
+                    {i === 0 ? '  ⎿ ' : '    '}
+                    {line}
+                </Text>
+            ))}
+            {truncated && (
+                <Text dimColor>
+                    {'    '}... {lines.length - maxLines} more lines
+                </Text>
             )}
         </Box>
     );

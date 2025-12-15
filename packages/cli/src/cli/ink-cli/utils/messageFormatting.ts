@@ -16,7 +16,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
     // Internal file tools
     read_file: 'Read',
     write_file: 'Write',
-    edit_file: 'Edit',
+    edit_file: 'Update',
     glob_files: 'Glob',
     grep_content: 'Search',
     // Internal process tools
@@ -28,7 +28,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
     // Prefixed versions (internal-- prefix)
     'internal--read_file': 'Read',
     'internal--write_file': 'Write',
-    'internal--edit_file': 'Edit',
+    'internal--edit_file': 'Update',
     'internal--glob_files': 'Glob',
     'internal--grep_content': 'Search',
     'internal--bash_exec': 'Bash',
