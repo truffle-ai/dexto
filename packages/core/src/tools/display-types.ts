@@ -46,7 +46,7 @@ export interface DiffDisplayData {
 
 /**
  * Display data for shell command execution (bash_exec).
- * Contains command metadata for structured rendering.
+ * Contains command metadata and output for structured rendering.
  */
 export interface ShellDisplayData {
     type: 'shell';
@@ -58,6 +58,10 @@ export interface ShellDisplayData {
     duration: number;
     /** Whether command is running in background */
     isBackground?: boolean;
+    /** Standard output from the command */
+    stdout?: string;
+    /** Standard error from the command */
+    stderr?: string;
 }
 
 /**
@@ -102,6 +106,8 @@ export interface FileDisplayData {
     operation: 'read' | 'write' | 'create' | 'delete';
     /** File size in bytes (optional) */
     size?: number;
+    /** Number of lines read/written (optional) */
+    lineCount?: number;
     /** Path to backup file if created (optional) */
     backupPath?: string;
 }

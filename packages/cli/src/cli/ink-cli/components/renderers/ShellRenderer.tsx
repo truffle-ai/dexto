@@ -1,32 +1,19 @@
 /**
  * ShellRenderer Component
  *
- * Renders shell command output with command, exit code, and duration.
- * Used for bash_exec tool results.
+ * Renders shell command output like Claude Code.
+ * Shows actual stdout/stderr, limited to 10 lines with "+N lines" truncation.
  */
 
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { ShellDisplayData, ContentPart } from '@dexto/core';
+import type { ShellDisplayData } from '@dexto/core';
 
 interface ShellRendererProps {
     /** Shell display data from tool result */
     data: ShellDisplayData;
-    /** Content parts containing stdout/stderr */
-    content: ContentPart[];
-    /** Maximum lines to display before truncating */
+    /** Maximum lines to display before truncating (default: 10) */
     maxLines?: number;
-}
-
-/**
- * Format duration in human-readable format
- */
-function formatDuration(ms: number): string {
-    if (ms < 1000) {
-        return `${ms}ms`;
-    }
-    const seconds = (ms / 1000).toFixed(1);
-    return `${seconds}s`;
 }
 
 /**
@@ -34,16 +21,13 @@ function formatDuration(ms: number): string {
  * Uses ⎿ character for continuation lines like Claude Code.
  * Shows just the output, "(No content)" for empty results.
  */
-export function ShellRenderer({ content, maxLines = 15 }: ShellRendererProps) {
-    // Extract output from content
-    const output = content
-        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-        .map((part) => part.text)
-        .join('\n');
+export function ShellRenderer({ data, maxLines = 10 }: ShellRendererProps) {
+    // Use stdout from display data, fall back to stderr if no stdout
+    const output = data.stdout || data.stderr || '';
 
     const lines = output.split('\n').filter((line) => line.length > 0);
     const displayLines = lines.slice(0, maxLines);
-    const truncated = lines.length > maxLines;
+    const truncatedCount = lines.length - maxLines;
 
     // No output - show "(No content)" like Claude Code
     if (lines.length === 0) {
@@ -61,6 +45,7 @@ export function ShellRenderer({ content, maxLines = 15 }: ShellRendererProps) {
     }
 
     // Multi-line output
+    // TODO: Add ctrl+o expansion to show full output
     return (
         <Box flexDirection="column">
             {displayLines.map((line, i) => (
@@ -69,9 +54,9 @@ export function ShellRenderer({ content, maxLines = 15 }: ShellRendererProps) {
                     {line}
                 </Text>
             ))}
-            {truncated && (
+            {truncatedCount > 0 && (
                 <Text dimColor>
-                    {'    '}... {lines.length - maxLines} more lines
+                    {'    '}+{truncatedCount} lines
                 </Text>
             )}
         </Box>

@@ -32,8 +32,16 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     edit_file: { displayName: 'Update', argsToShow: ['file_path'], primaryArg: 'file_path' },
 
     // Search tools - show pattern as primary, path as secondary
-    glob_files: { displayName: 'Glob', argsToShow: ['pattern', 'path'], primaryArg: 'pattern' },
-    grep_content: { displayName: 'Search', argsToShow: ['pattern', 'path'], primaryArg: 'pattern' },
+    glob_files: {
+        displayName: 'Find files',
+        argsToShow: ['pattern', 'path'],
+        primaryArg: 'pattern',
+    },
+    grep_content: {
+        displayName: 'Search files',
+        argsToShow: ['pattern', 'path'],
+        primaryArg: 'pattern',
+    },
 
     // Bash - show command only, skip description
     bash_exec: { displayName: 'Bash', argsToShow: ['command'], primaryArg: 'command' },
@@ -103,14 +111,10 @@ const FALLBACK_PRIMARY_ARGS = new Set([
  * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
  *
  * Uses tool-specific config to determine which args to show.
- * Primary argument is shown without key name.
- * Secondary arguments show key: value format.
+ * Primary argument is shown without key name (not truncated).
+ * Secondary arguments show key: value format (truncated at 40 chars).
  */
-export function formatToolArgsForDisplay(
-    toolName: string,
-    args: Record<string, unknown>,
-    maxLength: number = 70
-): string {
+export function formatToolArgsForDisplay(toolName: string, args: Record<string, unknown>): string {
     const entries = Object.entries(args);
     if (entries.length === 0) return '';
 
@@ -125,13 +129,13 @@ export function formatToolArgsForDisplay(
 
             const value = args[argName];
             const strValue = typeof value === 'string' ? value : JSON.stringify(value);
-            const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
 
             if (argName === config.primaryArg) {
-                // Primary arg without key name
-                parts.unshift(truncated);
+                // Primary arg without key name - don't truncate (user needs to see full command/path)
+                parts.unshift(strValue);
             } else {
-                // Secondary args with key name
+                // Secondary args with key name - truncate long values
+                const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
                 parts.push(`${argName}: ${truncated}`);
             }
         }
@@ -141,18 +145,19 @@ export function formatToolArgsForDisplay(
             if (parts.length >= 3) break;
 
             const strValue = typeof value === 'string' ? value : JSON.stringify(value);
-            const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
 
             if (FALLBACK_PRIMARY_ARGS.has(key)) {
-                parts.unshift(truncated);
+                // Primary arg - don't truncate
+                parts.unshift(strValue);
             } else {
+                // Other args - truncate
+                const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
                 parts.push(`${key}: ${truncated}`);
             }
         }
     }
 
-    const result = parts.join(', ');
-    return result.length > maxLength ? result.slice(0, maxLength - 3) + '...' : result;
+    return parts.join(', ');
 }
 
 /**

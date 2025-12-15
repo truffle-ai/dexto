@@ -54,6 +54,7 @@ export function createReadFileTool(fileSystemService: FileSystemService): Intern
                 path: file_path,
                 operation: 'read',
                 size: result.size,
+                lineCount: result.lines,
             };
 
             return {

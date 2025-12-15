@@ -42,7 +42,7 @@ export function ToolResultRenderer({ display, content, maxLines = 15 }: ToolResu
             return <DiffRenderer data={displayData} maxLines={maxLines} />;
 
         case 'shell':
-            return <ShellRenderer data={displayData} content={content} maxLines={maxLines} />;
+            return <ShellRenderer data={displayData} maxLines={maxLines} />;
 
         case 'search':
             return <SearchRenderer data={displayData} maxMatches={maxLines} />;

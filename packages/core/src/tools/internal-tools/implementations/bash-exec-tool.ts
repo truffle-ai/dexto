@@ -122,6 +122,8 @@ export function createBashExecTool(
                     exitCode: result.exitCode,
                     duration: result.duration,
                     isBackground: false,
+                    stdout: result.stdout,
+                    stderr: result.stderr,
                 };
 
                 return {

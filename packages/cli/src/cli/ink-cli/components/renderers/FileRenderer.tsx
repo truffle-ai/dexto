@@ -1,12 +1,13 @@
 /**
  * FileRenderer Component
  *
- * Renders file operation status (read, write, create, delete).
- * Used for read_file and write_file (create) operations.
+ * Renders file operation status like Claude Code.
+ * - Read: "Read N lines"
+ * - Write/Create: "Wrote N lines to filename"
  */
 
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Text } from 'ink';
 import type { FileDisplayData } from '@dexto/core';
 
 interface FileRendererProps {
@@ -15,51 +16,43 @@ interface FileRendererProps {
 }
 
 /**
- * Format file size in human-readable format
- */
-function formatSize(bytes: number): string {
-    if (bytes < 1024) {
-        return `${bytes} B`;
-    }
-    if (bytes < 1024 * 1024) {
-        return `${(bytes / 1024).toFixed(1)} KB`;
-    }
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/**
- * Get color for operation type
- */
-function getOperationColor(operation: FileDisplayData['operation']): string {
-    switch (operation) {
-        case 'read':
-            return 'blue';
-        case 'write':
-            return 'yellow';
-        case 'create':
-            return 'green';
-        case 'delete':
-            return 'red';
-        default:
-            return 'white';
-    }
-}
-
-/**
  * Renders file operation status.
  * Uses ⎿ character for continuation lines like Claude Code.
  */
 export function FileRenderer({ data }: FileRendererProps) {
-    const { path, operation, size } = data;
+    const { operation, lineCount } = data;
 
-    // For read operations, show line count if available
-    const sizeInfo = size !== undefined ? ` (${formatSize(size)})` : '';
+    // Format based on operation type
+    if (operation === 'read') {
+        // Claude Code style: "Read N lines"
+        const lineText = lineCount !== undefined ? `${lineCount} lines` : 'file';
+        return (
+            <Text dimColor>
+                {'  ⎿ '}Read {lineText}
+            </Text>
+        );
+    }
 
+    // For write/create operations
+    if (operation === 'write' || operation === 'create') {
+        const lineText = lineCount !== undefined ? `${lineCount} lines` : 'content';
+        return (
+            <Text dimColor>
+                {'  ⎿ '}Wrote {lineText}
+            </Text>
+        );
+    }
+
+    // Delete operation
+    if (operation === 'delete') {
+        return <Text dimColor>{'  ⎿ '}Deleted file</Text>;
+    }
+
+    // Fallback
     return (
         <Text dimColor>
             {'  ⎿ '}
-            {operation} {path}
-            {sizeInfo}
+            {operation}
         </Text>
     );
 }
