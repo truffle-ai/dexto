@@ -21,7 +21,7 @@
  */
 
 import type React from 'react';
-import type { StreamingEvent } from '@dexto/core';
+import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
 import type { Message, UIState } from '../state/types.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
@@ -361,6 +361,12 @@ export async function processStream(
                 }
 
                 case 'llm:tool-result': {
+                    // Extract structured display data and content from sanitized result
+                    const sanitized = event.sanitized as SanitizedToolResult | undefined;
+                    const toolDisplayData = sanitized?.meta?.display;
+                    const toolContent = sanitized?.content;
+
+                    // Generate text preview for fallback display
                     let resultPreview = '';
                     try {
                         const result = event.sanitized || event.rawResult;
@@ -404,11 +410,13 @@ export async function processStream(
 
                     if (event.callId) {
                         const toolMessageId = `tool-${event.callId}`;
-                        // Finalize tool message - move to messages with result
+                        // Finalize tool message - move to messages with result and display data
                         finalizeMessage(toolMessageId, {
                             toolResult: resultPreview,
                             toolStatus: 'finished',
                             isError: !event.success,
+                            ...(toolDisplayData && { toolDisplayData }),
+                            ...(toolContent && { toolContent }),
                         });
                     }
                     break;

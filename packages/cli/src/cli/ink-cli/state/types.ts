@@ -4,6 +4,7 @@
  */
 
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
+import type { ToolDisplayData, ContentPart } from '@dexto/core';
 
 /**
  * Startup information displayed in CLI header
@@ -181,6 +182,10 @@ export interface Message {
     isQueued?: boolean;
     /** Queue position (1-indexed) for queued messages */
     queuePosition?: number;
+    /** Structured display data for tool-specific rendering (diffs, shell output, etc.) */
+    toolDisplayData?: ToolDisplayData;
+    /** Content parts for tool result rendering */
+    toolContent?: ContentPart[];
 }
 
 /**

@@ -28,6 +28,7 @@ import {
     ShortcutsBox,
     SyspromptBox,
 } from './styled-boxes/index.js';
+import { ToolResultRenderer } from '../renderers/index.js';
 
 /**
  * Format milliseconds into a compact human-readable string
@@ -148,18 +149,31 @@ export const MessageItem = memo(
         if (message.role === 'tool') {
             const iconColor = message.isError ? 'red' : 'green';
 
+            // Use structured renderers if display data is available
+            const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
+
             return (
                 <Box flexDirection="column" marginBottom={1} width="100%">
                     <Box flexDirection="row">
                         <Text color={iconColor}>⏺ </Text>
                         <Text color={iconColor}>{message.content}</Text>
                     </Box>
-                    {message.toolResult && (
+                    {hasStructuredDisplay ? (
                         <Box marginLeft={2} marginTop={0} flexDirection="column">
-                            <Text color="gray" dimColor>
-                                {message.toolResult}
-                            </Text>
+                            <ToolResultRenderer
+                                display={message.toolDisplayData!}
+                                content={message.toolContent!}
+                                maxLines={15}
+                            />
                         </Box>
+                    ) : (
+                        message.toolResult && (
+                            <Box marginLeft={2} marginTop={0} flexDirection="column">
+                                <Text color="gray" dimColor>
+                                    {message.toolResult}
+                                </Text>
+                            </Box>
+                        )
                     )}
                 </Box>
             );
@@ -186,7 +200,9 @@ export const MessageItem = memo(
             prev.message.styledType === next.message.styledType &&
             prev.message.styledData === next.message.styledData &&
             prev.message.isContinuation === next.message.isContinuation &&
-            prev.message.isError === next.message.isError
+            prev.message.isError === next.message.isError &&
+            prev.message.toolDisplayData === next.message.toolDisplayData &&
+            prev.message.toolContent === next.message.toolContent
         );
     }
 );
