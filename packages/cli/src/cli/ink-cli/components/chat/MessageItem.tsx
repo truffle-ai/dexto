@@ -130,9 +130,9 @@ export const MessageItem = memo(
             if (message.isContinuation) {
                 return (
                     <Box flexDirection="row" width="100%">
-                        <Text>{'  '}</Text>
-                        <Text color="white" wrap="wrap">
-                            {message.content || ''}
+                        <Text wrap="wrap">
+                            <Text>{'  '}</Text>
+                            <Text color="white">{message.content || ''}</Text>
                         </Text>
                     </Box>
                 );
@@ -141,12 +141,10 @@ export const MessageItem = memo(
             return (
                 <Box flexDirection="column" marginTop={1} width="100%">
                     <Box flexDirection="row">
-                        <Text color="gray">⏺ </Text>
-                        <Box flexDirection="column" flexGrow={1}>
-                            <Text color="white" wrap="wrap">
-                                {message.content || ' '}
-                            </Text>
-                        </Box>
+                        <Text wrap="wrap">
+                            <Text color="gray">⏺ </Text>
+                            <Text color="white">{message.content || ' '}</Text>
+                        </Text>
                     </Box>
                 </Box>
             );
