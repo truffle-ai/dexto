@@ -25,6 +25,7 @@ import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
 import type { Message, UIState } from '../state/types.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
+import { getToolDisplayName, formatToolArgsPreview } from '../utils/messageFormatting.js';
 
 /**
  * State setters needed by processStream
@@ -349,11 +350,14 @@ export async function processStream(
                         ? `tool-${event.callId}`
                         : generateMessageId('tool');
 
+                    // Get friendly display name for the tool
+                    const displayName = getToolDisplayName(event.toolName);
+
                     // Tool calls go to PENDING (running state)
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
-                        content: `${event.toolName}${argsPreview}`,
+                        content: `${displayName}${argsPreview}`,
                         timestamp: new Date(),
                         toolStatus: 'running',
                     });

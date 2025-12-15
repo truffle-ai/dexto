@@ -9,6 +9,77 @@ import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
 
 /**
+ * Mapping of internal tool names to user-friendly display names.
+ * Similar to how Claude Code shows "Search" instead of "Grep".
+ */
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+    // Internal file tools
+    read_file: 'Read',
+    write_file: 'Write',
+    edit_file: 'Edit',
+    glob_files: 'Glob',
+    grep_content: 'Search',
+    // Internal process tools
+    bash_exec: 'Bash',
+    bash_output: 'BashOutput',
+    kill_process: 'Kill',
+    // Internal user interaction
+    ask_user: 'Ask',
+    // Prefixed versions (internal-- prefix)
+    'internal--read_file': 'Read',
+    'internal--write_file': 'Write',
+    'internal--edit_file': 'Edit',
+    'internal--glob_files': 'Glob',
+    'internal--grep_content': 'Search',
+    'internal--bash_exec': 'Bash',
+    'internal--bash_output': 'BashOutput',
+    'internal--kill_process': 'Kill',
+    'internal--ask_user': 'Ask',
+};
+
+/**
+ * Gets a user-friendly display name for a tool.
+ * Returns the friendly name if known, otherwise returns the original name
+ * with any "internal--" prefix stripped.
+ * MCP tools keep their server prefix for clarity (e.g., "mcp_server__tool").
+ */
+export function getToolDisplayName(toolName: string): string {
+    // Check if we have a friendly name mapping
+    if (TOOL_DISPLAY_NAMES[toolName]) {
+        return TOOL_DISPLAY_NAMES[toolName];
+    }
+    // Strip "internal--" prefix for unknown internal tools
+    if (toolName.startsWith('internal--')) {
+        return toolName.replace('internal--', '');
+    }
+    // MCP tools keep their full name (server__tool format) for clarity
+    return toolName;
+}
+
+/**
+ * Formats tool arguments for display (compact preview).
+ */
+export function formatToolArgsPreview(
+    args: Record<string, unknown>,
+    maxLength: number = 60
+): string {
+    const entries = Object.entries(args);
+    if (entries.length === 0) return '';
+
+    // Show key parameters in a compact format
+    const preview = entries
+        .slice(0, 3) // Max 3 params
+        .map(([key, value]) => {
+            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+            const truncated = strValue.length > 30 ? strValue.slice(0, 27) + '...' : strValue;
+            return `${key}: "${truncated}"`;
+        })
+        .join(', ');
+
+    return preview.length > maxLength ? preview.slice(0, maxLength - 3) + '...' : preview;
+}
+
+/**
  * Creates a user message
  */
 export function createUserMessage(content: string): Message {
