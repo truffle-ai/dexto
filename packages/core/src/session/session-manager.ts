@@ -10,13 +10,21 @@ import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
+import type { TokenUsage } from '../llm/types.js';
+
+/**
+ * Session-level token usage totals (accumulated across all messages).
+ * All fields required since we track cumulative totals (defaulting to 0).
+ */
+export type SessionTokenUsage = Required<TokenUsage>;
 
 export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
     messageCount: number;
     title?: string;
-    // Additional metadata for session management
+    tokenUsage?: SessionTokenUsage;
+    estimatedCost?: number;
 }
 
 export interface SessionManagerConfig {
@@ -31,6 +39,8 @@ export interface SessionData {
     lastActivity: number;
     messageCount: number;
     metadata?: Record<string, any>;
+    tokenUsage?: SessionTokenUsage;
+    estimatedCost?: number;
 }
 
 /**
@@ -427,14 +437,18 @@ export class SessionManager {
         const sessionData = await this.services.storageManager
             .getDatabase()
             .get<SessionData>(sessionKey);
-        return sessionData
-            ? {
-                  createdAt: sessionData.createdAt,
-                  lastActivity: sessionData.lastActivity,
-                  messageCount: sessionData.messageCount,
-                  title: sessionData.metadata?.title,
-              }
-            : undefined;
+        if (!sessionData) return undefined;
+
+        return {
+            createdAt: sessionData.createdAt,
+            lastActivity: sessionData.lastActivity,
+            messageCount: sessionData.messageCount,
+            title: sessionData.metadata?.title,
+            ...(sessionData.tokenUsage && { tokenUsage: sessionData.tokenUsage }),
+            ...(sessionData.estimatedCost !== undefined && {
+                estimatedCost: sessionData.estimatedCost,
+            }),
+        };
     }
 
     /**
@@ -486,6 +500,58 @@ export class SessionManager {
                 .getCache()
                 .set(sessionKey, sessionData, this.sessionTTL / 1000);
         }
+    }
+
+    /**
+     * Accumulates token usage for a session.
+     * Called after each LLM response to update session-level totals.
+     */
+    public async accumulateTokenUsage(
+        sessionId: string,
+        usage: TokenUsage,
+        cost?: number
+    ): Promise<void> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) return;
+
+        // Initialize if needed
+        if (!sessionData.tokenUsage) {
+            sessionData.tokenUsage = {
+                inputTokens: 0,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                totalTokens: 0,
+            };
+        }
+
+        // Accumulate
+        sessionData.tokenUsage.inputTokens += usage.inputTokens ?? 0;
+        sessionData.tokenUsage.outputTokens += usage.outputTokens ?? 0;
+        sessionData.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
+        sessionData.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
+        sessionData.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+        sessionData.tokenUsage.totalTokens += usage.totalTokens ?? 0;
+
+        // Add cost if provided
+        if (cost !== undefined) {
+            sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + cost;
+        }
+
+        sessionData.lastActivity = Date.now();
+
+        // Persist
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
     }
 
     /**

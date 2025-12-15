@@ -63,6 +63,15 @@ export interface StatsStyledData {
         failed: number;
         toolCount: number;
     };
+    tokenUsage?: {
+        inputTokens: number;
+        outputTokens: number;
+        reasoningTokens: number;
+        cacheReadTokens: number;
+        cacheWriteTokens: number;
+        totalTokens: number;
+    };
+    estimatedCost?: number;
 }
 
 export interface HelpStyledData {

@@ -168,7 +168,7 @@ export const systemCommands: CommandDefinition[] = [
         handler: async (
             _args: string[],
             agent: DextoAgent,
-            _ctx: CommandContext
+            ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 // Session stats
@@ -187,6 +187,19 @@ export const systemCommands: CommandDefinition[] = [
                     // Ignore - toolCount stays 0
                 }
 
+                // Get token usage from current session metadata
+                let tokenUsage: StatsStyledData['tokenUsage'];
+                let estimatedCost: number | undefined;
+                if (ctx.sessionId) {
+                    const sessionMetadata = await agent.sessionManager.getSessionMetadata(
+                        ctx.sessionId
+                    );
+                    if (sessionMetadata?.tokenUsage) {
+                        tokenUsage = sessionMetadata.tokenUsage;
+                    }
+                    estimatedCost = sessionMetadata?.estimatedCost;
+                }
+
                 // Build styled data
                 const styledData: StatsStyledData = {
                     sessions: {
@@ -199,6 +212,8 @@ export const systemCommands: CommandDefinition[] = [
                         failed: failedConnections,
                         toolCount,
                     },
+                    ...(tokenUsage && { tokenUsage }),
+                    ...(estimatedCost !== undefined && { estimatedCost }),
                 };
 
                 // Build fallback text
@@ -209,6 +224,11 @@ export const systemCommands: CommandDefinition[] = [
                 ];
                 if (failedConnections > 0) {
                     fallbackLines.push(`  Failed connections: ${failedConnections}`);
+                }
+                if (tokenUsage) {
+                    fallbackLines.push(
+                        `  Tokens: ${tokenUsage.totalTokens} total (${tokenUsage.inputTokens} in, ${tokenUsage.outputTokens} out)`
+                    );
                 }
 
                 return CommandOutputHelper.styled('stats', styledData, fallbackLines.join('\n'));

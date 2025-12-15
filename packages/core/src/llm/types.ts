@@ -38,4 +38,7 @@ export interface TokenUsage {
     outputTokens?: number;
     reasoningTokens?: number;
     totalTokens?: number;
+    // Cache tokens (Vercel AI SDK: cachedInputTokens, providerMetadata.anthropic.cacheCreationInputTokens)
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
 }

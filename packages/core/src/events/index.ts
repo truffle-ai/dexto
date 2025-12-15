@@ -317,6 +317,8 @@ export interface AgentEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
@@ -498,6 +500,8 @@ export interface SessionEventMap {
             outputTokens?: number;
             reasoningTokens?: number;
             totalTokens?: number;
+            cacheReadTokens?: number;
+            cacheWriteTokens?: number;
         };
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;

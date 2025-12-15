@@ -16,6 +16,7 @@ import {
     AgentEventBus,
     SessionEventNames,
     SessionEventName,
+    SessionEventMap,
 } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -104,6 +105,12 @@ export class ChatSession {
     private forwarders: Map<SessionEventName, (payload?: any) => void> = new Map();
 
     /**
+     * Token accumulator listener for cleanup.
+     */
+    private tokenAccumulatorListener: ((payload: SessionEventMap['llm:response']) => void) | null =
+        null;
+
+    /**
      * AbortController for the currently running turn, if any.
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
@@ -184,9 +191,34 @@ export class ChatSession {
             // Attach the forwarder to the session event bus
             this.eventBus.on(eventName, forwarder);
         });
+
+        // Set up token usage accumulation on llm:response
+        this.setupTokenAccumulation();
+
         this.logger.debug(
             `[setupEventForwarding] Event forwarding setup complete for session=${this.id}`
         );
+    }
+
+    /**
+     * Sets up token usage accumulation by listening to llm:response events.
+     * Accumulates token usage to session metadata for /stats tracking.
+     */
+    private setupTokenAccumulation(): void {
+        this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
+            if (payload.tokenUsage) {
+                // Fire and forget - don't block the event flow
+                this.services.sessionManager
+                    .accumulateTokenUsage(this.id, payload.tokenUsage)
+                    .catch((err) => {
+                        this.logger.warn(
+                            `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
+                        );
+                    });
+            }
+        };
+
+        this.eventBus.on('llm:response', this.tokenAccumulatorListener);
     }
 
     /**
@@ -636,6 +668,12 @@ export class ChatSession {
 
         // Clear the forwarders map
         this.forwarders.clear();
+
+        // Remove token accumulator listener
+        if (this.tokenAccumulatorListener) {
+            this.eventBus.off('llm:response', this.tokenAccumulatorListener);
+            this.tokenAccumulatorListener = null;
+        }
 
         this.logger.debug(`Session ${this.id} disposed successfully`);
     }

@@ -10,6 +10,19 @@ interface StatsBoxProps {
     data: StatsStyledData;
 }
 
+/**
+ * Format a number with K/M suffixes for compact display
+ */
+function formatTokenCount(count: number): string {
+    if (count >= 1_000_000) {
+        return `${(count / 1_000_000).toFixed(1)}M`;
+    }
+    if (count >= 1_000) {
+        return `${(count / 1_000).toFixed(1)}K`;
+    }
+    return count.toString();
+}
+
 export function StatsBox({ data }: StatsBoxProps) {
     return (
         <StyledBox title="System Statistics">
@@ -30,6 +43,44 @@ export function StatsBox({ data }: StatsBoxProps) {
                 )}
                 <StyledRow label="Available Tools" value={data.mcp.toolCount.toString()} />
             </StyledSection>
+
+            {data.tokenUsage && (
+                <StyledSection title="Token Usage (This Session)">
+                    <StyledRow
+                        label="Input"
+                        value={formatTokenCount(data.tokenUsage.inputTokens)}
+                    />
+                    <StyledRow
+                        label="Output"
+                        value={formatTokenCount(data.tokenUsage.outputTokens)}
+                    />
+                    {data.tokenUsage.reasoningTokens > 0 && (
+                        <StyledRow
+                            label="Reasoning"
+                            value={formatTokenCount(data.tokenUsage.reasoningTokens)}
+                        />
+                    )}
+                    {data.tokenUsage.cacheReadTokens > 0 && (
+                        <StyledRow
+                            label="Cache Read"
+                            value={formatTokenCount(data.tokenUsage.cacheReadTokens)}
+                            valueColor="cyan"
+                        />
+                    )}
+                    {data.tokenUsage.cacheWriteTokens > 0 && (
+                        <StyledRow
+                            label="Cache Write"
+                            value={formatTokenCount(data.tokenUsage.cacheWriteTokens)}
+                            valueColor="yellow"
+                        />
+                    )}
+                    <StyledRow
+                        label="Total"
+                        value={formatTokenCount(data.tokenUsage.totalTokens)}
+                        valueColor="blue"
+                    />
+                </StyledSection>
+            )}
         </StyledBox>
     );
 }

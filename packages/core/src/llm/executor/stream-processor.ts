@@ -184,6 +184,18 @@ export class StreamProcessor {
                         // If we abort mid-stream, that chunk never arrives. The tokens are
                         // still billed by the provider, but we can't report them.
                         if (event.usage) {
+                            // Extract cache write tokens from provider metadata (provider-specific)
+                            // Anthropic: providerMetadata.anthropic.cacheCreationInputTokens
+                            // Bedrock: providerMetadata.bedrock.usage.cacheWriteInputTokens
+                            const cacheWriteTokens = (event.providerMetadata?.['anthropic']?.[
+                                'cacheCreationInputTokens'
+                            ] ??
+                                // @ts-expect-error - Bedrock metadata typing not in Vercel SDK
+                                event.providerMetadata?.['bedrock']?.['usage']?.[
+                                    'cacheWriteInputTokens'
+                                ] ??
+                                0) as number;
+
                             // Accumulate usage across steps
                             this.actualTokens = {
                                 inputTokens:
@@ -200,20 +212,42 @@ export class StreamProcessor {
                                         (this.actualTokens.reasoningTokens ?? 0) +
                                         event.usage.reasoningTokens,
                                 }),
+                                // Cache tokens
+                                cacheReadTokens:
+                                    (this.actualTokens.cacheReadTokens ?? 0) +
+                                    (event.usage.cachedInputTokens ?? 0),
+                                cacheWriteTokens:
+                                    (this.actualTokens.cacheWriteTokens ?? 0) + cacheWriteTokens,
                             };
                         }
                         break;
 
                     case 'finish': {
                         this.finishReason = event.finishReason;
+
+                        // Adjust input tokens based on provider
+                        // Anthropic/Bedrock: inputTokens already excludes cached tokens
+                        // Other providers: inputTokens includes cached, need to subtract
+                        const cachedInputTokens = event.totalUsage.cachedInputTokens ?? 0;
+                        // TODO: Add 'bedrock' to LLMProvider type when we support it
+                        const providerExcludesCached =
+                            this.config.provider === 'anthropic' ||
+                            (this.config.provider as string) === 'bedrock';
+                        const adjustedInputTokens = providerExcludesCached
+                            ? (event.totalUsage.inputTokens ?? 0)
+                            : (event.totalUsage.inputTokens ?? 0) - cachedInputTokens;
+
                         const usage = {
-                            inputTokens: event.totalUsage.inputTokens ?? 0,
+                            inputTokens: adjustedInputTokens,
                             outputTokens: event.totalUsage.outputTokens ?? 0,
                             totalTokens: event.totalUsage.totalTokens ?? 0,
                             // Capture reasoning tokens if available (from Claude extended thinking, etc.)
                             ...(event.totalUsage.reasoningTokens !== undefined && {
                                 reasoningTokens: event.totalUsage.reasoningTokens,
                             }),
+                            // Cache tokens - read from totalUsage, write from accumulated finish-step events
+                            cacheReadTokens: cachedInputTokens,
+                            cacheWriteTokens: this.actualTokens.cacheWriteTokens ?? 0,
                         };
                         this.actualTokens = usage;
 
