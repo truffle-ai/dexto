@@ -57,48 +57,39 @@ export function getToolDisplayName(toolName: string): string {
 }
 
 /**
- * Primary argument names by tool - these are shown without the key name
- * for cleaner display like Claude Code does.
+ * Common "primary" argument names that should be shown without key name.
+ * These are the main input for most tools and showing them without the key
+ * makes the output cleaner (like Claude Code does).
  */
-const PRIMARY_ARGS: Record<string, string> = {
-    read_file: 'file_path',
-    write_file: 'file_path',
-    edit_file: 'file_path',
-    glob_files: 'pattern',
-    grep_content: 'pattern',
-    bash_exec: 'command',
-    kill_process: 'pid',
-    ask_user: 'question',
-    // With internal-- prefix
-    'internal--read_file': 'file_path',
-    'internal--write_file': 'file_path',
-    'internal--edit_file': 'file_path',
-    'internal--glob_files': 'pattern',
-    'internal--grep_content': 'pattern',
-    'internal--bash_exec': 'command',
-    'internal--kill_process': 'pid',
-    'internal--ask_user': 'question',
-};
+const PRIMARY_ARG_NAMES = new Set([
+    'file_path',
+    'path',
+    'pattern',
+    'command',
+    'query',
+    'question',
+    'content',
+    'url',
+]);
 
 /**
  * Formats tool arguments for display in Claude Code style.
  * Format: ToolName(primary_arg, key: value, key2: value2)
  *
- * Primary arguments (like file_path for Read) are shown without the key name.
- * Other arguments show key: "value" format.
+ * Primary arguments (file_path, pattern, command, etc.) are shown without key name.
+ * Other arguments show key: value format.
  */
 export function formatToolArgsForDisplay(
-    toolName: string,
+    _toolName: string,
     args: Record<string, unknown>,
     maxLength: number = 70
 ): string {
     const entries = Object.entries(args);
     if (entries.length === 0) return '';
 
-    const primaryKey = PRIMARY_ARGS[toolName];
     const parts: string[] = [];
 
-    // Process entries - primary arg first without key name
+    // Process entries - primary args (by name) shown first without key
     for (const [key, value] of entries) {
         if (parts.length >= 3) break; // Max 3 params
 
@@ -106,7 +97,7 @@ export function formatToolArgsForDisplay(
         // Truncate long values
         const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
 
-        if (key === primaryKey) {
+        if (PRIMARY_ARG_NAMES.has(key)) {
             // Primary arg shown first without key
             parts.unshift(truncated);
         } else {

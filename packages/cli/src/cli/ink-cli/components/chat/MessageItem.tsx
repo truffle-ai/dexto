@@ -122,6 +122,7 @@ export const MessageItem = memo(
         // Assistant message: Gray circle indicator (unless continuation)
         // IMPORTANT: width="100%" is required to prevent Ink layout failures on large content.
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
+        // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
             // Continuation messages: no indicator, no margins - flows seamlessly from previous
             if (message.isContinuation) {
@@ -134,7 +135,7 @@ export const MessageItem = memo(
             }
 
             return (
-                <Box flexDirection="column" marginBottom={1} width="100%">
+                <Box flexDirection="column" marginTop={1} width="100%">
                     <Box flexDirection="row">
                         <Text color="gray">⏺ </Text>
                         <Box flexDirection="column" flexGrow={1}>
@@ -146,6 +147,7 @@ export const MessageItem = memo(
         }
 
         // Tool message: Colored dot only (green success, red failure), white text
+        // marginTop={1} for consistent spacing between tool calls
         if (message.role === 'tool') {
             const dotColor = message.isError ? 'red' : 'green';
 
@@ -153,7 +155,7 @@ export const MessageItem = memo(
             const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
 
             return (
-                <Box flexDirection="column" width="100%">
+                <Box flexDirection="column" marginTop={1} width="100%">
                     <Box flexDirection="row">
                         <Text color={dotColor}>● </Text>
                         <Text>{message.content}</Text>
