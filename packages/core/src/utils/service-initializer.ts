@@ -225,6 +225,7 @@ export async function createAgentServices(
                 resourceManager,
             },
             internalToolsConfig: config.internalTools,
+            customToolsConfig: config.customTools,
         },
         logger
     );

@@ -21,6 +21,28 @@ export const InternalToolsSchema = z
 // Derive type from schema
 export type InternalToolsConfig = z.output<typeof InternalToolsSchema>;
 
+// Custom tool provider configuration schema
+export const CustomToolConfigSchema = z
+    .object({
+        type: z.string().describe('Custom tool provider type (registered via customToolRegistry)'),
+    })
+    .passthrough()
+    .describe(
+        'Custom tool provider configuration. Provider-specific fields are validated at runtime by the registered provider.'
+    );
+
+export type CustomToolConfig = z.output<typeof CustomToolConfigSchema>;
+
+// Array of custom tool provider configurations
+export const CustomToolsSchema = z
+    .array(CustomToolConfigSchema)
+    .default([])
+    .describe(
+        'Array of custom tool provider configurations. Custom tools must be registered via customToolRegistry before loading agent config.'
+    );
+
+export type CustomToolsConfig = z.output<typeof CustomToolsSchema>;
+
 // Tool policies schema - static allow/deny lists for fine-grained control
 export const ToolPoliciesSchema = z
     .object({

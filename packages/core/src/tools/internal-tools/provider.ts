@@ -3,54 +3,72 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
 import { ToolError } from '../errors.js';
 import { convertZodSchemaToJsonSchema } from '../../utils/schema.js';
 import { InternalToolsServices, getInternalToolInfo, type AgentFeature } from './registry.js';
-import type { InternalToolsConfig } from '../schemas.js';
+import type { InternalToolsConfig, CustomToolsConfig } from '../schemas.js';
+import { customToolRegistry, type ToolCreationContext } from '../custom-tool-registry.js';
 
 /**
- * Provider for built-in internal tools that are part of the core system
+ * Provider for built-in internal tools and custom tool providers
  *
- * This provider manages internal tools that are shipped with the core system
- * and need access to core services like SearchService, SessionManager, etc.
+ * This provider manages:
+ * 1. Built-in internal tools that are shipped with the core system
+ * 2. Custom tools registered via the customToolRegistry
  *
  * Benefits:
  * - Clean separation: ToolManager doesn't need to know about specific services
  * - Easy to extend: Just add new tools and services as needed
  * - Lightweight: Direct tool management without complex infrastructure
  * - No unnecessary ProcessedInternalTool wrapper - uses InternalTool directly
+ * - Custom tools follow the same provider pattern as blob storage
  */
 export class InternalToolsProvider {
     private services: InternalToolsServices;
     private tools: Map<string, InternalTool> = new Map(); // ← Store original InternalTool
     private config: InternalToolsConfig;
+    private customToolConfigs: CustomToolsConfig;
     private logger: IDextoLogger;
 
     constructor(
         services: InternalToolsServices,
         config: InternalToolsConfig = [],
+        customToolConfigs: CustomToolsConfig = [],
         logger: IDextoLogger
     ) {
         this.services = services;
         this.config = config;
+        this.customToolConfigs = customToolConfigs;
         this.logger = logger;
-        this.logger.debug('InternalToolsProvider initialized with config:', { config });
+        this.logger.debug('InternalToolsProvider initialized with config:', {
+            config,
+            customToolConfigs,
+        });
     }
 
     /**
      * Initialize the internal tools provider by registering all available internal tools
+     * and custom tools from the registry
      */
     async initialize(): Promise<void> {
         this.logger.info('Initializing InternalToolsProvider...');
 
         try {
-            // Check if any internal tools are enabled
-            if (this.config.length === 0) {
+            // Register built-in internal tools
+            if (this.config.length > 0) {
+                this.registerInternalTools();
+            } else {
                 this.logger.info('No internal tools enabled by configuration');
-                return;
             }
 
-            this.registerInternalTools();
+            // Register custom tools from registry
+            if (this.customToolConfigs.length > 0) {
+                this.registerCustomTools();
+            } else {
+                this.logger.debug('No custom tool providers configured');
+            }
 
             const toolCount = this.tools.size;
-            this.logger.info(`InternalToolsProvider initialized with ${toolCount} internal tools`);
+            this.logger.info(
+                `InternalToolsProvider initialized with ${toolCount} tools (${this.config.length} internal, ${this.customToolConfigs.length} custom providers)`
+            );
         } catch (error) {
             this.logger.error(
                 `Failed to initialize InternalToolsProvider: ${error instanceof Error ? error.message : String(error)}`
@@ -106,6 +124,59 @@ export class InternalToolsProvider {
                 this.logger.error(
                     `Failed to register ${toolName} internal tool: ${error instanceof Error ? error.message : String(error)}`
                 );
+            }
+        }
+    }
+
+    /**
+     * Register custom tools from the custom tool registry
+     * Custom tools are prefixed with 'custom--' to distinguish them from built-in tools
+     */
+    private registerCustomTools(): void {
+        const context: ToolCreationContext = {
+            logger: this.logger,
+            services: this.services, // Optional - custom tools can use or ignore
+        };
+
+        for (const toolConfig of this.customToolConfigs) {
+            try {
+                // Validate config against provider schema
+                const validatedConfig = customToolRegistry.validateConfig(toolConfig);
+                const provider = customToolRegistry.get(validatedConfig.type);
+
+                if (!provider) {
+                    this.logger.warn(
+                        `Custom tool provider '${validatedConfig.type}' not found in registry. ` +
+                            `Make sure to register it before loading agent config.`
+                    );
+                    continue;
+                }
+
+                // Create tools from provider
+                const tools = provider.create(validatedConfig, context);
+
+                // Register each tool with 'custom--' prefix
+                for (const tool of tools) {
+                    const prefixedName = `custom--${tool.id}`;
+
+                    // Check for conflicts
+                    if (this.tools.has(prefixedName)) {
+                        this.logger.warn(
+                            `Custom tool '${prefixedName}' conflicts with existing tool. Skipping.`
+                        );
+                        continue;
+                    }
+
+                    this.tools.set(prefixedName, tool);
+                    this.logger.debug(
+                        `Registered custom tool: ${prefixedName} from provider '${provider.metadata?.displayName || validatedConfig.type}'`
+                    );
+                }
+            } catch (error) {
+                this.logger.error(
+                    `Failed to register custom tool provider: ${error instanceof Error ? error.message : String(error)}`
+                );
+                // Continue with other providers rather than failing completely
             }
         }
     }

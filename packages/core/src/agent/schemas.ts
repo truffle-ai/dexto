@@ -14,6 +14,7 @@ import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import {
     InternalToolsSchema,
+    CustomToolsSchema,
     ToolConfirmationConfigSchema,
     ElicitationConfigSchema,
     ToolsConfigSchema,
@@ -368,6 +369,10 @@ export const AgentConfigSchema = z
 
         internalTools: InternalToolsSchema.describe(
             'Internal tools configuration (read-file, write-file, bash-exec, etc.)'
+        ).default([]),
+
+        customTools: CustomToolsSchema.describe(
+            'Custom tool provider configurations. Providers must be registered via customToolRegistry before loading agent config.'
         ).default([]),
 
         tools: ToolsConfigSchema.describe(

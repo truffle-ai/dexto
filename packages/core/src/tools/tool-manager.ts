@@ -1,7 +1,7 @@
 import { MCPManager } from '../mcp/manager.js';
 import { InternalToolsProvider } from './internal-tools/provider.js';
 import { InternalToolsServices } from './internal-tools/registry.js';
-import type { InternalToolsConfig, ToolPolicies } from './schemas.js';
+import type { InternalToolsConfig, CustomToolsConfig, ToolPolicies } from './schemas.js';
 import { ToolSet } from './types.js';
 import { ToolError } from './errors.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
@@ -22,6 +22,7 @@ import { InstrumentClass } from '../telemetry/decorators.js';
 export interface InternalToolsOptions {
     internalToolsServices?: InternalToolsServices;
     internalToolsConfig?: InternalToolsConfig;
+    customToolsConfig?: CustomToolsConfig;
 }
 
 /**
@@ -100,8 +101,11 @@ export class ToolManager {
         this.toolPolicies = toolPolicies;
         this.logger = logger.createChild(DextoLogComponent.TOOLS);
 
-        // Initialize internal tools if configured
-        if (options?.internalToolsConfig && options.internalToolsConfig.length > 0) {
+        // Initialize internal tools and/or custom tools if configured
+        if (
+            (options?.internalToolsConfig && options.internalToolsConfig.length > 0) ||
+            (options?.customToolsConfig && options.customToolsConfig.length > 0)
+        ) {
             // Include approvalManager in services for internal tools
             const internalToolsServices = {
                 ...options.internalToolsServices,
@@ -109,7 +113,8 @@ export class ToolManager {
             };
             this.internalToolsProvider = new InternalToolsProvider(
                 internalToolsServices,
-                options.internalToolsConfig,
+                options.internalToolsConfig || [],
+                options.customToolsConfig || [],
                 this.logger
             );
         }

@@ -1,0 +1,43 @@
+{
+  "name": "@dexto/examples-supabase-storage",
+  "version": "1.0.0",
+  "description": "Supabase blob storage provider example for Dexto",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/app.js",
+    "start:dev": "tsc && node dist/app.js"
+  },
+  "keywords": [
+    "dexto",
+    "supabase",
+    "blob-storage",
+    "provider",
+    "example"
+  ],
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "@supabase/supabase-js": "^2.45.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    ".env.example",
+    "agent.yml"
+  ]
+}

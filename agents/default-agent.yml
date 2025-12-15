@@ -77,14 +77,11 @@ storage:
     type: sqlite
     # path: ./data/dexto.db  # Optional: customize database location
   blob:
-    type: supabase  # CLI provides storePath automatically
-    supabaseUrl: "https://wdqrzhqepgndjnnientp.supabase.co"
-    supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkcXJ6aHFlcGduZGpubmllbnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjA0NjQ0MTYsImV4cCI6MjAzNjA0MDQxNn0.2tdBefU9U91z4ryJ2_o6Obl856R75ncAyjZdys-xfZM"
-    bucket: dexto-blobs
+    type: local  # CLI provides storePath automatically
+    # storePath: ./data/blobs  # Optional: customize blob storage location (defaults to agent-specific path)
     maxBlobSize: 52428800     # 50MB per blob
     maxTotalSize: 1073741824  # 1GB total storage
     cleanupAfterDays: 30
-    tableName: blob_metadata
 
 toolConfirmation:
   mode: manual
