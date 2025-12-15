@@ -9,6 +9,18 @@ vi.mock('./history/factory.js', () => ({
 }));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
+    createVercelModel: vi.fn(),
+}));
+vi.mock('../context/compression/index.js', () => ({
+    createCompressionStrategy: vi.fn(),
+    compressionRegistry: {
+        register: vi.fn(),
+        get: vi.fn(),
+        has: vi.fn(),
+        getTypes: vi.fn(),
+        getAll: vi.fn(),
+        clear: vi.fn(),
+    },
 }));
 vi.mock('../llm/registry.js', async (importOriginal) => {
     const actual = (await importOriginal()) as typeof import('../llm/registry.js');
@@ -28,12 +40,15 @@ vi.mock('../logger/index.js', () => ({
 }));
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService } from '../llm/services/factory.js';
+import { createLLMService, createVercelModel } from '../llm/services/factory.js';
+import { createCompressionStrategy } from '../context/compression/index.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
+const mockCreateVercelModel = vi.mocked(createVercelModel);
+const mockCreateCompressionStrategy = vi.mocked(createCompressionStrategy);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
 describe('ChatSession', () => {
@@ -131,6 +146,10 @@ describe('ChatSession', () => {
         mockServices = {
             stateManager: {
                 getLLMConfig: vi.fn().mockReturnValue(mockLLMConfig),
+                getRuntimeConfig: vi.fn().mockReturnValue({
+                    llm: mockLLMConfig,
+                    compression: { type: 'noop', enabled: true },
+                }),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
             },
             systemPromptManager: {
@@ -165,6 +184,8 @@ describe('ChatSession', () => {
         // Set up factory mocks
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
+        mockCreateVercelModel.mockReturnValue('mock-model' as any);
+        mockCreateCompressionStrategy.mockResolvedValue(null); // No compression for tests
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
         // Create ChatSession instance
@@ -271,7 +292,8 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger
+                mockLogger,
+                null // compression strategy
             );
         });
 
@@ -296,7 +318,8 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger
+                mockLogger,
+                null // compression strategy
             );
         });
 
@@ -412,7 +435,8 @@ describe('ChatSession', () => {
                 chatSession.eventBus, // Session-specific event bus
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
-                mockLogger // Logger parameter
+                mockLogger, // Logger parameter
+                null // compression strategy
             );
 
             // Verify session-specific history provider creation

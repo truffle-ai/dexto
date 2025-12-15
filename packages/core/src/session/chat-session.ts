@@ -1,5 +1,6 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService } from '../llm/services/factory.js';
+import { createLLMService, createVercelModel } from '../llm/services/factory.js';
+import { createCompressionStrategy } from '../context/compression/index.js';
 import type { ContextManager } from '@core/context/index.js';
 import type { IConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
@@ -194,7 +195,8 @@ export class ChatSession {
      */
     private async initializeServices(): Promise<void> {
         // Get current effective configuration for this session from state manager
-        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
+        const llmConfig = runtimeConfig.llm;
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
@@ -203,6 +205,13 @@ export class ChatSession {
             this.id,
             this.logger
         );
+
+        // Create model and compression strategy from config
+        const model = createVercelModel(llmConfig);
+        const compressionStrategy = await createCompressionStrategy(runtimeConfig.compression, {
+            logger: this.logger,
+            model,
+        });
 
         // Create session-specific LLM service
         // The service will create its own properly-typed ContextManager internally
@@ -214,7 +223,8 @@ export class ChatSession {
             this.eventBus, // Use session event bus
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
-            this.logger // Pass logger for dependency injection
+            this.logger, // Pass logger for dependency injection
+            compressionStrategy // Pass compression strategy
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -564,6 +574,16 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
+            // Get compression config for this session
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
+
+            // Create model and compression strategy from config
+            const model = createVercelModel(newLLMConfig);
+            const compressionStrategy = await createCompressionStrategy(runtimeConfig.compression, {
+                logger: this.logger,
+                model,
+            });
+
             // Create new LLM service with new config but SAME history provider
             // The service will create its own new ContextManager internally
             const newLLMService = createLLMService(
@@ -574,7 +594,8 @@ export class ChatSession {
                 this.eventBus, // Use session event bus
                 this.id,
                 this.services.resourceManager,
-                this.logger
+                this.logger,
+                compressionStrategy // Pass compression strategy
             );
 
             // Replace the LLM service

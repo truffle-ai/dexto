@@ -1,8 +1,8 @@
 import { generateText, type LanguageModel } from 'ai';
-import type { ICompressionStrategy } from './types.js';
-import type { InternalMessage, ToolCall } from '../types.js';
-import { isAssistantMessage, isToolMessage } from '../types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { ICompressionStrategy } from '../types.js';
+import type { InternalMessage, ToolCall } from '../../types.js';
+import { isAssistantMessage, isToolMessage } from '../../types.js';
+import type { IDextoLogger } from '../../../logger/v2/types.js';
 
 /**
  * Configuration options for ReactiveOverflowStrategy.

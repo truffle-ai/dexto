@@ -29,6 +29,9 @@ export enum ContextErrorCode {
     // Compression strategy configuration errors
     PRESERVE_VALUES_NEGATIVE = 'context_preserve_values_negative',
     MIN_MESSAGES_NEGATIVE = 'context_min_messages_negative',
+    COMPRESSION_INVALID_TYPE = 'context_compression_invalid_type',
+    COMPRESSION_VALIDATION = 'context_compression_validation',
+    COMPRESSION_MISSING_LLM = 'context_compression_missing_llm',
 
     // Message lookup errors
     MESSAGE_NOT_FOUND = 'context_message_not_found',

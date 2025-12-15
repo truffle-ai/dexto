@@ -13,6 +13,10 @@ import { SessionConfigSchema } from '@core/session/schemas.js';
 import { StorageSchema } from '@core/storage/schemas.js';
 import { SystemPromptConfigSchema } from '@core/systemPrompt/schemas.js';
 import {
+    CompressionConfigSchema,
+    DEFAULT_COMPRESSION_CONFIG,
+} from '@core/context/compression/schemas.js';
+import {
     InternalToolsSchema,
     CustomToolsSchema,
     ToolConfirmationConfigSchema,
@@ -415,6 +419,10 @@ export const AgentConfigSchema = z
         plugins: PluginsConfigSchema.describe(
             'Plugin system configuration for built-in and custom plugins'
         ).default({}),
+
+        compression: CompressionConfigSchema.describe(
+            'Context compression configuration - custom providers can be registered via compressionRegistry'
+        ).default(DEFAULT_COMPRESSION_CONFIG),
     })
     .strict()
     .describe('Main configuration for an agent, including its LLM and server connections')
