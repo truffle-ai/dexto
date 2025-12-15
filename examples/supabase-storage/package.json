@@ -1,29 +1,45 @@
 {
-  "name": "@dexto/examples-supabase-storage",
+  "name": "@dexto/distribution-supabase",
   "version": "1.0.0",
-  "description": "Supabase blob storage provider example for Dexto",
+  "description": "A Dexto distribution with Supabase blob storage and custom tools - demonstrates project-based architecture",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "bin": {
+    "dexto-supabase": "./dist/src/index.js"
+  },
   "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+    "./config": {
+      "import": "./dist/dexto.config.js",
+      "types": "./dist/dexto.config.d.ts"
+    },
+    "./storage/*": {
+      "import": "./dist/storage/*.js",
+      "types": "./dist/storage/*.d.ts"
+    },
+    "./tools/*": {
+      "import": "./dist/tools/*.js",
+      "types": "./dist/tools/*.d.ts"
+    },
+    "./shared/*": {
+      "import": "./dist/shared/*.js",
+      "types": "./dist/shared/*.d.ts"
     }
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/app.js",
-    "start:dev": "tsc && node dist/app.js"
+    "start": "node dist/src/index.js",
+    "start:dev": "tsc && node dist/src/index.js",
+    "clean": "rm -rf dist"
   },
   "keywords": [
     "dexto",
+    "distribution",
     "supabase",
     "blob-storage",
-    "provider",
-    "example"
+    "custom-tools",
+    "ai-agent",
+    "framework"
   ],
   "dependencies": {
     "@dexto/core": "workspace:*",
@@ -31,13 +47,18 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "typescript": "^5.7.0"
   },
   "files": [
     "dist",
+    "agents",
+    "storage",
+    "tools",
+    "shared",
     "src",
+    "dexto.config.ts",
     "README.md",
-    ".env.example",
-    "agent.yml"
+    ".env.example"
   ]
 }

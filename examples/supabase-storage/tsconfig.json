@@ -4,7 +4,6 @@
     "module": "ES2022",
     "lib": ["ES2022"],
     "moduleResolution": "bundler",
-    "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,
     "declarationMap": true,
@@ -17,6 +16,12 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node"]
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*",
+    "storage/**/*",
+    "tools/**/*",
+    "shared/**/*",
+    "dexto.config.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

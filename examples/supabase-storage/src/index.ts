@@ -1,41 +1,77 @@
+#!/usr/bin/env node
 /**
- * Supabase Storage Example with Custom Tool Provider
+ * Supabase Storage Distribution - Entry Point
  *
- * This module exports custom providers for Dexto agents:
- * - Supabase blob storage provider (stores blobs in Supabase Storage)
- * - DateTime Helper tool provider (custom tools for date/time operations)
+ * This demonstrates how to build a complete Dexto distribution with:
+ * - Custom storage providers (Supabase)
+ * - Custom tools (DateTime Helper)
+ * - Multiple agent configurations
  *
- * Usage in your application:
- *
- * @example
- * ```typescript
- * import { blobStoreRegistry, customToolRegistry } from '@dexto/core';
- * import { supabaseBlobStoreProvider, dateTimeToolProvider } from '@supabase-storage-example';
- *
- * // Register providers at app startup (before creating DextoAgent)
- * blobStoreRegistry.register(supabaseBlobStoreProvider);
- * customToolRegistry.register(dateTimeToolProvider);
- *
- * // Now your agent.yml can use:
- * // storage:
- * //   blob:
- * //     type: supabase
- * //     supabaseUrl: https://xxx.supabase.co
- * //     supabaseKey: your-key
- * //     bucket: dexto-blobs
- * //
- * // customTools:
- * //   - type: datetime-helper
- * //     defaultTimezone: America/New_York
- * ```
- *
- * See src/app.ts for a complete working example.
+ * Think of this like building your own Linux distribution on top of the kernel.
  */
 
-// Blob storage provider
-export { supabaseBlobStoreProvider } from './supabase-provider.js';
-export { SupabaseBlobStore } from './supabase-blob-store.js';
-export type { SupabaseBlobStoreConfig } from './supabase-provider.js';
+import { DextoAgent } from '@dexto/core';
+import { registerProviders, initialize, cleanup, projectConfig } from '../dexto.config.js';
+import { readFileSync } from 'fs';
+import { parse } from 'yaml';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// Custom tool provider
-export { dateTimeToolProvider } from './datetime-tool-provider.js';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+async function main() {
+    console.log(`🚀 Starting ${projectConfig.name} v${projectConfig.version}\n`);
+    console.log(`${projectConfig.description}\n`);
+
+    try {
+        // Step 1: Initialize the distribution
+        // This is where you'd set up monitoring, analytics, etc.
+        await initialize();
+
+        // Step 2: Register all custom providers
+        // This makes custom storage and tools available to agents
+        registerProviders();
+        console.log();
+
+        // Step 3: Load agent configuration from YAML
+        const agentPath = process.argv[2] || join(__dirname, '../agents/default.yml');
+        console.log(`📋 Loading agent configuration: ${agentPath}`);
+
+        const configYaml = readFileSync(agentPath, 'utf-8');
+        const config = parse(configYaml);
+
+        // Step 4: Create the agent with the loaded config
+        // The agent will automatically use the registered providers
+        console.log(`🤖 Creating agent with ${config.llm?.provider}/${config.llm?.model}...`);
+        const agent = new DextoAgent(config);
+
+        // Step 5: Start the agent
+        await agent.start();
+        console.log(`✓ Agent started successfully\n`);
+
+        // Step 6: Run a sample interaction
+        const message = process.argv[3] || 'What is the current date and time in New York?';
+        console.log(`💬 User: ${message}\n`);
+
+        const response = await agent.run(message, undefined, undefined, 'example-session');
+        console.log(`🤖 Agent: ${response}\n`);
+
+        // Step 7: Cleanup
+        await agent.stop();
+        await cleanup();
+
+        console.log(`\n✓ ${projectConfig.name} completed successfully`);
+    } catch (error) {
+        console.error('\n❌ Error:', error);
+        process.exit(1);
+    }
+}
+
+// Run if executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((error) => {
+        console.error('Fatal error:', error);
+        process.exit(1);
+    });
+}
