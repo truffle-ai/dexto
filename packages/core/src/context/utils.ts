@@ -8,6 +8,7 @@ import {
     SanitizedToolResult,
     isToolMessage,
 } from './types.js';
+import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
 import type { IDextoLogger } from '@core/logger/v2/types.js';
 import { validateModelFileSupport } from '@core/llm/registry.js';
 import { LLMContext } from '@core/llm/types.js';
@@ -1568,6 +1569,18 @@ export async function sanitizeToolResult(
     },
     logger: IDextoLogger
 ): Promise<SanitizedToolResult> {
+    // Extract _display from tool result before normalization (if present)
+    let display: ToolDisplayData | undefined;
+    if (result && typeof result === 'object' && '_display' in result) {
+        const rawDisplay = (result as Record<string, unknown>)._display;
+        if (isValidDisplayData(rawDisplay)) {
+            display = rawDisplay;
+            logger.debug(
+                `sanitizeToolResult: extracted display data (type=${display.type}) for ${options.toolName}`
+            );
+        }
+    }
+
     const normalized = await normalizeToolResult(result, logger);
     const persisted = await persistToolMedia(
         normalized,
@@ -1600,6 +1613,7 @@ export async function sanitizeToolResult(
             toolName: options.toolName,
             toolCallId: options.toolCallId,
             success: options.success,
+            ...(display ? { display } : {}),
         },
     };
 }
