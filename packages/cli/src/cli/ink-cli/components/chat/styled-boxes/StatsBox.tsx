@@ -23,6 +23,19 @@ function formatTokenCount(count: number): string {
     return count.toString();
 }
 
+/**
+ * Format cost in USD with appropriate precision
+ */
+function formatCost(cost: number): string {
+    if (cost < 0.01) {
+        return `$${cost.toFixed(4)}`;
+    }
+    if (cost < 1) {
+        return `$${cost.toFixed(3)}`;
+    }
+    return `$${cost.toFixed(2)}`;
+}
+
 export function StatsBox({ data }: StatsBoxProps) {
     return (
         <StyledBox title="System Statistics">
@@ -79,6 +92,13 @@ export function StatsBox({ data }: StatsBoxProps) {
                         value={formatTokenCount(data.tokenUsage.totalTokens)}
                         valueColor="blue"
                     />
+                    {data.estimatedCost !== undefined && (
+                        <StyledRow
+                            label="Est. Cost"
+                            value={formatCost(data.estimatedCost)}
+                            valueColor="green"
+                        />
+                    )}
                 </StyledSection>
             )}
         </StyledBox>

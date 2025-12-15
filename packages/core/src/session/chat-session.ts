@@ -25,6 +25,7 @@ import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
+import { getModelPricing, calculateCost } from '../llm/registry.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -202,14 +203,31 @@ export class ChatSession {
 
     /**
      * Sets up token usage accumulation by listening to llm:response events.
-     * Accumulates token usage to session metadata for /stats tracking.
+     * Accumulates token usage and cost to session metadata for /stats tracking.
      */
     private setupTokenAccumulation(): void {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
+                // Calculate cost if pricing is available
+                let cost: number | undefined;
+                const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+                const pricing = getModelPricing(llmConfig.provider, llmConfig.model);
+                if (pricing) {
+                    cost = calculateCost(
+                        {
+                            inputTokens: payload.tokenUsage.inputTokens ?? 0,
+                            outputTokens: payload.tokenUsage.outputTokens ?? 0,
+                            reasoningTokens: payload.tokenUsage.reasoningTokens ?? 0,
+                            cacheReadTokens: payload.tokenUsage.cacheReadTokens ?? 0,
+                            cacheWriteTokens: payload.tokenUsage.cacheWriteTokens ?? 0,
+                        },
+                        pricing
+                    );
+                }
+
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
-                    .accumulateTokenUsage(this.id, payload.tokenUsage)
+                    .accumulateTokenUsage(this.id, payload.tokenUsage, cost)
                     .catch((err) => {
                         this.logger.warn(
                             `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
