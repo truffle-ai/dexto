@@ -89,7 +89,7 @@ export const MessageItem = memo(
                     const tokensStr =
                         data.outputTokens > 0 ? `, Used ${data.outputTokens} tokens` : '';
                     return (
-                        <Box marginTop={1} marginBottom={1}>
+                        <Box marginTop={1} marginBottom={1} width="100%">
                             <Text color="gray" dimColor>
                                 ─ Worked for {durationStr}
                                 {tokensStr} ─
@@ -107,7 +107,7 @@ export const MessageItem = memo(
         // User message: '>' prefix with gray background
         if (message.role === 'user') {
             return (
-                <Box flexDirection="column" marginTop={2} marginBottom={1}>
+                <Box flexDirection="column" marginTop={2} marginBottom={1} width="100%">
                     <Box flexDirection="row" paddingX={1} backgroundColor="gray">
                         <Text color="green" dimColor>
                             {'> '}
@@ -119,11 +119,13 @@ export const MessageItem = memo(
         }
 
         // Assistant message: Gray circle indicator (unless continuation)
+        // IMPORTANT: width="100%" is required to prevent Ink layout failures on large content.
+        // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         if (message.role === 'assistant') {
             // Continuation messages: no indicator, no margins - flows seamlessly from previous
             if (message.isContinuation) {
                 return (
-                    <Box flexDirection="row">
+                    <Box flexDirection="row" width="100%">
                         <Text>{'  '}</Text>
                         <Text color="white">{message.content || ''}</Text>
                     </Box>
@@ -131,7 +133,7 @@ export const MessageItem = memo(
             }
 
             return (
-                <Box flexDirection="column" marginBottom={1}>
+                <Box flexDirection="column" marginBottom={1} width="100%">
                     <Box flexDirection="row">
                         <Text color="gray">⏺ </Text>
                         <Box flexDirection="column" flexGrow={1}>
@@ -147,7 +149,7 @@ export const MessageItem = memo(
             const iconColor = message.isError ? 'red' : 'green';
 
             return (
-                <Box flexDirection="column" marginBottom={1}>
+                <Box flexDirection="column" marginBottom={1} width="100%">
                     <Box flexDirection="row">
                         <Text color={iconColor}>⏺ </Text>
                         <Text color={iconColor}>{message.content}</Text>
@@ -165,7 +167,7 @@ export const MessageItem = memo(
 
         // System message: Compact gray text
         return (
-            <Box flexDirection="column" marginBottom={1}>
+            <Box flexDirection="column" marginBottom={1} width="100%">
                 <Text color="gray" dimColor>
                     {message.content}
                 </Text>

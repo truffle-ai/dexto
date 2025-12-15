@@ -120,13 +120,24 @@ export function findLastSafeNewline(content: string): number {
 }
 
 /**
- * Minimum content length before considering a split.
- * Prevents excessive splitting on small content.
+ * Minimum content length before considering a paragraph split (\n\n).
  */
-const MIN_SPLIT_LENGTH = 500;
+const MIN_PARAGRAPH_SPLIT_LENGTH = 200;
+
+/**
+ * Maximum content length before forcing a line-based split.
+ * This prevents excessive accumulation that causes flickering.
+ * Roughly 3-4 lines of terminal width (80 chars * 4 = 320).
+ */
+const MAX_PENDING_LENGTH = 300;
 
 /**
  * Determines if content should be split for progressive finalization.
+ *
+ * Strategy:
+ * 1. First try paragraph splits (\n\n) for clean breaks
+ * 2. If content exceeds MAX_PENDING_LENGTH with no paragraph break,
+ *    fall back to line-based splits (\n) to prevent flickering
  *
  * Returns:
  * - { shouldSplit: false } if no split needed
@@ -138,21 +149,33 @@ export function checkForSplit(content: string): {
     before?: string;
     after?: string;
 } {
-    // Don't split small content
-    if (content.length < MIN_SPLIT_LENGTH) {
+    // Don't split very small content
+    if (content.length < MIN_PARAGRAPH_SPLIT_LENGTH) {
         return { shouldSplit: false };
     }
 
-    const splitPoint = findLastSafeSplitPoint(content);
-
-    // Only split if we have meaningful content before and after
-    if (splitPoint > 100 && splitPoint < content.length - 50) {
+    // Try paragraph-based split first (cleaner breaks)
+    const paragraphSplitPoint = findLastSafeSplitPoint(content);
+    if (paragraphSplitPoint > 80 && paragraphSplitPoint < content.length - 20) {
         return {
             shouldSplit: true,
-            splitIndex: splitPoint,
-            before: content.substring(0, splitPoint),
-            after: content.substring(splitPoint),
+            splitIndex: paragraphSplitPoint,
+            before: content.substring(0, paragraphSplitPoint),
+            after: content.substring(paragraphSplitPoint),
         };
+    }
+
+    // If content is getting too long, force a line-based split to reduce flickering
+    if (content.length > MAX_PENDING_LENGTH) {
+        const lineSplitPoint = findLastSafeNewline(content);
+        if (lineSplitPoint > 80 && lineSplitPoint < content.length - 20) {
+            return {
+                shouldSplit: true,
+                splitIndex: lineSplitPoint,
+                before: content.substring(0, lineSplitPoint),
+                after: content.substring(lineSplitPoint),
+            };
+        }
     }
 
     return { shouldSplit: false };
