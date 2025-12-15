@@ -9,33 +9,61 @@ import type { Message } from '../state/types.js';
 import { generateMessageId } from './idGenerator.js';
 
 /**
- * Mapping of internal tool names to user-friendly display names.
- * Similar to how Claude Code shows "Search" instead of "Grep".
+ * Tool-specific display configuration.
+ * Controls how each tool is displayed in the UI - name, which args to show, etc.
  */
-const TOOL_DISPLAY_NAMES: Record<string, string> = {
-    // Internal file tools
-    read_file: 'Read',
-    write_file: 'Write',
-    edit_file: 'Update',
-    glob_files: 'Glob',
-    grep_content: 'Search',
-    // Internal process tools
-    bash_exec: 'Bash',
-    bash_output: 'BashOutput',
-    kill_process: 'Kill',
-    // Internal user interaction
-    ask_user: 'Ask',
-    // Prefixed versions (internal-- prefix)
-    'internal--read_file': 'Read',
-    'internal--write_file': 'Write',
-    'internal--edit_file': 'Update',
-    'internal--glob_files': 'Glob',
-    'internal--grep_content': 'Search',
-    'internal--bash_exec': 'Bash',
-    'internal--bash_output': 'BashOutput',
-    'internal--kill_process': 'Kill',
-    'internal--ask_user': 'Ask',
+interface ToolDisplayConfig {
+    /** User-friendly display name */
+    displayName: string;
+    /** Which args to display, in order */
+    argsToShow: string[];
+    /** Primary arg shown without key name (first in argsToShow) */
+    primaryArg?: string;
+}
+
+/**
+ * Per-tool display configurations.
+ * Each tool specifies exactly which arguments to show and how.
+ */
+const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
+    // File tools - show file_path as primary
+    read_file: { displayName: 'Read', argsToShow: ['file_path'], primaryArg: 'file_path' },
+    write_file: { displayName: 'Write', argsToShow: ['file_path'], primaryArg: 'file_path' },
+    edit_file: { displayName: 'Update', argsToShow: ['file_path'], primaryArg: 'file_path' },
+
+    // Search tools - show pattern as primary, path as secondary
+    glob_files: { displayName: 'Glob', argsToShow: ['pattern', 'path'], primaryArg: 'pattern' },
+    grep_content: { displayName: 'Search', argsToShow: ['pattern', 'path'], primaryArg: 'pattern' },
+
+    // Bash - show command only, skip description
+    bash_exec: { displayName: 'Bash', argsToShow: ['command'], primaryArg: 'command' },
+    bash_output: {
+        displayName: 'BashOutput',
+        argsToShow: ['process_id'],
+        primaryArg: 'process_id',
+    },
+    kill_process: { displayName: 'Kill', argsToShow: ['process_id'], primaryArg: 'process_id' },
+
+    // User interaction
+    ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
 };
+
+/**
+ * Gets the display config for a tool.
+ * Handles internal-- prefix by stripping it before lookup.
+ */
+function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
+    // Try direct lookup first
+    if (TOOL_CONFIGS[toolName]) {
+        return TOOL_CONFIGS[toolName];
+    }
+    // Strip internal-- prefix and try again
+    if (toolName.startsWith('internal--')) {
+        const baseName = toolName.replace('internal--', '');
+        return TOOL_CONFIGS[baseName];
+    }
+    return undefined;
+}
 
 /**
  * Gets a user-friendly display name for a tool.
@@ -44,9 +72,9 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
  * MCP tools keep their server prefix for clarity (e.g., "mcp_server__tool").
  */
 export function getToolDisplayName(toolName: string): string {
-    // Check if we have a friendly name mapping
-    if (TOOL_DISPLAY_NAMES[toolName]) {
-        return TOOL_DISPLAY_NAMES[toolName];
+    const config = getToolConfig(toolName);
+    if (config) {
+        return config.displayName;
     }
     // Strip "internal--" prefix for unknown internal tools
     if (toolName.startsWith('internal--')) {
@@ -57,52 +85,69 @@ export function getToolDisplayName(toolName: string): string {
 }
 
 /**
- * Common "primary" argument names that should be shown without key name.
- * These are the main input for most tools and showing them without the key
- * makes the output cleaner (like Claude Code does).
+ * Fallback primary argument names for unknown tools.
+ * Used when we don't have a specific config for a tool.
  */
-const PRIMARY_ARG_NAMES = new Set([
+const FALLBACK_PRIMARY_ARGS = new Set([
     'file_path',
     'path',
     'pattern',
     'command',
     'query',
     'question',
-    'content',
     'url',
 ]);
 
 /**
  * Formats tool arguments for display in Claude Code style.
- * Format: ToolName(primary_arg, key: value, key2: value2)
+ * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
  *
- * Primary arguments (file_path, pattern, command, etc.) are shown without key name.
- * Other arguments show key: value format.
+ * Uses tool-specific config to determine which args to show.
+ * Primary argument is shown without key name.
+ * Secondary arguments show key: value format.
  */
 export function formatToolArgsForDisplay(
-    _toolName: string,
+    toolName: string,
     args: Record<string, unknown>,
     maxLength: number = 70
 ): string {
     const entries = Object.entries(args);
     if (entries.length === 0) return '';
 
+    const config = getToolConfig(toolName);
     const parts: string[] = [];
 
-    // Process entries - primary args (by name) shown first without key
-    for (const [key, value] of entries) {
-        if (parts.length >= 3) break; // Max 3 params
+    if (config) {
+        // Use tool-specific config
+        for (const argName of config.argsToShow) {
+            if (!(argName in args)) continue;
+            if (parts.length >= 3) break;
 
-        const strValue = typeof value === 'string' ? value : JSON.stringify(value);
-        // Truncate long values
-        const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
+            const value = args[argName];
+            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+            const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
 
-        if (PRIMARY_ARG_NAMES.has(key)) {
-            // Primary arg shown first without key
-            parts.unshift(truncated);
-        } else {
-            // Other args with key name
-            parts.push(`${key}: ${truncated}`);
+            if (argName === config.primaryArg) {
+                // Primary arg without key name
+                parts.unshift(truncated);
+            } else {
+                // Secondary args with key name
+                parts.push(`${argName}: ${truncated}`);
+            }
+        }
+    } else {
+        // Fallback for unknown tools (MCP, etc.)
+        for (const [key, value] of entries) {
+            if (parts.length >= 3) break;
+
+            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
+            const truncated = strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
+
+            if (FALLBACK_PRIMARY_ARGS.has(key)) {
+                parts.unshift(truncated);
+            } else {
+                parts.push(`${key}: ${truncated}`);
+            }
         }
     }
 
