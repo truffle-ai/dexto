@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { FileSystemService } from '../../../filesystem/index.js';
+import type { FileDisplayData } from '../../display-types.js';
 
 const ReadFileInputSchema = z
     .object({
@@ -47,6 +48,14 @@ export function createReadFileTool(fileSystemService: FileSystemService): Intern
                 offset,
             });
 
+            // Build display data
+            const _display: FileDisplayData = {
+                type: 'file',
+                path: file_path,
+                operation: 'read',
+                size: result.size,
+            };
+
             return {
                 content: result.content,
                 lines: result.lines,
@@ -54,6 +63,7 @@ export function createReadFileTool(fileSystemService: FileSystemService): Intern
                 truncated: result.truncated,
                 size: result.size,
                 ...(result.mimeType && { mimeType: result.mimeType }),
+                _display,
             };
         },
     };

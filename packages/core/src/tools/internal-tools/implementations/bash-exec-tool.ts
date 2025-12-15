@@ -11,6 +11,7 @@ import { ProcessService } from '../../../process/index.js';
 import type { ApprovalManager } from '../../../approval/manager.js';
 import { ApprovalStatus } from '../../../approval/types.js';
 import { ProcessError } from '../../../process/errors.js';
+import type { ShellDisplayData } from '../../display-types.js';
 
 const BashExecInputSchema = z
     .object({
@@ -115,17 +116,35 @@ export function createBashExecTool(
             // Otherwise it's a ProcessHandle (background)
             if ('stdout' in result) {
                 // Foreground execution result
+                const _display: ShellDisplayData = {
+                    type: 'shell',
+                    command,
+                    exitCode: result.exitCode,
+                    duration: result.duration,
+                    isBackground: false,
+                };
+
                 return {
                     stdout: result.stdout,
                     stderr: result.stderr,
                     exit_code: result.exitCode,
                     duration: result.duration,
+                    _display,
                 };
             } else {
                 // Background execution handle
+                const _display: ShellDisplayData = {
+                    type: 'shell',
+                    command,
+                    exitCode: 0, // Background process hasn't exited yet
+                    duration: 0, // Still running
+                    isBackground: true,
+                };
+
                 return {
                     process_id: result.processId,
                     message: `Command started in background with ID: ${result.processId}. Use bash_output to retrieve output.`,
+                    _display,
                 };
             }
         },
