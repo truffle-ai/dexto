@@ -72,7 +72,7 @@ export function StatusBar({
     // Currently "thinking" event fires before any response, not during reasoning token generation
     if (isThinking) {
         return (
-            <Box paddingX={1} marginBottom={0} flexDirection="row">
+            <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="row">
                 <Text color="magenta">
                     <Spinner type="dots" />
                 </Text>
@@ -86,7 +86,7 @@ export function StatusBar({
 
     // Show active streaming state - cyan color
     return (
-        <Box paddingX={1} marginBottom={0} flexDirection="row">
+        <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="row">
             <Text color="cyan">
                 <Spinner type="dots" />
             </Text>
