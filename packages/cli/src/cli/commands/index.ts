@@ -8,6 +8,8 @@ export {
     postCreateDexto,
 } from './create-app.js';
 
+export { createDistribution, postCreateDistro } from './create-distro.js';
+
 export { getUserInputToInitDextoApp, initDexto, postInitDexto } from './init-app.js';
 
 export { handleSetupCommand, type CLISetupOptions, type CLISetupOptionsInput } from './setup.js';

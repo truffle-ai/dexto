@@ -47,6 +47,8 @@ import {
     createTsconfigJson,
     addDextoScriptsToPackageJson,
     postCreateDexto,
+    createDistribution,
+    postCreateDistro,
     initDexto,
     postInitDexto,
     getUserInputToInitDextoApp,
@@ -154,7 +156,30 @@ program
         })
     );
 
-// 3) `init-app` SUB-COMMAND
+// 3) `create-distro` SUB-COMMAND
+program
+    .command('create-distro [name]')
+    .description('Create a new Dexto distribution (custom storage, tools, agents)')
+    .action(
+        withAnalytics('create-distro', async (name?: string) => {
+            try {
+                p.intro(chalk.inverse('Create Dexto Distribution'));
+
+                // Create the distribution project structure
+                const projectPath = await createDistribution(name);
+
+                p.outro(chalk.greenBright('Dexto distribution created successfully!'));
+                await postCreateDistro(path.basename(projectPath));
+                safeExit('create-distro', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto create-distro command failed: ${err}`);
+                safeExit('create-distro', 1, 'error');
+            }
+        })
+    );
+
+// 4) `init-app` SUB-COMMAND
 program
     .command('init-app')
     .description('Initialize an existing Typescript app with Dexto')
