@@ -169,9 +169,11 @@ export const MessageItem = memo(
             return (
                 <Box flexDirection="column" marginTop={1} width="100%">
                     <Box flexDirection="row">
-                        <Text color={dotColor}>● </Text>
-                        <Text bold>{toolName}</Text>
-                        <Text>{toolArgs}</Text>
+                        <Text wrap="wrap">
+                            <Text color={dotColor}>● </Text>
+                            <Text bold>{toolName}</Text>
+                            <Text>{toolArgs}</Text>
+                        </Text>
                     </Box>
                     {hasStructuredDisplay ? (
                         <ToolResultRenderer
