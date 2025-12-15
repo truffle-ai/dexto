@@ -29,6 +29,7 @@ import {
     SyspromptBox,
 } from './styled-boxes/index.js';
 import { ToolResultRenderer } from '../renderers/index.js';
+import { MarkdownText } from '../shared/MarkdownText.js';
 
 /**
  * Format milliseconds into a compact human-readable string
@@ -129,11 +130,10 @@ export const MessageItem = memo(
             // Continuation messages: no indicator, no margins - flows seamlessly from previous
             if (message.isContinuation) {
                 return (
-                    <Box flexDirection="row" width="100%">
-                        <Text wrap="wrap">
-                            <Text>{'  '}</Text>
-                            <Text color="white">{message.content || ''}</Text>
-                        </Text>
+                    <Box flexDirection="column" width="100%">
+                        <Box paddingLeft={2}>
+                            <MarkdownText>{message.content || ''}</MarkdownText>
+                        </Box>
                     </Box>
                 );
             }
@@ -141,10 +141,10 @@ export const MessageItem = memo(
             return (
                 <Box flexDirection="column" marginTop={1} width="100%">
                     <Box flexDirection="row">
-                        <Text wrap="wrap">
-                            <Text color="gray">⏺ </Text>
-                            <Text color="white">{message.content || ' '}</Text>
-                        </Text>
+                        <Text color="gray">⏺ </Text>
+                        <Box flexGrow={1}>
+                            <MarkdownText>{message.content || ''}</MarkdownText>
+                        </Box>
                     </Box>
                 </Box>
             );
