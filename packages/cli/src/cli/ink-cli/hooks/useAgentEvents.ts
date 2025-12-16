@@ -19,7 +19,6 @@ import type React from 'react';
 import { useEffect } from 'react';
 import { setMaxListeners } from 'events';
 import type { DextoAgent, QueuedMessage } from '@dexto/core';
-import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
@@ -54,43 +53,9 @@ export function useAgentEvents({
         // Increase listener limit for safety
         setMaxListeners(15, signal);
 
-        // Handle approval requests - these can arrive during streaming
-        // Includes: tool confirmation, command confirmation, and elicitation (ask_user)
-        bus.on(
-            'approval:request',
-            (event) => {
-                if (
-                    event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
-                    event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
-                    event.type === ApprovalTypeEnum.ELICITATION
-                ) {
-                    const newApproval: ApprovalRequest = {
-                        approvalId: event.approvalId,
-                        type: event.type,
-                        timestamp: event.timestamp,
-                        metadata: event.metadata,
-                    };
-
-                    if (event.sessionId !== undefined) {
-                        newApproval.sessionId = event.sessionId;
-                    }
-                    if (event.timeout !== undefined) {
-                        newApproval.timeout = event.timeout;
-                    }
-
-                    // Queue if there's already an approval, otherwise show immediately
-                    setApproval((current) => {
-                        if (current !== null) {
-                            setApprovalQueue((queue) => [...queue, newApproval]);
-                            return current;
-                        }
-                        setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
-                        return newApproval;
-                    });
-                }
-            },
-            { signal }
-        );
+        // NOTE: approval:request is now handled in processStream (via iterator) for proper
+        // event ordering. Direct bus subscription here caused a race condition where
+        // approval UI showed before text messages were added.
 
         // Handle model switch
         bus.on(

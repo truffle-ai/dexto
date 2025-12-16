@@ -52,6 +52,10 @@ interface InputContainerProps {
     setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
     /** Setter for queued messages */
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    /** Setter for current approval request (for approval UI via processStream) */
+    setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
+    /** Setter for approval queue (for queued approvals via processStream) */
+    setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     agent: DextoAgent;
     inputService: InputService;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
@@ -80,6 +84,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             setPendingMessages,
             setDequeuedBuffer,
             setQueuedMessages,
+            setApproval,
+            setApprovalQueue,
             agent,
             inputService,
             onKeyboardScroll,
@@ -507,6 +513,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     setDequeuedBuffer,
                                     setUi,
                                     setQueuedMessages,
+                                    setApproval,
+                                    setApprovalQueue,
                                 },
                                 { useStreaming }
                             );
@@ -604,6 +612,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 setDequeuedBuffer,
                                 setUi,
                                 setQueuedMessages,
+                                setApproval,
+                                setApprovalQueue,
                             },
                             { useStreaming }
                         );

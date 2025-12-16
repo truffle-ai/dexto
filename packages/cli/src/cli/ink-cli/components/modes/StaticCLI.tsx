@@ -196,6 +196,8 @@ export function StaticCLI({
                     setPendingMessages={setPendingMessages}
                     setDequeuedBuffer={setDequeuedBuffer}
                     setQueuedMessages={setQueuedMessages}
+                    setApproval={setApproval}
+                    setApprovalQueue={setApprovalQueue}
                     agent={agent}
                     inputService={inputService}
                     useStreaming={useStreaming}
