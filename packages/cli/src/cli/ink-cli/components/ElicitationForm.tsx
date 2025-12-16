@@ -190,9 +190,14 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                             confirmSubmit();
                             return true;
                         }
-                        if (key.escape) {
-                            // Go back to editing
+                        // Backspace to go back to editing
+                        if (key.backspace || key.delete) {
                             setIsReviewing(false);
+                            return true;
+                        }
+                        // Esc to cancel entirely
+                        if (key.escape) {
+                            onCancel();
                             return true;
                         }
                         return false;
@@ -427,7 +432,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                     })}
 
                     <Box marginTop={1}>
-                        <Text dimColor>Enter to submit • Esc to go back and edit</Text>
+                        <Text dimColor>Enter to submit • Backspace to edit • Esc to cancel</Text>
                     </Box>
                 </Box>
             );
