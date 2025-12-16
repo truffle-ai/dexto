@@ -7,7 +7,7 @@ import {
     type ElicitationFormHandle,
     type ElicitationMetadata,
 } from './ElicitationForm.js';
-import { DiffRenderer, ShellRenderer, FileRenderer } from './renderers/index.js';
+import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -179,10 +179,14 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
             switch (displayPreview.type) {
                 case 'diff':
+                    // Determine if this is an edit or overwrite based on tool name
+                    const isOverwrite =
+                        toolName === 'internal--write_file' || toolName === 'write_file';
                     return (
-                        <Box marginBottom={1}>
-                            <DiffRenderer data={displayPreview} maxLines={20} />
-                        </Box>
+                        <DiffPreview
+                            data={displayPreview}
+                            headerType={isOverwrite ? 'overwrite' : 'edit'}
+                        />
                     );
                 case 'shell':
                     // For shell preview, just show the command (no output yet)
@@ -194,9 +198,21 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         </Box>
                     );
                 case 'file':
+                    // Use enhanced file preview with full content for new file creation
+                    if (displayPreview.operation === 'create' && displayPreview.content) {
+                        return <CreateFilePreview data={displayPreview} />;
+                    }
+                    // Fallback for other file operations
                     return (
                         <Box marginBottom={1}>
-                            <FileRenderer data={displayPreview} />
+                            <Text dimColor>
+                                {displayPreview.operation === 'read' &&
+                                    `Read ${displayPreview.lineCount ?? 'file'} lines`}
+                                {displayPreview.operation === 'write' &&
+                                    `Write to ${displayPreview.path}`}
+                                {displayPreview.operation === 'delete' &&
+                                    `Delete ${displayPreview.path}`}
+                            </Text>
                         </Box>
                     );
                 default:

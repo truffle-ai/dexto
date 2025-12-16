@@ -76,12 +76,15 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
                 // File exists - show diff preview
                 return generateDiffPreview(file_path, originalContent, content);
             } catch {
-                // File doesn't exist - show as file creation
+                // File doesn't exist - show as file creation with full content
+                const lineCount = content.split('\n').length;
                 const preview: FileDisplayData = {
                     type: 'file',
                     path: file_path,
                     operation: 'create',
                     size: content.length,
+                    lineCount,
+                    content, // Include content for approval preview
                 };
                 return preview;
             }

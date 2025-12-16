@@ -199,6 +199,9 @@ importers:
       commander:
         specifier: ^11.1.0
         version: 11.1.0
+      diff:
+        specifier: ^8.0.2
+        version: 8.0.2
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1

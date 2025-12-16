@@ -110,6 +110,8 @@ export interface FileDisplayData {
     lineCount?: number;
     /** Path to backup file if created (optional) */
     backupPath?: string;
+    /** File content for create operations (used in approval preview) */
+    content?: string;
 }
 
 /**
