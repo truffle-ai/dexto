@@ -434,14 +434,18 @@ export class TurnExecutor {
                      */
                     execute: async (
                         args: unknown,
-                        _options: { toolCallId: string }
+                        options: { toolCallId: string }
                     ): Promise<unknown> => {
-                        this.logger.debug(`Executing tool: ${name}`);
+                        this.logger.debug(
+                            `Executing tool: ${name} (toolCallId: ${options.toolCallId})`
+                        );
 
                         // Run tool via toolManager - returns result with approval metadata
+                        // toolCallId is passed for tracking parallel tool calls in the UI
                         const executionResult = await this.toolManager.executeTool(
                             name,
                             args as Record<string, unknown>,
+                            options.toolCallId,
                             this.sessionId
                         );
 
@@ -456,7 +460,7 @@ export class TurnExecutor {
                             if (executionResult.approvalStatus !== undefined) {
                                 metadata.approvalStatus = executionResult.approvalStatus;
                             }
-                            this.approvalMetadata.set(_options.toolCallId, metadata);
+                            this.approvalMetadata.set(options.toolCallId, metadata);
                         }
 
                         // Return just the raw result for Vercel SDK

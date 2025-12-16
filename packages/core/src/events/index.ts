@@ -61,6 +61,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:error',
     'llm:switched',
     'llm:unsupported-input',
+    'tool:running',
     'context:compressed',
     'context:pruned',
     'message:queued',
@@ -99,6 +100,9 @@ export const STREAMING_EVENTS = [
     'llm:tool-result',
     'llm:error',
     'llm:unsupported-input',
+
+    // Tool execution events
+    'tool:running',
 
     // Context management events
     'context:compressed',
@@ -350,6 +354,13 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
+        sessionId: string;
+    };
+
     /** LLM service error */
     'llm:error': {
         error: Error;
@@ -528,6 +539,12 @@ export interface SessionEventMap {
         requireApproval?: boolean;
         /** The approval status (only present if requireApproval is true) */
         approvalStatus?: 'approved' | 'rejected';
+    };
+
+    /** Tool execution actually started (after approval if needed) */
+    'tool:running': {
+        toolName: string;
+        toolCallId: string;
     };
 
     /** LLM service error */

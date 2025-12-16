@@ -1,4 +1,5 @@
 // src/agent/DextoAgent.ts
+import { randomUUID } from 'crypto';
 import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
@@ -1912,13 +1913,19 @@ export class DextoAgent {
     /**
      * Executes a tool from any source (MCP servers, custom tools, or internal tools).
      * This is the unified interface for tool execution that can handle all tool types.
+     *
+     * Note: This is for direct/programmatic tool execution outside of LLM flow.
+     * A toolCallId is generated automatically for tracking purposes.
+     *
      * @param toolName The name of the tool to execute
      * @param args The arguments to pass to the tool
      * @returns The result of the tool execution
      */
     public async executeTool(toolName: string, args: any): Promise<any> {
         this.ensureStarted();
-        return await this.toolManager.executeTool(toolName, args);
+        // Generate a toolCallId for direct API calls (not from LLM)
+        const toolCallId = `direct-${randomUUID()}`;
+        return await this.toolManager.executeTool(toolName, args, toolCallId);
     }
 
     /**
