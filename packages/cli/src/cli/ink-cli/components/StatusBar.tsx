@@ -1,6 +1,11 @@
 /**
  * StatusBar Component
  * Displays processing status and controls above the input area
+ *
+ * Layout:
+ * - Line 1: Spinner + phrase (+ queue count if any)
+ * - Line 2: Meta info (time, tokens, cancel hint)
+ * This 2-line layout prevents truncation on any terminal width.
  */
 
 import { Box, Text } from 'ink';
@@ -42,7 +47,6 @@ export function StatusBar({
     const { formatted: elapsedTime, elapsedMs } = useElapsedTime({ isActive: isProcessing });
     // Track token usage during processing
     const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
-
     // Only show time after 30 seconds
     const showTime = elapsedMs >= 30000;
 
@@ -71,41 +75,57 @@ export function StatusBar({
     // TODO: Rename this event/state to "reasoning" and associate it with actual reasoning tokens
     // Currently "thinking" event fires before any response, not during reasoning token generation
     if (isThinking) {
+        const metaParts: string[] = [];
+        if (showTime) metaParts.push(`(${elapsedTime})`);
+        metaParts.push('Esc to cancel');
+        const metaContent = metaParts.join(' • ');
+
         return (
-            <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="row">
-                <Text color="magenta">
-                    <Spinner type="dots" />
-                </Text>
-                <Box flexShrink={1}>
-                    <Text color="magenta" wrap="truncate-end">
-                        {' '}
-                        {phrase}
+            <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+                {/* Line 1: spinner + phrase */}
+                <Box flexDirection="row" alignItems="center">
+                    <Text color="magenta">
+                        <Spinner type="dots" />
+                    </Text>
+                    <Text color="magenta"> {phrase}</Text>
+                </Box>
+                {/* Line 2: meta info */}
+                <Box marginLeft={2}>
+                    <Text color="gray" dimColor>
+                        {metaContent}
                     </Text>
                 </Box>
-                <Text color="gray" dimColor>
-                    {showTime ? ` (${elapsedTime})` : ''} • Esc to cancel
-                </Text>
             </Box>
         );
     }
 
     // Show active streaming state - cyan color
+    // Always use 2-line layout: phrase on first line, meta on second
+    // This prevents truncation and messy wrapping on any terminal width
+    const metaParts: string[] = [];
+    if (showTime) metaParts.push(`(${elapsedTime})`);
+    if (tokenCount) metaParts.push(tokenCount);
+    metaParts.push('Esc to cancel');
+    const metaContent = metaParts.join(' • ');
+
     return (
-        <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="row">
-            <Text color="cyan">
-                <Spinner type="dots" />
-            </Text>
-            <Box flexShrink={1}>
-                <Text color="cyan" wrap="truncate-end">
-                    {' '}
-                    {phrase}
+        <Box paddingX={1} marginTop={1} marginBottom={1} flexDirection="column">
+            {/* Line 1: spinner + phrase + queue count */}
+            <Box flexDirection="row" alignItems="center">
+                <Text color="cyan">
+                    <Spinner type="dots" />
+                </Text>
+                <Text color="cyan"> {phrase}</Text>
+                {approvalQueueCount > 0 && (
+                    <Text color="yellow"> • {approvalQueueCount} queued</Text>
+                )}
+            </Box>
+            {/* Line 2: meta info (time, tokens, cancel hint) */}
+            <Box marginLeft={2}>
+                <Text color="gray" dimColor>
+                    {metaContent}
                 </Text>
             </Box>
-            {approvalQueueCount > 0 && <Text color="yellow"> • {approvalQueueCount} queued</Text>}
-            <Text color="gray" dimColor>
-                {showTime ? ` (${elapsedTime})` : ''}
-                {tokenCount && ` • ${tokenCount}`} • Esc to cancel
-            </Text>
         </Box>
     );
 }
