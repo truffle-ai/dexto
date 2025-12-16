@@ -810,6 +810,16 @@ export class DextoAgent {
         });
         listeners.push({ event: 'approval:response', listener: approvalResponseListener });
 
+        // Tool running event - emitted when tool execution starts (after approval if needed)
+        const toolRunningListener = (data: AgentEventMap['tool:running']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'tool:running', ...data });
+        };
+        this.agentEventBus.on('tool:running', toolRunningListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'tool:running', listener: toolRunningListener });
+
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;

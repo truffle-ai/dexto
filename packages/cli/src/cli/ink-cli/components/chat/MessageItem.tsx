@@ -148,12 +148,15 @@ export const MessageItem = memo(
         }
 
         // Tool message: Animated icon based on status
-        // - Running: magenta spinner
-        // - Finished (success): green checkmark
+        // - Running: magenta spinner + "Running..."
+        // - Finished (success): green dot
         // - Finished (error): red dot
         if (message.role === 'tool') {
             // Use structured renderers if display data is available
             const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
+            const isRunning = message.toolStatus === 'running';
+            const isPending =
+                message.toolStatus === 'pending' || message.toolStatus === 'pending_approval';
 
             // Parse tool name and args for bold formatting: "ToolName(args)" → bold name + normal args
             const parenIndex = message.content.indexOf('(');
@@ -163,7 +166,7 @@ export const MessageItem = memo(
 
             return (
                 <Box flexDirection="column" marginTop={1} width="100%">
-                    {/* Single line, truncated - like gemini-cli */}
+                    {/* Tool header: icon + name + args + status text */}
                     <Box flexDirection="row" overflow="hidden">
                         <ToolIcon
                             status={message.toolStatus || 'finished'}
@@ -173,9 +176,17 @@ export const MessageItem = memo(
                             <Text wrap="truncate-end">
                                 <Text bold>{toolName}</Text>
                                 <Text>{toolArgs}</Text>
+                                {isRunning && <Text color="magenta"> Running...</Text>}
+                                {isPending && (
+                                    <Text color="yellow" dimColor>
+                                        {' '}
+                                        Waiting...
+                                    </Text>
+                                )}
                             </Text>
                         </Box>
                     </Box>
+                    {/* Tool result - only show when finished */}
                     {hasStructuredDisplay ? (
                         <ToolResultRenderer
                             display={message.toolDisplayData!}
