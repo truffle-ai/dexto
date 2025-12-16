@@ -1,0 +1,18 @@
+{
+  "name": "02-extending-image",
+  "version": "1.0.0",
+  "description": "Example 2: Extending a harness with custom providers",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@dexto/agent-management": "workspace:*",
+    "@dexto/core": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

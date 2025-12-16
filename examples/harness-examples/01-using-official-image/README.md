@@ -1,6 +1,6 @@
-# Image-Local Usage Example
+# Example 1: Using an Official Image
 
-This example demonstrates using the `@dexto/image-local` base image in a real application.
+This example demonstrates the **simplest way** to build Dexto applications - using an official base image with zero boilerplate.
 
 ## What This Shows
 
@@ -253,8 +253,9 @@ storage:
 - Make sure packages are built: `pnpm --filter @dexto/image-local build`
 - Check that `@dexto/core` and `@dexto/agent-management` are also built
 
-## See Also
+## Next Steps
 
-- [Base Images Vision](../../feature-plans/architecture/02-base-images-and-implementation.md)
-- [@dexto/image-local README](../../packages/image-local/README.md)
-- [Provider Pattern Documentation](../../packages/core/src/providers/README.md)
+- Try [Example 2: Extending an Image](../02-extending-image/) to add custom tools
+- Learn [Example 3: Creating Custom Images](../03-creating-custom-image/) for organizational standards
+- Read the [Base Images Architecture](../../../feature-plans/architecture/02-base-images-and-implementation.md)
+- See the [@dexto/image-local source](../../../packages/image-local/)

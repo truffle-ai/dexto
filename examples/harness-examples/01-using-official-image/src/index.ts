@@ -7,7 +7,8 @@
  * - Just import, configure, and use
  */
 
-import { createAgent, imageMetadata } from '@dexto/image-local';
+// Import from local harness implementation (Example 0)
+import { createAgent, imageMetadata } from '../../00-harness-implementation/dist/index.js';
 import { loadAgentConfig } from '@dexto/agent-management';
 
 async function main() {

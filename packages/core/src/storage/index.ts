@@ -60,6 +60,10 @@ export {
 export { createBlobStore, blobStoreRegistry, BlobStoreRegistry } from './blob/index.js';
 export type { BlobStoreProvider } from './blob/index.js';
 
+// Built-in blob storage providers
+// These can be imported and registered by harnesses as needed
+export { localBlobStoreProvider, inMemoryBlobStoreProvider } from './blob/providers/index.js';
+
 // Blob storage interface and types
 export type { BlobStore } from './blob/types.js';
 export type {

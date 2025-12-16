@@ -1,7 +1,8 @@
 {
-  "name": "@dexto/image-local",
+  "name": "00-harness-implementation",
   "version": "1.0.0",
-  "description": "Local development base image for Dexto agents",
+  "description": "Reference implementation: Local development harness for Dexto agents",
+  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,9 +18,9 @@
   },
   "keywords": [
     "dexto",
-    "base-image",
+    "harness",
     "local-development",
-    "ai-agents"
+    "reference-implementation"
   ],
   "dependencies": {
     "@dexto/core": "workspace:*"

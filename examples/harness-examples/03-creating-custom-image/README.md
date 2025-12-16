@@ -1,8 +1,10 @@
-# Dexto Provider Bundle Example
+# Example 3: Creating a Custom Image
 
-> **A complete example demonstrating all Dexto provider extension types**
+> **Pattern: Bundling providers for organizational standards**
 
-This example shows how to build a custom Dexto distribution with all four provider types. Use it as a template for creating your own agent "flavor" with custom extensions.
+This example shows how to create a **complete provider bundle** with all four provider types. This demonstrates what goes INTO a custom base image before it's packaged and distributed across your organization.
+
+**Note:** This example shows the "pre-image" pattern with manual provider registration via `dexto.config.ts`. To distribute this as a reusable base image (like `@dexto/image-local`), you would transform `dexto.config.ts` into `dexto.image.ts` and use the bundler to create a distributable package.
 
 ## Provider Types
 
@@ -328,8 +330,81 @@ pnpm run typecheck  # Type check only
 pnpm run clean      # Clean build artifacts
 ```
 
+## From Bundle to Image
+
+This example uses **manual registration** for demonstration. To convert it into a distributable base image:
+
+### 1. Create `dexto.image.ts`
+
+```typescript
+import { defineImage } from '@dexto/core';
+
+export default defineImage({
+  name: 'enterprise',
+  version: '1.0.0',
+  description: 'Enterprise image with Supabase and custom tools',
+
+  providers: {
+    blobStore: {
+      register: async () => {
+        const { supabaseBlobStoreProvider } = await import('./storage/supabase-blob-provider.js');
+        blobStoreRegistry.register(supabaseBlobStoreProvider);
+      },
+    },
+    customTools: {
+      register: async () => {
+        const { dateTimeToolProvider } = await import('./tools/datetime-helper.js');
+        customToolRegistry.register(dateTimeToolProvider);
+      },
+    },
+    // ... more providers
+  },
+
+  defaults: {
+    storage: {
+      blob: { type: 'supabase' },
+    },
+  },
+
+  constraints: ['cloud-required', 'network-required'],
+});
+```
+
+### 2. Build with Bundler
+
+```bash
+pnpm run build  # Uses @dexto/bundler
+```
+
+### 3. Publish to npm
+
+```bash
+npm publish  # Now @myorg/image-enterprise
+```
+
+### 4. Use in Apps
+
+```typescript
+import { createAgent } from '@myorg/image-enterprise';
+const agent = createAgent(config);  // All providers auto-registered!
+```
+
+## When to Create Custom Images
+
+**Use manual registration** (this example) when:
+- Prototyping and experimenting
+- Single application use case
+- Providers are still in development
+
+**Create a custom image** when:
+- Need to share across 3+ applications
+- Establishing organizational standards
+- Providers are stable and tested
+- Want to publish to npm
+
 ## Learn More
 
-- [Dexto Documentation](https://docs.dexto.ai)
-- [Provider Discovery API](../../packages/core/src/providers/discovery.ts)
-- [Base Registry Pattern](../../packages/core/src/providers/base-registry.ts)
+- [Example 1: Using Official Images](../01-using-official-image/)
+- [Example 2: Extending Images](../02-extending-image/)
+- [Base Images Architecture](../../../feature-plans/architecture/02-base-images-and-implementation.md)
+- [Provider Development Guide](../../../packages/core/src/providers/README.md)

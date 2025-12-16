@@ -1,7 +1,7 @@
 {
-  "name": "image-local-usage-example",
+  "name": "01-using-official-image",
   "version": "1.0.0",
-  "description": "Example of using @dexto/image-local base image",
+  "description": "Example 1: Using a local harness with defaults",
   "type": "module",
   "private": true,
   "scripts": {
@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@dexto/core": "workspace:*",
-    "@dexto/image-local": "workspace:*",
     "@dexto/agent-management": "workspace:*"
   },
   "devDependencies": {

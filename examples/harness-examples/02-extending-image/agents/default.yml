@@ -1,0 +1,20 @@
+systemPrompt:
+  contributors:
+    - type: static
+      content: |
+        You are a helpful AI assistant with access to weather information.
+        When asked about weather, use the get_weather tool to retrieve current conditions.
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250514
+  apiKey: $ANTHROPIC_API_KEY
+
+# Custom tool configuration
+customTools:
+  - type: weather-helper
+    defaultCity: New York
+    units: fahrenheit
+
+# Storage uses image-local defaults (no need to specify!)
+# The image provides: SQLite database, local filesystem, in-memory cache

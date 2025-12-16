@@ -1,5 +1,5 @@
 /**
- * Local Development Base Image
+ * Local Development Harness
  *
  * Pre-configured backend for local agent development with:
  * - SQLite database (persistent, local)
@@ -10,45 +10,34 @@
  * Perfect for development, testing, and desktop applications.
  */
 
-import { defineImage } from '@dexto/core';
+import { defineImage, blobStoreRegistry } from '@dexto/core';
 
 export default defineImage({
     name: 'image-local',
     version: '1.0.0',
-    description: 'Local development base image with filesystem-based storage',
+    description: 'Local development harness with filesystem-based storage',
     target: 'local-development',
 
     providers: {
-        // Blob storage providers (uses existing registry)
         blobStore: {
             register: async () => {
-                const { blobStoreRegistry } = await import('@dexto/core');
-                const { localBlobProvider, inMemoryBlobProvider } = await import(
-                    './src/providers/blob.js'
+                // Import built-in blob storage providers from core
+                // Note: Dynamic import within the registration function
+                const { localBlobStoreProvider, inMemoryBlobStoreProvider } = await import(
+                    '@dexto/core'
                 );
 
-                blobStoreRegistry.register(localBlobProvider);
-                blobStoreRegistry.register(inMemoryBlobProvider);
+                // Register blob storage providers
+                blobStoreRegistry.register(localBlobStoreProvider);
+                blobStoreRegistry.register(inMemoryBlobStoreProvider);
 
                 console.log('✓ Registered blob storage providers: local, in-memory');
             },
         },
-
-        // Database providers (uses factory pattern in core)
-        // SQLite and in-memory are already available via factory
-        database: {
-            register: async () => {
-                console.log('✓ Database providers available: sqlite, in-memory');
-            },
-        },
-
-        // Cache providers (uses factory pattern in core)
-        // In-memory and Redis are already available via factory
-        cache: {
-            register: async () => {
-                console.log('✓ Cache providers available: in-memory, redis');
-            },
-        },
+        // Note: Database and cache use factory pattern, no registration needed
+        // They are automatically available via StorageManager:
+        // - Database: sqlite, in-memory (via createDatabase factory)
+        // - Cache: in-memory, redis (via createCache factory)
     },
 
     // Default configuration values
