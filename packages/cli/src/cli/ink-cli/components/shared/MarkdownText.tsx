@@ -4,15 +4,19 @@
  * Renders markdown text with terminal-appropriate styling.
  * Handles both inline markdown (bold, code, italic) and block elements (headers, code blocks, lists).
  *
+ * Uses wrap-ansi for proper word wrapping to avoid mid-word splits.
  * Streaming-safe: incomplete markdown tokens won't match regex patterns,
  * so they render as plain text until complete.
  */
 
-import React, { memo } from 'react';
-import { Text, Box } from 'ink';
+import React, { memo, useMemo } from 'react';
+import { Text, Box, useStdout } from 'ink';
+import chalk from 'chalk';
+import wrapAnsi from 'wrap-ansi';
+import stringWidth from 'string-width';
 
 // ============================================================================
-// Inline Markdown Rendering
+// Inline Markdown Parsing
 // ============================================================================
 
 interface InlineSegment {
@@ -98,6 +102,140 @@ function parseInlineMarkdown(text: string): InlineSegment[] {
     return segments;
 }
 
+// ============================================================================
+// ANSI String Conversion (for wrap-ansi compatibility)
+// ============================================================================
+
+/**
+ * Convert parsed markdown segments to an ANSI-escaped string.
+ * This allows wrap-ansi to properly handle styled text while word-wrapping.
+ */
+function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string {
+    const colorFn = getChalkColor(defaultColor);
+
+    return segments
+        .map((segment) => {
+            switch (segment.type) {
+                case 'bold':
+                    return colorFn.bold(segment.content);
+                case 'code':
+                    return chalk.cyan(segment.content);
+                case 'italic':
+                    return colorFn.dim(segment.content);
+                case 'strikethrough':
+                    return colorFn.strikethrough(segment.content);
+                case 'link':
+                    return colorFn(segment.content) + chalk.blue(` (${segment.url})`);
+                case 'url':
+                    return chalk.blue(segment.content);
+                default:
+                    return colorFn(segment.content);
+            }
+        })
+        .join('');
+}
+
+/**
+ * Get chalk color function from color name
+ */
+function getChalkColor(color: string): typeof chalk {
+    switch (color) {
+        case 'white':
+            return chalk.white;
+        case 'gray':
+            return chalk.gray;
+        case 'blue':
+            return chalk.blue;
+        case 'cyan':
+            return chalk.cyan;
+        case 'green':
+            return chalk.green;
+        case 'yellow':
+            return chalk.yellow;
+        case 'red':
+            return chalk.red;
+        case 'magenta':
+            return chalk.magenta;
+        default:
+            return chalk.white;
+    }
+}
+
+// ============================================================================
+// Wrapped Paragraph Component (uses wrap-ansi for proper word wrapping)
+// ============================================================================
+
+interface WrappedParagraphProps {
+    text: string;
+    defaultColor: string;
+    bulletPrefix?: string;
+    isFirstParagraph?: boolean;
+}
+
+/**
+ * Renders a paragraph with proper word wrapping using wrap-ansi.
+ * Handles bullet prefix with continuation line indentation.
+ */
+const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
+    text,
+    defaultColor,
+    bulletPrefix,
+    isFirstParagraph = false,
+}) => {
+    const { stdout } = useStdout();
+    const terminalWidth = stdout?.columns ?? 80;
+
+    const wrappedLines = useMemo(() => {
+        // Parse markdown and convert to ANSI string
+        const segments = parseInlineMarkdown(text);
+        const ansiString = segmentsToAnsi(segments, defaultColor);
+
+        // Calculate available width
+        const prefixWidth = bulletPrefix && isFirstParagraph ? stringWidth(bulletPrefix) : 0;
+        const availableWidth = Math.max(20, terminalWidth - prefixWidth);
+
+        // Word-wrap the ANSI string
+        const wrapped = wrapAnsi(ansiString, availableWidth, {
+            hard: false, // Don't break in the middle of words
+            wordWrap: true, // Enable word wrapping
+            trim: false, // Don't trim whitespace
+        });
+
+        return wrapped.split('\n');
+    }, [text, defaultColor, bulletPrefix, isFirstParagraph, terminalWidth]);
+
+    // Calculate indent for continuation lines (spaces to align with first line content)
+    const continuationIndent =
+        bulletPrefix && isFirstParagraph ? ' '.repeat(stringWidth(bulletPrefix)) : '';
+
+    return (
+        <>
+            {wrappedLines.map((line, i) => {
+                const isFirstLine = i === 0;
+                const prefix =
+                    isFirstLine && bulletPrefix && isFirstParagraph
+                        ? bulletPrefix
+                        : continuationIndent;
+
+                return (
+                    <Box key={i}>
+                        <Text>
+                            {prefix}
+                            {line}
+                        </Text>
+                    </Box>
+                );
+            })}
+        </>
+    );
+};
+
+const WrappedParagraph = memo(WrappedParagraphInternal);
+
+// ============================================================================
+// Legacy RenderInline (for headers and other non-wrapped content)
+// ============================================================================
+
 interface RenderInlineProps {
     text: string;
     defaultColor?: string;
@@ -105,6 +243,7 @@ interface RenderInlineProps {
 
 /**
  * Renders inline markdown segments with appropriate styling.
+ * Used for headers and other content that doesn't need word wrapping.
  */
 const RenderInlineInternal: React.FC<RenderInlineProps> = ({ text, defaultColor = 'white' }) => {
     const segments = parseInlineMarkdown(text);
@@ -179,7 +318,7 @@ interface MarkdownTextProps {
 /**
  * Main MarkdownText component.
  * Handles block-level elements (headers, code blocks, lists) and delegates
- * inline rendering to RenderInline.
+ * paragraph rendering to WrappedParagraph for proper word wrapping.
  */
 const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
     children,
@@ -190,7 +329,7 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
 
     const defaultColor = color;
     const lines = children.split('\n');
-    let bulletPrefixUsed = false; // Track if we've added the bullet prefix yet
+    let isFirstContentLine = true; // Track first actual content for bullet prefix
 
     // Regex patterns for block elements
     const headerRegex = /^(#{1,6})\s+(.*)$/;
@@ -260,7 +399,7 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
             return;
         }
 
-        // Unordered list - use hyphen to avoid confusion with ⏺ message indicator
+        // Unordered list
         const ulMatch = line.match(ulItemRegex);
         if (ulMatch && ulMatch[1] !== undefined && ulMatch[3] !== undefined) {
             const indent = ulMatch[1].length;
@@ -301,21 +440,20 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
             return;
         }
 
-        // Regular paragraph line with inline markdown
-        // Prepend bullet prefix to first content line if provided
-        const displayLine = !bulletPrefixUsed && bulletPrefix ? bulletPrefix + line : line;
-        if (bulletPrefix && !bulletPrefixUsed) {
-            bulletPrefixUsed = true;
-        }
-
-        // width="100%" ensures Text wrap respects parent container bounds
+        // Regular paragraph line - use WrappedParagraph for proper word wrapping
+        const usePrefix = isFirstContentLine && bulletPrefix;
         blocks.push(
-            <Box key={key} width="100%">
-                <Text wrap="wrap" color={defaultColor}>
-                    <RenderInline text={displayLine} defaultColor={defaultColor} />
-                </Text>
-            </Box>
+            <WrappedParagraph
+                key={key}
+                text={line}
+                defaultColor={defaultColor}
+                {...(bulletPrefix && { bulletPrefix })}
+                isFirstParagraph={usePrefix ? true : false}
+            />
         );
+        if (usePrefix) {
+            isFirstContentLine = false;
+        }
     });
 
     // Handle unclosed code block (streaming case)
@@ -330,13 +468,8 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
         );
     }
 
-    // Wrap in column layout to ensure proper vertical stacking
-    // width="100%" ensures children can inherit and calculate wrap boundaries
-    return (
-        <Box flexDirection="column" width="100%">
-            {blocks}
-        </Box>
-    );
+    // Wrap in column layout
+    return <Box flexDirection="column">{blocks}</Box>;
 };
 
 // ============================================================================
@@ -378,26 +511,53 @@ interface RenderListItemProps {
     defaultColor: string;
 }
 
+/**
+ * List item with proper word wrapping using wrap-ansi.
+ * Continuation lines are indented to align with the first line content.
+ */
 const RenderListItemInternal: React.FC<RenderListItemProps> = ({
     indent,
     marker,
     text,
     defaultColor,
 }) => {
+    const { stdout } = useStdout();
+    const terminalWidth = stdout?.columns ?? 80;
+
     const paddingLeft = Math.floor(indent / 2);
-    // Marker width must be explicit for proper text wrapping
-    const markerWidth = marker.length + 1; // marker + space
+    const markerWithSpace = `${marker} `;
+    const markerWidth = stringWidth(markerWithSpace);
+
+    const wrappedLines = useMemo(() => {
+        // Parse markdown and convert to ANSI string
+        const segments = parseInlineMarkdown(text);
+        const ansiString = segmentsToAnsi(segments, defaultColor);
+
+        // Available width = terminal - padding - marker
+        const availableWidth = Math.max(20, terminalWidth - paddingLeft - markerWidth);
+
+        // Word-wrap the ANSI string
+        const wrapped = wrapAnsi(ansiString, availableWidth, {
+            hard: false,
+            wordWrap: true,
+            trim: false,
+        });
+
+        return wrapped.split('\n');
+    }, [text, defaultColor, terminalWidth, paddingLeft, markerWidth]);
+
+    const continuationIndent = ' '.repeat(markerWidth);
 
     return (
-        <Box paddingLeft={paddingLeft} flexDirection="row" width="100%">
-            <Box width={markerWidth}>
-                <Text color={defaultColor}>{marker} </Text>
-            </Box>
-            <Box flexGrow={1} flexShrink={1} width="100%">
-                <Text wrap="wrap" color={defaultColor}>
-                    <RenderInline text={text} defaultColor={defaultColor} />
-                </Text>
-            </Box>
+        <Box paddingLeft={paddingLeft} flexDirection="column">
+            {wrappedLines.map((line, i) => (
+                <Box key={i} flexDirection="row">
+                    <Text color={defaultColor}>
+                        {i === 0 ? markerWithSpace : continuationIndent}
+                    </Text>
+                    <Text>{line}</Text>
+                </Box>
+            ))}
         </Box>
     );
 };

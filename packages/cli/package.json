@@ -23,7 +23,7 @@
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "better-sqlite3": "^11.10.0",
     "boxen": "^7.1.1",
-    "chalk": "^5.4.1",
+    "chalk": "^5.6.0",
     "commander": "^11.1.0",
     "dotenv": "^16.4.7",
     "fs-extra": "^11.3.0",
@@ -40,6 +40,7 @@
     "string-width": "^8.1.0",
     "strip-ansi": "^7.1.2",
     "tsx": "^4.19.2",
+    "wrap-ansi": "^9.0.2",
     "ws": "^8.18.1",
     "yaml": "^2.7.1",
     "zod": "^3.25.0"
