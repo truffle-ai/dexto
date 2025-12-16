@@ -1,6 +1,7 @@
 import type { InternalTool } from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { z } from 'zod';
+import { ToolError } from './errors.js';
 
 /**
  * Context passed to custom tool providers when creating tools.
@@ -70,10 +71,7 @@ export class CustomToolRegistry {
         provider: CustomToolProvider<TType, TConfig>
     ): void {
         if (this.providers.has(provider.type)) {
-            throw new Error(
-                `Custom tool provider '${provider.type}' is already registered. ` +
-                    `Use unregister() first if you want to replace it.`
-            );
+            throw ToolError.customToolProviderAlreadyRegistered(provider.type);
         }
         this.providers.set(provider.type, provider as CustomToolProvider);
     }
@@ -119,10 +117,7 @@ export class CustomToolRegistry {
         const provider = this.providers.get(parsed.type);
         if (!provider) {
             const available = this.getTypes();
-            throw new Error(
-                `Unknown custom tool provider: '${parsed.type}'. ` +
-                    `Available types: ${available.length > 0 ? available.join(', ') : 'none'}`
-            );
+            throw ToolError.unknownCustomToolProvider(parsed.type, available);
         }
 
         // Validate against provider's schema

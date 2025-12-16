@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { BlobStoreProvider } from './provider.js';
+import { StorageError } from '../errors.js';
 
 /**
  * Registry for blob store providers.
@@ -25,10 +26,7 @@ export class BlobStoreRegistry {
         provider: BlobStoreProvider<TType, TConfig>
     ): void {
         if (this.providers.has(provider.type)) {
-            throw new Error(
-                `Blob store provider '${provider.type}' is already registered. ` +
-                    `Use unregister() first if you need to replace it.`
-            );
+            throw StorageError.blobProviderAlreadyRegistered(provider.type);
         }
         this.providers.set(provider.type, provider);
     }
@@ -103,10 +101,7 @@ export class BlobStoreRegistry {
         const provider = this.providers.get(parsed.type);
         if (!provider) {
             const available = this.getTypes();
-            throw new Error(
-                `Unknown blob store type: '${parsed.type}'. ` +
-                    `Available types: ${available.length > 0 ? available.join(', ') : 'none'}`
-            );
+            throw StorageError.unknownBlobProvider(parsed.type, available);
         }
 
         // Validate against provider schema (returns properly typed config)

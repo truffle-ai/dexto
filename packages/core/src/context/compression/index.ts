@@ -22,5 +22,10 @@ import { reactiveOverflowProvider } from './providers/reactive-overflow-provider
 import { noopProvider } from './providers/noop-provider.js';
 
 // Auto-register built-in providers when module is imported
-compressionRegistry.register(reactiveOverflowProvider);
-compressionRegistry.register(noopProvider);
+// Guard against duplicate registration when module is imported multiple times
+if (!compressionRegistry.has('reactive-overflow')) {
+    compressionRegistry.register(reactiveOverflowProvider);
+}
+if (!compressionRegistry.has('noop')) {
+    compressionRegistry.register(noopProvider);
+}

@@ -42,8 +42,13 @@ import { localBlobStoreProvider, inMemoryBlobStoreProvider } from './providers/i
 
 // Register built-in providers on module load
 // This ensures they're available when importing from @dexto/core
-blobStoreRegistry.register(localBlobStoreProvider);
-blobStoreRegistry.register(inMemoryBlobStoreProvider);
+// Guard against duplicate registration when module is imported multiple times
+if (!blobStoreRegistry.has('local')) {
+    blobStoreRegistry.register(localBlobStoreProvider);
+}
+if (!blobStoreRegistry.has('in-memory')) {
+    blobStoreRegistry.register(inMemoryBlobStoreProvider);
+}
 
 // Export public API
 export { createBlobStore } from './factory.js';

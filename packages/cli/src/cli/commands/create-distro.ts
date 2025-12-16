@@ -378,8 +378,17 @@ pnpm start agents/code-reviewer.yml
 `;
     await fs.writeFile('README.md', readme);
 
-    // Initialize package.json
-    await executeWithTimeout('npm', ['init', '-y'], { cwd: projectPath });
+    // Detect package manager
+    const packageManager = getPackageManager();
+
+    // Initialize package.json with detected package manager
+    if (packageManager === 'pnpm') {
+        await executeWithTimeout('pnpm', ['init'], { cwd: projectPath });
+    } else if (packageManager === 'yarn') {
+        await executeWithTimeout('yarn', ['init', '-y'], { cwd: projectPath });
+    } else {
+        await executeWithTimeout('npm', ['init', '-y'], { cwd: projectPath });
+    }
 
     // Update package.json with proper configuration
     const packageJson = JSON.parse(await fs.readFile('package.json', 'utf8'));
@@ -431,7 +440,6 @@ pnpm start agents/code-reviewer.yml
     spinner.stop('Project structure created successfully!');
 
     spinner.start('Installing dependencies...');
-    const packageManager = getPackageManager();
     const installCommand = getPackageManagerInstallCommand(packageManager);
 
     // Install core dependencies

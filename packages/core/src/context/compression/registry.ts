@@ -52,6 +52,15 @@ class CompressionRegistry {
     }
 
     /**
+     * Unregister a compression provider
+     * @param type - The provider type to unregister
+     * @returns true if the provider was unregistered, false if it wasn't registered
+     */
+    unregister(type: string): boolean {
+        return this.providers.delete(type);
+    }
+
+    /**
      * Clear all providers (useful for testing)
      */
     clear(): void {
