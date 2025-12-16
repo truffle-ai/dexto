@@ -10,6 +10,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { diffWords } from 'diff';
 import type { DiffDisplayData } from '@dexto/core';
+import { makeRelativePath } from '../../utils/messageFormatting.js';
 
 interface DiffRendererProps {
     /** Diff display data from tool result */
@@ -278,7 +279,7 @@ export function DiffRenderer({ data, maxLines = Infinity }: DiffRendererProps) {
             {/* Header */}
             <Box>
                 <Text dimColor>{'  ⎿ '}</Text>
-                <Text>{filename}</Text>
+                <Text>{makeRelativePath(filename)}</Text>
                 <Text color="green"> +{additions}</Text>
                 <Text color="red"> -{deletions}</Text>
             </Box>

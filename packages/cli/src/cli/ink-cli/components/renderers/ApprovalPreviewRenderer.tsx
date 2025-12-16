@@ -13,6 +13,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { diffWords } from 'diff';
 import type { DiffDisplayData, FileDisplayData } from '@dexto/core';
+import { makeRelativePath } from '../../utils/messageFormatting.js';
 
 // =============================================================================
 // Types
@@ -307,7 +308,7 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
             <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
                 {/* Filename */}
                 <Box marginBottom={0}>
-                    <Text>{filename}</Text>
+                    <Text>{makeRelativePath(filename)}</Text>
                 </Box>
                 {hunks.map((hunk, hunkIndex) => {
                     const linePairs = allLinePairs[hunkIndex]!;
@@ -400,7 +401,7 @@ export function CreateFilePreview({ data }: CreateFilePreviewProps) {
                     </Text>
                 </Box>
                 <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
-                    <Text>{path}</Text>
+                    <Text>{makeRelativePath(path)}</Text>
                     {lineCount && <Text dimColor>{lineCount} lines</Text>}
                 </Box>
             </Box>
@@ -423,7 +424,7 @@ export function CreateFilePreview({ data }: CreateFilePreviewProps) {
             <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
                 {/* Filename */}
                 <Box marginBottom={0}>
-                    <Text>{path}</Text>
+                    <Text>{makeRelativePath(path)}</Text>
                 </Box>
 
                 {/* File content */}
