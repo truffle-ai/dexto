@@ -20,7 +20,7 @@ interface SearchRendererProps {
  * Renders search results with file paths and line numbers.
  * Uses ⎿ character for continuation lines like Claude Code.
  */
-export function SearchRenderer({ data, maxMatches = 10 }: SearchRendererProps) {
+export function SearchRenderer({ data, maxMatches = 5 }: SearchRendererProps) {
     const { pattern, matches, totalMatches, truncated: dataTruncated } = data;
     const displayMatches = matches.slice(0, maxMatches);
     const truncated = dataTruncated || matches.length > maxMatches;

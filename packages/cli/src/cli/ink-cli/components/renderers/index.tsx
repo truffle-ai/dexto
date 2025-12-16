@@ -35,26 +35,38 @@ interface ToolResultRendererProps {
 /**
  * Renders tool results based on display type.
  * Falls back to GenericRenderer for unknown types or missing display data.
+ * Each renderer uses its own default limits - only pass maxLines to override.
  */
-export function ToolResultRenderer({ display, content, maxLines = 15 }: ToolResultRendererProps) {
+export function ToolResultRenderer({ display, content, maxLines }: ToolResultRendererProps) {
     // Default to generic if no display data
     const displayData = display ?? { type: 'generic' as const };
 
     switch (displayData.type) {
         case 'diff':
-            return <DiffRenderer data={displayData} maxLines={maxLines} />;
+            return (
+                <DiffRenderer data={displayData} {...(maxLines !== undefined && { maxLines })} />
+            );
 
         case 'shell':
-            return <ShellRenderer data={displayData} maxLines={maxLines} />;
+            return (
+                <ShellRenderer data={displayData} {...(maxLines !== undefined && { maxLines })} />
+            );
 
         case 'search':
-            return <SearchRenderer data={displayData} maxMatches={maxLines} />;
+            return (
+                <SearchRenderer
+                    data={displayData}
+                    {...(maxLines !== undefined && { maxMatches: maxLines })}
+                />
+            );
 
         case 'file':
             return <FileRenderer data={displayData} />;
 
         case 'generic':
         default:
-            return <GenericRenderer content={content} maxLines={maxLines} />;
+            return (
+                <GenericRenderer content={content} {...(maxLines !== undefined && { maxLines })} />
+            );
     }
 }

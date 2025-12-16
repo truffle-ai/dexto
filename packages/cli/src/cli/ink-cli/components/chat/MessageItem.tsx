@@ -191,7 +191,6 @@ export const MessageItem = memo(
                         <ToolResultRenderer
                             display={message.toolDisplayData!}
                             content={message.toolContent!}
-                            maxLines={15}
                         />
                     ) : (
                         message.toolResult && (

@@ -210,10 +210,12 @@ const FALLBACK_PRIMARY_ARGS = new Set([
 const PATH_ARGS = new Set(['file_path', 'path']);
 
 /**
- * Arguments that should never be truncated (commands, urls, etc.)
+ * Arguments that should never be truncated (urls, etc.)
  * These provide important context that users need to see in full.
+ * Note: 'command' is handled specially - single-line commands are not truncated,
+ * but multi-line commands (heredocs) are truncated to first line only.
  */
-const NEVER_TRUNCATE_ARGS = new Set(['command', 'url']);
+const NEVER_TRUNCATE_ARGS = new Set(['url']);
 
 /**
  * Formats tool arguments for display in Claude Code style.
@@ -242,7 +244,18 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
             return formatPathForDisplay(strValue);
         }
 
-        // Commands/URLs: never truncate
+        // Commands: show single-line in full, truncate multi-line (heredocs) to first line
+        if (argName === 'command') {
+            const newlineIndex = strValue.indexOf('\n');
+            if (newlineIndex === -1) {
+                // Single-line command: show in full (useful for complex pipes)
+                return strValue;
+            }
+            // Multi-line command (heredoc): show first line only
+            return strValue.slice(0, newlineIndex) + '...';
+        }
+
+        // URLs: never truncate
         if (NEVER_TRUNCATE_ARGS.has(argName)) {
             return strValue;
         }

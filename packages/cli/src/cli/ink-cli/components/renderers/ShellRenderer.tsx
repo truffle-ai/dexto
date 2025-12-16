@@ -2,7 +2,7 @@
  * ShellRenderer Component
  *
  * Renders shell command output like Claude Code.
- * Shows actual stdout/stderr, limited to 10 lines with "+N lines" truncation.
+ * Shows actual stdout/stderr, limited to 5 lines with "+N lines" truncation.
  */
 
 import React from 'react';
@@ -21,7 +21,7 @@ interface ShellRendererProps {
  * Uses ⎿ character for continuation lines like Claude Code.
  * Shows just the output, "(No content)" for empty results.
  */
-export function ShellRenderer({ data, maxLines = 10 }: ShellRendererProps) {
+export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
     // Use stdout from display data, fall back to stderr if no stdout
     const output = data.stdout || data.stderr || '';
 
