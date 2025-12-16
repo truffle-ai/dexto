@@ -296,26 +296,19 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
 
     return (
         <Box flexDirection="column" marginBottom={1}>
-            {/* Header */}
+            {/* Header - standalone line */}
             <Box marginBottom={0}>
                 <Text color="cyan" bold>
-                    {headerText}{' '}
+                    {headerText}
                 </Text>
-                <Text>{filename}</Text>
             </Box>
 
-            {/* Stats (optional) */}
-            {(additions > 0 || deletions > 0) && (
+            {/* Box containing filename and diff content */}
+            <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
+                {/* Filename */}
                 <Box marginBottom={0}>
-                    <Text dimColor> </Text>
-                    {additions > 0 && <Text color="green">+{additions}</Text>}
-                    {additions > 0 && deletions > 0 && <Text dimColor> / </Text>}
-                    {deletions > 0 && <Text color="red">-{deletions}</Text>}
+                    <Text>{filename}</Text>
                 </Box>
-            )}
-
-            {/* Diff content */}
-            <Box flexDirection="column" marginTop={0}>
                 {hunks.map((hunk, hunkIndex) => {
                     const linePairs = allLinePairs[hunkIndex]!;
                     const processedIndices = new Set<number>();
@@ -401,13 +394,15 @@ export function CreateFilePreview({ data }: CreateFilePreviewProps) {
         // Fallback if content not provided
         return (
             <Box flexDirection="column" marginBottom={1}>
-                <Box>
+                <Box marginBottom={0}>
                     <Text color="cyan" bold>
-                        Create file{' '}
+                        Create file
                     </Text>
-                    <Text>{path}</Text>
                 </Box>
-                {lineCount && <Text dimColor> {lineCount} lines</Text>}
+                <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
+                    <Text>{path}</Text>
+                    {lineCount && <Text dimColor>{lineCount} lines</Text>}
+                </Box>
             </Box>
         );
     }
@@ -417,16 +412,21 @@ export function CreateFilePreview({ data }: CreateFilePreviewProps) {
 
     return (
         <Box flexDirection="column" marginBottom={1}>
-            {/* Header */}
+            {/* Header - standalone line */}
             <Box marginBottom={0}>
                 <Text color="cyan" bold>
-                    Create file{' '}
+                    Create file
                 </Text>
-                <Text>{path}</Text>
             </Box>
 
-            {/* File content */}
-            <Box flexDirection="column" marginTop={0}>
+            {/* Box containing filename and file content */}
+            <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
+                {/* Filename */}
+                <Box marginBottom={0}>
+                    <Text>{path}</Text>
+                </Box>
+
+                {/* File content */}
                 {lines.map((line, index) => (
                     <Box key={index}>
                         <Text color="gray">{formatLineNum(index + 1, lineNumWidth)}</Text>
