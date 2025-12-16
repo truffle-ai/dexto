@@ -20,7 +20,7 @@ import {
 } from '@dexto/core';
 
 // Import all custom providers
-import { supabaseBlobStoreProvider } from './storage/supabase-storage.js';
+import { supabaseBlobStoreProvider } from './storage/supabase-blob-provider.js';
 import { dateTimeToolProvider } from './tools/datetime-helper.js';
 import { slidingWindowCompressionProvider } from './compression/sliding-window-provider.js';
 import { auditLoggerPluginProvider } from './plugins/audit-logger-provider.js';

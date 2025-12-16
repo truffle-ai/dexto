@@ -1,17 +1,120 @@
+/**
+ * Supabase Blob Store Provider
+ *
+ * This provider enables remote blob storage using Supabase Storage and Database.
+ * It's ideal for cloud deployments and distributed systems.
+ *
+ * Setup requirements:
+ * 1. Create a Supabase project at https://supabase.com
+ * 2. Create a storage bucket (must match the 'bucket' config value)
+ * 3. Create the metadata table using the SQL below (run in Supabase SQL Editor)
+ * 4. Optionally configure Row Level Security (RLS) policies
+ *
+ * Required database schema:
+ * ```sql
+ * CREATE TABLE IF NOT EXISTS blob_metadata (
+ *   id TEXT PRIMARY KEY,
+ *   mime_type TEXT NOT NULL,
+ *   original_name TEXT,
+ *   created_at TIMESTAMPTZ NOT NULL,
+ *   size BIGINT NOT NULL,
+ *   hash TEXT NOT NULL,
+ *   source TEXT
+ * );
+ *
+ * CREATE INDEX IF NOT EXISTS idx_blob_metadata_created_at ON blob_metadata(created_at);
+ * CREATE INDEX IF NOT EXISTS idx_blob_metadata_hash ON blob_metadata(hash);
+ * ```
+ *
+ * Features:
+ * - Remote cloud storage via Supabase Storage API
+ * - Metadata persistence in Supabase Database (Postgres)
+ * - Content-based deduplication (same hash = same blob)
+ * - Multi-format retrieval (base64, buffer, stream, signed URL)
+ * - Signed or public URLs
+ * - Automatic cleanup
+ */
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { Readable } from 'stream';
+import { z } from 'zod';
 import type {
     BlobStore,
+    BlobStoreProvider,
     BlobInput,
     BlobMetadata,
     BlobReference,
     BlobData,
     BlobStats,
     StoredBlobMetadata,
+    IDextoLogger,
 } from '@dexto/core';
-import type { IDextoLogger } from '@dexto/core';
-import type { SupabaseBlobStoreConfig } from './supabase-provider.js';
+
+// =============================================================================
+// Configuration Schema
+// =============================================================================
+
+/**
+ * Supabase blob store configuration schema
+ */
+export const SupabaseBlobStoreConfigSchema = z
+    .object({
+        type: z.literal('supabase').describe('Blob store type identifier'),
+        supabaseUrl: z
+            .string()
+            .url()
+            .describe('Supabase project URL (e.g., https://xxxxx.supabase.co)'),
+        supabaseKey: z.string().describe('Supabase anon or service role key'),
+        bucket: z.string().describe('Storage bucket name (must exist in Supabase project)'),
+        pathPrefix: z
+            .string()
+            .optional()
+            .describe('Optional path prefix within bucket for organizing blobs'),
+        public: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe(
+                'If true, generate public URLs instead of signed URLs. ' +
+                    'Only works if the bucket is configured as public in Supabase.'
+            ),
+        maxBlobSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(50 * 1024 * 1024) // 50MB
+            .describe('Maximum size per blob in bytes'),
+        maxTotalSize: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(1024 * 1024 * 1024) // 1GB
+            .describe(
+                'Maximum total storage size in bytes (informational - not enforced by Supabase)'
+            ),
+        cleanupAfterDays: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(30)
+            .describe('Auto-cleanup blobs older than N days'),
+        tableName: z
+            .string()
+            .optional()
+            .default('blob_metadata')
+            .describe('Database table name for blob metadata'),
+    })
+    .strict();
+
+export type SupabaseBlobStoreConfig = z.output<typeof SupabaseBlobStoreConfigSchema>;
+
+// =============================================================================
+// Implementation
+// =============================================================================
 
 /**
  * Database row structure for blob metadata in Supabase.
@@ -28,51 +131,8 @@ interface BlobMetadataRow {
 
 /**
  * Supabase blob store implementation.
- *
- * This implementation provides remote blob storage using Supabase Storage and Database.
- * Features include:
- *
- * - Remote storage via Supabase Storage API
- * - Metadata persistence in Supabase Database
- * - Content-based deduplication (same hash = same blob)
- * - Multi-format retrieval (base64, buffer, stream, signed URL)
- * - Proper error handling for network failures
- * - Connection lifecycle management
- * - Schema verification on connection with helpful setup messages
- *
- * Implementation notes:
- * - Blobs are stored in Supabase Storage with their hash as the filename
- * - Metadata is stored in a separate database table (default: 'blob_metadata')
- * - The 'path' format is not supported (remote storage only)
- * - Signed URLs are generated for the 'url' format (60 minute expiry)
- * - Deduplication is handled by checking if a blob with the same hash exists
- *
- * Setup requirements:
- * 1. Create a Supabase project at https://supabase.com
- * 2. Create a storage bucket (must match the 'bucket' config value)
- * 3. Create the metadata table using the SQL below (run in Supabase SQL Editor)
- * 4. Optionally configure Row Level Security (RLS) policies for access control
- *
- * Required database schema (run in Supabase SQL Editor before first use):
- * ```sql
- * CREATE TABLE IF NOT EXISTS blob_metadata (
- *   id TEXT PRIMARY KEY,
- *   mime_type TEXT NOT NULL,
- *   original_name TEXT,
- *   created_at TIMESTAMPTZ NOT NULL,
- *   size BIGINT NOT NULL,
- *   hash TEXT NOT NULL,
- *   source TEXT
- * );
- *
- * CREATE INDEX IF NOT EXISTS idx_blob_metadata_created_at ON blob_metadata(created_at);
- * CREATE INDEX IF NOT EXISTS idx_blob_metadata_hash ON blob_metadata(hash);
- * ```
- *
- * Note: If the table doesn't exist, connection will fail with a clear error
- * message containing the SQL to run.
  */
-export class SupabaseBlobStore implements BlobStore {
+class SupabaseBlobStore implements BlobStore {
     private config: SupabaseBlobStoreConfig;
     private client: SupabaseClient | null = null;
     private connected = false;
@@ -91,10 +151,9 @@ export class SupabaseBlobStore implements BlobStore {
         if (this.connected) return;
 
         try {
-            // Initialize Supabase client
             this.client = createClient(this.config.supabaseUrl, this.config.supabaseKey);
 
-            // Verify bucket exists by attempting to list files
+            // Verify bucket exists
             const { error } = await this.client.storage.from(this.config.bucket).list('', {
                 limit: 1,
             });
@@ -105,7 +164,6 @@ export class SupabaseBlobStore implements BlobStore {
                 );
             }
 
-            // Ensure metadata table exists
             await this.ensureSchema();
 
             this.connected = true;
@@ -132,28 +190,24 @@ export class SupabaseBlobStore implements BlobStore {
     }
 
     getStoragePath(): string | undefined {
-        // Remote storage has no local path
         return undefined;
     }
 
     async store(input: BlobInput, metadata: BlobMetadata = {}): Promise<BlobReference> {
         this.ensureConnected();
 
-        // Convert input to buffer
         const buffer = await this.inputToBuffer(input);
 
-        // Check size limit
         if (buffer.length > this.maxBlobSize) {
             throw new Error(
                 `Blob size ${buffer.length} bytes exceeds maximum ${this.maxBlobSize} bytes`
             );
         }
 
-        // Generate content-based hash for deduplication
         const hash = createHash('sha256').update(buffer).digest('hex').substring(0, 16);
         const id = hash;
 
-        // Check if blob already exists (deduplication)
+        // Deduplication check
         const existingMetadata = await this.getMetadataFromDatabase(id);
         if (existingMetadata) {
             this.logger.debug(
@@ -166,7 +220,6 @@ export class SupabaseBlobStore implements BlobStore {
             };
         }
 
-        // Create metadata
         const storedMetadata: StoredBlobMetadata = {
             id,
             mimeType: metadata.mimeType || this.detectMimeType(buffer, metadata.originalName),
@@ -178,20 +231,18 @@ export class SupabaseBlobStore implements BlobStore {
         };
 
         try {
-            // Upload to Supabase Storage
             const storagePath = this.getStoragePathInternal(id);
             const { error: uploadError } = await this.client!.storage.from(
                 this.config.bucket
             ).upload(storagePath, buffer, {
                 contentType: storedMetadata.mimeType,
-                upsert: false, // Fail if already exists
+                upsert: false,
             });
 
             if (uploadError) {
                 throw new Error(`Upload failed: ${uploadError.message}`);
             }
 
-            // Store metadata in database
             await this.saveMetadataToDatabase(storedMetadata);
 
             this.logger.debug(
@@ -204,7 +255,6 @@ export class SupabaseBlobStore implements BlobStore {
                 metadata: storedMetadata,
             };
         } catch (error) {
-            // Cleanup on failure - attempt to remove from storage
             await this.deleteFromStorage(id).catch(() => {});
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to store blob: ${message}`);
@@ -224,7 +274,6 @@ export class SupabaseBlobStore implements BlobStore {
             throw new Error(`Blob not found: ${reference}`);
         }
 
-        // Handle different output formats
         switch (format) {
             case 'base64': {
                 const buffer = await this.downloadFromStorage(id);
@@ -237,7 +286,6 @@ export class SupabaseBlobStore implements BlobStore {
             }
 
             case 'path': {
-                // Path format not supported for remote storage
                 throw new Error(
                     'Path format not supported for Supabase storage. Use local blob storage for filesystem paths.'
                 );
@@ -252,19 +300,16 @@ export class SupabaseBlobStore implements BlobStore {
             case 'url': {
                 const storagePath = this.getStoragePathInternal(id);
 
-                // Use public URL if bucket is configured as public
                 if (this.config.public) {
                     const { data } = this.client!.storage.from(this.config.bucket).getPublicUrl(
                         storagePath
                     );
-
                     return { format: 'url', data: data.publicUrl, metadata };
                 }
 
-                // Generate a signed URL (valid for 60 minutes)
                 const { data, error } = await this.client!.storage.from(
                     this.config.bucket
-                ).createSignedUrl(storagePath, 3600); // 1 hour
+                ).createSignedUrl(storagePath, 3600);
 
                 if (error || !data) {
                     throw new Error(
@@ -282,7 +327,6 @@ export class SupabaseBlobStore implements BlobStore {
 
     async exists(reference: string): Promise<boolean> {
         this.ensureConnected();
-
         const id = this.parseReference(reference);
         const metadata = await this.getMetadataFromDatabase(id);
         return metadata !== null;
@@ -292,17 +336,13 @@ export class SupabaseBlobStore implements BlobStore {
         this.ensureConnected();
 
         const id = this.parseReference(reference);
-
-        // Check if exists
         const metadata = await this.getMetadataFromDatabase(id);
+
         if (!metadata) {
             throw new Error(`Blob not found: ${reference}`);
         }
 
-        // Delete from storage
         await this.deleteFromStorage(id);
-
-        // Delete metadata from database
         await this.deleteMetadataFromDatabase(id);
 
         this.logger.debug(`Deleted blob: ${id}`);
@@ -311,13 +351,11 @@ export class SupabaseBlobStore implements BlobStore {
     async cleanup(olderThan?: Date): Promise<number> {
         this.ensureConnected();
 
-        // Default: clean up blobs older than configured days
         const cutoffDate =
             olderThan || new Date(Date.now() - this.config.cleanupAfterDays * 24 * 60 * 60 * 1000);
         let deletedCount = 0;
 
         try {
-            // Query old blobs from database
             const { data: oldBlobs, error } = await this.client!.from(this.tableName)
                 .select('id')
                 .lt('created_at', cutoffDate.toISOString());
@@ -331,7 +369,6 @@ export class SupabaseBlobStore implements BlobStore {
                 return 0;
             }
 
-            // Delete each old blob
             for (const blob of oldBlobs) {
                 try {
                     await this.delete(blob.id);
@@ -357,7 +394,6 @@ export class SupabaseBlobStore implements BlobStore {
         this.ensureConnected();
 
         try {
-            // Query count and total size from database
             const { data, error } = await this.client!.from(this.tableName).select('size');
 
             if (error) {
@@ -383,7 +419,6 @@ export class SupabaseBlobStore implements BlobStore {
         this.ensureConnected();
 
         try {
-            // Query all blobs from database
             const { data, error } = await this.client!.from(this.tableName).select('*');
 
             if (error) {
@@ -394,7 +429,6 @@ export class SupabaseBlobStore implements BlobStore {
                 return [];
             }
 
-            // Convert database rows to BlobReference format
             return data.map((row: BlobMetadataRow) => ({
                 id: row.id,
                 uri: `blob:${row.id}`,
@@ -409,26 +443,17 @@ export class SupabaseBlobStore implements BlobStore {
 
     // ==================== Private Helper Methods ====================
 
-    /**
-     * Ensure the store is connected, throw if not.
-     */
     private ensureConnected(): void {
         if (!this.connected || !this.client) {
             throw new Error('Supabase blob store is not connected');
         }
     }
 
-    /**
-     * Ensure the metadata table schema exists by verifying we can query it.
-     * If the table doesn't exist, provides clear error message with setup SQL.
-     */
     private async ensureSchema(): Promise<void> {
         try {
-            // Verify table exists by attempting a simple query
             const { error } = await this.client!.from(this.tableName).select('id').limit(1);
 
             if (error) {
-                // Table might not exist - provide helpful error with SQL
                 if (error.code === '42P01' || error.message.includes('does not exist')) {
                     const setupSQL = `
 -- Run this SQL in your Supabase SQL Editor to create the blob metadata table:
@@ -443,14 +468,8 @@ CREATE TABLE IF NOT EXISTS ${this.tableName} (
     source TEXT
 );
 
--- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_${this.tableName}_created_at ON ${this.tableName}(created_at);
 CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash);
-
--- Optional: Enable Row Level Security (RLS) for access control
--- ALTER TABLE ${this.tableName} ENABLE ROW LEVEL SECURITY;
--- CREATE POLICY "Allow all operations for authenticated users" ON ${this.tableName}
---   FOR ALL USING (auth.role() = 'authenticated');
 `.trim();
 
                     throw new Error(
@@ -458,7 +477,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
                     );
                 }
 
-                // Some other error - report it
                 throw new Error(`Failed to verify table '${this.tableName}': ${error.message}`);
             }
 
@@ -470,17 +488,11 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         }
     }
 
-    /**
-     * Get the full storage path for a blob ID.
-     */
     private getStoragePathInternal(id: string): string {
         const prefix = this.config.pathPrefix || '';
         return prefix ? `${prefix}/${id}.dat` : `${id}.dat`;
     }
 
-    /**
-     * Download blob data from Supabase Storage.
-     */
     private async downloadFromStorage(id: string): Promise<Buffer> {
         const storagePath = this.getStoragePathInternal(id);
         const { data, error } = await this.client!.storage.from(this.config.bucket).download(
@@ -491,14 +503,10 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
             throw new Error(`Failed to download blob: ${error?.message || 'No data returned'}`);
         }
 
-        // Convert Blob to Buffer
         const arrayBuffer = await data.arrayBuffer();
         return Buffer.from(arrayBuffer);
     }
 
-    /**
-     * Delete blob from Supabase Storage.
-     */
     private async deleteFromStorage(id: string): Promise<void> {
         const storagePath = this.getStoragePathInternal(id);
         const { error } = await this.client!.storage.from(this.config.bucket).remove([storagePath]);
@@ -508,9 +516,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         }
     }
 
-    /**
-     * Get blob metadata from database.
-     */
     private async getMetadataFromDatabase(id: string): Promise<StoredBlobMetadata | null> {
         const { data, error } = await this.client!.from(this.tableName)
             .select('*')
@@ -518,7 +523,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
             .single();
 
         if (error) {
-            // 'PGRST116' is the error code for no rows returned
             if (error.code === 'PGRST116') {
                 return null;
             }
@@ -532,9 +536,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         return this.rowToMetadata(data as BlobMetadataRow);
     }
 
-    /**
-     * Save blob metadata to database.
-     */
     private async saveMetadataToDatabase(metadata: StoredBlobMetadata): Promise<void> {
         const row: BlobMetadataRow = {
             id: metadata.id,
@@ -553,9 +554,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         }
     }
 
-    /**
-     * Delete blob metadata from database.
-     */
     private async deleteMetadataFromDatabase(id: string): Promise<void> {
         const { error } = await this.client!.from(this.tableName).delete().eq('id', id);
 
@@ -564,9 +562,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         }
     }
 
-    /**
-     * Convert database row to StoredBlobMetadata.
-     */
     private rowToMetadata(row: BlobMetadataRow): StoredBlobMetadata {
         return {
             id: row.id,
@@ -579,9 +574,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         };
     }
 
-    /**
-     * Parse blob reference to extract ID.
-     */
     private parseReference(reference: string): string {
         if (!reference) {
             throw new Error('Empty blob reference');
@@ -598,10 +590,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         return reference;
     }
 
-    /**
-     * Convert various input types to Buffer.
-     * Based on LocalBlobStore implementation.
-     */
     private async inputToBuffer(input: BlobInput): Promise<Buffer> {
         if (Buffer.isBuffer(input)) {
             return input;
@@ -616,7 +604,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         }
 
         if (typeof input === 'string') {
-            // Handle data URI
             if (input.startsWith('data:')) {
                 const commaIndex = input.indexOf(',');
                 if (commaIndex !== -1 && input.includes(';base64,')) {
@@ -626,7 +613,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
                 throw new Error('Unsupported data URI format (only base64 supported)');
             }
 
-            // Assume base64 string
             try {
                 return Buffer.from(input, 'base64');
             } catch {
@@ -637,12 +623,7 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         throw new Error(`Unsupported input type: ${typeof input}`);
     }
 
-    /**
-     * Detect MIME type from buffer content and/or filename.
-     * Basic implementation - can be extended with more sophisticated detection.
-     */
     private detectMimeType(buffer: Buffer, filename?: string): string {
-        // Check magic numbers
         const header = buffer.subarray(0, 16);
 
         if (header.length >= 3) {
@@ -659,7 +640,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
             if (signature.equals(Buffer.from([0x25, 0x50, 0x44, 0x46]))) return 'application/pdf';
         }
 
-        // Try filename extension
         if (filename) {
             const ext = filename.split('.').pop()?.toLowerCase();
             const mimeTypes: Record<string, string> = {
@@ -683,7 +663,6 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
             if (ext && mimeTypes[ext]) return mimeTypes[ext];
         }
 
-        // Check if content looks like text
         if (this.isTextBuffer(buffer)) {
             return 'text/plain';
         }
@@ -691,11 +670,7 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         return 'application/octet-stream';
     }
 
-    /**
-     * Check if buffer contains text content.
-     */
     private isTextBuffer(buffer: Buffer): boolean {
-        // Simple heuristic: check if most bytes are printable ASCII or common UTF-8
         let printableCount = 0;
         const sampleSize = Math.min(512, buffer.length);
 
@@ -712,3 +687,34 @@ CREATE INDEX IF NOT EXISTS idx_${this.tableName}_hash ON ${this.tableName}(hash)
         return printableCount / sampleSize > 0.7;
     }
 }
+
+// =============================================================================
+// Provider Registration
+// =============================================================================
+
+/**
+ * Supabase blob store provider.
+ *
+ * Usage in agent YAML:
+ * ```yaml
+ * storage:
+ *   blobs:
+ *     type: supabase
+ *     supabaseUrl: https://xxxxx.supabase.co
+ *     supabaseKey: ${SUPABASE_KEY}
+ *     bucket: agent-blobs
+ *     public: false
+ *     maxBlobSize: 52428800
+ *     cleanupAfterDays: 30
+ * ```
+ */
+export const supabaseBlobStoreProvider: BlobStoreProvider<'supabase', SupabaseBlobStoreConfig> = {
+    type: 'supabase',
+    configSchema: SupabaseBlobStoreConfigSchema,
+    create: (config, logger) => new SupabaseBlobStore(config, logger),
+    metadata: {
+        displayName: 'Supabase Storage',
+        description: 'Store blobs in Supabase cloud storage with Postgres metadata',
+        requiresNetwork: true,
+    },
+};

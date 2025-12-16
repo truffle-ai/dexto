@@ -55,9 +55,7 @@ provider-bundle-example/
 ├── src/index.ts              # Entry point
 │
 ├── storage/                  # Blob Storage Providers
-│   ├── supabase-provider.ts  # Provider definition
-│   ├── supabase-blob-store.ts # Implementation
-│   └── supabase-storage.ts   # Re-export
+│   └── supabase-blob-provider.ts
 │
 ├── tools/                    # Custom Tool Providers
 │   └── datetime-helper.ts    # DateTime utilities
