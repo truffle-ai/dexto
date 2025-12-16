@@ -21,8 +21,11 @@
  */
 
 import type React from 'react';
+import { appendFileSync, writeFileSync } from 'fs';
 import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
-import type { Message, UIState } from '../state/types.js';
+import { ApprovalType as ApprovalTypeEnum } from '@dexto/core';
+import type { Message, UIState, ToolStatus } from '../state/types.js';
+import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
 import { getToolDisplayName, formatToolArgsForDisplay } from '../utils/messageFormatting.js';
@@ -40,6 +43,10 @@ export interface ProcessStreamSetters {
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     /** Setter for queued messages (cleared when dequeued) */
     setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
+    /** Setter for current approval request (for approval UI) */
+    setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
+    /** Setter for approval queue (for queued approvals) */
+    setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
 }
 
 /**
@@ -63,6 +70,12 @@ interface StreamState {
     splitCounter: number;
     /** Flag to track if text was finalized early (before tools) to avoid duplication */
     textFinalizedBeforeTool: boolean;
+    /**
+     * Accumulated text in non-streaming mode.
+     * In non-streaming mode, we don't update UI on each chunk, but we need to track
+     * the text so we can add it BEFORE tool calls for correct message ordering.
+     */
+    nonStreamingAccumulatedText: string;
 }
 
 /**
@@ -81,8 +94,15 @@ export async function processStream(
     setters: ProcessStreamSetters,
     options?: ProcessStreamOptions
 ): Promise<void> {
-    const { setMessages, setPendingMessages, setDequeuedBuffer, setUi, setQueuedMessages } =
-        setters;
+    const {
+        setMessages,
+        setPendingMessages,
+        setDequeuedBuffer,
+        setUi,
+        setQueuedMessages,
+        setApproval,
+        setApprovalQueue,
+    } = setters;
     const useStreaming = options?.useStreaming ?? true;
 
     // Track streaming state (synchronous, not React state)
@@ -93,6 +113,7 @@ export async function processStream(
         finalizedContent: '',
         splitCounter: 0,
         textFinalizedBeforeTool: false,
+        nonStreamingAccumulatedText: '',
     };
 
     // LOCAL PENDING TRACKING - mirrors React state synchronously
@@ -190,6 +211,17 @@ export async function processStream(
     };
 
     /**
+     * Update toolStatus for a pending message by ID
+     * Used for tool status transitions: pending → pending_approval → running → finished
+     */
+    const updatePendingStatus = (messageId: string, status: ToolStatus) => {
+        localPending = localPending.map((msg) =>
+            msg.id === messageId ? { ...msg, toolStatus: status } : msg
+        );
+        setPendingMessages(localPending);
+    };
+
+    /**
      * Progressive finalization: split large streaming content at safe markdown
      * boundaries and move completed portions to Static to reduce flickering.
      *
@@ -253,10 +285,41 @@ export async function processStream(
         return content;
     };
 
+    // DEBUG: Track event order and content - writes to /tmp/dexto-stream-debug.log
+    const DEBUG_STREAM = false;
+    const debugLog = (msg: string, data?: Record<string, unknown>) => {
+        if (DEBUG_STREAM) {
+            const timestamp = new Date().toISOString().split('T')[1];
+            const line = `[${timestamp}] ${msg} ${data ? JSON.stringify(data) : ''}\n`;
+            appendFileSync('/tmp/dexto-stream-debug.log', line);
+        }
+    };
+
+    // Clear log file and log initial config
+    if (DEBUG_STREAM) {
+        writeFileSync(
+            '/tmp/dexto-stream-debug.log',
+            `=== NEW STREAM ${new Date().toISOString()} ===\n`
+        );
+        debugLog('CONFIG', { useStreaming });
+    }
+
     try {
         for await (const event of iterator) {
+            debugLog(`EVENT: ${event.name}`, {
+                ...(event.name === 'llm:chunk' && {
+                    chunkType: (event as any).chunkType,
+                    contentLen: (event as any).content?.length,
+                }),
+                ...(event.name === 'llm:tool-call' && { toolName: (event as any).toolName }),
+            });
+
             switch (event.name) {
                 case 'llm:thinking': {
+                    debugLog('THINKING: resetting state', {
+                        prevMessageId: state.messageId,
+                        prevContentLen: state.content.length,
+                    });
                     // Flush dequeued buffer to messages at start of new run
                     // This ensures user messages appear after the previous response
                     flushDequeuedBuffer();
@@ -269,18 +332,35 @@ export async function processStream(
                     state.finalizedContent = '';
                     state.splitCounter = 0;
                     state.textFinalizedBeforeTool = false;
+                    state.nonStreamingAccumulatedText = '';
                     break;
                 }
 
                 case 'llm:chunk': {
-                    // In non-streaming mode, skip chunk processing entirely
-                    // We'll show the complete response when llm:response arrives
-                    if (!useStreaming) break;
+                    // In non-streaming mode, accumulate text but don't update UI
+                    // We need to track text so we can add it BEFORE tool calls (ordering fix)
+                    if (!useStreaming) {
+                        if (event.chunkType === 'text') {
+                            state.nonStreamingAccumulatedText += event.content;
+                            debugLog('CHUNK (non-stream): accumulated', {
+                                chunkLen: event.content?.length,
+                                totalLen: state.nonStreamingAccumulatedText.length,
+                                preview: state.nonStreamingAccumulatedText.slice(0, 50),
+                            });
+                        }
+                        break;
+                    }
 
                     // End thinking state when first chunk arrives
                     setUi((prev) => ({ ...prev, isThinking: false }));
 
                     if (event.chunkType === 'text') {
+                        debugLog('CHUNK (stream): text', {
+                            hasMessageId: !!state.messageId,
+                            chunkLen: event.content?.length,
+                            currentContentLen: state.content.length,
+                            preview: event.content?.slice(0, 30),
+                        });
                         // Create streaming message on first text chunk
                         if (!state.messageId) {
                             const newId = generateMessageId('assistant');
@@ -370,18 +450,66 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
-                    // ORDERING FIX: Finalize any pending assistant text BEFORE adding tool
-                    // This ensures text appears before tools in the finalized message list.
-                    // Without this, tool results (finalized on llm:tool-result) would appear
-                    // before text (finalized on llm:response) due to event order.
-                    if (state.messageId && state.content) {
-                        const messageId = state.messageId;
-                        const content = state.content;
-                        // If we've done splits, this is a continuation
-                        const isContinuation = state.splitCounter > 0;
-                        finalizeMessage(messageId, { content, isStreaming: false, isContinuation });
+                    debugLog('TOOL-CALL: state check', {
+                        toolName: event.toolName,
+                        hasMessageId: !!state.messageId,
+                        contentLen: state.content.length,
+                        nonStreamAccumLen: state.nonStreamingAccumulatedText.length,
+                        contentPreview: state.content.slice(0, 50),
+                        nonStreamPreview: state.nonStreamingAccumulatedText.slice(0, 50),
+                        useStreaming,
+                    });
+                    // ORDERING FIX: Add any accumulated text BEFORE adding tool
+                    // This ensures text appears before tools in the message list.
+
+                    // Streaming mode: handle pending assistant message before tool
+                    if (state.messageId) {
+                        if (state.content) {
+                            // Finalize pending message with content
+                            const messageId = state.messageId;
+                            const content = state.content;
+                            const isContinuation = state.splitCounter > 0;
+                            debugLog('TOOL-CALL: finalizing pending message', {
+                                messageId,
+                                contentLen: content.length,
+                            });
+                            finalizeMessage(messageId, {
+                                content,
+                                isStreaming: false,
+                                isContinuation,
+                            });
+                            // Mark that we finalized text early - prevents duplicate in llm:response
+                            state.textFinalizedBeforeTool = true;
+                        } else {
+                            // Empty pending message (first chunk had no content) - remove it
+                            // This prevents empty bullets when LLM/SDK sends empty initial chunk
+                            debugLog('TOOL-CALL: removing empty pending message', {
+                                messageId: state.messageId,
+                            });
+                            removeFromPending(state.messageId);
+                        }
                         state.messageId = null;
                         state.content = '';
+                    } else {
+                        debugLog('TOOL-CALL: no pending message to finalize');
+                    }
+
+                    // Non-streaming mode: add accumulated text as finalized message
+                    if (!useStreaming && state.nonStreamingAccumulatedText) {
+                        debugLog('TOOL-CALL: adding non-stream accumulated text', {
+                            len: state.nonStreamingAccumulatedText.length,
+                        });
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('assistant'),
+                                role: 'assistant',
+                                content: state.nonStreamingAccumulatedText,
+                                timestamp: new Date(),
+                                isStreaming: false,
+                            },
+                        ]);
+                        state.nonStreamingAccumulatedText = '';
                         // Mark that we finalized text early - prevents duplicate in llm:response
                         state.textFinalizedBeforeTool = true;
                     }
@@ -402,13 +530,15 @@ export async function processStream(
                         ? `${displayName}(${argsFormatted})`
                         : displayName;
 
-                    // Tool calls go to PENDING (running state)
+                    // Tool calls start in 'pending' state (don't know if approval needed yet)
+                    // Status transitions: pending → pending_approval (if approval needed) → running → finished
+                    // Or for pre-approved: pending → running → finished
                     addToPending({
                         id: toolMessageId,
                         role: 'tool',
                         content: toolContent,
                         timestamp: new Date(),
-                        toolStatus: 'running',
+                        toolStatus: 'pending',
                     });
                     break;
                 }
@@ -595,7 +725,61 @@ export async function processStream(
                     break;
                 }
 
-                // Ignore other events (approval:request handled by useAgentEvents)
+                case 'tool:running': {
+                    // Tool execution actually started (after approval if needed)
+                    // Update status from 'pending' or 'pending_approval' to 'running'
+                    const runningToolId = `tool-${event.toolCallId}`;
+                    updatePendingStatus(runningToolId, 'running');
+                    break;
+                }
+
+                case 'approval:request': {
+                    // Handle approval requests in processStream (NOT useAgentEvents) to ensure
+                    // proper ordering - text messages must be added BEFORE approval UI shows.
+                    // This fixes a race condition where direct event bus subscription in
+                    // useAgentEvents fired before the iterator processed llm:tool-call.
+
+                    // Update tool status to 'pending_approval'
+                    const metadata = event.metadata as { toolCallId?: string };
+                    if (metadata.toolCallId) {
+                        const approvalToolId = `tool-${metadata.toolCallId}`;
+                        updatePendingStatus(approvalToolId, 'pending_approval');
+                    }
+
+                    // Show approval UI (moved from useAgentEvents for ordering)
+                    if (
+                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.ELICITATION
+                    ) {
+                        const newApproval: ApprovalRequest = {
+                            approvalId: event.approvalId,
+                            type: event.type,
+                            timestamp: event.timestamp,
+                            metadata: event.metadata,
+                        };
+
+                        if (event.sessionId !== undefined) {
+                            newApproval.sessionId = event.sessionId;
+                        }
+                        if (event.timeout !== undefined) {
+                            newApproval.timeout = event.timeout;
+                        }
+
+                        // Queue if there's already an approval, otherwise show immediately
+                        setApproval((current) => {
+                            if (current !== null) {
+                                setApprovalQueue((queue) => [...queue, newApproval]);
+                                return current;
+                            }
+                            setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                            return newApproval;
+                        });
+                    }
+                    break;
+                }
+
+                // Ignore other events (approval UI handled by useAgentEvents)
                 default:
                     break;
             }

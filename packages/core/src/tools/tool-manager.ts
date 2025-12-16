@@ -2,8 +2,11 @@ import { MCPManager } from '../mcp/manager.js';
 import { InternalToolsProvider } from './internal-tools/provider.js';
 import { InternalToolsServices } from './internal-tools/registry.js';
 import type { InternalToolsConfig, ToolPolicies } from './schemas.js';
-import { ToolSet } from './types.js';
+import { ToolSet, ToolExecutionContext } from './types.js';
+import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
+import { ToolErrorCode } from './error-codes.js';
+import { DextoRuntimeError } from '../errors/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentEventBus } from '../events/index.js';
@@ -274,19 +277,44 @@ export class ToolManager {
     /**
      * Execute a tool by routing based on universal prefix
      * ALL tools must have source prefix - no exceptions
+     *
+     * @param toolName The fully qualified tool name (e.g., "internal--edit_file")
+     * @param args The arguments for the tool
+     * @param toolCallId The unique tool call ID for tracking (from LLM or generated for direct calls)
+     * @param sessionId Optional session ID for context
      */
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
+        toolCallId: string,
         sessionId?: string
     ): Promise<import('./types.js').ToolExecutionResult> {
-        this.logger.debug(`🔧 Tool execution requested: '${toolName}'`);
+        this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
+
+        // IMPORTANT: Emit llm:tool-call FIRST, before approval handling.
+        // This ensures correct event ordering - llm:tool-call must arrive before approval:request
+        // in the CLI's event stream.
+        //
+        // Why this is needed: The Vercel SDK enqueues tool-call to the stream BEFORE calling execute(),
+        // but our async iterator hasn't read from the queue yet. Meanwhile, execute() runs synchronously
+        // until its first await, and EventEmitter.emit() is synchronous. So events emitted here arrive
+        // before our iterator processes the queued tool-call. By emitting here, we guarantee llm:tool-call
+        // arrives before approval:request.
+        if (sessionId) {
+            this.agentEventBus.emit('llm:tool-call', {
+                toolName,
+                args,
+                callId: toolCallId,
+                sessionId,
+            });
+        }
 
         // Handle approval/confirmation flow - returns whether approval was required
         const { requireApproval, approvalStatus } = await this.handleToolApproval(
             toolName,
             args,
+            toolCallId,
             sessionId
         );
 
@@ -294,6 +322,16 @@ export class ToolManager {
         this.logger.info(
             `🔧 Tool execution started for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );
+
+        // Emit tool:running event - tool is now actually executing (after approval if needed)
+        // Only emit when sessionId is provided (LLM flow) - direct API calls don't need UI updates
+        if (sessionId) {
+            this.agentEventBus.emit('tool:running', {
+                toolName,
+                toolCallId,
+                sessionId,
+            });
+        }
 
         const startTime = Date.now();
 
@@ -583,10 +621,16 @@ export class ToolManager {
      * Handle tool approval/confirmation flow
      * Checks allowed list, manages approval modes (manual, auto-approve, auto-deny),
      * and handles remember choice logic
+     *
+     * @param toolName The fully qualified tool name
+     * @param args The arguments for the tool
+     * @param toolCallId The unique tool call ID for tracking parallel tool calls
+     * @param sessionId Optional session ID for context
      */
     private async handleToolApproval(
         toolName: string,
         args: Record<string, unknown>,
+        toolCallId: string,
         sessionId?: string
     ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }> {
         // PRECEDENCE 1: Check static alwaysDeny list (highest priority - security-first)
@@ -634,18 +678,54 @@ export class ToolManager {
         );
 
         try {
+            // Generate preview for approval UI (if tool supports it)
+            let displayPreview: ToolDisplayData | undefined;
+            const actualToolName = toolName.replace(/^internal--/, '');
+            const internalTool = this.internalToolsProvider?.getTool(actualToolName);
+
+            if (internalTool?.generatePreview) {
+                try {
+                    const context: ToolExecutionContext = { sessionId };
+                    const preview = await internalTool.generatePreview(args, context);
+                    displayPreview = preview ?? undefined;
+                    this.logger.debug(`Generated preview for ${toolName}`);
+                } catch (previewError) {
+                    // VALIDATION_FAILED errors should fail before approval (file not found, string not found, etc.)
+                    if (
+                        previewError instanceof DextoRuntimeError &&
+                        previewError.code === ToolErrorCode.VALIDATION_FAILED
+                    ) {
+                        this.logger.debug(
+                            `Validation failed for ${toolName}: ${previewError.message}`
+                        );
+                        throw previewError;
+                    }
+                    // Other errors (unexpected exceptions) should not block approval
+                    this.logger.debug(
+                        `Preview generation failed for ${toolName}: ${previewError instanceof Error ? previewError.message : String(previewError)}`
+                    );
+                }
+            }
+
             // Request approval through the ApprovalManager
             const requestData: {
                 toolName: string;
+                toolCallId: string;
                 args: Record<string, unknown>;
                 sessionId?: string;
+                displayPreview?: ToolDisplayData;
             } = {
                 toolName,
+                toolCallId,
                 args,
             };
 
             if (sessionId !== undefined) {
                 requestData.sessionId = sessionId;
+            }
+
+            if (displayPreview !== undefined) {
+                requestData.displayPreview = displayPreview;
             }
 
             const response = await this.approvalManager.requestToolConfirmation(requestData);

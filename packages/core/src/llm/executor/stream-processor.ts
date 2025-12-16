@@ -22,6 +22,11 @@ export class StreamProcessor {
     private reasoningText: string = '';
     private accumulatedText: string = '';
     private logger: IDextoLogger;
+    /**
+     * Track pending tool calls (added to context but no result yet).
+     * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
+     */
+    private pendingToolCalls: Map<string, { toolName: string }> = new Map();
 
     /**
      * @param contextManager Context manager for message persistence
@@ -115,11 +120,14 @@ export class StreamProcessor {
                             },
                         });
 
-                        this.eventBus.emit('llm:tool-call', {
+                        // Track pending tool call for abort handling
+                        this.pendingToolCalls.set(event.toolCallId, {
                             toolName: event.toolName,
-                            args: event.input as Record<string, unknown>,
-                            callId: event.toolCallId,
                         });
+
+                        // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead.
+                        // This ensures correct event ordering - llm:tool-call arrives before approval:request.
+                        // See tool-manager.ts for detailed explanation of the timing issue.
                         break;
 
                     case 'tool-result': {
@@ -175,6 +183,8 @@ export class StreamProcessor {
 
                         // Clean up approval metadata after use
                         this.approvalMetadata?.delete(event.toolCallId);
+                        // Remove from pending (tool completed successfully)
+                        this.pendingToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -340,6 +350,8 @@ export class StreamProcessor {
                             toolCallId: event.toolCallId,
                             recoverable: true, // Tool errors are typically recoverable
                         });
+                        // Remove from pending (tool failed but result was persisted)
+                        this.pendingToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -357,9 +369,12 @@ export class StreamProcessor {
 
                     case 'abort':
                         // Vercel SDK emits 'abort' when the stream is cancelled
-                        // Emit final response with accumulated content
                         this.logger.debug('Stream aborted, emitting partial response');
                         this.finishReason = 'cancelled';
+
+                        // Persist cancelled results for any pending tool calls
+                        await this.persistCancelledToolResults();
+
                         this.eventBus.emit('llm:response', {
                             content: this.accumulatedText,
                             ...(this.reasoningText && { reasoning: this.reasoningText }),
@@ -387,6 +402,9 @@ export class StreamProcessor {
                 // Emit final response with accumulated content on cancellation
                 this.logger.debug('Stream cancelled, emitting partial response');
                 this.finishReason = 'cancelled';
+
+                // Persist cancelled results for any pending tool calls
+                await this.persistCancelledToolResults();
 
                 this.eventBus.emit('llm:response', {
                     content: this.accumulatedText,
@@ -435,5 +453,46 @@ export class StreamProcessor {
         const last = history[history.length - 1];
         if (!last || !last.id) throw new Error('Failed to get last message ID');
         return last.id;
+    }
+
+    /**
+     * Persist synthetic "cancelled" results for all pending tool calls.
+     * This maintains the tool_use/tool_result pairing required by LLM APIs.
+     * Called on abort/cancel to prevent "tool_use ids were found without tool_result" errors.
+     */
+    private async persistCancelledToolResults(): Promise<void> {
+        if (this.pendingToolCalls.size === 0) return;
+
+        this.logger.debug(
+            `Persisting cancelled results for ${this.pendingToolCalls.size} pending tool call(s)`
+        );
+
+        for (const [toolCallId, { toolName }] of this.pendingToolCalls) {
+            const cancelledResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Cancelled by user' }],
+                meta: {
+                    toolName,
+                    toolCallId,
+                    success: false,
+                },
+            };
+
+            await this.contextManager.addToolResult(
+                toolCallId,
+                toolName,
+                cancelledResult,
+                undefined // No approval metadata for cancelled tools
+            );
+
+            // Emit tool-result event so CLI/WebUI can update UI
+            this.eventBus.emit('llm:tool-result', {
+                toolName,
+                callId: toolCallId,
+                success: false,
+                error: 'Cancelled by user',
+            });
+        }
+
+        this.pendingToolCalls.clear();
     }
 }
