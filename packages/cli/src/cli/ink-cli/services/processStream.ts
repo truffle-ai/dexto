@@ -647,38 +647,24 @@ export async function processStream(
                     // Ensure any remaining pending messages are finalized
                     finalizeAllPending();
 
-                    // Add run summary message before the assistant's response
+                    // Add run summary message at the END (not inserted in middle)
+                    // IMPORTANT: Ink's <Static> tracks rendered items by array position, not key.
+                    // Inserting in the middle shifts existing items, causing them to re-render.
+                    // Always append to avoid duplicate rendering.
                     if (durationMs > 0 || outputTokens > 0) {
-                        setMessages((prev) => {
-                            // Find index of the last user message
-                            let lastUserIndex = -1;
-                            for (let i = prev.length - 1; i >= 0; i--) {
-                                if (prev[i]?.role === 'user') {
-                                    lastUserIndex = i;
-                                    break;
-                                }
-                            }
+                        const summaryMessage = {
+                            id: generateMessageId('summary'),
+                            role: 'system' as const,
+                            content: '', // Content rendered via styledType
+                            timestamp: new Date(),
+                            styledType: 'run-summary' as const,
+                            styledData: {
+                                durationMs,
+                                outputTokens,
+                            },
+                        };
 
-                            // Insert summary after user message (before assistant response)
-                            const insertIndex = lastUserIndex + 1;
-                            const summaryMessage = {
-                                id: generateMessageId('summary'),
-                                role: 'system' as const,
-                                content: '', // Content rendered via styledType
-                                timestamp: new Date(),
-                                styledType: 'run-summary' as const,
-                                styledData: {
-                                    durationMs,
-                                    outputTokens,
-                                },
-                            };
-
-                            return [
-                                ...prev.slice(0, insertIndex),
-                                summaryMessage,
-                                ...prev.slice(insertIndex),
-                            ];
-                        });
+                        setMessages((prev) => [...prev, summaryMessage]);
                     }
 
                     setUi((prev) => ({
