@@ -20,8 +20,8 @@ export { SearchRenderer } from './SearchRenderer.js';
 export { FileRenderer } from './FileRenderer.js';
 export { GenericRenderer } from './GenericRenderer.js';
 
-// Approval preview renderers (full content, no truncation)
-export { DiffPreview, CreateFilePreview } from './ApprovalPreviewRenderer.js';
+// File preview renderers for approval prompts (full content, no truncation)
+export { DiffPreview, CreateFilePreview } from './FilePreviewRenderer.js';
 
 interface ToolResultRendererProps {
     /** Display data from SanitizedToolResult.meta.display */
