@@ -118,6 +118,14 @@ export class InternalToolsProvider {
     }
 
     /**
+     * Get an internal tool by name
+     * Returns undefined if tool doesn't exist
+     */
+    getTool(toolName: string): InternalTool | undefined {
+        return this.tools.get(toolName);
+    }
+
+    /**
      * Execute an internal tool - confirmation is handled by ToolManager
      */
     async executeTool(

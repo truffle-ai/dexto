@@ -53,6 +53,23 @@ export function createBashExecTool(
         description:
             'Execute a shell command with 2-minute default timeout. Returns stdout, stderr, exit code, and duration. For long-running commands (servers, watchers, npm run dev), MUST use run_in_background=true (use bash_output to retrieve results later). Commands ending with & are blocked - use run_in_background instead. Requires approval for all commands. Dangerous commands (rm, git push, etc.) require additional per-command approval. Always quote file paths with spaces. Security: dangerous commands are blocked, injection attempts are detected.',
         inputSchema: BashExecInputSchema,
+
+        /**
+         * Generate preview for approval UI - shows the command to be executed
+         */
+        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+            const { command, run_in_background } = input as BashExecInput;
+
+            const preview: ShellDisplayData = {
+                type: 'shell',
+                command,
+                exitCode: 0, // Placeholder - not executed yet
+                duration: 0, // Placeholder - not executed yet
+                ...(run_in_background !== undefined && { isBackground: run_in_background }),
+            };
+            return preview;
+        },
+
         execute: async (input: unknown, context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
             const { command, description, timeout, run_in_background, cwd } =

@@ -30,6 +30,29 @@ const WriteFileInputSchema = z
 type WriteFileInput = z.input<typeof WriteFileInputSchema>;
 
 /**
+ * Generate diff preview without modifying the file
+ */
+function generateDiffPreview(
+    filePath: string,
+    originalContent: string,
+    newContent: string
+): DiffDisplayData {
+    const unified = createPatch(filePath, originalContent, newContent, 'before', 'after', {
+        context: 3,
+    });
+    const additions = (unified.match(/^\+[^+]/gm) || []).length;
+    const deletions = (unified.match(/^-[^-]/gm) || []).length;
+
+    return {
+        type: 'diff',
+        unified,
+        filename: filePath,
+        additions,
+        deletions,
+    };
+}
+
+/**
  * Create the write_file internal tool
  */
 export function createWriteFileTool(fileSystemService: FileSystemService): InternalTool {
@@ -38,6 +61,32 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
         description:
             'Write content to a file. Creates a new file or overwrites existing file. Automatically creates backup of existing files before overwriting. Use create_dirs to create parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and backup path if applicable.',
         inputSchema: WriteFileInputSchema,
+
+        /**
+         * Generate preview for approval UI - shows diff or file creation info
+         */
+        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+            const { file_path, content } = input as WriteFileInput;
+
+            try {
+                // Try to read existing file
+                const originalFile = await fileSystemService.readFile(file_path);
+                const originalContent = originalFile.content;
+
+                // File exists - show diff preview
+                return generateDiffPreview(file_path, originalContent, content);
+            } catch {
+                // File doesn't exist - show as file creation
+                const preview: FileDisplayData = {
+                    type: 'file',
+                    path: file_path,
+                    operation: 'create',
+                    size: content.length,
+                };
+                return preview;
+            }
+        },
+
         execute: async (input: unknown, _context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
             const { file_path, content, create_dirs, encoding } = input as WriteFileInput;
@@ -71,27 +120,8 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
                     size: result.bytesWritten,
                 };
             } else {
-                // File overwrite - generate diff
-                const unified = createPatch(
-                    file_path,
-                    originalContent,
-                    content,
-                    'before',
-                    'after',
-                    {
-                        context: 3,
-                    }
-                );
-                const additions = (unified.match(/^\+[^+]/gm) || []).length;
-                const deletions = (unified.match(/^-[^-]/gm) || []).length;
-
-                _display = {
-                    type: 'diff',
-                    unified,
-                    filename: file_path,
-                    additions,
-                    deletions,
-                };
+                // File overwrite - generate diff using shared helper
+                _display = generateDiffPreview(file_path, originalContent, content);
             }
 
             return {

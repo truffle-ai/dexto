@@ -64,6 +64,21 @@ export class ToolError {
     }
 
     /**
+     * Tool validation failed (pre-execution check)
+     * Used when tool inputs are semantically invalid (e.g., file not found, string not in file)
+     * This should fail before approval, not after.
+     */
+    static validationFailed(toolName: string, reason: string, context?: Record<string, unknown>) {
+        return new DextoRuntimeError(
+            ToolErrorCode.VALIDATION_FAILED,
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Tool '${toolName}' validation failed: ${reason}`,
+            { toolName, reason, ...context }
+        );
+    }
+
+    /**
      * Tool unauthorized access
      */
     static unauthorized(toolName: string, sessionId?: string) {

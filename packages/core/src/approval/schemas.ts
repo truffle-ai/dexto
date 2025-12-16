@@ -5,6 +5,8 @@
 import { z } from 'zod';
 import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+import type { ToolDisplayData } from '../tools/display-types.js';
+import { isValidDisplayData } from '../tools/display-types.js';
 
 // Zod schema that validates as object but types as JSONSchema7
 const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
@@ -24,14 +26,23 @@ export const ApprovalStatusSchema = z.nativeEnum(ApprovalStatus);
  */
 export const DenialReasonSchema = z.nativeEnum(DenialReason);
 
+// Custom Zod schema for ToolDisplayData validation
+const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayData(val), {
+    message: 'Invalid ToolDisplayData',
+});
+
 /**
  * Tool confirmation metadata schema
  */
 export const ToolConfirmationMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to confirm'),
+        toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
         args: z.record(z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),
+        displayPreview: ToolDisplayDataSchema.optional().describe(
+            'Preview display data for approval UI (e.g., diff preview)'
+        ),
     })
     .strict()
     .describe('Tool confirmation metadata');

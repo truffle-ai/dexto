@@ -9,6 +9,9 @@ import { createPatch } from 'diff';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { FileSystemService } from '../../../filesystem/index.js';
 import type { DiffDisplayData } from '../../display-types.js';
+import { ToolError } from '../../errors.js';
+import { ToolErrorCode } from '../../error-codes.js';
+import { DextoRuntimeError } from '../../../errors/index.js';
 
 const EditFileInputSchema = z
     .object({
@@ -28,6 +31,29 @@ const EditFileInputSchema = z
 type EditFileInput = z.input<typeof EditFileInputSchema>;
 
 /**
+ * Generate diff preview without modifying the file
+ */
+function generateDiffPreview(
+    filePath: string,
+    originalContent: string,
+    newContent: string
+): DiffDisplayData {
+    const unified = createPatch(filePath, originalContent, newContent, 'before', 'after', {
+        context: 3,
+    });
+    const additions = (unified.match(/^\+[^+]/gm) || []).length;
+    const deletions = (unified.match(/^-[^-]/gm) || []).length;
+
+    return {
+        type: 'diff',
+        unified,
+        filename: filePath,
+        additions,
+        deletions,
+    };
+}
+
+/**
  * Create the edit_file internal tool
  */
 export function createEditFileTool(fileSystemService: FileSystemService): InternalTool {
@@ -36,6 +62,54 @@ export function createEditFileTool(fileSystemService: FileSystemService): Intern
         description:
             'Edit a file by replacing text. By default, old_string must be unique in the file (will error if found multiple times). Set replace_all=true to replace all occurrences. Automatically creates backup before editing. Requires approval. Returns success status, path, number of changes made, and backup path.',
         inputSchema: EditFileInputSchema,
+
+        /**
+         * Generate preview for approval UI - shows diff without modifying file
+         * Throws ToolError.validationFailed() for validation errors (file not found, string not found)
+         */
+        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+            const { file_path, old_string, new_string, replace_all } = input as EditFileInput;
+
+            try {
+                // Read current file content
+                const originalFile = await fileSystemService.readFile(file_path);
+                const originalContent = originalFile.content;
+
+                // Compute what the new content would be
+                const newContent = replace_all
+                    ? originalContent.split(old_string).join(new_string)
+                    : originalContent.replace(old_string, new_string);
+
+                // If no change, old_string was not found - throw validation error
+                if (originalContent === newContent) {
+                    throw ToolError.validationFailed(
+                        'edit_file',
+                        `String not found in file: "${old_string.slice(0, 50)}${old_string.length > 50 ? '...' : ''}"`,
+                        { file_path, old_string_preview: old_string.slice(0, 100) }
+                    );
+                }
+
+                return generateDiffPreview(file_path, originalContent, newContent);
+            } catch (error) {
+                // Re-throw validation errors as-is
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === ToolErrorCode.VALIDATION_FAILED
+                ) {
+                    throw error;
+                }
+                // Convert filesystem errors (file not found, etc.) to validation errors
+                if (error instanceof DextoRuntimeError) {
+                    throw ToolError.validationFailed('edit_file', error.message, {
+                        file_path,
+                        originalErrorCode: error.code,
+                    });
+                }
+                // Unexpected errors - return null to allow approval to proceed
+                return null;
+            }
+        },
+
         execute: async (input: unknown, _context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
             const { file_path, old_string, new_string, replace_all } = input as EditFileInput;
@@ -61,23 +135,8 @@ export function createEditFileTool(fileSystemService: FileSystemService): Intern
             const newFile = await fileSystemService.readFile(file_path);
             const newContent = newFile.content;
 
-            // Generate unified diff
-            const unified = createPatch(file_path, originalContent, newContent, 'before', 'after', {
-                context: 3,
-            });
-
-            // Count additions and deletions from diff
-            const additions = (unified.match(/^\+[^+]/gm) || []).length;
-            const deletions = (unified.match(/^-[^-]/gm) || []).length;
-
-            // Build display data
-            const _display: DiffDisplayData = {
-                type: 'diff',
-                unified,
-                filename: file_path,
-                additions,
-                deletions,
-            };
+            // Generate display data using shared helper
+            const _display = generateDiffPreview(file_path, originalContent, newContent);
 
             return {
                 success: result.success,
