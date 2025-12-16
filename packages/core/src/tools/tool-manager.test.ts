@@ -239,10 +239,16 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
+            await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test' },
+                'call-123',
+                'session123'
+            );
 
             expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
+                toolCallId: 'call-123',
                 args: { path: '/test' },
                 sessionId: 'session123',
             });
@@ -262,10 +268,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            await toolManager.executeTool('mcp--file_read', { path: '/test' });
+            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-456');
 
             expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
+                toolCallId: 'call-456',
                 args: { path: '/test' },
             });
         });

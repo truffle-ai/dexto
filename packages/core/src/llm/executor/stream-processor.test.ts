@@ -746,6 +746,8 @@ describe('StreamProcessor', () => {
                 outputTokens: 50,
                 totalTokens: 150,
                 reasoningTokens: 20,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
             });
         });
 
@@ -777,6 +779,8 @@ describe('StreamProcessor', () => {
                     inputTokens: 100,
                     outputTokens: 50,
                     totalTokens: 150,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
                 },
             });
         });
