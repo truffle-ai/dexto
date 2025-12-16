@@ -271,10 +271,11 @@ export function useCLIState({
         }
     }, [input.value, ui.isProcessing, ui.activeOverlay, approval, inputService]);
 
-    // Get visible messages
-    const visibleMessages = useMemo(() => {
-        return messageService.getVisibleMessages(messages, 50);
-    }, [messages, messageService]);
+    // Get visible messages - no limit needed
+    // Static mode: items are permanent in terminal scrollback, Ink only renders NEW keys
+    // AlternateBuffer mode: VirtualizedList handles its own virtualization
+    // (Like gemini-cli which renders all history items without limit)
+    const visibleMessages = messages;
 
     return {
         messages,
