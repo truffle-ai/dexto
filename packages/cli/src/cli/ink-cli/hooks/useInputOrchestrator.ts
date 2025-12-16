@@ -282,9 +282,22 @@ export function useInputOrchestrator({
             }
 
             // Finalize any pending messages first (move to messages)
+            // Mark running tools as cancelled with error state
             setPendingMessages((pending) => {
                 if (pending.length > 0) {
-                    setMessages((prev) => [...prev, ...pending]);
+                    const updated = pending.map((msg) => {
+                        // Mark running tools as cancelled
+                        if (msg.role === 'tool' && msg.toolStatus === 'running') {
+                            return {
+                                ...msg,
+                                toolStatus: 'finished' as const,
+                                toolResult: 'Cancelled',
+                                isError: true,
+                            };
+                        }
+                        return msg;
+                    });
+                    setMessages((prev) => [...prev, ...updated]);
                 }
                 return [];
             });
