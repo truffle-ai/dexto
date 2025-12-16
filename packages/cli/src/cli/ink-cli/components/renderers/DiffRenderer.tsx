@@ -246,9 +246,9 @@ function HunkSeparator() {
 
 /**
  * Renders unified diff with colored lines, line numbers, and word-level highlighting.
- * Matches the approval preview UX style.
+ * Matches the approval preview UX style. No truncation - shows all lines.
  */
-export function DiffRenderer({ data, maxLines = 30 }: DiffRendererProps) {
+export function DiffRenderer({ data, maxLines = Infinity }: DiffRendererProps) {
     const { unified, filename, additions, deletions } = data;
     const hunks = parseUnifiedDiff(unified);
 
