@@ -18,6 +18,11 @@ import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
+import {
+    generateBashPatternKey,
+    generateBashPatternSuggestions,
+    isDangerousCommand,
+} from './bash-pattern-utils.js';
 
 /**
  * Options for internal tools configuration in ToolManager
@@ -175,6 +180,50 @@ export class ToolManager {
             );
             this.invalidateCache();
         });
+    }
+
+    // ==================== Bash Pattern Approval Helpers ====================
+
+    /**
+     * Check if a tool name represents a bash execution tool
+     */
+    private isBashTool(toolName: string): boolean {
+        return toolName === 'bash_exec' || toolName === 'internal--bash_exec';
+    }
+
+    /**
+     * Check if a bash command is covered by any approved pattern.
+     * Generates a pattern key from the command, then checks if it's covered by stored patterns.
+     *
+     * Returns approval info if covered, or pattern suggestions if not.
+     */
+    private checkBashPatternApproval(command: string): {
+        approved: boolean;
+        suggestedPatterns?: string[];
+    } {
+        // Generate the pattern key for this command
+        const patternKey = generateBashPatternKey(command);
+
+        if (!patternKey) {
+            // Dangerous command - no pattern, require explicit approval each time
+            if (isDangerousCommand(command)) {
+                this.logger.debug(
+                    `Skipping pattern generation for dangerous command: ${command.split(/\s+/)[0]}`
+                );
+            }
+            return { approved: false, suggestedPatterns: [] };
+        }
+
+        // Check if this pattern key is covered by any approved pattern
+        if (this.approvalManager.matchesBashPattern(patternKey)) {
+            return { approved: true };
+        }
+
+        // Generate broader pattern suggestions for the UI
+        return {
+            approved: false,
+            suggestedPatterns: generateBashPatternSuggestions(command),
+        };
     }
 
     getMcpManager(): MCPManager {
@@ -663,6 +712,21 @@ export class ToolManager {
             return { requireApproval: false };
         }
 
+        // PRECEDENCE 3.5: Check bash command patterns (for bash_exec tool)
+        let bashPatternResult: { approved: boolean; suggestedPatterns?: string[] } | undefined;
+        if (this.isBashTool(toolName)) {
+            const command = args.command as string | undefined;
+            if (command) {
+                bashPatternResult = this.checkBashPatternApproval(command);
+                if (bashPatternResult.approved) {
+                    this.logger.info(
+                        `Bash command '${command}' matched approved pattern – skipping confirmation.`
+                    );
+                    return { requireApproval: false };
+                }
+            }
+        }
+
         // PRECEDENCE 4: Fall back to approval mode
         // Handle different approval modes
         if (this.approvalMode === 'auto-approve') {
@@ -717,6 +781,7 @@ export class ToolManager {
                 args: Record<string, unknown>;
                 sessionId?: string;
                 displayPreview?: ToolDisplayData;
+                suggestedPatterns?: string[];
             } = {
                 toolName,
                 toolCallId,
@@ -731,22 +796,43 @@ export class ToolManager {
                 requestData.displayPreview = displayPreview;
             }
 
+            // Add suggested patterns for bash commands
+            if (
+                bashPatternResult?.suggestedPatterns &&
+                bashPatternResult.suggestedPatterns.length > 0
+            ) {
+                requestData.suggestedPatterns = bashPatternResult.suggestedPatterns;
+            }
+
             const response = await this.approvalManager.requestToolConfirmation(requestData);
 
-            // Handle remember choice if approved
-            const rememberChoice =
-                response.data && 'rememberChoice' in response.data
-                    ? response.data.rememberChoice
-                    : false;
+            // Handle remember choice / pattern if approved
+            if (response.status === ApprovalStatus.APPROVED && response.data) {
+                const rememberChoice =
+                    'rememberChoice' in response.data ? response.data.rememberChoice : false;
+                const rememberPattern =
+                    'rememberPattern' in response.data ? response.data.rememberPattern : undefined;
 
-            if (response.status === ApprovalStatus.APPROVED && rememberChoice) {
-                // Use the request's sessionId to ensure permission is stored for the correct session
-                // Fall back to response.sessionId only if request didn't specify one
-                const allowSessionId = sessionId ?? response.sessionId;
-                await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
-                this.logger.info(
-                    `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
-                );
+                if (rememberChoice) {
+                    // Remember the entire tool for the session
+                    // Use the request's sessionId to ensure permission is stored for the correct session
+                    // Fall back to response.sessionId only if request didn't specify one
+                    const allowSessionId = sessionId ?? response.sessionId;
+                    await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
+                    this.logger.info(
+                        `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
+                    );
+                } else if (
+                    rememberPattern &&
+                    typeof rememberPattern === 'string' &&
+                    this.isBashTool(toolName)
+                ) {
+                    // Remember a specific bash command pattern (only for bash tools)
+                    this.approvalManager.addBashPattern(rememberPattern);
+                    this.logger.info(
+                        `Bash pattern '${rememberPattern}' added for session approval`
+                    );
+                }
             }
 
             const approved = response.status === ApprovalStatus.APPROVED;

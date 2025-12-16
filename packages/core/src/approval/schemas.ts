@@ -43,6 +43,13 @@ export const ToolConfirmationMetadataSchema = z
         displayPreview: ToolDisplayDataSchema.optional().describe(
             'Preview display data for approval UI (e.g., diff preview)'
         ),
+        suggestedPatterns: z
+            .array(z.string())
+            .optional()
+            .describe(
+                'Suggested patterns for session approval (for bash commands). ' +
+                    'E.g., ["git push *", "git *"] for command "git push origin main"'
+            ),
     })
     .strict()
     .describe('Tool confirmation metadata');
@@ -146,7 +153,17 @@ export const ApprovalRequestSchema = z.discriminatedUnion('type', [
  */
 export const ToolConfirmationResponseDataSchema = z
     .object({
-        rememberChoice: z.boolean().optional().describe('Remember this choice'),
+        rememberChoice: z
+            .boolean()
+            .optional()
+            .describe('Remember this tool for the session (approves ALL uses of this tool)'),
+        rememberPattern: z
+            .string()
+            .optional()
+            .describe(
+                'Remember a command pattern for bash commands (e.g., "git *"). ' +
+                    'Only applicable for bash_exec tool approvals.'
+            ),
     })
     .strict()
     .describe('Tool confirmation response data');

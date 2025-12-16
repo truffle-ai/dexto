@@ -269,14 +269,22 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         // Handle approval responses
         const handleApprove = useCallback(
-            (rememberChoice: boolean, formData?: Record<string, unknown>) => {
+            (options: {
+                rememberChoice?: boolean;
+                rememberPattern?: string;
+                formData?: Record<string, unknown>;
+            }) => {
                 if (!approval || !eventBus) return;
 
                 eventBus.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.APPROVED,
                     sessionId: approval.sessionId,
-                    data: { rememberChoice, formData },
+                    data: {
+                        rememberChoice: options.rememberChoice,
+                        rememberPattern: options.rememberPattern,
+                        formData: options.formData,
+                    },
                 });
 
                 completeApproval();

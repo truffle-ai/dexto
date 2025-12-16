@@ -22,36 +22,87 @@ export interface ApprovalPromptHandle {
     handleInput: (input: string, key: Key) => boolean;
 }
 
+/**
+ * Options passed when approving a request
+ */
+export interface ApprovalOptions {
+    /** Remember this tool for the entire session (approves ALL uses) */
+    rememberChoice?: boolean;
+    /** Remember a specific command pattern for bash (e.g., "git *") */
+    rememberPattern?: string;
+    /** Form data for elicitation requests */
+    formData?: Record<string, unknown>;
+}
+
 interface ApprovalPromptProps {
     approval: ApprovalRequest;
-    onApprove: (rememberChoice: boolean, formData?: Record<string, unknown>) => void;
+    onApprove: (options: ApprovalOptions) => void;
     onDeny: () => void;
     onCancel: () => void;
 }
 
-type SelectionOption = 'yes' | 'yes-session' | 'no';
+/**
+ * Selection option type - supports both simple yes/no and pattern-based options
+ */
+type SelectionOption = 'yes' | 'yes-session' | 'no' | `pattern-${number}`;
 
 /**
  * Compact approval prompt component that displays above the input area
- * Shows three options in a vertical list: Yes, Yes for Session, and No
- * For elicitation requests, renders a form with input fields
+ * Shows options based on approval type:
+ * - Tool confirmation: Yes, Yes (Session), No
+ * - Bash with patterns: Yes (once), pattern options, Yes (all bash), No
+ * - Elicitation: Form with input fields
  */
 export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptProps>(
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
         const isCommandConfirmation = approval.type === 'command_confirmation';
         const isElicitation = approval.type === 'elicitation';
-        const [selectedOption, setSelectedOption] = useState<SelectionOption>('yes');
+
+        // Extract suggested patterns for bash tools
+        const suggestedPatterns =
+            (approval.metadata.suggestedPatterns as string[] | undefined) ?? [];
+        const hasBashPatterns = suggestedPatterns.length > 0;
+
+        const [selectedIndex, setSelectedIndex] = useState(0);
 
         // Ref for elicitation form
         const elicitationFormRef = useRef<ElicitationFormHandle>(null);
 
         // Use ref to avoid stale closure issues in handleInput
-        const selectedOptionRef = useRef<SelectionOption>('yes');
+        const selectedIndexRef = useRef(0);
+
+        // Build the list of options based on approval type
+        const options: Array<{ id: SelectionOption; label: string }> = [];
+
+        if (hasBashPatterns) {
+            // Bash tool with pattern suggestions
+            options.push({ id: 'yes', label: 'Yes (once)' });
+            suggestedPatterns.forEach((pattern, i) => {
+                options.push({
+                    id: `pattern-${i}` as SelectionOption,
+                    label: `Yes, allow "${pattern}"`,
+                });
+            });
+            options.push({ id: 'yes-session', label: 'Yes, allow all bash' });
+            options.push({ id: 'no', label: 'No' });
+        } else if (isCommandConfirmation) {
+            // Command confirmation (no session option)
+            options.push({ id: 'yes', label: 'Yes' });
+            options.push({ id: 'no', label: 'No' });
+        } else {
+            // Standard tool confirmation
+            options.push({ id: 'yes', label: 'Yes' });
+            options.push({ id: 'yes-session', label: 'Yes (Session)' });
+            options.push({ id: 'no', label: 'No' });
+        }
 
         // Keep ref in sync with state
         useEffect(() => {
-            selectedOptionRef.current = selectedOption;
-        }, [selectedOption]);
+            selectedIndexRef.current = selectedIndex;
+        }, [selectedIndex]);
+
+        // Helper to get the option at current index
+        const getCurrentOption = () => options[selectedIndexRef.current];
 
         // Expose handleInput method via ref
         useImperativeHandle(
@@ -64,43 +115,44 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     }
 
                     if (key.upArrow) {
-                        // Move up (skip yes-session for command confirmations)
-                        setSelectedOption((current) => {
-                            if (current === 'yes') return 'no';
-                            if (current === 'yes-session') return 'yes';
-                            // no -> yes-session (or yes for command confirmations)
-                            return isCommandConfirmation ? 'yes' : 'yes-session';
-                        });
+                        setSelectedIndex((current) =>
+                            current === 0 ? options.length - 1 : current - 1
+                        );
                         return true;
                     } else if (key.downArrow) {
-                        // Move down (skip yes-session for command confirmations)
-                        setSelectedOption((current) => {
-                            if (current === 'yes')
-                                return isCommandConfirmation ? 'no' : 'yes-session';
-                            if (current === 'yes-session') return 'no';
-                            return 'yes'; // no -> yes (wrap)
-                        });
+                        setSelectedIndex((current) =>
+                            current === options.length - 1 ? 0 : current + 1
+                        );
                         return true;
                     } else if (key.return) {
-                        // Enter key - confirm selection
-                        const currentSelection = selectedOptionRef.current;
-                        if (currentSelection === 'yes') {
-                            onApprove(false);
-                        } else if (currentSelection === 'yes-session') {
-                            onApprove(true);
-                        } else {
+                        const option = getCurrentOption();
+                        if (!option) return false;
+
+                        if (option.id === 'yes') {
+                            onApprove({});
+                        } else if (option.id === 'yes-session') {
+                            onApprove({ rememberChoice: true });
+                        } else if (option.id === 'no') {
                             onDeny();
+                        } else if (option.id.startsWith('pattern-')) {
+                            // Extract pattern index and get the pattern string
+                            const patternIndex = parseInt(option.id.replace('pattern-', ''), 10);
+                            const pattern = suggestedPatterns[patternIndex];
+                            if (pattern) {
+                                onApprove({ rememberPattern: pattern });
+                            } else {
+                                onApprove({});
+                            }
                         }
                         return true;
                     } else if (key.escape) {
-                        // Escape key - cancel
                         onCancel();
                         return true;
                     }
                     return false;
                 },
             }),
-            [isCommandConfirmation, isElicitation, onApprove, onDeny, onCancel]
+            [isElicitation, options, suggestedPatterns, onApprove, onDeny, onCancel]
         );
 
         // For elicitation, render the form
@@ -110,7 +162,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 <ElicitationForm
                     ref={elicitationFormRef}
                     metadata={metadata}
-                    onSubmit={(formData) => onApprove(false, formData)}
+                    onSubmit={(formData) => onApprove({ formData })}
                     onCancel={onCancel}
                 />
             );
@@ -175,36 +227,26 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
                 {/* Vertical selection options */}
                 <Box flexDirection="column" marginTop={0}>
-                    <Box>
-                        {selectedOption === 'yes' ? (
-                            <Text color="green" bold>
-                                {'  ▶ '}Yes
-                            </Text>
-                        ) : (
-                            <Text color="gray">{'    '}Yes</Text>
-                        )}
-                    </Box>
-                    {/* Only show "Yes (Session)" for tool confirmations, not command confirmations */}
-                    {!isCommandConfirmation && (
-                        <Box>
-                            {selectedOption === 'yes-session' ? (
-                                <Text color="green" bold>
-                                    {'  ▶ '}Yes (Session)
-                                </Text>
-                            ) : (
-                                <Text color="gray">{'    '}Yes (Session)</Text>
-                            )}
-                        </Box>
-                    )}
-                    <Box>
-                        {selectedOption === 'no' ? (
-                            <Text color="red" bold>
-                                {'  ▶ '}No
-                            </Text>
-                        ) : (
-                            <Text color="gray">{'    '}No</Text>
-                        )}
-                    </Box>
+                    {options.map((option, index) => {
+                        const isSelected = index === selectedIndex;
+                        const isNo = option.id === 'no';
+
+                        return (
+                            <Box key={option.id}>
+                                {isSelected ? (
+                                    <Text color={isNo ? 'red' : 'green'} bold>
+                                        {'  ▶ '}
+                                        {option.label}
+                                    </Text>
+                                ) : (
+                                    <Text color="gray">
+                                        {'    '}
+                                        {option.label}
+                                    </Text>
+                                )}
+                            </Box>
+                        );
+                    })}
                 </Box>
 
                 {/* Compact instructions */}

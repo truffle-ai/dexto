@@ -1,15 +1,14 @@
 /**
  * Bash Execute Tool
  *
- * Internal tool for executing shell commands (requires approval)
+ * Internal tool for executing shell commands.
+ * Approval is handled at the ToolManager level with pattern-based approval.
  */
 
 import * as path from 'node:path';
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { ProcessService } from '../../../process/index.js';
-import type { ApprovalManager } from '../../../approval/manager.js';
-import { ApprovalStatus } from '../../../approval/types.js';
 import { ProcessError } from '../../../process/errors.js';
 import type { ShellDisplayData } from '../../display-types.js';
 
@@ -44,14 +43,11 @@ type BashExecInput = z.input<typeof BashExecInputSchema>;
 /**
  * Create the bash_exec internal tool
  */
-export function createBashExecTool(
-    processService: ProcessService,
-    approvalManager: ApprovalManager
-): InternalTool {
+export function createBashExecTool(processService: ProcessService): InternalTool {
     return {
         id: 'bash_exec',
         description:
-            'Execute a shell command with 2-minute default timeout. Returns stdout, stderr, exit code, and duration. For long-running commands (servers, watchers, npm run dev), MUST use run_in_background=true (use bash_output to retrieve results later). Commands ending with & are blocked - use run_in_background instead. Requires approval for all commands. Dangerous commands (rm, git push, etc.) require additional per-command approval. Always quote file paths with spaces. Security: dangerous commands are blocked, injection attempts are detected.',
+            'Execute a shell command with 2-minute default timeout. Returns stdout, stderr, exit code, and duration. For long-running commands (servers, watchers, npm run dev), MUST use run_in_background=true (use bash_output to retrieve results later). Commands ending with & are blocked - use run_in_background instead. Requires approval (with pattern-based session memory). Always quote file paths with spaces. Security: dangerous commands are blocked, injection attempts are detected.',
         inputSchema: BashExecInputSchema,
 
         /**
@@ -100,7 +96,8 @@ export function createBashExecTool(
                 validatedCwd = candidatePath;
             }
 
-            // Execute command using ProcessService with approval function for dangerous commands
+            // Execute command using ProcessService
+            // Note: Approval is handled at ToolManager level with pattern-based approval
             const result = await processService.executeCommand(command, {
                 description,
                 timeout,
@@ -108,27 +105,6 @@ export function createBashExecTool(
                 cwd: validatedCwd,
                 // Pass abort signal for cancellation support
                 abortSignal: context?.abortSignal,
-                // Provide approval function for dangerous commands
-                approvalFunction: async (normalizedCommand: string) => {
-                    // Build metadata conditionally to avoid passing undefined (exactOptionalPropertyTypes)
-                    const metadata: {
-                        toolName: string;
-                        command: string;
-                        originalCommand: string;
-                        sessionId?: string;
-                    } = {
-                        toolName: 'bash_exec',
-                        command: normalizedCommand,
-                        originalCommand: command,
-                    };
-
-                    if (context?.sessionId) {
-                        metadata.sessionId = context.sessionId;
-                    }
-
-                    const response = await approvalManager.requestCommandConfirmation(metadata);
-                    return response.status === ApprovalStatus.APPROVED;
-                },
             });
 
             // Type guard: if result has 'stdout', it's a ProcessResult (foreground)

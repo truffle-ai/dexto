@@ -18,8 +18,6 @@ export interface ExecuteOptions {
     env?: Record<string, string> | undefined;
     /** Description of what the command does (5-10 words) */
     description?: string | undefined;
-    /** Optional approval function for dangerous commands - called when CommandValidator flags requiresApproval */
-    approvalFunction?: (command: string) => Promise<boolean>;
     /** Abort signal for cancellation support */
     abortSignal?: AbortSignal | undefined;
 }

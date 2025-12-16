@@ -105,28 +105,10 @@ export class ProcessService {
 
         const normalizedCommand = validation.normalizedCommand;
 
-        // Check if command requires approval (e.g., dangerous commands like rm, git push)
-        if (validation.requiresApproval) {
-            if (!options.approvalFunction) {
-                // No approval mechanism provided - fail safe
-                throw ProcessError.approvalRequired(
-                    normalizedCommand,
-                    'Command requires approval but no approval mechanism provided'
-                );
-            }
-
-            this.logger.info(
-                `Command requires approval: ${normalizedCommand} - requesting user confirmation`
-            );
-            const approved = await options.approvalFunction(normalizedCommand);
-
-            if (!approved) {
-                this.logger.info(`Command approval denied: ${normalizedCommand}`);
-                throw ProcessError.approvalDenied(normalizedCommand);
-            }
-
-            this.logger.info(`Command approved: ${normalizedCommand}`);
-        }
+        // Note: Command-level approval removed - approval is now handled at the tool level
+        // in ToolManager with pattern-based approval for bash commands.
+        // CommandValidator still validates for dangerous patterns (blocks truly dangerous commands)
+        // but no longer triggers a second approval prompt.
 
         // Handle timeout - clamp to valid range to prevent negative/NaN/invalid values
         const rawTimeout =
