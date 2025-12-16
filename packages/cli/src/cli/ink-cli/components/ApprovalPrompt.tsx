@@ -1,11 +1,13 @@
 import React, { forwardRef, useState, useImperativeHandle, useRef, useEffect } from 'react';
 import { Box, Text } from 'ink';
+import type { ToolDisplayData } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import {
     ElicitationForm,
     type ElicitationFormHandle,
     type ElicitationMetadata,
 } from './ElicitationForm.js';
+import { DiffRenderer, ShellRenderer, FileRenderer } from './renderers/index.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -117,6 +119,38 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Extract information from metadata based on approval type
         const toolName = approval.metadata.toolName as string | undefined;
         const command = approval.metadata.command as string | undefined;
+        const displayPreview = approval.metadata.displayPreview as ToolDisplayData | undefined;
+
+        // Render preview based on display type
+        const renderPreview = () => {
+            if (!displayPreview) return null;
+
+            switch (displayPreview.type) {
+                case 'diff':
+                    return (
+                        <Box marginBottom={1}>
+                            <DiffRenderer data={displayPreview} maxLines={20} />
+                        </Box>
+                    );
+                case 'shell':
+                    // For shell preview, just show the command (no output yet)
+                    return (
+                        <Box marginBottom={1} flexDirection="row">
+                            <Text dimColor>$ </Text>
+                            <Text color="yellow">{displayPreview.command}</Text>
+                            {displayPreview.isBackground && <Text dimColor> (background)</Text>}
+                        </Box>
+                    );
+                case 'file':
+                    return (
+                        <Box marginBottom={1}>
+                            <FileRenderer data={displayPreview} />
+                        </Box>
+                    );
+                default:
+                    return null;
+            }
+        };
 
         return (
             <Box paddingX={0} paddingY={0} flexDirection="column">
@@ -135,6 +169,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         </Box>
                     )}
                 </Box>
+
+                {/* Preview section - shown BEFORE approval options */}
+                {renderPreview()}
 
                 {/* Vertical selection options */}
                 <Box flexDirection="column" marginTop={0}>
