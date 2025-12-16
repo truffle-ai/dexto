@@ -1,3 +1,18 @@
+/**
+ * LLM Model Registry
+ *
+ * TODO: maxOutputTokens - Currently we rely on @ai-sdk/anthropic (and other provider SDKs)
+ * to set appropriate maxOutputTokens defaults per model. As of v2.0.56, @ai-sdk/anthropic
+ * has getModelCapabilities() which sets correct limits (e.g., 64000 for claude-haiku-4-5).
+ *
+ * If we need finer control or want to support models before the SDK does, we could:
+ * 1. Add maxOutputTokens to ModelInfo interface
+ * 2. Create getMaxOutputTokensForModel() / getEffectiveMaxOutputTokens() helpers
+ * 3. Pass explicit maxOutputTokens in TurnExecutor when config doesn't specify one
+ *
+ * For now, keeping SDK dependency is simpler and auto-updates with SDK releases.
+ */
+
 import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
