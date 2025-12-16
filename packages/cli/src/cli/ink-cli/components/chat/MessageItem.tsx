@@ -167,13 +167,13 @@ export const MessageItem = memo(
             return (
                 <Box flexDirection="column" marginTop={1} width="100%">
                     {/* Tool header: icon + name + args + status text */}
-                    <Box flexDirection="row" overflow="hidden">
+                    <Box flexDirection="row">
                         <ToolIcon
                             status={message.toolStatus || 'finished'}
                             isError={message.isError ?? false}
                         />
-                        <Box flexGrow={1} flexShrink={1} overflow="hidden">
-                            <Text wrap="truncate-end">
+                        <Box flexGrow={1} flexShrink={1}>
+                            <Text wrap="wrap">
                                 <Text bold>{toolName}</Text>
                                 <Text>{toolArgs}</Text>
                                 {isRunning && <Text color="magenta"> Running...</Text>}

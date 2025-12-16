@@ -116,11 +116,13 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
 
             if (originalContent === null) {
                 // New file creation
+                const lineCount = content.split('\n').length;
                 _display = {
                     type: 'file',
                     path: file_path,
                     operation: 'create',
                     size: result.bytesWritten,
+                    lineCount,
                 };
             } else {
                 // File overwrite - generate diff using shared helper
