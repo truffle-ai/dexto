@@ -106,6 +106,8 @@ export function createBashExecTool(
                 timeout,
                 runInBackground: run_in_background,
                 cwd: validatedCwd,
+                // Pass abort signal for cancellation support
+                abortSignal: context?.abortSignal,
                 // Provide approval function for dangerous commands
                 approvalFunction: async (normalizedCommand: string) => {
                     // Build metadata conditionally to avoid passing undefined (exactOptionalPropertyTypes)

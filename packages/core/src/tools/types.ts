@@ -12,6 +12,8 @@ import type { ToolDisplayData } from './display-types.js';
 export interface ToolExecutionContext {
     /** Session ID if available */
     sessionId?: string | undefined;
+    /** Abort signal for cancellation support */
+    abortSignal?: AbortSignal | undefined;
 }
 
 /**

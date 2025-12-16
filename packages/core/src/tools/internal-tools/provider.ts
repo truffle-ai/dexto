@@ -131,7 +131,8 @@ export class InternalToolsProvider {
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
-        sessionId?: string
+        sessionId?: string,
+        abortSignal?: AbortSignal
     ): Promise<unknown> {
         const tool = this.tools.get(toolName);
         if (!tool) {
@@ -155,7 +156,10 @@ export class InternalToolsProvider {
         }
 
         try {
-            const context: ToolExecutionContext = { sessionId };
+            const context: ToolExecutionContext = {
+                sessionId,
+                abortSignal,
+            };
             const result = await tool.execute(validationResult.data, context);
             return result;
         } catch (error) {

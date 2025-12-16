@@ -431,6 +431,9 @@ export class TurnExecutor {
                     /**
                      * Execute callback - runs the tool and returns raw result.
                      * Does NOT persist - StreamProcessor handles that on tool-result event.
+                     *
+                     * Uses Promise.race to ensure we return quickly on abort, even if the
+                     * underlying tool (especially MCP tools we don't control) keeps running.
                      */
                     execute: async (
                         args: unknown,
@@ -440,31 +443,61 @@ export class TurnExecutor {
                             `Executing tool: ${name} (toolCallId: ${options.toolCallId})`
                         );
 
-                        // Run tool via toolManager - returns result with approval metadata
-                        // toolCallId is passed for tracking parallel tool calls in the UI
-                        const executionResult = await this.toolManager.executeTool(
-                            name,
-                            args as Record<string, unknown>,
-                            options.toolCallId,
-                            this.sessionId
-                        );
+                        const abortSignal = this.stepAbortController.signal;
 
-                        // Store approval metadata for later retrieval by StreamProcessor
-                        if (executionResult.requireApproval !== undefined) {
-                            const metadata: {
-                                requireApproval: boolean;
-                                approvalStatus?: 'approved' | 'rejected';
-                            } = {
-                                requireApproval: executionResult.requireApproval,
-                            };
-                            if (executionResult.approvalStatus !== undefined) {
-                                metadata.approvalStatus = executionResult.approvalStatus;
-                            }
-                            this.approvalMetadata.set(options.toolCallId, metadata);
+                        // Check if already aborted before starting
+                        if (abortSignal.aborted) {
+                            this.logger.debug(`Tool ${name} cancelled before execution`);
+                            return { error: 'Cancelled by user', cancelled: true };
                         }
 
-                        // Return just the raw result for Vercel SDK
-                        return executionResult.result;
+                        // Create abort promise for Promise.race
+                        // This ensures we return quickly even if tool doesn't respect abort signal
+                        const abortPromise = new Promise<{ error: string; cancelled: true }>(
+                            (resolve) => {
+                                const handler = () => {
+                                    this.logger.debug(`Tool ${name} cancelled during execution`);
+                                    resolve({ error: 'Cancelled by user', cancelled: true });
+                                };
+                                abortSignal.addEventListener('abort', handler, { once: true });
+                            }
+                        );
+
+                        // Race: tool execution vs abort signal
+                        const result = await Promise.race([
+                            (async () => {
+                                // Run tool via toolManager - returns result with approval metadata
+                                // toolCallId is passed for tracking parallel tool calls in the UI
+                                // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
+                                const executionResult = await this.toolManager.executeTool(
+                                    name,
+                                    args as Record<string, unknown>,
+                                    options.toolCallId,
+                                    this.sessionId,
+                                    abortSignal
+                                );
+
+                                // Store approval metadata for later retrieval by StreamProcessor
+                                if (executionResult.requireApproval !== undefined) {
+                                    const metadata: {
+                                        requireApproval: boolean;
+                                        approvalStatus?: 'approved' | 'rejected';
+                                    } = {
+                                        requireApproval: executionResult.requireApproval,
+                                    };
+                                    if (executionResult.approvalStatus !== undefined) {
+                                        metadata.approvalStatus = executionResult.approvalStatus;
+                                    }
+                                    this.approvalMetadata.set(options.toolCallId, metadata);
+                                }
+
+                                // Return just the raw result for Vercel SDK
+                                return executionResult.result;
+                            })(),
+                            abortPromise,
+                        ]);
+
+                        return result;
                     },
 
                     /**

@@ -282,12 +282,14 @@ export class ToolManager {
      * @param args The arguments for the tool
      * @param toolCallId The unique tool call ID for tracking (from LLM or generated for direct calls)
      * @param sessionId Optional session ID for context
+     * @param abortSignal Optional abort signal for cancellation support
      */
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        sessionId?: string
+        sessionId?: string,
+        abortSignal?: AbortSignal
     ): Promise<import('./types.js').ToolExecutionResult> {
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
@@ -386,7 +388,8 @@ export class ToolManager {
                 result = await this.internalToolsProvider.executeTool(
                     actualToolName,
                     args,
-                    sessionId
+                    sessionId,
+                    abortSignal
                 );
             }
             // Tool doesn't have proper prefix
