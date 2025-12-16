@@ -18,8 +18,12 @@ export interface StartupInfo {
 
 /**
  * Tool call status for visual feedback
+ * - pending: Tool call received, checking if approval needed (static gray dot)
+ * - pending_approval: Waiting for user approval (static yellow dot)
+ * - running: Actually executing (animated magenta spinner)
+ * - finished: Completed (green dot success, red dot error)
  */
-export type ToolStatus = 'running' | 'finished';
+export type ToolStatus = 'pending' | 'pending_approval' | 'running' | 'finished';
 
 /**
  * Styled message types for rich command output

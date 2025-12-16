@@ -30,6 +30,7 @@ import {
 } from './styled-boxes/index.js';
 import { ToolResultRenderer } from '../renderers/index.js';
 import { MarkdownText } from '../shared/MarkdownText.js';
+import { ToolIcon } from './ToolIcon.js';
 
 /**
  * Format milliseconds into a compact human-readable string
@@ -127,34 +128,30 @@ export const MessageItem = memo(
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
-            // Continuation messages: no indicator, just content with left padding to align
+            // Continuation messages: no indicator, just content
             if (message.isContinuation) {
                 return (
                     <Box flexDirection="column" width="100%">
-                        <Box paddingLeft={2} flexDirection="column" width="100%">
-                            <MarkdownText>{message.content || ''}</MarkdownText>
-                        </Box>
+                        <MarkdownText>{message.content || ''}</MarkdownText>
                     </Box>
                 );
             }
 
-            // Regular assistant message: indicator inline with content
-            // Using row layout so indicator and content are on the same line
+            // Regular assistant message: bullet prefix inline with first line
+            // Text wraps at terminal width - wrapped lines may start at column 0
+            // This is simpler and avoids mid-word splitting issues with Ink's wrap
             return (
-                <Box flexDirection="row" marginTop={1} width="100%">
-                    <Text color="gray">⏺ </Text>
-                    <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-                        <MarkdownText>{message.content || ''}</MarkdownText>
-                    </Box>
+                <Box flexDirection="column" marginTop={1} width="100%">
+                    <MarkdownText bulletPrefix="⏺ ">{message.content || ''}</MarkdownText>
                 </Box>
             );
         }
 
-        // Tool message: Colored dot only (green success, red failure), white text
-        // marginTop={1} for consistent spacing between tool calls
+        // Tool message: Animated icon based on status
+        // - Running: magenta spinner
+        // - Finished (success): green checkmark
+        // - Finished (error): red dot
         if (message.role === 'tool') {
-            const dotColor = message.isError ? 'red' : 'green';
-
             // Use structured renderers if display data is available
             const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
 
@@ -168,7 +165,10 @@ export const MessageItem = memo(
                 <Box flexDirection="column" marginTop={1} width="100%">
                     {/* Single line, truncated - like gemini-cli */}
                     <Box flexDirection="row" overflow="hidden">
-                        <Text color={dotColor}>● </Text>
+                        <ToolIcon
+                            status={message.toolStatus || 'finished'}
+                            isError={message.isError ?? false}
+                        />
                         <Box flexGrow={1} flexShrink={1} overflow="hidden">
                             <Text wrap="truncate-end">
                                 <Text bold>{toolName}</Text>

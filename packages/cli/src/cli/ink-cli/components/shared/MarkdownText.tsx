@@ -172,6 +172,8 @@ interface MarkdownTextProps {
     children: string;
     /** Default text color */
     color?: string;
+    /** Optional prefix for first line (e.g., "⏺ " for assistant messages) */
+    bulletPrefix?: string;
 }
 
 /**
@@ -179,11 +181,16 @@ interface MarkdownTextProps {
  * Handles block-level elements (headers, code blocks, lists) and delegates
  * inline rendering to RenderInline.
  */
-const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({ children, color = 'white' }) => {
+const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
+    children,
+    color = 'white',
+    bulletPrefix,
+}) => {
     if (!children) return null;
 
     const defaultColor = color;
     const lines = children.split('\n');
+    let bulletPrefixUsed = false; // Track if we've added the bullet prefix yet
 
     // Regex patterns for block elements
     const headerRegex = /^(#{1,6})\s+(.*)$/;
@@ -295,10 +302,17 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({ children, color = '
         }
 
         // Regular paragraph line with inline markdown
+        // Prepend bullet prefix to first content line if provided
+        const displayLine = !bulletPrefixUsed && bulletPrefix ? bulletPrefix + line : line;
+        if (bulletPrefix && !bulletPrefixUsed) {
+            bulletPrefixUsed = true;
+        }
+
+        // width="100%" ensures Text wrap respects parent container bounds
         blocks.push(
-            <Box key={key}>
+            <Box key={key} width="100%">
                 <Text wrap="wrap" color={defaultColor}>
-                    <RenderInline text={line} defaultColor={defaultColor} />
+                    <RenderInline text={displayLine} defaultColor={defaultColor} />
                 </Text>
             </Box>
         );
@@ -317,7 +331,12 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({ children, color = '
     }
 
     // Wrap in column layout to ensure proper vertical stacking
-    return <Box flexDirection="column">{blocks}</Box>;
+    // width="100%" ensures children can inherit and calculate wrap boundaries
+    return (
+        <Box flexDirection="column" width="100%">
+            {blocks}
+        </Box>
+    );
 };
 
 // ============================================================================
@@ -366,11 +385,15 @@ const RenderListItemInternal: React.FC<RenderListItemProps> = ({
     defaultColor,
 }) => {
     const paddingLeft = Math.floor(indent / 2);
+    // Marker width must be explicit for proper text wrapping
+    const markerWidth = marker.length + 1; // marker + space
 
     return (
-        <Box paddingLeft={paddingLeft} flexDirection="row">
-            <Text color={defaultColor}>{marker} </Text>
-            <Box flexGrow={1}>
+        <Box paddingLeft={paddingLeft} flexDirection="row" width="100%">
+            <Box width={markerWidth}>
+                <Text color={defaultColor}>{marker} </Text>
+            </Box>
+            <Box flexGrow={1} flexShrink={1} width="100%">
                 <Text wrap="wrap" color={defaultColor}>
                     <RenderInline text={text} defaultColor={defaultColor} />
                 </Text>
