@@ -1,0 +1,18 @@
+systemPrompt:
+  contributors:
+    - id: main-prompt
+      type: static
+      priority: 100
+      content: |
+        You are a helpful AI assistant running on Dexto's local base image.
+        You have access to local filesystem storage and SQLite database.
+
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  apiKey: $OPENAI_API_KEY
+
+# Note: Storage config not specified - will use image defaults:
+# - blob: local filesystem (./data/blobs)
+# - database: sqlite (./data/agent.db)
+# - cache: in-memory

@@ -1,0 +1,31 @@
+{
+  "name": "@dexto/image-local",
+  "version": "1.0.0",
+  "description": "Local development base image for Dexto agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "dexto-bundle build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "dexto",
+    "base-image",
+    "local-development",
+    "ai-agents"
+  ],
+  "dependencies": {
+    "@dexto/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@dexto/bundler": "workspace:*",
+    "typescript": "^5.3.3"
+  }
+}

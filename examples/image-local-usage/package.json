@@ -1,0 +1,19 @@
+{
+  "name": "image-local-usage-example",
+  "version": "1.0.0",
+  "description": "Example of using @dexto/image-local base image",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@dexto/core": "workspace:*",
+    "@dexto/image-local": "workspace:*",
+    "@dexto/agent-management": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
