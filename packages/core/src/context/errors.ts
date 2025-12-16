@@ -166,6 +166,17 @@ export class ContextError {
         );
     }
 
+    static compressionProviderAlreadyRegistered(type: string) {
+        return new DextoRuntimeError(
+            ContextErrorCode.COMPRESSION_PROVIDER_ALREADY_REGISTERED,
+            ErrorScope.CONTEXT,
+            ErrorType.USER,
+            `Compression provider '${type}' is already registered`,
+            { type },
+            'Each provider type can only be registered once'
+        );
+    }
+
     // Message lookup errors
     static messageNotFound(messageId: string) {
         return new DextoRuntimeError(

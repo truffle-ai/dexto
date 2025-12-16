@@ -129,7 +129,7 @@ describe('InternalToolsProvider', () => {
 
             expect(mockLogger.info).toHaveBeenCalledWith('Initializing InternalToolsProvider...');
             expect(mockLogger.info).toHaveBeenCalledWith(
-                'InternalToolsProvider initialized with 1 tools (1 internal, 0 custom providers)'
+                'InternalToolsProvider initialized with 1 tools (1 internal, 0 custom)'
             );
         });
     });
@@ -283,7 +283,7 @@ describe('InternalToolsProvider', () => {
             };
 
             // Manually add the mock tool to the provider
-            (provider as any).tools.set('test_tool', mockTool);
+            (provider as any).internalTools.set('test_tool', mockTool);
 
             // Test with invalid input - missing required field
             const error = (await provider
@@ -310,7 +310,7 @@ describe('InternalToolsProvider', () => {
             };
 
             // Manually add the mock tool to the provider
-            (provider as any).tools.set('test_tool', mockTool);
+            (provider as any).internalTools.set('test_tool', mockTool);
 
             const sessionId = 'test-session-456';
             await provider.executeTool('test_tool', { param: 'value' }, sessionId);

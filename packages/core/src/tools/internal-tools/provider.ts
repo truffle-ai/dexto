@@ -22,7 +22,8 @@ import { customToolRegistry, type ToolCreationContext } from '../custom-tool-reg
  */
 export class InternalToolsProvider {
     private services: InternalToolsServices;
-    private tools: Map<string, InternalTool> = new Map(); // ← Store original InternalTool
+    private internalTools: Map<string, InternalTool> = new Map(); // Built-in internal tools
+    private customTools: Map<string, InternalTool> = new Map(); // Custom tool provider tools
     private config: InternalToolsConfig;
     private customToolConfigs: CustomToolsConfig;
     private logger: IDextoLogger;
@@ -65,9 +66,10 @@ export class InternalToolsProvider {
                 this.logger.debug('No custom tool providers configured');
             }
 
-            const toolCount = this.tools.size;
+            const internalCount = this.internalTools.size;
+            const customCount = this.customTools.size;
             this.logger.info(
-                `InternalToolsProvider initialized with ${toolCount} tools (${this.config.length} internal, ${this.customToolConfigs.length} custom providers)`
+                `InternalToolsProvider initialized with ${internalCount + customCount} tools (${internalCount} internal, ${customCount} custom)`
             );
         } catch (error) {
             this.logger.error(
@@ -118,7 +120,7 @@ export class InternalToolsProvider {
             try {
                 // Create the tool using its factory and store directly
                 const tool = toolInfo.factory(this.services);
-                this.tools.set(toolName, tool); // ← Store original InternalTool directly
+                this.internalTools.set(toolName, tool); // Store in internal tools map
                 this.logger.debug(`Registered ${toolName} internal tool`);
             } catch (error) {
                 this.logger.error(
@@ -129,8 +131,8 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Register custom tools from the custom tool registry
-     * Custom tools are prefixed with 'custom--' to distinguish them from built-in tools
+     * Register custom tools from the custom tool registry.
+     * Tools are stored by their original ID - prefixing is handled by ToolManager.
      */
     private registerCustomTools(): void {
         const context: ToolCreationContext = {
@@ -155,21 +157,19 @@ export class InternalToolsProvider {
                 // Create tools from provider
                 const tools = provider.create(validatedConfig, context);
 
-                // Register each tool with 'custom--' prefix
+                // Register each tool by its ID (no prefix - ToolManager handles prefixing)
                 for (const tool of tools) {
-                    const prefixedName = `custom--${tool.id}`;
-
-                    // Check for conflicts
-                    if (this.tools.has(prefixedName)) {
+                    // Check for conflicts with other custom tools
+                    if (this.customTools.has(tool.id)) {
                         this.logger.warn(
-                            `Custom tool '${prefixedName}' conflicts with existing tool. Skipping.`
+                            `Custom tool '${tool.id}' conflicts with existing custom tool. Skipping.`
                         );
                         continue;
                     }
 
-                    this.tools.set(prefixedName, tool);
+                    this.customTools.set(tool.id, tool);
                     this.logger.debug(
-                        `Registered custom tool: ${prefixedName} from provider '${provider.metadata?.displayName || validatedConfig.type}'`
+                        `Registered custom tool: ${tool.id} from provider '${provider.metadata?.displayName || validatedConfig.type}'`
                     );
                 }
             } catch (error) {
@@ -182,10 +182,24 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Check if a tool exists
+     * Check if a tool exists (checks both internal and custom tools)
      */
     hasTool(toolName: string): boolean {
-        return this.tools.has(toolName);
+        return this.internalTools.has(toolName) || this.customTools.has(toolName);
+    }
+
+    /**
+     * Check if an internal tool exists
+     */
+    hasInternalTool(toolName: string): boolean {
+        return this.internalTools.has(toolName);
+    }
+
+    /**
+     * Check if a custom tool exists
+     */
+    hasCustomTool(toolName: string): boolean {
+        return this.customTools.has(toolName);
     }
 
     /**
@@ -196,11 +210,15 @@ export class InternalToolsProvider {
         args: Record<string, unknown>,
         sessionId?: string
     ): Promise<unknown> {
-        const tool = this.tools.get(toolName);
+        // Check internal tools first, then custom tools
+        const tool = this.internalTools.get(toolName) || this.customTools.get(toolName);
         if (!tool) {
-            this.logger.error(`❌ No internal tool found: ${toolName}`);
+            this.logger.error(`❌ No tool found: ${toolName}`);
             this.logger.debug(
-                `Available internal tools: ${Array.from(this.tools.keys()).join(', ')}`
+                `Available internal tools: ${Array.from(this.internalTools.keys()).join(', ')}`
+            );
+            this.logger.debug(
+                `Available custom tools: ${Array.from(this.customTools.keys()).join(', ')}`
             );
             throw ToolError.notFound(toolName);
         }
@@ -230,16 +248,16 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Get all tools in ToolSet format with on-demand JSON Schema conversion
+     * Get internal tools in ToolSet format (excludes custom tools)
      */
-    getAllTools(): ToolSet {
+    getInternalTools(): ToolSet {
         const toolSet: ToolSet = {};
 
-        for (const [name, tool] of this.tools) {
+        for (const [name, tool] of this.internalTools) {
             toolSet[name] = {
                 name: tool.id,
                 description: tool.description,
-                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger), // ← Convert on-demand
+                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger),
             };
         }
 
@@ -247,16 +265,72 @@ export class InternalToolsProvider {
     }
 
     /**
-     * Get tool names
+     * Get custom tools in ToolSet format (excludes internal tools)
+     */
+    getCustomTools(): ToolSet {
+        const toolSet: ToolSet = {};
+
+        for (const [name, tool] of this.customTools) {
+            toolSet[name] = {
+                name: tool.id,
+                description: tool.description,
+                parameters: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger),
+            };
+        }
+
+        return toolSet;
+    }
+
+    /**
+     * Get all tools in ToolSet format (internal + custom)
+     * @deprecated Use getInternalTools() and getCustomTools() separately for proper prefixing
+     */
+    getAllTools(): ToolSet {
+        return {
+            ...this.getInternalTools(),
+            ...this.getCustomTools(),
+        };
+    }
+
+    /**
+     * Get internal tool names
+     */
+    getInternalToolNames(): string[] {
+        return Array.from(this.internalTools.keys());
+    }
+
+    /**
+     * Get custom tool names
+     */
+    getCustomToolNames(): string[] {
+        return Array.from(this.customTools.keys());
+    }
+
+    /**
+     * Get all tool names (internal + custom)
      */
     getToolNames(): string[] {
-        return Array.from(this.tools.keys());
+        return [...this.internalTools.keys(), ...this.customTools.keys()];
     }
 
     /**
      * Get tool count
      */
     getToolCount(): number {
-        return this.tools.size;
+        return this.internalTools.size + this.customTools.size;
+    }
+
+    /**
+     * Get internal tool count
+     */
+    getInternalToolCount(): number {
+        return this.internalTools.size;
+    }
+
+    /**
+     * Get custom tool count
+     */
+    getCustomToolCount(): number {
+        return this.customTools.size;
     }
 }

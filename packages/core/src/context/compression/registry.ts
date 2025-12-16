@@ -1,4 +1,16 @@
-import type { CompressionProvider, CompressionConfig } from './provider.js';
+import type { CompressionProvider } from './provider.js';
+import { ContextError } from '../errors.js';
+import { BaseRegistry, type RegistryErrorFactory } from '../../providers/base-registry.js';
+
+/**
+ * Error factory for compression registry errors.
+ * Uses ContextError for consistent error handling.
+ */
+const compressionErrorFactory: RegistryErrorFactory = {
+    alreadyRegistered: (type: string) => ContextError.compressionProviderAlreadyRegistered(type),
+    notFound: (type: string, availableTypes: string[]) =>
+        ContextError.compressionInvalidType(type, availableTypes),
+};
 
 /**
  * Global registry for compression providers.
@@ -7,64 +19,12 @@ import type { CompressionProvider, CompressionConfig } from './provider.js';
  * - Singleton instance exported
  * - Registration before agent initialization
  * - Type-safe provider lookup
+ *
+ * Extends BaseRegistry for common registry functionality.
  */
-class CompressionRegistry {
-    private providers = new Map<string, CompressionProvider<any, any>>();
-
-    /**
-     * Register a compression provider
-     */
-    register<TType extends string, TConfig extends CompressionConfig>(
-        provider: CompressionProvider<TType, TConfig>
-    ): void {
-        if (this.providers.has(provider.type)) {
-            throw new Error(`Compression provider '${provider.type}' is already registered`);
-        }
-        this.providers.set(provider.type, provider);
-    }
-
-    /**
-     * Get a provider by type
-     */
-    get(type: string): CompressionProvider<any, any> | undefined {
-        return this.providers.get(type);
-    }
-
-    /**
-     * Check if a provider is registered
-     */
-    has(type: string): boolean {
-        return this.providers.has(type);
-    }
-
-    /**
-     * Get all registered provider types
-     */
-    getTypes(): string[] {
-        return Array.from(this.providers.keys());
-    }
-
-    /**
-     * Get all providers
-     */
-    getAll(): CompressionProvider<any, any>[] {
-        return Array.from(this.providers.values());
-    }
-
-    /**
-     * Unregister a compression provider
-     * @param type - The provider type to unregister
-     * @returns true if the provider was unregistered, false if it wasn't registered
-     */
-    unregister(type: string): boolean {
-        return this.providers.delete(type);
-    }
-
-    /**
-     * Clear all providers (useful for testing)
-     */
-    clear(): void {
-        this.providers.clear();
+class CompressionRegistry extends BaseRegistry<CompressionProvider<any, any>> {
+    constructor() {
+        super(compressionErrorFactory);
     }
 }
 

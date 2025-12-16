@@ -32,6 +32,7 @@ export enum ContextErrorCode {
     COMPRESSION_INVALID_TYPE = 'context_compression_invalid_type',
     COMPRESSION_VALIDATION = 'context_compression_validation',
     COMPRESSION_MISSING_LLM = 'context_compression_missing_llm',
+    COMPRESSION_PROVIDER_ALREADY_REGISTERED = 'context_compression_provider_already_registered',
 
     // Message lookup errors
     MESSAGE_NOT_FOUND = 'context_message_not_found',
