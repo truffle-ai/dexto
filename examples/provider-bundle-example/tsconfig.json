@@ -20,6 +20,8 @@
     "src/**/*",
     "storage/**/*",
     "tools/**/*",
+    "compression/**/*",
+    "plugins/**/*",
     "shared/**/*",
     "dexto.config.ts"
   ],

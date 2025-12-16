@@ -78,21 +78,23 @@ export async function createDistribution(name?: string): Promise<string> {
     await fs.mkdir('agents');
     await fs.mkdir('storage');
     await fs.mkdir('tools');
+    await fs.mkdir('plugins');
     await fs.mkdir('shared');
 
     // Create placeholder files to keep directories in git
     await fs.writeFile('storage/.gitkeep', '');
     await fs.writeFile('tools/.gitkeep', '');
+    await fs.writeFile('plugins/.gitkeep', '');
 
     // Create dexto.config.ts
     const dextoConfig = `/**
  * Dexto Distribution Configuration
  *
  * This file registers all custom providers before agent initialization.
- * Add your custom storage providers, tools, and other extensions here.
+ * Add your custom storage providers, tools, plugins, and other extensions here.
  */
 
-import { blobStoreRegistry, customToolRegistry } from '@dexto/core';
+import { blobStoreRegistry, customToolRegistry, pluginRegistry } from '@dexto/core';
 
 /**
  * Project metadata
@@ -113,6 +115,9 @@ export function registerProviders() {
 
     // Register your custom tool providers here
     // Example: customToolRegistry.register(myToolProvider);
+
+    // Register your plugin providers here
+    // Example: pluginRegistry.register(myPluginProvider);
 
     console.log(\`✓ Registered providers for \${projectConfig.name}\`);
 }
@@ -316,6 +321,7 @@ ${projectName}/
 │   └── default.yml
 ├── storage/              # Custom storage providers
 ├── tools/                # Custom tools
+├── plugins/              # Custom plugins
 └── shared/               # Shared utilities
 \`\`\`
 
@@ -347,6 +353,74 @@ import { myToolProvider } from './tools/my-tool.js';
 export function registerProviders() {
     customToolRegistry.register(myToolProvider);
 }
+\`\`\`
+
+### Add a Custom Plugin
+
+Plugins hook into agent execution at 4 extension points:
+- \`beforeLLMRequest\` - Before sending to LLM (input validation, redaction)
+- \`beforeToolCall\` - Before tool execution (approval, logging)
+- \`afterToolResult\` - After tool execution (result validation, logging)
+- \`beforeResponse\` - Before sending response to user (sanitization)
+
+1. Create \`plugins/my-plugin.ts\`:
+
+\`\`\`typescript
+import { z } from 'zod';
+import type { PluginProvider, DextoPlugin, PluginResult, BeforeLLMRequestPayload, PluginExecutionContext } from '@dexto/core';
+
+const MyPluginConfigSchema = z.object({
+    type: z.literal('my-plugin'),
+    logLevel: z.enum(['debug', 'info', 'warn']).default('info'),
+});
+
+class MyPlugin implements DextoPlugin {
+    constructor(private config: z.infer<typeof MyPluginConfigSchema>) {}
+
+    async beforeLLMRequest(
+        payload: BeforeLLMRequestPayload,
+        context: PluginExecutionContext
+    ): Promise<PluginResult> {
+        context.logger.info(\`Processing request: \${payload.text.slice(0, 50)}...\`);
+        return { ok: true };
+    }
+}
+
+export const myPluginProvider: PluginProvider<'my-plugin'> = {
+    type: 'my-plugin',
+    configSchema: MyPluginConfigSchema,
+    create(config) {
+        return new MyPlugin(config);
+    },
+    metadata: {
+        displayName: 'My Plugin',
+        description: 'Example custom plugin',
+        extensionPoints: ['beforeLLMRequest'],
+        category: 'custom',
+    },
+};
+\`\`\`
+
+2. Register in \`dexto.config.ts\`:
+
+\`\`\`typescript
+import { myPluginProvider } from './plugins/my-plugin.js';
+
+export function registerProviders() {
+    pluginRegistry.register(myPluginProvider);
+}
+\`\`\`
+
+3. Enable in your agent YAML:
+
+\`\`\`yaml
+plugins:
+  registry:
+    - type: my-plugin
+      priority: 50
+      blocking: false
+      config:
+        logLevel: debug
 \`\`\`
 
 ## Adding Agents
@@ -429,7 +503,14 @@ pnpm start agents/code-reviewer.yml
             allowSyntheticDefaultImports: true,
             types: ['node'],
         },
-        include: ['src/**/*', 'storage/**/*', 'tools/**/*', 'shared/**/*', 'dexto.config.ts'],
+        include: [
+            'src/**/*',
+            'storage/**/*',
+            'tools/**/*',
+            'plugins/**/*',
+            'shared/**/*',
+            'dexto.config.ts',
+        ],
         exclude: ['node_modules', 'dist'],
     };
     await fs.writeJSON('tsconfig.json', tsconfig, { spaces: 2 });
@@ -469,8 +550,9 @@ export async function postCreateDistro(projectName: string) {
         `5. Run the default agent: ${chalk.cyan('pnpm start')}`,
         `6. Add custom storage providers in ${chalk.cyan('storage/')}`,
         `7. Add custom tools in ${chalk.cyan('tools/')}`,
-        `8. Create new agents in ${chalk.cyan('agents/')} (no rebuild needed)`,
-        `9. Learn more: ${chalk.cyan('https://docs.dexto.ai')}`,
+        `8. Add custom plugins in ${chalk.cyan('plugins/')}`,
+        `9. Create new agents in ${chalk.cyan('agents/')} (no rebuild needed)`,
+        `10. Learn more: ${chalk.cyan('https://docs.dexto.ai')}`,
     ].join('\n');
     p.note(nextSteps, chalk.yellow('Next steps:'));
 }

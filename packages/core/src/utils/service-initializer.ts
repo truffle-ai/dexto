@@ -146,8 +146,8 @@ export async function createAgentServices(
     registerBuiltInPlugins({ pluginManager, config });
     logger.debug('Built-in plugins registered');
 
-    // Initialize plugin manager (loads custom plugins, validates, calls initialize())
-    await pluginManager.initialize(config.plugins.custom);
+    // Initialize plugin manager (loads custom and registry plugins, validates, calls initialize())
+    await pluginManager.initialize(config.plugins.custom, config.plugins.registry);
     logger.info('Plugin manager initialized');
 
     // TODO: Conditional initialization of FileSystemService and ProcessService
