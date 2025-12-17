@@ -37,6 +37,7 @@ describe('enrichAgentConfig', () => {
                     model: 'claude-3-opus',
                     apiKey: 'test-api-key',
                 },
+                systemPrompt: 'You are a helpful assistant.',
                 prompts: [
                     { type: 'file', file: sharedFilePath }, // Same as discovered
                     { type: 'file', file: '/config/only-prompt.md' },
@@ -74,6 +75,7 @@ describe('enrichAgentConfig', () => {
                     model: 'claude-3-opus',
                     apiKey: 'test-api-key',
                 },
+                systemPrompt: 'You are a helpful assistant.',
                 prompts: [
                     // Same file, potentially different format (path.resolve handles this)
                     { type: 'file', file: '/projects/myapp/commands/prompt.md' },
@@ -102,6 +104,7 @@ describe('enrichAgentConfig', () => {
                     model: 'claude-3-opus',
                     apiKey: 'test-api-key',
                 },
+                systemPrompt: 'You are a helpful assistant.',
                 prompts: [
                     { type: 'file', file: '/config/prompt1.md' },
                     { type: 'inline', id: 'inline-prompt', prompt: 'test prompt' },
@@ -123,6 +126,7 @@ describe('enrichAgentConfig', () => {
                     model: 'claude-3-opus',
                     apiKey: 'test-api-key',
                 },
+                systemPrompt: 'You are a helpful assistant.',
                 prompts: [{ type: 'inline', id: 'test-prompt', prompt: 'Hello world' }],
             };
 
@@ -143,6 +147,7 @@ describe('enrichAgentConfig', () => {
                     model: 'claude-3-opus',
                     apiKey: 'test-api-key',
                 },
+                systemPrompt: 'You are a helpful assistant.',
                 prompts: [],
             };
 
@@ -162,6 +167,7 @@ describe('enrichAgentConfig', () => {
                     model: 'claude-3-opus',
                     apiKey: 'test-api-key',
                 },
+                systemPrompt: 'You are a helpful assistant.',
             };
 
             const enriched = enrichAgentConfig(baseConfig, 'test-agent');
@@ -178,6 +184,7 @@ describe('enrichAgentConfig', () => {
                     model: 'claude-3-opus',
                     apiKey: 'test-api-key',
                 },
+                systemPrompt: 'You are a helpful assistant.',
             };
 
             const enriched = enrichAgentConfig(baseConfig, 'test-agent');
