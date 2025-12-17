@@ -75,6 +75,18 @@ export function createEditFileTool(fileSystemService: FileSystemService): Intern
                 const originalFile = await fileSystemService.readFile(file_path);
                 const originalContent = originalFile.content;
 
+                // Validate uniqueness constraint when replace_all is false
+                if (!replace_all) {
+                    const occurrences = originalContent.split(old_string).length - 1;
+                    if (occurrences > 1) {
+                        throw ToolError.validationFailed(
+                            'edit_file',
+                            `String found ${occurrences} times in file. Set replace_all=true to replace all, or provide more context to make old_string unique.`,
+                            { file_path, occurrences }
+                        );
+                    }
+                }
+
                 // Compute what the new content would be
                 const newContent = replace_all
                     ? originalContent.split(old_string).join(new_string)
