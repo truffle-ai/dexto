@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
 import { FileSystemService } from '../../../filesystem/index.js';
+import type { SearchDisplayData } from '../../display-types.js';
 
 const GlobFilesInputSchema = z
     .object({
@@ -49,6 +50,19 @@ export function createGlobFilesTool(fileSystemService: FileSystemService): Inter
                 includeMetadata: true,
             });
 
+            // Build display data (reuse SearchDisplayData for file list)
+            const _display: SearchDisplayData = {
+                type: 'search',
+                pattern,
+                matches: result.files.map((file) => ({
+                    file: file.path,
+                    line: 0, // No line number for glob
+                    content: file.path,
+                })),
+                totalMatches: result.totalFound,
+                truncated: result.truncated,
+            };
+
             return {
                 files: result.files.map((file) => ({
                     path: file.path,
@@ -57,6 +71,7 @@ export function createGlobFilesTool(fileSystemService: FileSystemService): Inter
                 })),
                 total_found: result.totalFound,
                 truncated: result.truncated,
+                _display,
             };
         },
     };

@@ -228,6 +228,31 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
+     * Clears the context window without deleting history.
+     *
+     * This adds a "context clear" marker to the conversation history. When the
+     * context is loaded for LLM via getFormattedMessagesWithCompression(),
+     * filterCompacted() excludes all messages before this marker.
+     *
+     * The full history remains in the database for review via /resume or session history.
+     */
+    async clearContext(): Promise<void> {
+        const clearMarker: InternalMessage = {
+            id: `clear-${Date.now()}`,
+            role: 'assistant',
+            content: [{ type: 'text', text: '[Context cleared]' }],
+            timestamp: Date.now(),
+            metadata: {
+                isSummary: true,
+                clearedAt: Date.now(),
+            },
+        };
+
+        await this.addMessage(clearMarker);
+        this.logger.debug(`Context cleared for session: ${this.sessionId}`);
+    }
+
+    /**
      * Appends text to an existing assistant message.
      * Used for streaming responses.
      */

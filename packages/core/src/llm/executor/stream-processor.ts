@@ -5,6 +5,7 @@ import { ResourceManager } from '../../resources/index.js';
 import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
+import type { SanitizedToolResult } from '../../context/types.js';
 import { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { LLMProvider, TokenUsage } from '../types.js';
@@ -21,6 +22,11 @@ export class StreamProcessor {
     private reasoningText: string = '';
     private accumulatedText: string = '';
     private logger: IDextoLogger;
+    /**
+     * Track pending tool calls (added to context but no result yet).
+     * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
+     */
+    private pendingToolCalls: Map<string, { toolName: string }> = new Map();
 
     /**
      * @param contextManager Context manager for message persistence
@@ -114,11 +120,14 @@ export class StreamProcessor {
                             },
                         });
 
-                        this.eventBus.emit('llm:tool-call', {
+                        // Track pending tool call for abort handling
+                        this.pendingToolCalls.set(event.toolCallId, {
                             toolName: event.toolName,
-                            args: event.input as Record<string, unknown>,
-                            callId: event.toolCallId,
                         });
+
+                        // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead.
+                        // This ensures correct event ordering - llm:tool-call arrives before approval:request.
+                        // See tool-manager.ts for detailed explanation of the timing issue.
                         break;
 
                     case 'tool-result': {
@@ -174,6 +183,8 @@ export class StreamProcessor {
 
                         // Clean up approval metadata after use
                         this.approvalMetadata?.delete(event.toolCallId);
+                        // Remove from pending (tool completed successfully)
+                        this.pendingToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -184,6 +195,18 @@ export class StreamProcessor {
                         // If we abort mid-stream, that chunk never arrives. The tokens are
                         // still billed by the provider, but we can't report them.
                         if (event.usage) {
+                            // Extract cache write tokens from provider metadata (provider-specific)
+                            // Anthropic: providerMetadata.anthropic.cacheCreationInputTokens
+                            // Bedrock: providerMetadata.bedrock.usage.cacheWriteInputTokens
+                            const cacheWriteTokens = (event.providerMetadata?.['anthropic']?.[
+                                'cacheCreationInputTokens'
+                            ] ??
+                                // @ts-expect-error - Bedrock metadata typing not in Vercel SDK
+                                event.providerMetadata?.['bedrock']?.['usage']?.[
+                                    'cacheWriteInputTokens'
+                                ] ??
+                                0) as number;
+
                             // Accumulate usage across steps
                             this.actualTokens = {
                                 inputTokens:
@@ -200,20 +223,42 @@ export class StreamProcessor {
                                         (this.actualTokens.reasoningTokens ?? 0) +
                                         event.usage.reasoningTokens,
                                 }),
+                                // Cache tokens
+                                cacheReadTokens:
+                                    (this.actualTokens.cacheReadTokens ?? 0) +
+                                    (event.usage.cachedInputTokens ?? 0),
+                                cacheWriteTokens:
+                                    (this.actualTokens.cacheWriteTokens ?? 0) + cacheWriteTokens,
                             };
                         }
                         break;
 
                     case 'finish': {
                         this.finishReason = event.finishReason;
+
+                        // Adjust input tokens based on provider
+                        // Anthropic/Bedrock: inputTokens already excludes cached tokens
+                        // Other providers: inputTokens includes cached, need to subtract
+                        const cachedInputTokens = event.totalUsage.cachedInputTokens ?? 0;
+                        // TODO: Add 'bedrock' to LLMProvider type when we support it
+                        const providerExcludesCached =
+                            this.config.provider === 'anthropic' ||
+                            (this.config.provider as string) === 'bedrock';
+                        const adjustedInputTokens = providerExcludesCached
+                            ? (event.totalUsage.inputTokens ?? 0)
+                            : (event.totalUsage.inputTokens ?? 0) - cachedInputTokens;
+
                         const usage = {
-                            inputTokens: event.totalUsage.inputTokens ?? 0,
+                            inputTokens: adjustedInputTokens,
                             outputTokens: event.totalUsage.outputTokens ?? 0,
                             totalTokens: event.totalUsage.totalTokens ?? 0,
                             // Capture reasoning tokens if available (from Claude extended thinking, etc.)
                             ...(event.totalUsage.reasoningTokens !== undefined && {
                                 reasoningTokens: event.totalUsage.reasoningTokens,
                             }),
+                            // Cache tokens - read from totalUsage, write from accumulated finish-step events
+                            cacheReadTokens: cachedInputTokens,
+                            cacheWriteTokens: this.actualTokens.cacheWriteTokens ?? 0,
                         };
                         this.actualTokens = usage;
 
@@ -257,7 +302,7 @@ export class StreamProcessor {
                         break;
                     }
 
-                    case 'tool-error':
+                    case 'tool-error': {
                         // Tool execution failed - emit error event with tool context
                         this.logger.error('Tool execution failed', {
                             toolName: event.toolName,
@@ -265,14 +310,35 @@ export class StreamProcessor {
                             error: event.error,
                         });
 
+                        const errorMessage =
+                            event.error instanceof Error
+                                ? event.error.message
+                                : String(event.error);
+
+                        // CRITICAL: Must persist error result to history to maintain tool_use/tool_result pairing
+                        // Without this, the conversation history has tool_use without tool_result,
+                        // causing "tool_use ids were found without tool_result blocks" API errors
+                        const errorResult: SanitizedToolResult = {
+                            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+                            meta: {
+                                toolName: event.toolName,
+                                toolCallId: event.toolCallId,
+                                success: false,
+                            },
+                        };
+
+                        await this.contextManager.addToolResult(
+                            event.toolCallId,
+                            event.toolName,
+                            errorResult,
+                            undefined // No approval metadata for errors
+                        );
+
                         this.eventBus.emit('llm:tool-result', {
                             toolName: event.toolName,
                             callId: event.toolCallId,
                             success: false,
-                            error:
-                                event.error instanceof Error
-                                    ? event.error.message
-                                    : String(event.error),
+                            error: errorMessage,
                         });
 
                         this.eventBus.emit('llm:error', {
@@ -284,7 +350,10 @@ export class StreamProcessor {
                             toolCallId: event.toolCallId,
                             recoverable: true, // Tool errors are typically recoverable
                         });
+                        // Remove from pending (tool failed but result was persisted)
+                        this.pendingToolCalls.delete(event.toolCallId);
                         break;
+                    }
 
                     case 'error': {
                         const err =
@@ -300,9 +369,12 @@ export class StreamProcessor {
 
                     case 'abort':
                         // Vercel SDK emits 'abort' when the stream is cancelled
-                        // Emit final response with accumulated content
                         this.logger.debug('Stream aborted, emitting partial response');
                         this.finishReason = 'cancelled';
+
+                        // Persist cancelled results for any pending tool calls
+                        await this.persistCancelledToolResults();
+
                         this.eventBus.emit('llm:response', {
                             content: this.accumulatedText,
                             ...(this.reasoningText && { reasoning: this.reasoningText }),
@@ -330,6 +402,9 @@ export class StreamProcessor {
                 // Emit final response with accumulated content on cancellation
                 this.logger.debug('Stream cancelled, emitting partial response');
                 this.finishReason = 'cancelled';
+
+                // Persist cancelled results for any pending tool calls
+                await this.persistCancelledToolResults();
 
                 this.eventBus.emit('llm:response', {
                     content: this.accumulatedText,
@@ -378,5 +453,46 @@ export class StreamProcessor {
         const last = history[history.length - 1];
         if (!last || !last.id) throw new Error('Failed to get last message ID');
         return last.id;
+    }
+
+    /**
+     * Persist synthetic "cancelled" results for all pending tool calls.
+     * This maintains the tool_use/tool_result pairing required by LLM APIs.
+     * Called on abort/cancel to prevent "tool_use ids were found without tool_result" errors.
+     */
+    private async persistCancelledToolResults(): Promise<void> {
+        if (this.pendingToolCalls.size === 0) return;
+
+        this.logger.debug(
+            `Persisting cancelled results for ${this.pendingToolCalls.size} pending tool call(s)`
+        );
+
+        for (const [toolCallId, { toolName }] of this.pendingToolCalls) {
+            const cancelledResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: 'Cancelled by user' }],
+                meta: {
+                    toolName,
+                    toolCallId,
+                    success: false,
+                },
+            };
+
+            await this.contextManager.addToolResult(
+                toolCallId,
+                toolName,
+                cancelledResult,
+                undefined // No approval metadata for cancelled tools
+            );
+
+            // Emit tool-result event so CLI/WebUI can update UI
+            this.eventBus.emit('llm:tool-result', {
+                toolName,
+                callId: toolCallId,
+                success: false,
+                error: 'Cancelled by user',
+            });
+        }
+
+        this.pendingToolCalls.clear();
     }
 }

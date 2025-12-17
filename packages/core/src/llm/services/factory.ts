@@ -25,12 +25,13 @@ function _createVercelModel(llmConfig: ValidatedLLMConfig): LanguageModel {
             return createOpenAI({ apiKey })(model);
         }
         case 'openai-compatible': {
-            // OpenAI-compatible - requires baseURL, uses compatible mode
+            // OpenAI-compatible - requires baseURL, uses chat completions endpoint
+            // Must use .chat() as most compatible endpoints (like Ollama) don't support Responses API
             const baseURL = getOpenAICompatibleBaseURL(llmConfig);
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey, baseURL })(model);
+            return createOpenAI({ apiKey, baseURL }).chat(model);
         }
         case 'anthropic':
             return createAnthropic({ apiKey })(model);

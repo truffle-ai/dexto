@@ -1,7 +1,8 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedAgentConfig } from '../../agent/schemas.js';
-import type { ValidatedPrompt, ValidatedInlinePrompt, ValidatedFilePrompt } from '../schemas.js';
+import type { InlinePrompt, FilePrompt, PromptsConfig } from '../schemas.js';
+import { PromptsSchema } from '../schemas.js';
 import type { IDextoLogger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { PromptError } from '../errors.js';
@@ -21,7 +22,7 @@ import { dirname, relative, sep } from 'path';
  * Prompts with showInStarters: true are displayed as clickable buttons in the WebUI.
  */
 export class ConfigPromptProvider implements PromptProvider {
-    private prompts: ValidatedPrompt[] = [];
+    private prompts: PromptsConfig = [];
     private promptsCache: PromptInfo[] = [];
     private promptContent: Map<string, string> = new Map();
     private cacheValid: boolean = false;
@@ -44,8 +45,14 @@ export class ConfigPromptProvider implements PromptProvider {
         this.logger.debug('ConfigPromptProvider cache invalidated');
     }
 
-    updateConfig(agentConfig: ValidatedAgentConfig): void {
-        this.prompts = agentConfig.prompts;
+    updatePrompts(prompts: PromptsConfig): void {
+        const result = PromptsSchema.safeParse(prompts);
+        if (!result.success) {
+            const errorMsg = result.error.issues.map((i) => i.message).join(', ');
+            this.logger.error(`Invalid prompts config: ${errorMsg}`);
+            throw PromptError.validationFailed(errorMsg);
+        }
+        this.prompts = result.data;
         this.invalidateCache();
         this.buildPromptsCache();
     }
@@ -114,7 +121,7 @@ export class ConfigPromptProvider implements PromptProvider {
         const cache: PromptInfo[] = [];
         const contentMap = new Map<string, string>();
 
-        for (const prompt of this.prompts) {
+        for (const prompt of this.prompts ?? []) {
             try {
                 if (prompt.type === 'inline') {
                     const { info, content } = this.processInlinePrompt(prompt);
@@ -148,13 +155,14 @@ export class ConfigPromptProvider implements PromptProvider {
         this.logger.debug(`Cached ${cache.length} config prompts`);
     }
 
-    private processInlinePrompt(prompt: ValidatedInlinePrompt): {
+    private processInlinePrompt(prompt: InlinePrompt): {
         info: PromptInfo;
         content: string;
     } {
         const promptName = `config:${prompt.id}`;
         const promptInfo: PromptInfo = {
             name: promptName,
+            displayName: prompt.id,
             title: prompt.title,
             description: prompt.description,
             source: 'config',
@@ -171,7 +179,7 @@ export class ConfigPromptProvider implements PromptProvider {
     }
 
     private async processFilePrompt(
-        prompt: ValidatedFilePrompt
+        prompt: FilePrompt
     ): Promise<{ info: PromptInfo; content: string } | null> {
         const filePath = prompt.file;
 
@@ -219,6 +227,7 @@ export class ConfigPromptProvider implements PromptProvider {
 
             const promptInfo: PromptInfo = {
                 name: `config:${parsed.id}`,
+                displayName: parsed.id,
                 title: parsed.title,
                 description: parsed.description,
                 source: 'config',

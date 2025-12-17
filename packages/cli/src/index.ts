@@ -1099,8 +1099,9 @@ program
                         } else {
                             // Interactive mode - session management handled via /resume command
                             // Note: -c and -r flags are validated to require a prompt (headless mode only)
-                            // Defer session creation until first message is sent to prevent stale empty sessions
-                            const cliSessionId: string | null = null;
+                            // Create session eagerly so slash commands work immediately
+                            const session = await agent.createSession();
+                            const cliSessionId: string = session.id;
 
                             // Interactive mode - use Ink CLI with session support
                             // Suppress console output before starting Ink UI

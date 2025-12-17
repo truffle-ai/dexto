@@ -1,7 +1,6 @@
 /**
  * usePhraseCycler Hook
  * Cycles through processing phrases and tips at regular intervals
- * Similar to gemini-cli's implementation
  *
  * Behavior:
  * - 1/3 chance to show tip, 2/3 chance for witty phrase

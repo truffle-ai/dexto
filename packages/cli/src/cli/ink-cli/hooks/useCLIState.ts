@@ -8,14 +8,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
 import type { DextoAgent, QueuedMessage } from '@dexto/core';
-import type {
-    Message,
-    StartupInfo,
-    UIState,
-    InputState,
-    SessionState,
-    OverlayType,
-} from '../state/types.js';
+import type { Message, StartupInfo, UIState, InputState, SessionState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { useAgentEvents } from './useAgentEvents.js';
 import { useInputOrchestrator, type Key } from './useInputOrchestrator.js';
@@ -103,6 +96,17 @@ export function useCLIState({
         exitWarningTimestamp: null,
         mcpWizardServerType: null,
         copyModeEnabled: false,
+        pendingModelSwitch: null,
+        selectedMcpServer: null,
+        historySearch: {
+            isActive: false,
+            query: '',
+            matchIndex: 0,
+            originalInput: '',
+            lastMatch: '',
+        },
+        promptAddWizard: null,
+        autoApproveEdits: false,
     });
 
     // Input state
@@ -231,46 +235,10 @@ export function useCLIState({
         };
     }, [agent, initialSessionId, messages.length, session.hasActiveSession]);
 
-    // Detect selector overlays based on exact command matches
-    useEffect(() => {
-        if (ui.isProcessing || approval) return;
-        if (!input.value.startsWith('/')) return;
-
-        const selectorType = inputService.detectInteractiveSelector(input.value);
-
-        let desiredOverlay: OverlayType = 'none';
-        switch (selectorType) {
-            case 'model':
-                desiredOverlay = 'model-selector';
-                break;
-            case 'session':
-                desiredOverlay = 'session-selector';
-                break;
-        }
-
-        const protectedOverlays: OverlayType[] = [
-            'slash-autocomplete',
-            'resource-autocomplete',
-            'log-level-selector',
-            'mcp-selector',
-            'mcp-add-selector',
-            'mcp-remove-selector',
-            'mcp-custom-type-selector',
-            'mcp-custom-wizard',
-            'session-subcommand-selector',
-            'approval',
-        ];
-        const isProtectedOverlay = protectedOverlays.includes(ui.activeOverlay);
-
-        if (desiredOverlay !== ui.activeOverlay && !isProtectedOverlay) {
-            setUi((prev) => ({ ...prev, activeOverlay: desiredOverlay }));
-        }
-    }, [input.value, ui.isProcessing, ui.activeOverlay, approval, inputService]);
-
-    // Get visible messages
-    const visibleMessages = useMemo(() => {
-        return messageService.getVisibleMessages(messages, 50);
-    }, [messages, messageService]);
+    // Get visible messages - no limit needed
+    // Static mode: items are permanent in terminal scrollback, Ink only renders NEW keys
+    // AlternateBuffer mode: VirtualizedList handles its own virtualization
+    const visibleMessages = messages;
 
     return {
         messages,

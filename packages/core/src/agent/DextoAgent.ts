@@ -1,4 +1,5 @@
 // src/agent/DextoAgent.ts
+import { randomUUID } from 'crypto';
 import { setMaxListeners } from 'events';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
@@ -7,6 +8,7 @@ import { ResourceManager, expandMessageReferences } from '../resources/index.js'
 import { expandBlobReferences } from '../context/utils.js';
 import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
+import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
@@ -28,7 +30,7 @@ import { DextoValidationError } from '../errors/DextoValidationError.js';
 import { ensureOk } from '@core/errors/result-bridge.js';
 import { fail, zodToIssues } from '@core/utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
-import type { McpServerConfig } from '@core/mcp/schemas.js';
+import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '@core/mcp/schemas.js';
 import {
     getSupportedProviders,
     getDefaultModelForProvider,
@@ -113,7 +115,7 @@ export interface AgentEventSubscriber {
  * const response = await agent.run("Hello", undefined, 'user-123');
  *
  * // Connect MCP servers
- * await agent.connectMcpServer('filesystem', { command: 'mcp-filesystem' });
+ * await agent.addMcpServer('filesystem', { command: 'mcp-filesystem' });
  *
  * // Inspect available tools and system prompt
  * const tools = await agent.getAllMcpTools();
@@ -304,12 +306,6 @@ export class DextoAgent {
             // Subscribe all registered event subscribers to the new event bus
             for (const subscriber of this.eventSubscribers) {
                 subscriber.subscribe(this.agentEventBus);
-            }
-
-            // Show log location if file logging is configured
-            const fileTransport = this.config.logger?.transports?.find((t) => t.type === 'file');
-            if (fileTransport && 'path' in fileTransport) {
-                console.log(`📋 Logs available at: ${fileTransport.path}`);
             }
         } catch (error) {
             this.logger.error('Failed to start DextoAgent', {
@@ -813,6 +809,16 @@ export class DextoAgent {
             signal: cleanupSignal,
         });
         listeners.push({ event: 'approval:response', listener: approvalResponseListener });
+
+        // Tool running event - emitted when tool execution starts (after approval if needed)
+        const toolRunningListener = (data: AgentEventMap['tool:running']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'tool:running', ...data });
+        };
+        this.agentEventBus.on('tool:running', toolRunningListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'tool:running', listener: toolRunningListener });
 
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
@@ -1454,6 +1460,42 @@ export class DextoAgent {
         }
     }
 
+    /**
+     * Clears the context window for a session without deleting history.
+     *
+     * This adds a "context clear" marker to the conversation history. When the
+     * context is loaded for LLM, messages before this marker are filtered out
+     * (via filterCompacted). The full history remains in the database for
+     * review via /resume or session history.
+     *
+     * Use this for /clear command - it preserves history but gives a fresh
+     * context window to the LLM.
+     *
+     * @param sessionId Session ID (required)
+     */
+    public async clearContext(sessionId: string): Promise<void> {
+        this.ensureStarted();
+
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const contextManager = session.getContextManager();
+        await contextManager.clearContext();
+
+        this.logger.info(`Context cleared for session: ${sessionId}`);
+        this.agentEventBus.emit('context:cleared', {
+            sessionId,
+        });
+    }
+
     // ============= LLM MANAGEMENT =============
 
     /**
@@ -1687,14 +1729,14 @@ export class DextoAgent {
     // ============= MCP SERVER MANAGEMENT =============
 
     /**
-     * Connects a new MCP server and adds it to the runtime configuration.
+     * Adds a new MCP server to the runtime configuration and connects it if enabled.
      * This method handles validation, state management, and establishing the connection.
      *
-     * @param name The name of the server to connect.
+     * @param name The name of the server to add.
      * @param config The configuration object for the server.
      * @throws DextoError if validation fails or connection fails
      */
-    public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
+    public async addMcpServer(name: string, config: McpServerConfig): Promise<void> {
         this.ensureStarted();
 
         // Validate the server configuration
@@ -1703,7 +1745,13 @@ export class DextoAgent {
         const validatedConfig = ensureOk(validation, this.logger);
 
         // Add to runtime state (no validation needed - already validated)
-        this.stateManager.addMcpServer(name, validatedConfig);
+        this.stateManager.setMcpServer(name, validatedConfig);
+
+        // Only connect if server is enabled (default is true)
+        if (validatedConfig.enabled === false) {
+            this.logger.info(`MCP server '${name}' added but not connected (disabled)`);
+            return;
+        }
 
         try {
             // Connect the server
@@ -1721,9 +1769,7 @@ export class DextoAgent {
                 source: 'mcp',
             });
 
-            this.logger.info(
-                `DextoAgent: Successfully added and connected to MCP server '${name}'.`
-            );
+            this.logger.info(`MCP server '${name}' added and connected successfully`);
 
             // Log warnings if present
             const warnings = validation.issues.filter((i) => i.severity === 'warning');
@@ -1732,13 +1778,9 @@ export class DextoAgent {
                     `MCP server connected with warnings: ${warnings.map((w) => w.message).join(', ')}`
                 );
             }
-
-            // Connection successful - method completes without returning data
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            this.logger.error(
-                `DextoAgent: Failed to connect to MCP server '${name}': ${errorMessage}`
-            );
+            this.logger.error(`Failed to connect MCP server '${name}': ${errorMessage}`);
 
             // Clean up state if connection failed
             this.stateManager.removeMcpServer(name);
@@ -1754,19 +1796,104 @@ export class DextoAgent {
     }
 
     /**
-     * Removes and disconnects an MCP server.
+     * @deprecated Use `addMcpServer` instead. This method will be removed in a future version.
+     */
+    public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
+        return this.addMcpServer(name, config);
+    }
+
+    /**
+     * Enables a disabled MCP server and connects it.
+     * Updates the runtime state to enabled=true and establishes the connection.
+     *
+     * @param name The name of the server to enable.
+     * @throws MCPError if server is not found or connection fails
+     */
+    public async enableMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        // Update state with enabled=true
+        const updatedConfig = { ...currentConfig, enabled: true };
+        this.stateManager.setMcpServer(name, updatedConfig);
+
+        try {
+            // Connect the server
+            await this.mcpManager.connectServer(name, updatedConfig);
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('mcp:server-connected', { name, success: true });
+            this.logger.info(`MCP server '${name}' enabled and connected`);
+        } catch (error) {
+            // Revert state on failure
+            this.stateManager.setMcpServer(name, currentConfig);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to enable MCP server '${name}': ${errorMessage}`);
+            throw MCPError.connectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
+     * Disables an MCP server and disconnects it.
+     * Updates the runtime state to enabled=false and closes the connection.
+     *
+     * @param name The name of the server to disable.
+     * @throws MCPError if server is not found or disconnect fails
+     */
+    public async disableMcpServer(name: string): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        // Update state with enabled=false
+        const updatedConfig = { ...currentConfig, enabled: false };
+        this.stateManager.setMcpServer(name, updatedConfig);
+
+        try {
+            // Disconnect the server
+            await this.mcpManager.removeClient(name);
+            await this.toolManager.refresh();
+
+            this.logger.info(`MCP server '${name}' disabled and disconnected`);
+        } catch (error) {
+            // Revert state on failure
+            this.stateManager.setMcpServer(name, currentConfig);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to disable MCP server '${name}': ${errorMessage}`);
+            throw MCPError.disconnectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
+     * Removes and disconnects an MCP server completely.
+     * Use this for deleting a server - removes from both runtime state and disconnects.
      * @param name The name of the server to remove.
+     * @throws MCPError if disconnection fails
      */
     public async removeMcpServer(name: string): Promise<void> {
         this.ensureStarted();
-        // Disconnect the client first
-        await this.mcpManager.removeClient(name);
 
-        // Then remove from runtime state
-        this.stateManager.removeMcpServer(name);
+        try {
+            // Disconnect the client first
+            await this.mcpManager.removeClient(name);
 
-        // Refresh tool cache after server removal so the LLM sees updated set
-        await this.toolManager.refresh();
+            // Then remove from runtime state
+            this.stateManager.removeMcpServer(name);
+
+            // Refresh tool cache after server removal so the LLM sees updated set
+            await this.toolManager.refresh();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to remove MCP server '${name}': ${errorMessage}`);
+            throw MCPError.disconnectionFailed(name, errorMessage);
+        }
     }
 
     /**
@@ -1812,13 +1939,19 @@ export class DextoAgent {
     /**
      * Executes a tool from any source (MCP servers, custom tools, or internal tools).
      * This is the unified interface for tool execution that can handle all tool types.
+     *
+     * Note: This is for direct/programmatic tool execution outside of LLM flow.
+     * A toolCallId is generated automatically for tracking purposes.
+     *
      * @param toolName The name of the tool to execute
      * @param args The arguments to pass to the tool
      * @returns The result of the tool execution
      */
     public async executeTool(toolName: string, args: any): Promise<any> {
         this.ensureStarted();
-        return await this.toolManager.executeTool(toolName, args);
+        // Generate a toolCallId for direct API calls (not from LLM)
+        const toolCallId = `direct-${randomUUID()}`;
+        return await this.toolManager.executeTool(toolName, args, toolCallId);
     }
 
     /**
@@ -1859,6 +1992,89 @@ export class DextoAgent {
     public getMcpFailedConnections(): Record<string, string> {
         this.ensureStarted();
         return this.mcpManager.getFailedConnections();
+    }
+
+    /**
+     * Gets the connection status of a single MCP server.
+     * @param name The server name
+     * @returns The connection status, or undefined if server not configured
+     *
+     * TODO: Move to MCPManager once it has access to server configs (enabled state).
+     * Currently here because MCPManager only tracks connections, not config.
+     */
+    public getMcpServerStatus(name: string): McpServerStatus | undefined {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig();
+        const serverConfig = config.mcpServers[name];
+        if (!serverConfig) return undefined;
+
+        const enabled = serverConfig.enabled !== false;
+        const connectedClients = this.mcpManager.getClients();
+        const failedConnections = this.mcpManager.getFailedConnections();
+
+        let status: McpConnectionStatus;
+        if (!enabled) {
+            status = 'disconnected';
+        } else if (connectedClients.has(name)) {
+            status = 'connected';
+        } else {
+            status = 'error';
+        }
+
+        const result: McpServerStatus = {
+            name,
+            type: serverConfig.type,
+            enabled,
+            status,
+        };
+        if (failedConnections[name]) {
+            result.error = failedConnections[name];
+        }
+        return result;
+    }
+
+    /**
+     * Gets all configured MCP servers with their connection status.
+     * Centralizes the status computation logic used by CLI, server, and webui.
+     * @returns Array of server info with computed status
+     *
+     * TODO: Move to MCPManager once it has access to server configs (enabled state).
+     * Currently here because MCPManager only tracks connections, not config.
+     */
+    public getMcpServersWithStatus(): McpServerStatus[] {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig();
+        const mcpServers = config.mcpServers || {};
+        const connectedClients = this.mcpManager.getClients();
+        const failedConnections = this.mcpManager.getFailedConnections();
+
+        const servers: McpServerStatus[] = [];
+
+        for (const [name, serverConfig] of Object.entries(mcpServers)) {
+            const enabled = serverConfig.enabled !== false;
+            let status: McpConnectionStatus;
+
+            if (!enabled) {
+                status = 'disconnected';
+            } else if (connectedClients.has(name)) {
+                status = 'connected';
+            } else {
+                status = 'error';
+            }
+
+            const server: McpServerStatus = {
+                name,
+                type: serverConfig.type,
+                enabled,
+                status,
+            };
+            if (failedConnections[name]) {
+                server.error = failedConnections[name];
+            }
+            servers.push(server);
+        }
+
+        return servers;
     }
 
     // ============= RESOURCE MANAGEMENT =============
@@ -1977,6 +2193,22 @@ export class DextoAgent {
     public async hasPrompt(name: string): Promise<boolean> {
         this.ensureStarted();
         return await this.promptManager.has(name);
+    }
+
+    /**
+     * Refreshes the prompts cache, reloading from all providers.
+     * Call this after adding/deleting prompts to make them immediately available.
+     *
+     * @param newPrompts Optional - if provided, updates the config prompts before refreshing.
+     *                   Use this when you've modified the agent config file and need to
+     *                   update both the runtime config and refresh the cache.
+     */
+    public async refreshPrompts(newPrompts?: PromptsConfig): Promise<void> {
+        this.ensureStarted();
+        if (newPrompts) {
+            this.promptManager.updateConfigPrompts(newPrompts);
+        }
+        await this.promptManager.refresh();
     }
 
     /**

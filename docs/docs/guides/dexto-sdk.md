@@ -330,7 +330,7 @@ class AdaptiveAgent {
 
   async addCapability(name: string, serverConfig: McpServerConfig) {
     try {
-      await this.agent.connectMcpServer(name, serverConfig);
+      await this.agent.addMcpServer(name, serverConfig);
       console.log(`✅ Added ${name} capability`);
     } catch (error) {
       console.error(`❌ Failed to add ${name}:`, error);

@@ -13,7 +13,7 @@ const AskUserInputSchema = z
             })
             .passthrough()
             .describe(
-                'JSON Schema defining the form structure. Must be an object with "type": "object" and "properties" defining form fields. Use "enum" arrays for dropdowns, "boolean" for yes/no, "number"/"integer" for numeric inputs, "string" for text. Include "required" array for mandatory fields.'
+                'JSON Schema defining form fields. Use descriptive property names as labels (e.g., "favorite_team", "World Cup winner country") - NOT generic names like "q1". Use "enum" for dropdowns, "boolean" for yes/no, "number" for numeric inputs, "string" for text. Include "required" array for mandatory fields.'
             ),
     })
     .strict();

@@ -105,28 +105,10 @@ export class ProcessService {
 
         const normalizedCommand = validation.normalizedCommand;
 
-        // Check if command requires approval (e.g., dangerous commands like rm, git push)
-        if (validation.requiresApproval) {
-            if (!options.approvalFunction) {
-                // No approval mechanism provided - fail safe
-                throw ProcessError.approvalRequired(
-                    normalizedCommand,
-                    'Command requires approval but no approval mechanism provided'
-                );
-            }
-
-            this.logger.info(
-                `Command requires approval: ${normalizedCommand} - requesting user confirmation`
-            );
-            const approved = await options.approvalFunction(normalizedCommand);
-
-            if (!approved) {
-                this.logger.info(`Command approval denied: ${normalizedCommand}`);
-                throw ProcessError.approvalDenied(normalizedCommand);
-            }
-
-            this.logger.info(`Command approved: ${normalizedCommand}`);
-        }
+        // Note: Command-level approval removed - approval is now handled at the tool level
+        // in ToolManager with pattern-based approval for bash commands.
+        // CommandValidator still validates for dangerous patterns (blocks truly dangerous commands)
+        // but no longer triggers a second approval prompt.
 
         // Handle timeout - clamp to valid range to prevent negative/NaN/invalid values
         const rawTimeout =
@@ -161,43 +143,111 @@ export class ProcessService {
             timeout,
             env,
             ...(options.description !== undefined && { description: options.description }),
+            ...(options.abortSignal !== undefined && { abortSignal: options.abortSignal }),
         });
     }
 
+    private static readonly SIGKILL_TIMEOUT_MS = 200;
+
     /**
-     * Execute command in foreground with timeout
+     * Kill a process tree (process group on Unix, taskkill on Windows)
+     */
+    private async killProcessTree(pid: number, child: ChildProcess): Promise<void> {
+        if (process.platform === 'win32') {
+            // Windows: use taskkill with /t flag to kill process tree
+            await new Promise<void>((resolve) => {
+                const killer = spawn('taskkill', ['/pid', String(pid), '/f', '/t'], {
+                    stdio: 'ignore',
+                });
+                killer.once('exit', () => resolve());
+                killer.once('error', () => resolve());
+            });
+        } else {
+            // Unix: kill process group using negative PID
+            try {
+                process.kill(-pid, 'SIGTERM');
+                await new Promise((res) => setTimeout(res, ProcessService.SIGKILL_TIMEOUT_MS));
+                if (child.exitCode === null) {
+                    process.kill(-pid, 'SIGKILL');
+                }
+            } catch {
+                // Fallback to killing just the process if group kill fails
+                child.kill('SIGTERM');
+                await new Promise((res) => setTimeout(res, ProcessService.SIGKILL_TIMEOUT_MS));
+                if (child.exitCode === null) {
+                    child.kill('SIGKILL');
+                }
+            }
+        }
+    }
+
+    /**
+     * Execute command in foreground with timeout and abort support
      */
     private executeForeground(
         command: string,
-        options: { cwd: string; timeout: number; env: Record<string, string>; description?: string }
+        options: {
+            cwd: string;
+            timeout: number;
+            env: Record<string, string>;
+            description?: string;
+            abortSignal?: AbortSignal;
+        }
     ): Promise<ProcessResult> {
         return new Promise((resolve, reject) => {
             const startTime = Date.now();
             let stdout = '';
             let stderr = '';
             let killed = false;
+            let aborted = false;
             let closed = false;
+
+            // Check if already aborted before starting
+            if (options.abortSignal?.aborted) {
+                this.logger.debug(`Command cancelled before execution: ${command}`);
+                resolve({
+                    stdout: '',
+                    stderr: '(Command was cancelled)',
+                    exitCode: 130, // Standard exit code for SIGINT
+                    duration: 0,
+                });
+                return;
+            }
 
             this.logger.debug(`Executing command: ${command}`);
 
-            // Spawn process with shell
+            // Spawn process with shell and detached for process group support (Unix)
             const child = spawn(command, {
                 cwd: options.cwd,
                 env: options.env,
                 shell: true,
+                detached: process.platform !== 'win32', // Create process group on Unix
             });
 
             // Setup timeout
             const timeoutHandle = setTimeout(() => {
                 killed = true;
-                child.kill('SIGTERM');
-                setTimeout(() => {
-                    // If still not closed, force kill
-                    if (!closed && child.exitCode === null) {
-                        child.kill('SIGKILL');
-                    }
-                }, 5000); // Force kill after 5 seconds
+                if (child.pid) {
+                    void this.killProcessTree(child.pid, child);
+                } else {
+                    child.kill('SIGTERM');
+                }
             }, options.timeout);
+
+            // Setup abort handler
+            const abortHandler = () => {
+                if (closed) return;
+                aborted = true;
+                this.logger.debug(`Command cancelled by user: ${command}`);
+                clearTimeout(timeoutHandle);
+                if (child.pid) {
+                    void this.killProcessTree(child.pid, child);
+                } else {
+                    child.kill('SIGTERM');
+                }
+            };
+
+            options.abortSignal?.addEventListener('abort', abortHandler, { once: true });
 
             // Collect stdout
             child.stdout?.on('data', (data) => {
@@ -213,7 +263,21 @@ export class ProcessService {
             child.on('close', (code, signal) => {
                 closed = true;
                 clearTimeout(timeoutHandle);
+                options.abortSignal?.removeEventListener('abort', abortHandler);
                 const duration = Date.now() - startTime;
+
+                // Handle abort - return result instead of rejecting
+                if (aborted) {
+                    stdout += '\n\n(Command was cancelled)';
+                    this.logger.debug(`Command cancelled after ${duration}ms: ${command}`);
+                    resolve({
+                        stdout,
+                        stderr,
+                        exitCode: 130, // Standard exit code for SIGINT
+                        duration,
+                    });
+                    return;
+                }
 
                 if (killed) {
                     reject(ProcessError.timeout(command, options.timeout));
@@ -240,6 +304,7 @@ export class ProcessService {
             // Handle errors
             child.on('error', (error) => {
                 clearTimeout(timeoutHandle);
+                options.abortSignal?.removeEventListener('abort', abortHandler);
 
                 // Check for specific error types
                 if ((error as NodeJS.ErrnoException).code === 'ENOENT') {

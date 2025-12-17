@@ -4,6 +4,7 @@
  */
 
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
+import type { ToolDisplayData, ContentPart, McpConnectionStatus, McpServerType } from '@dexto/core';
 
 /**
  * Startup information displayed in CLI header
@@ -12,13 +13,17 @@ export interface StartupInfo {
     connectedServers: { count: number; names: string[] };
     failedConnections: string[];
     toolCount: number;
-    logFile: string;
+    logFile: string | null;
 }
 
 /**
  * Tool call status for visual feedback
+ * - pending: Tool call received, checking if approval needed (static gray dot)
+ * - pending_approval: Waiting for user approval (static yellow dot)
+ * - running: Actually executing (animated magenta spinner)
+ * - finished: Completed (green dot success, red dot error)
  */
-export type ToolStatus = 'running' | 'finished';
+export type ToolStatus = 'pending' | 'pending_approval' | 'running' | 'finished';
 
 /**
  * Styled message types for rich command output
@@ -30,17 +35,26 @@ export type StyledMessageType =
     | 'session-list'
     | 'session-history'
     | 'log-config'
-    | 'run-summary';
+    | 'run-summary'
+    | 'prompts'
+    | 'sysprompt'
+    | 'shortcuts';
 
 /**
  * Structured data for styled messages
  */
 export interface ConfigStyledData {
+    configFilePath: string | null;
     provider: string;
     model: string;
+    maxTokens: number | null;
+    temperature: number | null;
+    toolConfirmationMode: string;
     maxSessions: string;
     sessionTTL: string;
     mcpServers: string[];
+    promptsCount: number;
+    pluginsEnabled: string[];
 }
 
 export interface StatsStyledData {
@@ -54,6 +68,15 @@ export interface StatsStyledData {
         failed: number;
         toolCount: number;
     };
+    tokenUsage?: {
+        inputTokens: number;
+        outputTokens: number;
+        reasoningTokens: number;
+        cacheReadTokens: number;
+        cacheWriteTokens: number;
+        totalTokens: number;
+    };
+    estimatedCost?: number;
 }
 
 export interface HelpStyledData {
@@ -97,6 +120,40 @@ export interface RunSummaryStyledData {
     outputTokens: number;
 }
 
+export interface PromptsStyledData {
+    mcpPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+        args?: string[];
+    }>;
+    configPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+    }>;
+    customPrompts: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+    }>;
+    total: number;
+}
+
+export interface SysPromptStyledData {
+    content: string;
+}
+
+export interface ShortcutsStyledData {
+    categories: Array<{
+        name: string;
+        shortcuts: Array<{
+            keys: string;
+            description: string;
+        }>;
+    }>;
+}
+
 export type StyledData =
     | ConfigStyledData
     | StatsStyledData
@@ -104,10 +161,18 @@ export type StyledData =
     | SessionListStyledData
     | SessionHistoryStyledData
     | LogConfigStyledData
-    | RunSummaryStyledData;
+    | RunSummaryStyledData
+    | PromptsStyledData
+    | SysPromptStyledData
+    | ShortcutsStyledData;
 
 /**
  * Message in the chat interface
+ *
+ * TODO: Consolidate with InternalMessage from @dexto/core. Currently we have two
+ * message types: InternalMessage (core, ContentPart[] content) and Message (CLI,
+ * string content + UI fields). Consider extending InternalMessage or extracting
+ * shared role type to reduce duplication and type confusion.
  */
 export interface Message {
     id: string;
@@ -126,6 +191,10 @@ export interface Message {
     isQueued?: boolean;
     /** Queue position (1-indexed) for queued messages */
     queuePosition?: number;
+    /** Structured display data for tool-specific rendering (diffs, shell output, etc.) */
+    toolDisplayData?: ToolDisplayData;
+    /** Content parts for tool result rendering */
+    toolContent?: ContentPart[];
 }
 
 /**
@@ -192,20 +261,73 @@ export type OverlayType =
     | 'slash-autocomplete'
     | 'resource-autocomplete'
     | 'model-selector'
+    | 'custom-model-wizard'
     | 'session-selector'
-    | 'mcp-selector'
+    | 'mcp-server-list'
+    | 'mcp-server-actions'
+    | 'mcp-add-choice'
     | 'mcp-add-selector'
-    | 'mcp-remove-selector'
     | 'mcp-custom-type-selector'
     | 'mcp-custom-wizard'
     | 'log-level-selector'
+    | 'stream-selector'
     | 'session-subcommand-selector'
-    | 'approval';
+    | 'api-key-input'
+    | 'search'
+    | 'approval'
+    | 'tool-browser'
+    | 'prompt-list'
+    | 'prompt-add-choice'
+    | 'prompt-add-wizard'
+    | 'prompt-delete-selector';
 
 /**
- * MCP server type for custom wizard
+ * MCP server type for custom wizard (null = not yet selected)
  */
-export type McpWizardServerType = 'stdio' | 'http' | 'sse' | null;
+export type McpWizardServerType = McpServerType | null;
+
+/**
+ * MCP server info for actions screen
+ */
+export interface SelectedMcpServer {
+    name: string;
+    enabled: boolean;
+    status: McpConnectionStatus;
+    type: McpServerType;
+}
+
+/**
+ * Pending model switch info (when waiting for API key input)
+ */
+export interface PendingModelSwitch {
+    provider: string;
+    model: string;
+}
+
+/**
+ * Prompt add wizard state
+ */
+export type PromptAddScope = 'agent' | 'shared';
+
+export interface PromptAddWizardState {
+    scope: PromptAddScope;
+    step: 'name' | 'title' | 'description' | 'content';
+    name: string;
+    title: string;
+    description: string;
+    content: string;
+}
+
+/**
+ * History search state (Ctrl+R reverse search)
+ */
+export interface HistorySearchState {
+    isActive: boolean;
+    query: string;
+    matchIndex: number; // Index into filtered matches (0 = most recent match)
+    originalInput: string; // Cached input to restore on Escape
+    lastMatch: string; // Last valid match (preserved when no results)
+}
 
 /**
  * UI state management
@@ -219,6 +341,11 @@ export interface UIState {
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
     mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard
     copyModeEnabled: boolean; // True when copy mode is active (mouse events disabled for text selection)
+    pendingModelSwitch: PendingModelSwitch | null; // Pending model switch waiting for API key
+    selectedMcpServer: SelectedMcpServer | null; // Selected server for MCP actions screen
+    historySearch: HistorySearchState; // Ctrl+R reverse history search
+    promptAddWizard: PromptAddWizardState | null; // Prompt add wizard state
+    autoApproveEdits: boolean; // True when edit mode is on (auto-approve edit_file/write_file)
 }
 
 /**

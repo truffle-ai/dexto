@@ -24,8 +24,8 @@ interface SlashCommandAutocompleteProps {
     onSelectPrompt: (prompt: PromptInfo) => void;
     onSelectSystemCommand?: (command: string) => void;
     onLoadIntoInput?: (command: string) => void; // For Tab - loads command into input
+    onSubmitRaw?: ((text: string) => Promise<void> | void) | undefined; // For Enter with no matches - submit raw text
     onClose: () => void;
-    onCreatePrompt?: () => void;
     agent: DextoAgent;
 }
 
@@ -148,8 +148,8 @@ const SlashCommandAutocompleteInner = forwardRef<
         onSelectPrompt,
         onSelectSystemCommand,
         onLoadIntoInput,
+        onSubmitRaw,
         onClose,
-        onCreatePrompt,
         agent,
     },
     ref
@@ -273,37 +273,38 @@ const SlashCommandAutocompleteInner = forwardRef<
             });
     }, [systemCommands, commandQuery]);
 
-    // Check if user has started typing arguments (hide autocomplete if so)
+    // Check if user has started typing arguments (hide autocomplete)
     const hasArguments = useMemo(() => {
         if (!searchQuery.startsWith('/')) return false;
         const afterSlash = searchQuery.slice(1).trim();
         return afterSlash.includes(' ');
     }, [searchQuery]);
 
-    // Show create option only if query doesn't match any commands and is a valid prompt name
-    const showCreateOption = useMemo(() => {
-        if (!commandQuery) return false; // Don't show create when just "/"
-        if (hasArguments) return false; // Don't show create when typing arguments
-        // Only show create if no matches and query looks like a prompt name (no spaces, valid chars)
-        return (
-            filteredPrompts.length === 0 &&
-            filteredSystemCommands.length === 0 &&
-            commandQuery.length > 0
-        );
-    }, [commandQuery, hasArguments, filteredPrompts.length, filteredSystemCommands.length]);
-
-    // Combine items: system commands first, then prompts, then create option
-    // Hide autocomplete if user has started typing arguments
+    // Combine items: system commands first, then prompts
+    // When typing arguments, show only exact matches (for argument hints)
     const combinedItems = useMemo(() => {
-        if (hasArguments) {
-            return []; // Hide autocomplete when typing arguments
-        }
-
         const items: Array<
-            | { kind: 'system'; command: SystemCommandItem }
-            | { kind: 'prompt'; prompt: PromptItem }
-            | { kind: 'create' }
+            { kind: 'system'; command: SystemCommandItem } | { kind: 'prompt'; prompt: PromptItem }
         > = [];
+
+        if (hasArguments) {
+            // When typing arguments, only show exact match for the command
+            const exactSystemCmd = systemCommands.find(
+                (cmd) => cmd.name.toLowerCase() === commandQuery.toLowerCase()
+            );
+            if (exactSystemCmd) {
+                items.push({ kind: 'system', command: exactSystemCmd });
+            }
+            const exactPrompt = prompts.find(
+                (p) =>
+                    p.name.toLowerCase() === commandQuery.toLowerCase() ||
+                    (p.displayName && p.displayName.toLowerCase() === commandQuery.toLowerCase())
+            );
+            if (exactPrompt) {
+                items.push({ kind: 'prompt', prompt: exactPrompt });
+            }
+            return items;
+        }
 
         // System commands first (they're more commonly used)
         filteredSystemCommands.forEach((cmd) => items.push({ kind: 'system', command: cmd }));
@@ -311,21 +312,22 @@ const SlashCommandAutocompleteInner = forwardRef<
         // Then prompts
         filteredPrompts.forEach((prompt) => items.push({ kind: 'prompt', prompt }));
 
-        // Create option last
-        if (showCreateOption) {
-            items.push({ kind: 'create' });
-        }
-
         return items;
-    }, [hasArguments, showCreateOption, filteredPrompts, filteredSystemCommands]);
+    }, [
+        hasArguments,
+        filteredPrompts,
+        filteredSystemCommands,
+        systemCommands,
+        prompts,
+        commandQuery,
+    ]);
 
     // Get stable identity for first item (used to detect content changes)
     const getFirstItemId = (): string | null => {
         const first = combinedItems[0];
         if (!first) return null;
         if (first.kind === 'system') return `sys:${first.command.name}`;
-        if (first.kind === 'prompt') return `prompt:${first.prompt.name}`;
-        return 'create';
+        return `prompt:${first.prompt.name}`;
     };
 
     // Track items for reset detection (length + first item identity)
@@ -379,9 +381,20 @@ const SlashCommandAutocompleteInner = forwardRef<
 
                 const itemsLength = combinedItems.length;
 
-                // If no items or arguments being typed, don't consume input
-                // Let it fall through to the main input handler
+                // Handle Enter when no matches or typing arguments
+                // Submit raw text directly (main input won't handle it since overlay is active)
                 if (itemsLength === 0 || hasArguments) {
+                    if (key.return) {
+                        void Promise.resolve(onSubmitRaw?.(searchQuery)).catch((err) => {
+                            const message = err instanceof Error ? err.message : String(err);
+                            agent.logger.error(
+                                `SlashCommandAutocomplete: Failed to submit raw command: ${message}`
+                            );
+                        });
+                        onClose();
+                        return true;
+                    }
+                    // Let other keys (typing, backspace) fall through
                     return false;
                 }
 
@@ -409,14 +422,15 @@ const SlashCommandAutocompleteInner = forwardRef<
                     if (isInteractiveCommand && item.kind === 'system') {
                         // Execute interactive command (same as Enter)
                         onSelectSystemCommand?.(item.command.name);
-                    } else if (item.kind === 'create') {
-                        // For create, load the command name into input
-                        onLoadIntoInput?.(`/${commandQuery || 'name'}`);
                     } else if (item.kind === 'system') {
                         // Load system command into input
                         onLoadIntoInput?.(`/${item.command.name}`);
                     } else {
                         // Load prompt command into input
+                        // Use displayName only if it's command-safe (no spaces/special chars)
+                        const promptDisplayName = item.prompt.displayName || item.prompt.name;
+                        const isCommandSafe = /^[A-Za-z0-9_-]+$/.test(promptDisplayName);
+                        const commandName = isCommandSafe ? promptDisplayName : item.prompt.name;
                         const argsString =
                             item.prompt.arguments && item.prompt.arguments.length > 0
                                 ? ' ' +
@@ -424,22 +438,21 @@ const SlashCommandAutocompleteInner = forwardRef<
                                       .map((arg) => `<${arg.name}${arg.required ? '' : '?'}>`)
                                       .join(' ')
                                 : '';
-                        onLoadIntoInput?.(`/${item.prompt.name}${argsString}`);
+                        onLoadIntoInput?.(`/${commandName}${argsString}`);
                     }
                     return true;
                 }
 
-                // Enter: Always execute the highlighted command/prompt
+                // Enter: Execute the highlighted command/prompt and close overlay
                 if (key.return) {
                     const item = combinedItems[selectedIndexRef.current];
                     if (!item) return false;
-                    if (item.kind === 'create') {
-                        onCreatePrompt?.();
-                    } else if (item.kind === 'system') {
+                    if (item.kind === 'system') {
                         onSelectSystemCommand?.(item.command.name);
                     } else {
                         onSelectPrompt(item.prompt);
                     }
+                    onClose();
                     return true;
                 }
 
@@ -453,21 +466,20 @@ const SlashCommandAutocompleteInner = forwardRef<
             combinedItems,
             hasArguments,
             selectedIndexRef,
-            commandQuery,
+            searchQuery,
             onClose,
             onLoadIntoInput,
+            onSubmitRaw,
             onSelectPrompt,
             onSelectSystemCommand,
-            onCreatePrompt,
             updateSelection,
+            agent,
         ]
     );
 
     if (!isVisible) return null;
 
-    // Hide autocomplete when user is typing arguments
-    if (hasArguments) return null;
-
+    // Show loading state while fetching commands
     if (isLoading) {
         return (
             <Box width={terminalWidth} paddingX={0} paddingY={0}>
@@ -476,38 +488,28 @@ const SlashCommandAutocompleteInner = forwardRef<
         );
     }
 
+    // If no items after loading, don't render
     if (combinedItems.length === 0) {
-        return (
-            <Box width={terminalWidth} paddingX={0} paddingY={0}>
-                <Text dimColor>No commands found</Text>
-            </Box>
-        );
+        return null;
     }
 
     const totalItems = combinedItems.length;
+
+    // Show simplified header when user is typing arguments
+    const headerText = hasArguments
+        ? 'Press Enter to execute'
+        : `Commands (${selectedIndex + 1}/${totalItems}) - ↑↓ navigate, Tab load, Enter execute, Esc close`;
 
     return (
         <Box flexDirection="column" width={terminalWidth}>
             <Box paddingX={0} paddingY={0}>
                 <Text color="purple" bold>
-                    Commands ({selectedIndex + 1}/{totalItems}) - ↑↓ navigate, Tab load, Enter
-                    execute, Esc close
+                    {headerText}
                 </Text>
             </Box>
             {visibleItems.map((item, visibleIndex) => {
                 const actualIndex = scrollOffset + visibleIndex;
                 const isSelected = actualIndex === selectedIndex;
-
-                if (item.kind === 'create') {
-                    const createText = `+ Create new prompt: /${commandQuery || 'name'}`;
-                    return (
-                        <Box key="create" width={terminalWidth} paddingX={0} paddingY={0}>
-                            <Text color={isSelected ? 'green' : 'gray'} bold={isSelected}>
-                                {truncateText(createText, terminalWidth)}
-                            </Text>
-                        </Box>
-                    );
-                }
 
                 if (item.kind === 'system') {
                     const cmd = item.command;
@@ -515,36 +517,28 @@ const SlashCommandAutocompleteInner = forwardRef<
                     const categoryText = cmd.category ? ` (${cmd.category})` : '';
                     const descText = cmd.description || '';
 
-                    // Two-column layout: ~30% for command, ~70% for description
-                    const cmdColumnWidth = Math.max(15, Math.floor(terminalWidth * 0.3));
-                    const descColumnWidth = terminalWidth - cmdColumnWidth;
-
-                    // Truncate to fit columns
-                    const truncatedName = truncateText(nameText + categoryText, cmdColumnWidth - 1);
-                    const truncatedDesc = truncateText(descText, descColumnWidth - 2);
-                    const paddedName = truncatedName.padEnd(cmdColumnWidth - 1);
-                    const paddedDesc = truncatedDesc.padEnd(descColumnWidth - 2);
-
+                    // Two-line layout:
+                    // Line 1: /command-name
+                    // Line 2:     Description text (category)
                     return (
-                        <Box
-                            key={`system-${cmd.name}`}
-                            width={terminalWidth}
-                            paddingX={0}
-                            paddingY={0}
-                        >
+                        <Box key={`system-${cmd.name}`} flexDirection="column" paddingX={0}>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                {paddedName}
+                                {nameText}
                             </Text>
                             <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                                {paddedDesc}
+                                {'    '}
+                                {descText}
+                                {categoryText}
                             </Text>
                         </Box>
                     );
                 }
 
-                // Prompt command
+                // Prompt command (MCP prompts)
                 const prompt = item.prompt;
-                const nameText = `/${prompt.name}`;
+                // Use displayName for user-friendly display, fall back to full name
+                const displayName = prompt.displayName || prompt.name;
+                const nameText = `/${displayName}`;
                 const argsString =
                     prompt.arguments && prompt.arguments.length > 0
                         ? ' ' +
@@ -554,29 +548,21 @@ const SlashCommandAutocompleteInner = forwardRef<
                         : '';
                 const description = prompt.title || prompt.description || '';
 
-                // Two-column layout: ~30% for command+args, ~70% for description
-                const cmdColumnWidth = Math.max(15, Math.floor(terminalWidth * 0.3));
-                const descColumnWidth = terminalWidth - cmdColumnWidth;
-
-                // Build command text and truncate
-                const commandText = nameText + (argsString ? argsString : '');
-                const truncatedCmd = truncateText(commandText, cmdColumnWidth - 1);
-                const truncatedDesc = truncateText(description, descColumnWidth - 2);
-                const paddedCmd = truncatedCmd.padEnd(cmdColumnWidth - 1);
-                const paddedDesc = truncatedDesc.padEnd(descColumnWidth - 2);
+                // Two-line layout:
+                // Line 1: /command-name <args>
+                // Line 2:     Description text (source)
+                const commandText = nameText + argsString;
+                const sourceLabel = prompt.source || 'prompt';
 
                 return (
-                    <Box
-                        key={`prompt-${prompt.name}`}
-                        width={terminalWidth}
-                        paddingX={0}
-                        paddingY={0}
-                    >
+                    <Box key={`prompt-${prompt.name}`} flexDirection="column" paddingX={0}>
                         <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                            {paddedCmd}
+                            {commandText}
                         </Text>
                         <Text color={isSelected ? 'white' : 'gray'} dimColor={!isSelected}>
-                            {paddedDesc}
+                            {'    '}
+                            {description}
+                            {` (${sourceLabel})`}
                         </Text>
                     </Box>
                 );

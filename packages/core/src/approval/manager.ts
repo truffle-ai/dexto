@@ -12,6 +12,7 @@ import { createApprovalRequest } from './factory.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
+import { patternCovers } from '../tools/bash-pattern-utils.js';
 
 /**
  * Configuration for the approval manager
@@ -65,6 +66,13 @@ export class ApprovalManager {
     private config: ApprovalManagerConfig;
     private logger: IDextoLogger;
 
+    /**
+     * Bash command patterns approved for the current session.
+     * Patterns use simple glob syntax (e.g., "git *", "npm install *").
+     * Cleared when session ends.
+     */
+    private bashPatterns: Set<string> = new Set();
+
     constructor(config: ApprovalManagerConfig, logger: IDextoLogger) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
@@ -72,6 +80,61 @@ export class ApprovalManager {
         this.logger.debug(
             `ApprovalManager initialized with toolConfirmation.mode: ${config.toolConfirmation.mode}, elicitation.enabled: ${config.elicitation.enabled}`
         );
+    }
+
+    // ==================== Bash Pattern Methods ====================
+
+    /**
+     * Add a bash command pattern to the approved list for this session.
+     * Patterns use simple glob syntax with * as wildcard.
+     *
+     * @example
+     * ```typescript
+     * manager.addBashPattern("git *");        // Approves all git commands
+     * manager.addBashPattern("npm install *"); // Approves npm install with any package
+     * ```
+     */
+    addBashPattern(pattern: string): void {
+        this.bashPatterns.add(pattern);
+        this.logger.debug(`Added bash pattern: "${pattern}"`);
+    }
+
+    /**
+     * Check if a bash pattern key is covered by any approved pattern.
+     * Uses pattern-to-pattern covering for broader pattern support.
+     *
+     * @param patternKey The pattern key generated from the command (e.g., "git push *")
+     * @returns true if the pattern key is covered by an approved pattern
+     */
+    matchesBashPattern(patternKey: string): boolean {
+        for (const storedPattern of this.bashPatterns) {
+            if (patternCovers(storedPattern, patternKey)) {
+                this.logger.debug(
+                    `Pattern key "${patternKey}" is covered by approved pattern "${storedPattern}"`
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Clear all approved bash patterns.
+     * Should be called when session ends.
+     */
+    clearBashPatterns(): void {
+        const count = this.bashPatterns.size;
+        this.bashPatterns.clear();
+        if (count > 0) {
+            this.logger.debug(`Cleared ${count} bash patterns`);
+        }
+    }
+
+    /**
+     * Get the current set of approved bash patterns (for debugging/display).
+     */
+    getBashPatterns(): ReadonlySet<string> {
+        return this.bashPatterns;
     }
 
     /**
@@ -324,6 +387,13 @@ export class ApprovalManager {
      */
     getPendingApprovals(): string[] {
         return this.handler?.getPending?.() ?? [];
+    }
+
+    /**
+     * Get full pending approval requests
+     */
+    getPendingApprovalRequests(): ApprovalRequest[] {
+        return this.handler?.getPendingRequests?.() ?? [];
     }
 
     /**

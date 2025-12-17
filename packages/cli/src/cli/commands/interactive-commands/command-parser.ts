@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
-import type { StyledOutput } from '../../ink-cli/services/CommandService.js';
+import type { StyledOutput, SendMessageMarker } from '../../ink-cli/services/CommandService.js';
 
 export interface CommandResult {
     type: 'command' | 'prompt';
@@ -14,8 +14,17 @@ export interface CommandResult {
  * - boolean: Command handled (true) or not found (false)
  * - string: Output text to display
  * - StyledOutput: Styled output with structured data for rich rendering
+ * - SendMessageMarker: Send text through normal streaming flow (for prompt commands)
  */
-export type CommandHandlerResult = boolean | string | StyledOutput;
+export type CommandHandlerResult = boolean | string | StyledOutput | SendMessageMarker;
+
+/**
+ * Context passed to command handlers
+ */
+export interface CommandContext {
+    /** Current session ID, or null if no active session */
+    sessionId: string | null;
+}
 
 export interface CommandDefinition {
     name: string;
@@ -24,23 +33,11 @@ export interface CommandDefinition {
     category?: string;
     aliases?: string[];
     subcommands?: CommandDefinition[];
-    handler: (args: string[], agent: DextoAgent) => Promise<CommandHandlerResult>;
-}
-
-/**
- * Helper for command handlers to get the current session ID from CLI context.
- * This is set by executeCommand() when invoked from InkCLI.
- *
- * Maintains separation of concerns:
- * - InkCLI state manages current sessionId
- * - executeCommand() stores it temporarily on agent for command access
- * - Commands use this helper instead of removed agent.getCurrentSessionId()
- *
- * @param agent - DextoAgent instance with __cliSessionId set by executeCommand
- * @returns Current session ID from CLI context, or null if not available
- */
-export function getCLISessionId(agent: DextoAgent): string | null {
-    return (agent as any).__cliSessionId || null;
+    handler: (
+        args: string[],
+        agent: DextoAgent,
+        ctx: CommandContext
+    ) => Promise<CommandHandlerResult>;
 }
 
 /**

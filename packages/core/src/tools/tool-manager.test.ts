@@ -166,7 +166,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const error = (await toolManager
-                .executeTool('invalid_tool', {})
+                .executeTool('invalid_tool', {}, 'test-call-id')
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
@@ -187,7 +187,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const mcpError = (await toolManager
-                .executeTool('mcp--', {})
+                .executeTool('mcp--', {}, 'test-call-id')
                 .catch((e) => e)) as DextoRuntimeError;
             expect(mcpError).toBeInstanceOf(DextoRuntimeError);
             expect(mcpError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
@@ -195,7 +195,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mcpError.type).toBe(ErrorType.USER);
 
             const internalError = (await toolManager
-                .executeTool('internal--', {})
+                .executeTool('internal--', {}, 'test-call-id')
                 .catch((e) => e)) as DextoRuntimeError;
             expect(internalError).toBeInstanceOf(DextoRuntimeError);
             expect(internalError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
@@ -218,7 +218,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            await expect(toolManager.executeTool('internal--search_history', {})).rejects.toThrow(
+            await expect(
+                toolManager.executeTool('internal--search_history', {}, 'test-call-id')
+            ).rejects.toThrow(
                 'Internal tools not initialized, cannot execute: internal--search_history'
             );
         });
@@ -239,10 +241,16 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'session123');
+            await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test' },
+                'call-123',
+                'session123'
+            );
 
             expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
+                toolCallId: 'call-123',
                 args: { path: '/test' },
                 sessionId: 'session123',
             });
@@ -262,10 +270,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            await toolManager.executeTool('mcp--file_read', { path: '/test' });
+            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-456');
 
             expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
+                toolCallId: 'call-456',
                 args: { path: '/test' },
             });
         });
@@ -288,7 +297,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const error = (await toolManager
-                .executeTool('mcp--file_read', { path: '/test' }, 'session123')
+                .executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', 'session123')
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
@@ -312,7 +321,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
+            const result = await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test' },
+                'test-call-id'
+            );
 
             expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                 'file_read',
@@ -341,7 +354,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
+            const result = await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test' },
+                'test-call-id'
+            );
 
             expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
                 'mcp--file_read',
@@ -365,7 +382,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const result = await toolManager.executeTool('mcp--file_read', { path: '/test' });
+            const result = await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test' },
+                'test-call-id'
+            );
 
             expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
             expect(mockMcpManager.executeTool).toHaveBeenCalled();
@@ -385,7 +406,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const error = (await toolManager
-                .executeTool('mcp--file_read', { path: '/test' })
+                .executeTool('mcp--file_read', { path: '/test' }, 'test-call-id')
                 .catch((e) => e)) as DextoRuntimeError;
 
             expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -602,7 +623,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             await expect(
-                toolManager.executeTool('mcp--file_read', { path: '/test' })
+                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id')
             ).rejects.toThrow('Tool execution failed');
         });
 
@@ -622,7 +643,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             await expect(
-                toolManager.executeTool('mcp--file_read', { path: '/test' })
+                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id')
             ).rejects.toThrow('Approval request failed');
         });
     });
@@ -653,7 +674,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 await expect(
-                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                    toolManager.executeTool(
+                        'mcp--filesystem--delete_file',
+                        { path: '/test' },
+                        'test-call-id'
+                    )
                 ).rejects.toThrow();
 
                 // Should not reach approval manager or execution
@@ -679,7 +704,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 await expect(
-                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                    toolManager.executeTool(
+                        'mcp--filesystem--delete_file',
+                        { path: '/test' },
+                        'test-call-id'
+                    )
                 ).rejects.toThrow();
 
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -702,9 +731,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({ result: 'success' });
                 expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
@@ -736,9 +767,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({ result: 'success' });
                 expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
@@ -771,9 +804,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({
                     result: 'success',
@@ -803,7 +838,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 await expect(
-                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                    toolManager.executeTool(
+                        'mcp--filesystem--delete_file',
+                        { path: '/test' },
+                        'test-call-id'
+                    )
                 ).rejects.toThrow();
 
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -826,9 +865,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({ result: 'success' });
                 expect(mockMcpManager.executeTool).toHaveBeenCalled();
@@ -853,9 +894,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({ result: 'success' });
                 expect(mockMcpManager.executeTool).toHaveBeenCalled();
@@ -879,7 +922,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 await expect(
-                    toolManager.executeTool('mcp--filesystem--write_file', { path: '/test' })
+                    toolManager.executeTool(
+                        'mcp--filesystem--write_file',
+                        { path: '/test' },
+                        'test-call-id'
+                    )
                 ).rejects.toThrow();
 
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -905,9 +952,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({
                     result: 'success',
@@ -940,9 +989,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({
                     result: 'success',
@@ -1003,7 +1054,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                const result = await toolManager.executeTool('mcp--read_file', { path: '/test' });
+                const result = await toolManager.executeTool(
+                    'mcp--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({ result: 'success' });
                 expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
@@ -1027,9 +1082,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 // Tool with server prefix should match simple policy
-                const result = await toolManager.executeTool('mcp--filesystem--read_file', {
-                    path: '/test',
-                });
+                const result = await toolManager.executeTool(
+                    'mcp--filesystem--read_file',
+                    { path: '/test' },
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({ result: 'success' });
                 expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
@@ -1060,7 +1117,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 await expect(
-                    toolManager.executeTool('mcp--delete_file', { path: '/test' })
+                    toolManager.executeTool('mcp--delete_file', { path: '/test' }, 'test-call-id')
                 ).rejects.toThrow();
 
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -1085,7 +1142,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 // Tool with server prefix should match simple policy
                 await expect(
-                    toolManager.executeTool('mcp--filesystem--delete_file', { path: '/test' })
+                    toolManager.executeTool(
+                        'mcp--filesystem--delete_file',
+                        { path: '/test' },
+                        'test-call-id'
+                    )
                 ).rejects.toThrow();
 
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -1115,7 +1176,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 // This should NOT match because it doesn't end with --read_file
-                const result = await toolManager.executeTool('mcp--read_file_metadata', {});
+                const result = await toolManager.executeTool(
+                    'mcp--read_file_metadata',
+                    {},
+                    'test-call-id'
+                );
 
                 expect(result).toEqual({
                     result: 'success',
@@ -1151,7 +1216,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 // MCP tool with suffix should match (suffix matching works)
-                await toolManager.executeTool('mcp--filesystem--read_file', {});
+                await toolManager.executeTool('mcp--filesystem--read_file', {}, 'test-call-id');
                 expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
                     'filesystem--read_file',
                     {},
@@ -1188,21 +1253,21 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 // Test various matching scenarios
-                await toolManager.executeTool('mcp--read_file', {});
+                await toolManager.executeTool('mcp--read_file', {}, 'test-call-id');
                 expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
                     'read_file',
                     {},
                     undefined
                 );
 
-                await toolManager.executeTool('mcp--filesystem--read_file', {});
+                await toolManager.executeTool('mcp--filesystem--read_file', {}, 'test-call-id');
                 expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
                     'filesystem--read_file',
                     {},
                     undefined
                 );
 
-                await toolManager.executeTool('mcp--server2--list_directory', {});
+                await toolManager.executeTool('mcp--server2--list_directory', {}, 'test-call-id');
                 expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
                     'server2--list_directory',
                     {},
@@ -1211,7 +1276,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 // Deny should still work
                 await expect(
-                    toolManager.executeTool('mcp--filesystem--delete_file', {})
+                    toolManager.executeTool('mcp--filesystem--delete_file', {}, 'test-call-id')
                 ).rejects.toThrow();
 
                 // None of these should have triggered approval

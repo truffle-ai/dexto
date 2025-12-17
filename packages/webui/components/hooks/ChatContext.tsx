@@ -19,8 +19,10 @@ import {
     UIToolMessage,
 } from './useChat';
 import { useGreeting } from './useGreeting';
+import { useApproval } from './ApprovalContext';
+import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
-import type { SanitizedToolResult } from '@dexto/core';
+import type { SanitizedToolResult, ApprovalRequest } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
@@ -389,6 +391,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         getSessionAbortController,
         abortSession,
     });
+
+    // Restore pending approvals when session changes (e.g., after page refresh)
+    const { handleApprovalRequest } = useApproval();
+    const { data: pendingApprovalsData } = usePendingApprovals(currentSessionId);
+    const restoredApprovalsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!pendingApprovalsData?.approvals || pendingApprovalsData.approvals.length === 0) {
+            return;
+        }
+
+        // Restore any pending approvals that haven't been restored yet
+        for (const approval of pendingApprovalsData.approvals) {
+            // Skip if we've already restored this approval
+            if (restoredApprovalsRef.current.has(approval.approvalId)) {
+                continue;
+            }
+
+            // Mark as restored before calling handler to prevent duplicates
+            restoredApprovalsRef.current.add(approval.approvalId);
+
+            // Convert API response format to ApprovalRequest format
+            // TODO: The API returns a simplified format without full metadata because
+            // ApprovalCoordinator only tracks approval IDs, not the full request data.
+            // To fix properly: store full ApprovalRequest in ApprovalCoordinator when
+            // requests are created, then return that data from GET /api/approvals.
+            handleApprovalRequest({
+                approvalId: approval.approvalId,
+                type: approval.type,
+                sessionId: approval.sessionId,
+                timeout: approval.timeout,
+                timestamp: new Date(approval.timestamp),
+                metadata: approval.metadata,
+            } as ApprovalRequest);
+        }
+    }, [pendingApprovalsData, handleApprovalRequest]);
+
+    // Clear restored approvals tracking when session changes
+    useEffect(() => {
+        restoredApprovalsRef.current.clear();
+    }, [currentSessionId]);
 
     // Fetch current LLM config using TanStack Query
     const { data: currentLLMData, refetch: refetchCurrentLLM } = useQuery({

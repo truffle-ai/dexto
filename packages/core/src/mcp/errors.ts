@@ -22,6 +22,20 @@ export class MCPError {
     }
 
     /**
+     * MCP server disconnection failed
+     */
+    static disconnectionFailed(serverName: string, reason: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.DISCONNECTION_FAILED,
+            ErrorScope.MCP,
+            ErrorType.SYSTEM,
+            `Failed to disconnect MCP server '${serverName}': ${reason}`,
+            { serverName, reason },
+            'Try restarting the application if the server remains in an inconsistent state'
+        );
+    }
+
+    /**
      * MCP protocol error
      */
     static protocolError(message: string, details?: unknown) {

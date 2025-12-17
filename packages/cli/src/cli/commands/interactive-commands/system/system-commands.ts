@@ -8,11 +8,12 @@
  * - /log [level] - Set or view log level
  * - /config - Show current configuration
  * - /stats - Show system statistics
+ * - /stream - Toggle streaming mode for LLM responses
  */
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
+import type { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 import type { ConfigStyledData, StatsStyledData } from '../../../ink-cli/state/types.js';
@@ -27,7 +28,11 @@ export const systemCommands: CommandDefinition[] = [
         usage: '/log [level]',
         category: 'System',
         aliases: [],
-        handler: async (args: string[], _agent: DextoAgent): Promise<boolean | string> => {
+        handler: async (
+            args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
             const validLevels = ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'];
             const level = args[0];
 
@@ -84,34 +89,73 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show current configuration',
         usage: '/config',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
 
+                // Get config file path (may not exist for programmatic agents)
+                let configFilePath: string | null = null;
+                try {
+                    configFilePath = agent.getAgentFilePath();
+                } catch {
+                    // No config file path available
+                }
+
+                // Get enabled plugins
+                const pluginsEnabled: string[] = [];
+                if (config.plugins) {
+                    // Check built-in plugins
+                    if (config.plugins.contentPolicy?.enabled) {
+                        pluginsEnabled.push('contentPolicy');
+                    }
+                    if (config.plugins.responseSanitizer?.enabled) {
+                        pluginsEnabled.push('responseSanitizer');
+                    }
+                    // Check custom plugins
+                    for (const plugin of config.plugins.custom || []) {
+                        if (plugin.enabled) {
+                            pluginsEnabled.push(plugin.name);
+                        }
+                    }
+                }
+
                 // Build styled data
                 const styledData: ConfigStyledData = {
+                    configFilePath,
                     provider: config.llm.provider,
                     model: config.llm.model,
+                    maxTokens: config.llm.maxOutputTokens ?? null,
+                    temperature: config.llm.temperature ?? null,
+                    toolConfirmationMode: config.toolConfirmation?.mode || 'auto',
                     maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
                     sessionTTL: config.sessions?.sessionTTL
                         ? `${config.sessions.sessionTTL / 1000}s`
                         : 'Default',
                     mcpServers: servers,
+                    promptsCount: config.prompts?.length || 0,
+                    pluginsEnabled,
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)
                 const fallbackLines: string[] = [
                     'Configuration:',
+                    configFilePath ? `  Config: ${configFilePath}` : '',
                     `  LLM: ${config.llm.provider} / ${config.llm.model}`,
+                    `  Tool Confirmation: ${styledData.toolConfirmationMode}`,
                     `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
                     `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
-                ];
+                    `  Prompts: ${styledData.promptsCount}`,
+                ].filter(Boolean);
 
                 return CommandOutputHelper.styled('config', styledData, fallbackLines.join('\n'));
             } catch (error) {
                 const errorMsg = `Failed to get configuration: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
@@ -121,7 +165,11 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Show system statistics',
         usage: '/stats',
         category: 'System',
-        handler: async (_args: string[], agent: DextoAgent): Promise<CommandHandlerResult> => {
+        handler: async (
+            _args: string[],
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
             try {
                 // Session stats
                 const sessionStats = await agent.sessionManager.getSessionStats();
@@ -139,6 +187,19 @@ export const systemCommands: CommandDefinition[] = [
                     // Ignore - toolCount stays 0
                 }
 
+                // Get token usage from current session metadata
+                let tokenUsage: StatsStyledData['tokenUsage'];
+                let estimatedCost: number | undefined;
+                if (ctx.sessionId) {
+                    const sessionMetadata = await agent.sessionManager.getSessionMetadata(
+                        ctx.sessionId
+                    );
+                    if (sessionMetadata?.tokenUsage) {
+                        tokenUsage = sessionMetadata.tokenUsage;
+                    }
+                    estimatedCost = sessionMetadata?.estimatedCost;
+                }
+
                 // Build styled data
                 const styledData: StatsStyledData = {
                     sessions: {
@@ -151,6 +212,8 @@ export const systemCommands: CommandDefinition[] = [
                         failed: failedConnections,
                         toolCount,
                     },
+                    ...(tokenUsage && { tokenUsage }),
+                    ...(estimatedCost !== undefined && { estimatedCost }),
                 };
 
                 // Build fallback text
@@ -162,13 +225,32 @@ export const systemCommands: CommandDefinition[] = [
                 if (failedConnections > 0) {
                     fallbackLines.push(`  Failed connections: ${failedConnections}`);
                 }
+                if (tokenUsage) {
+                    fallbackLines.push(
+                        `  Tokens: ${tokenUsage.totalTokens} total (${tokenUsage.inputTokens} in, ${tokenUsage.outputTokens} out)`
+                    );
+                }
 
                 return CommandOutputHelper.styled('stats', styledData, fallbackLines.join('\n'));
             } catch (error) {
                 const errorMsg = `Failed to get statistics: ${error instanceof Error ? error.message : String(error)}`;
-                logger.error(errorMsg);
+                agent.logger.error(errorMsg);
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
+        },
+    },
+    {
+        name: 'stream',
+        description: 'Toggle streaming mode for LLM responses',
+        usage: '/stream',
+        category: 'System',
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<boolean | string> => {
+            // Overlay is handled via commandOverlays.ts mapping
+            return true;
         },
     },
 ];

@@ -5,8 +5,15 @@
  */
 
 import { z } from 'zod';
+import { createPatch } from 'diff';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
-import { FileSystemService, BufferEncoding } from '../../../filesystem/index.js';
+import {
+    FileSystemService,
+    FileSystemErrorCode,
+    BufferEncoding,
+} from '../../../filesystem/index.js';
+import { DextoRuntimeError } from '../../../errors/index.js';
+import type { DiffDisplayData, FileDisplayData } from '../../display-types.js';
 
 const WriteFileInputSchema = z
     .object({
@@ -28,6 +35,29 @@ const WriteFileInputSchema = z
 type WriteFileInput = z.input<typeof WriteFileInputSchema>;
 
 /**
+ * Generate diff preview without modifying the file
+ */
+function generateDiffPreview(
+    filePath: string,
+    originalContent: string,
+    newContent: string
+): DiffDisplayData {
+    const unified = createPatch(filePath, originalContent, newContent, 'before', 'after', {
+        context: 3,
+    });
+    const additions = (unified.match(/^\+[^+]/gm) || []).length;
+    const deletions = (unified.match(/^-[^-]/gm) || []).length;
+
+    return {
+        type: 'diff',
+        unified,
+        filename: filePath,
+        additions,
+        deletions,
+    };
+}
+
+/**
  * Create the write_file internal tool
  */
 export function createWriteFileTool(fileSystemService: FileSystemService): InternalTool {
@@ -36,9 +66,65 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
         description:
             'Write content to a file. Creates a new file or overwrites existing file. Automatically creates backup of existing files before overwriting. Use create_dirs to create parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and backup path if applicable.',
         inputSchema: WriteFileInputSchema,
+
+        /**
+         * Generate preview for approval UI - shows diff or file creation info
+         */
+        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+            const { file_path, content } = input as WriteFileInput;
+
+            try {
+                // Try to read existing file
+                const originalFile = await fileSystemService.readFile(file_path);
+                const originalContent = originalFile.content;
+
+                // File exists - show diff preview
+                return generateDiffPreview(file_path, originalContent, content);
+            } catch (error) {
+                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
+                ) {
+                    // File doesn't exist - show as file creation with full content
+                    const lineCount = content.split('\n').length;
+                    const preview: FileDisplayData = {
+                        type: 'file',
+                        path: file_path,
+                        operation: 'create',
+                        size: content.length,
+                        lineCount,
+                        content, // Include content for approval preview
+                    };
+                    return preview;
+                }
+                // Permission denied, I/O errors, etc. - rethrow
+                throw error;
+            }
+        },
+
         execute: async (input: unknown, _context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
             const { file_path, content, create_dirs, encoding } = input as WriteFileInput;
+
+            // Check if file exists (for diff generation)
+            let originalContent: string | null = null;
+            try {
+                const originalFile = await fileSystemService.readFile(file_path);
+                originalContent = originalFile.content;
+            } catch (error) {
+                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
+                ) {
+                    // File doesn't exist - this is a create operation
+                    originalContent = null;
+                } else {
+                    // Permission denied, I/O errors, etc. - rethrow
+                    throw error;
+                }
+            }
 
             // Write file using FileSystemService
             const result = await fileSystemService.writeFile(file_path, content, {
@@ -47,11 +133,30 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
                 backup: true, // Always create backup for internal tools
             });
 
+            // Build display data based on operation type
+            let _display: DiffDisplayData | FileDisplayData;
+
+            if (originalContent === null) {
+                // New file creation
+                const lineCount = content.split('\n').length;
+                _display = {
+                    type: 'file',
+                    path: file_path,
+                    operation: 'create',
+                    size: result.bytesWritten,
+                    lineCount,
+                };
+            } else {
+                // File overwrite - generate diff using shared helper
+                _display = generateDiffPreview(file_path, originalContent, content);
+            }
+
             return {
                 success: result.success,
                 path: result.path,
                 bytes_written: result.bytesWritten,
                 ...(result.backupPath && { backup_path: result.backupPath }),
+                _display,
             };
         },
     };

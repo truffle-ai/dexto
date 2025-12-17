@@ -1,9 +1,42 @@
+/**
+ * LLM Model Registry
+ *
+ * TODO: maxOutputTokens - Currently we rely on @ai-sdk/anthropic (and other provider SDKs)
+ * to set appropriate maxOutputTokens defaults per model. As of v2.0.56, @ai-sdk/anthropic
+ * has getModelCapabilities() which sets correct limits (e.g., 64000 for claude-haiku-4-5).
+ *
+ * If we need finer control or want to support models before the SDK does, we could:
+ * 1. Add maxOutputTokens to ModelInfo interface
+ * 2. Create getMaxOutputTokensForModel() / getEffectiveMaxOutputTokens() helpers
+ * 3. Pass explicit maxOutputTokens in TurnExecutor when config doesn't specify one
+ *
+ * For now, keeping SDK dependency is simpler and auto-updates with SDK releases.
+ */
+
 import { LLMConfig } from './schemas.js';
 import { LLMError } from './errors.js';
 import { LLMErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { LLM_PROVIDERS, type LLMProvider, type SupportedFileType } from './types.js';
+import {
+    LLM_PROVIDERS,
+    type LLMProvider,
+    type SupportedFileType,
+    type TokenUsage,
+} from './types.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
+
+/**
+ * Pricing metadata for a model (USD per 1M tokens).
+ * Optional; when omitted, pricing is unknown.
+ */
+export interface ModelPricing {
+    inputPerM: number;
+    outputPerM: number;
+    cacheReadPerM?: number;
+    cacheWritePerM?: number;
+    currency?: 'USD';
+    unit?: 'per_million_tokens';
+}
 
 export interface ModelInfo {
     name: string;
@@ -12,14 +45,7 @@ export interface ModelInfo {
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     displayName?: string;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
-    pricing?: {
-        inputPerM: number;
-        outputPerM: number;
-        cacheReadPerM?: number;
-        cacheWritePerM?: number;
-        currency?: 'USD';
-        unit?: 'per_million_tokens';
-    };
+    pricing?: ModelPricing;
     // Add other relevant metadata if needed, e.g., supported features, cost tier
 }
 
@@ -1136,4 +1162,69 @@ export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogg
             throw error;
         }
     }
+}
+
+/**
+ * Gets the pricing information for a specific model.
+ *
+ * TODO: When adding gateway providers (openrouter, vercel-ai, dexto, etc.),
+ * each gateway will be its own provider with its own pricing in the registry.
+ * The gateway's pricing includes any markup, so no separate "gateway multiplier" logic is needed.
+ * Example: provider: 'dexto' would have models with Dexto's pricing (base + markup baked in).
+ *
+ * @param provider The name of the provider.
+ * @param model The name of the model.
+ * @returns The pricing information for the model, or undefined if not available.
+ */
+export function getModelPricing(provider: LLMProvider, model: string): ModelPricing | undefined {
+    const providerInfo = LLM_REGISTRY[provider];
+
+    // Special case: providers that accept any model name (e.g., openai-compatible)
+    if (acceptsAnyModel(provider)) {
+        return undefined; // No pricing for custom endpoints
+    }
+
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    return modelInfo?.pricing;
+}
+
+/**
+ * Gets the display name for a model, falling back to the model ID if not found.
+ */
+export function getModelDisplayName(model: string, provider?: LLMProvider): string {
+    let resolvedProvider: LLMProvider;
+    try {
+        resolvedProvider = provider ?? getProviderFromModel(model);
+    } catch {
+        // Unknown model - fall back to model ID
+        return model;
+    }
+
+    const providerInfo = LLM_REGISTRY[resolvedProvider];
+
+    if (!providerInfo || acceptsAnyModel(resolvedProvider)) {
+        return model;
+    }
+
+    const modelInfo = providerInfo.models.find((m) => m.name.toLowerCase() === model.toLowerCase());
+    return modelInfo?.displayName ?? model;
+}
+
+/**
+ * Calculates the cost for a given token usage based on model pricing.
+ *
+ * @param usage Token usage counts.
+ * @param pricing Model pricing (per million tokens).
+ * @returns Cost in USD.
+ */
+export function calculateCost(usage: TokenUsage, pricing: ModelPricing): number {
+    const inputCost = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
+    const outputCost = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+    const cacheReadCost = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
+    const cacheWriteCost =
+        ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
+    // Charge reasoning tokens at output rate
+    const reasoningCost = ((usage.reasoningTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+
+    return inputCost + outputCost + cacheReadCost + cacheWriteCost + reasoningCost;
 }

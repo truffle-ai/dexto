@@ -8,6 +8,9 @@ export enum ToolErrorCode {
     EXECUTION_TIMEOUT = 'tools_execution_timeout',
     EXECUTION_FAILED = 'tools_execution_failed',
 
+    // Validation (pre-execution)
+    VALIDATION_FAILED = 'tools_validation_failed',
+
     // Confirmation
     CONFIRMATION_HANDLER_MISSING = 'tools_confirmation_handler_missing',
     CONFIRMATION_TIMEOUT = 'tools_confirmation_timeout',

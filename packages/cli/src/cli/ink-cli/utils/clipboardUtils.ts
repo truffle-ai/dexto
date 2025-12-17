@@ -253,6 +253,82 @@ export async function readClipboardImage(): Promise<ClipboardImageContent | unde
 }
 
 /**
+ * Write text to system clipboard
+ *
+ * @param text - The text to copy to clipboard
+ * @returns true if successful, false otherwise
+ *
+ * @example
+ * ```typescript
+ * const success = await writeToClipboard('Hello, World!');
+ * if (success) {
+ *     console.log('Copied to clipboard');
+ * }
+ * ```
+ */
+export async function writeToClipboard(text: string): Promise<boolean> {
+    const os = platform();
+
+    try {
+        if (os === 'darwin') {
+            // macOS: use pbcopy
+            const proc = spawn('pbcopy');
+            proc.stdin.write(text);
+            proc.stdin.end();
+            return new Promise((resolve) => {
+                proc.on('close', (code) => resolve(code === 0));
+                proc.on('error', () => resolve(false));
+            });
+        }
+
+        if (os === 'win32' || isWSL()) {
+            // Windows/WSL: use clip.exe (simpler than PowerShell)
+            const proc = spawn('clip.exe');
+            proc.stdin.write(text);
+            proc.stdin.end();
+            return new Promise((resolve) => {
+                proc.on('close', (code) => resolve(code === 0));
+                proc.on('error', () => resolve(false));
+            });
+        }
+
+        if (os === 'linux') {
+            // Try Wayland first (wl-copy), fall back to X11 (xclip)
+            const tryClipboardTool = (cmd: string, args: string[] = []): Promise<boolean> => {
+                return new Promise((resolve) => {
+                    const proc = spawn(cmd, args);
+                    let errorOccurred = false;
+
+                    proc.on('error', () => {
+                        errorOccurred = true;
+                        resolve(false);
+                    });
+
+                    proc.stdin.write(text);
+                    proc.stdin.end();
+
+                    proc.on('close', (code) => {
+                        if (!errorOccurred) {
+                            resolve(code === 0);
+                        }
+                    });
+                });
+            };
+
+            // Try wl-copy first, then xclip
+            const wlResult = await tryClipboardTool('wl-copy');
+            if (wlResult) return true;
+
+            return tryClipboardTool('xclip', ['-selection', 'clipboard']);
+        }
+
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Check if clipboard contains an image (without reading it)
  * This is a lighter-weight check that doesn't require reading the full image data.
  *

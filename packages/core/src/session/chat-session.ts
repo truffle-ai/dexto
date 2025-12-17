@@ -16,6 +16,7 @@ import {
     AgentEventBus,
     SessionEventNames,
     SessionEventName,
+    SessionEventMap,
 } from '../events/index.js';
 import type { IDextoLogger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -24,6 +25,7 @@ import { PluginErrorCode } from '../plugins/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
+import { getModelPricing, calculateCost } from '../llm/registry.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -102,6 +104,12 @@ export class ChatSession {
      * Stores the bound functions so they can be removed from the event bus.
      */
     private forwarders: Map<SessionEventName, (payload?: any) => void> = new Map();
+
+    /**
+     * Token accumulator listener for cleanup.
+     */
+    private tokenAccumulatorListener: ((payload: SessionEventMap['llm:response']) => void) | null =
+        null;
 
     /**
      * AbortController for the currently running turn, if any.
@@ -184,9 +192,42 @@ export class ChatSession {
             // Attach the forwarder to the session event bus
             this.eventBus.on(eventName, forwarder);
         });
+
+        // Set up token usage accumulation on llm:response
+        this.setupTokenAccumulation();
+
         this.logger.debug(
             `[setupEventForwarding] Event forwarding setup complete for session=${this.id}`
         );
+    }
+
+    /**
+     * Sets up token usage accumulation by listening to llm:response events.
+     * Accumulates token usage and cost to session metadata for /stats tracking.
+     */
+    private setupTokenAccumulation(): void {
+        this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
+            if (payload.tokenUsage) {
+                // Calculate cost if pricing is available
+                let cost: number | undefined;
+                const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+                const pricing = getModelPricing(llmConfig.provider, llmConfig.model);
+                if (pricing) {
+                    cost = calculateCost(payload.tokenUsage, pricing);
+                }
+
+                // Fire and forget - don't block the event flow
+                this.services.sessionManager
+                    .accumulateTokenUsage(this.id, payload.tokenUsage, cost)
+                    .catch((err) => {
+                        this.logger.warn(
+                            `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
+                        );
+                    });
+            }
+        };
+
+        this.eventBus.on('llm:response', this.tokenAccumulatorListener);
     }
 
     /**
@@ -636,6 +677,12 @@ export class ChatSession {
 
         // Clear the forwarders map
         this.forwarders.clear();
+
+        // Remove token accumulator listener
+        if (this.tokenAccumulatorListener) {
+            this.eventBus.off('llm:response', this.tokenAccumulatorListener);
+            this.tokenAccumulatorListener = null;
+        }
 
         this.logger.debug(`Session ${this.id} disposed successfully`);
     }

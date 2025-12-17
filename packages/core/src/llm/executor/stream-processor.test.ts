@@ -476,7 +476,10 @@ describe('StreamProcessor', () => {
             });
         });
 
-        test('emits llm:tool-call event with correct data', async () => {
+        test('persists tool call to context (llm:tool-call emitted by ToolManager)', async () => {
+            // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead of StreamProcessor.
+            // This ensures correct event ordering - llm:tool-call arrives before approval:request.
+            // This test verifies StreamProcessor still persists tool calls to context.
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
@@ -504,13 +507,18 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            const toolCallEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-call');
-            expect(toolCallEvent).toBeDefined();
-            expect(toolCallEvent?.payload).toEqual({
-                toolName: 'test_tool',
-                args: { arg: 'value' },
-                callId: 'call-1',
-            });
+            // Verify tool call was persisted to context
+            expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith(
+                expect.any(String), // assistant message ID
+                {
+                    id: 'call-1',
+                    type: 'function',
+                    function: {
+                        name: 'test_tool',
+                        arguments: JSON.stringify({ arg: 'value' }),
+                    },
+                }
+            );
         });
     });
 
@@ -746,6 +754,8 @@ describe('StreamProcessor', () => {
                 outputTokens: 50,
                 totalTokens: 150,
                 reasoningTokens: 20,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
             });
         });
 
@@ -777,6 +787,8 @@ describe('StreamProcessor', () => {
                     inputTokens: 100,
                     outputTokens: 50,
                     totalTokens: 150,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
                 },
             });
         });
@@ -998,13 +1010,16 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            const toolCallEvents = mocks.emittedEvents.filter((e) => e.name === 'llm:tool-call');
+            // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead of StreamProcessor.
+            // StreamProcessor still emits llm:tool-result events.
             const toolResultEvents = mocks.emittedEvents.filter(
                 (e) => e.name === 'llm:tool-result'
             );
 
-            expect(toolCallEvents).toHaveLength(2);
             expect(toolResultEvents).toHaveLength(2);
+
+            // Verify both tool calls were persisted to context
+            expect(mocks.contextManager.addToolCall).toHaveBeenCalledTimes(2);
         });
 
         test('handles interleaved text and tool calls', async () => {

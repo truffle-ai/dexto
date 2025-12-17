@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, HelpCircle, Lock } from 'lucide-react';
+import { Star, HelpCircle, Lock, Bot, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
@@ -10,12 +10,14 @@ import type { ModelInfo, ProviderCatalog } from './types';
 interface ModelCardProps {
     provider: LLMProvider;
     model: ModelInfo;
-    providerInfo: ProviderCatalog;
+    providerInfo?: ProviderCatalog;
     isFavorite: boolean;
     isActive: boolean;
     onClick: () => void;
     onToggleFavorite: () => void;
+    onDelete?: () => void;
     size?: 'sm' | 'md' | 'lg';
+    isCustom?: boolean;
 }
 
 // Provider display name mapping
@@ -64,17 +66,19 @@ export function ModelCard({
     isActive,
     onClick,
     onToggleFavorite,
+    onDelete,
     size = 'md',
+    isCustom = false,
 }: ModelCardProps) {
     const displayName = model.displayName || model.name;
-    const hasApiKey = providerInfo.hasApiKey;
+    const hasApiKey = isCustom || providerInfo?.hasApiKey || false;
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 
     // Build description lines for tooltip
     const priceLines = formatPricingLines(model.pricing || undefined);
     const descriptionLines = [
         `Model: ${displayName}`,
-        `Provider: ${providerInfo.name}`,
+        isCustom ? 'Custom Model (OpenAI Compatible)' : `Provider: ${providerInfo?.name}`,
         `Max tokens: ${model.maxInputTokens.toLocaleString()}`,
         model.supportedFileTypes.length > 0 && `Supports: ${model.supportedFileTypes.join(', ')}`,
         !hasApiKey && 'API key required (click to add)',
@@ -138,6 +142,24 @@ export function ModelCard({
                             </Tooltip>
                         )}
 
+                        {/* Delete Button - Top Left for custom models */}
+                        {isCustom && onDelete && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete();
+                                }}
+                                className={cn(
+                                    'absolute top-2 left-2 p-1.5 rounded-full transition-all duration-200 z-10',
+                                    'hover:bg-destructive/20 hover:scale-110 active:scale-95',
+                                    'opacity-0 group-hover:opacity-100'
+                                )}
+                                aria-label="Delete custom model"
+                            >
+                                <X className="h-4 w-4 text-muted-foreground/60 hover:text-destructive" />
+                            </button>
+                        )}
+
                         {/* Favorite Star - Top Right */}
                         <button
                             onClick={(e) => {
@@ -169,7 +191,9 @@ export function ModelCard({
                                 logoSizes[size].container
                             )}
                         >
-                            {PROVIDER_LOGOS[provider] ? (
+                            {isCustom ? (
+                                <Bot className="h-6 w-6 text-muted-foreground" />
+                            ) : PROVIDER_LOGOS[provider] ? (
                                 <img
                                     src={PROVIDER_LOGOS[provider]}
                                     alt={`${provider} logo`}
