@@ -3,16 +3,14 @@ import { listAllProviders, getProvidersByCategory, hasProvider } from './discove
 import { blobStoreRegistry } from '../storage/blob/index.js';
 import { compressionRegistry } from '../context/compression/index.js';
 import { customToolRegistry } from '../tools/custom-tool-registry.js';
-import type { BlobStoreProvider } from '../storage/blob/provider.js';
-import type { CompressionProvider } from '../context/compression/provider.js';
 import type { CustomToolProvider } from '../tools/custom-tool-registry.js';
 import { z } from 'zod';
 
 describe('Provider Discovery API', () => {
     // Store original registry state
-    const originalBlobProviders = blobStoreRegistry.getTypes();
-    const originalCompressionProviders = compressionRegistry.getTypes();
-    const originalCustomToolProviders = customToolRegistry.getTypes();
+    const _originalBlobProviders = blobStoreRegistry.getTypes();
+    const _originalCompressionProviders = compressionRegistry.getTypes();
+    const _originalCustomToolProviders = customToolRegistry.getTypes();
 
     beforeEach(() => {
         // Note: We don't clear registries because built-in providers are registered

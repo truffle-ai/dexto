@@ -10788,13 +10788,31 @@
                             "bash_output",
                             "kill_process",
                             "delegate_to_url",
-                            "list_session_resources",
-                            "get_shareable_url"
+                            "list_resources",
+                            "get_resource"
                           ],
                           "description": "Available internal tool names"
                         },
                         "default": [],
                         "description": "Internal tools configuration (read-file, write-file, bash-exec, etc.)"
+                      },
+                      "customTools": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "Custom tool provider type (registered via customToolRegistry)"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "description": "Custom tool provider configuration. Provider-specific fields are validated at runtime by the registered provider."
+                        },
+                        "default": [],
+                        "description": "Custom tool provider configurations. Providers must be registered via customToolRegistry before loading agent config."
                       },
                       "tools": {
                         "type": "object",
@@ -11232,141 +11250,15 @@
                             "description": "Database configuration (persistent, reliable)"
                           },
                           "blob": {
-                            "oneOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "in-memory"
-                                    ],
-                                    "description": "Blob store type identifier"
-                                  },
-                                  "maxBlobSize": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 10485760,
-                                    "description": "Maximum size per blob in bytes"
-                                  },
-                                  "maxTotalSize": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 104857600,
-                                    "description": "Maximum total storage size in bytes"
-                                  }
-                                },
-                                "required": [
-                                  "type"
-                                ],
-                                "additionalProperties": false
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "local"
-                                    ],
-                                    "description": "Blob store type identifier"
-                                  },
-                                  "storePath": {
-                                    "type": "string",
-                                    "description": "Blob storage directory path (required for local storage - CLI enrichment provides per-agent default)"
-                                  },
-                                  "maxBlobSize": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 52428800,
-                                    "description": "Maximum size per blob in bytes"
-                                  },
-                                  "maxTotalSize": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 1073741824,
-                                    "description": "Maximum total storage size in bytes"
-                                  },
-                                  "cleanupAfterDays": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 30,
-                                    "description": "Auto-cleanup blobs older than N days"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "storePath"
-                                ],
-                                "additionalProperties": false
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "enum": [
-                                      "supabase"
-                                    ],
-                                    "description": "Blob store type identifier"
-                                  },
-                                  "supabaseUrl": {
-                                    "type": "string",
-                                    "format": "uri",
-                                    "description": "Supabase project URL (e.g., https://xxxxx.supabase.co)"
-                                  },
-                                  "supabaseKey": {
-                                    "type": "string",
-                                    "description": "Supabase anon or service role key"
-                                  },
-                                  "bucket": {
-                                    "type": "string",
-                                    "description": "Storage bucket name (must exist in Supabase project)"
-                                  },
-                                  "pathPrefix": {
-                                    "type": "string",
-                                    "description": "Optional path prefix within bucket for organizing blobs"
-                                  },
-                                  "maxBlobSize": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 52428800,
-                                    "description": "Maximum size per blob in bytes"
-                                  },
-                                  "maxTotalSize": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 1073741824,
-                                    "description": "Maximum total storage size in bytes (informational - not enforced by Supabase)"
-                                  },
-                                  "cleanupAfterDays": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "default": 30,
-                                    "description": "Auto-cleanup blobs older than N days"
-                                  },
-                                  "tableName": {
-                                    "type": "string",
-                                    "default": "blob_metadata",
-                                    "description": "Database table name for blob metadata"
-                                  }
-                                },
-                                "required": [
-                                  "type",
-                                  "supabaseUrl",
-                                  "supabaseKey",
-                                  "bucket"
-                                ],
-                                "additionalProperties": false
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "description": "Blob store provider type"
                               }
+                            },
+                            "required": [
+                              "type"
                             ],
                             "description": "Blob store configuration (for large, unstructured data)"
                           }
@@ -11895,12 +11787,74 @@
                               "additionalProperties": false
                             },
                             "default": [],
-                            "description": "Array of custom plugin configurations"
+                            "description": "Array of custom plugin configurations (loaded from file paths)"
+                          },
+                          "registry": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "description": "Plugin provider type (must be registered in pluginRegistry)"
+                                },
+                                "enabled": {
+                                  "type": "boolean",
+                                  "default": true,
+                                  "description": "Whether this plugin is enabled"
+                                },
+                                "blocking": {
+                                  "type": "boolean",
+                                  "description": "If true, plugin errors will halt execution"
+                                },
+                                "priority": {
+                                  "type": "integer",
+                                  "description": "Execution priority (lower runs first)"
+                                },
+                                "config": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "nullable": true
+                                  },
+                                  "description": "Plugin-specific configuration"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "blocking",
+                                "priority"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "default": [],
+                            "description": "Array of registry plugin configurations (loaded from pluginRegistry)"
                           }
                         },
                         "default": {},
                         "additionalProperties": false,
                         "description": "Plugin system configuration for built-in and custom plugins"
+                      },
+                      "compression": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Compression provider type"
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Enable or disable compression"
+                          }
+                        },
+                        "default": {
+                          "type": "reactive-overflow",
+                          "enabled": true
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "description": "Context compression configuration - custom providers can be registered via compressionRegistry"
                       }
                     },
                     "required": [

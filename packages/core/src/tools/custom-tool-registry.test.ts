@@ -41,14 +41,14 @@ const mockProviderBConfig = z.object({
     requiredArray: z.array(z.string()),
 });
 
-type MockProviderAConfig = z.infer<typeof mockProviderAConfig>;
-type MockProviderBConfig = z.infer<typeof mockProviderBConfig>;
+type MockProviderAConfig = z.output<typeof mockProviderAConfig>;
+type MockProviderBConfig = z.output<typeof mockProviderBConfig>;
 
 // Mock providers
 const createMockProviderA = (): CustomToolProvider<'mock-provider-a', MockProviderAConfig> => ({
     type: 'mock-provider-a',
     configSchema: mockProviderAConfig,
-    create: (config: MockProviderAConfig, context: ToolCreationContext): InternalTool[] => {
+    create: (config: MockProviderAConfig, _context: ToolCreationContext): InternalTool[] => {
         return [createMockTool(`${config.type}-tool-1`), createMockTool(`${config.type}-tool-2`)];
     },
     metadata: {
@@ -61,7 +61,7 @@ const createMockProviderA = (): CustomToolProvider<'mock-provider-a', MockProvid
 const createMockProviderB = (): CustomToolProvider<'mock-provider-b', MockProviderBConfig> => ({
     type: 'mock-provider-b',
     configSchema: mockProviderBConfig,
-    create: (config: MockProviderBConfig, context: ToolCreationContext): InternalTool[] => {
+    create: (config: MockProviderBConfig, _context: ToolCreationContext): InternalTool[] => {
         return [createMockTool(`${config.type}-tool-1`)];
     },
     metadata: {
@@ -212,8 +212,8 @@ describe('CustomToolRegistry', () => {
             );
 
             expect(tools).toHaveLength(2);
-            expect(tools?.[0].id).toBe('mock-provider-a-tool-1');
-            expect(tools?.[1].id).toBe('mock-provider-a-tool-2');
+            expect(tools![0]!.id).toBe('mock-provider-a-tool-1');
+            expect(tools![1]!.id).toBe('mock-provider-a-tool-2');
         });
     });
 
@@ -496,7 +496,7 @@ describe('CustomToolRegistry', () => {
                     type: z.literal('config-based'),
                     toolCount: z.number(),
                 }),
-                create: (config, context) => {
+                create: (config, _context) => {
                     return Array.from({ length: config.toolCount }, (_, i) =>
                         createMockTool(`tool-${i}`)
                     );
@@ -509,8 +509,8 @@ describe('CustomToolRegistry', () => {
             const tools = retrieved?.create(validated, { logger: mockLogger });
 
             expect(tools).toHaveLength(3);
-            expect(tools?.[0].id).toBe('tool-0');
-            expect(tools?.[2].id).toBe('tool-2');
+            expect(tools![0]!.id).toBe('tool-0');
+            expect(tools![2]!.id).toBe('tool-2');
         });
     });
 
@@ -552,7 +552,7 @@ describe('CustomToolRegistry', () => {
                 }),
             });
 
-            const provider: CustomToolProvider<'complex', z.infer<typeof complexSchema>> = {
+            const provider: CustomToolProvider<'complex', z.output<typeof complexSchema>> = {
                 type: 'complex',
                 configSchema: complexSchema,
                 create: () => [],

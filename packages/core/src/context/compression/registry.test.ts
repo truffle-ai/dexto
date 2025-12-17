@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { compressionRegistry } from './registry.js';
 import type { CompressionProvider, CompressionConfig, CompressionContext } from './provider.js';
 import type { ICompressionStrategy } from './types.js';
+import type { InternalMessage } from '../types.js';
 
 // Mock compression config types
 interface MockCompressionConfig extends CompressionConfig {
@@ -19,18 +20,22 @@ interface AnotherMockConfig extends CompressionConfig {
 
 // Mock compression strategy implementation
 class MockCompressionStrategy implements ICompressionStrategy {
+    readonly name = 'mock-compression';
+
     constructor(private config: MockCompressionConfig) {}
 
-    async compress(content: string): Promise<string> {
-        return `compressed:${content.substring(0, this.config.maxTokens || 100)}`;
+    async compress(history: readonly InternalMessage[]): Promise<InternalMessage[]> {
+        return history.slice(0, this.config.maxTokens || 100) as InternalMessage[];
     }
 }
 
 class AnotherMockStrategy implements ICompressionStrategy {
+    readonly name = 'another-mock-compression';
+
     constructor(private config: AnotherMockConfig) {}
 
-    async compress(content: string): Promise<string> {
-        return `another:${content.substring(0, this.config.threshold || 50)}`;
+    async compress(history: readonly InternalMessage[]): Promise<InternalMessage[]> {
+        return history.slice(0, this.config.threshold || 50) as InternalMessage[];
     }
 }
 
@@ -48,7 +53,7 @@ const mockProvider: CompressionProvider<'mock', MockCompressionConfig> = {
         requiresLLM: false,
         isProactive: true,
     },
-    create(config: MockCompressionConfig, context: CompressionContext): ICompressionStrategy {
+    create(config: MockCompressionConfig, _context: CompressionContext): ICompressionStrategy {
         return new MockCompressionStrategy(config);
     },
 };
@@ -66,7 +71,7 @@ const anotherMockProvider: CompressionProvider<'another-mock', AnotherMockConfig
         requiresLLM: true,
         isProactive: false,
     },
-    create(config: AnotherMockConfig, context: CompressionContext): ICompressionStrategy {
+    create(config: AnotherMockConfig, _context: CompressionContext): ICompressionStrategy {
         return new AnotherMockStrategy(config);
     },
 };
@@ -75,11 +80,13 @@ const minimalProvider: CompressionProvider<'minimal', CompressionConfig> = {
     type: 'minimal',
     configSchema: z.object({
         type: z.literal('minimal'),
-        enabled: z.boolean().optional(),
+        enabled: z.boolean().default(true),
     }),
-    create(config: CompressionConfig, context: CompressionContext): ICompressionStrategy {
+    create(_config: CompressionConfig, _context: CompressionContext): ICompressionStrategy {
         return {
-            compress: async (content: string) => content,
+            name: 'minimal-compression',
+            compress: async (history: readonly InternalMessage[]) =>
+                history.slice() as InternalMessage[],
         };
     },
 };
@@ -303,8 +310,8 @@ describe('CompressionRegistry', () => {
             const providers = compressionRegistry.getAll();
 
             expect(providers).toHaveLength(2);
-            expect(providers[0].type).toBe('mock');
-            expect(providers[1].type).toBe('another-mock');
+            expect(providers[0]!.type).toBe('mock');
+            expect(providers[1]!.type).toBe('another-mock');
         });
 
         it('returns empty array for empty registry', () => {
@@ -319,7 +326,7 @@ describe('CompressionRegistry', () => {
             const providers = compressionRegistry.getAll();
 
             expect(providers).toHaveLength(1);
-            expect(providers[0].type).toBe('mock');
+            expect(providers[0]!.type).toBe('mock');
         });
 
         it('updates after unregistering a provider', () => {
@@ -330,7 +337,7 @@ describe('CompressionRegistry', () => {
             const providers = compressionRegistry.getAll();
 
             expect(providers).toHaveLength(1);
-            expect(providers[0].type).toBe('another-mock');
+            expect(providers[0]!.type).toBe('another-mock');
         });
 
         it('returns providers with full interface including metadata', () => {
@@ -339,10 +346,10 @@ describe('CompressionRegistry', () => {
 
             const providers = compressionRegistry.getAll();
 
-            expect(providers[0].metadata).toBeDefined();
-            expect(providers[0].metadata?.displayName).toBe('Mock Compression');
-            expect(providers[1].metadata).toBeDefined();
-            expect(providers[1].metadata?.requiresLLM).toBe(true);
+            expect(providers[0]!.metadata).toBeDefined();
+            expect(providers[0]!.metadata?.displayName).toBe('Mock Compression');
+            expect(providers[1]!.metadata).toBeDefined();
+            expect(providers[1]!.metadata?.requiresLLM).toBe(true);
         });
 
         it('returns array that can be filtered and mapped', () => {
@@ -355,7 +362,7 @@ describe('CompressionRegistry', () => {
             const providerTypes = providers.map((p) => p.type);
 
             expect(providersWithLLM).toHaveLength(1);
-            expect(providersWithLLM[0].type).toBe('another-mock');
+            expect(providersWithLLM[0]!.type).toBe('another-mock');
             expect(providerTypes).toEqual(['mock', 'another-mock', 'minimal']);
         });
     });
@@ -437,7 +444,7 @@ describe('CompressionRegistry', () => {
                 .getAll()
                 .filter((p) => p.metadata?.requiresLLM === true);
             expect(requiresLLM).toHaveLength(1);
-            expect(requiresLLM[0].type).toBe('another-mock');
+            expect(requiresLLM[0]!.type).toBe('another-mock');
         });
 
         it('maintains provider isolation between operations', () => {
@@ -466,9 +473,9 @@ describe('CompressionRegistry', () => {
             const llmProviders = allProviders.filter((p) => p.metadata?.requiresLLM === true);
 
             expect(proactiveProviders).toHaveLength(1);
-            expect(proactiveProviders[0].type).toBe('mock');
+            expect(proactiveProviders[0]!.type).toBe('mock');
             expect(llmProviders).toHaveLength(1);
-            expect(llmProviders[0].type).toBe('another-mock');
+            expect(llmProviders[0]!.type).toBe('another-mock');
         });
     });
 
@@ -479,7 +486,11 @@ describe('CompressionRegistry', () => {
                 configSchema: z.object({
                     type: z.literal('special-provider_v2'),
                 }),
-                create: () => ({ compress: async (c) => c }),
+                create: () => ({
+                    name: 'special-provider',
+                    compress: async (history: readonly InternalMessage[]) =>
+                        history.slice() as InternalMessage[],
+                }),
             };
 
             compressionRegistry.register(specialProvider);

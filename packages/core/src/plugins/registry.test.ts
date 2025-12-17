@@ -23,8 +23,8 @@ class TestPlugin implements DextoPlugin {
     ) {}
 
     async beforeLLMRequest(
-        payload: BeforeLLMRequestPayload,
-        context: PluginExecutionContext
+        _payload: BeforeLLMRequestPayload,
+        _context: PluginExecutionContext
     ): Promise<PluginResult> {
         return { ok: true };
     }
@@ -37,7 +37,7 @@ const TestPluginConfigSchema = z.object({
 });
 
 // Test plugin provider
-const testPluginProvider: PluginProvider<'test-plugin', z.infer<typeof TestPluginConfigSchema>> = {
+const testPluginProvider: PluginProvider<'test-plugin', z.output<typeof TestPluginConfigSchema>> = {
     type: 'test-plugin',
     configSchema: TestPluginConfigSchema,
     create(config, context) {

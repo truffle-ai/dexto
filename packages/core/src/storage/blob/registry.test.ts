@@ -27,10 +27,10 @@ class MockBlobStore implements BlobStore {
         private logger: IDextoLogger
     ) {}
 
-    async store() {
+    async store(): Promise<any> {
         throw new Error('Not implemented');
     }
-    async retrieve() {
+    async retrieve(): Promise<any> {
         throw new Error('Not implemented');
     }
     async exists() {

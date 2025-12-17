@@ -14,7 +14,7 @@ export const RegistryPluginConfigSchema = z
     })
     .strict();
 
-export type RegistryPluginConfig = z.infer<typeof RegistryPluginConfigSchema>;
+export type RegistryPluginConfig = z.output<typeof RegistryPluginConfigSchema>;
 
 /**
  * Schema for custom plugin configuration (loaded from file paths)
