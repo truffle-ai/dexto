@@ -293,9 +293,14 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
             const agent = getAgent();
             const { name, config, persistToAgent } = ctx.req.valid('json');
 
-            // Connect the server
+            // Add the server (connects if enabled, otherwise just registers)
             await agent.addMcpServer(name, config);
-            logger.info(`Successfully connected to new server '${name}' via API request.`);
+            const isConnected = config.enabled !== false;
+            logger.info(
+                isConnected
+                    ? `Successfully connected to new server '${name}' via API request.`
+                    : `Registered server '${name}' (disabled) via API request.`
+            );
 
             // If persistToAgent is true, save to agent config file
             if (persistToAgent === true) {
@@ -338,7 +343,8 @@ export function createMcpRouter(getAgent: () => DextoAgent) {
                 }
             }
 
-            return ctx.json({ status: 'connected', name }, 200);
+            const status = isConnected ? 'connected' : 'registered';
+            return ctx.json({ status, name }, 200);
         })
         .openapi(listServersRoute, async (ctx) => {
             const agent = getAgent();
