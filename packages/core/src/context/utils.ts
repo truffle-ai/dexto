@@ -1570,18 +1570,23 @@ export async function sanitizeToolResult(
     logger: IDextoLogger
 ): Promise<SanitizedToolResult> {
     // Extract _display from tool result before normalization (if present)
+    // Strip it from the payload to avoid duplicating large display data in LLM content
     let display: ToolDisplayData | undefined;
+    let resultForNormalization = result;
+
     if (result && typeof result === 'object' && '_display' in result) {
-        const rawDisplay = (result as Record<string, unknown>)._display;
+        const { _display: rawDisplay, ...rest } = result as Record<string, unknown>;
         if (isValidDisplayData(rawDisplay)) {
             display = rawDisplay;
             logger.debug(
                 `sanitizeToolResult: extracted display data (type=${display.type}) for ${options.toolName}`
             );
         }
+        // Always strip _display from payload sent to LLM, even if invalid
+        resultForNormalization = rest;
     }
 
-    const normalized = await normalizeToolResult(result, logger);
+    const normalized = await normalizeToolResult(resultForNormalization, logger);
     const persisted = await persistToolMedia(
         normalized,
         {
