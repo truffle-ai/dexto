@@ -962,23 +962,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     try {
-                        // Import persistence utilities
-                        const { updateMcpServerField } = await import('@dexto/agent-management');
-
-                        // Persist to config file using surgical update
-                        await updateMcpServerField(
-                            agent.getAgentFilePath(),
-                            server.name,
-                            'enabled',
-                            newEnabled
-                        );
-
-                        // Enable or disable the server
+                        // Enable or disable the server FIRST (before persisting)
+                        // This ensures config only reflects successful state changes
                         if (newEnabled) {
                             try {
                                 await agent.enableMcpServer(server.name);
                             } catch (connectError) {
-                                // Connection failed
+                                // Connection failed - don't persist to config
                                 setMessages((prev) => [
                                     ...prev,
                                     {
@@ -993,6 +983,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         } else {
                             await agent.disableMcpServer(server.name);
                         }
+
+                        // Import persistence utilities
+                        const { updateMcpServerField } = await import('@dexto/agent-management');
+
+                        // Persist to config file AFTER successful enable/disable
+                        await updateMcpServerField(
+                            agent.getAgentFilePath(),
+                            server.name,
+                            'enabled',
+                            newEnabled
+                        );
 
                         setMessages((prev) => [
                             ...prev,
@@ -1415,6 +1416,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 try {
                     const { mkdir, writeFile } = await import('fs/promises');
                     const { dirname, join } = await import('path');
+
+                    // Validate prompt name to prevent path traversal
+                    const SAFE_NAME_PATTERN = /^[a-z0-9][a-z0-9-_]*$/i;
+                    if (!SAFE_NAME_PATTERN.test(data.name)) {
+                        throw new Error(
+                            `Invalid prompt name "${data.name}". Names must start with a letter or number and contain only letters, numbers, hyphens, and underscores.`
+                        );
+                    }
 
                     // Build frontmatter
                     const frontmatterLines = [
