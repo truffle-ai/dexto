@@ -7,7 +7,12 @@
 import { z } from 'zod';
 import { createPatch } from 'diff';
 import { InternalTool, ToolExecutionContext } from '../../types.js';
-import { FileSystemService, BufferEncoding } from '../../../filesystem/index.js';
+import {
+    FileSystemService,
+    FileSystemErrorCode,
+    BufferEncoding,
+} from '../../../filesystem/index.js';
+import { DextoRuntimeError } from '../../../errors/index.js';
 import type { DiffDisplayData, FileDisplayData } from '../../display-types.js';
 
 const WriteFileInputSchema = z
@@ -75,18 +80,26 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
 
                 // File exists - show diff preview
                 return generateDiffPreview(file_path, originalContent, content);
-            } catch {
-                // File doesn't exist - show as file creation with full content
-                const lineCount = content.split('\n').length;
-                const preview: FileDisplayData = {
-                    type: 'file',
-                    path: file_path,
-                    operation: 'create',
-                    size: content.length,
-                    lineCount,
-                    content, // Include content for approval preview
-                };
-                return preview;
+            } catch (error) {
+                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
+                ) {
+                    // File doesn't exist - show as file creation with full content
+                    const lineCount = content.split('\n').length;
+                    const preview: FileDisplayData = {
+                        type: 'file',
+                        path: file_path,
+                        operation: 'create',
+                        size: content.length,
+                        lineCount,
+                        content, // Include content for approval preview
+                    };
+                    return preview;
+                }
+                // Permission denied, I/O errors, etc. - rethrow
+                throw error;
             }
         },
 
@@ -99,9 +112,18 @@ export function createWriteFileTool(fileSystemService: FileSystemService): Inter
             try {
                 const originalFile = await fileSystemService.readFile(file_path);
                 originalContent = originalFile.content;
-            } catch {
-                // File doesn't exist - this is a create operation
-                originalContent = null;
+            } catch (error) {
+                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
+                ) {
+                    // File doesn't exist - this is a create operation
+                    originalContent = null;
+                } else {
+                    // Permission denied, I/O errors, etc. - rethrow
+                    throw error;
+                }
             }
 
             // Write file using FileSystemService
