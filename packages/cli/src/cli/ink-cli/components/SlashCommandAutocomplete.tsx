@@ -385,7 +385,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                 // Submit raw text directly (main input won't handle it since overlay is active)
                 if (itemsLength === 0 || hasArguments) {
                     if (key.return) {
-                        onSubmitRaw?.(searchQuery);
+                        void Promise.resolve(onSubmitRaw?.(searchQuery)).catch(() => undefined);
                         onClose();
                         return true;
                     }
@@ -421,8 +421,11 @@ const SlashCommandAutocompleteInner = forwardRef<
                         // Load system command into input
                         onLoadIntoInput?.(`/${item.command.name}`);
                     } else {
-                        // Load prompt command into input (use displayName for user-friendly display)
+                        // Load prompt command into input
+                        // Use displayName only if it's command-safe (no spaces/special chars)
                         const promptDisplayName = item.prompt.displayName || item.prompt.name;
+                        const isCommandSafe = /^[A-Za-z0-9_-]+$/.test(promptDisplayName);
+                        const commandName = isCommandSafe ? promptDisplayName : item.prompt.name;
                         const argsString =
                             item.prompt.arguments && item.prompt.arguments.length > 0
                                 ? ' ' +
@@ -430,7 +433,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                                       .map((arg) => `<${arg.name}${arg.required ? '' : '?'}>`)
                                       .join(' ')
                                 : '';
-                        onLoadIntoInput?.(`/${promptDisplayName}${argsString}`);
+                        onLoadIntoInput?.(`/${commandName}${argsString}`);
                     }
                     return true;
                 }

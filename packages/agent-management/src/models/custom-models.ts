@@ -44,7 +44,13 @@ export async function loadCustomModels(): Promise<CustomModel[]> {
     try {
         const content = await fs.readFile(filePath, 'utf-8');
         const parsed = StorageSchema.safeParse(JSON.parse(content));
-        return parsed.success ? parsed.data.models : [];
+        if (!parsed.success) {
+            console.warn(
+                `[custom-models] Failed to parse ${filePath}: ${parsed.error.issues.map((i) => i.message).join(', ')}`
+            );
+            return [];
+        }
+        return parsed.data.models;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
             return [];

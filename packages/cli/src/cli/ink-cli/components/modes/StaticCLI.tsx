@@ -102,11 +102,18 @@ export function StaticCLI({
     }, [ui.historySearch.isActive, ui.historySearch.query, input.history]);
 
     // Callback for OverlayContainer to submit prompt commands through InputContainer
-    const handleSubmitPromptCommand = useCallback(async (commandText: string) => {
-        if (inputContainerRef.current) {
-            await inputContainerRef.current.submit(commandText);
-        }
-    }, []);
+    const handleSubmitPromptCommand = useCallback(
+        async (commandText: string) => {
+            try {
+                await inputContainerRef.current?.submit(commandText);
+            } catch (error) {
+                agent.logger.error(
+                    `StaticCLI.handleSubmitPromptCommand failed: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        },
+        [agent]
+    );
 
     // Function to refresh static content (clear terminal and force re-render)
     const refreshStatic = useCallback(() => {

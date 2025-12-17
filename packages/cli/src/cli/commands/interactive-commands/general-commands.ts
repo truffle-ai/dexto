@@ -278,13 +278,21 @@ export const generalCommands: CommandDefinition[] = [
                             { keys: 'Enter', description: 'Submit message' },
                             { keys: 'Shift+Enter', description: 'New line (multi-line input)' },
                             { keys: 'Up/Down', description: 'Navigate input history' },
-                            { keys: 'Ctrl+R', description: 'Search history (older match)' },
-                            { keys: 'Ctrl+E', description: 'Search history (newer match)' },
+                            { keys: 'Ctrl+R', description: 'Search history (enter search mode)' },
                             { keys: 'Tab', description: 'Autocomplete command' },
                             { keys: 'Ctrl+U', description: 'Clear input line' },
                             { keys: 'Ctrl+W', description: 'Delete word before cursor' },
                             { keys: 'Ctrl+A', description: 'Move cursor to start' },
                             { keys: 'Ctrl+E', description: 'Move cursor to end' },
+                        ],
+                    },
+                    {
+                        name: 'History Search (after Ctrl+R)',
+                        shortcuts: [
+                            { keys: 'Ctrl+R', description: 'Next older match' },
+                            { keys: 'Ctrl+E', description: 'Next newer match' },
+                            { keys: 'Enter', description: 'Accept and exit search' },
+                            { keys: 'Escape', description: 'Cancel search' },
                         ],
                     },
                     {

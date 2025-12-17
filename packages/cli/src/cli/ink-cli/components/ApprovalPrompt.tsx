@@ -1,12 +1,8 @@
 import React, { forwardRef, useState, useImperativeHandle, useRef, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import type { ToolDisplayData } from '@dexto/core';
+import type { ToolDisplayData, ElicitationMetadata } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
-import {
-    ElicitationForm,
-    type ElicitationFormHandle,
-    type ElicitationMetadata,
-} from './ElicitationForm.js';
+import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 
@@ -204,8 +200,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             if (!displayPreview) return null;
 
             switch (displayPreview.type) {
-                case 'diff':
-                    // Determine if this is an edit or overwrite based on tool name
+                case 'diff': {
                     const isOverwrite =
                         toolName === 'internal--write_file' || toolName === 'write_file';
                     return (
@@ -214,6 +209,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             headerType={isOverwrite ? 'overwrite' : 'edit'}
                         />
                     );
+                }
                 case 'shell':
                     // For shell preview, just show the command (no output yet)
                     return (

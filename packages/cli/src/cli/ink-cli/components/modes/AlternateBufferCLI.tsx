@@ -126,11 +126,18 @@ export function AlternateBufferCLI({
     }, [ui.historySearch.isActive, ui.historySearch.query, input.history]);
 
     // Callback for OverlayContainer to submit prompt commands through InputContainer
-    const handleSubmitPromptCommand = useCallback(async (commandText: string) => {
-        if (inputContainerRef.current) {
-            await inputContainerRef.current.submit(commandText);
-        }
-    }, []);
+    const handleSubmitPromptCommand = useCallback(
+        async (commandText: string) => {
+            try {
+                await inputContainerRef.current?.submit(commandText);
+            } catch (error) {
+                agent.logger.error(
+                    `AlternateBufferCLI.handleSubmitPromptCommand failed: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        },
+        [agent]
+    );
 
     useScrollable(
         {

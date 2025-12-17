@@ -7,29 +7,7 @@
 import React, { useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../hooks/useInputOrchestrator.js';
-
-interface JSONSchema7Property {
-    type?: string;
-    title?: string;
-    description?: string;
-    enum?: unknown[];
-    minimum?: number;
-    maximum?: number;
-    items?: { type?: string; enum?: unknown[] };
-}
-
-interface ElicitationSchema {
-    type?: string;
-    properties?: Record<string, JSONSchema7Property>;
-    required?: string[];
-}
-
-export interface ElicitationMetadata {
-    prompt?: string;
-    question?: string;
-    schema: ElicitationSchema;
-    serverName?: string;
-}
+import type { ElicitationMetadata } from '@dexto/core';
 
 export interface ElicitationFormHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -61,31 +39,41 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             if (!schema?.properties) return [];
 
             const required = schema.required || [];
-            return Object.entries(schema.properties).map(([name, prop]) => {
-                let type: FormField['type'] = 'string';
-                let enumValues: unknown[] | undefined;
+            return Object.entries(schema.properties)
+                .filter(
+                    (entry): entry is [string, Exclude<(typeof entry)[1], boolean>] =>
+                        typeof entry[1] !== 'boolean'
+                )
+                .map(([name, prop]) => {
+                    let type: FormField['type'] = 'string';
+                    let enumValues: unknown[] | undefined;
 
-                if (prop.type === 'boolean') {
-                    type = 'boolean';
-                } else if (prop.type === 'number' || prop.type === 'integer') {
-                    type = 'number';
-                } else if (prop.enum && Array.isArray(prop.enum)) {
-                    type = 'enum';
-                    enumValues = prop.enum;
-                } else if (prop.type === 'array' && prop.items?.enum) {
-                    type = 'array-enum';
-                    enumValues = prop.items.enum;
-                }
+                    if (prop.type === 'boolean') {
+                        type = 'boolean';
+                    } else if (prop.type === 'number' || prop.type === 'integer') {
+                        type = 'number';
+                    } else if (prop.enum && Array.isArray(prop.enum)) {
+                        type = 'enum';
+                        enumValues = prop.enum;
+                    } else if (
+                        prop.type === 'array' &&
+                        typeof prop.items === 'object' &&
+                        prop.items &&
+                        'enum' in prop.items
+                    ) {
+                        type = 'array-enum';
+                        enumValues = prop.items.enum as unknown[];
+                    }
 
-                return {
-                    name,
-                    label: prop.title || name, // Use title if available, fallback to name
-                    type,
-                    description: prop.description,
-                    required: required.includes(name),
-                    enumValues,
-                };
-            });
+                    return {
+                        name,
+                        label: prop.title || name,
+                        type,
+                        description: prop.description,
+                        required: required.includes(name),
+                        enumValues,
+                    };
+                });
         }, [metadata.schema]);
 
         // Form state
@@ -399,7 +387,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             );
         }
 
-        const prompt = metadata.prompt || metadata.question || 'Please fill out the form:';
+        const prompt = metadata.prompt;
 
         // Review mode - show summary of choices
         if (isReviewing) {

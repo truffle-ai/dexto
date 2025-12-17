@@ -83,7 +83,8 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
     if (localCommandsDir && existsSync(localCommandsDir)) {
         const files = scanCommandsDirectory(localCommandsDir);
         for (const file of files) {
-            const basename = path.basename(file);
+            // Normalize to lowercase for case-insensitive deduplication (Windows/macOS)
+            const basename = path.basename(file).toLowerCase();
             if (!seenFiles.has(basename)) {
                 seenFiles.add(basename);
                 prompts.push({ type: 'file', file });
@@ -95,7 +96,8 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
     if (existsSync(globalCommandsDir)) {
         const files = scanCommandsDirectory(globalCommandsDir);
         for (const file of files) {
-            const basename = path.basename(file);
+            // Normalize to lowercase for case-insensitive deduplication (Windows/macOS)
+            const basename = path.basename(file).toLowerCase();
             if (!seenFiles.has(basename)) {
                 seenFiles.add(basename);
                 prompts.push({ type: 'file', file });
