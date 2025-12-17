@@ -386,8 +386,9 @@ const SlashCommandAutocompleteInner = forwardRef<
                 if (itemsLength === 0 || hasArguments) {
                     if (key.return) {
                         void Promise.resolve(onSubmitRaw?.(searchQuery)).catch((err) => {
-                            console.error(
-                                `SlashCommandAutocomplete: Failed to submit raw command: ${err}`
+                            const message = err instanceof Error ? err.message : String(err);
+                            agent.logger.error(
+                                `SlashCommandAutocomplete: Failed to submit raw command: ${message}`
                             );
                         });
                         onClose();
@@ -472,22 +473,24 @@ const SlashCommandAutocompleteInner = forwardRef<
             onSelectPrompt,
             onSelectSystemCommand,
             updateSelection,
+            agent,
         ]
     );
 
     if (!isVisible) return null;
 
-    // If no items, don't render
-    if (combinedItems.length === 0) {
-        return null;
-    }
-
+    // Show loading state while fetching commands
     if (isLoading) {
         return (
             <Box width={terminalWidth} paddingX={0} paddingY={0}>
                 <Text dimColor>Loading commands...</Text>
             </Box>
         );
+    }
+
+    // If no items after loading, don't render
+    if (combinedItems.length === 0) {
+        return null;
     }
 
     const totalItems = combinedItems.length;
