@@ -60,7 +60,10 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
 
         // Build levels list with current indicator
         useEffect(() => {
-            if (!isVisible) return;
+            if (!isVisible) {
+                setLogFilePath(null);
+                return;
+            }
 
             // Get current level from agent's logger (shared across all child loggers)
             const currentLevel = agent.logger.getLevel();
