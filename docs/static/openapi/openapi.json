@@ -6967,8 +6967,8 @@
                             "type": "string",
                             "enum": [
                               "connected",
-                              "error",
-                              "disconnected"
+                              "disconnected",
+                              "error"
                             ],
                             "description": "Server status"
                           }
