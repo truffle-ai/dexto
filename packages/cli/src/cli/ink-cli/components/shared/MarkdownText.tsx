@@ -357,11 +357,13 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
         // Handle code block state
         if (inCodeBlock) {
             const fenceMatch = trimmedLine.match(codeFenceRegex);
+            // Per CommonMark spec, closing fence must use same character and be at least as long
             if (
                 fenceMatch &&
                 fenceMatch[1] &&
                 codeBlockFence[0] &&
-                fenceMatch[1].startsWith(codeBlockFence[0])
+                fenceMatch[1][0] === codeBlockFence[0] &&
+                fenceMatch[1].length >= codeBlockFence.length
             ) {
                 // End of code block
                 blocks.push(

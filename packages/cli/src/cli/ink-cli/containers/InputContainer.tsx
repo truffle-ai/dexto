@@ -441,10 +441,6 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             session.id || undefined
                         );
 
-                        if (result.type === 'prompt') {
-                            return;
-                        }
-
                         if (result.type === 'output' && result.output) {
                             const output = result.output;
                             setMessages((prev) => [

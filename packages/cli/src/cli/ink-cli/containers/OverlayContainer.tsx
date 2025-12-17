@@ -667,11 +667,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         session.id || undefined
                     );
 
-                    if (result.type === 'prompt') {
-                        // Prompt execution continues via event bus
-                        return;
-                    }
-
                     if (result.type === 'output' && result.output) {
                         const output = result.output;
                         setMessages((prev) => [
@@ -766,11 +761,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         agent,
                         session.id || undefined
                     );
-
-                    if (result.type === 'prompt') {
-                        // Prompt execution continues via event bus
-                        return;
-                    }
 
                     if (result.type === 'output' && result.output) {
                         const output = result.output;

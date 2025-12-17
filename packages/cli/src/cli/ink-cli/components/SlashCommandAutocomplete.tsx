@@ -385,7 +385,11 @@ const SlashCommandAutocompleteInner = forwardRef<
                 // Submit raw text directly (main input won't handle it since overlay is active)
                 if (itemsLength === 0 || hasArguments) {
                     if (key.return) {
-                        void Promise.resolve(onSubmitRaw?.(searchQuery)).catch(() => undefined);
+                        void Promise.resolve(onSubmitRaw?.(searchQuery)).catch((err) => {
+                            console.error(
+                                `SlashCommandAutocomplete: Failed to submit raw command: ${err}`
+                            );
+                        });
                         onClose();
                         return true;
                     }

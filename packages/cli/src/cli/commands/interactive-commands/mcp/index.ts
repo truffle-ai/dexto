@@ -5,7 +5,8 @@
  * This command definition exists for autocomplete and help display.
  */
 
-import type { CommandDefinition, CommandHandlerResult } from '../command-parser.js';
+import type { DextoAgent } from '@dexto/core';
+import type { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
 
 /**
  * MCP management command definition
@@ -16,7 +17,11 @@ export const mcpCommands: CommandDefinition = {
     description: 'Manage MCP servers (interactive)',
     usage: '/mcp',
     category: 'MCP Management',
-    handler: async (): Promise<CommandHandlerResult> => {
+    handler: async (
+        _args: string[],
+        _agent: DextoAgent,
+        _ctx: CommandContext
+    ): Promise<CommandHandlerResult> => {
         // This handler is never called - mcp is in ALWAYS_OVERLAY
         // which intercepts and shows the MCP server list overlay instead
         return true;

@@ -22,7 +22,7 @@ export interface StyledOutput {
  * Result of command execution
  */
 export interface CommandExecutionResult {
-    type: 'handled' | 'prompt' | 'output' | 'styled' | 'sendMessage';
+    type: 'handled' | 'output' | 'styled' | 'sendMessage';
     output?: string;
     styled?: StyledOutput;
     /** Message text to send through normal streaming flow (for prompt commands) */
@@ -97,13 +97,8 @@ export class CommandService {
             return { type: 'sendMessage' as const, messageToSend: result.text };
         }
 
-        // If result is empty string, it means a prompt was executed via agent.generate()
-        if (typeof result === 'string' && result === '') {
-            return { type: 'prompt' };
-        }
-
-        // If result is a non-empty string, it's output for display
-        if (typeof result === 'string' && result.length > 0) {
+        // If result is a string, it's output for display
+        if (typeof result === 'string') {
             return { type: 'output', output: result };
         }
 

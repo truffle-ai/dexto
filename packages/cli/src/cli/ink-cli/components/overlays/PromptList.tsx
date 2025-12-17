@@ -110,7 +110,8 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
                 setPrompts(promptList);
                 setIsLoading(false);
             })
-            .catch(() => {
+            .catch((err) => {
+                console.error(`PromptList: Failed to load prompts: ${err}`);
                 setPrompts([]);
                 setIsLoading(false);
             });
